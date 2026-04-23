@@ -3,191 +3,213 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner Pro</title>
+<title>Event Planner PRO - Planning</title>
 
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
-body{display:flex;height:100vh;background:#f4f6f9}
-.sidebar{
-width:240px;
-background:#16213e;
-color:white;
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial,Helvetica,sans-serif;
+}
+
+body{
+background:#f4f6f9;
 padding:20px;
 }
-.logo{
-font-size:30px;
-font-weight:bold;
-color:#d4af37;
-margin-bottom:30px;
-line-height:1.1;
+
+.topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:20px;
 }
-.menu button{
-width:100%;
-padding:14px;
-margin-bottom:10px;
+
+h1{
+color:#16213e;
+}
+
+button{
+padding:10px 16px;
 border:none;
 border-radius:8px;
-background:transparent;
+background:#16213e;
 color:white;
-text-align:left;
 cursor:pointer;
-font-size:16px;
 }
-.menu button:hover{
-background:#243b65;
-}
-.main{
-flex:1;
-padding:30px;
-overflow:auto;
-}
-.page{display:none}
-.page.active{display:block}
-.cardgrid{
+
+.planner{
 display:grid;
-grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-gap:20px;
-margin:20px 0;
-}
-.card{
-background:white;
-padding:20px;
-border-radius:14px;
-box-shadow:0 4px 12px rgba(0,0,0,.08);
-}
-h1{margin-bottom:15px;color:#16213e}
-input,select{
-padding:10px;
-width:100%;
-margin-bottom:12px;
-border:1px solid #ccc;
-border-radius:8px;
-}
-table{
-width:100%;
-border-collapse:collapse;
+grid-template-columns:260px repeat(14,1fr);
 background:white;
 border-radius:14px;
 overflow:hidden;
 box-shadow:0 4px 12px rgba(0,0,0,.08);
 }
-th,td{
-padding:12px;
-border-bottom:1px solid #eee;
-text-align:left;
+
+.cell{
+border:1px solid #e6e6e6;
+padding:8px;
+font-size:13px;
+min-height:42px;
 }
-.savebtn{
+
+.head{
 background:#16213e;
 color:white;
-padding:12px 20px;
-border:none;
+font-weight:bold;
+text-align:center;
+}
+
+.material{
+font-weight:bold;
+background:#f8f8f8;
+}
+
+.booking-red{
+background:#ff4d4d;
+color:black;
+font-weight:bold;
+text-align:center;
+border-radius:6px;
+}
+
+.booking-green{
+background:#39b54a;
+color:black;
+font-weight:bold;
+text-align:center;
+border-radius:6px;
+}
+
+.booking-blue{
+background:#3fa9f5;
+color:black;
+font-weight:bold;
+text-align:center;
+border-radius:6px;
+}
+
+.conflict{
+background:#ff0000;
+color:white;
+font-weight:bold;
+text-align:center;
+border-radius:6px;
+}
+
+.legend{
+display:flex;
+gap:15px;
+margin-top:15px;
+flex-wrap:wrap;
+}
+
+.legend div{
+padding:8px 14px;
 border-radius:8px;
-cursor:pointer;
+font-weight:bold;
 }
 </style>
 </head>
 
 <body>
 
-<div class="sidebar">
-<div class="logo">Event Planner<br>PRO</div>
-
-<div class="menu">
-<button onclick="showPage('dashboard')">Dashboard</button>
-<button onclick="showPage('opdracht')">Nieuwe Opdracht</button>
-<button onclick="showPage('planning')">Planning</button>
-<button onclick="showPage('klanten')">Klanten</button>
-<button onclick="showPage('materialen')">Materialen</button>
-<button onclick="showPage('rapportage')">Rapportage</button>
-</div>
+<div class="topbar">
+<h1>Planning PRO</h1>
+<button onclick="alert('Nieuwe boeking toevoegen')">+ Nieuwe boeking</button>
 </div>
 
-<div class="main">
+<div class="planner">
 
-<!-- Dashboard -->
-<div id="dashboard" class="page active">
-<h1>Dashboard</h1>
+<div class="cell head">Materiaal</div>
+<div class="cell head">23-4</div>
+<div class="cell head">24-4</div>
+<div class="cell head">25-4</div>
+<div class="cell head">26-4</div>
+<div class="cell head">27-4</div>
+<div class="cell head">28-4</div>
+<div class="cell head">29-4</div>
+<div class="cell head">30-4</div>
+<div class="cell head">1-5</div>
+<div class="cell head">2-5</div>
+<div class="cell head">3-5</div>
+<div class="cell head">4-5</div>
+<div class="cell head">5-5</div>
+<div class="cell head">6-5</div>
 
-<div class="cardgrid">
-<div class="card"><h3>Vandaag opdrachten</h3><h2>12</h2></div>
-<div class="card"><h3>Open offertes</h3><h2>5</h2></div>
-<div class="card"><h3>Dubbele boekingen</h3><h2 style="color:red;">1</h2></div>
-<div class="card"><h3>Omzet maand</h3><h2>€18.450</h2></div>
-</div>
+<div class="cell material">Tapwagen 1</div>
+<div class="cell booking-red">2515</div>
+<div class="cell booking-red">2515</div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
 
-<table>
-<tr><th>Tijd</th><th>Materiaal</th><th>Klant</th><th>Plaats</th></tr>
-<tr><td>08:00</td><td style="color:red;">Tapwagen 1</td><td>Festival Delft</td><td>Delft</td></tr>
-<tr><td>10:00</td><td style="color:green;">Koelwagen 1</td><td>Beachclub</td><td>Scheveningen</td></tr>
-</table>
-</div>
+<div class="cell material">Koelwagen 1</div>
+<div class="cell"></div>
+<div class="cell booking-green">2601</div>
+<div class="cell booking-green">2601</div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
 
-<!-- Nieuwe opdracht -->
-<div id="opdracht" class="page">
-<h1>Nieuwe Opdracht</h1>
+<div class="cell material">Toiletwagen 1</div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell booking-blue">2705</div>
+<div class="cell booking-blue">2705</div>
+<div class="cell booking-blue">2705</div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
 
-<input placeholder="Klantnaam">
-<input type="date">
-<input placeholder="Locatie">
-<select>
-<option>Tapwagen</option>
-<option>Koelwagen</option>
-<option>Toiletwagen</option>
-</select>
-
-<button class="savebtn">Opslaan</button>
-</div>
-
-<!-- Planning -->
-<div id="planning" class="page">
-<h1>Planning</h1>
-
-<table>
-<tr><th>Datum</th><th>Materiaal</th><th>Klant</th></tr>
-<tr><td>23-04-2026</td><td style="color:red;">Tapwagen 1</td><td>Festival Delft</td></tr>
-<tr><td>24-04-2026</td><td style="color:green;">Koelwagen 1</td><td>Beachclub</td></tr>
-</table>
-</div>
-
-<!-- Klanten -->
-<div id="klanten" class="page">
-<h1>Klanten</h1>
-
-<table>
-<tr><th>Naam</th><th>Plaats</th><th>Telefoon</th></tr>
-<tr><td>Festival Delft BV</td><td>Delft</td><td>0612345678</td></tr>
-<tr><td>Beachclub</td><td>Scheveningen</td><td>0622222222</td></tr>
-</table>
-</div>
-
-<!-- Materialen -->
-<div id="materialen" class="page">
-<h1>Materialen</h1>
-
-<table>
-<tr><th>Naam</th><th>Status</th></tr>
-<tr><td style="color:red;">Tapwagen 1</td><td>Beschikbaar</td></tr>
-<tr><td style="color:green;">Koelwagen 1</td><td>Verhuurd</td></tr>
-</table>
-</div>
-
-<!-- Rapportage -->
-<div id="rapportage" class="page">
-<h1>Rapportage</h1>
-<div class="cardgrid">
-<div class="card"><h3>Omzet Jaar</h3><h2>€148.000</h2></div>
-<div class="card"><h3>Top klant</h3><h2>Festival Delft</h2></div>
-</div>
-</div>
+<div class="cell material">Tapwagen 2</div>
+<div class="cell"></div>
+<div class="cell conflict">Dubbel!</div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
+<div class="cell"></div>
 
 </div>
 
-<script>
-function showPage(pageId){
-document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-document.getElementById(pageId).classList.add('active');
-}
-</script>
+<div class="legend">
+<div style="background:#ff4d4d;">Tapwagen</div>
+<div style="background:#39b54a;">Koelwagen</div>
+<div style="background:#3fa9f5;">Toiletwagen</div>
+<div style="background:#ff0000;color:white;">Conflict</div>
+</div>
 
 </body>
 </html>
