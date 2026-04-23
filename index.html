@@ -2,19 +2,19 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner PRO - Planning</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Planner PRO - Planning V2</title>
 
 <style>
 *{
 margin:0;
 padding:0;
 box-sizing:border-box;
-font-family:Arial,Helvetica,sans-serif;
+font-family:Arial, Helvetica, sans-serif;
 }
 
 body{
-background:#f4f6f9;
+background:#eef2f7;
 padding:20px;
 }
 
@@ -22,93 +22,121 @@ padding:20px;
 display:flex;
 justify-content:space-between;
 align-items:center;
-margin-bottom:20px;
+margin-bottom:15px;
 }
 
 h1{
-color:#16213e;
+color:#1a2b4c;
+font-size:28px;
+}
+
+.controls{
+display:flex;
+gap:10px;
+}
+
+input,select,button{
+padding:10px;
+border:1px solid #ccc;
+border-radius:8px;
 }
 
 button{
-padding:10px 16px;
-border:none;
-border-radius:8px;
-background:#16213e;
+background:#1a2b4c;
 color:white;
 cursor:pointer;
 }
 
-.planner{
-display:grid;
-grid-template-columns:260px repeat(14,1fr);
+.wrapper{
 background:white;
 border-radius:14px;
-overflow:hidden;
-box-shadow:0 4px 12px rgba(0,0,0,.08);
+box-shadow:0 4px 14px rgba(0,0,0,.08);
+overflow:auto;
+height:80vh;
+}
+
+.grid{
+display:grid;
+grid-template-columns:90px 280px repeat(14,110px);
+min-width:max-content;
 }
 
 .cell{
-border:1px solid #e6e6e6;
+border:1px solid #e5e5e5;
 padding:8px;
 font-size:13px;
 min-height:42px;
+display:flex;
+align-items:center;
 }
 
 .head{
-background:#16213e;
+background:#1a2b4c;
 color:white;
 font-weight:bold;
-text-align:center;
+position:sticky;
+top:0;
+z-index:5;
 }
 
-.material{
+.left{
+position:sticky;
+left:0;
+background:white;
+z-index:4;
+}
+
+.left2{
+position:sticky;
+left:90px;
+background:white;
+z-index:4;
+}
+
+.head.left,
+.head.left2{
+z-index:6;
+}
+
+.code{
 font-weight:bold;
-background:#f8f8f8;
+color:#1a2b4c;
 }
 
 .booking-red{
 background:#ff4d4d;
-color:black;
 font-weight:bold;
-text-align:center;
 border-radius:6px;
+justify-content:center;
 }
 
 .booking-green{
-background:#39b54a;
-color:black;
+background:#47b95b;
 font-weight:bold;
-text-align:center;
 border-radius:6px;
+justify-content:center;
 }
 
 .booking-blue{
-background:#3fa9f5;
-color:black;
+background:#4aa3ff;
 font-weight:bold;
-text-align:center;
 border-radius:6px;
+justify-content:center;
+}
+
+.booking-orange{
+background:#ffb347;
+font-weight:bold;
+border-radius:6px;
+justify-content:center;
 }
 
 .conflict{
-background:#ff0000;
+background:#d60000;
 color:white;
 font-weight:bold;
-text-align:center;
 border-radius:6px;
-}
-
-.legend{
-display:flex;
-gap:15px;
-margin-top:15px;
-flex-wrap:wrap;
-}
-
-.legend div{
-padding:8px 14px;
-border-radius:8px;
-font-weight:bold;
+justify-content:center;
 }
 </style>
 </head>
@@ -116,13 +144,28 @@ font-weight:bold;
 <body>
 
 <div class="topbar">
-<h1>Planning PRO</h1>
-<button onclick="alert('Nieuwe boeking toevoegen')">+ Nieuwe boeking</button>
+<h1>Planning PRO V2</h1>
+
+<div class="controls">
+<input placeholder="Zoek materiaal">
+<select>
+<option>Alles</option>
+<option>Tapwagens</option>
+<option>Koelwagens</option>
+<option>Toiletwagens</option>
+</select>
+<button>Nieuwe boeking</button>
+</div>
 </div>
 
-<div class="planner">
+<div class="wrapper">
 
-<div class="cell head">Materiaal</div>
+<div class="grid">
+
+<!-- header -->
+<div class="cell head left">Code</div>
+<div class="cell head left2">Omschrijving</div>
+
 <div class="cell head">23-4</div>
 <div class="cell head">24-4</div>
 <div class="cell head">25-4</div>
@@ -138,77 +181,52 @@ font-weight:bold;
 <div class="cell head">5-5</div>
 <div class="cell head">6-5</div>
 
-<div class="cell material">Tapwagen 1</div>
+<!-- row -->
+<div class="cell left code">TW01</div>
+<div class="cell left2">Tapwagen 1</div>
 <div class="cell booking-red">2515</div>
 <div class="cell booking-red">2515</div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
 
-<div class="cell material">Koelwagen 1</div>
+<div class="cell left code">TW02</div>
+<div class="cell left2">Tapwagen 2</div>
+<div class="cell"></div>
+<div class="cell conflict">Dubbel</div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+
+<div class="cell left code">KW01</div>
+<div class="cell left2">Koelwagen 1</div>
 <div class="cell"></div>
 <div class="cell booking-green">2601</div>
 <div class="cell booking-green">2601</div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
+<div class="cell booking-green">2601</div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div>
 
-<div class="cell material">Toiletwagen 1</div>
-<div class="cell"></div>
-<div class="cell"></div>
+<div class="cell left code">TWC1</div>
+<div class="cell left2">Toiletwagen 1</div>
+<div class="cell"></div><div class="cell"></div>
 <div class="cell booking-blue">2705</div>
 <div class="cell booking-blue">2705</div>
-<div class="cell booking-blue">2705</div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div>
 
-<div class="cell material">Tapwagen 2</div>
-<div class="cell"></div>
-<div class="cell conflict">Dubbel!</div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
-<div class="cell"></div>
+<div class="cell left code">BW01</div>
+<div class="cell left2">Barwagen 1</div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell booking-orange">3001</div>
+<div class="cell booking-orange">3001</div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div>
+<div class="cell"></div><div class="cell"></div><div class="cell"></div>
 
 </div>
-
-<div class="legend">
-<div style="background:#ff4d4d;">Tapwagen</div>
-<div style="background:#39b54a;">Koelwagen</div>
-<div style="background:#3fa9f5;">Toiletwagen</div>
-<div style="background:#ff0000;color:white;">Conflict</div>
 </div>
 
 </body>
