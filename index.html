@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -7,205 +6,188 @@
 <title>Event Planner Pro</title>
 
 <style>
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-font-family:Arial,Helvetica,sans-serif;
-}
-
-body{
-background:#f4f6f9;
-display:flex;
-height:100vh;
-}
-
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+body{display:flex;height:100vh;background:#f4f6f9}
 .sidebar{
-width:250px;
-background:#0b2d5c;
+width:240px;
+background:#16213e;
 color:white;
 padding:20px;
 }
-
 .logo{
-font-size:24px;
+font-size:30px;
 font-weight:bold;
+color:#d4af37;
 margin-bottom:30px;
-color:#d8a126;
+line-height:1.1;
 }
-
-.menu a{
-display:block;
+.menu button{
+width:100%;
 padding:14px;
-color:white;
-text-decoration:none;
+margin-bottom:10px;
+border:none;
 border-radius:8px;
-margin-bottom:8px;
+background:transparent;
+color:white;
+text-align:left;
+cursor:pointer;
+font-size:16px;
 }
-
-.menu a:hover{
-background:#163d73;
+.menu button:hover{
+background:#243b65;
 }
-
 .main{
 flex:1;
 padding:30px;
 overflow:auto;
 }
-
-.topbar{
-display:flex;
-justify-content:space-between;
-align-items:center;
-margin-bottom:30px;
-}
-
-.cards{
+.page{display:none}
+.page.active{display:block}
+.cardgrid{
 display:grid;
 grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
 gap:20px;
-margin-bottom:30px;
+margin:20px 0;
 }
-
 .card{
 background:white;
 padding:20px;
 border-radius:14px;
-box-shadow:0 4px 10px rgba(0,0,0,.08);
+box-shadow:0 4px 12px rgba(0,0,0,.08);
 }
-
-.card h3{
-font-size:15px;
-color:#666;
-margin-bottom:10px;
+h1{margin-bottom:15px;color:#16213e}
+input,select{
+padding:10px;
+width:100%;
+margin-bottom:12px;
+border:1px solid #ccc;
+border-radius:8px;
 }
-
-.card .value{
-font-size:28px;
-font-weight:bold;
-color:#0b2d5c;
-}
-
-.table{
-background:white;
-padding:20px;
-border-radius:14px;
-box-shadow:0 4px 10px rgba(0,0,0,.08);
-}
-
 table{
 width:100%;
 border-collapse:collapse;
+background:white;
+border-radius:14px;
+overflow:hidden;
+box-shadow:0 4px 12px rgba(0,0,0,.08);
 }
-
 th,td{
 padding:12px;
 border-bottom:1px solid #eee;
 text-align:left;
 }
-
-.status{
-padding:6px 10px;
+.savebtn{
+background:#16213e;
+color:white;
+padding:12px 20px;
+border:none;
 border-radius:8px;
-font-size:12px;
-font-weight:bold;
+cursor:pointer;
 }
-
-.ok{background:#d4edda;color:#155724;}
-.warn{background:#fff3cd;color:#856404;}
 </style>
 </head>
 
 <body>
 
 <div class="sidebar">
-<div class="logo">Event Planner PRO</div>
+<div class="logo">Event Planner<br>PRO</div>
 
 <div class="menu">
-<a href="#">Dashboard</a>
-<a href="#">Nieuwe Opdracht</a>
-<a href="#">Planning</a>
-<a href="#">Opdrachten</a>
-<a href="#">Klanten</a>
-<a href="#">Materialen</a>
-<a href="#">Facturen</a>
-<a href="#">Rapportage</a>
-<a href="#">Instellingen</a>
+<button onclick="showPage('dashboard')">Dashboard</button>
+<button onclick="showPage('opdracht')">Nieuwe Opdracht</button>
+<button onclick="showPage('planning')">Planning</button>
+<button onclick="showPage('klanten')">Klanten</button>
+<button onclick="showPage('materialen')">Materialen</button>
+<button onclick="showPage('rapportage')">Rapportage</button>
 </div>
 </div>
 
 <div class="main">
 
-<div class="topbar">
+<!-- Dashboard -->
+<div id="dashboard" class="page active">
 <h1>Dashboard</h1>
-<div>Welkom Admin</div>
+
+<div class="cardgrid">
+<div class="card"><h3>Vandaag opdrachten</h3><h2>12</h2></div>
+<div class="card"><h3>Open offertes</h3><h2>5</h2></div>
+<div class="card"><h3>Dubbele boekingen</h3><h2 style="color:red;">1</h2></div>
+<div class="card"><h3>Omzet maand</h3><h2>€18.450</h2></div>
 </div>
-
-<div class="cards">
-
-<div class="card">
-<h3>Vandaag opdrachten</h3>
-<div class="value">12</div>
-</div>
-
-<div class="card">
-<h3>Open offertes</h3>
-<div class="value">5</div>
-</div>
-
-<div class="card">
-<h3>Dubbele boekingen</h3>
-<div class="value" style="color:red;">1</div>
-</div>
-
-<div class="card">
-<h3>Omzet maand</h3>
-<div class="value">€18.450</div>
-</div>
-
-</div>
-
-<div class="table">
-<h2 style="margin-bottom:15px;">Vandaag Planning</h2>
 
 <table>
-<tr>
-<th>Tijd</th>
-<th>Materiaal</th>
-<th>Klant</th>
-<th>Plaats</th>
-<th>Status</th>
-</tr>
-
-<tr>
-<td>08:00</td>
-<td style="color:red;font-weight:bold;">Tapwagen 1</td>
-<td>Festival Delft</td>
-<td>Delft</td>
-<td><span class="status ok">Bevestigd</span></td>
-</tr>
-
-<tr>
-<td>10:00</td>
-<td style="color:green;font-weight:bold;">Koelwagen 1</td>
-<td>Beachclub</td>
-<td>Scheveningen</td>
-<td><span class="status ok">Bevestigd</span></td>
-</tr>
-
-<tr>
-<td>14:00</td>
-<td style="color:red;font-weight:bold;">Tapwagen 1</td>
-<td>Jansen Events</td>
-<td>Rotterdam</td>
-<td><span class="status warn">Conflict</span></td>
-</tr>
-
+<tr><th>Tijd</th><th>Materiaal</th><th>Klant</th><th>Plaats</th></tr>
+<tr><td>08:00</td><td style="color:red;">Tapwagen 1</td><td>Festival Delft</td><td>Delft</td></tr>
+<tr><td>10:00</td><td style="color:green;">Koelwagen 1</td><td>Beachclub</td><td>Scheveningen</td></tr>
 </table>
+</div>
 
+<!-- Nieuwe opdracht -->
+<div id="opdracht" class="page">
+<h1>Nieuwe Opdracht</h1>
+
+<input placeholder="Klantnaam">
+<input type="date">
+<input placeholder="Locatie">
+<select>
+<option>Tapwagen</option>
+<option>Koelwagen</option>
+<option>Toiletwagen</option>
+</select>
+
+<button class="savebtn">Opslaan</button>
+</div>
+
+<!-- Planning -->
+<div id="planning" class="page">
+<h1>Planning</h1>
+
+<table>
+<tr><th>Datum</th><th>Materiaal</th><th>Klant</th></tr>
+<tr><td>23-04-2026</td><td style="color:red;">Tapwagen 1</td><td>Festival Delft</td></tr>
+<tr><td>24-04-2026</td><td style="color:green;">Koelwagen 1</td><td>Beachclub</td></tr>
+</table>
+</div>
+
+<!-- Klanten -->
+<div id="klanten" class="page">
+<h1>Klanten</h1>
+
+<table>
+<tr><th>Naam</th><th>Plaats</th><th>Telefoon</th></tr>
+<tr><td>Festival Delft BV</td><td>Delft</td><td>0612345678</td></tr>
+<tr><td>Beachclub</td><td>Scheveningen</td><td>0622222222</td></tr>
+</table>
+</div>
+
+<!-- Materialen -->
+<div id="materialen" class="page">
+<h1>Materialen</h1>
+
+<table>
+<tr><th>Naam</th><th>Status</th></tr>
+<tr><td style="color:red;">Tapwagen 1</td><td>Beschikbaar</td></tr>
+<tr><td style="color:green;">Koelwagen 1</td><td>Verhuurd</td></tr>
+</table>
+</div>
+
+<!-- Rapportage -->
+<div id="rapportage" class="page">
+<h1>Rapportage</h1>
+<div class="cardgrid">
+<div class="card"><h3>Omzet Jaar</h3><h2>€148.000</h2></div>
+<div class="card"><h3>Top klant</h3><h2>Festival Delft</h2></div>
+</div>
 </div>
 
 </div>
+
+<script>
+function showPage(pageId){
+document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+document.getElementById(pageId).classList.add('active');
+}
+</script>
 
 </body>
 </html>
