@@ -3,159 +3,102 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner PRO V4</title>
+<title>Event Planner PRO V5</title>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
-body{
-background:#2f5f9d;
-color:#fff;
-}
-
-.topbar{
-background:#a32b2b;
-padding:8px 15px;
-font-size:14px;
-}
-
-.toolbar{
-background:#3d6cab;
-padding:10px;
-display:flex;
-gap:8px;
-border-bottom:1px solid #8fb0df;
-}
-
-.toolbar button{
-padding:8px 16px;
+body{background:#3f6ca8;color:#fff;font-size:14px}
+.top{background:#a52c2c;padding:8px 15px;font-weight:bold}
+.bar{background:#2e5488;padding:8px;display:flex;gap:6px}
+.bar button{
+padding:8px 14px;
 border:none;
-background:#f2f2f2;
 cursor:pointer;
+background:#f0f0f0;
 font-size:13px;
 }
-
-.toolbar button:hover{
-background:#d4af37;
-}
-
+.bar button:hover{background:#d4af37}
 .wrap{
 display:grid;
-grid-template-columns:320px 1fr;
-gap:12px;
-padding:12px;
-}
-
-.box{
-border:1px solid #8fb0df;
+grid-template-columns:280px 1fr;
+gap:10px;
 padding:10px;
-min-height:650px;
+height:calc(100vh - 80px);
 }
-
-label{
-display:block;
-font-size:13px;
-margin-top:8px;
-margin-bottom:3px;
+.box{
+border:1px solid #94b3de;
+padding:10px;
+overflow:auto;
 }
-
-input,select,textarea{
+label{display:block;margin-top:8px;margin-bottom:3px}
+input,select{
 width:100%;
 padding:6px;
 border:none;
 font-size:14px;
 }
-
-textarea{height:120px}
-
+.small{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:6px;
+}
 .tabs{
 display:flex;
 gap:2px;
 margin-bottom:10px;
+flex-wrap:wrap;
 }
-
 .tabs button{
 padding:8px 12px;
 border:none;
-background:#cfd8e6;
 cursor:pointer;
+background:#d8dfec;
 color:#000;
-font-size:13px;
 }
-
 .tabs button.active{
 background:#fff;
 font-weight:bold;
 }
-
-.section{
+.tab{
 display:none;
 background:#4f78b5;
 padding:10px;
-min-height:580px;
+min-height:600px;
 }
-
-.section.active{display:block}
-
-.grid2{
-display:grid;
-grid-template-columns:120px 1fr;
-gap:8px;
-align-items:center;
-margin-bottom:8px;
-}
-
-.small{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:8px;
-}
-
+.tab.active{display:block}
 table{
 width:100%;
 border-collapse:collapse;
 background:#fff;
 color:#000;
+margin-top:10px;
 }
-
 th,td{
 border:1px solid #ccc;
 padding:6px;
 font-size:13px;
 }
-
-.rightbtn{
-float:right;
-margin-bottom:10px;
-padding:8px 14px;
-border:none;
-cursor:pointer;
-background:#fff;
-}
-
-.save{
-margin-top:15px;
-padding:10px 18px;
-border:none;
-background:#d4af37;
+.total{
+font-size:22px;
+color:#ffd65a;
 font-weight:bold;
-cursor:pointer;
+margin-top:10px;
 }
+.green{color:#0a0;font-weight:bold}
+.red{color:#c00;font-weight:bold}
 </style>
 </head>
 <body>
 
-<div class="topbar">Opdracht - Event Planner PRO</div>
+<div class="top">Event Planner PRO - Opdracht</div>
 
-<div class="toolbar">
-<button>Check</button>
-<button>Planning</button>
-<button>Offerte</button>
-<button>Factuur</button>
-<button>CreditFactuur</button>
-<button>Copy</button>
+<div class="bar">
+<button onclick="nieuweOpdracht()">Nieuw</button>
+<button onclick="alert('Offerte PDF komt V6')">Offerte</button>
+<button onclick="alert('Factuur komt V6')">Factuur</button>
+<button onclick="showTab('planning')">Planning</button>
+<button onclick="showTab('admin')">Admin</button>
 <button style="margin-left:auto;color:red;">Lock</button>
-<button>Annuleren</button>
-<button>OK</button>
 </div>
 
 <div class="wrap">
@@ -163,35 +106,34 @@ cursor:pointer;
 <!-- LINKS -->
 <div class="box">
 
-<label>Opdracht nr:</label>
-<input value="2518">
+<label>Opdracht nr</label>
+<input id="ordernr">
 
-<label>Van datum:</label>
-<input type="date">
-
-<label>Tot datum:</label>
-<input type="date">
-
-<label>Status:</label>
-<select>
+<label>Status</label>
+<select id="status">
 <option>Offerte</option>
+<option>Optie 14 dagen</option>
 <option>Bevestigd</option>
+<option>Geannuleerd</option>
+<option>Gefactureerd</option>
 <option>Betaald</option>
 </select>
 
-<label>Prijs:</label>
-<input placeholder="€ 0,00">
+<div class="small">
+<div>
+<label>Van</label>
+<input type="date">
+</div>
+<div>
+<label>Tot</label>
+<input type="date">
+</div>
+</div>
 
-<label>Borg:</label>
-<input placeholder="€ 0,00">
+<label>Titel</label>
+<input id="titel">
 
-<label>Factuur nr:</label>
-<input>
-
-<label>Bijzonderheden:</label>
-<textarea></textarea>
-
-<button class="save">Opslaan opdracht</button>
+<div class="total">€ <span id="totaal">0.00</span></div>
 
 </div>
 
@@ -199,22 +141,47 @@ cursor:pointer;
 <div class="box">
 
 <div class="tabs">
-<button class="active" onclick="tab('klant',this)">Klant</button>
-<button onclick="tab('locatie',this)">Lokatie</button>
-<button onclick="tab('artikelen',this)">Artikelen</button>
-<button onclick="tab('extra',this)">Extra</button>
-<button onclick="tab('werk',this)">Werkzaamheden</button>
-<button onclick="tab('logboek',this)">Logboek</button>
+<button class="active" onclick="showTab('klant',this)">Klant</button>
+<button onclick="showTab('locatie',this)">Locatie</button>
+<button onclick="showTab('artikelen',this)">Artikelen</button>
+<button onclick="showTab('extra',this)">Extra</button>
+<button onclick="showTab('planning',this)">Planning</button>
+<button onclick="showTab('admin',this)">Admin</button>
 </div>
 
 <!-- klant -->
-<div id="klant" class="section active">
+<div id="klant" class="tab active">
 
-<button class="rightbtn">Selecteer bestaande klant</button>
+<label>Klant nr</label>
+<input>
 
-<div class="grid2"><div>Nr:</div><input></div>
-<div class="grid2"><div>Naam:</div><input></div>
-<div class="grid2"><div>Straat:</div><input></div>
+<label>Bedrijfsnaam</label>
+<input>
+
+<label>Contactpersoon</label>
+<input>
+
+<div class="small">
+<div>
+<label>Telefoon</label>
+<input>
+</div>
+<div>
+<label>Email</label>
+<input>
+</div>
+</div>
+
+</div>
+
+<!-- locatie -->
+<div id="locatie" class="tab">
+
+<label>Locatie naam</label>
+<input>
+
+<label>Adres</label>
+<input>
 
 <div class="small">
 <div>
@@ -227,75 +194,76 @@ cursor:pointer;
 </div>
 </div>
 
-<div class="grid2"><div>Email:</div><input></div>
-<div class="grid2"><div>IBAN:</div><input></div>
+<label>Contact locatie</label>
+<input>
 
-<label>Type:</label>
-<select>
-<option>Particulier</option>
-<option>Bedrijf</option>
-<option>Contributie</option>
-</select>
-
-<label>Bijzonderheden:</label>
-<textarea></textarea>
-
-<br><br>
-
-<table>
-<tr>
-<th>Functie</th>
-<th>Naam</th>
-<th>Telefoon</th>
-<th>Email</th>
-</tr>
-<tr>
-<td>Contact</td>
-<td>Jan Jansen</td>
-<td>0612345678</td>
-<td>mail@test.nl</td>
-</tr>
-</table>
-
-</div>
-
-<!-- locatie -->
-<div id="locatie" class="section">
-<h3>Locatie gegevens</h3><br>
-<input placeholder="Adres event">
-<input placeholder="Postcode">
-<input placeholder="Plaats">
-<input placeholder="Contact op locatie">
 </div>
 
 <!-- artikelen -->
-<div id="artikelen" class="section">
-<h3>Materialen toevoegen</h3><br>
+<div id="artikelen" class="tab">
+
+<select id="artikelSelect">
+<option value="250">TW01 - Tapwagen standaard (€250)</option>
+<option value="350">TW02 - Tapwagen groot (€350)</option>
+<option value="300">TO01 - Toiletwagen (€300)</option>
+<option value="200">KW01 - Koelwagen (€200)</option>
+<option value="175">KA01 - Kassa unit (€175)</option>
+</select>
+
+<button onclick="addArtikel()">Toevoegen</button>
+
 <table>
-<tr><th>Code</th><th>Omschrijving</th><th>Aantal</th></tr>
-<tr><td>TW01</td><td>Tapwagen 1</td><td>1</td></tr>
-<tr><td>KW01</td><td>Koelwagen 1</td><td>2</td></tr>
+<tr><th>Code</th><th>Omschrijving</th><th>Prijs</th></tr>
+<tbody id="artikelRows"></tbody>
 </table>
+
 </div>
 
 <!-- extra -->
-<div id="extra" class="section">
-<h3>Extra kosten</h3><br>
-<input placeholder="Transport">
-<input placeholder="Opbouw">
-<input placeholder="Schoonmaak">
+<div id="extra" class="tab">
+
+<select id="extraSelect">
+<option value="75">Transport (€75)</option>
+<option value="150">Borg (€150)</option>
+<option value="90">Opbouw (€90)</option>
+<option value="65">Schoonmaak (€65)</option>
+</select>
+
+<button onclick="addExtra()">Toevoegen</button>
+
+<table>
+<tr><th>Extra</th><th>Bedrag</th></tr>
+<tbody id="extraRows"></tbody>
+</table>
+
 </div>
 
-<!-- werk -->
-<div id="werk" class="section">
-<h3>Werkzaamheden</h3><br>
-<textarea></textarea>
+<!-- planning -->
+<div id="planning" class="tab">
+
+<table>
+<tr><th>Code</th><th>Type</th><th>Status</th></tr>
+<tr><td>TW01</td><td>Tapwagen</td><td class="green">Vrij</td></tr>
+<tr><td>TW02</td><td>Tapwagen</td><td class="red">Bezet</td></tr>
+<tr><td>TO01</td><td>Toiletwagen</td><td class="green">Vrij</td></tr>
+<tr><td>KW01</td><td>Koelwagen</td><td class="green">Vrij</td></tr>
+</table>
+
 </div>
 
-<!-- logboek -->
-<div id="logboek" class="section">
-<h3>Logboek</h3><br>
-<textarea></textarea>
+<!-- admin -->
+<div id="admin" class="tab">
+
+<h3>Beheer</h3><br>
+
+<table>
+<tr><th>Onderdeel</th><th>Status</th></tr>
+<tr><td>Klanten beheren</td><td>Actief</td></tr>
+<tr><td>Materialen beheren</td><td>Actief</td></tr>
+<tr><td>Prijzen beheren</td><td>Actief</td></tr>
+<tr><td>Email templates</td><td>Actief</td></tr>
+</table>
+
 </div>
 
 </div>
@@ -303,13 +271,46 @@ cursor:pointer;
 </div>
 
 <script>
-function tab(id,el){
-document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
+let totaal=0;
+
+function nieuweOpdracht(){
+ordernr.value = "2026-" + Math.floor(Math.random()*9000+1000);
+titel.value="";
+totaal=0;
+updateTotaal();
+artikelRows.innerHTML="";
+extraRows.innerHTML="";
+}
+
+function showTab(id,el){
+document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
 document.getElementById(id).classList.add('active');
 
-document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
-el.classList.add('active');
+document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+if(el) el.classList.add('active');
 }
+
+function addArtikel(){
+let txt=artikelSelect.options[artikelSelect.selectedIndex].text;
+let val=parseFloat(artikelSelect.value);
+artikelRows.innerHTML += `<tr><td>${txt.split(" - ")[0]}</td><td>${txt}</td><td>€${val}</td></tr>`;
+totaal+=val;
+updateTotaal();
+}
+
+function addExtra(){
+let txt=extraSelect.options[extraSelect.selectedIndex].text;
+let val=parseFloat(extraSelect.value);
+extraRows.innerHTML += `<tr><td>${txt}</td><td>€${val}</td></tr>`;
+totaal+=val;
+updateTotaal();
+}
+
+function updateTotaal(){
+document.getElementById("totaal").innerText=totaal.toFixed(2);
+}
+
+nieuweOpdracht();
 </script>
 
 </body>
