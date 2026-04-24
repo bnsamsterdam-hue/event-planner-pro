@@ -3,69 +3,68 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner PRO V5</title>
+<title>Event Planner PRO V6</title>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
-body{background:#3f6ca8;color:#fff;font-size:14px}
-.top{background:#a52c2c;padding:8px 15px;font-weight:bold}
-.bar{background:#2e5488;padding:8px;display:flex;gap:6px}
-.bar button{
-padding:8px 14px;
-border:none;
-cursor:pointer;
-background:#f0f0f0;
-font-size:13px;
+body{background:#3e6ca8;color:#fff}
+.login{
+height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
 }
-.bar button:hover{background:#d4af37}
-.wrap{
-display:grid;
-grid-template-columns:280px 1fr;
-gap:10px;
-padding:10px;
-height:calc(100vh - 80px);
+.panel{
+background:#2d4f80;
+padding:30px;
+border-radius:14px;
+width:380px;
+box-shadow:0 8px 25px rgba(0,0,0,.25);
 }
-.box{
-border:1px solid #94b3de;
-padding:10px;
-overflow:auto;
-}
-label{display:block;margin-top:8px;margin-bottom:3px}
+h1{margin-bottom:15px;color:#ffd65a}
 input,select{
 width:100%;
-padding:6px;
-border:none;
-font-size:14px;
-}
-.small{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:6px;
-}
-.tabs{
-display:flex;
-gap:2px;
+padding:10px;
 margin-bottom:10px;
-flex-wrap:wrap;
+border:none;
+border-radius:8px;
 }
-.tabs button{
-padding:8px 12px;
+button{
+padding:10px 15px;
 border:none;
 cursor:pointer;
-background:#d8dfec;
-color:#000;
-}
-.tabs button.active{
-background:#fff;
+border-radius:8px;
+background:#ffd65a;
 font-weight:bold;
 }
-.tab{
-display:none;
-background:#4f78b5;
-padding:10px;
-min-height:600px;
+.main{display:none}
+.top{
+background:#a52c2c;
+padding:10px 15px;
+font-weight:bold;
+display:flex;
+justify-content:space-between;
 }
-.tab.active{display:block}
+.wrap{
+display:grid;
+grid-template-columns:220px 1fr;
+height:calc(100vh - 40px);
+}
+.side{
+background:#294975;
+padding:15px;
+}
+.side button{
+width:100%;
+margin-bottom:8px;
+background:#f0f0f0;
+}
+.content{
+padding:15px;
+overflow:auto;
+}
+.page{display:none}
+.page.active{display:block}
 table{
 width:100%;
 border-collapse:collapse;
@@ -75,510 +74,206 @@ margin-top:10px;
 }
 th,td{
 border:1px solid #ccc;
-padding:6px;
+padding:8px;
 font-size:13px;
 }
-.total{
-font-size:22px;
-color:#ffd65a;
-font-weight:bold;
-margin-top:10px;
-}
-.green{color:#0a0;font-weight:bold}
-.red{color:#c00;font-weight:bold}
-</style>
-</head>
-<body>
-
-<div class="top">Event Planner PRO - Opdracht</div>
-
-<div class="bar">
-<button onclick="nieuweOpdracht()">Nieuw</button>
-<button onclick="alert('Offerte PDF komt V6')">Offerte</button>
-<button onclick="alert('Factuur komt V6')">Factuur</button>
-<button onclick="showTab('planning')">Planning</button>
-<button onclick="showTab('admin')">Admin</button>
-<button style="margin-left:auto;color:red;">Lock</button>
-</div>
-
-<div class="wrap">
-
-<!-- LINKS -->
-<div class="box">
-
-<label>Opdracht nr</label>
-<input id="ordernr">
-
-<label>Status</label>
-<select id="status">
-<option>Offerte</option>
-<option>Optie 14 dagen</option>
-<option>Bevestigd</option>
-<option>Geannuleerd</option>
-<option>Gefactureerd</option>
-<option>Betaald</option>
-</select>
-
-<div class="small">
-<div>
-<label>Van</label>
-<input type="date">
-</div>
-<div>
-<label>Tot</label>
-<input type="date">
-</div>
-</div>
-
-<label>Titel</label>
-<input id="titel">
-
-<div class="total">€ <span id="totaal">0.00</span></div>
-
-</div>
-
-<!-- RECHTS -->
-<div class="box">
-
-<div class="tabs">
-<button class="active" onclick="showTab('klant',this)">Klant</button>
-<button onclick="showTab('locatie',this)">Locatie</button>
-<button onclick="showTab('artikelen',this)">Artikelen</button>
-<button onclick="showTab('extra',this)">Extra</button>
-<button onclick="showTab('planning',this)">Planning</button>
-<button onclick="showTab('admin',this)">Admin</button>
-</div>
-
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner PRO V5</title>
-
-<style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
-body{background:#3f6ca8;color:#fff;font-size:14px}
-.top{background:#a52c2c;padding:8px 15px;font-weight:bold}
-.bar{background:#2e5488;padding:8px;display:flex;gap:6px}
-.bar button{
-padding:8px 14px;
-border:none;
-cursor:pointer;
-background:#f0f0f0;
-font-size:13px;
-}
-.bar button:hover{background:#d4af37}
-.wrap{
-display:grid;
-grid-template-columns:280px 1fr;
-gap:10px;
-padding:10px;
-height:calc(100vh - 80px);
-}
-.box{
-border:1px solid #94b3de;
-padding:10px;
-overflow:auto;
-}
-label{display:block;margin-top:8px;margin-bottom:3px}
-input,select{
-width:100%;
-padding:6px;
-border:none;
-font-size:14px;
+.card{
+background:#fff;
+color:#000;
+padding:15px;
+border-radius:12px;
+margin-bottom:12px;
 }
 .small{
 display:grid;
 grid-template-columns:1fr 1fr;
-gap:6px;
+gap:10px;
 }
-.tabs{
-display:flex;
-gap:2px;
-margin-bottom:10px;
-flex-wrap:wrap;
-}
-.tabs button{
-padding:8px 12px;
-border:none;
-cursor:pointer;
-background:#d8dfec;
-color:#000;
-}
-.tabs button.active{
-background:#fff;
-font-weight:bold;
-}
-.tab{
-display:none;
-background:#4f78b5;
-padding:10px;
-min-height:600px;
-}
-.tab.active{display:block}
-table{
-width:100%;
-border-collapse:collapse;
-background:#fff;
-color:#000;
-margin-top:10px;
-}
-th,td{
-border:1px solid #ccc;
-padding:6px;
-font-size:13px;
-}
-.total{
-font-size:22px;
-color:#ffd65a;
-font-weight:bold;
-margin-top:10px;
-}
-.green{color:#0a0;font-weight:bold}
-.red{color:#c00;font-weight:bold}
 </style>
 </head>
 <body>
 
-<div class="top">Event Planner PRO - Opdracht</div>
+<!-- LOGIN -->
+<div class="login" id="loginScreen">
+<div class="panel">
+<h1>Event Planner PRO</h1>
+<p style="margin-bottom:10px;">Voer pincode in</p>
+<input id="pin" type="password" placeholder="1234">
+<button onclick="login()">Open systeem</button>
+</div>
+</div>
 
-<div class="bar">
-<button onclick="nieuweOpdracht()">Nieuw</button>
-<button onclick="alert('Offerte PDF komt V6')">Offerte</button>
-<button onclick="alert('Factuur komt V6')">Factuur</button>
-<button onclick="showTab('planning')">Planning</button>
-<button onclick="showTab('admin')">Admin</button>
-<button style="margin-left:auto;color:red;">Lock</button>
+<!-- MAIN -->
+<div class="main" id="mainApp">
+
+<div class="top">
+<div>Event Planner PRO V6</div>
+<div>Admin: 1234</div>
 </div>
 
 <div class="wrap">
 
-<!-- LINKS -->
-<div class="box">
+<div class="side">
+<button onclick="show('dashboard')">Dashboard</button>
+<button onclick="show('opdracht')">Nieuwe opdracht</button>
+<button onclick="show('materiaal')">Materialen</button>
+<button onclick="show('admin')">ADMIN</button>
+</div>
 
-<label>Opdracht nr</label>
-<input id="ordernr">
+<div class="content">
 
-<label>Status</label>
-<select id="status">
-<option>Offerte</option>
-<option>Optie 14 dagen</option>
-<option>Bevestigd</option>
-<option>Geannuleerd</option>
-<option>Gefactureerd</option>
-<option>Betaald</option>
-</select>
+<!-- dashboard -->
+<div id="dashboard" class="page active">
+<div class="card">
+<h2>Welkom</h2>
+<p>Vandaag 12 opdrachten / 1 conflict</p>
+</div>
+</div>
+
+<!-- opdracht -->
+<div id="opdracht" class="page">
+<div class="card">
+<h2>Nieuwe opdracht</h2>
 
 <div class="small">
 <div>
-<label>Van</label>
-<input type="date">
-</div>
-<div>
-<label>Tot</label>
-<input type="date">
-</div>
-</div>
-
 <label>Titel</label>
-<input id="titel">
-
-<div class="total">€ <span id="totaal">0.00</span></div>
-
-</div>
-
-<!-- RECHTS -->
-<div class="box">
-
-<div class="tabs">
-<button class="active" onclick="showTab('klant',this)">Klant</button>
-<button onclick="showTab('locatie',this)">Locatie</button>
-<button onclick="showTab('artikelen',this)">Artikelen</button>
-<button onclick="showTab('extra',this)">Extra</button>
-<button onclick="showTab('planning',this)">Planning</button>
-<button onclick="showTab('admin',this)">Admin</button>
-</div>
-
-<!-- klant -->
-<div id="klant" class="tab active">
-
-<label>Klant nr</label>
-<input>
-
-<label>Naam</label>
-<input>
-
-<label>Contactpersoon</label>
-<input>
-
-<div class="small">
-<div>
-<label>Telefoon</label>
-<input>
+<input placeholder="Festival Delft">
 </div>
 <div>
-<label>Email</label>
-<input>
+<label>Datum</label>
+<input type="date">
 </div>
 </div>
 
-</div>
+<label>Klant</label>
+<input placeholder="Naam klant">
 
-<!-- locatie -->
-<div id="locatie" class="tab">
+<label>Locatie</label>
+<input placeholder="Adres locatie">
 
-<label>Locatie naam</label>
-<input>
-
-<label>Adres</label>
-<input>
-
-<div class="small">
-<div>
-<label>Postcode</label>
-<input>
-</div>
-<div>
-<label>Plaats</label>
-<input>
+<button>Opslaan</button>
 </div>
 </div>
 
-<label>Contact locatie</label>
-<input>
+<!-- materiaal -->
+<div id="materiaal" class="page">
 
-</div>
+<div class="card">
+<h2>Materiaal toevoegen via code</h2>
 
-<!-- artikelen -->
-<div id="artikelen" class="tab">
+<label>Zoek code</label>
+<input id="zoekCode" placeholder="TW">
 
-<select id="artikelSelect">
-<option value="250">TW01 - Tapwagen standaard (€250)</option>
-<option value="350">TW02 - Tapwagen groot (€350)</option>
-<option value="300">TO01 - Toiletwagen (€300)</option>
-<option value="200">KW01 - Koelwagen (€200)</option>
-<option value="175">KA01 - Kassa unit (€175)</option>
-</select>
-
-<button onclick="addArtikel()">Toevoegen</button>
+<button onclick="zoekMateriaal()">Zoeken</button>
 
 <table>
 <tr><th>Code</th><th>Omschrijving</th><th>Prijs</th></tr>
-<tbody id="artikelRows"></tbody>
+<tbody id="matRows"></tbody>
 </table>
 
 </div>
-
-<!-- extra -->
-<div id="extra" class="tab">
-
-<select id="extraSelect">
-<option value="75">Transport (€75)</option>
-<option value="150">Borg (€150)</option>
-<option value="90">Opbouw (€90)</option>
-<option value="65">Schoonmaak (€65)</option>
-</select>
-
-<button onclick="addExtra()">Toevoegen</button>
-
-<table>
-<tr><th>Extra</th><th>Bedrag</th></tr>
-<tbody id="extraRows"></tbody>
-</table>
-
-</div>
-
-<!-- planning -->
-<div id="planning" class="tab">
-
-<table>
-<tr><th>Code</th><th>Type</th><th>Status</th></tr>
-<tr><td>TW01</td><td>Tapwagen</td><td class="green">Vrij</td></tr>
-<tr><td>TW02</td><td>Tapwagen</td><td class="red">Bezet</td></tr>
-<tr><td>TO01</td><td>Toiletwagen</td><td class="green">Vrij</td></tr>
-<tr><td>KW01</td><td>Koelwagen</td><td class="green">Vrij</td></tr>
-</table>
 
 </div>
 
 <!-- admin -->
-<div id="admin" class="tab">
+<div id="admin" class="page">
 
-<h3>Beheer</h3><br>
+<div class="card">
+<h2>ADMIN BREIN</h2>
 
-<table>
-<tr><th>Onderdeel</th><th>Status</th></tr>
-<tr><td>Klanten beheren</td><td>Actief</td></tr>
-<tr><td>Materialen beheren</td><td>Actief</td></tr>
-<tr><td>Prijzen beheren</td><td>Actief</td></tr>
-<tr><td>Email templates</td><td>Actief</td></tr>
-</table>
+<label>Admin pincode wijzigen</label>
+<input placeholder="Nieuwe code">
+
+<label>Gebruikers pincode</label>
+<input placeholder="Nieuwe gebruikerscode">
+
+<button>Opslaan codes</button>
+
+<hr style="margin:15px 0">
+
+<h3>Nieuw materiaal aanmaken</h3>
+
+<div class="small">
+<div>
+<label>Code</label>
+<input placeholder="TW92">
+</div>
+
+<div>
+<label>Categorie</label>
+<select>
+<option>Tapwagens</option>
+<option>Toiletwagens</option>
+<option>Koelwagens</option>
+</select>
+</div>
+</div>
+
+<label>Omschrijving</label>
+<input placeholder="Tapwagen standaard">
+
+<div class="small">
+<div>
+<label>Kleur</label>
+<input placeholder="Rood">
+</div>
+
+<div>
+<label>Prijs</label>
+<input placeholder="250">
+</div>
+</div>
+
+<button>Materiaal opslaan</button>
 
 </div>
 
 </div>
 
+</div>
+</div>
 </div>
 
 <script>
-let totaal=0;
-
-function nieuweOpdracht(){
-ordernr.value = "2026-" + Math.floor(Math.random()*9000+1000);
-titel.value="";
-totaal=0;
-updateTotaal();
-artikelRows.innerHTML="";
-extraRows.innerHTML="";
+function login(){
+if(document.getElementById("pin").value=="1234"){
+loginScreen.style.display="none";
+mainApp.style.display="block";
+}else{
+alert("Foute code");
+}
 }
 
-function showTab(id,el){
-document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+function show(id){
+document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
 document.getElementById(id).classList.add('active');
-
-document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
-if(el) el.classList.add('active');
 }
 
-function addArtikel(){
-let txt=artikelSelect.options[artikelSelect.selectedIndex].text;
-let val=parseFloat(artikelSelect.value);
-artikelRows.innerHTML += `<tr><td>${txt.split(" - ")[0]}</td><td>${txt}</td><td>€${val}</td></tr>`;
-totaal+=val;
-updateTotaal();
+function zoekMateriaal(){
+let code=document.getElementById("zoekCode").value.toUpperCase();
+let html="";
+
+if(code=="TW"){
+html+=`<tr><td>TW92</td><td>Tapwagen standaard 2 kranen</td><td>€250</td></tr>`;
+html+=`<tr><td>TW93</td><td>Tapwagen deluxe 4 kranen</td><td>€350</td></tr>`;
 }
 
-function addExtra(){
-let txt=extraSelect.options[extraSelect.selectedIndex].text;
-let val=parseFloat(extraSelect.value);
-extraRows.innerHTML += `<tr><td>${txt}</td><td>€${val}</td></tr>`;
-totaal+=val;
-updateTotaal();
+if(code=="TO"){
+html+=`<tr><td>TO11</td><td>Toiletwagen klein</td><td>€300</td></tr>`;
+html+=`<tr><td>TO12</td><td>Toiletwagen groot</td><td>€450</td></tr>`;
 }
 
-function updateTotaal(){
-document.getElementById("totaal").innerText=totaal.toFixed(2);
+if(code=="KW"){
+html+=`<tr><td>KW01</td><td>Koelwagen standaard</td><td>€200</td></tr>`;
 }
 
-nieuweOpdracht();
-</script>
-
-</body>
-</html>
-
-<!-- artikelen -->
-<div id="artikelen" class="tab">
-
-<select id="artikelSelect">
-<option value="250">TW01 - Tapwagen standaard (€250)</option>
-<option value="350">TW02 - Tapwagen groot (€350)</option>
-<option value="300">TO01 - Toiletwagen (€300)</option>
-<option value="200">KW01 - Koelwagen (€200)</option>
-<option value="175">KA01 - Kassa unit (€175)</option>
-</select>
-
-<button onclick="addArtikel()">Toevoegen</button>
-
-<table>
-<tr><th>Code</th><th>Omschrijving</th><th>Prijs</th></tr>
-<tbody id="artikelRows"></tbody>
-</table>
-
-</div>
-
-<!-- extra -->
-<div id="extra" class="tab">
-
-<select id="extraSelect">
-<option value="75">Transport (€75)</option>
-<option value="150">Borg (€150)</option>
-<option value="90">Opbouw (€90)</option>
-<option value="65">Schoonmaak (€65)</option>
-</select>
-
-<button onclick="addExtra()">Toevoegen</button>
-
-<table>
-<tr><th>Extra</th><th>Bedrag</th></tr>
-<tbody id="extraRows"></tbody>
-</table>
-
-</div>
-
-<!-- planning -->
-<div id="planning" class="tab">
-
-<table>
-<tr><th>Code</th><th>Type</th><th>Status</th></tr>
-<tr><td>TW01</td><td>Tapwagen</td><td class="green">Vrij</td></tr>
-<tr><td>TW02</td><td>Tapwagen</td><td class="red">Bezet</td></tr>
-<tr><td>TO01</td><td>Toiletwagen</td><td class="green">Vrij</td></tr>
-<tr><td>KW01</td><td>Koelwagen</td><td class="green">Vrij</td></tr>
-</table>
-
-</div>
-
-<!-- admin -->
-<div id="admin" class="tab">
-
-<h3>Beheer</h3><br>
-
-<table>
-<tr><th>Onderdeel</th><th>Status</th></tr>
-<tr><td>Klanten beheren</td><td>Actief</td></tr>
-<tr><td>Materialen beheren</td><td>Actief</td></tr>
-<tr><td>Prijzen beheren</td><td>Actief</td></tr>
-<tr><td>Email templates</td><td>Actief</td></tr>
-</table>
-
-</div>
-
-</div>
-
-</div>
-
-<script>
-let totaal=0;
-
-function nieuweOpdracht(){
-ordernr.value = "2026-" + Math.floor(Math.random()*9000+1000);
-titel.value="";
-totaal=0;
-updateTotaal();
-artikelRows.innerHTML="";
-extraRows.innerHTML="";
+if(html==""){
+html="<tr><td colspan='3'>Geen resultaten</td></tr>";
 }
 
-function showTab(id,el){
-document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-document.getElementById(id).classList.add('active');
-
-document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
-if(el) el.classList.add('active');
+matRows.innerHTML=html;
 }
-
-function addArtikel(){
-let txt=artikelSelect.options[artikelSelect.selectedIndex].text;
-let val=parseFloat(artikelSelect.value);
-artikelRows.innerHTML += `<tr><td>${txt.split(" - ")[0]}</td><td>${txt}</td><td>€${val}</td></tr>`;
-totaal+=val;
-updateTotaal();
-}
-
-function addExtra(){
-let txt=extraSelect.options[extraSelect.selectedIndex].text;
-let val=parseFloat(extraSelect.value);
-extraRows.innerHTML += `<tr><td>${txt}</td><td>€${val}</td></tr>`;
-totaal+=val;
-updateTotaal();
-}
-
-function updateTotaal(){
-document.getElementById("totaal").innerText=totaal.toFixed(2);
-}
-
-nieuweOpdracht();
 </script>
 
 </body>
