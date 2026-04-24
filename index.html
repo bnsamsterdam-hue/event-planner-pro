@@ -3,274 +3,313 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner PRO</title>
+<title>Event Planner PRO V4</title>
 
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
-body{background:#eef2f7;color:#1d2b45}
-.header{
-background:#16213e;
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+body{
+background:#2f5f9d;
 color:#fff;
-padding:18px 25px;
+}
+
+.topbar{
+background:#a32b2b;
+padding:8px 15px;
+font-size:14px;
+}
+
+.toolbar{
+background:#3d6cab;
+padding:10px;
 display:flex;
-justify-content:space-between;
-align-items:center;
+gap:8px;
+border-bottom:1px solid #8fb0df;
 }
-.logo{font-size:28px;font-weight:bold;color:#d4af37}
-.sub{font-size:12px;opacity:.8}
-.main{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-.sidebar{
-background:#1d2b45;
-color:#fff;
-padding:20px;
-}
-.menu button{
-width:100%;
-padding:14px;
-margin-bottom:10px;
+
+.toolbar button{
+padding:8px 16px;
 border:none;
-border-radius:10px;
-background:#26385c;
-color:#fff;
+background:#f2f2f2;
 cursor:pointer;
-font-size:15px;
-text-align:left;
+font-size:13px;
 }
-.menu button:hover{background:#d4af37;color:#16213e;font-weight:bold}
-.content{padding:25px}
-.cardgrid{
+
+.toolbar button:hover{
+background:#d4af37;
+}
+
+.wrap{
 display:grid;
-grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-gap:15px;
-margin-bottom:25px;
+grid-template-columns:320px 1fr;
+gap:12px;
+padding:12px;
 }
-.card{
+
+.box{
+border:1px solid #8fb0df;
+padding:10px;
+min-height:650px;
+}
+
+label{
+display:block;
+font-size:13px;
+margin-top:8px;
+margin-bottom:3px;
+}
+
+input,select,textarea{
+width:100%;
+padding:6px;
+border:none;
+font-size:14px;
+}
+
+textarea{height:120px}
+
+.tabs{
+display:flex;
+gap:2px;
+margin-bottom:10px;
+}
+
+.tabs button{
+padding:8px 12px;
+border:none;
+background:#cfd8e6;
+cursor:pointer;
+color:#000;
+font-size:13px;
+}
+
+.tabs button.active{
 background:#fff;
-padding:20px;
-border-radius:14px;
-box-shadow:0 4px 14px rgba(0,0,0,.08);
+font-weight:bold;
 }
-.card h3{margin-bottom:8px}
+
+.section{
+display:none;
+background:#4f78b5;
+padding:10px;
+min-height:580px;
+}
+
+.section.active{display:block}
+
+.grid2{
+display:grid;
+grid-template-columns:120px 1fr;
+gap:8px;
+align-items:center;
+margin-bottom:8px;
+}
+
+.small{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:8px;
+}
+
 table{
 width:100%;
 border-collapse:collapse;
 background:#fff;
-border-radius:14px;
-overflow:hidden;
-box-shadow:0 4px 14px rgba(0,0,0,.08);
+color:#000;
 }
+
 th,td{
-padding:12px;
-border-bottom:1px solid #eee;
-text-align:left;
-font-size:14px;
-}
-th{background:#f8f9fb}
-input,select,textarea{
-width:100%;
-padding:10px;
-margin-bottom:12px;
 border:1px solid #ccc;
-border-radius:8px;
+padding:6px;
+font-size:13px;
 }
-.btn{
-background:#d4af37;
-color:#16213e;
+
+.rightbtn{
+float:right;
+margin-bottom:10px;
+padding:8px 14px;
 border:none;
-padding:12px 18px;
-border-radius:10px;
+cursor:pointer;
+background:#fff;
+}
+
+.save{
+margin-top:15px;
+padding:10px 18px;
+border:none;
+background:#d4af37;
 font-weight:bold;
 cursor:pointer;
 }
-.section{display:none}
-.section.active{display:block}
-.statusok{color:green;font-weight:bold}
-.statusbad{color:red;font-weight:bold}
 </style>
 </head>
 <body>
 
-<div class="header">
+<div class="topbar">Opdracht - Event Planner PRO</div>
+
+<div class="toolbar">
+<button>Check</button>
+<button>Planning</button>
+<button>Offerte</button>
+<button>Factuur</button>
+<button>CreditFactuur</button>
+<button>Copy</button>
+<button style="margin-left:auto;color:red;">Lock</button>
+<button>Annuleren</button>
+<button>OK</button>
+</div>
+
+<div class="wrap">
+
+<!-- LINKS -->
+<div class="box">
+
+<label>Opdracht nr:</label>
+<input value="2518">
+
+<label>Van datum:</label>
+<input type="date">
+
+<label>Tot datum:</label>
+<input type="date">
+
+<label>Status:</label>
+<select>
+<option>Offerte</option>
+<option>Bevestigd</option>
+<option>Betaald</option>
+</select>
+
+<label>Prijs:</label>
+<input placeholder="€ 0,00">
+
+<label>Borg:</label>
+<input placeholder="€ 0,00">
+
+<label>Factuur nr:</label>
+<input>
+
+<label>Bijzonderheden:</label>
+<textarea></textarea>
+
+<button class="save">Opslaan opdracht</button>
+
+</div>
+
+<!-- RECHTS -->
+<div class="box">
+
+<div class="tabs">
+<button class="active" onclick="tab('klant',this)">Klant</button>
+<button onclick="tab('locatie',this)">Lokatie</button>
+<button onclick="tab('artikelen',this)">Artikelen</button>
+<button onclick="tab('extra',this)">Extra</button>
+<button onclick="tab('werk',this)">Werkzaamheden</button>
+<button onclick="tab('logboek',this)">Logboek</button>
+</div>
+
+<!-- klant -->
+<div id="klant" class="section active">
+
+<button class="rightbtn">Selecteer bestaande klant</button>
+
+<div class="grid2"><div>Nr:</div><input></div>
+<div class="grid2"><div>Naam:</div><input></div>
+<div class="grid2"><div>Straat:</div><input></div>
+
+<div class="small">
 <div>
-<div class="logo">Event Planner PRO</div>
-<div class="sub">Rental • Logistics • Planning</div>
+<label>Postcode</label>
+<input>
 </div>
-<div>Welkom Admin</div>
-</div>
-
-<div class="main">
-
-<div class="sidebar">
-<div class="menu">
-<button onclick="show('dashboard')">Dashboard</button>
-<button onclick="show('nieuw')">Nieuwe Opdracht</button>
-<button onclick="show('planning')">Planning</button>
-<button onclick="show('klanten')">Klanten</button>
-<button onclick="show('materiaal')">Materialen</button>
-<button onclick="show('facturen')">Facturen</button>
+<div>
+<label>Plaats</label>
+<input>
 </div>
 </div>
 
-<div class="content">
+<div class="grid2"><div>Email:</div><input></div>
+<div class="grid2"><div>IBAN:</div><input></div>
 
-<!-- DASHBOARD -->
-<div id="dashboard" class="section active">
+<label>Type:</label>
+<select>
+<option>Particulier</option>
+<option>Bedrijf</option>
+<option>Contributie</option>
+</select>
 
-<div class="cardgrid">
-<div class="card"><h3>Open opdrachten</h3><h2 id="openCount">0</h2></div>
-<div class="card"><h3>Klanten</h3><h2 id="klantCount">0</h2></div>
-<div class="card"><h3>Materiaal</h3><h2>24</h2></div>
-<div class="card"><h3>Omzet maand</h3><h2>€18.450</h2></div>
-</div>
+<label>Bijzonderheden:</label>
+<textarea></textarea>
+
+<br><br>
 
 <table>
 <tr>
-<th>Datum</th>
-<th>Klant</th>
-<th>Event</th>
-<th>Status</th>
+<th>Functie</th>
+<th>Naam</th>
+<th>Telefoon</th>
+<th>Email</th>
 </tr>
-<tbody id="dashboardRows"></tbody>
+<tr>
+<td>Contact</td>
+<td>Jan Jansen</td>
+<td>0612345678</td>
+<td>mail@test.nl</td>
+</tr>
 </table>
 
 </div>
 
-<!-- NIEUWE OPDRACHT -->
-<div id="nieuw" class="section">
-
-<h2>Nieuwe opdracht</h2><br>
-
-<input id="naam" placeholder="Event naam">
-<input id="klant" placeholder="Klant naam">
-<input id="datum" type="date">
-<select id="materiaalKeuze">
-<option>Tapwagen 1</option>
-<option>Tapwagen 2</option>
-<option>Koelwagen 1</option>
-<option>Kassa unit</option>
-</select>
-<textarea id="opmerking" placeholder="Opmerking"></textarea>
-
-<button class="btn" onclick="opslaan()">Opslaan</button>
-
+<!-- locatie -->
+<div id="locatie" class="section">
+<h3>Locatie gegevens</h3><br>
+<input placeholder="Adres event">
+<input placeholder="Postcode">
+<input placeholder="Plaats">
+<input placeholder="Contact op locatie">
 </div>
 
-<!-- PLANNING -->
-<div id="planning" class="section">
-<h2>Planning</h2><br>
+<!-- artikelen -->
+<div id="artikelen" class="section">
+<h3>Materialen toevoegen</h3><br>
 <table>
-<tr><th>Datum</th><th>Klant</th><th>Event</th><th>Materiaal</th></tr>
-<tbody id="planningRows"></tbody>
+<tr><th>Code</th><th>Omschrijving</th><th>Aantal</th></tr>
+<tr><td>TW01</td><td>Tapwagen 1</td><td>1</td></tr>
+<tr><td>KW01</td><td>Koelwagen 1</td><td>2</td></tr>
 </table>
 </div>
 
-<!-- KLANTEN -->
-<div id="klanten" class="section">
-<h2>Klantenbestand</h2><br>
-
-<input id="nieuweKlant" placeholder="Nieuwe klant naam">
-<button class="btn" onclick="saveKlant()">Toevoegen</button><br><br>
-
-<table>
-<tr><th>Naam</th></tr>
-<tbody id="klantRows"></tbody>
-</table>
-
+<!-- extra -->
+<div id="extra" class="section">
+<h3>Extra kosten</h3><br>
+<input placeholder="Transport">
+<input placeholder="Opbouw">
+<input placeholder="Schoonmaak">
 </div>
 
-<!-- MATERIAAL -->
-<div id="materiaal" class="section">
-<h2>Materiaalbeheer</h2><br>
-
-<table>
-<tr><th>Code</th><th>Naam</th><th>Status</th></tr>
-<tr><td>TW01</td><td>Tapwagen 1</td><td class="statusok">Vrij</td></tr>
-<tr><td>TW02</td><td>Tapwagen 2</td><td class="statusbad">Bezet</td></tr>
-<tr><td>KW01</td><td>Koelwagen 1</td><td class="statusok">Vrij</td></tr>
-<tr><td>KU01</td><td>Kassa Unit</td><td class="statusok">Vrij</td></tr>
-</table>
-
+<!-- werk -->
+<div id="werk" class="section">
+<h3>Werkzaamheden</h3><br>
+<textarea></textarea>
 </div>
 
-<!-- FACTUREN -->
-<div id="facturen" class="section">
-<h2>Facturen</h2><br>
-
-<table>
-<tr><th>Factuur</th><th>Klant</th><th>Bedrag</th><th>Status</th></tr>
-<tr><td>2026-001</td><td>Festival Delft</td><td>€1450</td><td class="statusok">Betaald</td></tr>
-<tr><td>2026-002</td><td>Beachclub</td><td>€890</td><td class="statusbad">Open</td></tr>
-</table>
-
+<!-- logboek -->
+<div id="logboek" class="section">
+<h3>Logboek</h3><br>
+<textarea></textarea>
 </div>
 
 </div>
+
 </div>
 
 <script>
-let opdrachten = JSON.parse(localStorage.getItem("opdrachten") || "[]");
-let klanten = JSON.parse(localStorage.getItem("klanten") || "[]");
+function tab(id,el){
+document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
+document.getElementById(id).classList.add('active');
 
-function show(id){
-document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
-document.getElementById(id).classList.add("active");
-refresh();
+document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+el.classList.add('active');
 }
-
-function opslaan(){
-let item={
-naam:naam.value,
-klant:klant.value,
-datum:datum.value,
-materiaal:materiaalKeuze.value
-};
-opdrachten.push(item);
-localStorage.setItem("opdrachten",JSON.stringify(opdrachten));
-alert("Opdracht opgeslagen");
-show("dashboard");
-}
-
-function saveKlant(){
-klanten.push({naam:nieuweKlant.value});
-localStorage.setItem("klanten",JSON.stringify(klanten));
-nieuweKlant.value="";
-refresh();
-}
-
-function refresh(){
-
-openCount.innerText = opdrachten.length;
-klantCount.innerText = klanten.length;
-
-dashboardRows.innerHTML="";
-planningRows.innerHTML="";
-klantRows.innerHTML="";
-
-opdrachten.forEach(o=>{
-dashboardRows.innerHTML += `
-<tr>
-<td>${o.datum}</td>
-<td>${o.klant}</td>
-<td>${o.naam}</td>
-<td class='statusok'>Bevestigd</td>
-</tr>`;
-
-planningRows.innerHTML += `
-<tr>
-<td>${o.datum}</td>
-<td>${o.klant}</td>
-<td>${o.naam}</td>
-<td>${o.materiaal}</td>
-</tr>`;
-});
-
-klanten.forEach(k=>{
-klantRows.innerHTML += `<tr><td>${k.naam}</td></tr>`;
-});
-
-}
-
-refresh();
 </script>
 
 </body>
