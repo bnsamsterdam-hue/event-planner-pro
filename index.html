@@ -3,67 +3,80 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner PRO V6</title>
+<title>Event Planner PRO V7</title>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
-body{background:#3e6ca8;color:#fff}
-.login{
-height:100vh;
-display:flex;
-justify-content:center;
-align-items:center;
-}
-.panel{
-background:#2d4f80;
-padding:30px;
-border-radius:14px;
-width:380px;
-box-shadow:0 8px 25px rgba(0,0,0,.25);
-}
-h1{margin-bottom:15px;color:#ffd65a}
-input,select{
-width:100%;
-padding:10px;
-margin-bottom:10px;
-border:none;
-border-radius:8px;
-}
-button{
-padding:10px 15px;
-border:none;
-cursor:pointer;
-border-radius:8px;
-background:#ffd65a;
-font-weight:bold;
-}
-.main{display:none}
-.top{
+body{background:#2f5f9d;color:#fff}
+.topbar{
 background:#a52c2c;
-padding:10px 15px;
+padding:8px 15px;
+font-size:14px;
 font-weight:bold;
-display:flex;
-justify-content:space-between;
 }
+.toolbar{
+background:#3d6cab;
+padding:8px;
+display:flex;
+gap:6px;
+flex-wrap:wrap;
+}
+.toolbar button{
+padding:8px 14px;
+border:none;
+background:#f0f0f0;
+cursor:pointer;
+font-size:13px;
+}
+.toolbar button:hover{background:#d4af37}
 .wrap{
 display:grid;
-grid-template-columns:220px 1fr;
-height:calc(100vh - 40px);
+grid-template-columns:300px 1fr;
+gap:10px;
+padding:10px;
+height:calc(100vh - 82px);
 }
-.side{
-background:#294975;
-padding:15px;
-}
-.side button{
-width:100%;
-margin-bottom:8px;
-background:#f0f0f0;
-}
-.content{
-padding:15px;
+.box{
+border:1px solid #8fb0df;
+padding:10px;
 overflow:auto;
 }
-.page{display:none}
+label{display:block;margin-top:8px;margin-bottom:3px}
+input,select,textarea{
+width:100%;
+padding:6px;
+border:none;
+font-size:14px;
+}
+textarea{height:100px}
+.small{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:8px;
+}
+.tabs{
+display:flex;
+gap:2px;
+margin-bottom:10px;
+flex-wrap:wrap;
+}
+.tabs button{
+padding:8px 12px;
+border:none;
+background:#d8dfec;
+color:#000;
+cursor:pointer;
+}
+.tabs button.active{
+background:#fff;
+font-weight:bold;
+}
+.page{
+display:none;
+background:#4f78b5;
+padding:10px;
+min-height:620px;
+}
 .page.active{display:block}
 table{
 width:100%;
@@ -74,205 +87,243 @@ margin-top:10px;
 }
 th,td{
 border:1px solid #ccc;
-padding:8px;
+padding:6px;
 font-size:13px;
 }
-.card{
-background:#fff;
-color:#000;
-padding:15px;
-border-radius:12px;
-margin-bottom:12px;
+.total{
+font-size:22px;
+font-weight:bold;
+color:#ffd65a;
+margin-top:12px;
 }
-.small{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:10px;
+.save{
+margin-top:12px;
+padding:10px 18px;
+border:none;
+background:#d4af37;
+cursor:pointer;
+font-weight:bold;
 }
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div class="login" id="loginScreen">
-<div class="panel">
-<h1>Event Planner PRO</h1>
-<p style="margin-bottom:10px;">Voer pincode in</p>
-<input id="pin" type="password" placeholder="1234">
-<button onclick="login()">Open systeem</button>
-</div>
-</div>
+<div class="topbar">Event Planner PRO V7</div>
 
-<!-- MAIN -->
-<div class="main" id="mainApp">
-
-<div class="top">
-<div>Event Planner PRO V6</div>
-<div>Admin: 1234</div>
+<div class="toolbar">
+<button onclick="showPage('opdracht')">Nieuwe opdracht</button>
+<button onclick="showPage('facturen')">Facturen</button>
+<button onclick="showPage('materialen')">Materialen</button>
+<button onclick="showPage('opdrachtgevers')">Opdrachtgevers</button>
+<button onclick="showPage('locatieklanten')">Locatie klanten</button>
+<button onclick="showPage('admin')">ADMIN</button>
 </div>
 
 <div class="wrap">
 
-<div class="side">
-<button onclick="show('dashboard')">Dashboard</button>
-<button onclick="show('opdracht')">Nieuwe opdracht</button>
-<button onclick="show('materiaal')">Materialen</button>
-<button onclick="show('admin')">ADMIN</button>
-</div>
+<!-- LINKS -->
+<div class="box">
 
-<div class="content">
+<label>Opdracht nr</label>
+<input value="2026-1001">
 
-<!-- dashboard -->
-<div id="dashboard" class="page active">
-<div class="card">
-<h2>Welkom</h2>
-<p>Vandaag 12 opdrachten / 1 conflict</p>
-</div>
-</div>
-
-<!-- opdracht -->
-<div id="opdracht" class="page">
-<div class="card">
-<h2>Nieuwe opdracht</h2>
+<label>Status</label>
+<select>
+<option>Offerte</option>
+<option>Optie 14 dagen</option>
+<option>Bevestigd</option>
+<option>Geannuleerd</option>
+<option>Gefactureerd</option>
+<option>Betaald</option>
+</select>
 
 <div class="small">
 <div>
-<label>Titel</label>
-<input placeholder="Festival Delft">
+<label>Van</label>
+<input type="date">
 </div>
 <div>
-<label>Datum</label>
+<label>Tot</label>
 <input type="date">
 </div>
 </div>
 
-<label>Klant</label>
-<input placeholder="Naam klant">
+<label>Titel</label>
+<input placeholder="Naam event">
 
-<label>Locatie</label>
-<input placeholder="Adres locatie">
+<div class="total">€ 0.00</div>
 
-<button>Opslaan</button>
+<button class="save">Opslaan</button>
+
+</div>
+
+<!-- RECHTS -->
+<div class="box">
+
+<div class="tabs">
+<button class="active" onclick="showPage('opdracht',this)">Opdracht</button>
+<button onclick="showPage('facturen',this)">Facturen</button>
+<button onclick="showPage('materialen',this)">Materialen</button>
+<button onclick="showPage('opdrachtgevers',this)">Opdrachtgevers</button>
+<button onclick="showPage('locatieklanten',this)">Locatie klanten</button>
+<button onclick="showPage('admin',this)">Admin</button>
+</div>
+
+<!-- opdracht -->
+<div id="opdracht" class="page active">
+
+<h3>Klant gegevens</h3>
+
+<label>Naam</label>
+<input>
+
+<label>Adres</label>
+<input>
+
+<div class="small">
+<div>
+<label>Plaats</label>
+<input>
+</div>
+<div>
+<label>Email</label>
+<input>
 </div>
 </div>
 
-<!-- materiaal -->
-<div id="materiaal" class="page">
+<label>Contactpersoon</label>
+<input>
 
-<div class="card">
-<h2>Materiaal toevoegen via code</h2>
+<label>Telefoon</label>
+<input>
+
+<hr style="margin:15px 0">
+
+<h3>Locatie gegevens</h3>
+
+<label>Naam locatie</label>
+<input>
+
+<label>Adres</label>
+<input>
+
+<div class="small">
+<div>
+<label>Plaats</label>
+<input>
+</div>
+<div>
+<label>Email</label>
+<input>
+</div>
+</div>
+
+<label>Contactpersoon</label>
+<input>
+
+<label>Telefoon</label>
+<input>
+
+</div>
+
+<!-- facturen -->
+<div id="facturen" class="page">
+
+<h3>Facturen</h3>
+
+<table>
+<tr><th>Nr</th><th>Klant</th><th>Bedrag</th><th>Status</th></tr>
+<tr><td>2026-001</td><td>Festival Delft</td><td>€1450</td><td>Open</td></tr>
+<tr><td>2026-002</td><td>Beachclub</td><td>€890</td><td>Betaald</td></tr>
+</table>
+
+<button class="save">Nieuwe factuur</button>
+
+</div>
+
+<!-- materialen -->
+<div id="materialen" class="page">
+
+<h3>Materialen beheren</h3>
 
 <label>Zoek code</label>
-<input id="zoekCode" placeholder="TW">
-
-<button onclick="zoekMateriaal()">Zoeken</button>
+<input placeholder="TW">
 
 <table>
 <tr><th>Code</th><th>Omschrijving</th><th>Prijs</th></tr>
-<tbody id="matRows"></tbody>
+<tr><td>TW92</td><td>Tapwagen standaard 2 kranen</td><td>€250</td></tr>
+<tr><td>TO11</td><td>Toiletwagen klein</td><td>€300</td></tr>
 </table>
 
+<button class="save">Nieuw materiaal</button>
+
 </div>
+
+<!-- opdrachtgevers -->
+<div id="opdrachtgevers" class="page">
+
+<h3>Bestand opdrachtgevers</h3>
+
+<table>
+<tr><th>Naam</th><th>Plaats</th><th>Tel</th></tr>
+<tr><td>Heineken</td><td>Amsterdam</td><td>020123456</td></tr>
+<tr><td>Amstel</td><td>Amsterdam</td><td>020777777</td></tr>
+</table>
+
+<button class="save">Nieuwe opdrachtgever</button>
+
+</div>
+
+<!-- locatie klanten -->
+<div id="locatieklanten" class="page">
+
+<h3>Bestand locaties</h3>
+
+<table>
+<tr><th>Naam</th><th>Plaats</th><th>Contact</th></tr>
+<tr><td>Cafe De Markt</td><td>Delft</td><td>Jan</td></tr>
+<tr><td>Beachclub Sea</td><td>Scheveningen</td><td>Piet</td></tr>
+</table>
+
+<button class="save">Nieuwe locatie</button>
 
 </div>
 
 <!-- admin -->
 <div id="admin" class="page">
 
-<div class="card">
-<h2>ADMIN BREIN</h2>
+<h3>ADMIN CENTRUM</h3>
 
-<label>Admin pincode wijzigen</label>
-<input placeholder="Nieuwe code">
+<label>Gebruikerscode</label>
+<input value="1234">
 
-<label>Gebruikers pincode</label>
-<input placeholder="Nieuwe gebruikerscode">
+<label>Admin code</label>
+<input value="1234">
 
-<button>Opslaan codes</button>
+<button class="save">Codes opslaan</button>
 
 <hr style="margin:15px 0">
 
-<h3>Nieuw materiaal aanmaken</h3>
-
-<div class="small">
-<div>
-<label>Code</label>
-<input placeholder="TW92">
-</div>
-
-<div>
-<label>Categorie</label>
-<select>
-<option>Tapwagens</option>
-<option>Toiletwagens</option>
-<option>Koelwagens</option>
-</select>
-</div>
-</div>
-
-<label>Omschrijving</label>
-<input placeholder="Tapwagen standaard">
-
-<div class="small">
-<div>
-<label>Kleur</label>
-<input placeholder="Rood">
-</div>
-
-<div>
-<label>Prijs</label>
-<input placeholder="250">
-</div>
-</div>
-
-<button>Materiaal opslaan</button>
+<table>
+<tr><th>Onderdeel</th><th>Status</th></tr>
+<tr><td>Materialen beheer</td><td>Actief</td></tr>
+<tr><td>Factuur systeem</td><td>Actief</td></tr>
+<tr><td>Klantbestanden</td><td>Actief</td></tr>
+</table>
 
 </div>
 
 </div>
 
-</div>
-</div>
 </div>
 
 <script>
-function login(){
-if(document.getElementById("pin").value=="1234"){
-loginScreen.style.display="none";
-mainApp.style.display="block";
-}else{
-alert("Foute code");
-}
-}
-
-function show(id){
+function showPage(id,el){
 document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
 document.getElementById(id).classList.add('active');
-}
 
-function zoekMateriaal(){
-let code=document.getElementById("zoekCode").value.toUpperCase();
-let html="";
-
-if(code=="TW"){
-html+=`<tr><td>TW92</td><td>Tapwagen standaard 2 kranen</td><td>€250</td></tr>`;
-html+=`<tr><td>TW93</td><td>Tapwagen deluxe 4 kranen</td><td>€350</td></tr>`;
-}
-
-if(code=="TO"){
-html+=`<tr><td>TO11</td><td>Toiletwagen klein</td><td>€300</td></tr>`;
-html+=`<tr><td>TO12</td><td>Toiletwagen groot</td><td>€450</td></tr>`;
-}
-
-if(code=="KW"){
-html+=`<tr><td>KW01</td><td>Koelwagen standaard</td><td>€200</td></tr>`;
-}
-
-if(html==""){
-html="<tr><td colspan='3'>Geen resultaten</td></tr>";
-}
-
-matRows.innerHTML=html;
+document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+if(el) el.classList.add('active');
 }
 </script>
 
