@@ -3,140 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner Pro</title>
+<title>Event Planner PRO</title>
 
 <style>
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-font-family:Arial,Helvetica,sans-serif;
-}
-
-body{
-background:#eef2f7;
-color:#1d2b45;
-}
-
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+body{background:#eef2f7;color:#1d2b45}
 .header{
 background:#16213e;
-color:white;
-padding:18px 30px;
+color:#fff;
+padding:18px 25px;
 display:flex;
 justify-content:space-between;
 align-items:center;
 }
-
-.logo{
-font-size:28px;
-font-weight:bold;
-color:#d4af37;
+.logo{font-size:28px;font-weight:bold;color:#d4af37}
+.sub{font-size:12px;opacity:.8}
+.main{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.sidebar{
+background:#1d2b45;
+color:#fff;
+padding:20px;
 }
-
-.sub{
-font-size:13px;
-opacity:.8;
+.menu button{
+width:100%;
+padding:14px;
+margin-bottom:10px;
+border:none;
+border-radius:10px;
+background:#26385c;
+color:#fff;
+cursor:pointer;
+font-size:15px;
+text-align:left;
 }
-
-.wrapper{
-padding:25px;
-}
-
-.grid{
+.menu button:hover{background:#d4af37;color:#16213e;font-weight:bold}
+.content{padding:25px}
+.cardgrid{
 display:grid;
 grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-gap:18px;
+gap:15px;
 margin-bottom:25px;
 }
-
 .card{
-background:white;
-border-radius:14px;
-padding:22px;
-box-shadow:0 4px 14px rgba(0,0,0,.08);
-cursor:pointer;
-transition:.2s;
-}
-
-.card:hover{
-transform:translateY(-3px);
-}
-
-.card h2{
-font-size:20px;
-margin-bottom:8px;
-}
-
-.card p{
-color:#666;
-font-size:14px;
-}
-
-.primary{
-background:#d4af37;
-color:#16213e;
-font-weight:bold;
-}
-
-.row{
-display:grid;
-grid-template-columns:2fr 1fr;
-gap:20px;
-}
-
-.panel{
-background:white;
-border-radius:14px;
+background:#fff;
 padding:20px;
+border-radius:14px;
 box-shadow:0 4px 14px rgba(0,0,0,.08);
 }
-
-.panel h3{
-margin-bottom:15px;
-}
-
+.card h3{margin-bottom:8px}
 table{
 width:100%;
 border-collapse:collapse;
+background:#fff;
+border-radius:14px;
+overflow:hidden;
+box-shadow:0 4px 14px rgba(0,0,0,.08);
 }
-
 th,td{
-padding:10px;
+padding:12px;
 border-bottom:1px solid #eee;
 text-align:left;
 font-size:14px;
 }
-
-.status{
-padding:5px 10px;
-border-radius:20px;
-font-size:12px;
+th{background:#f8f9fb}
+input,select,textarea{
+width:100%;
+padding:10px;
+margin-bottom:12px;
+border:1px solid #ccc;
+border-radius:8px;
+}
+.btn{
+background:#d4af37;
+color:#16213e;
+border:none;
+padding:12px 18px;
+border-radius:10px;
 font-weight:bold;
+cursor:pointer;
 }
-
-.ok{
-background:#d4edda;
-color:#155724;
-}
-
-.warn{
-background:#ffe8a1;
-color:#856404;
-}
-
-.bad{
-background:#f8d7da;
-color:#721c24;
-}
-
-@media(max-width:900px){
-.row{
-grid-template-columns:1fr;
-}
-}
+.section{display:none}
+.section.active{display:block}
+.statusok{color:green;font-weight:bold}
+.statusbad{color:red;font-weight:bold}
 </style>
 </head>
-
 <body>
 
 <div class="header">
@@ -147,95 +98,180 @@ grid-template-columns:1fr;
 <div>Welkom Admin</div>
 </div>
 
-<div class="wrapper">
+<div class="main">
 
-<div class="grid">
-
-<div class="card primary" onclick="alert('Nieuwe opdracht openen')">
-<h2>+ Nieuwe opdracht</h2>
-<p>Maak direct een nieuw event aan</p>
+<div class="sidebar">
+<div class="menu">
+<button onclick="show('dashboard')">Dashboard</button>
+<button onclick="show('nieuw')">Nieuwe Opdracht</button>
+<button onclick="show('planning')">Planning</button>
+<button onclick="show('klanten')">Klanten</button>
+<button onclick="show('materiaal')">Materialen</button>
+<button onclick="show('facturen')">Facturen</button>
+</div>
 </div>
 
-<div class="card">
-<h2>Opdrachten</h2>
-<p>Bekijk alle opdrachten</p>
+<div class="content">
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="section active">
+
+<div class="cardgrid">
+<div class="card"><h3>Open opdrachten</h3><h2 id="openCount">0</h2></div>
+<div class="card"><h3>Klanten</h3><h2 id="klantCount">0</h2></div>
+<div class="card"><h3>Materiaal</h3><h2>24</h2></div>
+<div class="card"><h3>Omzet maand</h3><h2>€18.450</h2></div>
 </div>
-
-<div class="card">
-<h2>Planning</h2>
-<p>Bekijk materiaal planning</p>
-</div>
-
-<div class="card">
-<h2>Klanten</h2>
-<p>Zoek klant of voeg toe</p>
-</div>
-
-<div class="card">
-<h2>Materialen</h2>
-<p>Tapwagens, koelwagens enz.</p>
-</div>
-
-<div class="card">
-<h2>Facturen</h2>
-<p>Openstaand / betaald</p>
-</div>
-
-</div>
-
-<div class="row">
-
-<div class="panel">
-<h3>Vandaag gepland</h3>
 
 <table>
 <tr>
-<th>Tijd</th>
+<th>Datum</th>
 <th>Klant</th>
-<th>Materiaal</th>
+<th>Event</th>
 <th>Status</th>
 </tr>
+<tbody id="dashboardRows"></tbody>
+</table>
 
-<tr>
-<td>08:00</td>
-<td>Festival Delft</td>
-<td>Tapwagen 1</td>
-<td><span class="status ok">Bevestigd</span></td>
-</tr>
+</div>
 
-<tr>
-<td>10:30</td>
-<td>Beachclub</td>
-<td>Koelwagen 1</td>
-<td><span class="status ok">Onderweg</span></td>
-</tr>
+<!-- NIEUWE OPDRACHT -->
+<div id="nieuw" class="section">
 
-<tr>
-<td>14:00</td>
-<td>Jansen Events</td>
-<td>Tapwagen 2</td>
-<td><span class="status bad">Conflict</span></td>
-</tr>
+<h2>Nieuwe opdracht</h2><br>
 
+<input id="naam" placeholder="Event naam">
+<input id="klant" placeholder="Klant naam">
+<input id="datum" type="date">
+<select id="materiaalKeuze">
+<option>Tapwagen 1</option>
+<option>Tapwagen 2</option>
+<option>Koelwagen 1</option>
+<option>Kassa unit</option>
+</select>
+<textarea id="opmerking" placeholder="Opmerking"></textarea>
+
+<button class="btn" onclick="opslaan()">Opslaan</button>
+
+</div>
+
+<!-- PLANNING -->
+<div id="planning" class="section">
+<h2>Planning</h2><br>
+<table>
+<tr><th>Datum</th><th>Klant</th><th>Event</th><th>Materiaal</th></tr>
+<tbody id="planningRows"></tbody>
 </table>
 </div>
 
-<div class="panel">
-<h3>Overzicht</h3>
+<!-- KLANTEN -->
+<div id="klanten" class="section">
+<h2>Klantenbestand</h2><br>
+
+<input id="nieuweKlant" placeholder="Nieuwe klant naam">
+<button class="btn" onclick="saveKlant()">Toevoegen</button><br><br>
 
 <table>
-<tr><td>Nieuwe offertes</td><td><b>4</b></td></tr>
-<tr><td>Open opdrachten</td><td><b>18</b></td></tr>
-<tr><td>Conflicten</td><td><b style="color:red;">1</b></td></tr>
-<tr><td>Omzet maand</td><td><b>€18.450</b></td></tr>
-<tr><td>Beschikbare tapwagens</td><td><b>3</b></td></tr>
+<tr><th>Naam</th></tr>
+<tbody id="klantRows"></tbody>
+</table>
+
+</div>
+
+<!-- MATERIAAL -->
+<div id="materiaal" class="section">
+<h2>Materiaalbeheer</h2><br>
+
+<table>
+<tr><th>Code</th><th>Naam</th><th>Status</th></tr>
+<tr><td>TW01</td><td>Tapwagen 1</td><td class="statusok">Vrij</td></tr>
+<tr><td>TW02</td><td>Tapwagen 2</td><td class="statusbad">Bezet</td></tr>
+<tr><td>KW01</td><td>Koelwagen 1</td><td class="statusok">Vrij</td></tr>
+<tr><td>KU01</td><td>Kassa Unit</td><td class="statusok">Vrij</td></tr>
+</table>
+
+</div>
+
+<!-- FACTUREN -->
+<div id="facturen" class="section">
+<h2>Facturen</h2><br>
+
+<table>
+<tr><th>Factuur</th><th>Klant</th><th>Bedrag</th><th>Status</th></tr>
+<tr><td>2026-001</td><td>Festival Delft</td><td>€1450</td><td class="statusok">Betaald</td></tr>
+<tr><td>2026-002</td><td>Beachclub</td><td>€890</td><td class="statusbad">Open</td></tr>
 </table>
 
 </div>
 
 </div>
-
 </div>
+
+<script>
+let opdrachten = JSON.parse(localStorage.getItem("opdrachten") || "[]");
+let klanten = JSON.parse(localStorage.getItem("klanten") || "[]");
+
+function show(id){
+document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+document.getElementById(id).classList.add("active");
+refresh();
+}
+
+function opslaan(){
+let item={
+naam:naam.value,
+klant:klant.value,
+datum:datum.value,
+materiaal:materiaalKeuze.value
+};
+opdrachten.push(item);
+localStorage.setItem("opdrachten",JSON.stringify(opdrachten));
+alert("Opdracht opgeslagen");
+show("dashboard");
+}
+
+function saveKlant(){
+klanten.push({naam:nieuweKlant.value});
+localStorage.setItem("klanten",JSON.stringify(klanten));
+nieuweKlant.value="";
+refresh();
+}
+
+function refresh(){
+
+openCount.innerText = opdrachten.length;
+klantCount.innerText = klanten.length;
+
+dashboardRows.innerHTML="";
+planningRows.innerHTML="";
+klantRows.innerHTML="";
+
+opdrachten.forEach(o=>{
+dashboardRows.innerHTML += `
+<tr>
+<td>${o.datum}</td>
+<td>${o.klant}</td>
+<td>${o.naam}</td>
+<td class='statusok'>Bevestigd</td>
+</tr>`;
+
+planningRows.innerHTML += `
+<tr>
+<td>${o.datum}</td>
+<td>${o.klant}</td>
+<td>${o.naam}</td>
+<td>${o.materiaal}</td>
+</tr>`;
+});
+
+klanten.forEach(k=>{
+klantRows.innerHTML += `<tr><td>${k.naam}</td></tr>`;
+});
+
+}
+
+refresh();
+</script>
 
 </body>
 </html>
