@@ -2,32 +2,172 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Event Planner MASTER BUILD</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Event Planner Pro</title>
 <style>
-:root{--bg:#eef2f7;--card:#fff;--brand:#16213e;--gold:#d4af37;--text:#1f2937;--red:#c0392b;--green:#0a7d2e}
-*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}header{background:var(--brand);color:#fff;padding:18px 24px;position:sticky;top:0;z-index:10}.wrap{max-width:1600px;margin:auto;padding:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}.card{background:#fff;padding:18px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.08)}input,select,textarea,button{width:100%;padding:10px;margin:6px 0 12px;border-radius:10px;border:1px solid #d1d5db}button{background:var(--gold);border:none;font-weight:bold}.row{display:flex;gap:8px;flex-wrap:wrap}.row button{width:auto}.small{font-size:12px;opacity:.75}.warn{color:#b45309}.bad{color:#b91c1c}.ok{color:#0a7d2e}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #eee;text-align:left}</style>
+body{margin:0;font-family:Arial;background:#eef2f7}
+header{background:#16213e;color:#fff;padding:15px}
+.wrap{max-width:1200px;margin:auto;padding:15px}
+.card{background:#fff;padding:15px;border-radius:12px;margin-bottom:15px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+input,button,select{width:100%;padding:10px;margin:5px 0;border-radius:8px;border:1px solid #ccc}
+button{background:#d4af37;border:none;font-weight:bold}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px}
+table{width:100%;border-collapse:collapse}
+td,th{padding:8px;border-bottom:1px solid #eee;text-align:left}
+.small{font-size:12px;color:#666}
+.hide{display:none}
+</style>
 </head>
 <body>
-<header><h1>Event Planner MASTER BUILD</h1><div class='small'>Volledige samengevoegde versie</div></header>
-<div class='wrap'><div class='grid'>
-<div class='card'><h3>PIN Login</h3><input placeholder='Pincode'><button>Open systeem</button><div class='small'>Admin / Planner / Chauffeur</div></div>
-<div class='card'><h3>Zoek Mega</h3><input placeholder='Zoek order / klant / titel / factuur / materiaal'><button>Zoeken</button></div>
-<div class='card'><h3>Dashboard</h3><div>Ritten vandaag: 7</div><div>Facturen open: 4</div><div class='warn'>⚠ TW92 storing aanwezig</div><div>Omzet 🔒 via PIN</div></div>
-<div class='card'><h3>Nieuwe Opdracht</h3><input placeholder='Titel event'><input placeholder='Klant'><input placeholder='Locatie'><input type='date'><div class='row'><button>Copy</button><button>Opslaan</button><button>Offerte</button><button>Factuur</button></div></div>
-<div class='card'><h3>Klantenbestand</h3><input placeholder='Zoek klant'><button>Nieuwe klant</button><div>Jansen BV</div><div>Heineken Events</div></div>
-<div class='card'><h3>Locatiebestand</h3><input placeholder='Zoek locatie'><button>Nieuwe locatie</button><div>Amsterdam Centrum</div></div>
-<div class='card'><h3>Materialen</h3><input placeholder='TW / KW / TO'><button>Vrij zoeken</button><div>TW93 Vrij</div><div class='bad'>TW92 Storing</div><div>KW02 Vrij</div></div>
-<div class='card'><h3>Storingen</h3><div class='bad'>TW92 ⚠ Storing</div><button>Volgende storing</button><button>Opgelost</button></div>
-<div class='card'><h3>Historie</h3><input placeholder='TW92'><button>Toon historie</button><div>14-05 Schade</div><div>22-05 Opgelost</div></div>
-<div class='card'><h3>Planning Kalender</h3><table><tr><th>Tijd</th><th>Rit</th><th>Status</th></tr><tr><td>08:00</td><td>TW92 Amsterdam</td><td class='ok'>Onderweg</td></tr><tr><td>11:00</td><td>TR TW92</td><td class='warn'>Later</td></tr></table></div>
-<div class='card'><h3>Chauffeur Daglijst</h3><div>1. TW92 Amsterdam</div><div>2. TR TW92</div><div class='row'><button>Waze</button><button>Onderweg</button><button>Klaar</button></div></div>
-<div class='card'><h3>Foto / Klant melding</h3><button>Foto voor levering</button><button>Schade / Vermissing</button><textarea placeholder='Opmerking klant'></textarea></div>
-<div class='card'><h3>Facturen</h3><div class='row'><button>Nieuwe factuur</button><button>PDF</button><button>Herinnering</button></div><div>F1045 Open €1250</div></div>
-<div class='card'><h3>Offertes</h3><button>Nieuwe offerte</button><button>PDF offerte</button></div>
-<div class='card'><h3>Omzet PIN</h3><button>Bekijk omzet</button><div class='small'>Beveiligd</div></div>
-<div class='card'><h3>Document Builder</h3><input type='file'><div class='small'>Logo upload</div><input type='file'><div class='small'>Factuur template upload</div><button>Opslaan</button></div>
-<div class='card'><h3>Gebruikers & Rechten</h3><input placeholder='Naam'><input placeholder='PIN'><select><option>Admin</option><option>Planner</option><option>Chauffeur</option></select><button>Opslaan gebruiker</button></div>
-<div class='card'><h3>Backup PRO</h3><button>Backup externe schijf</button><div class='small'>08:00 herinnering</div></div>
-</div></div>
-</body></html>
+
+<header>
+<h2>Event Planner Pro</h2>
+<div class="small">Kernversie Werkend</div>
+</header>
+
+<div class="wrap">
+
+<div id="loginBox" class="card">
+<h3>PIN Login</h3>
+<input id="pin" type="password" placeholder="Voer pincode in">
+<button onclick="login()">Open systeem</button>
+<div class="small">Admin code: 1234</div>
+</div>
+
+<div id="app" class="hide">
+
+<div class="grid">
+
+<div class="card">
+<h3>Nieuwe Opdracht</h3>
+<input id="titel" placeholder="Titel event">
+<input id="klant" placeholder="Klantnaam">
+<input id="datum" type="date">
+<button onclick="saveOrder()">Opslaan opdracht</button>
+</div>
+
+<div class="card">
+<h3>Nieuwe Klant</h3>
+<input id="newClient" placeholder="Klantnaam">
+<button onclick="saveClient()">Opslaan klant</button>
+</div>
+
+<div class="card">
+<h3>Nieuw Materiaal</h3>
+<input id="matCode" placeholder="Code TW92">
+<input id="matNaam" placeholder="Omschrijving">
+<button onclick="saveMaterial()">Opslaan materiaal</button>
+</div>
+
+<div class="card">
+<h3>Zoek Mega</h3>
+<input id="search" placeholder="Zoek klant / order / materiaal">
+<button onclick="runSearch()">Zoeken</button>
+<div id="searchResult"></div>
+</div>
+
+</div>
+
+<div class="card">
+<h3>Planning / Opdrachten</h3>
+<table id="ordersTable">
+<tr><th>Nr</th><th>Titel</th><th>Klant</th><th>Datum</th></tr>
+</table>
+</div>
+
+<div class="grid">
+
+<div class="card">
+<h3>Klantenbestand</h3>
+<div id="clientsList"></div>
+</div>
+
+<div class="card">
+<h3>Materialen</h3>
+<div id="materialsList"></div>
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+let orders = JSON.parse(localStorage.getItem("orders")||"[]");
+let clients = JSON.parse(localStorage.getItem("clients")||"[]");
+let materials = JSON.parse(localStorage.getItem("materials")||"[]");
+
+function login(){
+ if(document.getElementById("pin").value==="1234"){
+   document.getElementById("loginBox").style.display="none";
+   document.getElementById("app").classList.remove("hide");
+   renderAll();
+ } else {
+   alert("Foute code");
+ }
+}
+
+function saveOrder(){
+ let o={
+   nr:"ORD"+Date.now(),
+   titel:document.getElementById("titel").value,
+   klant:document.getElementById("klant").value,
+   datum:document.getElementById("datum").value
+ };
+ orders.push(o);
+ localStorage.setItem("orders",JSON.stringify(orders));
+ renderOrders();
+}
+
+function saveClient(){
+ let c=document.getElementById("newClient").value;
+ clients.push(c);
+ localStorage.setItem("clients",JSON.stringify(clients));
+ renderClients();
+}
+
+function saveMaterial(){
+ let m=document.getElementById("matCode").value+" - "+document.getElementById("matNaam").value;
+ materials.push(m);
+ localStorage.setItem("materials",JSON.stringify(materials));
+ renderMaterials();
+}
+
+function renderOrders(){
+ let t=document.getElementById("ordersTable");
+ t.innerHTML="<tr><th>Nr</th><th>Titel</th><th>Klant</th><th>Datum</th></tr>";
+ orders.forEach(o=>{
+   t.innerHTML+=`<tr><td>${o.nr}</td><td>${o.titel}</td><td>${o.klant}</td><td>${o.datum}</td></tr>`;
+ });
+}
+
+function renderClients(){
+ document.getElementById("clientsList").innerHTML=clients.join("<br>");
+}
+
+function renderMaterials(){
+ document.getElementById("materialsList").innerHTML=materials.join("<br>");
+}
+
+function runSearch(){
+ let q=document.getElementById("search").value.toLowerCase();
+ let res=[];
+ orders.forEach(o=>{
+   if(o.titel.toLowerCase().includes(q)||o.klant.toLowerCase().includes(q)||o.nr.toLowerCase().includes(q))
+   res.push("Opdracht: "+o.titel);
+ });
+ clients.forEach(c=>{ if(c.toLowerCase().includes(q)) res.push("Klant: "+c); });
+ materials.forEach(m=>{ if(m.toLowerCase().includes(q)) res.push("Materiaal: "+m); });
+ document.getElementById("searchResult").innerHTML=res.join("<br>") || "Geen resultaat";
+}
+
+function renderAll(){
+ renderOrders();
+ renderClients();
+ renderMaterials();
+}
+</script>
+
+</body>
+</html>
