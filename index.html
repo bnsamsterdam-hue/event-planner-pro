@@ -153,7 +153,8 @@ font-weight:bold;
 
 <div class="total">€ 0.00</div>
 
-<button class="save" onclick="saveOrder()">Opslaan</button>
+<knop klas="redden" onclick="saveOrder()">Opslaan</knop>
+<knop klas="redden" onclick="copyOrder()" style="margin-top:6px">Copy</knop>
 
 </div>
 
@@ -206,6 +207,11 @@ font-weight:bold;
 
 <label>Naam locatie</label>
 <input>
+
+<label style="margin-top:8px">
+<input type="checkbox" checked style="width:auto;margin-right:6px">
+Locatie tonen op opdrachtbon / factuur
+</label>
 
 <label>Adres</label>
 <input>
@@ -315,22 +321,16 @@ font-weight:bold;
 
 <h3>ADMIN CENTRUM</h3>
 
-<label>Gebruikerscode</label>
-<input value="1234">
+<knop klas="redden" onclick="omzetPin()">Omzet bekijken</knop>
 
-<label>Admin code</label>
-<input value="1234">
+<br><br>
 
-<button class="save">Codes opslaan</button>
-
-<hr style="margin:15px 0">
-
-<table>
+<tabel>
 <tr><th>Onderdeel</th><th>Status</th></tr>
-<tr><td>Materialen beheer</td><td>Actief</td></tr>
-<tr><td>Factuur systeem</td><td>Actief</td></tr>
-<tr><td>Klantbestanden</td><td>Actief</td></tr>
-</table>
+<tr><td>Planner</td><td>Actief</td></tr>
+<tr><td>Facturen</td><td>Actief</td></tr>
+<tr><td>Gebruikers</td><td>Actief</td></tr>
+</tabel>
 
 </div>
 
@@ -360,6 +360,20 @@ localStorage.setItem("laatsteOpdracht", JSON.stringify(data));
 
 alert("Opdracht opgeslagen");
 
+}  
+function copyOrder(){
+document.getElementById('ordernr').value = '2026-' + Math.floor(Math.random()*9999);
+document.getElementById('titel').value = '';
+alert('Nieuwe kopie klaar, pas datum aan');
+}
+
+function omzetPin(){
+let p = prompt("Voer PIN code in");
+if(p=="1234"){
+alert("Omzet vandaag: € 4.850");
+}else{
+alert("Geen toegang");
+}
 }  
 </script>
 
