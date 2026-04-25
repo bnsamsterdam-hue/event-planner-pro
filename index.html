@@ -350,6 +350,7 @@ document.getElementById(id).classList.add('active');
 document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
 if(el) el.classList.add('active');
 }
+
 function saveOrder(){
 
 let db = JSON.parse(localStorage.getItem("orders") || "[]");
@@ -366,17 +367,20 @@ db.push(data);
 localStorage.setItem("orders", JSON.stringify(db));
 
 alert("Opdracht opgeslagen in database");
-
 }
 
-}  
 function copyOrder(){
-document.getElementById('ordernr').value = '2026-' + Math.floor(Math.random()*9999);
+document.getElementById('ordernr').value =
+'2026-' + Math.floor(Math.random()*9999);
+
 document.getElementById('titel').value = '';
+
 alert('Nieuwe kopie klaar, pas datum aan');
 }
+
 function omzetPin(){
 let p = prompt("Voer PIN code in");
+
 if(p=="1234"){
 alert("Omzet vandaag: € 4.850");
 }else{
@@ -385,12 +389,13 @@ alert("Geen toegang");
 }
 
 function zoekPro(){
-}
-}
-
-function zoekPro(){
 
 let z = document.getElementById("zoekveld").value.toLowerCase();
+
+if(z==""){
+alert("Voer zoektekst in");
+return;
+}
 
 let db = JSON.parse(localStorage.getItem("orders") || "[]");
 
@@ -399,19 +404,19 @@ x.nr.toLowerCase().includes(z) ||
 x.titel.toLowerCase().includes(z)
 );
 
-let html = "";
+if(gevonden.length==0){
+alert("Niets gevonden");
+return;
+}
+
+let txt = "";
 
 gevonden.forEach(x=>{
-html += x.nr + " - " + x.titel + "<br>";
+txt += x.nr + " - " + x.titel + "\n";
 });
 
-document.getElementById("zoekresultaat").innerHTML = html;
-
+alert(txt);
 }
-}else{
-alert("Geen toegang");
-}
-}  
 </script>
 
 </body>
