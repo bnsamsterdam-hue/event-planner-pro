@@ -125,10 +125,10 @@ font-weight:bold;
 <div class="box">
 
 <label>Opdracht nr</label>
-<input value="2026-1001">
+<input id="ordernr" value="2026-1001">
 
 <label>Status</label>
-<select>
+<select id="status">
 <option>Offerte</option>
 <option>Optie 14 dagen</option>
 <option>Bevestigd</option>
@@ -140,20 +140,20 @@ font-weight:bold;
 <div class="small">
 <div>
 <label>Van</label>
-<input type="date">
+<input id="van" type="date">
 </div>
 <div>
 <label>Tot</label>
-<input type="date">
+<input id="tot" type="date">
 </div>
 </div>
 
 <label>Titel</label>
-<input placeholder="Naam event">
+<input id="titel" placeholder="Naam event">
 
 <div class="total">€ 0.00</div>
 
-<button class="save">Opslaan</button>
+<button class="save" onclick="saveOrder()">Opslaan</button>
 
 </div>
 
@@ -325,6 +325,21 @@ document.getElementById(id).classList.add('active');
 document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
 if(el) el.classList.add('active');
 }
+function saveOrder(){
+
+let data = {
+nr: document.getElementById('ordernr').value,
+status: document.getElementById('status').value,
+van: document.getElementById('van').value,
+tot: document.getElementById('tot').value,
+titel: document.getElementById('titel').value
+};
+
+localStorage.setItem("laatsteOpdracht", JSON.stringify(data));
+
+alert("Opdracht opgeslagen");
+
+}  
 </script>
 
 </body>
