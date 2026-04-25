@@ -1,37 +1,399 @@
-Event Planner PRO
-V8
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Planner PRO V8</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>Event Planner PRO</h1>
+        <p>V8</p>
+      </div>
 
-Dashboard
-Opdrachten overzicht
-Nieuwe opdracht
-Klanten
-Locaties
-Materialen
-Facturen
-Dashboard
-Centraal overzicht van planning, opdrachten en facturatie.
+      <nav class="main-nav" aria-label="Hoofdmenu">
+        <button class="nav-item active" data-page="dashboard">Dashboard</button>
+        <button class="nav-item" data-page="orders">Opdrachten overzicht</button>
+        <button class="nav-item" data-page="new-order">Nieuwe opdracht</button>
+        <button class="nav-item" data-page="customers">Klanten</button>
+        <button class="nav-item" data-page="locations">Locaties</button>
+        <button class="nav-item" data-page="materials">Materialen</button>
+        <button class="nav-item" data-page="invoices">Facturen</button>
+      </nav>
+    </aside>
 
-Lokaal opgeslagen
-Totaal opdrachten
-1
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <h2 id="page-title">Dashboard</h2>
+          <p id="page-subtitle">Centraal overzicht van planning, opdrachten en facturatie.</p>
+        </div>
+        <div class="status-pill">Lokaal opgeslagen</div>
+      </header>
 
-Open opdrachten
-1
+      <section class="page active" data-page="dashboard">
+        <div class="stats-grid">
+          <article class="stat-card">
+            <h3>Totaal opdrachten</h3>
+            <p id="stat-orders">0</p>
+          </article>
+          <article class="stat-card">
+            <h3>Open opdrachten</h3>
+            <p id="stat-open-orders">0</p>
+          </article>
+          <article class="stat-card">
+            <h3>Totaal klanten</h3>
+            <p id="stat-customers">0</p>
+          </article>
+          <article class="stat-card">
+            <h3>Openstaande facturen</h3>
+            <p id="stat-open-invoices">0</p>
+          </article>
+        </div>
 
-Totaal klanten
-2
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Komende opdrachten</h3>
+            </div>
+            <div id="dashboard-upcoming" class="list-grid"></div>
+          </article>
 
-Openstaande facturen
-1
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Recente facturen</h3>
+            </div>
+            <div id="dashboard-invoices" class="list-grid"></div>
+          </article>
+        </div>
+      </section>
 
-Komende opdrachten
-ORD-2026-0001 - Jaarcongres 2026
-Amsterdam Event Group | RAI Amsterdam Hal 8
+      <section class="page" data-page="orders">
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Opdrachten</h3>
+              <input id="orders-search" type="search" placeholder="Zoek op ordernummer, klant, locatie, status...">
+            </div>
+            <div id="orders-list" class="list-grid"></div>
+          </article>
 
-2026-06-18 t/m 2026-06-20 | ingepland
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Opdracht bewerken</h3>
+            </div>
+            <form id="orders-edit-form" class="form-grid">
+              <input id="edit-order-id" type="hidden">
+              <label>
+                Ordernummer
+                <input id="edit-order-number" type="text" readonly>
+              </label>
+              <label>
+                Naam opdracht
+                <input id="edit-order-title" type="text" required>
+              </label>
+              <label>
+                Klant
+                <select id="edit-order-customer" required></select>
+              </label>
+              <label>
+                Locatie
+                <select id="edit-order-location" required></select>
+              </label>
+              <label>
+                Startdatum
+                <input id="edit-order-start" type="date" required>
+              </label>
+              <label>
+                Einddatum
+                <input id="edit-order-end" type="date" required>
+              </label>
+              <label>
+                Status
+                <select id="edit-order-status" required>
+                  <option value="concept">Concept</option>
+                  <option value="ingepland">Ingepland</option>
+                  <option value="uitvoering">In uitvoering</option>
+                  <option value="afgerond">Afgerond</option>
+                  <option value="geannuleerd">Geannuleerd</option>
+                </select>
+              </label>
+              <label>
+                Budget (EUR)
+                <input id="edit-order-budget" type="number" min="0" step="0.01" required>
+              </label>
+              <label class="full-width">
+                Materialen
+                <select id="edit-order-materials" multiple size="5"></select>
+              </label>
+              <label class="full-width">
+                Opmerkingen
+                <textarea id="edit-order-notes" rows="4"></textarea>
+              </label>
+              <div class="actions">
+                <button type="submit">Wijzigingen opslaan</button>
+                <button id="orders-delete-btn" type="button" class="danger">Verwijderen</button>
+                <button id="orders-clear-btn" type="button" class="ghost">Leegmaken</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
 
-Recente facturen
-INV-2026-0001
-ORD-2026-0001 | verzonden
+      <section class="page" data-page="new-order">
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Nieuwe opdracht aanmaken</h3>
+          </div>
+          <form id="new-order-form" class="form-grid">
+            <label>
+              Ordernummer
+              <input id="new-order-number" type="text" readonly>
+            </label>
+            <label>
+              Naam opdracht
+              <input id="new-order-title" type="text" required>
+            </label>
+            <label>
+              Klant
+              <select id="new-order-customer" required></select>
+            </label>
+            <label>
+              Locatie
+              <select id="new-order-location" required></select>
+            </label>
+            <label>
+              Startdatum
+              <input id="new-order-start" type="date" required>
+            </label>
+            <label>
+              Einddatum
+              <input id="new-order-end" type="date" required>
+            </label>
+            <label>
+              Status
+              <select id="new-order-status" required>
+                <option value="concept">Concept</option>
+                <option value="ingepland">Ingepland</option>
+                <option value="uitvoering">In uitvoering</option>
+                <option value="afgerond">Afgerond</option>
+                <option value="geannuleerd">Geannuleerd</option>
+              </select>
+            </label>
+            <label>
+              Budget (EUR)
+              <input id="new-order-budget" type="number" min="0" step="0.01" required>
+            </label>
+            <label class="full-width">
+              Materialen
+              <select id="new-order-materials" multiple size="6"></select>
+            </label>
+            <label class="full-width">
+              Opmerkingen
+              <textarea id="new-order-notes" rows="4"></textarea>
+            </label>
+            <div class="actions">
+              <button type="submit">Opslaan</button>
+              <button id="new-order-reset-btn" type="button" class="ghost">Leegmaken</button>
+            </div>
+          </form>
+        </article>
+      </section>
 
-EUR 14500.00 | Vervalt: 2026-05-10
+      <section class="page" data-page="customers">
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Klanten overzicht</h3>
+              <input id="customers-search" type="search" placeholder="Zoek klant, contact, e-mail of telefoon">
+            </div>
+            <div id="customers-list" class="list-grid"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Klant opslaan / bewerken</h3>
+            </div>
+            <form id="customers-form" class="form-grid">
+              <input id="customer-id" type="hidden">
+              <label>
+                Bedrijfsnaam
+                <input id="customer-name" type="text" required>
+              </label>
+              <label>
+                Contactpersoon
+                <input id="customer-contact" type="text" required>
+              </label>
+              <label>
+                E-mail
+                <input id="customer-email" type="email" required>
+              </label>
+              <label>
+                Telefoon
+                <input id="customer-phone" type="text" required>
+              </label>
+              <div class="actions">
+                <button type="submit">Opslaan</button>
+                <button id="customer-delete-btn" type="button" class="danger">Verwijderen</button>
+                <button id="customer-clear-btn" type="button" class="ghost">Leegmaken</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" data-page="locations">
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Locaties overzicht</h3>
+              <input id="locations-search" type="search" placeholder="Zoek op naam, adres of stad">
+            </div>
+            <div id="locations-list" class="list-grid"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Locatie opslaan / bewerken</h3>
+            </div>
+            <form id="locations-form" class="form-grid">
+              <input id="location-id" type="hidden">
+              <label>
+                Locatienaam
+                <input id="location-name" type="text" required>
+              </label>
+              <label>
+                Adres
+                <input id="location-address" type="text" required>
+              </label>
+              <label>
+                Stad
+                <input id="location-city" type="text" required>
+              </label>
+              <label>
+                Capaciteit
+                <input id="location-capacity" type="number" min="1" step="1" required>
+              </label>
+              <div class="actions">
+                <button type="submit">Opslaan</button>
+                <button id="location-delete-btn" type="button" class="danger">Verwijderen</button>
+                <button id="location-clear-btn" type="button" class="ghost">Leegmaken</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" data-page="materials">
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Materialen overzicht</h3>
+              <input id="materials-search" type="search" placeholder="Zoek op code, naam of categorie">
+            </div>
+            <div id="materials-list" class="list-grid"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Materiaal opslaan / bewerken</h3>
+            </div>
+            <form id="materials-form" class="form-grid">
+              <input id="material-id" type="hidden">
+              <label>
+                Materiaalcode
+                <input id="material-code" type="text" required>
+              </label>
+              <label>
+                Materiaalnaam
+                <input id="material-name" type="text" required>
+              </label>
+              <label>
+                Categorie
+                <input id="material-category" type="text" required>
+              </label>
+              <label>
+                Voorraad
+                <input id="material-stock" type="number" min="0" step="1" required>
+              </label>
+              <label>
+                Dagprijs (EUR)
+                <input id="material-price" type="number" min="0" step="0.01" required>
+              </label>
+              <div class="actions">
+                <button type="submit">Opslaan</button>
+                <button id="material-delete-btn" type="button" class="danger">Verwijderen</button>
+                <button id="material-clear-btn" type="button" class="ghost">Leegmaken</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" data-page="invoices">
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Facturen overzicht</h3>
+              <input id="invoices-search" type="search" placeholder="Zoek op factuurnummer, order, status of bedrag">
+            </div>
+            <div id="invoices-list" class="list-grid"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <h3>Factuur opslaan / bewerken</h3>
+            </div>
+            <form id="invoices-form" class="form-grid">
+              <input id="invoice-id" type="hidden">
+              <label>
+                Factuurnummer
+                <input id="invoice-number" type="text" required>
+              </label>
+              <label>
+                Opdracht
+                <select id="invoice-order" required></select>
+              </label>
+              <label>
+                Factuurdatum
+                <input id="invoice-issue-date" type="date" required>
+              </label>
+              <label>
+                Vervaldatum
+                <input id="invoice-due-date" type="date" required>
+              </label>
+              <label>
+                Status
+                <select id="invoice-status" required>
+                  <option value="concept">Concept</option>
+                  <option value="verzonden">Verzonden</option>
+                  <option value="deels-betaald">Deels betaald</option>
+                  <option value="betaald">Betaald</option>
+                  <option value="vervallen">Vervallen</option>
+                </select>
+              </label>
+              <label>
+                Bedrag (EUR)
+                <input id="invoice-amount" type="number" min="0" step="0.01" required>
+              </label>
+              <label class="full-width">
+                Opmerking
+                <textarea id="invoice-notes" rows="4"></textarea>
+              </label>
+              <div class="actions">
+                <button type="submit">Opslaan</button>
+                <button id="invoice-delete-btn" type="button" class="danger">Verwijderen</button>
+                <button id="invoice-clear-btn" type="button" class="ghost">Leegmaken</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
