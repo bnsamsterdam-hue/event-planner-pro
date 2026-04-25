@@ -150,6 +150,10 @@ font-weight:bold;
 
 <label>Titel</label>
 <input id="titel" placeholder="Naam event">
+<label>Zoeken</label>
+<input id="zoekveld" placeholder="nr / klant / titel">
+
+<button class="save" onclick="zoekPro()" style="display:block;width:100%;margin-top:6px;">Zoek</button>  
 
 <div class="total">€ 0.00</div>
 
@@ -371,6 +375,18 @@ function omzetPin(){
 let p = prompt("Voer PIN code in");
 if(p=="1234"){
 alert("Omzet vandaag: € 4.850");
+function zoekPro(){
+
+let z = document.getElementById("zoekveld").value.toLowerCase();
+
+if(z==""){
+alert("Voer zoektekst in");
+return;
+}
+
+alert("Gezocht op: " + z);
+
+}  
 }else{
 alert("Geen toegang");
 }
