@@ -2,89 +2,205 @@
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Event Planner PRO V8 Complete</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Event Planner PRO V8</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="pinScreen" class="pin-screen">
-    <div class="pin-terminal">
-      <div class="terminal-top">EVENT PLANNER PRO V8</div>
-      <div class="terminal-display">
-        <div class="display-label" id="loginLabel">Voer toegangscode in</div>
-        <div class="pin-dots" id="pinDots">••••</div>
-        <select id="loginUser"></select>
-        <div class="pin-error" id="pinError"></div>
+<div id="toastBox"></div>
+
+<section id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="lock">🔐</div>
+    <h1>EVENT PLANNER PRO</h1>
+    <p>V8</p>
+    <div id="pinDots" class="pin-dots">- - - -</div>
+    <div class="pin-grid">
+      <button data-pin="1">1</button><button data-pin="2">2</button><button data-pin="3">3</button>
+      <button data-pin="4">4</button><button data-pin="5">5</button><button data-pin="6">6</button>
+      <button data-pin="7">7</button><button data-pin="8">8</button><button data-pin="9">9</button>
+      <button id="pinClear">C</button><button data-pin="0">0</button><button id="pinOk">OK</button>
+    </div>
+    <small>Admin standaard PIN: 1111</small>
+  </div>
+</section>
+
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <h1>EVENT PLANNER PRO</h1>
+    <p>V8</p>
+    <button data-page="dashboard" class="nav active">Dashboard</button>
+    <button data-page="newOrder" class="nav">Nieuwe opdracht</button>
+    <button data-page="orders" class="nav">Opdrachten</button>
+    <button data-page="materials" class="nav">Materialen</button>
+    <button data-page="driver" class="nav">Bezorger telefoon</button>
+    <button data-page="admin" class="nav admin-only">Admin</button>
+    <button id="logoutBtn" class="logout">Uitloggen</button>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <input id="globalSearch" placeholder="Zoek opdracht, klant, materiaal, adres..." />
+      <button id="alarmBtn" class="alarm">Meldingen (0)</button>
+      <button id="syncBtn">Sync status</button>
+    </header>
+
+    <section id="dashboard" class="page active">
+      <h2>Dashboard</h2>
+      <div class="cards">
+        <div class="card"><b>Open opdrachten</b><span id="statOrders">0</span></div>
+        <div class="card"><b>Actieve meldingen</b><span id="statAlerts">0</span></div>
+        <div class="card"><b>Materialen</b><span id="statMaterials">0</span></div>
       </div>
-      <div class="keypad">
-        <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
-        <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
-        <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
-        <button class="danger" data-key="clear">Wis</button><button data-key="0">0</button><button class="ok" data-key="ok">OK</button>
+      <h3>Laatste opdrachten</h3>
+      <div id="dashboardOrders" class="list"></div>
+    </section>
+
+    <section id="newOrder" class="page">
+      <h2>Nieuwe opdracht</h2>
+      <div class="order-head">
+        <label>Opdr.nr <input id="orderNumber" readonly /></label>
+        <label>Begin <input id="dateStart" type="date" /></label>
+        <label>Einde <input id="dateEnd" type="date" /></label>
+        <label>Titel <input id="orderTitle" /></label>
       </div>
-      <small>Startcodes: Admin 1111 • Planner 2222 • Bezorger 3333 • Kantoor 4444</small>
+
+      <div class="rubrics">
+        <button data-panel="customerPanel">Klant</button>
+        <button data-panel="locationPanel">Locatie</button>
+        <button data-panel="materialPanel">Materialen</button>
+        <button data-panel="driverPanel">Bezorger</button>
+        <button data-panel="vehiclePanel">Voertuig</button>
+        <button data-panel="extraPanel">Extra</button>
+      </div>
+
+      <div id="customerPanel" class="subpanel">
+        <h3>Klant</h3>
+        <input id="customerName" placeholder="Klantnaam" />
+        <input id="customerStreet" placeholder="Straatnaam + huisnummer" />
+        <input id="customerZip" placeholder="Postcode" />
+        <input id="customerCity" placeholder="Plaats" />
+        <input id="customerPhone" placeholder="Telefoon" />
+        <input id="customerEmail" placeholder="Email" />
+      </div>
+
+      <div id="locationPanel" class="subpanel hidden">
+        <h3>Locatie</h3>
+        <input id="locationName" placeholder="Locatienaam" />
+        <input id="locationStreet" placeholder="Straatnaam + huisnummer" />
+        <input id="locationZip" placeholder="Postcode" />
+        <input id="locationCity" placeholder="Plaats" />
+        <input id="locationPhone" placeholder="Telefoon locatie" />
+        <label class="check"><input id="showLocationOnDocs" type="checkbox" checked /> Locatie tonen op factuur/opdrachtbevestiging</label>
+      </div>
+
+      <div id="materialPanel" class="subpanel hidden">
+        <h3>Materialen</h3>
+        <div class="tabs">
+          <button data-cat="TW">TW</button>
+          <button data-cat="TO">TO</button>
+          <button data-cat="KW">KW</button>
+          <button data-cat="EXTRA">EXTRA</button>
+        </div>
+        <div id="materialList" class="material-list"></div>
+        <h4>Gekozen</h4>
+        <div id="chosenMaterials" class="chips"></div>
+      </div>
+
+      <div id="driverPanel" class="subpanel hidden">
+        <h3>Bezorger</h3>
+        <select id="orderDriver"></select>
+      </div>
+
+      <div id="vehiclePanel" class="subpanel hidden">
+        <h3>Voertuig</h3>
+        <input id="orderVehicle" placeholder="Bus, truck, aanhanger..." />
+      </div>
+
+      <div id="extraPanel" class="subpanel hidden">
+        <h3>Extra</h3>
+        <textarea id="orderExtra" placeholder="Extra afspraken, bijzonderheden, interne notities"></textarea>
+      </div>
+
+      <div class="actions">
+        <button id="saveOrderBtn">Opdracht opslaan</button>
+        <button id="printConfirmBtn">Opdrachtbevestiging</button>
+        <button id="printInvoiceBtn">Factuur</button>
+      </div>
+    </section>
+
+    <section id="orders" class="page">
+      <h2>Opdrachten</h2>
+      <div id="ordersList" class="list"></div>
+    </section>
+
+    <section id="materials" class="page">
+      <h2>Materialen</h2>
+      <div id="materialsOverview"></div>
+    </section>
+
+    <section id="driver" class="page">
+      <h2>Bezorger telefoon</h2>
+      <div id="driverOrders" class="list"></div>
+    </section>
+
+    <section id="admin" class="page">
+      <h2>Admin</h2>
+
+      <div class="admin-grid">
+        <div class="panel">
+          <h3>Materiaal aanmaken</h3>
+          <select id="adminMatCat">
+            <option>TW</option><option>TO</option><option>KW</option><option>EXTRA</option>
+          </select>
+          <input id="adminMatCode" placeholder="Code bv TW92" />
+          <input id="adminMatName" placeholder="Naam" />
+          <input id="adminMatPrice" placeholder="Prijs vrije tekst" />
+          <select id="adminMatStatus">
+            <option value="free">Vrij</option>
+            <option value="reserved">Gereserveerd</option>
+            <option value="defect">Defect</option>
+            <option value="inactive">Niet actief</option>
+            <option value="route">Onderweg</option>
+          </select>
+          <button id="addMaterialBtn">Opslaan materiaal</button>
+        </div>
+
+        <div class="panel">
+          <h3>Bezorger / planner aanmaken</h3>
+          <input id="adminUserName" placeholder="Naam" />
+          <input id="adminUserPhone" placeholder="Telefoonnummer" />
+          <input id="adminUserPin" placeholder="PIN 4 cijfers" maxlength="4" />
+          <select id="adminUserRole"><option>Bezorger</option><option>Planner</option><option>Admin</option></select>
+          <label><input id="rightPrices" type="checkbox" /> Prijzen zien</label>
+          <label><input id="rightAgenda" type="checkbox" /> Agenda zien</label>
+          <label><input id="rightGps" type="checkbox" /> GPS tracking</label>
+          <label><input id="rightResolve" type="checkbox" /> Defect oplossen</label>
+          <button id="addUserBtn">Opslaan user</button>
+        </div>
+
+        <div class="panel">
+          <h3>Data import/export</h3>
+          <input id="jsonImport" type="file" accept=".json" />
+          <button id="backupBtn">Backup JSON downloaden</button>
+          <p>Geen browser popups: meldingen verschijnen in de app.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody"></div>
+    <div class="actions">
+      <button id="modalClose">Sluiten</button>
+      <button id="modalOk" class="danger hidden">Opgelost / wissen</button>
     </div>
   </div>
+</div>
 
-  <div class="shell">
-    <aside class="sidebar">
-      <h1>Event Planner <span>PRO V8</span></h1>
-      <div class="user-card"><strong id="currentUserName">Niet ingelogd</strong><small id="currentUserRole"></small></div>
-      <nav id="nav"></nav>
-      <button id="logoutBtn" class="ghost full">Uitloggen</button>
-    </aside>
-
-    <main class="main">
-      <header class="topbar">
-        <div><h2 id="pageTitle">Dashboard</h2><p id="pageSub">Centraal overzicht</p></div>
-        <div class="top-actions">
-          <input id="globalSearch" placeholder="Zoek opdracht, klant, materiaal, adres..." />
-          <button id="defectButton" class="alert-btn">Defecten (0)</button>
-          <button id="syncBtn">Sync status</button>
-        </div>
-      </header>
-
-      <section id="dashboard" class="page active"></section>
-      <section id="newOrder" class="page"></section>
-      <section id="planning" class="page"></section>
-      <section id="orders" class="page"></section>
-      <section id="materials" class="page"></section>
-      <section id="drivers" class="page"></section>
-      <section id="driverApp" class="page"></section>
-      <section id="complaints" class="page"></section>
-      <section id="invoices" class="page"></section>
-      <section id="admin" class="page"></section>
-    </main>
-  </div>
-
-  <template id="orderFormTpl">
-    <div class="panel">
-      <h3>Nieuwe opdracht</h3>
-      <form id="orderForm" class="grid form">
-        <label>Opdrachtnummer<input name="number" readonly /></label>
-        <label>Titel / eventnaam<input name="title" required /></label>
-        <label>Klant<input name="customer" list="customersList" required /></label>
-        <label>Adres / locatie<input name="location" required /></label>
-        <label>Begin datum<input name="from" type="date" required /></label>
-        <label>Eind datum<input name="to" type="date" required /></label>
-        <label class="check"><input name="showLocation" type="checkbox" checked /> Locatie tonen op bon/factuur</label>
-        <label>Status<select name="status"><option>Offerte</option><option>Bevestigd</option><option>Onderweg</option><option>Uitgevoerd</option><option>Gefactureerd</option><option>Betaald</option></select></label>
-        <label class="price-field">Prijs EUR<input name="price" type="number" step="0.01" /></label>
-        <label>Bezorger<select name="driver"></select></label>
-        <label>Voertuig<input name="vehicle" placeholder="Bus / truck" /></label>
-        <label class="full">Materialen<select name="materials" multiple size="8"></select><small>Bij meerdere artikelen krijgt planner en bezorger automatisch LET OP melding.</small></label>
-        <label class="full">Interne notities<textarea name="notes" rows="4"></textarea></label>
-        <div class="actions full">
-          <button type="submit">Opslaan opdracht</button>
-          <button type="button" id="confirmBtn">Opdrachtbevestiging PDF/print</button>
-          <button type="button" id="invoiceFromOrderBtn">Factuur maken</button>
-        </div>
-      </form>
-      <datalist id="customersList"></datalist>
-    </div>
-  </template>
-
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
