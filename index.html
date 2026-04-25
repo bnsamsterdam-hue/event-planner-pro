@@ -172,7 +172,10 @@ font-weight:bold;
 <!-- opdracht -->
 <div id="opdracht" class="page active">
 
-<h3>Klant gegevens</h3>
+<div class="small" style="grid-template-columns:1fr 1fr;gap:20px;">
+
+<div>
+<h3 style="margin-bottom:10px">Opdrachtgever</h3>
 
 <label>Naam</label>
 <input>
@@ -196,10 +199,10 @@ font-weight:bold;
 
 <label>Telefoon</label>
 <input>
+</div>
 
-<hr style="margin:15px 0">
-
-<h3>Locatie gegevens</h3>
+<div>
+<h3 style="margin-bottom:10px">Locatie</h3>
 
 <label>Naam locatie</label>
 <input>
@@ -223,9 +226,27 @@ font-weight:bold;
 
 <label>Telefoon</label>
 <input>
+</div>
 
 </div>
 
+<hr style="margin:18px 0">
+
+<h3>Werkbon</h3>
+
+<label>Materialen</label>
+<textarea placeholder="TW92 / TO11 / KW02"></textarea>
+
+<label>Extra</label>
+<textarea placeholder="Extra slangen / CO2 / koppelingen"></textarea>
+
+<label>Werkzaamheden</label>
+<textarea placeholder="Zo vroeg mogelijk brengen"></textarea>
+
+<label>Bijzonderheden</label>
+<textarea placeholder="Let op smalle straat / klant belt vooraf"></textarea>
+
+</div>
 <!-- facturen -->
 <div id="facturen" class="page">
 
