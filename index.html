@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Event Planner PRO V8</title>
+  <title>EVENT PLANNER PRO ULTRA</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -12,235 +12,191 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand">
-        <h1>Event Planner PRO</h1>
-        <p>V8</p>
+      <div class="brand-wrap">
+        <h1 id="brand-title">EVENT PLANNER PRO</h1>
+        <p>ULTRA</p>
       </div>
 
       <nav class="main-nav" aria-label="Hoofdmenu">
         <button class="nav-item active" data-page="dashboard">Dashboard</button>
-        <button class="nav-item" data-page="orders">Opdrachten overzicht</button>
-        <button class="nav-item" data-page="new-order">Nieuwe opdracht</button>
+        <button class="nav-item" data-page="planning">Planning</button>
+        <button class="nav-item" data-page="new-job">Nieuwe opdracht</button>
+        <button class="nav-item" data-page="jobs">Opdrachten</button>
         <button class="nav-item" data-page="customers">Klanten</button>
         <button class="nav-item" data-page="locations">Locaties</button>
         <button class="nav-item" data-page="materials">Materialen</button>
+        <button class="nav-item" data-page="routes">Routes</button>
+        <button class="nav-item" data-page="drivers">Bezorgers</button>
+        <button class="nav-item" data-page="complaints">Klachten</button>
         <button class="nav-item" data-page="invoices">Facturen</button>
+        <button class="nav-item" data-page="admin">Admin</button>
       </nav>
     </aside>
 
     <main class="content">
       <header class="topbar">
-        <div>
-          <h2 id="page-title">Dashboard</h2>
-          <p id="page-subtitle">Centraal overzicht van planning, opdrachten en facturatie.</p>
+        <div class="topbar-left">
+          <div>
+            <h2 id="page-title">Dashboard</h2>
+            <p id="page-subtitle">Realtime overzicht van logistiek, verhuur en planning.</p>
+          </div>
+          <button id="defect-alert-btn" class="defect-btn">Defecten (0)</button>
         </div>
-        <div class="status-pill">Lokaal opgeslagen</div>
+        <div class="topbar-right">
+          <div class="search-wrap">
+            <input id="global-search-input" type="search" placeholder="Zoek op order, klant, locatie, materiaal, bezorger, telefoon">
+            <div id="global-search-results" class="search-results"></div>
+          </div>
+          <div class="login-wrap">
+            <label for="current-user-select">Ingelogde gebruiker</label>
+            <select id="current-user-select"></select>
+          </div>
+        </div>
       </header>
 
       <section class="page active" data-page="dashboard">
         <div class="stats-grid">
-          <article class="stat-card">
-            <h3>Totaal opdrachten</h3>
-            <p id="stat-orders">0</p>
-          </article>
-          <article class="stat-card">
-            <h3>Open opdrachten</h3>
-            <p id="stat-open-orders">0</p>
-          </article>
-          <article class="stat-card">
-            <h3>Totaal klanten</h3>
-            <p id="stat-customers">0</p>
-          </article>
-          <article class="stat-card">
-            <h3>Openstaande facturen</h3>
-            <p id="stat-open-invoices">0</p>
-          </article>
+          <article class="stat-card"><h3>Open opdrachten</h3><p id="stat-open-jobs">0</p></article>
+          <article class="stat-card"><h3>Defecten actief</h3><p id="stat-open-defects">0</p></article>
+          <article class="stat-card"><h3>Routes vandaag</h3><p id="stat-routes-today">0</p></article>
+          <article class="stat-card"><h3>Open facturen</h3><p id="stat-open-invoices">0</p></article>
         </div>
-
         <div class="grid-2">
           <article class="panel">
-            <div class="panel-header">
-              <h3>Komende opdrachten</h3>
-            </div>
-            <div id="dashboard-upcoming" class="list-grid"></div>
+            <div class="panel-head"><h3>Komende opdrachten</h3></div>
+            <div id="dashboard-jobs" class="list-grid"></div>
           </article>
-
           <article class="panel">
-            <div class="panel-header">
-              <h3>Recente facturen</h3>
-            </div>
-            <div id="dashboard-invoices" class="list-grid"></div>
+            <div class="panel-head"><h3>Open defectmeldingen</h3></div>
+            <div id="dashboard-defects" class="list-grid"></div>
           </article>
         </div>
       </section>
 
-      <section class="page" data-page="orders">
+      <section class="page" data-page="planning">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Planner</h3>
+            <div class="toolbar-inline">
+              <button id="planning-week-btn" class="ghost small">Week</button>
+              <button id="planning-month-btn" class="ghost small">Maand</button>
+              <span id="planning-mode-label" class="pill">Week</span>
+            </div>
+          </div>
+          <div id="planning-calendar" class="calendar-grid"></div>
+        </div>
+        <div class="grid-2 planning-board-wrap">
+          <article class="panel">
+            <div class="panel-head"><h3>Niet toegewezen opdrachten</h3></div>
+            <div id="planning-unassigned" class="dropzone"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><h3>Bezorgers planning (drag & drop)</h3></div>
+            <div id="planning-driver-columns" class="driver-columns"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" data-page="new-job">
+        <article class="panel">
+          <div class="panel-head"><h3>Nieuwe opdracht</h3></div>
+          <form id="new-job-form" class="form-grid">
+            <label>Ordernummer<input id="new-job-number" readonly></label>
+            <label>Titel<input id="new-job-title" required></label>
+            <label>Klant<select id="new-job-customer" required></select></label>
+            <label>Locatie<select id="new-job-location" required></select></label>
+            <label>Datum van<input id="new-job-from" type="date" required></label>
+            <label>Datum tot<input id="new-job-until" type="date" required></label>
+            <label>Status
+              <select id="new-job-status" required>
+                <option>Offerte</option>
+                <option>Bevestigd</option>
+                <option>Onderweg</option>
+                <option>Uitgevoerd</option>
+                <option>Gefactureerd</option>
+                <option>Betaald</option>
+              </select>
+            </label>
+            <label data-price-field>Prijs (EUR)<input id="new-job-price" type="number" min="0" step="0.01" required></label>
+            <label>Bezorger<select id="new-job-driver"></select></label>
+            <label>Voertuig<input id="new-job-vehicle" placeholder="Bus 4 of Truck 2"></label>
+            <label class="full">Materialen<select id="new-job-materials" multiple size="6"></select></label>
+            <label class="full">Interne notities<textarea id="new-job-notes" rows="4"></textarea></label>
+            <div class="actions">
+              <button type="submit">Opslaan</button>
+              <button id="new-job-reset" type="button" class="ghost">Leegmaken</button>
+            </div>
+          </form>
+        </article>
+      </section>
+
+      <section class="page" data-page="jobs">
         <div class="grid-2">
           <article class="panel">
-            <div class="panel-header">
-              <h3>Opdrachten</h3>
-              <input id="orders-search" type="search" placeholder="Zoek op ordernummer, klant, locatie, status...">
+            <div class="panel-head">
+              <h3>Opdrachten overzicht</h3>
+              <input id="jobs-search" type="search" placeholder="Zoek op nummer, titel, klant, locatie, status">
             </div>
-            <div id="orders-list" class="list-grid"></div>
+            <div id="jobs-list" class="list-grid"></div>
           </article>
-
           <article class="panel">
-            <div class="panel-header">
-              <h3>Opdracht bewerken</h3>
-            </div>
-            <form id="orders-edit-form" class="form-grid">
-              <input id="edit-order-id" type="hidden">
-              <label>
-                Ordernummer
-                <input id="edit-order-number" type="text" readonly>
-              </label>
-              <label>
-                Naam opdracht
-                <input id="edit-order-title" type="text" required>
-              </label>
-              <label>
-                Klant
-                <select id="edit-order-customer" required></select>
-              </label>
-              <label>
-                Locatie
-                <select id="edit-order-location" required></select>
-              </label>
-              <label>
-                Startdatum
-                <input id="edit-order-start" type="date" required>
-              </label>
-              <label>
-                Einddatum
-                <input id="edit-order-end" type="date" required>
-              </label>
-              <label>
-                Status
-                <select id="edit-order-status" required>
-                  <option value="concept">Concept</option>
-                  <option value="ingepland">Ingepland</option>
-                  <option value="uitvoering">In uitvoering</option>
-                  <option value="afgerond">Afgerond</option>
-                  <option value="geannuleerd">Geannuleerd</option>
+            <div class="panel-head"><h3>Opdracht bewerken</h3></div>
+            <form id="edit-job-form" class="form-grid">
+              <input id="edit-job-id" type="hidden">
+              <label>Ordernummer<input id="edit-job-number" readonly></label>
+              <label>Titel<input id="edit-job-title" required></label>
+              <label>Klant<select id="edit-job-customer" required></select></label>
+              <label>Locatie<select id="edit-job-location" required></select></label>
+              <label>Datum van<input id="edit-job-from" type="date" required></label>
+              <label>Datum tot<input id="edit-job-until" type="date" required></label>
+              <label>Status
+                <select id="edit-job-status" required>
+                  <option>Offerte</option>
+                  <option>Bevestigd</option>
+                  <option>Onderweg</option>
+                  <option>Uitgevoerd</option>
+                  <option>Gefactureerd</option>
+                  <option>Betaald</option>
                 </select>
               </label>
-              <label>
-                Budget (EUR)
-                <input id="edit-order-budget" type="number" min="0" step="0.01" required>
-              </label>
-              <label class="full-width">
-                Materialen
-                <select id="edit-order-materials" multiple size="5"></select>
-              </label>
-              <label class="full-width">
-                Opmerkingen
-                <textarea id="edit-order-notes" rows="4"></textarea>
-              </label>
+              <label data-price-field>Prijs (EUR)<input id="edit-job-price" type="number" min="0" step="0.01" required></label>
+              <label>Bezorger<select id="edit-job-driver"></select></label>
+              <label>Voertuig<input id="edit-job-vehicle"></label>
+              <label class="full">Materialen<select id="edit-job-materials" multiple size="6"></select></label>
+              <label class="full">Interne notities<textarea id="edit-job-notes" rows="4"></textarea></label>
               <div class="actions">
-                <button type="submit">Wijzigingen opslaan</button>
-                <button id="orders-delete-btn" type="button" class="danger">Verwijderen</button>
-                <button id="orders-clear-btn" type="button" class="ghost">Leegmaken</button>
+                <button type="submit">Opslaan</button>
+                <button id="job-copy-btn" type="button" class="ghost">Copy job</button>
+                <button id="job-generate-invoice-btn" type="button" class="ghost">Genereer factuur</button>
+                <button id="job-delete-btn" type="button" class="danger" data-permission="delete_jobs">Verwijderen</button>
               </div>
             </form>
           </article>
         </div>
       </section>
 
-      <section class="page" data-page="new-order">
-        <article class="panel">
-          <div class="panel-header">
-            <h3>Nieuwe opdracht aanmaken</h3>
-          </div>
-          <form id="new-order-form" class="form-grid">
-            <label>
-              Ordernummer
-              <input id="new-order-number" type="text" readonly>
-            </label>
-            <label>
-              Naam opdracht
-              <input id="new-order-title" type="text" required>
-            </label>
-            <label>
-              Klant
-              <select id="new-order-customer" required></select>
-            </label>
-            <label>
-              Locatie
-              <select id="new-order-location" required></select>
-            </label>
-            <label>
-              Startdatum
-              <input id="new-order-start" type="date" required>
-            </label>
-            <label>
-              Einddatum
-              <input id="new-order-end" type="date" required>
-            </label>
-            <label>
-              Status
-              <select id="new-order-status" required>
-                <option value="concept">Concept</option>
-                <option value="ingepland">Ingepland</option>
-                <option value="uitvoering">In uitvoering</option>
-                <option value="afgerond">Afgerond</option>
-                <option value="geannuleerd">Geannuleerd</option>
-              </select>
-            </label>
-            <label>
-              Budget (EUR)
-              <input id="new-order-budget" type="number" min="0" step="0.01" required>
-            </label>
-            <label class="full-width">
-              Materialen
-              <select id="new-order-materials" multiple size="6"></select>
-            </label>
-            <label class="full-width">
-              Opmerkingen
-              <textarea id="new-order-notes" rows="4"></textarea>
-            </label>
-            <div class="actions">
-              <button type="submit">Opslaan</button>
-              <button id="new-order-reset-btn" type="button" class="ghost">Leegmaken</button>
-            </div>
-          </form>
-        </article>
-      </section>
-
       <section class="page" data-page="customers">
         <div class="grid-2">
           <article class="panel">
-            <div class="panel-header">
-              <h3>Klanten overzicht</h3>
-              <input id="customers-search" type="search" placeholder="Zoek klant, contact, e-mail of telefoon">
+            <div class="panel-head">
+              <h3>Klanten</h3>
+              <input id="customers-search" type="search" placeholder="Zoek bedrijf, contact, telefoon, e-mail">
             </div>
             <div id="customers-list" class="list-grid"></div>
           </article>
           <article class="panel">
-            <div class="panel-header">
-              <h3>Klant opslaan / bewerken</h3>
-            </div>
-            <form id="customers-form" class="form-grid">
+            <div class="panel-head"><h3>Klant opslaan</h3></div>
+            <form id="customer-form" class="form-grid">
               <input id="customer-id" type="hidden">
-              <label>
-                Bedrijfsnaam
-                <input id="customer-name" type="text" required>
-              </label>
-              <label>
-                Contactpersoon
-                <input id="customer-contact" type="text" required>
-              </label>
-              <label>
-                E-mail
-                <input id="customer-email" type="email" required>
-              </label>
-              <label>
-                Telefoon
-                <input id="customer-phone" type="text" required>
-              </label>
+              <label>Bedrijf<input id="customer-company" required></label>
+              <label>Contact<input id="customer-contact" required></label>
+              <label>Telefoon<input id="customer-phone" required></label>
+              <label>E-mail<input id="customer-email" type="email" required></label>
+              <label class="full">Adres<textarea id="customer-address" rows="3"></textarea></label>
+              <label class="full">History<textarea id="customer-history" rows="3" placeholder="Klantgeschiedenis"></textarea></label>
               <div class="actions">
                 <button type="submit">Opslaan</button>
                 <button id="customer-delete-btn" type="button" class="danger">Verwijderen</button>
-                <button id="customer-clear-btn" type="button" class="ghost">Leegmaken</button>
               </div>
             </form>
           </article>
@@ -250,38 +206,25 @@
       <section class="page" data-page="locations">
         <div class="grid-2">
           <article class="panel">
-            <div class="panel-header">
-              <h3>Locaties overzicht</h3>
-              <input id="locations-search" type="search" placeholder="Zoek op naam, adres of stad">
+            <div class="panel-head">
+              <h3>Locaties</h3>
+              <input id="locations-search" type="search" placeholder="Zoek naam, adres, contact">
             </div>
             <div id="locations-list" class="list-grid"></div>
           </article>
           <article class="panel">
-            <div class="panel-header">
-              <h3>Locatie opslaan / bewerken</h3>
-            </div>
-            <form id="locations-form" class="form-grid">
+            <div class="panel-head"><h3>Locatie opslaan</h3></div>
+            <form id="location-form" class="form-grid">
               <input id="location-id" type="hidden">
-              <label>
-                Locatienaam
-                <input id="location-name" type="text" required>
-              </label>
-              <label>
-                Adres
-                <input id="location-address" type="text" required>
-              </label>
-              <label>
-                Stad
-                <input id="location-city" type="text" required>
-              </label>
-              <label>
-                Capaciteit
-                <input id="location-capacity" type="number" min="1" step="1" required>
-              </label>
+              <label>Naam<input id="location-name" required></label>
+              <label>Contactpersoon<input id="location-contact" required></label>
+              <label>Adres<input id="location-address" required></label>
+              <label>Telefoon<input id="location-phone" required></label>
+              <label class="full">Loading notes<textarea id="location-loading-notes" rows="3"></textarea></label>
+              <label class="full">Access notes<textarea id="location-access-notes" rows="3"></textarea></label>
               <div class="actions">
                 <button type="submit">Opslaan</button>
                 <button id="location-delete-btn" type="button" class="danger">Verwijderen</button>
-                <button id="location-clear-btn" type="button" class="ghost">Leegmaken</button>
               </div>
             </form>
           </article>
@@ -291,44 +234,114 @@
       <section class="page" data-page="materials">
         <div class="grid-2">
           <article class="panel">
-            <div class="panel-header">
-              <h3>Materialen overzicht</h3>
-              <input id="materials-search" type="search" placeholder="Zoek op code, naam of categorie">
-            </div>
-            <div id="materials-list" class="list-grid"></div>
-          </article>
-          <article class="panel">
-            <div class="panel-header">
-              <h3>Materiaal opslaan / bewerken</h3>
-            </div>
-            <form id="materials-form" class="form-grid">
-              <input id="material-id" type="hidden">
-              <label>
-                Materiaalcode
-                <input id="material-code" type="text" required>
-              </label>
-              <label>
-                Materiaalnaam
-                <input id="material-name" type="text" required>
-              </label>
-              <label>
-                Categorie
-                <input id="material-category" type="text" required>
-              </label>
-              <label>
-                Voorraad
-                <input id="material-stock" type="number" min="0" step="1" required>
-              </label>
-              <label>
-                Dagprijs (EUR)
-                <input id="material-price" type="number" min="0" step="0.01" required>
-              </label>
-              <div class="actions">
-                <button type="submit">Opslaan</button>
-                <button id="material-delete-btn" type="button" class="danger">Verwijderen</button>
-                <button id="material-clear-btn" type="button" class="ghost">Leegmaken</button>
+            <div class="panel-head"><h3>Categorieen</h3></div>
+            <form id="material-category-form" class="form-grid compact">
+              <input id="material-category-id" type="hidden">
+              <label>Code<input id="material-category-code" required placeholder="TW"></label>
+              <label>Naam<input id="material-category-name" required placeholder="Tapwagens"></label>
+              <label>Kleur<input id="material-category-color" type="color" value="#e53935"></label>
+              <div class="actions full">
+                <button type="submit" data-permission="manage_materials">Opslaan categorie</button>
+                <button id="material-category-delete" type="button" class="danger" data-permission="manage_materials">Verwijderen</button>
               </div>
             </form>
+
+            <div id="material-categories-list" class="list-grid"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Materialen</h3>
+              <input id="materials-search" type="search" placeholder="Zoek code, naam, status of locatie">
+            </div>
+            <form id="material-form" class="form-grid">
+              <input id="material-id" type="hidden">
+              <label>Categorie<select id="material-category-select" required></select></label>
+              <label>Nummer<input id="material-number" required placeholder="92"></label>
+              <label>Code (auto)<input id="material-code" readonly></label>
+              <label>Naam<input id="material-name" required></label>
+              <label>Eigen kleur<input id="material-color" type="color" value="#2196f3"></label>
+              <label>Status
+                <select id="material-status" required>
+                  <option value="free">Vrij beschikbaar</option>
+                  <option value="reserved">Gereserveerd binnenkort</option>
+                  <option value="inuse">Onderweg / in gebruik</option>
+                  <option value="maintenance">Onderhoud</option>
+                  <option value="defect">Defect</option>
+                  <option value="inactive">Inactief</option>
+                </select>
+              </label>
+              <label>Huidige locatie<input id="material-current-location"></label>
+              <label>Laatste onderhoud<input id="material-last-maintenance" type="date"></label>
+              <label class="full">Vrije notities<textarea id="material-notes" rows="3"></textarea></label>
+              <div class="actions">
+                <button type="submit" data-permission="manage_materials">Opslaan materiaal</button>
+                <button id="material-delete-btn" type="button" class="danger" data-permission="manage_materials">Verwijderen</button>
+              </div>
+            </form>
+
+            <div id="materials-list" class="list-grid"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" data-page="routes">
+        <div class="panel">
+          <div class="panel-head"><h3>Routes vandaag</h3></div>
+          <div id="routes-list" class="list-grid"></div>
+        </div>
+      </section>
+
+      <section class="page" data-page="drivers">
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-head"><h3>Bezorgers beheer</h3></div>
+            <form id="driver-form" class="form-grid">
+              <input id="driver-id" type="hidden">
+              <label>Naam<input id="driver-name" required></label>
+              <label>Telefoon<input id="driver-phone" required></label>
+              <label>Voertuig<input id="driver-vehicle"></label>
+              <div class="actions">
+                <button type="submit">Opslaan</button>
+                <button id="driver-delete-btn" type="button" class="danger">Verwijderen</button>
+              </div>
+            </form>
+            <div id="drivers-list" class="list-grid"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><h3>Driver app (mobiel)</h3></div>
+            <div id="driver-app-routes" class="list-grid"></div>
+            <div class="signature-wrap">
+              <h4>Handtekening</h4>
+              <canvas id="signature-canvas" width="400" height="150"></canvas>
+              <div class="actions">
+                <button id="signature-clear" type="button" class="ghost">Leeg</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" data-page="complaints">
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-head"><h3>Nieuwe klacht</h3></div>
+            <form id="complaint-form" class="form-grid">
+              <label>Opdracht<select id="complaint-job-select"></select></label>
+              <label>Melding door<select id="complaint-reporter"><option>Planner</option><option>Bezorger</option><option>Office</option></select></label>
+              <label class="full">Toelichting<textarea id="complaint-note" rows="3"></textarea></label>
+              <div class="actions complaint-buttons">
+                <button type="button" data-complaint-type="Customer not home">Customer not home</button>
+                <button type="button" data-complaint-type="Damage">Damage</button>
+                <button type="button" data-complaint-type="Late">Late</button>
+                <button type="button" data-complaint-type="Wrong address">Wrong address</button>
+                <button type="button" data-complaint-type="Complaint">Complaint</button>
+              </div>
+            </form>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><h3>Klachtenlog</h3></div>
+            <div id="complaints-list" class="list-grid"></div>
           </article>
         </div>
       </section>
@@ -336,63 +349,98 @@
       <section class="page" data-page="invoices">
         <div class="grid-2">
           <article class="panel">
-            <div class="panel-header">
-              <h3>Facturen overzicht</h3>
-              <input id="invoices-search" type="search" placeholder="Zoek op factuurnummer, order, status of bedrag">
+            <div class="panel-head">
+              <h3>Facturen</h3>
+              <input id="invoices-search" type="search" placeholder="Zoek nummer, opdracht, status">
             </div>
             <div id="invoices-list" class="list-grid"></div>
           </article>
           <article class="panel">
-            <div class="panel-header">
-              <h3>Factuur opslaan / bewerken</h3>
-            </div>
-            <form id="invoices-form" class="form-grid">
+            <div class="panel-head"><h3>Factuur opslaan</h3></div>
+            <form id="invoice-form" class="form-grid">
               <input id="invoice-id" type="hidden">
-              <label>
-                Factuurnummer
-                <input id="invoice-number" type="text" required>
-              </label>
-              <label>
-                Opdracht
-                <select id="invoice-order" required></select>
-              </label>
-              <label>
-                Factuurdatum
-                <input id="invoice-issue-date" type="date" required>
-              </label>
-              <label>
-                Vervaldatum
-                <input id="invoice-due-date" type="date" required>
-              </label>
-              <label>
-                Status
-                <select id="invoice-status" required>
-                  <option value="concept">Concept</option>
-                  <option value="verzonden">Verzonden</option>
-                  <option value="deels-betaald">Deels betaald</option>
-                  <option value="betaald">Betaald</option>
-                  <option value="vervallen">Vervallen</option>
+              <label>Factuurnummer<input id="invoice-number" readonly></label>
+              <label>Opdracht<select id="invoice-job-select" required></select></label>
+              <label>Datum<input id="invoice-date" type="date" required></label>
+              <label>Vervaldatum<input id="invoice-due-date" type="date" required></label>
+              <label>Status
+                <select id="invoice-status">
+                  <option>Open</option>
+                  <option>Paid</option>
+                  <option>Reminder</option>
                 </select>
               </label>
-              <label>
-                Bedrag (EUR)
-                <input id="invoice-amount" type="number" min="0" step="0.01" required>
-              </label>
-              <label class="full-width">
-                Opmerking
-                <textarea id="invoice-notes" rows="4"></textarea>
-              </label>
+              <label data-price-field>Bedrag<input id="invoice-amount" type="number" min="0" step="0.01" required></label>
+              <label class="full">Notities<textarea id="invoice-note" rows="3"></textarea></label>
               <div class="actions">
                 <button type="submit">Opslaan</button>
+                <button id="invoice-pdf-btn" type="button" class="ghost">PDF export</button>
                 <button id="invoice-delete-btn" type="button" class="danger">Verwijderen</button>
-                <button id="invoice-clear-btn" type="button" class="ghost">Leegmaken</button>
               </div>
             </form>
           </article>
         </div>
       </section>
+
+      <section class="page" data-page="admin">
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-head"><h3>Users + rechten</h3></div>
+            <form id="user-form" class="form-grid">
+              <input id="user-id" type="hidden">
+              <label>Naam<input id="user-name" required></label>
+              <label>Rol
+                <select id="user-role">
+                  <option>Admin</option>
+                  <option>Planner</option>
+                  <option>Driver</option>
+                  <option>Office</option>
+                  <option>Temporary staff</option>
+                </select>
+              </label>
+              <div class="rights-grid full">
+                <label><input id="right-see-prices" type="checkbox"> see prices</label>
+                <label><input id="right-edit-planning" type="checkbox"> edit planning</label>
+                <label><input id="right-view-finance" type="checkbox"> view finance</label>
+                <label><input id="right-delete-jobs" type="checkbox"> delete jobs</label>
+                <label><input id="right-manage-materials" type="checkbox"> manage materials</label>
+                <label><input id="right-manage-users" type="checkbox"> manage users</label>
+                <label><input id="right-close-defects" type="checkbox"> close defects</label>
+              </div>
+              <div class="actions">
+                <button type="submit" data-permission="manage_users">Opslaan user</button>
+                <button id="user-delete-btn" type="button" class="danger" data-permission="manage_users">Verwijderen</button>
+              </div>
+            </form>
+            <div id="users-list" class="list-grid"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><h3>Admin tools</h3></div>
+            <div class="admin-tools">
+              <label>Revenue PIN<input id="revenue-pin-input" type="password" placeholder="Voer PIN in"></label>
+              <button id="revenue-pin-check" type="button" data-permission="view_finance">Open omzet</button>
+              <div id="revenue-result" class="pill">Omzet afgeschermd</div>
+
+              <label>Logo upload<input id="logo-upload" type="file" accept="image/*"></label>
+              <label>Thema accent kleur<input id="theme-color-input" type="color" value="#1667ca"></label>
+
+              <div class="actions">
+                <button id="backup-btn" type="button">Backup JSON</button>
+                <button id="export-excel-btn" type="button">Export Excel (CSV)</button>
+              </div>
+              <p class="mini-note">Architectuur is klaar voor Firebase/Supabase adapter in de data-laag.</p>
+            </div>
+          </article>
+        </div>
+      </section>
     </main>
   </div>
+
+  <dialog id="warning-modal">
+    <h3>LET OP DEFECT GEMELD</h3>
+    <p id="warning-modal-text"></p>
+    <button id="warning-modal-close">Sluiten</button>
+  </dialog>
 
   <script src="app.js"></script>
 </body>
