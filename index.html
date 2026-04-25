@@ -1,151 +1,230 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Event Planner PRO V7 LIVE</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+body{background:#2f5f9d;color:#fff}
+.topbar{background:#a52c2c;padding:8px 15px;font-weight:bold}
+.toolbar{background:#3d6cab;padding:8px;display:flex;gap:6px;flex-wrap:wrap}
+.toolbar button{padding:8px 14px;border:none;background:#f0f0f0;cursor:pointer}
+.wrap{display:grid;grid-template-columns:300px 1fr;gap:10px;padding:10px}
+.box{border:1px solid #8fb0df;padding:10px}
+.page{display:none;background:#4f78b5;padding:10px;min-height:600px}
+.page.active{display:block}
+input,select,button{width:100%;padding:8px;margin:5px 0;border:none}
+table{width:100%;border-collapse:collapse;background:#fff;color:#000}
+td,th{border:1px solid #ccc;padding:6px}
+.total{font-size:22px;color:#ffd65a;margin:10px 0}
+.save{background:#d4af37;font-weight:bold}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.tabs button{width:auto;padding:8px}
+</style>
+</head>
+<body>
+
+<div class="topbar">Event Planner PRO V7 LIVE</div>
+
+<div class="toolbar">
+<button onclick="showPage('opdracht')">Nieuwe opdracht</button>
+<button onclick="showPage('facturen')">Facturen</button>
+<button onclick="showPage('materialen')">Materialen</button>
+<button onclick="showPage('klanten')">Opdrachtgevers</button>
+<button onclick="showPage('locaties')">Locaties</button>
+<button onclick="showPage('admin')">ADMIN</button>
+</div>
+
+<div class="wrap">
+
+<div class="box">
+<label>Opdracht nr</label>
+<input id="ordernr">
+
+<label>Status</label>
+<select id="status">
+<option>Offerte</option>
+<option>Bevestigd</option>
+<option>Gefactureerd</option>
+<option>Betaald</option>
+</select>
+
+<label>Titel</label>
+<input id="titel">
+
+<label>Datum</label>
+<input type="date" id="datum">
+
+<div class="total" id="total">€ 0</div>
+
+<button class="save" onclick="saveOrder()">Opslaan</button>
+<button onclick="copyOrder()">Copy</button>
+</div>
+
+<div class="box">
+
+<div class="tabs">
+<button onclick="showPage('opdracht')">Opdracht</button>
+<button onclick="showPage('facturen')">Facturen</button>
+<button onclick="showPage('materialen')">Materialen</button>
+<button onclick="showPage('klanten')">Klanten</button>
+<button onclick="showPage('locaties')">Locaties</button>
+<button onclick="showPage('admin')">Admin</button>
+</div>
+
+<div id="opdracht" class="page active">
+<h3>Planning</h3>
+<table id="ordersTable">
+<tr><th>Nr</th><th>Titel</th><th>Status</th><th>Datum</th></tr>
+</table>
+</div>
+
+<div id="facturen" class="page">
+<h3>Facturen</h3>
+<table id="factuurTable">
+<tr><th>Nr</th><th>Klant</th><th>Status</th></tr>
+</table>
+<button onclick="makeInvoice()">Nieuwe factuur</button>
+</div>
+
+<div id="materialen" class="page">
+<h3>Materialen</h3>
+<input id="matCode" placeholder="Code">
+<input id="matName" placeholder="Omschrijving">
+<input id="matPrice" placeholder="Prijs">
+<button onclick="saveMat()">Opslaan materiaal</button>
+<table id="matTable">
+<tr><th>Code</th><th>Naam</th><th>Prijs</th></tr>
+</table>
+</div>
+
+<div id="klanten" class="page">
+<h3>Klanten</h3>
+<input id="clientName" placeholder="Naam klant">
+<button onclick="saveClient()">Opslaan klant</button>
+<div id="clientList"></div>
+</div>
+
+<div id="locaties" class="page">
+<h3>Locaties</h3>
+<input id="locName" placeholder="Naam locatie">
+<button onclick="saveLoc()">Opslaan locatie</button>
+<div id="locList"></div>
+</div>
+
+<div id="admin" class="page">
+<h3>ADMIN</h3>
+<input id="search" placeholder="Zoek alles">
+<button onclick="searchAll()">Zoek Mega</button>
+<div id="searchRes"></div>
+</div>
+
+</div>
+</div>
+
 <script>
-/* ===== V7 LIVE PATCH 1 ===== */
-let db = {
-orders: JSON.parse(localStorage.getItem("v7_orders") || "[]"),
-clients: JSON.parse(localStorage.getItem("v7_clients") || "[]"),
-locations: JSON.parse(localStorage.getItem("v7_locations") || "[]"),
-materials: JSON.parse(localStorage.getItem("v7_materials") || "[]")
+let db={
+orders:JSON.parse(localStorage.orders||"[]"),
+clients:JSON.parse(localStorage.clients||"[]"),
+locs:JSON.parse(localStorage.locs||"[]"),
+mats:JSON.parse(localStorage.mats||"[]"),
+fact:JSON.parse(localStorage.fact||"[]")
 };
 
 function saveDB(){
-localStorage.setItem("v7_orders", JSON.stringify(db.orders));
-localStorage.setItem("v7_clients", JSON.stringify(db.clients));
-localStorage.setItem("v7_locations", JSON.stringify(db.locations));
-localStorage.setItem("v7_materials", JSON.stringify(db.materials));
+localStorage.orders=JSON.stringify(db.orders);
+localStorage.clients=JSON.stringify(db.clients);
+localStorage.locs=JSON.stringify(db.locs);
+localStorage.mats=JSON.stringify(db.mats);
+localStorage.fact=JSON.stringify(db.fact);
 }
 
-/* ===== OPSLAAN OPDRACHT ===== */
-document.querySelector(".save").onclick=function(){
-let nr=document.querySelector('input[value="2026-1001"]').value;
-let titel=document.querySelector('input[placeholder="Naam event"]').value;
-let status=document.querySelector("select").value;
+function showPage(id){
+document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+}
 
-db.orders.push({
-nr:nr,
-titel:titel,
-status:status,
-datum:new Date().toLocaleDateString()
+function saveOrder(){
+let o={
+nr:document.getElementById('ordernr').value || '2026-'+Date.now(),
+titel:document.getElementById('titel').value,
+status:document.getElementById('status').value,
+datum:document.getElementById('datum').value
+};
+db.orders.push(o);
+saveDB();
+render();
+}
+
+function copyOrder(){
+document.getElementById('ordernr').value='2026-'+Date.now();
+document.getElementById('datum').value='';
+}
+
+function saveClient(){
+db.clients.push(document.getElementById('clientName').value);
+saveDB();
+render();
+}
+
+function saveLoc(){
+db.locs.push(document.getElementById('locName').value);
+saveDB();
+render();
+}
+
+function saveMat(){
+db.mats.push({
+c:matCode.value,
+n:matName.value,
+p:matPrice.value
 });
 saveDB();
-alert("Opdracht opgeslagen");
-renderOrders();
-};
+render();
+}
 
-/* ===== RENDER FACTUREN TAB ALS OPDRACHTEN ===== */
-function renderOrders(){
-let table=document.querySelector("#facturen table");
-table.innerHTML=`
-<tr>
-<th>Nr</th>
-<th>Titel</th>
-<th>Status</th>
-<th>Datum</th>
-</tr>
-`;
+function makeInvoice(){
+db.fact.push({
+nr:'F'+Date.now(),
+klant:'Onbekend',
+status:'Open'
+});
+saveDB();
+render();
+}
+
+function searchAll(){
+let q=search.value.toLowerCase();
+let r=[];
+db.orders.forEach(x=>{if(x.titel.toLowerCase().includes(q))r.push(x.titel)});
+db.clients.forEach(x=>{if(x.toLowerCase().includes(q))r.push(x)});
+db.locs.forEach(x=>{if(x.toLowerCase().includes(q))r.push(x)});
+searchRes.innerHTML=r.join('<br>') || 'Geen resultaat';
+}
+
+function render(){
+ordersTable.innerHTML='<tr><th>Nr</th><th>Titel</th><th>Status</th><th>Datum</th></tr>';
 db.orders.forEach(o=>{
-table.innerHTML += `
-<tr>
-<td>${o.nr}</td>
-<td>${o.titel}</td>
-<td>${o.status}</td>
-<td>${o.datum}</td>
-</tr>`;
+ordersTable.innerHTML+=`<tr><td>${o.nr}</td><td>${o.titel}</td><td>${o.status}</td><td>${o.datum}</td></tr>`;
+});
+
+clientList.innerHTML=db.clients.join('<br>');
+locList.innerHTML=db.locs.join('<br>');
+
+matTable.innerHTML='<tr><th>Code</th><th>Naam</th><th>Prijs</th></tr>';
+db.mats.forEach(m=>{
+matTable.innerHTML+=`<tr><td>${m.c}</td><td>${m.n}</td><td>€${m.p}</td></tr>`;
+});
+
+factuurTable.innerHTML='<tr><th>Nr</th><th>Klant</th><th>Status</th></tr>';
+db.fact.forEach(f=>{
+factuurTable.innerHTML+=`<tr><td>${f.nr}</td><td>${f.klant}</td><td>${f.status}</td></tr>`;
 });
 }
 
-/* ===== NIEUWE KLANT ===== */
-document.querySelectorAll(".save")[3].onclick=function(){
-let naam=prompt("Nieuwe opdrachtgever");
-if(!naam)return;
-db.clients.push({naam:naam,plaats:"Onbekend",tel:"-"});
-saveDB();
-renderClients();
-};
-
-/* ===== RENDER KLANTEN ===== */
-function renderClients(){
-let table=document.querySelector("#opdrachtgevers table");
-table.innerHTML=`
-<tr><th>Naam</th><th>Plaats</th><th>Tel</th></tr>
-`;
-db.clients.forEach(c=>{
-table.innerHTML += `
-<tr>
-<td>${c.naam}</td>
-<td>${c.plaats}</td>
-<td>${c.tel}</td>
-</tr>`;
-});
-}
-
-/* ===== NIEUWE LOCATIE ===== */
-document.querySelectorAll(".save")[4].onclick=function(){
-let naam=prompt("Nieuwe locatie");
-if(!naam)return;
-db.locations.push({naam:naam,plaats:"Onbekend",contact:"-"});
-saveDB();
-renderLocations();
-};
-
-function renderLocations(){
-let table=document.querySelector("#locatieklanten table");
-table.innerHTML=`
-<tr><th>Naam</th><th>Plaats</th><th>Contact</th></tr>
-`;
-db.locations.forEach(l=>{
-table.innerHTML += `
-<tr>
-<td>${l.naam}</td>
-<td>${l.plaats}</td>
-<td>${l.contact}</td>
-</tr>`;
-});
-}
-
-/* ===== NIEUW MATERIAAL ===== */
-document.querySelectorAll(".save")[2].onclick=function(){
-let code=prompt("Code");
-let oms=prompt("Omschrijving");
-let prijs=prompt("Prijs");
-if(!code)return;
-
-db.materials.push({
-code:code,
-oms:oms,
-prijs:prijs
-});
-saveDB();
-renderMaterials();
-};
-
-function renderMaterials(){
-let table=document.querySelector("#materialen table");
-table.innerHTML=`
-<tr><th>Code</th><th>Omschrijving</th><th>Prijs</th></tr>
-`;
-db.materials.forEach(m=>{
-table.innerHTML += `
-<tr>
-<td>${m.code}</td>
-<td>${m.oms}</td>
-<td>€${m.prijs}</td>
-</tr>`;
-});
-}
-
-/* ===== ZOEK IN MATERIALEN ===== */
-document.querySelector("#materialen input").onkeyup=function(){
-let q=this.value.toLowerCase();
-let rows=document.querySelectorAll("#materialen table tr");
-rows.forEach((r,i)=>{
-if(i===0)return;
-r.style.display=r.innerText.toLowerCase().includes(q)?"":"none";
-});
-};
-
-/* ===== START ===== */
-renderOrders();
-renderClients();
-renderLocations();
-renderMaterials();
+render();
 </script>
+
+</body>
+</html>
