@@ -3,227 +3,328 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner PRO V7 LIVE</title>
+<title>Event Planner PRO V7</title>
+
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
 body{background:#2f5f9d;color:#fff}
-.topbar{background:#a52c2c;padding:8px 15px;font-weight:bold}
-.toolbar{background:#3d6cab;padding:8px;display:flex;gap:6px;flex-wrap:wrap}
-.toolbar button{padding:8px 14px;border:none;background:#f0f0f0;cursor:pointer}
-.wrap{display:grid;grid-template-columns:300px 1fr;gap:10px;padding:10px}
-.box{border:1px solid #8fb0df;padding:10px}
-.page{display:none;background:#4f78b5;padding:10px;min-height:600px}
+.topbar{
+background:#a52c2c;
+padding:8px 15px;
+font-size:14px;
+font-weight:bold;
+}
+.toolbar{
+background:#3d6cab;
+padding:8px;
+display:flex;
+gap:6px;
+flex-wrap:wrap;
+}
+.toolbar button{
+padding:8px 14px;
+border:none;
+background:#f0f0f0;
+cursor:pointer;
+font-size:13px;
+}
+.toolbar button:hover{background:#d4af37}
+.wrap{
+display:grid;
+grid-template-columns:300px 1fr;
+gap:10px;
+padding:10px;
+height:calc(100vh - 82px);
+}
+.box{
+border:1px solid #8fb0df;
+padding:10px;
+overflow:auto;
+}
+label{display:block;margin-top:8px;margin-bottom:3px}
+input,select,textarea{
+width:100%;
+padding:6px;
+border:none;
+font-size:14px;
+}
+textarea{height:100px}
+.small{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:8px;
+}
+.tabs{
+display:flex;
+gap:2px;
+margin-bottom:10px;
+flex-wrap:wrap;
+}
+.tabs button{
+padding:8px 12px;
+border:none;
+background:#d8dfec;
+color:#000;
+cursor:pointer;
+}
+.tabs button.active{
+background:#fff;
+font-weight:bold;
+}
+.page{
+display:none;
+background:#4f78b5;
+padding:10px;
+min-height:620px;
+}
 .page.active{display:block}
-input,select,button{width:100%;padding:8px;margin:5px 0;border:none}
-table{width:100%;border-collapse:collapse;background:#fff;color:#000}
-td,th{border:1px solid #ccc;padding:6px}
-.total{font-size:22px;color:#ffd65a;margin:10px 0}
-.save{background:#d4af37;font-weight:bold}
-.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
-.tabs button{width:auto;padding:8px}
+table{
+width:100%;
+border-collapse:collapse;
+background:#fff;
+color:#000;
+margin-top:10px;
+}
+th,td{
+border:1px solid #ccc;
+padding:6px;
+font-size:13px;
+}
+.total{
+font-size:22px;
+font-weight:bold;
+color:#ffd65a;
+margin-top:12px;
+}
+.save{
+margin-top:12px;
+padding:10px 18px;
+border:none;
+background:#d4af37;
+cursor:pointer;
+font-weight:bold;
+}
 </style>
 </head>
 <body>
 
-<div class="topbar">Event Planner PRO V7 LIVE</div>
+<div class="topbar">Event Planner PRO V7</div>
 
 <div class="toolbar">
 <button onclick="showPage('opdracht')">Nieuwe opdracht</button>
 <button onclick="showPage('facturen')">Facturen</button>
 <button onclick="showPage('materialen')">Materialen</button>
-<button onclick="showPage('klanten')">Opdrachtgevers</button>
-<button onclick="showPage('locaties')">Locaties</button>
+<button onclick="showPage('opdrachtgevers')">Opdrachtgevers</button>
+<button onclick="showPage('locatieklanten')">Locatie klanten</button>
 <button onclick="showPage('admin')">ADMIN</button>
 </div>
 
 <div class="wrap">
 
+<!-- LINKS -->
 <div class="box">
+
 <label>Opdracht nr</label>
-<input id="ordernr">
+<input value="2026-1001">
 
 <label>Status</label>
-<select id="status">
+<select>
 <option>Offerte</option>
+<option>Optie 14 dagen</option>
 <option>Bevestigd</option>
+<option>Geannuleerd</option>
 <option>Gefactureerd</option>
 <option>Betaald</option>
 </select>
 
-<label>Titel</label>
-<input id="titel">
-
-<label>Datum</label>
-<input type="date" id="datum">
-
-<div class="total" id="total">€ 0</div>
-
-<button class="save" onclick="saveOrder()">Opslaan</button>
-<button onclick="copyOrder()">Copy</button>
+<div class="small">
+<div>
+<label>Van</label>
+<input type="date">
+</div>
+<div>
+<label>Tot</label>
+<input type="date">
+</div>
 </div>
 
+<label>Titel</label>
+<input placeholder="Naam event">
+
+<div class="total">€ 0.00</div>
+
+<button class="save">Opslaan</button>
+
+</div>
+
+<!-- RECHTS -->
 <div class="box">
 
 <div class="tabs">
-<button onclick="showPage('opdracht')">Opdracht</button>
-<button onclick="showPage('facturen')">Facturen</button>
-<button onclick="showPage('materialen')">Materialen</button>
-<button onclick="showPage('klanten')">Klanten</button>
-<button onclick="showPage('locaties')">Locaties</button>
-<button onclick="showPage('admin')">Admin</button>
+<button class="active" onclick="showPage('opdracht',this)">Opdracht</button>
+<button onclick="showPage('facturen',this)">Facturen</button>
+<button onclick="showPage('materialen',this)">Materialen</button>
+<button onclick="showPage('opdrachtgevers',this)">Opdrachtgevers</button>
+<button onclick="showPage('locatieklanten',this)">Locatie klanten</button>
+<button onclick="showPage('admin',this)">Admin</button>
 </div>
 
+<!-- opdracht -->
 <div id="opdracht" class="page active">
-<h3>Planning</h3>
-<table id="ordersTable">
-<tr><th>Nr</th><th>Titel</th><th>Status</th><th>Datum</th></tr>
-</table>
+
+<h3>Klant gegevens</h3>
+
+<label>Naam</label>
+<input>
+
+<label>Adres</label>
+<input>
+
+<div class="small">
+<div>
+<label>Plaats</label>
+<input>
+</div>
+<div>
+<label>Email</label>
+<input>
+</div>
 </div>
 
+<label>Contactpersoon</label>
+<input>
+
+<label>Telefoon</label>
+<input>
+
+<hr style="margin:15px 0">
+
+<h3>Locatie gegevens</h3>
+
+<label>Naam locatie</label>
+<input>
+
+<label>Adres</label>
+<input>
+
+<div class="small">
+<div>
+<label>Plaats</label>
+<input>
+</div>
+<div>
+<label>Email</label>
+<input>
+</div>
+</div>
+
+<label>Contactpersoon</label>
+<input>
+
+<label>Telefoon</label>
+<input>
+
+</div>
+
+<!-- facturen -->
 <div id="facturen" class="page">
+
 <h3>Facturen</h3>
-<table id="factuurTable">
-<tr><th>Nr</th><th>Klant</th><th>Status</th></tr>
+
+<table>
+<tr><th>Nr</th><th>Klant</th><th>Bedrag</th><th>Status</th></tr>
+<tr><td>2026-001</td><td>Festival Delft</td><td>€1450</td><td>Open</td></tr>
+<tr><td>2026-002</td><td>Beachclub</td><td>€890</td><td>Betaald</td></tr>
 </table>
-<button onclick="makeInvoice()">Nieuwe factuur</button>
+
+<button class="save">Nieuwe factuur</button>
+
 </div>
 
+<!-- materialen -->
 <div id="materialen" class="page">
-<h3>Materialen</h3>
-<input id="matCode" placeholder="Code">
-<input id="matName" placeholder="Omschrijving">
-<input id="matPrice" placeholder="Prijs">
-<button onclick="saveMat()">Opslaan materiaal</button>
-<table id="matTable">
-<tr><th>Code</th><th>Naam</th><th>Prijs</th></tr>
+
+<h3>Materialen beheren</h3>
+
+<label>Zoek code</label>
+<input placeholder="TW">
+
+<table>
+<tr><th>Code</th><th>Omschrijving</th><th>Prijs</th></tr>
+<tr><td>TW92</td><td>Tapwagen standaard 2 kranen</td><td>€250</td></tr>
+<tr><td>TO11</td><td>Toiletwagen klein</td><td>€300</td></tr>
 </table>
+
+<button class="save">Nieuw materiaal</button>
+
 </div>
 
-<div id="klanten" class="page">
-<h3>Klanten</h3>
-<input id="clientName" placeholder="Naam klant">
-<button onclick="saveClient()">Opslaan klant</button>
-<div id="clientList"></div>
+<!-- opdrachtgevers -->
+<div id="opdrachtgevers" class="page">
+
+<h3>Bestand opdrachtgevers</h3>
+
+<table>
+<tr><th>Naam</th><th>Plaats</th><th>Tel</th></tr>
+<tr><td>Heineken</td><td>Amsterdam</td><td>020123456</td></tr>
+<tr><td>Amstel</td><td>Amsterdam</td><td>020777777</td></tr>
+</table>
+
+<button class="save">Nieuwe opdrachtgever</button>
+
 </div>
 
-<div id="locaties" class="page">
-<h3>Locaties</h3>
-<input id="locName" placeholder="Naam locatie">
-<button onclick="saveLoc()">Opslaan locatie</button>
-<div id="locList"></div>
+<!-- locatie klanten -->
+<div id="locatieklanten" class="page">
+
+<h3>Bestand locaties</h3>
+
+<table>
+<tr><th>Naam</th><th>Plaats</th><th>Contact</th></tr>
+<tr><td>Cafe De Markt</td><td>Delft</td><td>Jan</td></tr>
+<tr><td>Beachclub Sea</td><td>Scheveningen</td><td>Piet</td></tr>
+</table>
+
+<button class="save">Nieuwe locatie</button>
+
 </div>
 
+<!-- admin -->
 <div id="admin" class="page">
-<h3>ADMIN</h3>
-<input id="search" placeholder="Zoek alles">
-<button onclick="searchAll()">Zoek Mega</button>
-<div id="searchRes"></div>
+
+<h3>ADMIN CENTRUM</h3>
+
+<label>Gebruikerscode</label>
+<input value="1234">
+
+<label>Admin code</label>
+<input value="1234">
+
+<button class="save">Codes opslaan</button>
+
+<hr style="margin:15px 0">
+
+<table>
+<tr><th>Onderdeel</th><th>Status</th></tr>
+<tr><td>Materialen beheer</td><td>Actief</td></tr>
+<tr><td>Factuur systeem</td><td>Actief</td></tr>
+<tr><td>Klantbestanden</td><td>Actief</td></tr>
+</table>
+
 </div>
 
 </div>
+
 </div>
 
 <script>
-let db={
-orders:JSON.parse(localStorage.orders||"[]"),
-clients:JSON.parse(localStorage.clients||"[]"),
-locs:JSON.parse(localStorage.locs||"[]"),
-mats:JSON.parse(localStorage.mats||"[]"),
-fact:JSON.parse(localStorage.fact||"[]")
-};
-
-function saveDB(){
-localStorage.orders=JSON.stringify(db.orders);
-localStorage.clients=JSON.stringify(db.clients);
-localStorage.locs=JSON.stringify(db.locs);
-localStorage.mats=JSON.stringify(db.mats);
-localStorage.fact=JSON.stringify(db.fact);
-}
-
-function showPage(id){
+function showPage(id,el){
 document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
 document.getElementById(id).classList.add('active');
+
+document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+if(el) el.classList.add('active');
 }
-
-function saveOrder(){
-let o={
-nr:document.getElementById('ordernr').value || '2026-'+Date.now(),
-titel:document.getElementById('titel').value,
-status:document.getElementById('status').value,
-datum:document.getElementById('datum').value
-};
-db.orders.push(o);
-saveDB();
-render();
-}
-
-function copyOrder(){
-document.getElementById('ordernr').value='2026-'+Date.now();
-document.getElementById('datum').value='';
-}
-
-function saveClient(){
-db.clients.push(document.getElementById('clientName').value);
-saveDB();
-render();
-}
-
-function saveLoc(){
-db.locs.push(document.getElementById('locName').value);
-saveDB();
-render();
-}
-
-function saveMat(){
-db.mats.push({
-c:matCode.value,
-n:matName.value,
-p:matPrice.value
-});
-saveDB();
-render();
-}
-
-function makeInvoice(){
-db.fact.push({
-nr:'F'+Date.now(),
-klant:'Onbekend',
-status:'Open'
-});
-saveDB();
-render();
-}
-
-function searchAll(){
-let q=search.value.toLowerCase();
-let r=[];
-db.orders.forEach(x=>{if(x.titel.toLowerCase().includes(q))r.push(x.titel)});
-db.clients.forEach(x=>{if(x.toLowerCase().includes(q))r.push(x)});
-db.locs.forEach(x=>{if(x.toLowerCase().includes(q))r.push(x)});
-searchRes.innerHTML=r.join('<br>') || 'Geen resultaat';
-}
-
-function render(){
-ordersTable.innerHTML='<tr><th>Nr</th><th>Titel</th><th>Status</th><th>Datum</th></tr>';
-db.orders.forEach(o=>{
-ordersTable.innerHTML+=`<tr><td>${o.nr}</td><td>${o.titel}</td><td>${o.status}</td><td>${o.datum}</td></tr>`;
-});
-
-clientList.innerHTML=db.clients.join('<br>');
-locList.innerHTML=db.locs.join('<br>');
-
-matTable.innerHTML='<tr><th>Code</th><th>Naam</th><th>Prijs</th></tr>';
-db.mats.forEach(m=>{
-matTable.innerHTML+=`<tr><td>${m.c}</td><td>${m.n}</td><td>€${m.p}</td></tr>`;
-});
-
-factuurTable.innerHTML='<tr><th>Nr</th><th>Klant</th><th>Status</th></tr>';
-db.fact.forEach(f=>{
-factuurTable.innerHTML+=`<tr><td>${f.nr}</td><td>${f.klant}</td><td>${f.status}</td></tr>`;
-});
-}
-
-render();
 </script>
 
 </body>
