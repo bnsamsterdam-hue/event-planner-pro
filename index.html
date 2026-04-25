@@ -1,173 +1,151 @@
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Event Planner Pro</title>
-<style>
-body{margin:0;font-family:Arial;background:#eef2f7}
-header{background:#16213e;color:#fff;padding:15px}
-.wrap{max-width:1200px;margin:auto;padding:15px}
-.card{background:#fff;padding:15px;border-radius:12px;margin-bottom:15px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
-input,button,select{width:100%;padding:10px;margin:5px 0;border-radius:8px;border:1px solid #ccc}
-button{background:#d4af37;border:none;font-weight:bold}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px}
-table{width:100%;border-collapse:collapse}
-td,th{padding:8px;border-bottom:1px solid #eee;text-align:left}
-.small{font-size:12px;color:#666}
-.hide{display:none}
-</style>
-</head>
-<body>
-
-<header>
-<h2>Event Planner Pro</h2>
-<div class="small">Kernversie Werkend</div>
-</header>
-
-<div class="wrap">
-
-<div id="loginBox" class="card">
-<h3>PIN Login</h3>
-<input id="pin" type="password" placeholder="Voer pincode in">
-<button onclick="login()">Open systeem</button>
-<div class="small">Admin code: 1234</div>
-</div>
-
-<div id="app" class="hide">
-
-<div class="grid">
-
-<div class="card">
-<h3>Nieuwe Opdracht</h3>
-<input id="titel" placeholder="Titel event">
-<input id="klant" placeholder="Klantnaam">
-<input id="datum" type="date">
-<button onclick="saveOrder()">Opslaan opdracht</button>
-</div>
-
-<div class="card">
-<h3>Nieuwe Klant</h3>
-<input id="newClient" placeholder="Klantnaam">
-<button onclick="saveClient()">Opslaan klant</button>
-</div>
-
-<div class="card">
-<h3>Nieuw Materiaal</h3>
-<input id="matCode" placeholder="Code TW92">
-<input id="matNaam" placeholder="Omschrijving">
-<button onclick="saveMaterial()">Opslaan materiaal</button>
-</div>
-
-<div class="card">
-<h3>Zoek Mega</h3>
-<input id="search" placeholder="Zoek klant / order / materiaal">
-<button onclick="runSearch()">Zoeken</button>
-<div id="searchResult"></div>
-</div>
-
-</div>
-
-<div class="card">
-<h3>Planning / Opdrachten</h3>
-<table id="ordersTable">
-<tr><th>Nr</th><th>Titel</th><th>Klant</th><th>Datum</th></tr>
-</table>
-</div>
-
-<div class="grid">
-
-<div class="card">
-<h3>Klantenbestand</h3>
-<div id="clientsList"></div>
-</div>
-
-<div class="card">
-<h3>Materialen</h3>
-<div id="materialsList"></div>
-</div>
-
-</div>
-
-</div>
-
-</div>
-
 <script>
-let orders = JSON.parse(localStorage.getItem("orders")||"[]");
-let clients = JSON.parse(localStorage.getItem("clients")||"[]");
-let materials = JSON.parse(localStorage.getItem("materials")||"[]");
+/* ===== V7 LIVE PATCH 1 ===== */
+let db = {
+orders: JSON.parse(localStorage.getItem("v7_orders") || "[]"),
+clients: JSON.parse(localStorage.getItem("v7_clients") || "[]"),
+locations: JSON.parse(localStorage.getItem("v7_locations") || "[]"),
+materials: JSON.parse(localStorage.getItem("v7_materials") || "[]")
+};
 
-function login(){
- if(document.getElementById("pin").value==="1234"){
-   document.getElementById("loginBox").style.display="none";
-   document.getElementById("app").classList.remove("hide");
-   renderAll();
- } else {
-   alert("Foute code");
- }
+function saveDB(){
+localStorage.setItem("v7_orders", JSON.stringify(db.orders));
+localStorage.setItem("v7_clients", JSON.stringify(db.clients));
+localStorage.setItem("v7_locations", JSON.stringify(db.locations));
+localStorage.setItem("v7_materials", JSON.stringify(db.materials));
 }
 
-function saveOrder(){
- let o={
-   nr:"ORD"+Date.now(),
-   titel:document.getElementById("titel").value,
-   klant:document.getElementById("klant").value,
-   datum:document.getElementById("datum").value
- };
- orders.push(o);
- localStorage.setItem("orders",JSON.stringify(orders));
- renderOrders();
-}
+/* ===== OPSLAAN OPDRACHT ===== */
+document.querySelector(".save").onclick=function(){
+let nr=document.querySelector('input[value="2026-1001"]').value;
+let titel=document.querySelector('input[placeholder="Naam event"]').value;
+let status=document.querySelector("select").value;
 
-function saveClient(){
- let c=document.getElementById("newClient").value;
- clients.push(c);
- localStorage.setItem("clients",JSON.stringify(clients));
- renderClients();
-}
+db.orders.push({
+nr:nr,
+titel:titel,
+status:status,
+datum:new Date().toLocaleDateString()
+});
+saveDB();
+alert("Opdracht opgeslagen");
+renderOrders();
+};
 
-function saveMaterial(){
- let m=document.getElementById("matCode").value+" - "+document.getElementById("matNaam").value;
- materials.push(m);
- localStorage.setItem("materials",JSON.stringify(materials));
- renderMaterials();
-}
-
+/* ===== RENDER FACTUREN TAB ALS OPDRACHTEN ===== */
 function renderOrders(){
- let t=document.getElementById("ordersTable");
- t.innerHTML="<tr><th>Nr</th><th>Titel</th><th>Klant</th><th>Datum</th></tr>";
- orders.forEach(o=>{
-   t.innerHTML+=`<tr><td>${o.nr}</td><td>${o.titel}</td><td>${o.klant}</td><td>${o.datum}</td></tr>`;
- });
+let table=document.querySelector("#facturen table");
+table.innerHTML=`
+<tr>
+<th>Nr</th>
+<th>Titel</th>
+<th>Status</th>
+<th>Datum</th>
+</tr>
+`;
+db.orders.forEach(o=>{
+table.innerHTML += `
+<tr>
+<td>${o.nr}</td>
+<td>${o.titel}</td>
+<td>${o.status}</td>
+<td>${o.datum}</td>
+</tr>`;
+});
 }
 
+/* ===== NIEUWE KLANT ===== */
+document.querySelectorAll(".save")[3].onclick=function(){
+let naam=prompt("Nieuwe opdrachtgever");
+if(!naam)return;
+db.clients.push({naam:naam,plaats:"Onbekend",tel:"-"});
+saveDB();
+renderClients();
+};
+
+/* ===== RENDER KLANTEN ===== */
 function renderClients(){
- document.getElementById("clientsList").innerHTML=clients.join("<br>");
+let table=document.querySelector("#opdrachtgevers table");
+table.innerHTML=`
+<tr><th>Naam</th><th>Plaats</th><th>Tel</th></tr>
+`;
+db.clients.forEach(c=>{
+table.innerHTML += `
+<tr>
+<td>${c.naam}</td>
+<td>${c.plaats}</td>
+<td>${c.tel}</td>
+</tr>`;
+});
 }
+
+/* ===== NIEUWE LOCATIE ===== */
+document.querySelectorAll(".save")[4].onclick=function(){
+let naam=prompt("Nieuwe locatie");
+if(!naam)return;
+db.locations.push({naam:naam,plaats:"Onbekend",contact:"-"});
+saveDB();
+renderLocations();
+};
+
+function renderLocations(){
+let table=document.querySelector("#locatieklanten table");
+table.innerHTML=`
+<tr><th>Naam</th><th>Plaats</th><th>Contact</th></tr>
+`;
+db.locations.forEach(l=>{
+table.innerHTML += `
+<tr>
+<td>${l.naam}</td>
+<td>${l.plaats}</td>
+<td>${l.contact}</td>
+</tr>`;
+});
+}
+
+/* ===== NIEUW MATERIAAL ===== */
+document.querySelectorAll(".save")[2].onclick=function(){
+let code=prompt("Code");
+let oms=prompt("Omschrijving");
+let prijs=prompt("Prijs");
+if(!code)return;
+
+db.materials.push({
+code:code,
+oms:oms,
+prijs:prijs
+});
+saveDB();
+renderMaterials();
+};
 
 function renderMaterials(){
- document.getElementById("materialsList").innerHTML=materials.join("<br>");
+let table=document.querySelector("#materialen table");
+table.innerHTML=`
+<tr><th>Code</th><th>Omschrijving</th><th>Prijs</th></tr>
+`;
+db.materials.forEach(m=>{
+table.innerHTML += `
+<tr>
+<td>${m.code}</td>
+<td>${m.oms}</td>
+<td>€${m.prijs}</td>
+</tr>`;
+});
 }
 
-function runSearch(){
- let q=document.getElementById("search").value.toLowerCase();
- let res=[];
- orders.forEach(o=>{
-   if(o.titel.toLowerCase().includes(q)||o.klant.toLowerCase().includes(q)||o.nr.toLowerCase().includes(q))
-   res.push("Opdracht: "+o.titel);
- });
- clients.forEach(c=>{ if(c.toLowerCase().includes(q)) res.push("Klant: "+c); });
- materials.forEach(m=>{ if(m.toLowerCase().includes(q)) res.push("Materiaal: "+m); });
- document.getElementById("searchResult").innerHTML=res.join("<br>") || "Geen resultaat";
-}
+/* ===== ZOEK IN MATERIALEN ===== */
+document.querySelector("#materialen input").onkeyup=function(){
+let q=this.value.toLowerCase();
+let rows=document.querySelectorAll("#materialen table tr");
+rows.forEach((r,i)=>{
+if(i===0)return;
+r.style.display=r.innerText.toLowerCase().includes(q)?"":"none";
+});
+};
 
-function renderAll(){
- renderOrders();
- renderClients();
- renderMaterials();
-}
+/* ===== START ===== */
+renderOrders();
+renderClients();
+renderLocations();
+renderMaterials();
 </script>
-
-</body>
-</html>
