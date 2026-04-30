@@ -13,7 +13,7 @@
   <div class="login-card">
     <div class="lock">🔐</div>
     <h1>EVENT PLANNER PRO</h1>
-    <p>V8</p>
+    <p>V8 - data vanaf 2023</p>
     <div id="pinDots" class="pin-dots">- - - -</div>
     <div class="pin-grid">
       <button data-pin="1">1</button><button data-pin="2">2</button><button data-pin="3">3</button>
@@ -21,7 +21,7 @@
       <button data-pin="7">7</button><button data-pin="8">8</button><button data-pin="9">9</button>
       <button id="pinClear">C</button><button data-pin="0">0</button><button id="pinOk">OK</button>
     </div>
-    <small>Admin standaard PIN: 1111</small>
+    <small>Admin: 1111 | Bezorger demo: 2222 | Planner demo: 3333</small>
   </div>
 </section>
 
@@ -48,7 +48,7 @@
     <section id="dashboard" class="page active">
       <h2>Dashboard</h2>
       <div class="cards">
-        <div class="card"><b>Open opdrachten</b><span id="statOrders">0</span></div>
+        <div class="card"><b>Opdrachten vanaf 2023</b><span id="statOrders">0</span></div>
         <div class="card"><b>Actieve meldingen</b><span id="statAlerts">0</span></div>
         <div class="card"><b>Materialen</b><span id="statMaterials">0</span></div>
       </div>
@@ -130,7 +130,7 @@
     </section>
 
     <section id="orders" class="page">
-      <h2>Opdrachten</h2>
+      <h2>Opdrachten vanaf 2023</h2>
       <div id="ordersList" class="list"></div>
     </section>
 
@@ -180,10 +180,10 @@
         </div>
 
         <div class="panel">
-          <h3>Data import/export</h3>
-          <input id="jsonImport" type="file" accept=".json" />
+          <h3>Data</h3>
+          <button id="reloadSeedBtn">Herlaad oude data vanaf 2023</button>
           <button id="backupBtn">Backup JSON downloaden</button>
-          <p>Geen browser popups: meldingen verschijnen in de app.</p>
+          <p>Data is ingebouwd uit Access-export vanaf 2023. Geen import nodig.</p>
         </div>
       </div>
     </section>
