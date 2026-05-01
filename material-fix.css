@@ -1,0 +1,63 @@
+/* material-fix.css - extra stijl voor materiaalkaarten */
+.material-status-legend{
+  display:flex !important;
+  align-items:center !important;
+  flex-wrap:wrap !important;
+  gap:12px !important;
+  margin:12px 0 18px !important;
+}
+.material-status-legend strong{
+  margin-right:8px !important;
+}
+.material-row{
+  display:grid !important;
+  grid-template-columns: 8px 1fr auto !important;
+  gap:14px !important;
+  align-items:center !important;
+  padding:14px 16px !important;
+  margin:10px 0 !important;
+  border-radius:18px !important;
+  background:#fff !important;
+  border:1px solid rgba(15,23,42,.10) !important;
+  box-shadow:0 8px 20px rgba(15,23,42,.08) !important;
+  cursor:pointer !important;
+  color:#172033 !important;
+}
+.material-row .catbar{
+  width:8px !important;
+  align-self:stretch !important;
+  border-radius:99px !important;
+  background:var(--cat-color, var(--mat-cat-color, #1683d8)) !important;
+}
+.material-row .mat-text b{
+  font-weight:900 !important;
+  color:#172033 !important;
+}
+.material-row .mat-text small{
+  color:#64748b !important;
+  font-weight:700 !important;
+}
+.badge{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:7px !important;
+  padding:8px 12px !important;
+  border-radius:999px !important;
+  font-weight:900 !important;
+  white-space:nowrap !important;
+}
+.badge i{
+  width:10px !important;
+  height:10px !important;
+  border-radius:50% !important;
+  display:inline-block !important;
+}
+.status-free{background:#dcfce7 !important;color:#166534 !important;}
+.status-free i{background:#15803d !important;}
+.status-reserved{background:#fee2e2 !important;color:#991b1b !important;}
+.status-reserved i{background:#b91c1c !important;}
+.status-defect{background:#fee2e2 !important;color:#991b1b !important;animation:bnsBlink .45s infinite alternate !important;}
+.status-defect i{background:#dc2626 !important;}
+.status-inactive{background:#e2e8f0 !important;color:#334155 !important;}
+.status-inactive i{background:#64748b !important;}
+@keyframes bnsBlink{from{opacity:.45}to{opacity:1}}
