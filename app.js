@@ -1,3 +1,5 @@
+
+
 // ===== V9.1 safety fixes =====
 function safePrint(){ window.print(); }
 function safeMail(text, subject){
@@ -1816,18 +1818,19 @@ setTimeout(()=>{
 // - Links blijft de rubriek-kleurbalk.
 // - Rechts blijft de statusbadge met tekst.
 // ============================================================
-(function BNS_V113_MATERIAL_FIX(){
+
+
+/* =========================================================
+   BNS V11.3 MATERIAL DATA + RENDER FIX
+   Basis: behoud V11.3 functies/stijl.
+   Data: materials/orders/customers/locations uit oude werkende e8b import.
+   Doel: materiaal zichtbaar houden, ook als localStorage leeg/kapot is.
+   ========================================================= */
+(function BNS_V113_MATERIAL_DATA_RENDER_FIX(){
   "use strict";
 
-  const STORAGE_KEYS = [
-    "event-planner-pro-v87",
-    "eventPlannerPro",
-    "eventPlannerProState",
-    "eventPlannerProV91",
-    "plannerState"
-  ];
-
-  const CATEGORY_COLORS = {
+  const KEY = "event-planner-pro-v87";
+  const CAT_COLORS = {
     TW: "#1683d8",
     TO: "#f97316",
     KW: "#22c55e",
@@ -1838,294 +1841,244 @@ setTimeout(()=>{
 
   const $ = (id) => document.getElementById(id);
 
-  function escapeHtml(value){
-    return String(value ?? "").replace(/[&<>\"']/g, (char) => ({
+  function cleanCat(cat){
+    return String(cat || "EXTRA").trim().toUpperCase().replace(/[^A-Z0-9]/g, "") || "EXTRA";
+  }
+
+  function esc(value){
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
       "&": "&amp;",
       "<": "&lt;",
       ">": "&gt;",
-      "\"": "&quot;",
+      '"': "&quot;",
       "'": "&#39;"
     }[char]));
   }
 
-  function cleanCategory(category){
-    return String(category || "EXTRA")
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, "") || "EXTRA";
+  function clone(value){
+    try { return structuredClone(value); }
+    catch (error) { return JSON.parse(JSON.stringify(value)); }
   }
 
-  function readSavedState(){
-    // 1. Eerst de echte actieve state uit deze app gebruiken.
+  function ensureImportedMaterials(){
     try {
-      if (typeof state !== "undefined" && state && Array.isArray(state.materials)) {
-        return state;
+      if (!window.INITIAL_STATE && typeof INITIAL_STATE !== "undefined") {
+        window.INITIAL_STATE = INITIAL_STATE;
       }
     } catch (error) {}
 
-    // 2. Daarna bekende localStorage keys proberen.
-    for (const key of STORAGE_KEYS) {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(key) || "null");
-        if (parsed && Array.isArray(parsed.materials)) return parsed;
-      } catch (error) {}
+    try {
+      const imported = (typeof INITIAL_STATE !== "undefined" && INITIAL_STATE.materials) ? INITIAL_STATE.materials : [];
+      if (!imported.length) return;
+
+      if (typeof state !== "undefined" && state) {
+        if (!Array.isArray(state.materials) || state.materials.length < 20) {
+          state.materials = clone(imported);
+        }
+        state.orders = Array.isArray(state.orders) && state.orders.length ? state.orders : clone(INITIAL_STATE.orders || []);
+        state.customers = Array.isArray(state.customers) && state.customers.length ? state.customers : clone(INITIAL_STATE.customers || []);
+        state.locations = Array.isArray(state.locations) && state.locations.length ? state.locations : clone(INITIAL_STATE.locations || []);
+        state.users = Array.isArray(state.users) && state.users.length ? state.users : clone(INITIAL_STATE.users || []);
+
+        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (error) {}
+      }
+    } catch (error) {
+      console.warn("BNS material import fix kon niet uitvoeren", error);
     }
-
-    // 3. Daarna alle localStorage regels scannen op een materialenlijst.
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        const value = localStorage.getItem(key);
-        if (!value || !value.includes("materials")) continue;
-        const parsed = JSON.parse(value);
-        if (parsed && Array.isArray(parsed.materials)) return parsed;
-      }
-    } catch (error) {}
-
-    // 4. Als laatste fallback: originele importdata.
-    try {
-      if (typeof INITIAL_STATE !== "undefined" && Array.isArray(INITIAL_STATE.materials)) {
-        return INITIAL_STATE;
-      }
-    } catch (error) {}
-
-    return { materials: [] };
   }
 
   function getMaterials(){
-    const appState = readSavedState();
-    return Array.isArray(appState.materials) ? appState.materials : [];
-  }
-
-  function getChosenMaterials(){
-    try {
-      return Array.isArray(chosen) ? chosen : [];
-    } catch (error) {
-      return [];
-    }
-  }
-
-  function getCategoryColor(category){
-    const key = cleanCategory(category);
+    ensureImportedMaterials();
 
     try {
-      const savedColors = JSON.parse(localStorage.getItem("bnsCatColors") || "{}");
-      if (savedColors[key]) return savedColors[key];
+      if (typeof state !== "undefined" && state && Array.isArray(state.materials) && state.materials.length) {
+        return state.materials;
+      }
     } catch (error) {}
 
-    return CATEGORY_COLORS[key] || CATEGORY_COLORS.EXTRA;
-  }
-
-  function getStatusInfo(status){
-    const value = String(status || "free").toLowerCase();
-
-    if (value === "reserved" || value === "gereserveerd") {
-      return { text: "Gereserveerd", className: "v112-reserved", rowClass: "status-reserved" };
-    }
-
-    if (value === "defect") {
-      return { text: "Defect", className: "v112-defect", rowClass: "status-defect" };
-    }
-
-    if (value === "inactive" || value === "niet actief" || value === "niet beschikbaar") {
-      return { text: "Niet actief", className: "v112-inactive", rowClass: "status-inactive" };
-    }
-
-    return { text: "Vrij", className: "v112-free", rowClass: "status-free" };
-  }
-
-  function getCurrentCategory(){
     try {
-      if (typeof currentCat !== "undefined" && currentCat) return cleanCategory(currentCat);
+      if (typeof INITIAL_STATE !== "undefined" && Array.isArray(INITIAL_STATE.materials)) {
+        return INITIAL_STATE.materials;
+      }
     } catch (error) {}
 
-    if (window.currentCat) return cleanCategory(window.currentCat);
+    return [];
+  }
 
-    const activeButton = $("materialCats")?.querySelector("button.active");
-    if (activeButton) return cleanCategory(activeButton.dataset.cat || activeButton.textContent);
+  function getChosen(){
+    try { return Array.isArray(chosen) ? chosen : []; }
+    catch (error) { return []; }
+  }
+
+  function getCurrentCat(){
+    try {
+      if (typeof currentCat !== "undefined" && currentCat) return cleanCat(currentCat);
+    } catch (error) {}
+
+    if (window.currentCat) return cleanCat(window.currentCat);
 
     return "TW";
   }
 
-  function setCurrentCategory(category){
-    const clean = cleanCategory(category);
+  function setCurrentCat(cat){
+    const clean = cleanCat(cat);
     window.currentCat = clean;
     try { currentCat = clean; } catch (error) {}
     return clean;
   }
 
-  function getAvailableCategories(){
-    const categories = [...new Set(getMaterials().map((material) => cleanCategory(material.cat)))].sort();
-    return categories.length ? categories : ["TW", "TO", "KW", "EXTRA"];
+  function categories(){
+    const cats = [...new Set(getMaterials().map((m) => cleanCat(m.cat)))].sort();
+    return cats.length ? cats : ["TW", "TO", "KW", "EXTRA"];
   }
 
-  function renderMaterialStatusLegend(){
+  function statusInfo(status){
+    const value = String(status || "free").toLowerCase();
+
+    if (value === "reserved" || value === "gereserveerd") {
+      return { text: "Gereserveerd", cls: "reserved", pill: "status-reserved" };
+    }
+    if (value === "defect") {
+      return { text: "Defect", cls: "defect", pill: "status-defect" };
+    }
+    if (value === "inactive" || value === "niet actief" || value === "niet beschikbaar") {
+      return { text: "Niet actief", cls: "inactive", pill: "status-inactive" };
+    }
+    return { text: "Vrij", cls: "free", pill: "status-free" };
+  }
+
+  function catColor(cat){
+    const clean = cleanCat(cat);
+    try {
+      const saved = JSON.parse(localStorage.getItem("bnsCatColors") || "{}");
+      if (saved[clean]) return saved[clean];
+    } catch (error) {}
+    return CAT_COLORS[clean] || CAT_COLORS.EXTRA;
+  }
+
+  function renderStatusLegend(){
     const panel = $("materialPanel");
     if (!panel) return;
 
-    panel
-      .querySelectorAll(".material-status-legend,.mat-status-legend,.bns-status-legend,.v111-status-legend,.v112-status-legend,.v113-status-legend")
-      .forEach((element) => element.remove());
+    panel.querySelectorAll(".material-status-legend,.bns-status-legend,.v112-status-legend,.v113-status-legend").forEach((el) => el.remove());
 
     const legend = document.createElement("div");
-    legend.className = "v112-status-legend v113-status-legend";
-    legend.innerHTML = [
-      "<strong>Materiaal status:</strong>",
-      '<span class="v112-pill v112-free">Vrij</span>',
-      '<span class="v112-pill v112-reserved">Gereserveerd</span>',
-      '<span class="v112-pill v112-defect">Defect</span>',
-      '<span class="v112-pill v112-inactive">Niet actief</span>'
-    ].join("");
+    legend.className = "material-status-legend bns-status-legend";
+    legend.innerHTML = `
+      <strong>Materiaal status:</strong>
+      <span class="badge status-free"><i></i>Vrij</span>
+      <span class="badge status-reserved"><i></i>Gereserveerd</span>
+      <span class="badge status-defect"><i></i>Defect</span>
+      <span class="badge status-inactive"><i></i>Niet actief</span>
+    `;
 
-    const title = panel.querySelector("h3");
-    if (title) title.insertAdjacentElement("afterend", legend);
-    else panel.prepend(legend);
+    const workspace = panel.querySelector(".material-workspace");
+    if (workspace) workspace.insertAdjacentElement("beforebegin", legend);
+    else panel.appendChild(legend);
   }
 
-  function renderCategoryTabs(){
-    const container = $("materialCats");
-    if (!container) return;
+  function renderCatsFixed(){
+    const box = $("materialCats");
+    if (!box) return;
 
-    const categories = getAvailableCategories();
-    let activeCategory = getCurrentCategory();
-    if (!categories.includes(activeCategory)) activeCategory = categories[0];
-    setCurrentCategory(activeCategory);
+    const cats = categories();
+    let active = getCurrentCat();
+    if (!cats.includes(active)) active = cats.includes("TW") ? "TW" : cats[0];
+    setCurrentCat(active);
 
-    container.innerHTML = categories.map((category) => {
-      const active = category === activeCategory ? "active" : "";
-      const color = getCategoryColor(category);
-      return `<button type="button" class="${active}" data-cat="${escapeHtml(category)}" style="border-bottom:5px solid ${color}">${escapeHtml(category)}</button>`;
+    box.innerHTML = cats.map((cat) => {
+      const isActive = cat === active ? "active" : "";
+      return `<button type="button" class="${isActive}" data-cat="${esc(cat)}" style="border-bottom:5px solid ${catColor(cat)}">${esc(cat)}</button>`;
     }).join("");
 
-    container.querySelectorAll("button").forEach((button) => {
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        const category = setCurrentCategory(button.dataset.cat || button.textContent);
-        renderCategoryTabs();
-        renderMaterials(category);
+    box.querySelectorAll("button").forEach((button) => {
+      button.addEventListener("click", () => {
+        const cat = setCurrentCat(button.dataset.cat || button.textContent);
+        renderCatsFixed();
+        renderMaterialsFixed(cat);
       });
     });
   }
 
-  function renderMaterials(category){
+  function renderMaterialsFixed(cat){
     const list = $("materialList");
     if (!list) return;
 
-    const activeCategory = setCurrentCategory(category || getCurrentCategory());
+    ensureImportedMaterials();
+
+    const active = setCurrentCat(cat || getCurrentCat());
     const query = ($("materialSearch")?.value || "").toLowerCase().trim();
-    const selected = getChosenMaterials();
+    const selected = getChosen();
 
     const rows = getMaterials()
-      .filter((material) => cleanCategory(material.cat) === activeCategory)
-      .filter((material) => {
+      .filter((m) => cleanCat(m.cat) === active)
+      .filter((m) => {
         if (!query) return true;
-        const text = `${material.code || ""} ${material.name || ""} ${material.notes || ""} ${material.price || ""}`.toLowerCase();
-        return text.includes(query);
-      })
-      .slice(0, 300);
+        return `${m.code || ""} ${m.name || ""} ${m.notes || ""} ${m.price || ""}`.toLowerCase().includes(query);
+      });
 
-    list.innerHTML = rows.length
-      ? rows.map((material) => renderMaterialCard(material, selected)).join("")
-      : '<p class="v112-empty">Geen materiaal gevonden in deze rubriek.</p>';
+    list.innerHTML = rows.length ? rows.map((m) => {
+      const status = statusInfo(m.status);
+      const selectedClass = selected.some((x) => String(x.id) === String(m.id)) ? "selected" : "";
+      const materialId = esc(m.id || "");
+      const color = catColor(m.cat);
 
-    renderMaterialStatusLegend();
-  }
-
-  function renderMaterialCard(material, selectedMaterials){
-    const status = getStatusInfo(material.status);
-    const isSelected = selectedMaterials.some((item) => String(item.id) === String(material.id));
-    const materialId = escapeHtml(material.id || "");
-    const categoryColor = getCategoryColor(material.cat);
-    const priceText = material.price || "oude prijs: € 0";
-
-    return `
-      <div class="material-row v112-material-row v113-material-row ${status.rowClass} ${status.className} ${isSelected ? "selected" : ""}"
-           style="--cat-color:${categoryColor};--mat-cat-color:${categoryColor}"
-           onclick="addMat('${materialId}')">
-        <div class="catbar" aria-hidden="true"></div>
-        <div class="v112-mat-main">
-          <b>${escapeHtml(material.code || "")}</b> ${escapeHtml(material.name || "")}
-          <br><small>${escapeHtml(priceText)}</small>
+      return `
+        <div class="material-row ${selectedClass} status-${status.cls}" style="--cat-color:${color};--mat-cat-color:${color}" onclick="addMat('${materialId}')">
+          <div class="catbar" aria-hidden="true"></div>
+          <div class="mat-text">
+            <b>${esc(m.code || "")}</b> ${esc(m.name || "")}
+            <br><small>${esc(m.price || "oude prijs: € 0")}</small>
+          </div>
+          <span class="badge ${status.pill}"><i></i>${esc(status.text)}</span>
         </div>
-        <span class="v112-pill v112-status ${status.className}">${isSelected ? "Toegevoegd" : status.text}</span>
-      </div>
-    `;
+      `;
+    }).join("") : '<p class="material-empty">Geen materiaal gevonden.</p>';
+
+    renderStatusLegend();
   }
 
-  function bindMaterialSearch(){
+  function bindSearch(){
     const input = $("materialSearch");
-    if (!input || input.dataset.bnsV113Bound === "1") return;
-
-    input.dataset.bnsV113Bound = "1";
-    input.addEventListener("input", () => renderMaterials(getCurrentCategory()));
+    if (!input || input.dataset.bnsFixed === "1") return;
+    input.dataset.bnsFixed = "1";
+    input.addEventListener("input", () => renderMaterialsFixed(getCurrentCat()));
   }
 
-  function removeGithubText(){
-    const clean = (value) => String(value ?? "").replace(/git\s*hub|github|gitup/ig, "Systeemmelding");
+  function install(){
+    ensureImportedMaterials();
 
-    try {
-      window.alert = function(message){
-        const toast = document.createElement("div");
-        toast.className = "bns-app-toast";
-        toast.textContent = clean(message || "Systeemmelding");
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2400);
-      };
-    } catch (error) {}
+    window.renderCats = renderCatsFixed;
+    window.renderMaterials = renderMaterialsFixed;
 
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        const value = localStorage.getItem(key);
-        if (value && /git\s*hub|github|gitup/i.test(value)) {
-          localStorage.setItem(key, clean(value));
-        }
-      }
-    } catch (error) {}
+    try { renderCats = renderCatsFixed; } catch (error) {}
+    try { renderMaterials = renderMaterialsFixed; } catch (error) {}
 
-    if (!document.body) return;
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) {
-      if (/git\s*hub|github|gitup/i.test(node.nodeValue)) {
-        node.nodeValue = clean(node.nodeValue);
-      }
-    }
-  }
-
-  function installMaterialFix(){
-    document.body.classList.add("bns-v112", "bns-v113");
-
-    window.renderCats = renderCategoryTabs;
-    window.renderMaterials = renderMaterials;
-
-    try { renderCats = renderCategoryTabs; } catch (error) {}
-    try { renderMaterials = renderMaterials; } catch (error) {}
-
-    renderMaterialStatusLegend();
-    renderCategoryTabs();
-    renderMaterials(getCurrentCategory());
-    bindMaterialSearch();
-    removeGithubText();
-
-    setInterval(removeGithubText, 2000);
+    renderStatusLegend();
+    renderCatsFixed();
+    renderMaterialsFixed(getCurrentCat());
+    bindSearch();
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => setTimeout(installMaterialFix, 350));
+    document.addEventListener("DOMContentLoaded", () => setTimeout(install, 400));
   } else {
-    setTimeout(installMaterialFix, 350);
+    setTimeout(install, 400);
   }
+
+  window.BNS_resetMaterialData = function(){
+    try {
+      if (typeof INITIAL_STATE !== "undefined" && typeof state !== "undefined") {
+        state.materials = clone(INITIAL_STATE.materials || []);
+        state.orders = clone(INITIAL_STATE.orders || []);
+        state.customers = clone(INITIAL_STATE.customers || []);
+        state.locations = clone(INITIAL_STATE.locations || []);
+        localStorage.setItem(KEY, JSON.stringify(state));
+        install();
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
 })();
 
-// BNS V11.3.1 - koppel de leesbare materiaal functies ook aan oude interne namen
-(function BNS_V113_GLOBAL_LINK(){
-  function link(){
-    try {
-      if (typeof window.renderMaterials === "function") renderMaterials = window.renderMaterials;
-      if (typeof window.renderCats === "function") renderCats = window.renderCats;
-    } catch (error) {}
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(link, 600));
-  else setTimeout(link, 600);
-})();
