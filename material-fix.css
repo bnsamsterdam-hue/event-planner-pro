@@ -104,3 +104,32 @@
 .status-inactive{background:#e2e8f0 !important;color:#334155 !important;}
 .status-inactive i{background:#64748b !important;}
 @keyframes bnsBlink{from{opacity:.45}to{opacity:1}}
+/* compacte tekst materiaalregels */
+.material-row {
+  min-height: 42px !important;
+  padding: 6px 10px !important;
+  display: grid !important;
+  grid-template-columns: 8px 1fr auto !important;
+}
+
+.material-row .mat-text {
+  display: block !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  line-height: 1.15 !important;
+}
+
+.material-row .mat-text br {
+  display: none !important;
+}
+
+.material-row .mat-text small {
+  margin-left: 8px !important;
+  font-size: 12px !important;
+}
+
+.material-row .badge {
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+}
