@@ -133,3 +133,44 @@
   font-size: 12px !important;
   padding: 4px 8px !important;
 }
+/* ===== FORCE COMPACT MATERIALEN ===== */
+
+#materialList .material-row {
+  height: 46px !important;
+  min-height: 46px !important;
+  max-height: 46px !important;
+  padding: 6px 10px !important;
+  display: grid !important;
+  grid-template-columns: 8px 1fr auto !important;
+  gap: 10px !important;
+  background: #fff !important;
+  overflow: hidden !important;
+}
+
+#materialList .material-row .mat-text {
+  display: block !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  line-height: 1 !important;
+}
+
+#materialList .material-row .mat-text br {
+  display: none !important;
+}
+
+#materialList .material-row .mat-text b,
+#materialList .material-row .mat-text small {
+  display: inline !important;
+  white-space: nowrap !important;
+}
+
+#materialList .material-row .mat-text small {
+  margin-left: 8px !important;
+  font-size: 12px !important;
+}
+
+#materialList .material-row .badge {
+  font-size: 12px !important;
+  padding: 3px 8px !important;
+}
