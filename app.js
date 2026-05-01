@@ -1,5 +1,3 @@
-
-
 // ===== V9.1 safety fixes =====
 function safePrint(){ window.print(); }
 function safeMail(text, subject){
@@ -1808,4 +1806,326 @@ setTimeout(()=>{
     setInterval(removeGithubText, 1500);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 350)); else setTimeout(init, 350);
+})();
+
+// ============================================================
+// BNS V11.3 - nette, leesbare materiaal functies
+// Doel:
+// - Alle bestaande data en functies blijven staan.
+// - Materialen worden altijd zichtbaar, ook als localStorage anders heet.
+// - Links blijft de rubriek-kleurbalk.
+// - Rechts blijft de statusbadge met tekst.
+// ============================================================
+(function BNS_V113_MATERIAL_FIX(){
+  "use strict";
+
+  const STORAGE_KEYS = [
+    "event-planner-pro-v87",
+    "eventPlannerPro",
+    "eventPlannerProState",
+    "eventPlannerProV91",
+    "plannerState"
+  ];
+
+  const CATEGORY_COLORS = {
+    TW: "#1683d8",
+    TO: "#f97316",
+    KW: "#22c55e",
+    KA: "#a855f7",
+    SL: "#eab308",
+    EXTRA: "#334155"
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  function escapeHtml(value){
+    return String(value ?? "").replace(/[&<>\"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#39;"
+    }[char]));
+  }
+
+  function cleanCategory(category){
+    return String(category || "EXTRA")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "") || "EXTRA";
+  }
+
+  function readSavedState(){
+    // 1. Eerst de echte actieve state uit deze app gebruiken.
+    try {
+      if (typeof state !== "undefined" && state && Array.isArray(state.materials)) {
+        return state;
+      }
+    } catch (error) {}
+
+    // 2. Daarna bekende localStorage keys proberen.
+    for (const key of STORAGE_KEYS) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || "null");
+        if (parsed && Array.isArray(parsed.materials)) return parsed;
+      } catch (error) {}
+    }
+
+    // 3. Daarna alle localStorage regels scannen op een materialenlijst.
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key);
+        if (!value || !value.includes("materials")) continue;
+        const parsed = JSON.parse(value);
+        if (parsed && Array.isArray(parsed.materials)) return parsed;
+      }
+    } catch (error) {}
+
+    // 4. Als laatste fallback: originele importdata.
+    try {
+      if (typeof INITIAL_STATE !== "undefined" && Array.isArray(INITIAL_STATE.materials)) {
+        return INITIAL_STATE;
+      }
+    } catch (error) {}
+
+    return { materials: [] };
+  }
+
+  function getMaterials(){
+    const appState = readSavedState();
+    return Array.isArray(appState.materials) ? appState.materials : [];
+  }
+
+  function getChosenMaterials(){
+    try {
+      return Array.isArray(chosen) ? chosen : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function getCategoryColor(category){
+    const key = cleanCategory(category);
+
+    try {
+      const savedColors = JSON.parse(localStorage.getItem("bnsCatColors") || "{}");
+      if (savedColors[key]) return savedColors[key];
+    } catch (error) {}
+
+    return CATEGORY_COLORS[key] || CATEGORY_COLORS.EXTRA;
+  }
+
+  function getStatusInfo(status){
+    const value = String(status || "free").toLowerCase();
+
+    if (value === "reserved" || value === "gereserveerd") {
+      return { text: "Gereserveerd", className: "v112-reserved", rowClass: "status-reserved" };
+    }
+
+    if (value === "defect") {
+      return { text: "Defect", className: "v112-defect", rowClass: "status-defect" };
+    }
+
+    if (value === "inactive" || value === "niet actief" || value === "niet beschikbaar") {
+      return { text: "Niet actief", className: "v112-inactive", rowClass: "status-inactive" };
+    }
+
+    return { text: "Vrij", className: "v112-free", rowClass: "status-free" };
+  }
+
+  function getCurrentCategory(){
+    try {
+      if (typeof currentCat !== "undefined" && currentCat) return cleanCategory(currentCat);
+    } catch (error) {}
+
+    if (window.currentCat) return cleanCategory(window.currentCat);
+
+    const activeButton = $("materialCats")?.querySelector("button.active");
+    if (activeButton) return cleanCategory(activeButton.dataset.cat || activeButton.textContent);
+
+    return "TW";
+  }
+
+  function setCurrentCategory(category){
+    const clean = cleanCategory(category);
+    window.currentCat = clean;
+    try { currentCat = clean; } catch (error) {}
+    return clean;
+  }
+
+  function getAvailableCategories(){
+    const categories = [...new Set(getMaterials().map((material) => cleanCategory(material.cat)))].sort();
+    return categories.length ? categories : ["TW", "TO", "KW", "EXTRA"];
+  }
+
+  function renderMaterialStatusLegend(){
+    const panel = $("materialPanel");
+    if (!panel) return;
+
+    panel
+      .querySelectorAll(".material-status-legend,.mat-status-legend,.bns-status-legend,.v111-status-legend,.v112-status-legend,.v113-status-legend")
+      .forEach((element) => element.remove());
+
+    const legend = document.createElement("div");
+    legend.className = "v112-status-legend v113-status-legend";
+    legend.innerHTML = [
+      "<strong>Materiaal status:</strong>",
+      '<span class="v112-pill v112-free">Vrij</span>',
+      '<span class="v112-pill v112-reserved">Gereserveerd</span>',
+      '<span class="v112-pill v112-defect">Defect</span>',
+      '<span class="v112-pill v112-inactive">Niet actief</span>'
+    ].join("");
+
+    const title = panel.querySelector("h3");
+    if (title) title.insertAdjacentElement("afterend", legend);
+    else panel.prepend(legend);
+  }
+
+  function renderCategoryTabs(){
+    const container = $("materialCats");
+    if (!container) return;
+
+    const categories = getAvailableCategories();
+    let activeCategory = getCurrentCategory();
+    if (!categories.includes(activeCategory)) activeCategory = categories[0];
+    setCurrentCategory(activeCategory);
+
+    container.innerHTML = categories.map((category) => {
+      const active = category === activeCategory ? "active" : "";
+      const color = getCategoryColor(category);
+      return `<button type="button" class="${active}" data-cat="${escapeHtml(category)}" style="border-bottom:5px solid ${color}">${escapeHtml(category)}</button>`;
+    }).join("");
+
+    container.querySelectorAll("button").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        const category = setCurrentCategory(button.dataset.cat || button.textContent);
+        renderCategoryTabs();
+        renderMaterials(category);
+      });
+    });
+  }
+
+  function renderMaterials(category){
+    const list = $("materialList");
+    if (!list) return;
+
+    const activeCategory = setCurrentCategory(category || getCurrentCategory());
+    const query = ($("materialSearch")?.value || "").toLowerCase().trim();
+    const selected = getChosenMaterials();
+
+    const rows = getMaterials()
+      .filter((material) => cleanCategory(material.cat) === activeCategory)
+      .filter((material) => {
+        if (!query) return true;
+        const text = `${material.code || ""} ${material.name || ""} ${material.notes || ""} ${material.price || ""}`.toLowerCase();
+        return text.includes(query);
+      })
+      .slice(0, 300);
+
+    list.innerHTML = rows.length
+      ? rows.map((material) => renderMaterialCard(material, selected)).join("")
+      : '<p class="v112-empty">Geen materiaal gevonden in deze rubriek.</p>';
+
+    renderMaterialStatusLegend();
+  }
+
+  function renderMaterialCard(material, selectedMaterials){
+    const status = getStatusInfo(material.status);
+    const isSelected = selectedMaterials.some((item) => String(item.id) === String(material.id));
+    const materialId = escapeHtml(material.id || "");
+    const categoryColor = getCategoryColor(material.cat);
+    const priceText = material.price || "oude prijs: € 0";
+
+    return `
+      <div class="material-row v112-material-row v113-material-row ${status.rowClass} ${status.className} ${isSelected ? "selected" : ""}"
+           style="--cat-color:${categoryColor};--mat-cat-color:${categoryColor}"
+           onclick="addMat('${materialId}')">
+        <div class="catbar" aria-hidden="true"></div>
+        <div class="v112-mat-main">
+          <b>${escapeHtml(material.code || "")}</b> ${escapeHtml(material.name || "")}
+          <br><small>${escapeHtml(priceText)}</small>
+        </div>
+        <span class="v112-pill v112-status ${status.className}">${isSelected ? "Toegevoegd" : status.text}</span>
+      </div>
+    `;
+  }
+
+  function bindMaterialSearch(){
+    const input = $("materialSearch");
+    if (!input || input.dataset.bnsV113Bound === "1") return;
+
+    input.dataset.bnsV113Bound = "1";
+    input.addEventListener("input", () => renderMaterials(getCurrentCategory()));
+  }
+
+  function removeGithubText(){
+    const clean = (value) => String(value ?? "").replace(/git\s*hub|github|gitup/ig, "Systeemmelding");
+
+    try {
+      window.alert = function(message){
+        const toast = document.createElement("div");
+        toast.className = "bns-app-toast";
+        toast.textContent = clean(message || "Systeemmelding");
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2400);
+      };
+    } catch (error) {}
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key);
+        if (value && /git\s*hub|github|gitup/i.test(value)) {
+          localStorage.setItem(key, clean(value));
+        }
+      }
+    } catch (error) {}
+
+    if (!document.body) return;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (/git\s*hub|github|gitup/i.test(node.nodeValue)) {
+        node.nodeValue = clean(node.nodeValue);
+      }
+    }
+  }
+
+  function installMaterialFix(){
+    document.body.classList.add("bns-v112", "bns-v113");
+
+    window.renderCats = renderCategoryTabs;
+    window.renderMaterials = renderMaterials;
+
+    try { renderCats = renderCategoryTabs; } catch (error) {}
+    try { renderMaterials = renderMaterials; } catch (error) {}
+
+    renderMaterialStatusLegend();
+    renderCategoryTabs();
+    renderMaterials(getCurrentCategory());
+    bindMaterialSearch();
+    removeGithubText();
+
+    setInterval(removeGithubText, 2000);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(installMaterialFix, 350));
+  } else {
+    setTimeout(installMaterialFix, 350);
+  }
+})();
+
+// BNS V11.3.1 - koppel de leesbare materiaal functies ook aan oude interne namen
+(function BNS_V113_GLOBAL_LINK(){
+  function link(){
+    try {
+      if (typeof window.renderMaterials === "function") renderMaterials = window.renderMaterials;
+      if (typeof window.renderCats === "function") renderCats = window.renderCats;
+    } catch (error) {}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(link, 600));
+  else setTimeout(link, 600);
 })();
