@@ -638,3 +638,137 @@ body.bns-v112 .v111-status-legend{display:none!important;}
 body.bns-v112 .material-row:not(.v112-material-row),
 body.bns-v112 .v111-material-row{display:none!important;}
 body.bns-v112 .bns-app-toast{position:fixed;right:18px;bottom:18px;z-index:999999;background:#172033;color:#fff;padding:12px 16px;border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,.25);font-weight:800;}
+/* ===== BNS materiaalstijl vastzetten ===== */
+
+.material-row {
+  display: grid !important;
+  grid-template-columns: 10px 1fr auto !important;
+  align-items: center !important;
+  gap: 14px !important;
+  background: #fff !important;
+  border-radius: 14px !important;
+  margin: 8px 0 !important;
+  padding: 12px 14px !important;
+  border: 1px solid #e5e7eb !important;
+  color: #172033 !important;
+}
+
+.material-row::before,
+.catbar {
+  content: "" !important;
+  width: 7px !important;
+  height: 100% !important;
+  min-height: 44px !important;
+  border-radius: 99px !important;
+  display: block !important;
+  background: var(--cat-color, #1683d8) !important;
+}
+
+.material-row .mat-text,
+.material-row b,
+.material-row small {
+  color: #172033 !important;
+}
+
+.material-row small {
+  color: #64748b !important;
+}
+
+.material-row .badge,
+.material-row .status-badge,
+.material-row span:last-child {
+  margin-left: auto !important;
+  border-radius: 999px !important;
+  padding: 7px 12px !important;
+  font-weight: 800 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+}
+
+/* status rechts */
+.status-free,
+.badge.status-free,
+.status-badge.status-free {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.status-reserved,
+.badge.status-reserved,
+.status-badge.status-reserved {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.status-defect,
+.badge.status-defect,
+.status-badge.status-defect {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  animation: bnsBlink .45s infinite alternate !important;
+}
+
+.status-inactive,
+.badge.status-inactive,
+.status-badge.status-inactive {
+  background: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.status-free i,
+.badge.status-free i {
+  background: #15803d !important;
+}
+
+.status-reserved i,
+.badge.status-reserved i {
+  background: #b91c1c !important;
+}
+
+.status-defect i,
+.badge.status-defect i {
+  background: #dc2626 !important;
+}
+
+.status-inactive i,
+.badge.status-inactive i {
+  background: #64748b !important;
+}
+
+.status-free i,
+.status-reserved i,
+.status-defect i,
+.status-inactive i,
+.badge i {
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  display: inline-block !important;
+}
+
+/* rubriek kleuren links */
+.cat-TW,
+.material-row[data-cat="TW"]::before {
+  background: #1683d8 !important;
+}
+
+.cat-TO,
+.material-row[data-cat="TO"]::before {
+  background: #f97316 !important;
+}
+
+.cat-KW,
+.material-row[data-cat="KW"]::before {
+  background: #22c55e !important;
+}
+
+.cat-EXTRA,
+.material-row[data-cat="EXTRA"]::before {
+  background: #334155 !important;
+}
+
+@keyframes bnsBlink {
+  from { opacity: .45; }
+  to { opacity: 1; }
+}
