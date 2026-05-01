@@ -9,19 +9,62 @@
 .material-status-legend strong{
   margin-right:8px !important;
 }
-.material-row{
-  display:grid !important;
-  grid-template-columns: 8px 1fr auto !important;
-  gap:14px !important;
-  align-items:center !important;
-  padding:14px 16px !important;
-  margin:10px 0 !important;
-  border-radius:18px !important;
-  background:#fff !important;
-  border:1px solid rgba(15,23,42,.10) !important;
-  box-shadow:0 8px 20px rgba(15,23,42,.08) !important;
-  cursor:pointer !important;
-  color:#172033 !important;
+/* COMPACTE MATERIALEN LIJST */
+#materialList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* kaart zelf */
+.material-card,
+.material-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 6px 10px;      /* 🔥 kleiner */
+  border-radius: 10px;
+  background: #fff;
+  border-left: 6px solid #2b6cb0;
+
+  font-size: 13px;        /* 🔥 kleiner */
+  line-height: 1.1;
+}
+
+/* linkerkant (code + naam) */
+.material-info {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  align-items: center;
+}
+
+/* code */
+.material-code {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* naam */
+.material-name {
+  color: #444;
+  font-size: 13px;
+}
+
+/* prijs kleiner */
+.material-price {
+  font-size: 12px;
+  color: #888;
+}
+
+/* status rechts */
+.material-status {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 }
 .material-row .catbar{
   width:8px !important;
