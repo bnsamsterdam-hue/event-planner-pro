@@ -3302,22 +3302,26 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   BNS HARDE FIX - ACTIEVE / UITGEVOERDE OPDRACHTEN OP EINDDATUM
-   Werking:
+   BNS COMPLETE STABIELE FIX
+   Geen continue refresh, dus geen onrustig beeld.
+
+   Regels datum:
+   - Nieuwe opdracht aanmaken: startdatum mag niet in het verleden.
+   - Einddatum mag niet vóór startdatum.
    - Actief: einddatum vandaag of later.
    - Uitgevoerd: einddatum vóór vandaag.
    - Geannuleerd blijft geannuleerd.
-   - Gebruikt EINDDATUM, niet begindatum.
-   - Corrigeert ook bestaande rendering als oude code toch opnieuw tekent.
+   - Dashboard toont alleen eerstvolgende actieve opdrachten.
    ========================================================= */
 (function(){
   "use strict";
 
-  var CURRENT_ORDER_MODE = "active";
+  var BNS_MODE = "active";
+  var BNS_RENDERING = false;
 
   function $(id){ return document.getElementById(id); }
 
-  function appState(){
+  function getState(){
     try {
       if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
     } catch(e) {}
@@ -3331,50 +3335,25 @@ setInterval(install,1500);
       var parsed = JSON.parse(raw || "{}");
       if (parsed && Array.isArray(parsed.orders)) return parsed;
     } catch(e) {}
-    return {orders: []};
+    return {orders: [], materials: [], alerts: []};
   }
 
-  function esc(v){
-    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
+  function esc(value){
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function parseDate(value){
-    var m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!m) return null;
-    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  function dateOnly(value){
+    var match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return null;
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0);
   }
 
-  function today(){
+  function todayOnly(){
     var d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
-  }
-
-  function endDate(order){
-    return parseDate(order && (order.end || order.start));
-  }
-
-  function isCancelled(order){
-    return String(order && order.status || "").toLowerCase() === "geannuleerd";
-  }
-
-  function isDone(order){
-    var st = String(order && order.status || "").toLowerCase();
-    var end = endDate(order);
-
-    if (st === "uitgevoerd") return true;
-    if (!end) return false;
-
-    // Belangrijk: vandaag blijft actief. Pas morgen na einddatum wordt uitgevoerd.
-    return end < today();
-  }
-
-  function group(order){
-    if (isCancelled(order)) return "cancelled";
-    if (isDone(order)) return "done";
-    return "active";
   }
 
   function niceDate(value){
@@ -3382,7 +3361,7 @@ setInterval(install,1500);
       if (typeof nice === "function") return nice(value);
     } catch(e) {}
 
-    var d = parseDate(value);
+    var d = dateOnly(value);
     if (!d) return value || "";
 
     return String(d.getDate()).padStart(2, "0") + "-" +
@@ -3390,27 +3369,63 @@ setInterval(install,1500);
            d.getFullYear();
   }
 
+  function orderEndDate(order){
+    return dateOnly(order && (order.end || order.start));
+  }
+
+  function isCancelled(order){
+    return String(order && order.status || "").toLowerCase() === "geannuleerd";
+  }
+
+  function isDone(order){
+    var status = String(order && order.status || "").toLowerCase();
+    var end = orderEndDate(order);
+
+    if (status === "uitgevoerd") return true;
+    if (!end) return false;
+
+    // Einddatum vandaag blijft actief. Pas dag erna uitgevoerd.
+    return end < todayOnly();
+  }
+
+  function orderGroup(order){
+    if (isCancelled(order)) return "cancelled";
+    if (isDone(order)) return "done";
+    return "active";
+  }
+
+  function isActiveOrder(order){
+    return orderGroup(order) === "active";
+  }
+
   function getMode(){
     try {
       if (typeof mode !== "undefined" && mode) return mode;
     } catch(e) {}
-    return window.mode || CURRENT_ORDER_MODE || "active";
+
+    return window.mode || BNS_MODE || "active";
   }
 
-  function setMode(next){
-    CURRENT_ORDER_MODE = next;
-    window.mode = next;
-    try { mode = next; } catch(e) {}
+  function setMode(nextMode){
+    BNS_MODE = nextMode;
+    window.mode = nextMode;
+    try { mode = nextMode; } catch(e) {}
   }
 
-  function matches(order, q){
-    if (!q) return true;
+  function textMatches(order, query){
+    if (!query) return true;
 
-    var mats = (order.materials || []).map(function(m){
-      return [m.cat, m.code, m.name].join(" ");
+    var materialText = (order.materials || []).map(function(material){
+      return [
+        material.cat,
+        material.code,
+        material.name,
+        material.price,
+        material.status
+      ].join(" ");
     }).join(" ");
 
-    var txt = [
+    var searchableText = [
       order.id,
       order.oldId,
       order.number,
@@ -3426,10 +3441,10 @@ setInterval(install,1500);
       order.location && order.location.name,
       order.location && order.location.street,
       order.location && order.location.city,
-      mats
+      materialText
     ].join(" ").toLowerCase();
 
-    return txt.indexOf(q) !== -1;
+    return searchableText.indexOf(query) !== -1;
   }
 
   function moneySafe(value){
@@ -3437,26 +3452,20 @@ setInterval(install,1500);
       if (typeof money === "function") return money(value || 0);
       if (typeof euro === "function") return euro(value || 0);
     } catch(e) {}
+
     return "€ " + Number(value || 0).toFixed(2).replace(".", ",");
   }
 
-  function renderMaterials(mats){
-    return (mats || []).map(function(m){
-      return '<span class="material-code-chip">' + esc(m.code || m.name || "") + '</span>';
+  function materialChips(materials){
+    return (materials || []).map(function(material){
+      var code = material.code || material.name || "";
+      return '<span class="material-code-chip">' + esc(code) + '</span>';
     }).join(" ");
   }
 
-  function cardHtml(order){
-    // Gebruik bestaande card als die klopt, maar fallback is veilig.
-    try {
-      if (typeof card === "function") return card(order);
-    } catch(e) {}
-    try {
-      if (typeof window.card === "function") return window.card(order);
-    } catch(e) {}
-
-    var loc = order.location || {};
-    var locationText = [loc.name, loc.street, loc.city].filter(Boolean).join(" ");
+  function fallbackCard(order){
+    var location = order.location || {};
+    var locationText = [location.name, location.street, location.city].filter(Boolean).join(" ");
     var total = order.pricing && order.pricing.grand != null ? order.pricing.grand : order.amount;
     var deposit = order.pricing && order.pricing.deposit != null ? order.pricing.deposit : 0;
 
@@ -3464,152 +3473,294 @@ setInterval(install,1500);
       '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
         '<div class="date-tile">' + esc(niceDate(order.start)) + '</div>' +
         '<div>' +
-          '<div class="order-title">' + esc(order.number || "") + ' - ' + esc(order.title || "") +
-            ' <span class="status status-' + esc(order.status || "") + '">' + esc(order.status || "") + '</span></div>' +
+          '<div class="order-title">' +
+            esc(order.number || "") + ' - ' + esc(order.title || "") +
+            ' <span class="status status-' + esc(order.status || "") + '">' + esc(order.status || "") + '</span>' +
+          '</div>' +
           '<div>Klant: ' + esc(order.customer && order.customer.name || "") + '</div>' +
           '<div>Locatie: ' + esc(locationText) + '</div>' +
-          '<div>Materialen: ' + renderMaterials(order.materials || []) + '</div>' +
+          '<div>Materialen: ' + materialChips(order.materials || []) + '</div>' +
           '<div>Totaal: ' + moneySafe(total) + ' | Borg: ' + moneySafe(deposit) + '</div>' +
+        '</div>' +
+        '<div class="actions">' +
+          '<button type="button" onclick="editOrder(\'' + esc(order.id) + '\')">Wijzigen</button>' +
         '</div>' +
       '</div>';
   }
 
-  function buttonByText(re){
-    return Array.from(document.querySelectorAll("button")).find(function(btn){
-      return re.test(btn.textContent || "");
+  function orderCard(order){
+    try {
+      if (typeof card === "function") return card(order);
+    } catch(e) {}
+    try {
+      if (typeof window.card === "function") return window.card(order);
+    } catch(e) {}
+
+    return fallbackCard(order);
+  }
+
+  function findButtonByText(regex){
+    return Array.from(document.querySelectorAll("button")).find(function(button){
+      return regex.test(button.textContent || "");
     });
   }
 
-  function buttons(){
+  function filterButtons(){
     return {
-      active: $("activeOrders") || buttonByText(/actieve opdrachten/i),
-      done: $("doneOrders") || buttonByText(/uitgevoerde opdrachten/i),
-      cancelled: $("cancelledOrders") || buttonByText(/geannuleerde opdrachten/i)
+      active: $("activeOrders") || findButtonByText(/actieve opdrachten/i),
+      done: $("doneOrders") || findButtonByText(/uitgevoerde opdrachten/i),
+      cancelled: $("cancelledOrders") || findButtonByText(/geannuleerde opdrachten/i)
     };
   }
 
-  function styleButton(btn, active){
-    if (!btn) return;
-    btn.classList.toggle("bns-active-filter-button", active);
+  function styleFilterButton(button, active){
+    if (!button) return;
+
+    button.classList.toggle("bns-filter-active-stable", active);
 
     if (active) {
-      btn.style.setProperty("background", "#0f172a", "important");
-      btn.style.setProperty("color", "#ffffff", "important");
-      btn.style.setProperty("border", "3px solid #22d3ee", "important");
-      btn.style.setProperty("box-shadow", "0 0 0 3px rgba(34,211,238,.25)", "important");
+      button.style.setProperty("background", "#0f172a", "important");
+      button.style.setProperty("color", "#ffffff", "important");
+      button.style.setProperty("border", "3px solid #22d3ee", "important");
+      button.style.setProperty("box-shadow", "0 0 0 3px rgba(34,211,238,.25)", "important");
     } else {
-      btn.style.removeProperty("background");
-      btn.style.removeProperty("color");
-      btn.style.removeProperty("border");
-      btn.style.removeProperty("box-shadow");
+      button.style.removeProperty("background");
+      button.style.removeProperty("color");
+      button.style.removeProperty("border");
+      button.style.removeProperty("box-shadow");
     }
   }
 
-  function updateButtons(){
-    var m = getMode();
-    var b = buttons();
-    styleButton(b.active, m === "active");
-    styleButton(b.done, m === "done");
-    styleButton(b.cancelled, m === "cancelled");
+  function updateFilterButtons(){
+    var currentMode = getMode();
+    var buttons = filterButtons();
+
+    styleFilterButton(buttons.active, currentMode === "active");
+    styleFilterButton(buttons.done, currentMode === "done");
+    styleFilterButton(buttons.cancelled, currentMode === "cancelled");
   }
 
-  function renderOrdersHard(){
-    var list = $("ordersList");
-    if (!list) {
-      updateButtons();
-      return;
+  function renderOrdersStable(){
+    if (BNS_RENDERING) return;
+    BNS_RENDERING = true;
+
+    try {
+      var list = $("ordersList");
+      if (!list) {
+        updateFilterButtons();
+        return;
+      }
+
+      var query = String(($("ordersSearch") || {}).value || "").toLowerCase().trim();
+      var currentMode = getMode();
+
+      var orders = (getState().orders || [])
+        .slice()
+        .sort(function(a, b){
+          return String(a.start || "9999-99-99").localeCompare(String(b.start || "9999-99-99"));
+        })
+        .filter(function(order){
+          return orderGroup(order) === currentMode;
+        })
+        .filter(function(order){
+          return textMatches(order, query);
+        });
+
+      list.innerHTML = orders.map(orderCard).join("") || "<p>Niets gevonden</p>";
+      updateFilterButtons();
+    } finally {
+      BNS_RENDERING = false;
+    }
+  }
+
+  function renderDashboardStable(){
+    var upcoming = $("upcomingList") ||
+                   $("dashboardUpcoming") ||
+                   $("nextOrders") ||
+                   document.querySelector("[data-widget='upcoming'] .widget-body") ||
+                   document.querySelector("#dashboardGrid .dash-widget .orders-list");
+
+    if (!upcoming) {
+      // Zoek op tekst "Eerstvolgende opdrachten" en pak daarna het volgende blok.
+      var headings = Array.from(document.querySelectorAll("h2,h3,h4,strong,b"));
+      var heading = headings.find(function(h){
+        return /eerstvolgende opdrachten/i.test(h.textContent || "");
+      });
+
+      if (heading) {
+        upcoming = heading.parentElement && heading.parentElement.querySelector(".orders-list, .list, .cards, .widget-body");
+      }
     }
 
-    var q = String(($("ordersSearch") || {}).value || "").toLowerCase().trim();
-    var m = getMode();
+    if (!upcoming) return;
 
-    var rows = (appState().orders || [])
+    var activeOrders = (getState().orders || [])
       .slice()
+      .filter(isActiveOrder)
       .sort(function(a, b){
         return String(a.start || "9999-99-99").localeCompare(String(b.start || "9999-99-99"));
       })
-      .filter(function(order){
-        return group(order) === m;
-      })
-      .filter(function(order){
-        return matches(order, q);
-      });
+      .slice(0, 6);
 
-    list.innerHTML = rows.map(cardHtml).join("") || "<p>Niets gevonden</p>";
-    updateButtons();
+    upcoming.innerHTML = activeOrders.map(orderCard).join("") || "<p>Geen aankomende opdrachten.</p>";
+  }
 
-    // Debug info alleen in console, niet zichtbaar in scherm.
+  function validateCurrentOrderDates(){
+    var startInput = $("dateStart");
+    var endInput = $("dateEnd");
+
+    if (!startInput) return true;
+
+    var startDate = dateOnly(startInput.value);
+    var endDate = dateOnly((endInput && endInput.value) || startInput.value);
+    var today = todayOnly();
+
+    if (!startDate) return true;
+
+    if (startDate < today) {
+      alert("Je kunt geen nieuwe opdracht in het verleden plannen. Vandaag mag wel.");
+      return false;
+    }
+
+    if (endDate && endDate < startDate) {
+      alert("Einddatum kan niet vóór startdatum liggen.");
+      return false;
+    }
+
+    return true;
+  }
+
+  function patchSaveCurrentOrder(){
     try {
-      console.log("[BNS datumfix]", {
-        vandaag: today().toISOString().slice(0,10),
-        mode: m,
-        aantal: rows.length
-      });
+      if (typeof saveCurrentOrder === "function" && !saveCurrentOrder.__bnsStableDateCheck) {
+        var originalSaveCurrentOrder = saveCurrentOrder;
+
+        var wrappedSaveCurrentOrder = function(){
+          if (!validateCurrentOrderDates()) return false;
+          return originalSaveCurrentOrder.apply(this, arguments);
+        };
+
+        wrappedSaveCurrentOrder.__bnsStableDateCheck = true;
+        saveCurrentOrder = wrappedSaveCurrentOrder;
+        window.saveCurrentOrder = wrappedSaveCurrentOrder;
+      }
+    } catch(e) {}
+
+    try {
+      var saveButton = $("saveOrder") ||
+                       $("saveOrderBtn") ||
+                       $("directSaveBtn") ||
+                       Array.from(document.querySelectorAll("button")).find(function(button){
+                         return /direct opslaan|opslaan/i.test(button.textContent || "");
+                       });
+
+      if (saveButton && !saveButton.dataset.bnsStableDateCheck) {
+        saveButton.dataset.bnsStableDateCheck = "1";
+        saveButton.addEventListener("click", function(event){
+          if (!validateCurrentOrderDates()) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return false;
+          }
+        }, true);
+      }
     } catch(e) {}
   }
 
+  function hookOrderButtons(){
+    var buttons = filterButtons();
+
+    if (buttons.active) {
+      buttons.active.onclick = function(event){
+        if (event) event.preventDefault();
+        setMode("active");
+        renderOrdersStable();
+      };
+    }
+
+    if (buttons.done) {
+      buttons.done.onclick = function(event){
+        if (event) event.preventDefault();
+        setMode("done");
+        renderOrdersStable();
+      };
+    }
+
+    if (buttons.cancelled) {
+      buttons.cancelled.onclick = function(event){
+        if (event) event.preventDefault();
+        setMode("cancelled");
+        renderOrdersStable();
+      };
+    }
+
+    var search = $("ordersSearch");
+    if (search && !search.dataset.bnsStableSearch) {
+      search.dataset.bnsStableSearch = "1";
+      search.addEventListener("input", renderOrdersStable);
+    }
+
+    updateFilterButtons();
+  }
+
   function installCss(){
-    if ($("bnsHardDateFixCss")) return;
+    if ($("bnsStableFixCss")) return;
+
     var style = document.createElement("style");
-    style.id = "bnsHardDateFixCss";
-    style.textContent = ".bns-active-filter-button{background:#0f172a!important;color:#fff!important;border:3px solid #22d3ee!important;box-shadow:0 0 0 3px rgba(34,211,238,.25)!important;}";
+    style.id = "bnsStableFixCss";
+    style.textContent = [
+      ".bns-filter-active-stable{",
+      "background:#0f172a!important;",
+      "color:#fff!important;",
+      "border:3px solid #22d3ee!important;",
+      "box-shadow:0 0 0 3px rgba(34,211,238,.25)!important;",
+      "}"
+    ].join("");
+
     document.head.appendChild(style);
   }
 
-  function hook(){
+  function refreshStable(){
     installCss();
+    hookOrderButtons();
+    patchSaveCurrentOrder();
 
-    var b = buttons();
-    if (b.active) b.active.onclick = function(e){ e.preventDefault(); setMode("active"); renderOrdersHard(); };
-    if (b.done) b.done.onclick = function(e){ e.preventDefault(); setMode("done"); renderOrdersHard(); };
-    if (b.cancelled) b.cancelled.onclick = function(e){ e.preventDefault(); setMode("cancelled"); renderOrdersHard(); };
-
-    var search = $("ordersSearch");
-    if (search && !search.dataset.bnsHardDateFix) {
-      search.dataset.bnsHardDateFix = "1";
-      search.addEventListener("input", renderOrdersHard);
-    }
-
-    updateButtons();
+    // Alleen renderen als het betreffende scherm aanwezig is.
+    if ($("ordersList")) renderOrdersStable();
+    renderDashboardStable();
   }
 
-  window.BNS_renderOrdersHardDateFix = renderOrdersHard;
-  window.renderOrders = renderOrdersHard;
-  try { renderOrders = renderOrdersHard; } catch(e) {}
+  window.BNS_refreshStableDateFix = refreshStable;
+  window.BNS_renderOrdersStable = renderOrdersStable;
+  window.BNS_renderDashboardStable = renderDashboardStable;
+
+  window.renderOrders = renderOrdersStable;
+  try { renderOrders = renderOrdersStable; } catch(e) {}
 
   var oldRenderAll = window.renderAll;
-  if (typeof oldRenderAll === "function" && !oldRenderAll.__bnsHardDateFix) {
-    var wrapped = function(){
+  if (typeof oldRenderAll === "function" && !oldRenderAll.__bnsStableFix) {
+    var wrappedRenderAll = function(){
       var result = oldRenderAll.apply(this, arguments);
-      setTimeout(function(){
-        hook();
-        renderOrdersHard();
-      }, 0);
+
+      // Eenmalig na bestaande render corrigeren. Geen interval.
+      setTimeout(refreshStable, 0);
+
       return result;
     };
-    wrapped.__bnsHardDateFix = true;
-    window.renderAll = wrapped;
-    try { renderAll = wrapped; } catch(e) {}
-  }
 
-  // Corrigeer ook als oude code later opnieuw tekent.
-  function install(){
-    hook();
-    renderOrdersHard();
+    wrappedRenderAll.__bnsStableFix = true;
+    window.renderAll = wrappedRenderAll;
+    try { renderAll = wrappedRenderAll; } catch(e) {}
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); });
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(refreshStable, 300);
+    });
   } else {
-    setTimeout(install, 300);
+    setTimeout(refreshStable, 300);
   }
 
-  setTimeout(install, 1000);
-  setTimeout(install, 2000);
-  setInterval(function(){
-    if (document.body && document.querySelector("#ordersList")) {
-      hook();
-      renderOrdersHard();
-    }
-  }, 2500);
+  // Nog één keer na late scripts, geen continue refresh.
+  setTimeout(refreshStable, 1200);
 })();
