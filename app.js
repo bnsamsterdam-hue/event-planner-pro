@@ -2517,3 +2517,347 @@ setTimeout(()=>{
   setInterval(install, 2000);
 })();
 
+
+
+/* =========================================================
+   BNS FORCE FIX - RECHTENBLOK ALTIJD TONEN BIJ OPSLAAN GEBRUIKER
+   Deze patch zoekt letterlijk de knop "Opslaan gebruiker" en zet daaronder
+   de rechtenknoppen. Werkt ook als de admin HTML anders is opgebouwd.
+   ========================================================= */
+(function bnsForceUserRightsBlock(){
+  "use strict";
+
+  const STYLE_ID = "bns-force-user-rights-style";
+  const BOX_ID = "bnsForceUserRightsBox";
+
+  const RIGHTS = [
+    ["prices", "Prijzen zien"],
+    ["agenda", "Google agenda"],
+    ["gps", "Waze / route openen"],
+    ["resolve", "Meldingen / storingen afmelden"],
+    ["materials", "Materialen beheren"],
+    ["customers", "Klanten beheren"],
+    ["locations", "Locaties beheren"],
+    ["orders", "Opdrachten beheren"],
+    ["invoice", "Factuur / offerte"],
+    ["admin", "Admin beheer"]
+  ];
+
+  const DEFAULTS = {
+    Admin: {prices:true, agenda:true, gps:true, resolve:true, materials:true, customers:true, locations:true, orders:true, invoice:true, admin:true},
+    Planner: {prices:true, agenda:true, gps:false, resolve:true, materials:true, customers:true, locations:true, orders:true, invoice:true, admin:false},
+    Bezorger: {prices:false, agenda:false, gps:true, resolve:true, materials:false, customers:false, locations:false, orders:false, invoice:false, admin:false}
+  };
+
+  let selectedUserId = null;
+
+  function qs(sel, root){ return (root || document).querySelector(sel); }
+  function qsa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+
+  function getState(){
+    try { return typeof state !== "undefined" ? state : null; } catch(e){ return null; }
+  }
+
+  function doSave(){
+    try { if (typeof save === "function") save(); } catch(e){}
+  }
+
+  function makeId(){
+    try { if (typeof id === "function") return id(); } catch(e){}
+    return "u_" + Math.random().toString(36).slice(2,10);
+  }
+
+  function toast(text){
+    try {
+      if (typeof toastMsg === "function") toastMsg(text);
+      else if (typeof toast === "function") toast(text);
+    } catch(e){}
+  }
+
+  function findSaveButton(){
+    return qsa("button").find(btn => (btn.textContent || "").trim().toLowerCase().includes("opslaan gebruiker"));
+  }
+
+  function formRoot(){
+    const btn = findSaveButton();
+    if (!btn) return null;
+    return btn.closest(".panel, .adminPane, section, main, div") || btn.parentElement;
+  }
+
+  function inputs(){
+    const root = formRoot() || document;
+    const allInputs = qsa("input", root);
+    const allSelects = qsa("select", root);
+
+    const name = allInputs.find(i => /naam/i.test(i.placeholder || "")) || allInputs[0] || null;
+    const pin = allInputs.find(i => /pin/i.test(i.placeholder || "")) || allInputs[1] || null;
+    const role = allSelects.find(s => /bezorger|planner|admin/i.test(s.textContent || "")) || allSelects[0] || null;
+
+    return {name, pin, role};
+  }
+
+  function currentRole(){
+    const {role} = inputs();
+    return role ? (role.value || role.options[role.selectedIndex]?.text || "Bezorger") : "Bezorger";
+  }
+
+  function defaultsFor(role){
+    return Object.assign({}, DEFAULTS[role] || DEFAULTS.Bezorger);
+  }
+
+  function ensureStyle(){
+    if (qs("#" + STYLE_ID)) return;
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${BOX_ID}{
+        margin-top:16px!important;
+        margin-bottom:16px!important;
+        padding:16px!important;
+        border:2px solid #93c5fd!important;
+        border-radius:18px!important;
+        background:var(--panel,#fff)!important;
+        color:var(--text,#172033)!important;
+        box-shadow:0 8px 22px rgba(15,23,42,.10)!important;
+        display:block!important;
+        width:100%!important;
+      }
+      #${BOX_ID} .bns-right-title{
+        font-size:20px!important;
+        font-weight:900!important;
+        margin-bottom:12px!important;
+      }
+      #${BOX_ID} .bns-right-grid{
+        display:grid!important;
+        grid-template-columns:repeat(2,minmax(220px,1fr))!important;
+        gap:10px 14px!important;
+      }
+      #${BOX_ID} label{
+        display:flex!important;
+        align-items:center!important;
+        gap:10px!important;
+        padding:10px 12px!important;
+        border-radius:14px!important;
+        background:rgba(148,163,184,.14)!important;
+        font-weight:800!important;
+        cursor:pointer!important;
+      }
+      #${BOX_ID} input[type="checkbox"]{
+        width:22px!important;
+        height:22px!important;
+        min-width:22px!important;
+      }
+      #bnsForceUserList{
+        margin-top:16px!important;
+        display:flex!important;
+        flex-direction:column!important;
+        gap:8px!important;
+      }
+      .bns-force-user-row{
+        display:grid!important;
+        grid-template-columns:minmax(0,1fr) auto auto!important;
+        gap:10px!important;
+        align-items:center!important;
+        padding:10px 12px!important;
+        border:1px solid var(--border,#dbe3ef)!important;
+        border-radius:14px!important;
+        background:var(--panel,#fff)!important;
+      }
+      .bns-force-user-row small{
+        display:block!important;
+        color:var(--muted,#64748b)!important;
+        font-weight:700!important;
+      }
+      .bns-force-user-row button{
+        padding:8px 12px!important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function readRights(){
+    const rights = {};
+    RIGHTS.forEach(([key]) => {
+      const cb = qs("#bnsForceRight_" + key);
+      rights[key] = !!(cb && cb.checked);
+    });
+    return rights;
+  }
+
+  function setRights(rights){
+    const source = rights || {};
+    RIGHTS.forEach(([key]) => {
+      const cb = qs("#bnsForceRight_" + key);
+      if (cb) cb.checked = !!source[key];
+    });
+  }
+
+  function ensureBox(){
+    const btn = findSaveButton();
+    if (!btn) return;
+
+    let box = qs("#" + BOX_ID);
+    if (!box) {
+      box = document.createElement("div");
+      box.id = BOX_ID;
+      box.innerHTML = `
+        <div class="bns-right-title">Wat mag deze medewerker zien / doen?</div>
+        <div class="bns-right-grid">
+          ${RIGHTS.map(([key,label]) => `
+            <label>
+              <input id="bnsForceRight_${key}" type="checkbox">
+              <span>${label}</span>
+            </label>
+          `).join("")}
+        </div>
+        <div id="bnsForceUserList"></div>
+      `;
+
+      btn.insertAdjacentElement("afterend", box);
+      setRights(defaultsFor(currentRole()));
+    }
+
+    const {role} = inputs();
+    if (role && !role.dataset.bnsForceRightsRole) {
+      role.dataset.bnsForceRightsRole = "1";
+      role.addEventListener("change", () => {
+        if (!selectedUserId) setRights(defaultsFor(currentRole()));
+      });
+    }
+  }
+
+  function saveUserWithRights(){
+    const s = getState();
+    if (!s) return;
+
+    s.users = Array.isArray(s.users) ? s.users : [];
+
+    const {name, pin, role} = inputs();
+    const userName = (name?.value || "").trim();
+    const userPin = (pin?.value || "").trim();
+    const userRole = role ? (role.value || "Bezorger") : "Bezorger";
+
+    if (!userName || !userPin) {
+      alert("Vul naam en PIN in.");
+      return;
+    }
+
+    let user = selectedUserId ? s.users.find(u => String(u.id) === String(selectedUserId)) : null;
+
+    if (!user) {
+      user = s.users.find(u => String(u.pin) === userPin);
+    }
+
+    if (!user) {
+      user = {id:makeId(), name:userName, pin:userPin, role:userRole, phone:"", rights:{}};
+      s.users.push(user);
+    }
+
+    user.name = userName;
+    user.pin = userPin;
+    user.role = userRole;
+    user.rights = Object.assign({}, user.rights || {}, readRights());
+
+    selectedUserId = user.id;
+
+    doSave();
+    renderList();
+    toast("Gebruiker + rechten opgeslagen");
+  }
+
+  function editUser(userId){
+    const s = getState();
+    if (!s || !Array.isArray(s.users)) return;
+
+    const user = s.users.find(u => String(u.id) === String(userId));
+    if (!user) return;
+
+    selectedUserId = user.id;
+
+    const {name, pin, role} = inputs();
+    if (name) name.value = user.name || "";
+    if (pin) pin.value = user.pin || "";
+    if (role) role.value = user.role || "Bezorger";
+
+    setRights(Object.assign(defaultsFor(user.role), user.rights || {}));
+    toast("Gebruiker gekozen");
+  }
+
+  function deleteUser(userId){
+    const s = getState();
+    if (!s || !Array.isArray(s.users)) return;
+
+    const user = s.users.find(u => String(u.id) === String(userId));
+    if (!user) return;
+
+    if ((user.role || "").toLowerCase() === "admin") {
+      alert("Admin gebruiker niet verwijderen.");
+      return;
+    }
+
+    if (!confirm("Gebruiker verwijderen?")) return;
+
+    s.users = s.users.filter(u => String(u.id) !== String(userId));
+    if (selectedUserId === userId) selectedUserId = null;
+
+    doSave();
+    renderList();
+  }
+
+  function renderList(){
+    const list = qs("#bnsForceUserList");
+    const s = getState();
+    if (!list || !s || !Array.isArray(s.users)) return;
+
+    list.innerHTML = s.users.map(user => {
+      const rights = user.rights || {};
+      const allowed = RIGHTS
+        .filter(([key]) => !!rights[key])
+        .map(([,label]) => label)
+        .join(", ");
+
+      return `
+        <div class="bns-force-user-row" data-user-id="${String(user.id)}">
+          <span>
+            <b>${String(user.name || "")}</b>
+            <small>${String(user.role || "")} - PIN ${String(user.pin || "")}</small>
+            <small>${allowed || "Geen extra rechten"}</small>
+          </span>
+          <button type="button" class="bns-force-edit">Wijzig</button>
+          <button type="button" class="bns-force-delete delete">Verwijder</button>
+        </div>
+      `;
+    }).join("");
+
+    qsa(".bns-force-user-row", list).forEach(row => {
+      qs(".bns-force-edit", row).onclick = () => editUser(row.dataset.userId);
+      qs(".bns-force-delete", row).onclick = () => deleteUser(row.dataset.userId);
+    });
+  }
+
+  function bindSave(){
+    const btn = findSaveButton();
+    if (!btn || btn.dataset.bnsForceRightsSave) return;
+
+    btn.dataset.bnsForceRightsSave = "1";
+    btn.type = "button";
+    btn.onclick = saveUserWithRights;
+  }
+
+  function install(){
+    ensureStyle();
+    ensureBox();
+    bindSave();
+    renderList();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(install, 500));
+  } else {
+    setTimeout(install, 500);
+  }
+
+  setInterval(install, 1000);
+})();
+
