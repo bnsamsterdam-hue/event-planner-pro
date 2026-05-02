@@ -3302,79 +3302,117 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   BNS FINAL FIX - DATUMFILTER + ACTIEVE KNOP KLEUR + VEILIGE POPUP
+   BNS HARDE FIX - ACTIEVE / UITGEVOERDE OPDRACHTEN OP EINDDATUM
+   Werking:
+   - Actief: einddatum vandaag of later.
+   - Uitgevoerd: einddatum vóór vandaag.
+   - Geannuleerd blijft geannuleerd.
+   - Gebruikt EINDDATUM, niet begindatum.
+   - Corrigeert ook bestaande rendering als oude code toch opnieuw tekent.
    ========================================================= */
 (function(){
   "use strict";
 
+  var CURRENT_ORDER_MODE = "active";
+
   function $(id){ return document.getElementById(id); }
 
-  function stateObj(){
+  function appState(){
     try {
       if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
     } catch(e) {}
-    if (window.state && Array.isArray(window.state.orders)) return window.state;
+    try {
+      if (window.state && Array.isArray(window.state.orders)) return window.state;
+    } catch(e) {}
+    try {
+      var raw = localStorage.getItem("eventPlannerProV91") ||
+                localStorage.getItem("eventPlannerPro") ||
+                localStorage.getItem("plannerState");
+      var parsed = JSON.parse(raw || "{}");
+      if (parsed && Array.isArray(parsed.orders)) return parsed;
+    } catch(e) {}
     return {orders: []};
   }
 
   function esc(v){
-    return String(v ?? "").replace(/[&<>"']/g, function(c){
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function dateOnly(value){
-    const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  function parseDate(value){
+    var m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (!m) return null;
     return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
   }
 
-  function todayOnly(){
-    const d = new Date();
+  function today(){
+    var d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   }
 
-  function isPast(order){
-    const end = dateOnly(order && (order.end || order.start));
+  function endDate(order){
+    return parseDate(order && (order.end || order.start));
+  }
+
+  function isCancelled(order){
+    return String(order && order.status || "").toLowerCase() === "geannuleerd";
+  }
+
+  function isDone(order){
+    var st = String(order && order.status || "").toLowerCase();
+    var end = endDate(order);
+
+    if (st === "uitgevoerd") return true;
     if (!end) return false;
-    return end < todayOnly(); // vandaag blijft actief
+
+    // Belangrijk: vandaag blijft actief. Pas morgen na einddatum wordt uitgevoerd.
+    return end < today();
   }
 
   function group(order){
-    const status = String(order && order.status || "").toLowerCase();
-    if (status === "geannuleerd") return "cancelled";
-    if (status === "uitgevoerd") return "done";
-    if (isPast(order)) return "done";
+    if (isCancelled(order)) return "cancelled";
+    if (isDone(order)) return "done";
     return "active";
   }
 
   function niceDate(value){
-    try { if (typeof nice === "function") return nice(value); } catch(e) {}
-    const d = dateOnly(value);
+    try {
+      if (typeof nice === "function") return nice(value);
+    } catch(e) {}
+
+    var d = parseDate(value);
     if (!d) return value || "";
+
     return String(d.getDate()).padStart(2, "0") + "-" +
            String(d.getMonth() + 1).padStart(2, "0") + "-" +
            d.getFullYear();
   }
 
   function getMode(){
-    try { if (typeof mode !== "undefined" && mode) return mode; } catch(e) {}
-    return window.mode || "active";
+    try {
+      if (typeof mode !== "undefined" && mode) return mode;
+    } catch(e) {}
+    return window.mode || CURRENT_ORDER_MODE || "active";
   }
 
-  function setMode(value){
-    try { mode = value; } catch(e) {}
-    window.mode = value;
+  function setMode(next){
+    CURRENT_ORDER_MODE = next;
+    window.mode = next;
+    try { mode = next; } catch(e) {}
   }
 
-  function searchMatch(order, q){
+  function matches(order, q){
     if (!q) return true;
-    const matText = (order.materials || []).map(function(m){
+
+    var mats = (order.materials || []).map(function(m){
       return [m.cat, m.code, m.name].join(" ");
     }).join(" ");
 
-    return [
+    var txt = [
+      order.id,
+      order.oldId,
       order.number,
       order.title,
       order.status,
@@ -3383,164 +3421,181 @@ setInterval(install,1500);
       niceDate(order.start),
       niceDate(order.end),
       order.customer && order.customer.name,
+      order.customer && order.customer.phone,
+      order.customer && order.customer.email,
       order.location && order.location.name,
       order.location && order.location.street,
       order.location && order.location.city,
-      matText
-    ].join(" ").toLowerCase().indexOf(q) !== -1;
+      mats
+    ].join(" ").toLowerCase();
+
+    return txt.indexOf(q) !== -1;
   }
 
-  function fallbackCard(order){
-    const mats = (order.materials || []).map(function(m){
-      return m.code || m.name || "";
-    }).filter(Boolean).join(", ");
-
-    return `
-      <div class="order-card">
-        <div class="date-tile">${esc(niceDate(order.start))}</div>
-        <div>
-          <div class="order-title">${esc(order.number || "")} - ${esc(order.title || "")}</div>
-          <div>Klant: ${esc(order.customer && order.customer.name || "")}</div>
-          <div>Locatie: ${esc(order.location && [order.location.name, order.location.street, order.location.city].filter(Boolean).join(" ") || "")}</div>
-          <div>Materialen: ${esc(mats)}</div>
-        </div>
-      </div>
-    `;
+  function moneySafe(value){
+    try {
+      if (typeof money === "function") return money(value || 0);
+      if (typeof euro === "function") return euro(value || 0);
+    } catch(e) {}
+    return "€ " + Number(value || 0).toFixed(2).replace(".", ",");
   }
 
-  function renderCard(order){
-    try { if (typeof card === "function") return card(order); } catch(e) {}
-    try { if (typeof window.card === "function") return window.card(order); } catch(e) {}
-    return fallbackCard(order);
+  function renderMaterials(mats){
+    return (mats || []).map(function(m){
+      return '<span class="material-code-chip">' + esc(m.code || m.name || "") + '</span>';
+    }).join(" ");
   }
 
-  function findModeButtons(){
-    const buttons = Array.from(document.querySelectorAll("button"));
+  function cardHtml(order){
+    // Gebruik bestaande card als die klopt, maar fallback is veilig.
+    try {
+      if (typeof card === "function") return card(order);
+    } catch(e) {}
+    try {
+      if (typeof window.card === "function") return window.card(order);
+    } catch(e) {}
+
+    var loc = order.location || {};
+    var locationText = [loc.name, loc.street, loc.city].filter(Boolean).join(" ");
+    var total = order.pricing && order.pricing.grand != null ? order.pricing.grand : order.amount;
+    var deposit = order.pricing && order.pricing.deposit != null ? order.pricing.deposit : 0;
+
+    return '' +
+      '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
+        '<div class="date-tile">' + esc(niceDate(order.start)) + '</div>' +
+        '<div>' +
+          '<div class="order-title">' + esc(order.number || "") + ' - ' + esc(order.title || "") +
+            ' <span class="status status-' + esc(order.status || "") + '">' + esc(order.status || "") + '</span></div>' +
+          '<div>Klant: ' + esc(order.customer && order.customer.name || "") + '</div>' +
+          '<div>Locatie: ' + esc(locationText) + '</div>' +
+          '<div>Materialen: ' + renderMaterials(order.materials || []) + '</div>' +
+          '<div>Totaal: ' + moneySafe(total) + ' | Borg: ' + moneySafe(deposit) + '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function buttonByText(re){
+    return Array.from(document.querySelectorAll("button")).find(function(btn){
+      return re.test(btn.textContent || "");
+    });
+  }
+
+  function buttons(){
     return {
-      active: $("activeOrders") || buttons.find(function(b){ return /actieve opdrachten/i.test(b.textContent || ""); }),
-      done: $("doneOrders") || buttons.find(function(b){ return /uitgevoerde opdrachten/i.test(b.textContent || ""); }),
-      cancelled: $("cancelledOrders") || buttons.find(function(b){ return /geannuleerde opdrachten/i.test(b.textContent || ""); })
+      active: $("activeOrders") || buttonByText(/actieve opdrachten/i),
+      done: $("doneOrders") || buttonByText(/uitgevoerde opdrachten/i),
+      cancelled: $("cancelledOrders") || buttonByText(/geannuleerde opdrachten/i)
     };
   }
 
-  function setBtnStyle(btn, active){
+  function styleButton(btn, active){
     if (!btn) return;
-    btn.classList.toggle("bns-mode-active-final", active);
+    btn.classList.toggle("bns-active-filter-button", active);
 
     if (active) {
       btn.style.setProperty("background", "#0f172a", "important");
       btn.style.setProperty("color", "#ffffff", "important");
-      btn.style.setProperty("box-shadow", "0 8px 20px rgba(15,23,42,.35)", "important");
-      btn.style.setProperty("border", "2px solid #38bdf8", "important");
+      btn.style.setProperty("border", "3px solid #22d3ee", "important");
+      btn.style.setProperty("box-shadow", "0 0 0 3px rgba(34,211,238,.25)", "important");
     } else {
       btn.style.removeProperty("background");
       btn.style.removeProperty("color");
-      btn.style.removeProperty("box-shadow");
       btn.style.removeProperty("border");
+      btn.style.removeProperty("box-shadow");
     }
   }
 
   function updateButtons(){
-    const current = getMode();
-    const btns = findModeButtons();
-    setBtnStyle(btns.active, current === "active");
-    setBtnStyle(btns.done, current === "done");
-    setBtnStyle(btns.cancelled, current === "cancelled");
+    var m = getMode();
+    var b = buttons();
+    styleButton(b.active, m === "active");
+    styleButton(b.done, m === "done");
+    styleButton(b.cancelled, m === "cancelled");
   }
 
-  function renderOrdersFixed(){
-    const list = $("ordersList");
+  function renderOrdersHard(){
+    var list = $("ordersList");
     if (!list) {
       updateButtons();
       return;
     }
 
-    const q = String(($("ordersSearch") || {}).value || "").toLowerCase().trim();
-    const current = getMode();
+    var q = String(($("ordersSearch") || {}).value || "").toLowerCase().trim();
+    var m = getMode();
 
-    const rows = (stateObj().orders || [])
+    var rows = (appState().orders || [])
       .slice()
       .sort(function(a, b){
         return String(a.start || "9999-99-99").localeCompare(String(b.start || "9999-99-99"));
       })
-      .filter(function(order){ return group(order) === current; })
-      .filter(function(order){ return searchMatch(order, q); });
+      .filter(function(order){
+        return group(order) === m;
+      })
+      .filter(function(order){
+        return matches(order, q);
+      });
 
-    list.innerHTML = rows.map(renderCard).join("") || "<p>Niets gevonden</p>";
+    list.innerHTML = rows.map(cardHtml).join("") || "<p>Niets gevonden</p>";
     updateButtons();
-  }
 
-  function hookButtons(){
-    const btns = findModeButtons();
-
-    if (btns.active) {
-      btns.active.onclick = function(){
-        setMode("active");
-        renderOrdersFixed();
-      };
-    }
-
-    if (btns.done) {
-      btns.done.onclick = function(){
-        setMode("done");
-        renderOrdersFixed();
-      };
-    }
-
-    if (btns.cancelled) {
-      btns.cancelled.onclick = function(){
-        setMode("cancelled");
-        renderOrdersFixed();
-      };
-    }
-
-    const search = $("ordersSearch");
-    if (search && !search.dataset.bnsFinalSearch) {
-      search.dataset.bnsFinalSearch = "1";
-      search.addEventListener("input", renderOrdersFixed);
-    }
-
-    updateButtons();
+    // Debug info alleen in console, niet zichtbaar in scherm.
+    try {
+      console.log("[BNS datumfix]", {
+        vandaag: today().toISOString().slice(0,10),
+        mode: m,
+        aantal: rows.length
+      });
+    } catch(e) {}
   }
 
   function installCss(){
-    if ($("bnsFinalModeButtonCss")) return;
-    const style = document.createElement("style");
-    style.id = "bnsFinalModeButtonCss";
-    style.textContent = `
-      .bns-mode-active-final {
-        background: #0f172a !important;
-        color: #fff !important;
-        border: 2px solid #38bdf8 !important;
-        box-shadow: 0 8px 20px rgba(15,23,42,.35) !important;
-      }
-    `;
+    if ($("bnsHardDateFixCss")) return;
+    var style = document.createElement("style");
+    style.id = "bnsHardDateFixCss";
+    style.textContent = ".bns-active-filter-button{background:#0f172a!important;color:#fff!important;border:3px solid #22d3ee!important;box-shadow:0 0 0 3px rgba(34,211,238,.25)!important;}";
     document.head.appendChild(style);
   }
 
-  window.renderOrders = renderOrdersFixed;
-  try { renderOrders = renderOrdersFixed; } catch(e) {}
+  function hook(){
+    installCss();
 
-  const oldRenderAll = window.renderAll;
-  if (typeof oldRenderAll === "function" && !oldRenderAll.__bnsFinalWrapped) {
-    const wrapped = function(){
-      const result = oldRenderAll.apply(this, arguments);
+    var b = buttons();
+    if (b.active) b.active.onclick = function(e){ e.preventDefault(); setMode("active"); renderOrdersHard(); };
+    if (b.done) b.done.onclick = function(e){ e.preventDefault(); setMode("done"); renderOrdersHard(); };
+    if (b.cancelled) b.cancelled.onclick = function(e){ e.preventDefault(); setMode("cancelled"); renderOrdersHard(); };
+
+    var search = $("ordersSearch");
+    if (search && !search.dataset.bnsHardDateFix) {
+      search.dataset.bnsHardDateFix = "1";
+      search.addEventListener("input", renderOrdersHard);
+    }
+
+    updateButtons();
+  }
+
+  window.BNS_renderOrdersHardDateFix = renderOrdersHard;
+  window.renderOrders = renderOrdersHard;
+  try { renderOrders = renderOrdersHard; } catch(e) {}
+
+  var oldRenderAll = window.renderAll;
+  if (typeof oldRenderAll === "function" && !oldRenderAll.__bnsHardDateFix) {
+    var wrapped = function(){
+      var result = oldRenderAll.apply(this, arguments);
       setTimeout(function(){
-        installCss();
-        hookButtons();
-        renderOrdersFixed();
+        hook();
+        renderOrdersHard();
       }, 0);
       return result;
     };
-    wrapped.__bnsFinalWrapped = true;
+    wrapped.__bnsHardDateFix = true;
     window.renderAll = wrapped;
     try { renderAll = wrapped; } catch(e) {}
   }
 
+  // Corrigeer ook als oude code later opnieuw tekent.
   function install(){
-    installCss();
-    hookButtons();
-    renderOrdersFixed();
+    hook();
+    renderOrdersHard();
   }
 
   if (document.readyState === "loading") {
@@ -3551,4 +3606,10 @@ setInterval(install,1500);
 
   setTimeout(install, 1000);
   setTimeout(install, 2000);
+  setInterval(function(){
+    if (document.body && document.querySelector("#ordersList")) {
+      hook();
+      renderOrdersHard();
+    }
+  }, 2500);
 })();
