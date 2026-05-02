@@ -2060,3 +2060,78 @@ setTimeout(()=>{
   setTimeout(installAdminSaveFix, 1500);
 })();
 
+/* =========================================================
+   BNS FIX - materiaalkaart volgt thema, niet status-groen
+   Deze fix voegt CSS toe via app.js zodat materialen niet groen blijven.
+   Alleen linkerbalk/rubriekkleur en statusbadge blijven zichtbaar.
+   ========================================================= */
+(function installBnsMaterialThemeFix() {
+  const STYLE_ID = "bns-material-theme-fix";
+
+  if (document.getElementById(STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = `
+    #materialList .material-row.free,
+    #materialList .material-row.reserved,
+    #materialList .material-row.defect,
+    #materialList .material-row.inactive,
+    #materialList .bns-material-row.free,
+    #materialList .bns-material-row.reserved,
+    #materialList .bns-material-row.defect,
+    #materialList .bns-material-row.inactive,
+    #materialList .bns-material-row.status-free,
+    #materialList .bns-material-row.status-reserved,
+    #materialList .bns-material-row.status-defect,
+    #materialList .bns-material-row.status-inactive {
+      background: var(--panel, #ffffff) !important;
+      color: var(--text, #172033) !important;
+    }
+
+    #materialList .material-row.free > *:not(.badge),
+    #materialList .material-row.reserved > *:not(.badge),
+    #materialList .material-row.defect > *:not(.badge),
+    #materialList .material-row.inactive > *:not(.badge),
+    #materialList .bns-material-row.free > *:not(.bns-status-pill),
+    #materialList .bns-material-row.reserved > *:not(.bns-status-pill),
+    #materialList .bns-material-row.defect > *:not(.bns-status-pill),
+    #materialList .bns-material-row.inactive > *:not(.bns-status-pill) {
+      color: var(--text, #172033) !important;
+    }
+
+    #materialList .badge.free,
+    #materialList .bns-status-pill.free {
+      background: #dcfce7 !important;
+      color: #166534 !important;
+    }
+
+    #materialList .badge.reserved,
+    #materialList .bns-status-pill.reserved {
+      background: #fee2e2 !important;
+      color: #991b1b !important;
+    }
+
+    #materialList .badge.defect,
+    #materialList .bns-status-pill.defect {
+      background: #fee2e2 !important;
+      color: #991b1b !important;
+      animation: bnsDefectBlink .45s infinite alternate !important;
+    }
+
+    #materialList .badge.inactive,
+    #materialList .bns-status-pill.inactive {
+      background: #e2e8f0 !important;
+      color: #334155 !important;
+    }
+
+    @keyframes bnsDefectBlink {
+      from { opacity: .45; }
+      to { opacity: 1; }
+    }
+  `;
+
+  document.head.appendChild(style);
+})();
