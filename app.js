@@ -3278,7 +3278,7 @@ function reserv(mid){for(const o of ORD()){if(!active(o))continue;if(ED()&&Strin
 function block(mid){const m=mat(mid);if(!m)return{blocked:true,status:"missing"};const s=stOf(m);if(s==="reserved")return{blocked:true,status:"reserved",material:m,order:reserv(mid)};if(s==="damage"||s==="missing"||s==="defect"||s==="inactive")return{blocked:true,status:s,material:m};return{blocked:false,status:"free",material:m}}
 function addStable(mid){const b=block(mid);if(b.blocked){popup(mid);return}const m=b.material;if(!m)return;if(!CH().some(x=>String(x.id)===String(mid))){let c=CL(m);c.status="reserved";CH().push(c)}try{renderChosen()}catch(e){}try{renderMaterials(CC())}catch(e){}try{summaryRender()}catch(e){}setTimeout(patchRows,0)}
 function intercept(e){const row=e.target.closest&&e.target.closest(".material-row");const list=E("materialList");if(!row||!list||!list.contains(row))return;const mid=midFromRow(row);if(!mid)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();addStable(mid);return false}
-function popup(mid){const b=block(mid),m=b.material||mat(mid);if(!m)return;let body=`<h3>${H(m.code||"")} ${H(m.name||"")}</h3>`;if(b.status==="reserved"){const o=b.order;body+=o?`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br><b>Klant:</b> ${H(o.customer?.name||"Onbekend")}<br><b>Opdracht:</b> ${H(o.number||"")} - ${H(o.title||"")}<br><b>Datum:</b> ${H(NICE(o.start))} t/m ${H(NICE(o.end))}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_openOrder('${H(o.id)}')">Wijzig opdracht</button><button onclick="BNS_STABIEL_freeMaterial('${H(m.id)}')">Vrij maken</button><button onclick="BNS_STABIEL_forceAdd('${H(m.id)}')">Toch toevoegen planner</button></div>`:`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br>Geen opdracht gevonden.</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_freeMaterial('${H(m.id)}')">Vrij maken</button><button onclick="BNS_STABIEL_forceAdd('${H(m.id)}')">Toch toevoegen planner</button></div>`}else{body+=`<div class="bns-box defect"><b>Status:</b> ${H(label(b.status))}<br><b>Omschrijving:</b> ${H(m.issueText||m.notes||"")}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button></div>`}openModal("Materiaal status",body)}
+function popup(mid){const b=block(mid),m=b.material||mat(mid);if(!m)return;let body=`<h3>${H(m.code||"")} ${H(m.name||"")}</h3>`;if(b.status==="reserved"){const o=b.order;body+=o?`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br><b>Klant:</b> ${H(o.customer?.name||"Onbekend")}<br><b>Opdracht:</b> ${H(o.number||"")} - ${H(o.title||"")}<br><b>Datum:</b> ${H(NICE(o.start))} t/m ${H(NICE(o.end))}</div>`:`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br>Geen opdracht gevonden.</div>`}else{body+=`<div class="bns-box defect"><b>Status:</b> ${H(label(b.status))}<br><b>Omschrijving:</b> ${H(m.issueText||m.notes||"")}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button></div>`}openModal("Materiaal status",body)}
 function openModal(t,b){let m=E(MODAL_ID);if(!m){m=document.createElement("div");m.id=MODAL_ID;m.className="bns-modal hidden";m.innerHTML='<div class="bns-modal-card"><h2 id="bnsStabielTitle"></h2><div id="bnsStabielBody"></div><div class="actions"><button onclick="BNS_STABIEL_close()">Sluiten</button></div></div>';document.body.appendChild(m)}E("bnsStabielTitle").textContent=t||"Info";E("bnsStabielBody").innerHTML=b||"";m.classList.remove("hidden")}
 function closeModal(){const m=E(MODAL_ID);if(m)m.classList.add("hidden")}
 function freeMat(mid){const m=mat(mid);if(!m)return;m.status="free";m.issueText="";m.usable=true;SAVE();closeModal();try{renderAll()}catch(e){}try{renderMaterials(CC())}catch(e){}setTimeout(patchRows,0)}
@@ -3302,38 +3302,31 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   BNS FIX - ACTIEF / UITGEVOERD DATUM + VEILIGE MATERIAALPOPUP
-   - Vandaag en toekomstige einddatums blijven bij Actieve opdrachten.
-   - Vanaf morgen na de einddatum gaat opdracht naar Uitgevoerde opdrachten.
-   - Geannuleerde opdrachten blijven bij Geannuleerde opdrachten.
-   - Deze patch wijzigt geen bestaande data.
+   BNS FINAL FIX - DATUMFILTER + ACTIEVE KNOP KLEUR + VEILIGE POPUP
    ========================================================= */
 (function(){
   "use strict";
 
-  function byId(id){ return document.getElementById(id); }
+  function $(id){ return document.getElementById(id); }
 
-  function getState(){
+  function stateObj(){
     try {
       if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
     } catch(e) {}
-    try {
-      if (window.state && Array.isArray(window.state.orders)) return window.state;
-    } catch(e) {}
-    return {orders:[]};
+    if (window.state && Array.isArray(window.state.orders)) return window.state;
+    return {orders: []};
   }
 
-  function esc(value){
-    return String(value ?? "").replace(/[&<>"']/g, function(c){
+  function esc(v){
+    return String(v ?? "").replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function parseDateOnly(value){
-    if (!value) return null;
-    const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!match) return null;
-    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0);
+  function dateOnly(value){
+    const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
   }
 
   function todayOnly(){
@@ -3342,59 +3335,46 @@ setInterval(install,1500);
     return d;
   }
 
-  function isCancelled(order){
-    return String(order && order.status || "").toLowerCase() === "geannuleerd";
-  }
-
-  function isExplicitDone(order){
-    return String(order && order.status || "").toLowerCase() === "uitgevoerd";
-  }
-
-  function isPastEndDate(order){
-    const end = parseDateOnly(order && (order.end || order.start));
+  function isPast(order){
+    const end = dateOnly(order && (order.end || order.start));
     if (!end) return false;
-
-    // Let op: einddatum vandaag blijft actief.
-    return end < todayOnly();
+    return end < todayOnly(); // vandaag blijft actief
   }
 
-  function orderGroup(order){
-    if (isCancelled(order)) return "cancelled";
-    if (isExplicitDone(order) || isPastEndDate(order)) return "done";
+  function group(order){
+    const status = String(order && order.status || "").toLowerCase();
+    if (status === "geannuleerd") return "cancelled";
+    if (status === "uitgevoerd") return "done";
+    if (isPast(order)) return "done";
     return "active";
   }
 
   function niceDate(value){
-    try {
-      if (typeof nice === "function") return nice(value);
-    } catch(e) {}
-    const d = parseDateOnly(value);
+    try { if (typeof nice === "function") return nice(value); } catch(e) {}
+    const d = dateOnly(value);
     if (!d) return value || "";
     return String(d.getDate()).padStart(2, "0") + "-" +
            String(d.getMonth() + 1).padStart(2, "0") + "-" +
            d.getFullYear();
   }
 
-  function currentMode(){
-    try {
-      if (typeof mode !== "undefined" && mode) return mode;
-    } catch(e) {}
+  function getMode(){
+    try { if (typeof mode !== "undefined" && mode) return mode; } catch(e) {}
     return window.mode || "active";
   }
 
-  function setMode(nextMode){
-    try { mode = nextMode; } catch(e) {}
-    window.mode = nextMode;
+  function setMode(value){
+    try { mode = value; } catch(e) {}
+    window.mode = value;
   }
 
-  function searchMatches(order, query){
-    if (!query) return true;
-
-    const materialText = (order.materials || []).map(function(m){
+  function searchMatch(order, q){
+    if (!q) return true;
+    const matText = (order.materials || []).map(function(m){
       return [m.cat, m.code, m.name].join(" ");
     }).join(" ");
 
-    const text = [
+    return [
       order.number,
       order.title,
       order.status,
@@ -3406,14 +3386,12 @@ setInterval(install,1500);
       order.location && order.location.name,
       order.location && order.location.street,
       order.location && order.location.city,
-      materialText
-    ].join(" ").toLowerCase();
-
-    return text.indexOf(query) !== -1;
+      matText
+    ].join(" ").toLowerCase().indexOf(q) !== -1;
   }
 
   function fallbackCard(order){
-    const materials = (order.materials || []).map(function(m){
+    const mats = (order.materials || []).map(function(m){
       return m.code || m.name || "";
     }).filter(Boolean).join(", ");
 
@@ -3424,131 +3402,143 @@ setInterval(install,1500);
           <div class="order-title">${esc(order.number || "")} - ${esc(order.title || "")}</div>
           <div>Klant: ${esc(order.customer && order.customer.name || "")}</div>
           <div>Locatie: ${esc(order.location && [order.location.name, order.location.street, order.location.city].filter(Boolean).join(" ") || "")}</div>
-          <div>Materialen: ${esc(materials)}</div>
+          <div>Materialen: ${esc(mats)}</div>
         </div>
       </div>
     `;
   }
 
   function renderCard(order){
-    try {
-      if (typeof card === "function") return card(order);
-    } catch(e) {}
-    try {
-      if (typeof window.card === "function") return window.card(order);
-    } catch(e) {}
+    try { if (typeof card === "function") return card(order); } catch(e) {}
+    try { if (typeof window.card === "function") return window.card(order); } catch(e) {}
     return fallbackCard(order);
   }
 
-  function updateModeButtons(){
-    const map = [
-      ["activeOrders", "active"],
-      ["doneOrders", "done"],
-      ["cancelledOrders", "cancelled"]
-    ];
+  function findModeButtons(){
+    const buttons = Array.from(document.querySelectorAll("button"));
+    return {
+      active: $("activeOrders") || buttons.find(function(b){ return /actieve opdrachten/i.test(b.textContent || ""); }),
+      done: $("doneOrders") || buttons.find(function(b){ return /uitgevoerde opdrachten/i.test(b.textContent || ""); }),
+      cancelled: $("cancelledOrders") || buttons.find(function(b){ return /geannuleerde opdrachten/i.test(b.textContent || ""); })
+    };
+  }
 
-    const activeMode = currentMode();
+  function setBtnStyle(btn, active){
+    if (!btn) return;
+    btn.classList.toggle("bns-mode-active-final", active);
 
-    map.forEach(function(item){
-      const btn = byId(item[0]);
-      if (!btn) return;
+    if (active) {
+      btn.style.setProperty("background", "#0f172a", "important");
+      btn.style.setProperty("color", "#ffffff", "important");
+      btn.style.setProperty("box-shadow", "0 8px 20px rgba(15,23,42,.35)", "important");
+      btn.style.setProperty("border", "2px solid #38bdf8", "important");
+    } else {
+      btn.style.removeProperty("background");
+      btn.style.removeProperty("color");
+      btn.style.removeProperty("box-shadow");
+      btn.style.removeProperty("border");
+    }
+  }
 
-      const active = item[1] === activeMode;
-      btn.classList.toggle("bns-order-mode-active", active);
-
-      if (active) {
-        btn.style.background = "#0f172a";
-        btn.style.color = "#fff";
-        btn.style.boxShadow = "0 8px 20px rgba(15,23,42,.25)";
-      } else {
-        btn.style.background = "";
-        btn.style.color = "";
-        btn.style.boxShadow = "";
-      }
-    });
+  function updateButtons(){
+    const current = getMode();
+    const btns = findModeButtons();
+    setBtnStyle(btns.active, current === "active");
+    setBtnStyle(btns.done, current === "done");
+    setBtnStyle(btns.cancelled, current === "cancelled");
   }
 
   function renderOrdersFixed(){
-    const listEl = byId("ordersList");
-    if (!listEl) return;
+    const list = $("ordersList");
+    if (!list) {
+      updateButtons();
+      return;
+    }
 
-    const query = String((byId("ordersSearch") || {}).value || "").toLowerCase().trim();
-    const selectedMode = currentMode();
+    const q = String(($("ordersSearch") || {}).value || "").toLowerCase().trim();
+    const current = getMode();
 
-    const orders = (getState().orders || [])
+    const rows = (stateObj().orders || [])
       .slice()
       .sort(function(a, b){
         return String(a.start || "9999-99-99").localeCompare(String(b.start || "9999-99-99"));
       })
-      .filter(function(order){
-        return orderGroup(order) === selectedMode;
-      })
-      .filter(function(order){
-        return searchMatches(order, query);
-      });
+      .filter(function(order){ return group(order) === current; })
+      .filter(function(order){ return searchMatch(order, q); });
 
-    listEl.innerHTML = orders.map(renderCard).join("") || "<p>Niets gevonden</p>";
-    updateModeButtons();
+    list.innerHTML = rows.map(renderCard).join("") || "<p>Niets gevonden</p>";
+    updateButtons();
   }
 
   function hookButtons(){
-    const active = byId("activeOrders");
-    const done = byId("doneOrders");
-    const cancelled = byId("cancelledOrders");
-    const search = byId("ordersSearch");
+    const btns = findModeButtons();
 
-    if (active) {
-      active.onclick = function(){
+    if (btns.active) {
+      btns.active.onclick = function(){
         setMode("active");
         renderOrdersFixed();
       };
     }
 
-    if (done) {
-      done.onclick = function(){
+    if (btns.done) {
+      btns.done.onclick = function(){
         setMode("done");
         renderOrdersFixed();
       };
     }
 
-    if (cancelled) {
-      cancelled.onclick = function(){
+    if (btns.cancelled) {
+      btns.cancelled.onclick = function(){
         setMode("cancelled");
         renderOrdersFixed();
       };
     }
 
-    if (search && !search.dataset.bnsDateFixSearch) {
-      search.dataset.bnsDateFixSearch = "1";
+    const search = $("ordersSearch");
+    if (search && !search.dataset.bnsFinalSearch) {
+      search.dataset.bnsFinalSearch = "1";
       search.addEventListener("input", renderOrdersFixed);
     }
+
+    updateButtons();
   }
 
-  window.BNS_renderOrdersDateFixed = renderOrdersFixed;
+  function installCss(){
+    if ($("bnsFinalModeButtonCss")) return;
+    const style = document.createElement("style");
+    style.id = "bnsFinalModeButtonCss";
+    style.textContent = `
+      .bns-mode-active-final {
+        background: #0f172a !important;
+        color: #fff !important;
+        border: 2px solid #38bdf8 !important;
+        box-shadow: 0 8px 20px rgba(15,23,42,.35) !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
-  const oldRenderOrders = window.renderOrders;
-  window.renderOrders = function(){
-    renderOrdersFixed();
-  };
-
-  try { renderOrders = window.renderOrders; } catch(e) {}
+  window.renderOrders = renderOrdersFixed;
+  try { renderOrders = renderOrdersFixed; } catch(e) {}
 
   const oldRenderAll = window.renderAll;
-  if (typeof oldRenderAll === "function" && !oldRenderAll.__bnsDateFixWrapped) {
+  if (typeof oldRenderAll === "function" && !oldRenderAll.__bnsFinalWrapped) {
     const wrapped = function(){
       const result = oldRenderAll.apply(this, arguments);
       setTimeout(function(){
+        installCss();
         hookButtons();
         renderOrdersFixed();
       }, 0);
       return result;
     };
-    wrapped.__bnsDateFixWrapped = true;
+    wrapped.__bnsFinalWrapped = true;
     window.renderAll = wrapped;
     try { renderAll = wrapped; } catch(e) {}
   }
 
   function install(){
+    installCss();
     hookButtons();
     renderOrdersFixed();
   }
@@ -3560,4 +3550,5 @@ setInterval(install,1500);
   }
 
   setTimeout(install, 1000);
+  setTimeout(install, 2000);
 })();
