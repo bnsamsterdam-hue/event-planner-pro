@@ -711,3 +711,24 @@ body.bns-v112 .bns-app-toast{position:fixed;right:18px;bottom:18px;z-index:99999
   background: #e2e8f0 !important;
   color: #334155 !important;
 }
+#toast,
+.toast {
+  display: none;
+  position: fixed !important;
+  left: 50% !important;
+  bottom: 22px !important;
+  transform: translateX(-50%) !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 2px solid #2563eb !important;
+  padding: 14px 22px !important;
+  border-radius: 14px !important;
+  font-weight: 900 !important;
+  z-index: 999999 !important;
+  box-shadow: 0 12px 30px rgba(0,0,0,.25) !important;
+}
+
+#toast.show,
+.toast.show {
+  display: block !important;
+}
