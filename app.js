@@ -4514,3 +4514,359 @@ setInterval(install,1500);
 
   setTimeout(applyAll, 1200);
 })();
+
+
+/* =========================================================
+   BNS FIX - KNOPPEN BOVEN + MATERIALEN SCHERM BLIJFT OPEN
+   - Factuur maken / Opdracht bon niet meer in de materiaalkolom.
+   - Knoppen komen boven naast de tab Extra.
+   - Na materiaal kiezen blijft tab Materialen open.
+   - Je kunt achter elkaar TW / TO / KW / EXTRA blijven kiezen.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  var scheduled = false;
+
+  function $(id){ return document.getElementById(id); }
+
+  function cleanText(el){
+    return String(el && el.textContent || "").trim();
+  }
+
+  function htmlEsc(v){
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function isInsideMaterialChooser(el){
+    return !!(el && el.closest && (
+      el.closest("#materialCats") ||
+      el.closest("#materialList") ||
+      el.closest("#materialPanel .bns-cat-tabs") ||
+      el.closest("#materialPanel .material-cats")
+    ));
+  }
+
+  function findTopExtraTab(){
+    var candidates = Array.from(document.querySelectorAll("button")).filter(function(btn){
+      return /^extra$/i.test(cleanText(btn)) && !isInsideMaterialChooser(btn);
+    });
+
+    return candidates.find(function(btn){
+      return btn.classList.contains("worktab") ||
+             btn.closest(".tabs") ||
+             btn.closest(".worktabs") ||
+             btn.closest(".tabbar") ||
+             btn.closest("#newOrder");
+    }) || candidates[0] || null;
+  }
+
+  function removeMisplacedTopButtons(){
+    ["bnsFactuurTopBtn", "bnsOpdrachtBonTopBtn"].forEach(function(id){
+      var btn = $(id);
+      if (btn) btn.remove();
+    });
+  }
+
+  function clickFirstButton(regex){
+    var btn = Array.from(document.querySelectorAll("button")).find(function(button){
+      if (button.id === "bnsFactuurTopBtn" || button.id === "bnsOpdrachtBonTopBtn") return false;
+      return regex.test(cleanText(button));
+    });
+
+    if (btn) {
+      btn.click();
+      return true;
+    }
+
+    return false;
+  }
+
+  function makeInvoice(){
+    if (clickFirstButton(/^(factuur|factuur maken|invoice)$/i)) return;
+
+    try {
+      if (typeof window.makeInvoice === "function") {
+        window.makeInvoice();
+        return;
+      }
+    } catch(e) {}
+
+    try {
+      if (typeof safePrint === "function") {
+        safePrint();
+        return;
+      }
+    } catch(e) {}
+
+    window.print();
+  }
+
+  function makeOrderBon(){
+    if (clickFirstButton(/opdracht bon|opdrachtbevestiging|overzicht maken|overzicht \/ opdrachtbevestiging/i)) return;
+
+    try {
+      if (typeof makeConfirmationText === "function") {
+        var txt = makeConfirmationText();
+        var w = window.open("", "_blank");
+        if (w) {
+          w.document.write("<pre style='font-family:Arial;white-space:pre-wrap'>" + htmlEsc(txt) + "</pre>");
+          w.document.close();
+          return;
+        }
+      }
+    } catch(e) {}
+
+    window.print();
+  }
+
+  function ensureTopButtons(){
+    var extra = findTopExtraTab();
+    if (!extra || !extra.parentNode) return;
+
+    removeMisplacedTopButtons();
+
+    var factuur = document.createElement("button");
+    factuur.id = "bnsFactuurTopBtn";
+    factuur.type = "button";
+    factuur.textContent = "Factuur maken";
+    factuur.className = extra.className || "";
+    factuur.addEventListener("click", function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      makeInvoice();
+    });
+
+    var bon = document.createElement("button");
+    bon.id = "bnsOpdrachtBonTopBtn";
+    bon.type = "button";
+    bon.textContent = "Opdracht bon";
+    bon.className = extra.className || "";
+    bon.addEventListener("click", function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      makeOrderBon();
+    });
+
+    extra.insertAdjacentElement("afterend", factuur);
+    factuur.insertAdjacentElement("afterend", bon);
+  }
+
+  function showMaterialPanel(){
+    var materialBtn = Array.from(document.querySelectorAll("button")).find(function(btn){
+      return /^materialen$/i.test(cleanText(btn)) && !isInsideMaterialChooser(btn);
+    });
+
+    var panel = $("materialPanel");
+    if (panel) {
+      panel.classList.remove("hidden");
+      panel.style.display = "";
+    }
+
+    if (materialBtn) {
+      Array.from(document.querySelectorAll("button")).forEach(function(btn){
+        if (/^(klant|locatie|materialen|bezorger|voertuig|extra)$/i.test(cleanText(btn))) {
+          btn.classList.toggle("active", btn === materialBtn);
+        }
+      });
+    }
+  }
+
+  function ensureMaterialBackButton(){
+    var panel = $("materialPanel");
+    if (!panel || $("bnsMaterialBackBtn")) return;
+
+    var btn = document.createElement("button");
+    btn.id = "bnsMaterialBackBtn";
+    btn.type = "button";
+    btn.textContent = "← Terug naar opdracht";
+    btn.addEventListener("click", function(){
+      var klant = Array.from(document.querySelectorAll("button")).find(function(b){
+        return /^klant$/i.test(cleanText(b)) && !isInsideMaterialChooser(b);
+      });
+      if (klant) klant.click();
+    });
+
+    var h = panel.querySelector("h3,h2") || panel.firstElementChild;
+    if (h && h.insertAdjacentElement) h.insertAdjacentElement("afterend", btn);
+    else panel.prepend(btn);
+  }
+
+  function chosenArr(){
+    try {
+      if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen;
+    } catch(e) {}
+    try {
+      if (window.chosen && Array.isArray(window.chosen)) return window.chosen;
+    } catch(e) {}
+    return [];
+  }
+
+  function materialIdFromRow(row){
+    var id = row.getAttribute("data-material-id") ||
+             row.getAttribute("data-bns-material-id") ||
+             (row.dataset && (row.dataset.materialId || row.dataset.bnsMaterialId)) ||
+             "";
+
+    if (id) return String(id);
+
+    var html = row.outerHTML || "";
+    var match = html.match(/addMat\(['"]([^'"]+)['"]\)/);
+    return match ? match[1] : "";
+  }
+
+  function markChosenMaterials(){
+    var ids = chosenArr().map(function(item){ return String(item.id); });
+
+    document.querySelectorAll("#materialList [data-material-id], #materialList [data-bns-material-id], #materialList .material-row, #materialList .bns-material-row, #materialList .bns-cat-row").forEach(function(row){
+      var id = materialIdFromRow(row);
+      var selected = id && ids.indexOf(String(id)) !== -1;
+
+      row.classList.toggle("bns-selected-material-red", selected);
+
+      if (selected) {
+        row.style.setProperty("background", "#fee2e2", "important");
+        row.style.setProperty("border-color", "#dc2626", "important");
+        row.style.setProperty("box-shadow", "inset 7px 0 0 #dc2626", "important");
+
+        var status = row.querySelector(".bns-status-pill") ||
+                     row.querySelector(".mat-status-badge") ||
+                     row.querySelector(".v112-pill") ||
+                     row.querySelector("span:last-child");
+
+        if (status) {
+          status.textContent = "● ● Gekozen";
+          status.style.setProperty("background", "#fecaca", "important");
+          status.style.setProperty("color", "#7f1d1d", "important");
+          status.style.setProperty("font-weight", "900", "important");
+          status.style.setProperty("border-radius", "999px", "important");
+          status.style.setProperty("padding", "5px 10px", "important");
+        }
+      }
+    });
+  }
+
+  function patchAddAndRender(){
+    try {
+      var oldAdd = window.addMat || (typeof addMat === "function" ? addMat : null);
+      if (oldAdd && !oldAdd.__bnsKeepMaterialOpen) {
+        var wrappedAdd = function(){
+          var result = oldAdd.apply(this, arguments);
+          setTimeout(function(){
+            showMaterialPanel();
+            markChosenMaterials();
+          }, 40);
+          return result;
+        };
+        wrappedAdd.__bnsKeepMaterialOpen = true;
+        window.addMat = wrappedAdd;
+        try { addMat = wrappedAdd; } catch(e) {}
+      }
+    } catch(e) {}
+
+    try {
+      var oldRenderMaterials = window.renderMaterials || (typeof renderMaterials === "function" ? renderMaterials : null);
+      if (oldRenderMaterials && !oldRenderMaterials.__bnsKeepMaterialOpen) {
+        var wrappedRenderMaterials = function(){
+          var result = oldRenderMaterials.apply(this, arguments);
+          setTimeout(markChosenMaterials, 40);
+          return result;
+        };
+        wrappedRenderMaterials.__bnsKeepMaterialOpen = true;
+        window.renderMaterials = wrappedRenderMaterials;
+        try { renderMaterials = wrappedRenderMaterials; } catch(e) {}
+      }
+    } catch(e) {}
+  }
+
+  function patchSaveClose(){
+    try {
+      var fn = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null);
+      if (fn && !fn.__bnsGoOrdersAfterSave) {
+        var wrapped = function(){
+          var result = fn.apply(this, arguments);
+          setTimeout(function(){
+            try {
+              if (typeof showPage === "function") showPage("orders");
+              else {
+                var orders = Array.from(document.querySelectorAll("button")).find(function(btn){
+                  return /^opdrachten$/i.test(cleanText(btn));
+                });
+                if (orders) orders.click();
+              }
+            } catch(e) {}
+          }, 120);
+          return result;
+        };
+        wrapped.__bnsGoOrdersAfterSave = true;
+        window.saveCurrentOrder = wrapped;
+        try { saveCurrentOrder = wrapped; } catch(e) {}
+      }
+    } catch(e) {}
+  }
+
+  function installCss(){
+    if ($("bnsTopButtonsAndMaterialKeepCss")) return;
+
+    var style = document.createElement("style");
+    style.id = "bnsTopButtonsAndMaterialKeepCss";
+    style.textContent = `
+      #bnsFactuurTopBtn,
+      #bnsOpdrachtBonTopBtn {
+        margin-left: 8px !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 10px 18px !important;
+        color: #fff !important;
+        font-weight: 900 !important;
+      }
+      #bnsFactuurTopBtn { background: #2563eb !important; }
+      #bnsOpdrachtBonTopBtn { background: #16a34a !important; }
+      #bnsMaterialBackBtn {
+        margin: 8px 0 12px 0 !important;
+        background: #0f172a !important;
+        color: #fff !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 9px 14px !important;
+        font-weight: 900 !important;
+      }
+      .bns-selected-material-red {
+        background: #fee2e2 !important;
+        border-color: #dc2626 !important;
+        box-shadow: inset 7px 0 0 #dc2626 !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function apply(){
+    scheduled = false;
+    installCss();
+    patchAddAndRender();
+    patchSaveClose();
+    ensureTopButtons();
+    ensureMaterialBackButton();
+    markChosenMaterials();
+  }
+
+  function schedule(){
+    if (scheduled) return;
+    scheduled = true;
+    setTimeout(apply, 80);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(apply, 300); });
+  } else {
+    setTimeout(apply, 300);
+  }
+
+  try {
+    new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true});
+  } catch(e) {}
+
+  setTimeout(apply, 1200);
+})();
