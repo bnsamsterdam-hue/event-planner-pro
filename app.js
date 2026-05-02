@@ -17,18 +17,8 @@ function save(){localStorage.setItem(KEY,JSON.stringify(state))}
 function ensure(){state.users??=[];state.orders??=[];state.materials??=[];state.customers??=[];state.locations??=[];state.alerts??=[];state.adminPin??='1111';}
 function id(){return Math.random().toString(36).slice(2,10)}
 function $(id){return document.getElementById(id)}
-function toastMsg(t){
-  const toast = $('toast');
+function toastMsg(t){toast.textContent=t;toast.className='toast';setTimeout(()=>toast.textContent='',2200)}
 
-  toast.textContent = t;
-  toast.className = 'toast show';
-
-  clearTimeout(window.toastTimer);
-  window.toastTimer = setTimeout(()=>{
-    toast.className = 'toast';
-    toast.textContent = '';
-  }, 2200);
-}
 function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(p).classList.add('active');document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));renderAll();}
 function init(){
  document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{if(pin.length<4)pin+=b.dataset.pin;pinView.textContent=(pin.split('').map(x=>'•').join(' ')+' - - - -').split(' ').slice(0,4).join(' ');if(pin.length===4)doLogin();});
@@ -1901,644 +1891,19 @@ setTimeout(()=>{
 })();
 
 
-/* =========================================================
-   BNS FIX - ADMIN MATERIAAL WIJZIGEN OPSLAAN
-   Probleem: oude save zocht op rubriek+code. Bij wijzigen van code/rubriek
-   werd daardoor een nieuw materiaal gemaakt. Deze fix bewaart op gekozen ID.
-   ========================================================= */
-(function(){
-  "use strict";
-
-  let bnsSelectedMaterialId = null;
-
-  function byId(id){ return document.getElementById(id); }
-
-  function cleanCat(value){
-    return String(value || "EXTRA").trim().toUpperCase() || "EXTRA";
-  }
-
-  function getMaterialById(id){
-    try {
-      return state.materials.find(function(material){
-        return String(material.id) === String(id);
-      });
-    } catch(error) {
-      return null;
-    }
-  }
-
-  function fillSelectedMaterial(id){
-    const material = getMaterialById(id);
-    if (!material) return;
-
-    bnsSelectedMaterialId = material.id;
-
-    if (byId("adminMatCat")) byId("adminMatCat").value = material.cat || "";
-    if (byId("adminMatCode")) byId("adminMatCode").value = material.code || "";
-    if (byId("adminMatName")) byId("adminMatName").value = material.name || "";
-    if (byId("adminMatPrice")) byId("adminMatPrice").value = material.price || "";
-    if (byId("adminMatStatus")) byId("adminMatStatus").value = material.status || "free";
-
-    if (byId("adminSelectedMat")) {
-      byId("adminSelectedMat").textContent = "Gekozen: " + (material.code || "") + " " + (material.name || "");
-    }
-
-    if (typeof BNS_V12_renderAdminMaterials === "function") {
-      BNS_V12_renderAdminMaterials();
-    }
-  }
-
-  function saveSelectedMaterial(){
-    if (!byId("adminMatCat") || !byId("adminMatCode") || !byId("adminMatName")) return;
-
-    const cat = cleanCat(byId("adminMatCat").value);
-    const code = String(byId("adminMatCode").value || "").trim().toUpperCase();
-    const name = String(byId("adminMatName").value || "").trim();
-    const price = byId("adminMatPrice") ? byId("adminMatPrice").value : "";
-    const status = byId("adminMatStatus") ? byId("adminMatStatus").value : "free";
-
-    if (!code || !name) {
-      if (typeof toastMsg === "function") toastMsg("Vul code en naam in");
-      else alert("Vul code en naam in");
-      return;
-    }
-
-    let material = bnsSelectedMaterialId ? getMaterialById(bnsSelectedMaterialId) : null;
-
-    if (material) {
-      Object.assign(material, {cat: cat, code: code, name: name, price: price, status: status});
-    } else {
-      try {
-        state.materials.push({
-          id: (typeof id === "function" ? id() : Math.random().toString(36).slice(2,10)),
-          cat: cat,
-          code: code,
-          name: name,
-          price: price,
-          status: status
-        });
-      } catch(error) {
-        console.error(error);
-        return;
-      }
-    }
-
-    if (typeof save === "function") save();
-
-    if (typeof BNS_V12_renderCats === "function") BNS_V12_renderCats();
-    if (typeof BNS_V12_renderMaterials === "function") BNS_V12_renderMaterials(window.currentCat || cat);
-    if (typeof BNS_V12_renderAdminMaterials === "function") BNS_V12_renderAdminMaterials();
-    if (typeof adminRender === "function") adminRender();
-
-    if (byId("adminSelectedMat")) {
-      byId("adminSelectedMat").textContent = "Opgeslagen: " + code + " " + name;
-    }
-
-    if (typeof toastMsg === "function") toastMsg("Materiaal opgeslagen");
-  }
-
-  function newMaterial(){
-    bnsSelectedMaterialId = null;
-    ["adminMatCat","adminMatCode","adminMatName","adminMatPrice"].forEach(function(inputId){
-      const input = byId(inputId);
-      if (input) input.value = inputId === "adminMatCat" ? "TW" : "";
-    });
-    if (byId("adminMatStatus")) byId("adminMatStatus").value = "free";
-    if (byId("adminSelectedMat")) byId("adminSelectedMat").textContent = "Nieuw materiaal";
-  }
-
-  function deleteSelectedMaterial(){
-    if (!bnsSelectedMaterialId) return;
-    if (!confirm("Gekozen materiaal verwijderen?")) return;
-
-    try {
-      state.materials = state.materials.filter(function(material){
-        return String(material.id) !== String(bnsSelectedMaterialId);
-      });
-    } catch(error) {
-      console.error(error);
-      return;
-    }
-
-    bnsSelectedMaterialId = null;
-    if (typeof save === "function") save();
-    newMaterial();
-
-    if (typeof BNS_V12_renderCats === "function") BNS_V12_renderCats();
-    if (typeof BNS_V12_renderMaterials === "function") BNS_V12_renderMaterials(window.currentCat || "TW");
-    if (typeof BNS_V12_renderAdminMaterials === "function") BNS_V12_renderAdminMaterials();
-    if (typeof adminRender === "function") adminRender();
-
-    if (typeof toastMsg === "function") toastMsg("Materiaal verwijderd");
-  }
-
-  function installAdminSaveFix(){
-    window.fillMat = fillSelectedMaterial;
-
-    try { fillMat = fillSelectedMaterial; } catch(error) {}
-
-    const saveButton = byId("adminSaveMat");
-    if (saveButton && !saveButton.dataset.bnsSaveFix) {
-      saveButton.dataset.bnsSaveFix = "1";
-      saveButton.onclick = saveSelectedMaterial;
-      saveButton.type = "button";
-    }
-
-    const newButton = byId("adminNewMat");
-    if (newButton && !newButton.dataset.bnsSaveFix) {
-      newButton.dataset.bnsSaveFix = "1";
-      newButton.onclick = newMaterial;
-      newButton.type = "button";
-    }
-
-    const deleteButton = byId("adminDeleteMat");
-    if (deleteButton && !deleteButton.dataset.bnsSaveFix) {
-      deleteButton.dataset.bnsSaveFix = "1";
-      deleteButton.onclick = deleteSelectedMaterial;
-      deleteButton.type = "button";
-    }
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(installAdminSaveFix, 600);
-    });
-  } else {
-    setTimeout(installAdminSaveFix, 600);
-  }
-
-  setTimeout(installAdminSaveFix, 1500);
-})();
-
-
 
 /* =========================================================
-   BNS V12 PRO - ADMIN GEBRUIKER RECHTEN
-   Voegt rechten toe bij Bezorgers/Gebruikers:
-   - prijzen zien
-   - Google agenda
-   - Waze/GPS route
-   - meldingen/storingen afmelden
-   - materialen, klanten, locaties, opdrachten, factuur/offerte
-   Bestaande functies/data blijven behouden.
+   BNS V12 PRO - ADMIN RECHTEN + PIN ENTER + MATERIAAL THEMA FIX
+   - Rechtenblok altijd zichtbaar onder Opslaan gebruiker
+   - Materiaalkaart volgt thema en wordt niet groen
+   - Admin PIN wordt leeggemaakt na openen
+   - Enter werkt in admin PIN veld
    ========================================================= */
-(function installBnsAdminUserRights() {
+(function bnsV12ProAdminRightsPinMaterialFix() {
   "use strict";
 
-  const STYLE_ID = "bns-admin-user-rights-style";
-
-  const RIGHTS = [
-    ["prices", "Prijzen zien"],
-    ["agenda", "Google agenda"],
-    ["gps", "Waze / route openen"],
-    ["resolve", "Meldingen / storingen afmelden"],
-    ["materials", "Materialen beheren"],
-    ["customers", "Klanten beheren"],
-    ["locations", "Locaties beheren"],
-    ["orders", "Opdrachten beheren"],
-    ["invoice", "Factuur / offerte"],
-    ["admin", "Admin beheer"]
-  ];
-
-  const DEFAULT_RIGHTS_BY_ROLE = {
-    Admin: {
-      prices: true,
-      agenda: true,
-      gps: true,
-      resolve: true,
-      materials: true,
-      customers: true,
-      locations: true,
-      orders: true,
-      invoice: true,
-      admin: true
-    },
-    Planner: {
-      prices: true,
-      agenda: true,
-      gps: false,
-      resolve: true,
-      materials: true,
-      customers: true,
-      locations: true,
-      orders: true,
-      invoice: true,
-      admin: false
-    },
-    Bezorger: {
-      prices: false,
-      agenda: false,
-      gps: true,
-      resolve: true,
-      materials: false,
-      customers: false,
-      locations: false,
-      orders: false,
-      invoice: false,
-      admin: false
-    }
-  };
-
-  let selectedUserId = null;
-
-  function byId(id) {
-    return document.getElementById(id);
-  }
-
-  function currentState() {
-    try {
-      return typeof state !== "undefined" ? state : null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function saveState() {
-    if (typeof save === "function") {
-      save();
-    }
-  }
-
-  function toast(text) {
-    if (typeof toastMsg === "function") {
-      toastMsg(text);
-    }
-  }
-
-  function norm(value) {
-    return String(value || "").trim();
-  }
-
-  function getAdminArea() {
-    const headings = Array.from(document.querySelectorAll("h1, h2, h3, h4"));
-    const userHeading = headings.find(function (heading) {
-      return /Gebruiker aanmaken|Gebruikers|Bezorger/i.test(heading.textContent || "");
-    });
-
-    if (userHeading) {
-      return userHeading.closest(".panel, .card, section, div") || userHeading.parentElement;
-    }
-
-    const buttons = Array.from(document.querySelectorAll("button"));
-    const saveButton = buttons.find(function (button) {
-      return /Opslaan gebruiker/i.test(button.textContent || "");
-    });
-
-    return saveButton ? saveButton.closest(".panel, .card, section, div") : null;
-  }
-
-  function findNameInput(area) {
-    if (!area) return null;
-    return Array.from(area.querySelectorAll("input")).find(function (input) {
-      return /naam/i.test(input.placeholder || "");
-    }) || null;
-  }
-
-  function findPinInput(area) {
-    if (!area) return null;
-    return Array.from(area.querySelectorAll("input")).find(function (input) {
-      return /pin/i.test(input.placeholder || "");
-    }) || null;
-  }
-
-  function findRoleSelect(area) {
-    if (!area) return null;
-    return Array.from(area.querySelectorAll("select")).find(function (select) {
-      return /Admin|Planner|Bezorger/i.test(select.textContent || "");
-    }) || null;
-  }
-
-  function findSaveButton(area) {
-    const buttons = Array.from((area || document).querySelectorAll("button"));
-    return buttons.find(function (button) {
-      return /Opslaan gebruiker/i.test(button.textContent || "");
-    }) || null;
-  }
-
-  function selectedRole(area) {
-    const roleSelect = findRoleSelect(area);
-    return roleSelect ? norm(roleSelect.value || roleSelect.options[roleSelect.selectedIndex]?.text) : "Bezorger";
-  }
-
-  function defaultsForRole(role) {
-    return Object.assign({}, DEFAULT_RIGHTS_BY_ROLE[role] || DEFAULT_RIGHTS_BY_ROLE.Bezorger);
-  }
-
-  function getRightsFromForm() {
-    const rights = {};
-    RIGHTS.forEach(function ([key]) {
-      const input = byId("bnsRight_" + key);
-      rights[key] = !!(input && input.checked);
-    });
-    return rights;
-  }
-
-  function setRightsForm(rights) {
-    const safeRights = rights || {};
-    RIGHTS.forEach(function ([key]) {
-      const input = byId("bnsRight_" + key);
-      if (input) {
-        input.checked = !!safeRights[key];
-      }
-    });
-  }
-
-  function ensureStyle() {
-    if (byId(STYLE_ID)) return;
-
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
-      .bns-user-rights-box {
-        margin-top: 14px;
-        padding: 14px;
-        border: 1px solid var(--border, #dbe3ef);
-        border-radius: 16px;
-        background: var(--panel, #ffffff);
-        color: var(--text, #172033);
-      }
-
-      .bns-user-rights-title {
-        font-size: 18px;
-        font-weight: 900;
-        margin-bottom: 10px;
-      }
-
-      .bns-user-rights-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(220px, 1fr));
-        gap: 8px 14px;
-      }
-
-      .bns-user-right {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-height: 38px;
-        padding: 8px 10px;
-        border-radius: 12px;
-        background: rgba(148, 163, 184, .12);
-        font-weight: 800;
-        cursor: pointer;
-      }
-
-      .bns-user-right input {
-        width: 20px;
-        height: 20px;
-      }
-
-      .bns-user-list {
-        margin-top: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .bns-user-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
-        gap: 10px;
-        align-items: center;
-        padding: 10px 12px;
-        border-radius: 14px;
-        border: 1px solid var(--border, #dbe3ef);
-        background: var(--panel, #ffffff);
-      }
-
-      .bns-user-row b {
-        color: var(--text, #172033);
-      }
-
-      .bns-user-row small {
-        color: var(--muted, #64748b);
-        font-weight: 700;
-      }
-
-      .bns-user-row button {
-        padding: 8px 12px !important;
-      }
-    `;
-
-    document.head.appendChild(style);
-  }
-
-  function ensureRightsBox() {
-    const area = getAdminArea();
-    if (!area || byId("bnsUserRightsBox")) return;
-
-    const roleSelect = findRoleSelect(area);
-    const saveButton = findSaveButton(area);
-
-    const box = document.createElement("div");
-    box.id = "bnsUserRightsBox";
-    box.className = "bns-user-rights-box";
-    box.innerHTML = `
-      <div class="bns-user-rights-title">Wat mag deze medewerker zien / doen?</div>
-      <div class="bns-user-rights-grid">
-        ${RIGHTS.map(function ([key, label]) {
-          return `
-            <label class="bns-user-right">
-              <input id="bnsRight_${key}" type="checkbox">
-              <span>${label}</span>
-            </label>
-          `;
-        }).join("")}
-      </div>
-      <div id="bnsUserList" class="bns-user-list"></div>
-    `;
-
-    if (saveButton) {
-      saveButton.insertAdjacentElement("beforebegin", box);
-    } else if (roleSelect) {
-      roleSelect.insertAdjacentElement("afterend", box);
-    } else {
-      area.appendChild(box);
-    }
-
-    if (roleSelect && !roleSelect.dataset.bnsRightsBound) {
-      roleSelect.dataset.bnsRightsBound = "1";
-      roleSelect.addEventListener("change", function () {
-        if (!selectedUserId) {
-          setRightsForm(defaultsForRole(selectedRole(area)));
-        }
-      });
-    }
-
-    setRightsForm(defaultsForRole(selectedRole(area)));
-  }
-
-  function findUserAfterOriginalSave(area) {
-    const s = currentState();
-    if (!s || !Array.isArray(s.users)) return null;
-
-    const name = norm(findNameInput(area)?.value);
-    const pin = norm(findPinInput(area)?.value);
-    const role = selectedRole(area);
-
-    if (selectedUserId) {
-      const selected = s.users.find(function (user) {
-        return String(user.id) === String(selectedUserId);
-      });
-      if (selected) return selected;
-    }
-
-    return s.users.find(function (user) {
-      return norm(user.pin) === pin;
-    }) || s.users.find(function (user) {
-      return norm(user.name).toLowerCase() === name.toLowerCase() && norm(user.role) === role;
-    }) || null;
-  }
-
-  function applyRightsToSavedUser() {
-    const area = getAdminArea();
-    const user = findUserAfterOriginalSave(area);
-
-    if (!user) return;
-
-    user.rights = Object.assign({}, user.rights || {}, getRightsFromForm());
-
-    saveState();
-    renderUserList();
-    toast("Gebruiker + rechten opgeslagen");
-  }
-
-  function bindSaveButton() {
-    const area = getAdminArea();
-    const saveButton = findSaveButton(area);
-
-    if (!saveButton || saveButton.dataset.bnsRightsSaveBound) return;
-
-    saveButton.dataset.bnsRightsSaveBound = "1";
-    saveButton.type = "button";
-
-    saveButton.addEventListener("click", function () {
-      setTimeout(applyRightsToSavedUser, 150);
-    });
-  }
-
-  function loadUserIntoForm(userId) {
-    const s = currentState();
-    if (!s || !Array.isArray(s.users)) return;
-
-    const user = s.users.find(function (item) {
-      return String(item.id) === String(userId);
-    });
-
-    if (!user) return;
-
-    selectedUserId = user.id;
-
-    const area = getAdminArea();
-    const nameInput = findNameInput(area);
-    const pinInput = findPinInput(area);
-    const roleSelect = findRoleSelect(area);
-
-    if (nameInput) nameInput.value = user.name || "";
-    if (pinInput) pinInput.value = user.pin || "";
-    if (roleSelect) roleSelect.value = user.role || "Bezorger";
-
-    setRightsForm(Object.assign(defaultsForRole(user.role), user.rights || {}));
-    toast("Gebruiker gekozen");
-  }
-
-  function deleteUser(userId) {
-    const s = currentState();
-    if (!s || !Array.isArray(s.users)) return;
-
-    const user = s.users.find(function (item) {
-      return String(item.id) === String(userId);
-    });
-
-    if (!user) return;
-
-    if ((user.role || "").toLowerCase() === "admin") {
-      alert("Admin gebruiker niet verwijderen.");
-      return;
-    }
-
-    if (!confirm("Gebruiker verwijderen?")) return;
-
-    s.users = s.users.filter(function (item) {
-      return String(item.id) !== String(userId);
-    });
-
-    saveState();
-    selectedUserId = null;
-    renderUserList();
-    toast("Gebruiker verwijderd");
-  }
-
-  function renderUserList() {
-    const list = byId("bnsUserList");
-    const s = currentState();
-
-    if (!list || !s || !Array.isArray(s.users)) return;
-
-    list.innerHTML = s.users.map(function (user) {
-      const rights = user.rights || {};
-      const allowed = RIGHTS
-        .filter(function ([key]) {
-          return !!rights[key];
-        })
-        .map(function ([, label]) {
-          return label;
-        })
-        .join(", ");
-
-      return `
-        <div class="bns-user-row" data-user-id="${String(user.id)}">
-          <span>
-            <b>${String(user.name || "")}</b>
-            <small>${String(user.role || "")} - PIN ${String(user.pin || "")}</small>
-            <small>${allowed || "Geen extra rechten"}</small>
-          </span>
-          <button type="button" class="bns-user-edit">Wijzig</button>
-          <button type="button" class="bns-user-delete delete">Verwijder</button>
-        </div>
-      `;
-    }).join("");
-
-    list.querySelectorAll(".bns-user-row").forEach(function (row) {
-      row.querySelector(".bns-user-edit").addEventListener("click", function () {
-        loadUserIntoForm(row.dataset.userId);
-      });
-
-      row.querySelector(".bns-user-delete").addEventListener("click", function () {
-        deleteUser(row.dataset.userId);
-      });
-    });
-  }
-
-  function install() {
-    ensureStyle();
-    ensureRightsBox();
-    bindSaveButton();
-    renderUserList();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-      setTimeout(install, 700);
-    });
-  } else {
-    setTimeout(install, 700);
-  }
-
-  setInterval(install, 2000);
-})();
-
-
-
-/* =========================================================
-   BNS FORCE FIX - RECHTENBLOK ALTIJD TONEN BIJ OPSLAAN GEBRUIKER
-   Deze patch zoekt letterlijk de knop "Opslaan gebruiker" en zet daaronder
-   de rechtenknoppen. Werkt ook als de admin HTML anders is opgebouwd.
-   ========================================================= */
-(function bnsForceUserRightsBlock(){
-  "use strict";
-
-  const STYLE_ID = "bns-force-user-rights-style";
-  const BOX_ID = "bnsForceUserRightsBox";
+  const STYLE_ID = "bns-v12-pro-final-style";
+  const RIGHTS_BOX_ID = "bnsForceUserRightsBox";
 
   const RIGHTS = [
     ["prices", "Prijzen zien"],
@@ -2560,207 +1925,360 @@ setTimeout(()=>{
   };
 
   let selectedUserId = null;
+  let lastAdminPinOpened = false;
 
-  function qs(sel, root){ return (root || document).querySelector(sel); }
-  function qsa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
-
-  function getState(){
-    try { return typeof state !== "undefined" ? state : null; } catch(e){ return null; }
+  function qs(sel, root) {
+    return (root || document).querySelector(sel);
   }
 
-  function doSave(){
-    try { if (typeof save === "function") save(); } catch(e){}
+  function qsa(sel, root) {
+    return Array.from((root || document).querySelectorAll(sel));
   }
 
-  function makeId(){
-    try { if (typeof id === "function") return id(); } catch(e){}
-    return "u_" + Math.random().toString(36).slice(2,10);
+  function getState() {
+    try {
+      return typeof state !== "undefined" ? state : null;
+    } catch (error) {
+      return null;
+    }
   }
 
-  function toast(text){
+  function doSave() {
+    try {
+      if (typeof save === "function") save();
+    } catch (error) {}
+  }
+
+  function makeId() {
+    try {
+      if (typeof id === "function") return id();
+    } catch (error) {}
+    return "u_" + Math.random().toString(36).slice(2, 10);
+  }
+
+  function msg(text) {
     try {
       if (typeof toastMsg === "function") toastMsg(text);
       else if (typeof toast === "function") toast(text);
-    } catch(e){}
+    } catch (error) {}
   }
 
-  function findSaveButton(){
-    return qsa("button").find(btn => (btn.textContent || "").trim().toLowerCase().includes("opslaan gebruiker"));
-  }
-
-  function formRoot(){
-    const btn = findSaveButton();
-    if (!btn) return null;
-    return btn.closest(".panel, .adminPane, section, main, div") || btn.parentElement;
-  }
-
-  function inputs(){
-    const root = formRoot() || document;
-    const allInputs = qsa("input", root);
-    const allSelects = qsa("select", root);
-
-    const name = allInputs.find(i => /naam/i.test(i.placeholder || "")) || allInputs[0] || null;
-    const pin = allInputs.find(i => /pin/i.test(i.placeholder || "")) || allInputs[1] || null;
-    const role = allSelects.find(s => /bezorger|planner|admin/i.test(s.textContent || "")) || allSelects[0] || null;
-
-    return {name, pin, role};
-  }
-
-  function currentRole(){
-    const {role} = inputs();
-    return role ? (role.value || role.options[role.selectedIndex]?.text || "Bezorger") : "Bezorger";
-  }
-
-  function defaultsFor(role){
-    return Object.assign({}, DEFAULTS[role] || DEFAULTS.Bezorger);
-  }
-
-  function ensureStyle(){
+  function ensureStyle() {
     if (qs("#" + STYLE_ID)) return;
 
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-      #${BOX_ID}{
-        margin-top:16px!important;
-        margin-bottom:16px!important;
-        padding:16px!important;
-        border:2px solid #93c5fd!important;
-        border-radius:18px!important;
-        background:var(--panel,#fff)!important;
-        color:var(--text,#172033)!important;
-        box-shadow:0 8px 22px rgba(15,23,42,.10)!important;
-        display:block!important;
-        width:100%!important;
+      /* Materiaalkaart: nooit meer groen als achtergrond, maar thema-kleur */
+      #materialList .material-row,
+      #materialList .material-row.free,
+      #materialList .material-row.reserved,
+      #materialList .material-row.defect,
+      #materialList .material-row.inactive,
+      #materialList .bns-material-row,
+      #materialList .bns-material-row.free,
+      #materialList .bns-material-row.reserved,
+      #materialList .bns-material-row.defect,
+      #materialList .bns-material-row.inactive,
+      #materialList .bns-material-row.status-free,
+      #materialList .bns-material-row.status-reserved,
+      #materialList .bns-material-row.status-defect,
+      #materialList .bns-material-row.status-inactive {
+        background: var(--panel, #ffffff) !important;
+        color: var(--text, #172033) !important;
+        border-color: var(--border, #dbe3ef) !important;
       }
-      #${BOX_ID} .bns-right-title{
-        font-size:20px!important;
-        font-weight:900!important;
-        margin-bottom:12px!important;
+
+      #materialList .material-row *,
+      #materialList .bns-material-row * {
+        color: inherit;
       }
-      #${BOX_ID} .bns-right-grid{
-        display:grid!important;
-        grid-template-columns:repeat(2,minmax(220px,1fr))!important;
-        gap:10px 14px!important;
+
+      #materialList .material-row small,
+      #materialList .bns-material-row small {
+        color: var(--muted, #64748b) !important;
       }
-      #${BOX_ID} label{
-        display:flex!important;
-        align-items:center!important;
-        gap:10px!important;
-        padding:10px 12px!important;
-        border-radius:14px!important;
-        background:rgba(148,163,184,.14)!important;
-        font-weight:800!important;
-        cursor:pointer!important;
+
+      #materialList .badge.free,
+      #materialList .bns-status-pill.free {
+        background: #dcfce7 !important;
+        color: #166534 !important;
       }
-      #${BOX_ID} input[type="checkbox"]{
-        width:22px!important;
-        height:22px!important;
-        min-width:22px!important;
+
+      #materialList .badge.reserved,
+      #materialList .bns-status-pill.reserved {
+        background: #fee2e2 !important;
+        color: #991b1b !important;
       }
-      #bnsForceUserList{
-        margin-top:16px!important;
-        display:flex!important;
-        flex-direction:column!important;
-        gap:8px!important;
+
+      #materialList .badge.defect,
+      #materialList .bns-status-pill.defect {
+        background: #fee2e2 !important;
+        color: #991b1b !important;
+        animation: bnsDefectBlink .45s infinite alternate !important;
       }
-      .bns-force-user-row{
-        display:grid!important;
-        grid-template-columns:minmax(0,1fr) auto auto!important;
-        gap:10px!important;
-        align-items:center!important;
-        padding:10px 12px!important;
-        border:1px solid var(--border,#dbe3ef)!important;
-        border-radius:14px!important;
-        background:var(--panel,#fff)!important;
+
+      #materialList .badge.inactive,
+      #materialList .bns-status-pill.inactive {
+        background: #e2e8f0 !important;
+        color: #334155 !important;
       }
-      .bns-force-user-row small{
-        display:block!important;
-        color:var(--muted,#64748b)!important;
-        font-weight:700!important;
+
+      @keyframes bnsDefectBlink {
+        from { opacity: .45; }
+        to { opacity: 1; }
       }
-      .bns-force-user-row button{
-        padding:8px 12px!important;
+
+      #${RIGHTS_BOX_ID} {
+        margin-top: 16px !important;
+        margin-bottom: 16px !important;
+        padding: 16px !important;
+        border: 2px solid #93c5fd !important;
+        border-radius: 18px !important;
+        background: var(--panel, #ffffff) !important;
+        color: var(--text, #172033) !important;
+        box-shadow: 0 8px 22px rgba(15,23,42,.10) !important;
+        display: block !important;
+        width: 100% !important;
+      }
+
+      #${RIGHTS_BOX_ID} .bns-right-title {
+        font-size: 20px !important;
+        font-weight: 900 !important;
+        margin-bottom: 12px !important;
+      }
+
+      #${RIGHTS_BOX_ID} .bns-right-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(220px, 1fr)) !important;
+        gap: 10px 14px !important;
+      }
+
+      #${RIGHTS_BOX_ID} label {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 10px 12px !important;
+        border-radius: 14px !important;
+        background: rgba(148,163,184,.14) !important;
+        font-weight: 800 !important;
+        cursor: pointer !important;
+      }
+
+      #${RIGHTS_BOX_ID} input[type="checkbox"] {
+        width: 22px !important;
+        height: 22px !important;
+        min-width: 22px !important;
+      }
+
+      #bnsForceUserList {
+        margin-top: 16px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+      }
+
+      .bns-force-user-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto auto !important;
+        gap: 10px !important;
+        align-items: center !important;
+        padding: 10px 12px !important;
+        border: 1px solid var(--border, #dbe3ef) !important;
+        border-radius: 14px !important;
+        background: var(--panel, #fff) !important;
+      }
+
+      .bns-force-user-row small {
+        display: block !important;
+        color: var(--muted, #64748b) !important;
+        font-weight: 700 !important;
+      }
+
+      .bns-force-user-row button {
+        padding: 8px 12px !important;
       }
     `;
     document.head.appendChild(style);
   }
 
-  function readRights(){
+  function findAdminPinInput() {
+    return qs("#adminPin") || qsa("input").find(function(input) {
+      return /pin/i.test(input.placeholder || "") && input.type === "password";
+    });
+  }
+
+  function findOpenBeheerButton() {
+    return qsa("button").find(function(button) {
+      return /open beheer/i.test(button.textContent || "");
+    });
+  }
+
+  function patchAdminPin() {
+    const pinInput = findAdminPinInput();
+    const openButton = findOpenBeheerButton();
+
+    if (pinInput && openButton && !pinInput.dataset.bnsEnterBound) {
+      pinInput.dataset.bnsEnterBound = "1";
+      pinInput.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          openButton.click();
+        }
+      });
+    }
+
+    if (pinInput && openButton && !openButton.dataset.bnsClearPinBound) {
+      openButton.dataset.bnsClearPinBound = "1";
+      openButton.addEventListener("click", function() {
+        setTimeout(function() {
+          if (!pinInput.value || pinInput.value === "1111") {
+            pinInput.value = "";
+          } else if (document.body.textContent.includes("Materialen beheren") || document.body.textContent.includes("Gebruiker aanmaken")) {
+            pinInput.value = "";
+          }
+        }, 250);
+      });
+    }
+
+    if (pinInput && !lastAdminPinOpened && document.body.textContent.includes("Gebruiker aanmaken")) {
+      lastAdminPinOpened = true;
+      pinInput.value = "";
+    }
+  }
+
+  function findSaveUserButton() {
+    return qsa("button").find(function(button) {
+      return (button.textContent || "").trim().toLowerCase().includes("opslaan gebruiker");
+    });
+  }
+
+  function userFormRoot() {
+    const button = findSaveUserButton();
+    if (!button) return null;
+    return button.closest(".panel, .adminPane, section, main, div") || button.parentElement;
+  }
+
+  function userInputs() {
+    const root = userFormRoot() || document;
+    const allInputs = qsa("input", root);
+    const allSelects = qsa("select", root);
+
+    const name = allInputs.find(function(input) {
+      return /naam/i.test(input.placeholder || "");
+    }) || allInputs[0] || null;
+
+    const pin = allInputs.find(function(input) {
+      return /pin/i.test(input.placeholder || "");
+    }) || allInputs[1] || null;
+
+    const role = allSelects.find(function(select) {
+      return /bezorger|planner|admin/i.test(select.textContent || "");
+    }) || allSelects[0] || null;
+
+    return { name, pin, role };
+  }
+
+  function currentRole() {
+    const fields = userInputs();
+    return fields.role ? (fields.role.value || fields.role.options[fields.role.selectedIndex]?.text || "Bezorger") : "Bezorger";
+  }
+
+  function defaultsFor(role) {
+    return Object.assign({}, DEFAULTS[role] || DEFAULTS.Bezorger);
+  }
+
+  function readRights() {
     const rights = {};
-    RIGHTS.forEach(([key]) => {
-      const cb = qs("#bnsForceRight_" + key);
-      rights[key] = !!(cb && cb.checked);
+    RIGHTS.forEach(function(item) {
+      const key = item[0];
+      const checkbox = qs("#bnsForceRight_" + key);
+      rights[key] = !!(checkbox && checkbox.checked);
     });
     return rights;
   }
 
-  function setRights(rights){
+  function setRights(rights) {
     const source = rights || {};
-    RIGHTS.forEach(([key]) => {
-      const cb = qs("#bnsForceRight_" + key);
-      if (cb) cb.checked = !!source[key];
+    RIGHTS.forEach(function(item) {
+      const key = item[0];
+      const checkbox = qs("#bnsForceRight_" + key);
+      if (checkbox) checkbox.checked = !!source[key];
     });
   }
 
-  function ensureBox(){
-    const btn = findSaveButton();
-    if (!btn) return;
+  function ensureRightsBox() {
+    const button = findSaveUserButton();
+    if (!button) return;
 
-    let box = qs("#" + BOX_ID);
+    let box = qs("#" + RIGHTS_BOX_ID);
     if (!box) {
       box = document.createElement("div");
-      box.id = BOX_ID;
+      box.id = RIGHTS_BOX_ID;
       box.innerHTML = `
         <div class="bns-right-title">Wat mag deze medewerker zien / doen?</div>
         <div class="bns-right-grid">
-          ${RIGHTS.map(([key,label]) => `
-            <label>
-              <input id="bnsForceRight_${key}" type="checkbox">
-              <span>${label}</span>
-            </label>
-          `).join("")}
+          ${RIGHTS.map(function(item) {
+            const key = item[0];
+            const label = item[1];
+            return `
+              <label>
+                <input id="bnsForceRight_${key}" type="checkbox">
+                <span>${label}</span>
+              </label>
+            `;
+          }).join("")}
         </div>
         <div id="bnsForceUserList"></div>
       `;
-
-      btn.insertAdjacentElement("afterend", box);
+      button.insertAdjacentElement("afterend", box);
       setRights(defaultsFor(currentRole()));
     }
 
-    const {role} = inputs();
-    if (role && !role.dataset.bnsForceRightsRole) {
-      role.dataset.bnsForceRightsRole = "1";
-      role.addEventListener("change", () => {
+    const fields = userInputs();
+    if (fields.role && !fields.role.dataset.bnsForceRightsRole) {
+      fields.role.dataset.bnsForceRightsRole = "1";
+      fields.role.addEventListener("change", function() {
         if (!selectedUserId) setRights(defaultsFor(currentRole()));
       });
     }
   }
 
-  function saveUserWithRights(){
+  function saveUserWithRights() {
     const s = getState();
     if (!s) return;
 
     s.users = Array.isArray(s.users) ? s.users : [];
 
-    const {name, pin, role} = inputs();
-    const userName = (name?.value || "").trim();
-    const userPin = (pin?.value || "").trim();
-    const userRole = role ? (role.value || "Bezorger") : "Bezorger";
+    const fields = userInputs();
+    const userName = (fields.name?.value || "").trim();
+    const userPin = (fields.pin?.value || "").trim();
+    const userRole = fields.role ? (fields.role.value || "Bezorger") : "Bezorger";
 
     if (!userName || !userPin) {
       alert("Vul naam en PIN in.");
       return;
     }
 
-    let user = selectedUserId ? s.users.find(u => String(u.id) === String(selectedUserId)) : null;
+    let user = selectedUserId ? s.users.find(function(item) {
+      return String(item.id) === String(selectedUserId);
+    }) : null;
 
     if (!user) {
-      user = s.users.find(u => String(u.pin) === userPin);
+      user = s.users.find(function(item) {
+        return String(item.pin) === userPin;
+      });
     }
 
     if (!user) {
-      user = {id:makeId(), name:userName, pin:userPin, role:userRole, phone:"", rights:{}};
+      user = {
+        id: makeId(),
+        name: userName,
+        pin: userPin,
+        role: userRole,
+        phone: "",
+        rights: {}
+      };
       s.users.push(user);
     }
 
@@ -2772,33 +2290,39 @@ setTimeout(()=>{
     selectedUserId = user.id;
 
     doSave();
-    renderList();
-    toast("Gebruiker + rechten opgeslagen");
+    renderUserList();
+    msg("Gebruiker + rechten opgeslagen");
   }
 
-  function editUser(userId){
+  function editUser(userId) {
     const s = getState();
     if (!s || !Array.isArray(s.users)) return;
 
-    const user = s.users.find(u => String(u.id) === String(userId));
+    const user = s.users.find(function(item) {
+      return String(item.id) === String(userId);
+    });
+
     if (!user) return;
 
     selectedUserId = user.id;
 
-    const {name, pin, role} = inputs();
-    if (name) name.value = user.name || "";
-    if (pin) pin.value = user.pin || "";
-    if (role) role.value = user.role || "Bezorger";
+    const fields = userInputs();
+    if (fields.name) fields.name.value = user.name || "";
+    if (fields.pin) fields.pin.value = user.pin || "";
+    if (fields.role) fields.role.value = user.role || "Bezorger";
 
     setRights(Object.assign(defaultsFor(user.role), user.rights || {}));
-    toast("Gebruiker gekozen");
+    msg("Gebruiker gekozen");
   }
 
-  function deleteUser(userId){
+  function deleteUser(userId) {
     const s = getState();
     if (!s || !Array.isArray(s.users)) return;
 
-    const user = s.users.find(u => String(u.id) === String(userId));
+    const user = s.users.find(function(item) {
+      return String(item.id) === String(userId);
+    });
+
     if (!user) return;
 
     if ((user.role || "").toLowerCase() === "admin") {
@@ -2808,23 +2332,31 @@ setTimeout(()=>{
 
     if (!confirm("Gebruiker verwijderen?")) return;
 
-    s.users = s.users.filter(u => String(u.id) !== String(userId));
+    s.users = s.users.filter(function(item) {
+      return String(item.id) !== String(userId);
+    });
+
     if (selectedUserId === userId) selectedUserId = null;
 
     doSave();
-    renderList();
+    renderUserList();
   }
 
-  function renderList(){
+  function renderUserList() {
     const list = qs("#bnsForceUserList");
     const s = getState();
+
     if (!list || !s || !Array.isArray(s.users)) return;
 
-    list.innerHTML = s.users.map(user => {
+    list.innerHTML = s.users.map(function(user) {
       const rights = user.rights || {};
       const allowed = RIGHTS
-        .filter(([key]) => !!rights[key])
-        .map(([,label]) => label)
+        .filter(function(item) {
+          return !!rights[item[0]];
+        })
+        .map(function(item) {
+          return item[1];
+        })
         .join(", ");
 
       return `
@@ -2840,1036 +2372,41 @@ setTimeout(()=>{
       `;
     }).join("");
 
-    qsa(".bns-force-user-row", list).forEach(row => {
-      qs(".bns-force-edit", row).onclick = () => editUser(row.dataset.userId);
-      qs(".bns-force-delete", row).onclick = () => deleteUser(row.dataset.userId);
+    qsa(".bns-force-user-row", list).forEach(function(row) {
+      qs(".bns-force-edit", row).onclick = function() {
+        editUser(row.dataset.userId);
+      };
+      qs(".bns-force-delete", row).onclick = function() {
+        deleteUser(row.dataset.userId);
+      };
     });
   }
 
-  function bindSave(){
-    const btn = findSaveButton();
-    if (!btn || btn.dataset.bnsForceRightsSave) return;
+  function bindSaveUserButton() {
+    const button = findSaveUserButton();
+    if (!button || button.dataset.bnsForceRightsSave) return;
 
-    btn.dataset.bnsForceRightsSave = "1";
-    btn.type = "button";
-    btn.onclick = saveUserWithRights;
+    button.dataset.bnsForceRightsSave = "1";
+    button.type = "button";
+    button.onclick = saveUserWithRights;
   }
 
-  function install(){
+  function install() {
     ensureStyle();
-    ensureBox();
-    bindSave();
-    renderList();
+    patchAdminPin();
+    ensureRightsBox();
+    bindSaveUserButton();
+    renderUserList();
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => setTimeout(install, 500));
+    document.addEventListener("DOMContentLoaded", function() {
+      setTimeout(install, 500);
+    });
   } else {
     setTimeout(install, 500);
   }
 
   setInterval(install, 1000);
-})();
-
-
-
-/* =========================================================
-   BNS V12 PRO - WAZE + AGENDA + POSTCODEZOEKER
-   Extra functies zonder bestaande functies te wissen:
-   - Waze route knop bij planner en bezorger
-   - Google Agenda knop bij planner
-   - Automatisch extra "Ophalen TR blauw" agenda item op einddatum
-   - Postcode + huisnummer zoeker vult adresvelden
-   ========================================================= */
-(function bnsPlannerRouteAgendaPostcode(){
-  "use strict";
-
-  const STYLE_ID = "bns-route-agenda-postcode-style";
-  const POSTCODE_BOX_ID = "bnsPostcodeBox";
-  const PLANNER_TOOLS_ID = "bnsPlannerTools";
-
-  function qs(sel, root){ return (root || document).querySelector(sel); }
-  function qsa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
-  function byId(id){ return document.getElementById(id); }
-
-  function getState(){
-    try { return typeof state !== "undefined" ? state : null; } catch(e){ return null; }
-  }
-
-  function currentUser(){
-    try { return typeof user !== "undefined" ? user : null; } catch(e){ return null; }
-  }
-
-  function roleAllowed(){
-    const u = currentUser();
-    const role = String(u && u.role || "").toLowerCase();
-    return role === "admin" || role === "planner" || role === "bezorger";
-  }
-
-  function plannerAllowed(){
-    const u = currentUser();
-    const role = String(u && u.role || "").toLowerCase();
-    return role === "admin" || role === "planner";
-  }
-
-  function fieldValue(id){
-    const input = byId(id);
-    return input ? String(input.value || "").trim() : "";
-  }
-
-  function niceAddressFromForm(){
-    const locationAddress = [
-      fieldValue("locationStreet"),
-      fieldValue("locationZip"),
-      fieldValue("locationCity")
-    ].filter(Boolean).join(" ");
-
-    const customerAddress = [
-      fieldValue("customerStreet"),
-      fieldValue("customerZip"),
-      fieldValue("customerCity")
-    ].filter(Boolean).join(" ");
-
-    return locationAddress || customerAddress;
-  }
-
-  function openWaze(address){
-    const q = String(address || "").trim();
-    if (!q) {
-      alert("Geen adres gevonden. Vul eerst klant- of locatieadres in.");
-      return;
-    }
-
-    window.open("https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes", "_blank");
-  }
-
-  function openGoogleMaps(address){
-    const q = String(address || "").trim();
-    if (!q) {
-      alert("Geen adres gevonden. Vul eerst klant- of locatieadres in.");
-      return;
-    }
-
-    window.open("https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(q), "_blank");
-  }
-
-  function toCalendarDate(value, endOfDay){
-    const safe = value || new Date().toISOString().slice(0, 10);
-    const compact = safe.replaceAll("-", "");
-    return compact + (endOfDay ? "T170000" : "T090000");
-  }
-
-  function currentMaterialCodes(){
-    try {
-      if (Array.isArray(chosen) && chosen.length) {
-        return chosen.map(function(item){ return item.code || item.name || ""; }).filter(Boolean);
-      }
-    } catch(e){}
-
-    return [];
-  }
-
-  function currentFirstMaterialCat(){
-    try {
-      if (Array.isArray(chosen) && chosen.length) {
-        return String(chosen[0].cat || chosen[0].code || "").toUpperCase();
-      }
-    } catch(e){}
-
-    return "";
-  }
-
-  function openCalendarForCurrentOrder(type){
-    const number = fieldValue("orderNumber");
-    const title = fieldValue("orderTitle") || "Opdracht";
-    const customer = fieldValue("customerName");
-    const materialCodes = currentMaterialCodes();
-    const materialCat = currentFirstMaterialCat();
-
-    const start = fieldValue("dateStart");
-    const end = fieldValue("dateEnd") || start;
-    const address = niceAddressFromForm();
-
-    let eventTitle;
-    let eventStart;
-    let eventEnd;
-    let details;
-
-    if (type === "pickup") {
-      eventTitle = "Ophalen TR blauw - " + [number, customer, title].filter(Boolean).join(" - ");
-      eventStart = toCalendarDate(end, False);
-    } else {
-      eventTitle = [
-        "Opdracht",
-        materialCat ? "[" + materialCat + "]" : "",
-        number,
-        customer,
-        title
-      ].filter(Boolean).join(" - ");
-      eventStart = toCalendarDate(start, False);
-    }
-
-    eventEnd = type === "pickup" ? toCalendarDate(end, True) : toCalendarDate(end || start, True);
-
-    details = [
-      "Event Planner PRO",
-      "Opdracht: " + number,
-      "Titel: " + title,
-      "Klant: " + customer,
-      "Materialen: " + (materialCodes.join(", ") || "Nog geen materialen"),
-      "Kleur artikel/rubriek: " + (materialCat || "onbekend"),
-      type === "pickup" ? "Ophalen: TR kleur blauw" : "",
-      "Adres: " + address
-    ].filter(Boolean).join("\n");
-
-    const url = "https://calendar.google.com/calendar/render?action=TEMPLATE"
-      + "&text=" + encodeURIComponent(eventTitle)
-      + "&dates=" + encodeURIComponent(eventStart + "/" + eventEnd)
-      + "&location=" + encodeURIComponent(address)
-      + "&details=" + encodeURIComponent(details);
-
-    window.open(url, "_blank");
-  }
-
-  // JavaScript heeft true/false lowercase nodig; deze hulpfuncties voorkomen typefouten in strings.
-  const False = false;
-  const True = true;
-
-  function ensureStyle(){
-    if (byId(STYLE_ID)) return;
-
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
-      #${PLANNER_TOOLS_ID},
-      #${POSTCODE_BOX_ID}{
-        margin:12px 0!important;
-        padding:12px!important;
-        border:1px solid var(--border,#dbe3ef)!important;
-        border-radius:16px!important;
-        background:var(--panel,#fff)!important;
-        color:var(--text,#172033)!important;
-        display:flex!important;
-        gap:10px!important;
-        flex-wrap:wrap!important;
-        align-items:center!important;
-      }
-
-      #${PLANNER_TOOLS_ID} b,
-      #${POSTCODE_BOX_ID} b{
-        width:100%!important;
-        font-size:16px!important;
-      }
-
-      #${POSTCODE_BOX_ID} input{
-        width:150px!important;
-        min-width:120px!important;
-      }
-
-      .bns-tool-green{
-        background:#16a34a!important;
-      }
-
-      .bns-tool-orange{
-        background:#ea580c!important;
-      }
-
-      .bns-tool-dark{
-        background:#334155!important;
-      }
-
-      .bns-route-button{
-        margin-left:6px!important;
-        padding:7px 10px!important;
-        font-size:13px!important;
-        border-radius:10px!important;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function ensurePlannerTools(){
-    if (!plannerAllowed()) return;
-
-    const newOrderPage = byId("newOrder") || qs(".page.active");
-    if (!newOrderPage || byId(PLANNER_TOOLS_ID)) return;
-
-    const orderHead = qs(".order-head", newOrderPage) || qs("h2", newOrderPage) || newOrderPage.firstElementChild;
-
-    const box = document.createElement("div");
-    box.id = PLANNER_TOOLS_ID;
-    box.innerHTML = `
-      <b>Planner snelknoppen</b>
-      <button type="button" id="bnsWazePlannerBtn" class="bns-tool-green">Waze route naar opdracht</button>
-      <button type="button" id="bnsMapsPlannerBtn" class="bns-tool-dark">Google Maps route</button>
-      <button type="button" id="bnsAgendaOrderBtn">Agenda opdracht maken</button>
-      <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda ophalen TR blauw</button>
-    `;
-
-    if (orderHead && orderHead.insertAdjacentElement) {
-      orderHead.insertAdjacentElement("afterend", box);
-    } else {
-      newOrderPage.prepend(box);
-    }
-
-    byId("bnsWazePlannerBtn").onclick = function(){ openWaze(niceAddressFromForm()); };
-    byId("bnsMapsPlannerBtn").onclick = function(){ openGoogleMaps(niceAddressFromForm()); };
-    byId("bnsAgendaOrderBtn").onclick = function(){ openCalendarForCurrentOrder("order"); };
-    byId("bnsAgendaPickupBtn").onclick = function(){ openCalendarForCurrentOrder("pickup"); };
-  }
-
-  function ensurePostcodeSearch(){
-    const locationPanel = byId("locationPanel") || byId("customerPanel") || byId("newOrder");
-    if (!locationPanel || byId(POSTCODE_BOX_ID)) return;
-
-    const box = document.createElement("div");
-    box.id = POSTCODE_BOX_ID;
-    box.innerHTML = `
-      <b>Postcode zoeker</b>
-      <input id="bnsPostcodeInput" placeholder="Postcode">
-      <input id="bnsHouseNumberInput" placeholder="Huisnr">
-      <button type="button" id="bnsPostcodeSearchBtn">Adres zoeken</button>
-      <button type="button" id="bnsPostcodeMapsBtn" class="bns-tool-dark">Zoek in Maps</button>
-      <span id="bnsPostcodeStatus"></span>
-    `;
-
-    const h3 = qs("h3", locationPanel) || locationPanel.firstElementChild;
-    if (h3 && h3.insertAdjacentElement) h3.insertAdjacentElement("afterend", box);
-    else locationPanel.prepend(box);
-
-    byId("bnsPostcodeSearchBtn").onclick = lookupPostcode;
-    byId("bnsPostcodeMapsBtn").onclick = function(){
-      const pc = fieldValue("bnsPostcodeInput");
-      const nr = fieldValue("bnsHouseNumberInput");
-      openGoogleMaps([pc, nr, "Nederland"].filter(Boolean).join(" "));
-    };
-  }
-
-  async function lookupPostcode(){
-    const pc = fieldValue("bnsPostcodeInput").replace(/\s+/g, "").toUpperCase();
-    const nr = fieldValue("bnsHouseNumberInput");
-    const status = byId("bnsPostcodeStatus");
-
-    if (!pc || !nr) {
-      alert("Vul postcode en huisnummer in.");
-      return;
-    }
-
-    if (status) status.textContent = "Zoeken...";
-
-    // PDOK Locatieserver, geen API-key nodig. Als exacte huisnummer niet gevonden wordt,
-    // vult hij in ieder geval straat/plaats van de postcode aan.
-    const query = encodeURIComponent(pc + " " + nr);
-    const url = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=" + query + "&rows=1";
-
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Postcode service geeft geen antwoord");
-
-      const data = await response.json();
-      const doc = data && data.response && data.response.docs && data.response.docs[0];
-
-      if (!doc) {
-        if (status) status.textContent = "Niet gevonden";
-        openGoogleMaps(pc + " " + nr + " Nederland");
-        return;
-      }
-
-      const street = doc.straatnaam || doc.weergavenaam || "";
-      const city = doc.woonplaatsnaam || "";
-
-      if (byId("locationStreet")) byId("locationStreet").value = [street, nr].filter(Boolean).join(" ");
-      if (byId("locationZip")) byId("locationZip").value = pc;
-      if (byId("locationCity")) byId("locationCity").value = city;
-
-      // Als locatievelden niet bestaan, klantvelden vullen.
-      if (!byId("locationStreet")) {
-        if (byId("customerStreet")) byId("customerStreet").value = [street, nr].filter(Boolean).join(" ");
-        if (byId("customerZip")) byId("customerZip").value = pc;
-        if (byId("customerCity")) byId("customerCity").value = city;
-      }
-
-      if (status) status.textContent = "Adres ingevuld";
-
-      try {
-        if (typeof renderSummary === "function") renderSummary();
-      } catch(e){}
-    } catch(error) {
-      console.warn(error);
-      if (status) status.textContent = "Niet gelukt, Maps geopend";
-      openGoogleMaps(pc + " " + nr + " Nederland");
-    }
-  }
-
-  function addressFromOrderCard(card){
-    const text = (card.textContent || "").replace(/\s+/g, " ");
-    const match = text.match(/Locatie:\s*([^|]+)|Adres:\s*([^|]+)/i);
-    return match ? (match[1] || match[2] || "").trim() : "";
-  }
-
-  function ensureDriverWazeButtons(){
-    if (!roleAllowed()) return;
-
-    qsa(".order-card, .driver-card, .melding-card").forEach(function(card){
-      if (card.dataset.bnsWazeAdded) return;
-      const text = card.textContent || "";
-
-      if (!/Locatie:|Adres:|Klant:/i.test(text)) return;
-
-      card.dataset.bnsWazeAdded = "1";
-
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "bns-route-button bns-tool-green";
-      button.textContent = "Waze";
-
-      button.onclick = function(event){
-        event.stopPropagation();
-
-        const address = addressFromOrderCard(card) || niceAddressFromForm();
-        openWaze(address);
-      };
-
-      card.appendChild(button);
-    });
-  }
-
-  function install(){
-    ensureStyle();
-    ensurePlannerTools();
-    ensurePostcodeSearch();
-    ensureDriverWazeButtons();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(install, 700);
-    });
-  } else {
-    setTimeout(install, 700);
-  }
-
-  setInterval(install, 1500);
-})();
-
-
-
-/* =========================================================
-   BNS V12 PRO - MATERIAAL RESERVERING / VOORRAAD BLOKKEREN
-   Regels:
-   - Materiaal kiezen = direct gereserveerd voor huidige klant/opdracht.
-   - Gereserveerd materiaal kan niet opnieuw bij andere klant gekozen worden.
-   - Bij gereserveerd staat zichtbaar: voor welke klant/opdracht.
-   - Wijzig-knop opent de opdracht als die gevonden wordt.
-   - Verwijderen uit gekozen materialen zet materiaal weer Vrij als het bij deze opdracht hoort.
-   ========================================================= */
-(function bnsMaterialReservationSystem(){
-  "use strict";
-
-  const STYLE_ID = "bns-material-reservation-style";
-
-  function byId(id){ return document.getElementById(id); }
-  function qsa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
-
-  function getState(){
-    try { return typeof state !== "undefined" ? state : null; } catch(e){ return null; }
-  }
-
-  function doSave(){
-    try { if (typeof save === "function") save(); } catch(e){}
-  }
-
-  function safeToast(text){
-    try {
-      if (typeof toastMsg === "function") toastMsg(text);
-      else if (typeof toast === "function") toast(text);
-    } catch(e){}
-  }
-
-  function html(value){
-    return String(value ?? "").replace(/[&<>"']/g, function(ch){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
-    });
-  }
-
-  function cleanCat(cat){
-    return String(cat || "EXTRA").trim().toUpperCase() || "EXTRA";
-  }
-
-  function currentOrderNumber(){
-    return String(byId("orderNumber")?.value || "").trim();
-  }
-
-  function currentCustomerName(){
-    return String(byId("customerName")?.value || "").trim() || "Nog geen klant";
-  }
-
-  function currentOrderTitle(){
-    return String(byId("orderTitle")?.value || "").trim();
-  }
-
-  function currentReservationKey(){
-    try {
-      if (typeof editing !== "undefined" && editing) return "order-id:" + editing;
-    } catch(e){}
-    return "order-number:" + currentOrderNumber();
-  }
-
-  function currentReservationLabel(){
-    const parts = [
-      currentCustomerName(),
-      currentOrderNumber(),
-      currentOrderTitle()
-    ].filter(Boolean);
-    return parts.join(" - ");
-  }
-
-  function materials(){
-    const s = getState();
-    return s && Array.isArray(s.materials) ? s.materials : [];
-  }
-
-  function orders(){
-    const s = getState();
-    return s && Array.isArray(s.orders) ? s.orders : [];
-  }
-
-  function chosenMaterials(){
-    try { return Array.isArray(chosen) ? chosen : []; } catch(e){ return []; }
-  }
-
-  function findMaterial(materialId){
-    return materials().find(function(m){
-      return String(m.id) === String(materialId);
-    });
-  }
-
-  function isReserved(material){
-    return String(material?.status || "").toLowerCase() === "reserved" || String(material?.status || "").toLowerCase() === "gereserveerd";
-  }
-
-  function reservationKey(material){
-    return String(material?.reservedKey || material?.reservedOrderId || material?.reservedOrderNumber || "");
-  }
-
-  function reservedByCurrent(material){
-    const key = reservationKey(material);
-    if (!key) return false;
-    return key === currentReservationKey() || key === currentOrderNumber();
-  }
-
-  function reservationLabel(material){
-    return String(
-      material?.reservedFor ||
-      material?.reservedCustomer ||
-      material?.reservedOrderNumber ||
-      "Onbekend"
-    );
-  }
-
-  function reserveMaterialForCurrentOrder(material){
-    if (!material) return;
-
-    material.status = "reserved";
-    material.reservedKey = currentReservationKey();
-    material.reservedFor = currentReservationLabel();
-    material.reservedCustomer = currentCustomerName();
-    material.reservedOrderNumber = currentOrderNumber();
-    material.reservedTitle = currentOrderTitle();
-    material.reservedAt = new Date().toISOString();
-  }
-
-  function releaseMaterialIfCurrent(materialId){
-    const material = findMaterial(materialId);
-    if (!material) return;
-
-    if (isReserved(material) && reservedByCurrent(material)) {
-      material.status = "free";
-      delete material.reservedKey;
-      delete material.reservedFor;
-      delete material.reservedCustomer;
-      delete material.reservedOrderNumber;
-      delete material.reservedTitle;
-      delete material.reservedAt;
-    }
-  }
-
-  function catColor(cat){
-    try {
-      if (typeof BNS_V12_setRubriekColor === "function") {
-        // no getter aanwezig; val terug op css/defaults
-      }
-    } catch(e){}
-
-    const defaults = {TW:"#1683d8",TO:"#f97316",KW:"#22c55e",KA:"#a855f7",SL:"#eab308",EXTRA:"#334155"};
-    try {
-      const map = JSON.parse(localStorage.getItem("bns_rubriek_kleuren_v12_pro") || "{}");
-      return map[cleanCat(cat)] || defaults[cleanCat(cat)] || defaults.EXTRA;
-    } catch(e){
-      return defaults[cleanCat(cat)] || defaults.EXTRA;
-    }
-  }
-
-  function statusClass(status){
-    const s = String(status || "free").toLowerCase();
-    if (s === "reserved" || s === "gereserveerd") return "reserved";
-    if (s === "defect") return "defect";
-    if (s === "inactive" || s === "niet actief") return "inactive";
-    return "free";
-  }
-
-  function statusText(material){
-    const cls = statusClass(material?.status);
-    if (cls === "reserved") return "Gereserveerd";
-    if (cls === "defect") return "Defect";
-    if (cls === "inactive") return "Niet actief";
-    return "Vrij";
-  }
-
-  function activeCat(){
-    try {
-      if (typeof currentCat !== "undefined" && currentCat) return cleanCat(currentCat);
-    } catch(e){}
-    return "TW";
-  }
-
-  function setActiveCat(cat){
-    const c = cleanCat(cat);
-    try { currentCat = c; } catch(e){}
-    window.currentCat = c;
-    return c;
-  }
-
-  function openReservedOrder(material){
-    const orderNumber = String(material?.reservedOrderNumber || "");
-    const key = String(material?.reservedKey || "");
-
-    const found = orders().find(function(order){
-      return String(order.id) === key.replace("order-id:", "") ||
-             String(order.number) === orderNumber ||
-             String(order.number) === key.replace("order-number:", "");
-    });
-
-    if (found && typeof editOrder === "function") {
-      editOrder(found.id);
-      safeToast("Opdracht geopend");
-      return;
-    }
-
-    alert("Gereserveerd voor: " + reservationLabel(material));
-  }
-
-  function addMaterialReserved(materialId){
-    const material = findMaterial(materialId);
-    if (!material) return;
-
-    if (isReserved(material) && !reservedByCurrent(material)) {
-      alert("Dit materiaal is al gereserveerd voor:\n\n" + reservationLabel(material));
-      return;
-    }
-
-    try {
-      if (!Array.isArray(chosen)) chosen = [];
-    } catch(e){}
-
-    const exists = chosenMaterials().some(function(item){
-      return String(item.id) === String(materialId);
-    });
-
-    if (!exists) {
-      try {
-        chosen.push(Object.assign({}, material, {
-          qty: 1,
-          amount: 1,
-          count: 1,
-          linePrice: Number(material.linePrice || 0),
-          borg: Number(material.borg || 0),
-          note: ""
-        }));
-      } catch(e){}
-    }
-
-    reserveMaterialForCurrentOrder(material);
-    doSave();
-
-    try { if (typeof renderChosen === "function") renderChosen(); } catch(e){}
-    try { if (typeof renderSummary === "function") renderSummary(); } catch(e){}
-    renderMaterialsReserved(activeCat());
-
-    safeToast("Materiaal gereserveerd");
-  }
-
-  function removeMaterialReserved(materialId){
-    try {
-      if (Array.isArray(chosen)) {
-        chosen = chosen.filter(function(item){
-          return String(item.id) !== String(materialId);
-        });
-      }
-    } catch(e){}
-
-    releaseMaterialIfCurrent(materialId);
-    doSave();
-
-    try { if (typeof renderChosen === "function") renderChosen(); } catch(e){}
-    try { if (typeof renderSummary === "function") renderSummary(); } catch(e){}
-    renderMaterialsReserved(activeCat());
-  }
-
-  function renderCatsReserved(){
-    const box = byId("materialCats");
-    if (!box) return;
-
-    const cats = Array.from(new Set(materials().map(function(m){ return cleanCat(m.cat); }))).sort();
-    let current = activeCat();
-
-    if (!cats.includes(current)) {
-      current = cats.includes("TW") ? "TW" : (cats[0] || "EXTRA");
-      setActiveCat(current);
-    }
-
-    box.innerHTML = cats.map(function(cat){
-      return `
-        <button type="button" class="${cat === current ? "active" : ""}" data-cat="${html(cat)}" style="border-bottom:5px solid ${catColor(cat)}">
-          ${html(cat)}
-        </button>
-      `;
-    }).join("");
-
-    qsa("[data-cat]", box).forEach(function(button){
-      button.onclick = function(){
-        setActiveCat(button.dataset.cat);
-        renderCatsReserved();
-        renderMaterialsReserved(button.dataset.cat);
-      };
-    });
-  }
-
-  function renderMaterialsReserved(cat){
-    const list = byId("materialList");
-    if (!list) return;
-
-    const current = setActiveCat(cat || activeCat());
-    const search = String(byId("materialSearch")?.value || "").toLowerCase().trim();
-    const selected = chosenMaterials();
-
-    const rows = materials()
-      .filter(function(m){ return cleanCat(m.cat) === current; })
-      .filter(function(m){
-        if (!search) return true;
-        return [m.cat, m.code, m.name, m.price, m.notes, m.status, m.reservedFor].join(" ").toLowerCase().includes(search);
-      });
-
-    list.innerHTML = rows.map(function(m){
-      const cls = statusClass(m.status);
-      const alreadyChosen = selected.some(function(item){ return String(item.id) === String(m.id); });
-      const blocked = isReserved(m) && !reservedByCurrent(m);
-      const label = isReserved(m) ? reservationLabel(m) : "";
-      const title = blocked ? "Gereserveerd voor " + label : "Materiaal kiezen";
-
-      return `
-        <div class="bns-res-material-row ${alreadyChosen ? "selected" : ""} ${blocked ? "blocked" : ""}"
-             data-material-id="${html(m.id)}"
-             style="--cat-color:${catColor(m.cat)}"
-             title="${html(title)}">
-          <div class="bns-res-catbar"></div>
-
-          <div class="bns-res-text">
-            <strong>${html(m.code || "")}</strong>
-            <span>${html(m.name || "")}</span>
-            <small>${html(m.price || "oude prijs: € 0")}</small>
-          </div>
-
-          <div class="bns-res-status">
-            <button type="button" class="bns-status-button ${cls}" data-status-id="${html(m.id)}">
-              <i></i>${html(statusText(m))}
-            </button>
-            ${isReserved(m) ? `<button type="button" class="bns-res-client" data-reserved-id="${html(m.id)}">${html(label)}</button>` : ""}
-            ${isReserved(m) ? `<button type="button" class="bns-res-edit" data-edit-reserved-id="${html(m.id)}">Wijzig</button>` : ""}
-          </div>
-        </div>
-      `;
-    }).join("") || '<p class="bns-empty">Geen materiaal gevonden.</p>';
-
-    qsa("[data-material-id]", list).forEach(function(row){
-      row.onclick = function(event){
-        if (event.target.closest("button")) return;
-        addMaterialReserved(row.dataset.materialId);
-      };
-    });
-
-    qsa("[data-status-id]", list).forEach(function(button){
-      button.onclick = function(event){
-        event.stopPropagation();
-        const material = findMaterial(button.dataset.statusId);
-        if (isReserved(material)) {
-          alert("Gereserveerd voor:\n\n" + reservationLabel(material));
-        } else {
-          addMaterialReserved(button.dataset.statusId);
-        }
-      };
-    });
-
-    qsa("[data-reserved-id]", list).forEach(function(button){
-      button.onclick = function(event){
-        event.stopPropagation();
-        const material = findMaterial(button.dataset.reservedId);
-        alert("Gereserveerd voor:\n\n" + reservationLabel(material));
-      };
-    });
-
-    qsa("[data-edit-reserved-id]", list).forEach(function(button){
-      button.onclick = function(event){
-        event.stopPropagation();
-        openReservedOrder(findMaterial(button.dataset.editReservedId));
-      };
-    });
-  }
-
-  function markChosenMaterialsReserved(){
-    chosenMaterials().forEach(function(item){
-      const material = findMaterial(item.id);
-      if (material) reserveMaterialForCurrentOrder(material);
-    });
-
-    doSave();
-    renderMaterialsReserved(activeCat());
-  }
-
-  function patchSaveOrder(){
-    if (typeof saveOrder !== "function" || saveOrder.__bnsReservationPatched) return;
-
-    const original = saveOrder;
-    const patched = function(){
-      markChosenMaterialsReserved();
-      return original.apply(this, arguments);
-    };
-
-    patched.__bnsReservationPatched = true;
-
-    try { saveOrder = patched; } catch(e){}
-    window.saveOrder = patched;
-
-    const saveButton = byId("saveOrder");
-    if (saveButton && !saveButton.dataset.bnsReservationSave) {
-      saveButton.dataset.bnsReservationSave = "1";
-      saveButton.addEventListener("click", markChosenMaterialsReserved, true);
-    }
-
-    const saveOverview = byId("saveFromOverviewBtn");
-    if (saveOverview && !saveOverview.dataset.bnsReservationSave) {
-      saveOverview.dataset.bnsReservationSave = "1";
-      saveOverview.addEventListener("click", markChosenMaterialsReserved, true);
-    }
-  }
-
-  function patchRemoveButtons(){
-    const chosenBox = byId("chosenMaterials");
-    if (!chosenBox || chosenBox.dataset.bnsReservationObserver) return;
-
-    chosenBox.dataset.bnsReservationObserver = "1";
-
-    const observer = new MutationObserver(function(){
-      qsa("button", chosenBox).forEach(function(button){
-        const text = (button.textContent || "").trim();
-        if (button.dataset.bnsReservationRemove) return;
-        if (text !== "×" && !/verwijder|remove/i.test(text)) return;
-
-        button.dataset.bnsReservationRemove = "1";
-        button.addEventListener("click", function(){
-          setTimeout(function(){
-            // gekozen lijst is al aangepast door originele code; alle niet-gekozen huidige reserveringen vrijgeven
-            materials().forEach(function(material){
-              if (isReserved(material) && reservedByCurrent(material)) {
-                const stillChosen = chosenMaterials().some(function(item){
-                  return String(item.id) === String(material.id);
-                });
-
-                if (!stillChosen) releaseMaterialIfCurrent(material.id);
-              }
-            });
-
-            doSave();
-            renderMaterialsReserved(activeCat());
-          }, 80);
-        }, true);
-      });
-    });
-
-    observer.observe(chosenBox, {childList:true, subtree:true});
-  }
-
-  function ensureStyle(){
-    if (document.getElementById(STYLE_ID)) return;
-
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
-      #materialList{
-        display:flex!important;
-        flex-direction:column!important;
-        gap:7px!important;
-      }
-
-      .bns-res-material-row{
-        display:grid!important;
-        grid-template-columns:8px minmax(0,1fr) auto!important;
-        align-items:center!important;
-        gap:10px!important;
-        min-height:46px!important;
-        padding:8px 10px!important;
-        border:1px solid var(--border,#dbe3ef)!important;
-        border-radius:14px!important;
-        background:var(--panel,#fff)!important;
-        color:var(--text,#172033)!important;
-        box-shadow:0 4px 12px rgba(15,23,42,.07)!important;
-        cursor:pointer!important;
-      }
-
-      .bns-res-material-row.selected{
-        outline:2px solid #93c5fd!important;
-      }
-
-      .bns-res-material-row.blocked{
-        opacity:.88!important;
-      }
-
-      .bns-res-catbar{
-        width:8px!important;
-        height:32px!important;
-        border-radius:999px!important;
-        background:var(--cat-color,#1683d8)!important;
-      }
-
-      .bns-res-text{
-        display:flex!important;
-        align-items:baseline!important;
-        gap:7px!important;
-        min-width:0!important;
-        overflow:hidden!important;
-        white-space:nowrap!important;
-      }
-
-      .bns-res-text strong{
-        flex:0 0 auto!important;
-        font-weight:900!important;
-      }
-
-      .bns-res-text span{
-        min-width:0!important;
-        overflow:hidden!important;
-        text-overflow:ellipsis!important;
-      }
-
-      .bns-res-text small{
-        flex:0 0 auto!important;
-        color:var(--muted,#64748b)!important;
-        font-size:12px!important;
-        font-weight:700!important;
-      }
-
-      .bns-res-status{
-        display:flex!important;
-        align-items:center!important;
-        justify-content:flex-end!important;
-        gap:6px!important;
-        max-width:280px!important;
-      }
-
-      .bns-status-button,
-      .bns-res-client,
-      .bns-res-edit{
-        padding:5px 9px!important;
-        min-height:0!important;
-        border-radius:999px!important;
-        font-size:12px!important;
-        font-weight:900!important;
-        box-shadow:none!important;
-        white-space:nowrap!important;
-      }
-
-      .bns-status-button{
-        display:inline-flex!important;
-        align-items:center!important;
-        gap:6px!important;
-      }
-
-      .bns-status-button i{
-        width:10px!important;
-        height:10px!important;
-        border-radius:50%!important;
-        display:inline-block!important;
-      }
-
-      .bns-status-button.free{background:#dcfce7!important;color:#166534!important;}
-      .bns-status-button.free i{background:#15803d!important;}
-
-      .bns-status-button.reserved{background:#fee2e2!important;color:#991b1b!important;}
-      .bns-status-button.reserved i{background:#b91c1c!important;}
-
-      .bns-status-button.defect{
-        background:#fee2e2!important;
-        color:#991b1b!important;
-        animation:bnsReservationBlink .45s infinite alternate!important;
-      }
-      .bns-status-button.defect i{background:#dc2626!important;}
-
-      .bns-status-button.inactive{background:#e2e8f0!important;color:#334155!important;}
-      .bns-status-button.inactive i{background:#64748b!important;}
-
-      .bns-res-client{
-        background:#fff7ed!important;
-        color:#9a3412!important;
-        max-width:115px!important;
-        overflow:hidden!important;
-        text-overflow:ellipsis!important;
-      }
-
-      .bns-res-edit{
-        background:#2563eb!important;
-        color:#fff!important;
-      }
-
-      @keyframes bnsReservationBlink{
-        from{opacity:.45}
-        to{opacity:1}
-      }
-    `;
-
-    document.head.appendChild(style);
-  }
-
-  function install(){
-    ensureStyle();
-
-    window.addMat = addMaterialReserved;
-    window.removeMat = removeMaterialReserved;
-    window.renderMaterials = renderMaterialsReserved;
-    window.renderCats = renderCatsReserved;
-
-    try { addMat = addMaterialReserved; } catch(e){}
-    try { removeMat = removeMaterialReserved; } catch(e){}
-    try { renderMaterials = renderMaterialsReserved; } catch(e){}
-    try { renderCats = renderCatsReserved; } catch(e){}
-
-    patchSaveOrder();
-    patchRemoveButtons();
-
-    renderCatsReserved();
-    renderMaterialsReserved(activeCat());
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(install, 700);
-    });
-  } else {
-    setTimeout(install, 700);
-  }
-
-  setInterval(function(){
-    patchSaveOrder();
-    patchRemoveButtons();
-  }, 1500);
 })();
 
