@@ -60,128 +60,12 @@ function renderLocations(){let q=locationSearch.value.toLowerCase().trim(); if(q
 function pickLocation(lid){let l=state.locations.find(x=>x.id===lid); if(!l)return; locationName.value=l.name||'';locationStreet.value=l.street||'';locationZip.value=l.zip||'';locationCity.value=l.city||'';locationContact.value=l.contact||'';locationPhone.value=l.phone||'';locationBox.classList.add('hidden');summaryRender();}
 function cats(){return [...new Set(state.materials.map(m=>(m.cat||'EXTRA').toUpperCase()))].sort()}
 function renderCats(){let cs=cats(); if(!cs.includes(currentCat))currentCat=cs[0]||'TW'; materialCats.innerHTML=cs.map(c=>`<button class="${c===currentCat?'active':''}" onclick="currentCat='${c}';renderCats();renderMaterials('${c}')">${c}</button>`).join('')}
-function renderMaterials(cat){
-  const activeCat = String(cat || currentCat || 'TW').toUpperCase();
-  const q = (materialSearch.value || '').toLowerCase();
-  const skipOrderId = editing || null;
-  const start = dateStart.value || '';
-  const end = dateEnd.value || start;
-
-  function overlaps(aStart,aEnd,bStart,bEnd){
-    const a1=aStart||aEnd||'1900-01-01', a2=aEnd||aStart||'2999-12-31';
-    const b1=bStart||bEnd||'1900-01-01', b2=bEnd||bStart||'2999-12-31';
-    return a1 <= b2 && b1 <= a2;
-  }
-
-  function active(o){
-    return o && o.status !== 'Geannuleerd' && o.status !== 'Uitgevoerd';
-  }
-
-  function reservationFor(mid){
-    for(const o of state.orders){
-      if(!active(o)) continue;
-      if(skipOrderId && String(o.id) === String(skipOrderId)) continue;
-      if(!overlaps(start,end,o.start,o.end)) continue;
-      if((o.materials||[]).some(m => String(m.id) === String(mid))){
-        return o;
-      }
-    }
-    return null;
-  }
-
-  function openAlertFor(mid){
-    return (state.alerts||[]).find(a => !a.resolved && String(a.materialId||'') === String(mid));
-  }
-
-  let rows = state.materials
-    .filter(m => String(m.cat||'').toUpperCase() === activeCat)
-    .filter(m => !q || JSON.stringify(m).toLowerCase().includes(q));
-
-  materialList.innerHTML = rows.map(m => {
-    const sel = chosen.some(x => String(x.id) === String(m.id));
-    const res = reservationFor(m.id);
-    const alert = openAlertFor(m.id);
-    let cls = 'free';
-    let label = 'Vrij';
-    let small = m.price || '';
-
-    if(sel){
-      cls = 'now';
-      label = 'Nu toegevoegd';
-    } else if(alert || m.status === 'defect'){
-      cls = 'defect';
-      label = 'Storing';
-      small = 'Klik voor melding';
-    } else if(m.status === 'inactive'){
-      cls = 'inactive';
-      label = 'Niet beschikbaar';
-      small = 'Klik voor info';
-    } else if(res){
-      cls = 'reserved';
-      label = 'Gereserveerd';
-      small = 'Klik voor klant/datum';
-    }
-
-    return `<div class="material-row ${sel?'selected':''} ${cls}" onclick="handleMaterialClick('${m.id}')">
-      <div class="catbar cat-${m.cat}"></div>
-      <div><b>${m.code}</b> ${m.name}<br><small>${small}</small></div>
-      <div><span class="badge ${cls}">${label}</span></div>
-    </div>`;
-  }).join('') || '<p>Geen materiaal</p>';
-}
-function addMat(mid){
-  if(typeof canUseMaterialForOrder === 'function' && !canUseMaterialForOrder(mid, false)) return;
-  let m = state.materials.find(x => String(x.id) === String(mid));
-  if(m && !chosen.some(x => String(x.id) === String(mid))){
-    let copy = structuredClone(m);
-    copy.status = 'reserved';
-    chosen.push(copy);
-  }
-  renderChosen();
-  renderMaterials(currentCat);
-  summaryRender();
-}
+function renderMaterials(cat){let q=materialSearch.value.toLowerCase();let rows=state.materials.filter(m=>(m.cat||'').toUpperCase()===cat.toUpperCase()).filter(m=>!q||JSON.stringify(m).toLowerCase().includes(q));materialList.innerHTML=rows.map(m=>{let sel=chosen.some(x=>x.id===m.id);return `<div class="material-row ${sel?'selected':''}" onclick="addMat('${m.id}')"><div class="catbar cat-${m.cat}"></div><div><b>${m.code}</b> ${m.name}<br><small>${m.price||''}</small></div><div><span class="badge ${sel?'now':''}">${sel?'Nu toegevoegd':'Vrij'}</span></div></div>`}).join('')||'<p>Geen materiaal</p>';}
+function addMat(mid){let m=state.materials.find(x=>x.id===mid); if(m&&!chosen.some(x=>x.id===mid))chosen.push(structuredClone(m));renderChosen();renderMaterials(currentCat);summaryRender();}
 function renderChosen(){chosenMaterials.innerHTML=chosen.map(m=>`<span class="chip">${m.code} ${m.name}<button onclick="removeMat('${m.id}')">x</button></span>`).join('')}
 function removeMat(mid){chosen=chosen.filter(m=>m.id!==mid);renderChosen();renderMaterials(currentCat);summaryRender();}
 function newNo(){let y=new Date().getFullYear();let nums=state.orders.map(o=>String(o.number||'').match(new RegExp('^'+y+'-(\\d+)$'))).filter(Boolean).map(m=>+m[1]);orderNumber.value=y+'-'+String(nums.length?Math.max(...nums)+1:1).padStart(4,'0')}
-function saveCurrentOrder(){
-  if(typeof validateChosenMaterialsBeforeSave === 'function' && !validateChosenMaterialsBeforeSave()) return;
-
-  let o={
-    id:editing||id(),
-    number:orderNumber.value,
-    status:orderStatus.value,
-    title:orderTitle.value||'Zonder titel',
-    start:dateStart.value,
-    end:dateEnd.value,
-    brand:orderBrand.value,
-    customer:{name:customerName.value,street:customerStreet.value,zip:customerZip.value,city:customerCity.value,phone:customerPhone.value,email:customerEmail.value},
-    location:{name:locationName.value,street:locationStreet.value,zip:locationZip.value,city:locationCity.value,contact:locationContact.value,phone:locationPhone.value,show:showLocationOnDocs.checked},
-    materials:chosen.map(m=>({...m,status:'reserved'})),
-    driver:orderDriver.value,
-    vehicle:orderVehicle.value,
-    extra:orderExtra.value,
-    pricing:calcTotals()
-  };
-
-  upsertCustomer(o.customer);
-  upsertLocation(o.location);
-
-  if(editing){
-    let i=state.orders.findIndex(x=>x.id===editing);
-    state.orders[i]=o;
-  } else {
-    state.orders.push(o);
-  }
-
-  if(typeof recalcMaterialReservations === 'function') recalcMaterialReservations();
-
-  editing=null;
-  save();
-  clearOrder();
-  renderAll();
-  showPage('orders');
-}
+function saveCurrentOrder(){let o={id:editing||id(),number:orderNumber.value,status:orderStatus.value,title:orderTitle.value||'Zonder titel',start:dateStart.value,end:dateEnd.value,brand:orderBrand.value,customer:{name:customerName.value,street:customerStreet.value,zip:customerZip.value,city:customerCity.value,phone:customerPhone.value,email:customerEmail.value},location:{name:locationName.value,street:locationStreet.value,zip:locationZip.value,city:locationCity.value,contact:locationContact.value,phone:locationPhone.value,show:showLocationOnDocs.checked},materials:chosen,driver:orderDriver.value,vehicle:orderVehicle.value,extra:orderExtra.value,pricing:calcTotals()};upsertCustomer(o.customer);upsertLocation(o.location);if(editing){let i=state.orders.findIndex(x=>x.id===editing);state.orders[i]=o}else state.orders.push(o);editing=null;save();clearOrder();renderAll();showPage('orders');}
 function upsertCustomer(c){if(!c.name)return;let e=state.customers.find(x=>(x.name||'').toLowerCase()===c.name.toLowerCase()&&(x.street||'')===c.street);e?Object.assign(e,c):state.customers.push({id:id(),...c})}
 function upsertLocation(l){if(!l.name&&!l.street)return;let e=state.locations.find(x=>(x.name||'').toLowerCase()===(l.name||'').toLowerCase()&&(x.street||'')===l.street);e?Object.assign(e,l):state.locations.push({id:id(),...l})}
 function clearOrder(){['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderVehicle','orderExtra'].forEach(i=>$(i).value='');chosen=[];renderChosen(); if($('priceExcl')) $('priceExcl').value='0.00'; if($('discountAmount')) $('discountAmount').value='0.00'; if($('vatPercent')) $('vatPercent').value='21'; if($('depositAmount')) $('depositAmount').value='0.00'; calcTotals(); newNo();summaryRender();}
@@ -189,25 +73,7 @@ function editOrder(oid){let o=state.orders.find(x=>x.id===oid); if(!o)return;sho
 function nice(d){if(!d)return '';let p=d.split('-');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:d}
 function sortedOrders(){return state.orders.slice().sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999'))}
 function renderOrders(){let q=ordersSearch.value.toLowerCase();let list=sortedOrders().filter(o=>mode==='cancelled'?o.status==='Geannuleerd':(mode==='done'?o.status==='Uitgevoerd':(o.status!=='Geannuleerd'&&o.status!=='Uitgevoerd'))).filter(o=>!q||JSON.stringify(o).toLowerCase().includes(q));ordersList.innerHTML=list.map(card).join('')||'<p>Niets gevonden</p>'}
-function card(o){
-  let addr=[o.location?.street,o.location?.zip,o.location?.city].filter(Boolean).join(' ');
-  let mats=(o.materials||[]).map(m=>m.code).join(', ');
-  return `<div class="order-card">
-    <div class="date-tile">${nice(o.start)}</div>
-    <div>
-      <div class="order-title">${o.number} - ${o.title} <span class="status status-${o.status}">${o.status}</span></div>
-      <div>Klant: ${o.customer?.name||''}</div>
-      <div>Locatie: ${addr}</div>
-      <div>Materialen: ${mats}</div>
-      <div>Totaal: ${o.pricing?money(o.pricing.grand):'€ 0,00'} | Borg: ${o.pricing?money(o.pricing.deposit):'€ 0,00'}</div>
-    </div>
-    <div class="actions">
-      <button onclick="editOrder('${o.id}')">Wijzigen</button>
-      <button onclick="copyOrder('${o.id}')">Copy</button>
-      ${o.status==='Geannuleerd'?`<button onclick="restore('${o.id}')">Terughalen</button>`:`<button class="danger" onclick="cancel('${o.id}')">Annuleren</button>`}
-    </div>
-  </div>`;
-}
+function card(o){let addr=[o.location?.street,o.location?.zip,o.location?.city].filter(Boolean).join(' ');let mats=(o.materials||[]).map(m=>m.code).join(', ');return `<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><div class="order-title">${o.number} - ${o.title} <span class="status status-${o.status}">${o.status}</span></div><div>Klant: ${o.customer?.name||''}</div><div>Locatie: ${addr}</div><div>Materialen: ${mats}</div><div>Totaal: ${o.pricing?money(o.pricing.grand):'€ 0,00'} | Borg: ${o.pricing?money(o.pricing.deposit):'€ 0,00'}</div></div><div class="actions"><button onclick="editOrder('${o.id}')">Wijzigen</button>${o.status==='Geannuleerd'?`<button onclick="restore('${o.id}')">Terughalen</button>`:`<button class="danger" onclick="cancel('${o.id}')">Annuleren</button>`}</div></div>`}
 function cancel(oid){let o=state.orders.find(x=>x.id===oid); if(o){o.status='Geannuleerd';save();renderOrders()}}
 function restore(oid){let o=state.orders.find(x=>x.id===oid); if(o){o.status='Opdracht';save();renderOrders()}}
 function markDone(oid){let o=state.orders.find(x=>x.id===oid); if(o){o.status='Uitgevoerd';save();renderOrders();renderDashboard();}}
@@ -3379,284 +3245,710 @@ setTimeout(()=>{
 
 
 /* =========================================================
-   BNS DIRECT FIX - materiaal reserveren, copy en meldingen
-   Deze functies ondersteunen de vervangen kernfuncties hierboven.
+   BNS HARD OVERRIDE - COPY + MATERIAAL BLOKKEREN
+   Deze patch staat bewust helemaal onderaan en wint van oude patches.
+   Hij vervangt na het laden renderMaterials, addMat, renderOrders en save.
    ========================================================= */
+(function bnsHardOverrideCopyMaterial() {
+  "use strict";
 
-function bnsDateOverlap(aStart,aEnd,bStart,bEnd){
-  const a1=aStart||aEnd||'1900-01-01', a2=aEnd||aStart||'2999-12-31';
-  const b1=bStart||bEnd||'1900-01-01', b2=bEnd||bStart||'2999-12-31';
-  return a1 <= b2 && b1 <= a2;
-}
+  let installed = false;
 
-function bnsActiveOrder(o){
-  return o && o.status !== 'Geannuleerd' && o.status !== 'Uitgevoerd';
-}
-
-function bnsReservationForMaterial(mid, skipOrderId, start, end){
-  for(const o of state.orders){
-    if(!bnsActiveOrder(o)) continue;
-    if(skipOrderId && String(o.id) === String(skipOrderId)) continue;
-    if(!bnsDateOverlap(start,end,o.start,o.end)) continue;
-    if((o.materials||[]).some(m => String(m.id) === String(mid))) return o;
-  }
-  return null;
-}
-
-function bnsOpenAlertForMaterial(mid){
-  state.alerts = Array.isArray(state.alerts) ? state.alerts : [];
-  return state.alerts.find(a => !a.resolved && String(a.materialId||'') === String(mid));
-}
-
-function canUseMaterialForOrder(mid, silent){
-  const m = state.materials.find(x => String(x.id) === String(mid));
-  if(!m) return false;
-
-  const alert = bnsOpenAlertForMaterial(mid);
-  const res = bnsReservationForMaterial(mid, editing||null, dateStart.value, dateEnd.value || dateStart.value);
-
-  if(alert || m.status === 'defect' || m.status === 'inactive'){
-    if(!silent) showMaterialInfo(mid);
-    return false;
+  function byId(id) {
+    return document.getElementById(id);
   }
 
-  if(res){
-    if(!silent) showMaterialInfo(mid);
-    return false;
+  function qsa(sel, root) {
+    return Array.from((root || document).querySelectorAll(sel));
   }
 
-  return true;
-}
-
-function validateChosenMaterialsBeforeSave(){
-  for(const m of chosen){
-    if(!canUseMaterialForOrder(m.id, true)){
-      showMaterialInfo(m.id);
-      return false;
-    }
+  function getState() {
+    try { return state; } catch (e) { return null; }
   }
-  return true;
-}
 
-function recalcMaterialReservations(){
-  const active = {};
-  state.orders.forEach(o=>{
-    if(!bnsActiveOrder(o)) return;
-    (o.materials||[]).forEach(m=>{
-      if(!m.id) return;
-      active[String(m.id)] = o;
+  function getOrders() {
+    const s = getState();
+    return s && Array.isArray(s.orders) ? s.orders : [];
+  }
+
+  function getMaterials() {
+    const s = getState();
+    return s && Array.isArray(s.materials) ? s.materials : [];
+  }
+
+  function getChosen() {
+    try { return Array.isArray(chosen) ? chosen : []; } catch (e) { return []; }
+  }
+
+  function getEditing() {
+    try { return editing || null; } catch (e) { return null; }
+  }
+
+  function setEditing(value) {
+    try { editing = value; } catch (e) {}
+  }
+
+  function getCurrentCat() {
+    try { return currentCat || "TW"; } catch (e) { return "TW"; }
+  }
+
+  function saveNow() {
+    try { if (typeof save === "function") save(); } catch (e) {}
+  }
+
+  function msg(text) {
+    try {
+      if (typeof toastMsg === "function") toastMsg(text);
+      else if (typeof toast === "function") toast(text);
+    } catch (e) {}
+  }
+
+  function esc(value) {
+    return String(value ?? "").replace(/[&<>"']/g, function(ch) {
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
     });
-  });
+  }
 
-  state.materials.forEach(m=>{
-    const alert = bnsOpenAlertForMaterial(m.id);
-    if(alert || m.status === 'defect' || m.status === 'inactive') return;
-
-    const o = active[String(m.id)];
-    if(o){
-      m.status = 'reserved';
-      m.reservedBy = o.customer?.name || '';
-      m.reservedOrder = o.number || '';
-      m.reservedOrderId = o.id;
-      m.reservedFrom = o.start || '';
-      m.reservedTo = o.end || '';
-    } else {
-      m.status = 'free';
-      m.reservedBy = '';
-      m.reservedOrder = '';
-      m.reservedOrderId = '';
-      m.reservedFrom = '';
-      m.reservedTo = '';
+  function clone(value) {
+    try {
+      return typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value));
+    } catch (e) {
+      return Object.assign({}, value);
     }
-  });
-}
-
-function handleMaterialClick(mid){
-  const already = chosen.some(x => String(x.id) === String(mid));
-  if(already){
-    showMaterialInfo(mid);
-    return;
   }
-  addMat(mid);
-}
 
-function showMaterialInfo(mid){
-  const m = state.materials.find(x => String(x.id) === String(mid));
-  if(!m) return;
+  function makeId() {
+    try { if (typeof id === "function") return id(); } catch (e) {}
+    return "id_" + Math.random().toString(36).slice(2, 10);
+  }
 
-  const alert = bnsOpenAlertForMaterial(mid);
-  const res = bnsReservationForMaterial(mid, editing||null, dateStart.value, dateEnd.value || dateStart.value);
+  function niceDate(value) {
+    try { if (typeof nice === "function") return nice(value); } catch (e) {}
+    if (!value) return "";
+    try { return new Date(value + "T00:00:00").toLocaleDateString("nl-NL"); } catch (e) { return value; }
+  }
 
-  let msg = `${m.code || ''} ${m.name || ''}\n\n`;
+  function isActiveOrder(order) {
+    return order && order.status !== "Geannuleerd" && order.status !== "Uitgevoerd";
+  }
 
-  if(alert || m.status === 'defect'){
-    msg += `STORING / DEFECT\n${alert?.text || m.issueText || m.notes || ''}\n\n`;
-    msg += `OK = gerepareerd / vrijgeven\nAnnuleren = defect laten staan`;
-    if(confirm(msg)){
-      resolveMaterial(mid);
+  function overlap(aStart, aEnd, bStart, bEnd) {
+    const a1 = aStart || aEnd || "1900-01-01";
+    const a2 = aEnd || aStart || "2999-12-31";
+    const b1 = bStart || bEnd || "1900-01-01";
+    const b2 = bEnd || bStart || "2999-12-31";
+    return a1 <= b2 && b1 <= a2;
+  }
+
+  function formStart() {
+    return byId("dateStart")?.value || "";
+  }
+
+  function formEnd() {
+    return byId("dateEnd")?.value || formStart();
+  }
+
+  function reservationFor(materialId, options = {}) {
+    const skip = options.skip !== undefined ? options.skip : getEditing();
+    const start = options.start !== undefined ? options.start : formStart();
+    const end = options.end !== undefined ? options.end : formEnd();
+
+    for (const order of getOrders()) {
+      if (!isActiveOrder(order)) continue;
+      if (skip && String(order.id) === String(skip)) continue;
+      if (!overlap(start, end, order.start, order.end)) continue;
+
+      const found = (order.materials || []).find(function(m) {
+        return String(m.id) === String(materialId);
+      });
+
+      if (found) return order;
     }
-    return;
+
+    return null;
   }
 
-  if(m.status === 'inactive'){
-    alert(`${m.code || ''} ${m.name || ''}\n\nNiet beschikbaar.`);
-    return;
+  function materialById(materialId) {
+    return getMaterials().find(function(m) {
+      return String(m.id) === String(materialId);
+    });
   }
 
-  if(res){
-    msg += `GERESERVEERD DOOR:\n${res.customer?.name || 'Onbekend'}\n\n`;
-    msg += `Opdracht: ${res.number || ''} - ${res.title || ''}\n`;
-    msg += `Datum: ${nice(res.start)} t/m ${nice(res.end)}\n\n`;
-    msg += `OK = opdracht wijzigen\nAnnuleren = sluiten`;
-    if(confirm(msg)){
-      editOrder(res.id);
+  function statusOf(material) {
+    const raw = String(material?.status || "free").toLowerCase();
+    if (raw === "defect" || raw === "storing") return "defect";
+    if (raw === "inactive" || raw === "niet actief" || raw === "niet beschikbaar") return "inactive";
+    if (raw === "reserved" || raw === "gereserveerd") return "reserved";
+    return "free";
+  }
+
+  function openIssue(materialId) {
+    const s = getState();
+    if (!s) return null;
+    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+    return s.alerts.find(function(a) {
+      return !a.resolved && String(a.materialId || "") === String(materialId);
+    }) || null;
+  }
+
+  function materialBlocked(materialId) {
+    const material = materialById(materialId);
+    if (!material) return {blocked: true, reason: "Materiaal niet gevonden"};
+
+    const issue = openIssue(materialId);
+    const st = statusOf(material);
+
+    if (issue || st === "defect" || st === "inactive") {
+      return {blocked: true, type: "issue", material, issue};
     }
-    return;
+
+    const res = reservationFor(materialId);
+    if (res) return {blocked: true, type: "reserved", material, order: res};
+
+    return {blocked: false, material};
   }
 
-  if(confirm(msg + 'Dit materiaal is vrij.\n\nToevoegen aan deze opdracht?')){
-    addMat(mid);
-  }
-}
+  function showMaterialInfo(materialId) {
+    const material = materialById(materialId);
+    if (!material) return;
 
-function resolveMaterial(mid){
-  state.alerts = (state.alerts||[]).map(a=>{
-    if(String(a.materialId||'') === String(mid)){
-      return {...a,resolved:true,resolvedAt:new Date().toLocaleString()};
+    const issue = openIssue(materialId);
+    const st = statusOf(material);
+    const res = reservationFor(materialId);
+
+    if (issue || st === "defect" || st === "inactive") {
+      let text = `${material.code || ""} ${material.name || ""}\n\n`;
+      text += `STATUS: ${st === "inactive" ? "Niet beschikbaar" : "Defect / storing"}\n`;
+      text += `${issue?.text || material.issueText || material.notes || ""}\n\n`;
+      text += "OK = gerepareerd / vrijgeven\nAnnuleren = sluiten";
+      if (confirm(text)) {
+        resolveMaterialHard(materialId);
+      }
+      return;
     }
-    return a;
-  });
 
-  const m = state.materials.find(x => String(x.id) === String(mid));
-  if(m){
-    m.status='free';
-    m.issueText='';
-    m.usable=true;
-  }
-
-  recalcMaterialReservations();
-  save();
-  renderAll();
-}
-
-function markMaterialIssue(mid, orderId, type){
-  const m = state.materials.find(x => String(x.id) === String(mid));
-  if(!m) return;
-
-  const text = prompt('Omschrijving schade/vermissing/storing:');
-  if(text === null) return;
-
-  const usable = confirm('Is het materiaal nog inzetbaar?\nOK = ja, Annuleren = nee');
-
-  state.alerts = Array.isArray(state.alerts) ? state.alerts : [];
-  state.alerts.push({
-    id:id(),
-    materialId:mid,
-    orderId:orderId||'',
-    title:(type||'Melding') + ' - ' + (m.code||''),
-    type:type||'Melding',
-    text:text||'',
-    usable:usable,
-    time:new Date().toLocaleString(),
-    resolved:false
-  });
-
-  if(!usable){
-    m.status='defect';
-    m.issueText=text||'Defect';
-    m.usable=false;
-  }
-
-  save();
-  renderAll();
-}
-
-function copyOrder(oid){
-  editOrder(oid);
-  setTimeout(()=>{
-    editing = null;
-    newNo();
-    orderStatus.value = 'Offerte';
-    toastMsg('Kopie gemaakt. Pas datum aan en sla op.');
-  },80);
-}
-
-function showSystemAlerts(){
-  state.alerts = Array.isArray(state.alerts) ? state.alerts : [];
-  const open = state.alerts.filter(a=>!a.resolved);
-  if(!open.length){
-    alert('Geen open systeemmeldingen.');
-    return;
-  }
-
-  const text = open.map((a,i)=>`${i+1}. ${a.title || a.type || 'Melding'}\n${a.text || ''}\n${a.time || ''}`).join('\n\n');
-  const choice = prompt('Open meldingen:\n\n' + text + '\n\nNummer oplossen/wissen:');
-  if(!choice) return;
-
-  const a = open[Number(choice)-1];
-  if(!a) return;
-
-  const action = prompt('Kies actie:\n1 = opgelost/gerepareerd\n2 = wis storing\n3 = materiaal openen');
-  if(action === '1'){
-    a.resolved = true;
-    a.resolvedAt = new Date().toLocaleString();
-    if(a.materialId) resolveMaterial(a.materialId);
-    save(); renderAll();
-  } else if(action === '2'){
-    state.alerts = state.alerts.filter(x=>x.id!==a.id);
-    save(); renderAll();
-  } else if(action === '3' && a.materialId){
-    showMaterialInfo(a.materialId);
-  }
-}
-
-/* systeemmeldingen knop klikbaar maken en styling repareren */
-(function bnsInstallDirectFix(){
-  const style = document.createElement('style');
-  style.textContent = `
-    #materialList .material-row,
-    #materialList .material-row.free,
-    #materialList .material-row.reserved,
-    #materialList .material-row.defect,
-    #materialList .material-row.inactive {
-      background: var(--panel,#fff) !important;
-      color: var(--text,#172033) !important;
+    if (res) {
+      let text = `${material.code || ""} ${material.name || ""}\n\n`;
+      text += `GERESERVEERD DOOR:\n${res.customer?.name || "Onbekend"}\n\n`;
+      text += `Opdracht: ${res.number || ""} - ${res.title || ""}\n`;
+      text += `Datum: ${niceDate(res.start)} t/m ${niceDate(res.end)}\n\n`;
+      text += "OK = Wijzig opdracht\nAnnuleren = sluiten";
+      if (confirm(text)) {
+        if (typeof editOrder === "function") editOrder(res.id);
+      }
+      return;
     }
-    #materialList .badge.reserved{background:#fee2e2!important;color:#991b1b!important}
-    #materialList .badge.defect{background:#fee2e2!important;color:#991b1b!important;animation:bnsDefectBlink .45s infinite alternate!important}
-    #materialList .badge.free{background:#dcfce7!important;color:#166534!important}
-    #materialList .badge.inactive{background:#e2e8f0!important;color:#334155!important}
-    #materialList .badge.now{background:#dbeafe!important;color:#1e40af!important}
-    @keyframes bnsDefectBlink{from{opacity:.45}to{opacity:1}}
-    #alertsBtn.bns-blink{animation:bnsAlertBlink .7s infinite alternate!important}
-    @keyframes bnsAlertBlink{from{background:#b91c1c;color:#fff}to{background:#ef4444;color:#fff;box-shadow:0 0 18px rgba(239,68,68,.75)}}
-  `;
-  document.head.appendChild(style);
 
-  const oldRenderAll = renderAll;
-  renderAll = function(){
-    oldRenderAll();
-    if(alertsBtn){
-      const n=(state.alerts||[]).filter(a=>!a.resolved).length;
-      alertsBtn.textContent='Systeemmeldingen ('+n+')';
-      alertsBtn.classList.toggle('bns-blink', n>0);
-      alertsBtn.onclick=showSystemAlerts;
+    if (confirm(`${material.code || ""} ${material.name || ""}\n\nMateriaal is vrij.\nToevoegen aan opdracht?`)) {
+      addMatHard(materialId);
     }
-  };
+  }
 
-  const oldAlertFor = alertFor;
-  alertFor = function(oid,type){
-    const o=state.orders.find(x=>x.id===oid);
-    const mats=o?.materials||[];
-    if(mats.length){
-      const pick=prompt('Welk materiaal?\n'+mats.map((m,i)=>`${i+1}. ${m.code} ${m.name}`).join('\n'));
-      const m=mats[Number(pick)-1];
-      if(m){ markMaterialIssue(m.id, oid, type); return; }
+  function addMatHard(materialId) {
+    const blocked = materialBlocked(materialId);
+
+    if (blocked.blocked) {
+      showMaterialInfo(materialId);
+      return;
     }
-    oldAlertFor(oid,type);
-  };
 
-  recalcMaterialReservations();
-  renderAll();
+    const material = blocked.material;
+    const list = getChosen();
+
+    if (!list.some(function(item) { return String(item.id) === String(materialId); })) {
+      const copy = clone(material);
+      copy.status = "reserved";
+      list.push(copy);
+    }
+
+    try { if (typeof renderChosen === "function") renderChosen(); } catch (e) {}
+    renderMaterialsHard(getCurrentCat());
+    try { if (typeof summaryRender === "function") summaryRender(); } catch (e) {}
+  }
+
+  function handleMaterialClickHard(materialId) {
+    const selected = getChosen().some(function(item) {
+      return String(item.id) === String(materialId);
+    });
+
+    if (selected) {
+      showMaterialInfo(materialId);
+      return;
+    }
+
+    addMatHard(materialId);
+  }
+
+  function renderMaterialsHard(cat) {
+    const materialList = byId("materialList");
+    const materialSearch = byId("materialSearch");
+    if (!materialList) return;
+
+    const activeCat = String(cat || getCurrentCat() || "TW").toUpperCase();
+    const q = String(materialSearch?.value || "").toLowerCase();
+    const list = getChosen();
+
+    const rows = getMaterials()
+      .filter(function(m) { return String(m.cat || "").toUpperCase() === activeCat; })
+      .filter(function(m) { return !q || JSON.stringify(m).toLowerCase().includes(q); });
+
+    materialList.innerHTML = rows.map(function(m) {
+      const selected = list.some(function(item) { return String(item.id) === String(m.id); });
+      const issue = openIssue(m.id);
+      const res = reservationFor(m.id);
+      const st = statusOf(m);
+
+      let cls = "free";
+      let label = "Vrij";
+      let small = m.price || "";
+
+      if (selected) {
+        cls = "now";
+        label = "Nu toegevoegd";
+      } else if (issue || st === "defect") {
+        cls = "defect";
+        label = "Storing";
+        small = "Klik voor melding";
+      } else if (st === "inactive") {
+        cls = "inactive";
+        label = "Niet beschikbaar";
+        small = "Klik voor info";
+      } else if (res) {
+        cls = "reserved";
+        label = "Gereserveerd";
+        small = "Klik voor klant/datum";
+      }
+
+      return `
+        <div class="material-row ${selected ? "selected" : ""} ${cls}" data-bns-material-id="${esc(m.id)}">
+          <div class="catbar cat-${esc(m.cat || "")}"></div>
+          <div><b>${esc(m.code || "")}</b> ${esc(m.name || "")}<br><small>${esc(small)}</small></div>
+          <div><span class="badge ${cls}">${esc(label)}</span></div>
+        </div>
+      `;
+    }).join("") || "<p>Geen materiaal</p>";
+
+    qsa("[data-bns-material-id]", materialList).forEach(function(row) {
+      row.onclick = function() {
+        handleMaterialClickHard(row.dataset.bnsMaterialId);
+      };
+    });
+  }
+
+  function validateChosenHard() {
+    for (const m of getChosen()) {
+      const res = reservationFor(m.id, {
+        skip: getEditing(),
+        start: formStart(),
+        end: formEnd()
+      });
+
+      const master = materialById(m.id);
+      const issue = openIssue(m.id);
+      const st = statusOf(master);
+
+      if (issue || st === "defect" || st === "inactive") {
+        showMaterialInfo(m.id);
+        return false;
+      }
+
+      if (res) {
+        showMaterialInfo(m.id);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  function saveOrderHard() {
+    if (!validateChosenHard()) return;
+
+    const order = {
+      id: getEditing() || makeId(),
+      number: byId("orderNumber")?.value || "",
+      status: byId("orderStatus")?.value || "Offerte",
+      title: byId("orderTitle")?.value || "Zonder titel",
+      start: byId("dateStart")?.value || "",
+      end: byId("dateEnd")?.value || "",
+      brand: byId("orderBrand")?.value || "",
+      customer: {
+        name: byId("customerName")?.value || "",
+        street: byId("customerStreet")?.value || "",
+        zip: byId("customerZip")?.value || "",
+        city: byId("customerCity")?.value || "",
+        phone: byId("customerPhone")?.value || "",
+        email: byId("customerEmail")?.value || ""
+      },
+      location: {
+        name: byId("locationName")?.value || "",
+        street: byId("locationStreet")?.value || "",
+        zip: byId("locationZip")?.value || "",
+        city: byId("locationCity")?.value || "",
+        contact: byId("locationContact")?.value || "",
+        phone: byId("locationPhone")?.value || "",
+        show: byId("showLocationOnDocs")?.checked ?? true
+      },
+      materials: getChosen().map(function(m) {
+        const copy = clone(m);
+        copy.status = "reserved";
+        return copy;
+      }),
+      driver: byId("orderDriver")?.value || "",
+      vehicle: byId("orderVehicle")?.value || "",
+      extra: byId("orderExtra")?.value || "",
+      pricing: (typeof calcTotals === "function") ? calcTotals() : undefined
+    };
+
+    try { if (typeof upsertCustomer === "function") upsertCustomer(order.customer); } catch (e) {}
+    try { if (typeof upsertLocation === "function") upsertLocation(order.location); } catch (e) {}
+
+    const orders = getOrders();
+    const idx = orders.findIndex(function(o) { return String(o.id) === String(order.id); });
+
+    if (idx >= 0) orders[idx] = order;
+    else orders.push(order);
+
+    recalcReservationsHard();
+    setEditing(null);
+    saveNow();
+
+    try { if (typeof clearOrder === "function") clearOrder(); } catch (e) {}
+    try { if (typeof renderAll === "function") renderAll(); } catch (e) {}
+    try { if (typeof showPage === "function") showPage("orders"); } catch (e) {}
+    msg("Opdracht opgeslagen. Materialen gecontroleerd.");
+  }
+
+  function recalcReservationsHard() {
+    const active = {};
+    getOrders().forEach(function(o) {
+      if (!isActiveOrder(o)) return;
+      (o.materials || []).forEach(function(m) {
+        if (!m || !m.id) return;
+        active[String(m.id)] = o;
+      });
+    });
+
+    getMaterials().forEach(function(m) {
+      const issue = openIssue(m.id);
+      const st = statusOf(m);
+      if (issue || st === "defect" || st === "inactive") return;
+
+      const o = active[String(m.id)];
+      if (o) {
+        m.status = "reserved";
+        m.reservedBy = o.customer?.name || "";
+        m.reservedOrder = o.number || "";
+        m.reservedOrderId = o.id;
+        m.reservedFrom = o.start || "";
+        m.reservedTo = o.end || "";
+      } else {
+        m.status = "free";
+        m.reservedBy = "";
+        m.reservedOrder = "";
+        m.reservedOrderId = "";
+        m.reservedFrom = "";
+        m.reservedTo = "";
+      }
+    });
+  }
+
+  function nextNoHard() {
+    const year = new Date().getFullYear();
+    const nums = getOrders()
+      .map(function(o) { return String(o.number || "").match(new RegExp("^" + year + "-(\\d+)$")); })
+      .filter(Boolean)
+      .map(function(match) { return Number(match[1]); });
+
+    return year + "-" + String(nums.length ? Math.max.apply(null, nums) + 1 : 1).padStart(4, "0");
+  }
+
+  function copyOrderHard(orderId) {
+    if (typeof editOrder !== "function") return;
+
+    editOrder(orderId);
+
+    setTimeout(function() {
+      setEditing(null);
+      const num = byId("orderNumber");
+      if (num) num.value = nextNoHard();
+
+      const status = byId("orderStatus");
+      if (status) status.value = "Offerte";
+
+      msg("Copy gemaakt. Pas datum aan en sla op.");
+    }, 100);
+  }
+
+  function renderOrdersHard() {
+    const ordersSearch = byId("ordersSearch");
+    const ordersList = byId("ordersList");
+    if (!ordersList) return;
+
+    let currentMode = "active";
+    try { currentMode = mode || "active"; } catch (e) {}
+
+    const q = String(ordersSearch?.value || "").toLowerCase();
+
+    const sorted = (typeof sortedOrders === "function")
+      ? sortedOrders()
+      : getOrders().slice().sort(function(a,b) { return String(a.start||"").localeCompare(String(b.start||"")); });
+
+    const visible = sorted
+      .filter(function(o) {
+        return currentMode === "cancelled"
+          ? o.status === "Geannuleerd"
+          : currentMode === "done"
+            ? o.status === "Uitgevoerd"
+            : (o.status !== "Geannuleerd" && o.status !== "Uitgevoerd");
+      })
+      .filter(function(o) {
+        return !q || JSON.stringify(o).toLowerCase().includes(q);
+      });
+
+    ordersList.innerHTML = visible.map(cardHard).join("") || "<p>Niets gevonden</p>";
+  }
+
+  function cardHard(o) {
+    const addr = [o.location?.street, o.location?.zip, o.location?.city].filter(Boolean).join(" ");
+    const mats = (o.materials || []).map(function(m) { return m.code; }).join(", ");
+    const total = o.pricing && typeof money === "function" ? money(o.pricing.grand) : "€ 0,00";
+    const deposit = o.pricing && typeof money === "function" ? money(o.pricing.deposit) : "€ 0,00";
+    const d = (typeof nice === "function") ? nice(o.start) : niceDate(o.start);
+
+    return `
+      <div class="order-card">
+        <div class="date-tile">${esc(d)}</div>
+        <div>
+          <div class="order-title">${esc(o.number || "")} - ${esc(o.title || "")} <span class="status status-${esc(o.status || "")}">${esc(o.status || "")}</span></div>
+          <div>Klant: ${esc(o.customer?.name || "")}</div>
+          <div>Locatie: ${esc(addr)}</div>
+          <div>Materialen: ${esc(mats)}</div>
+          <div>Totaal: ${esc(total)} | Borg: ${esc(deposit)}</div>
+        </div>
+        <div class="actions">
+          <button onclick="editOrder('${esc(o.id)}')">Wijzigen</button>
+          <button onclick="BNS_copyOrder('${esc(o.id)}')">Copy</button>
+          ${o.status === "Geannuleerd"
+            ? `<button onclick="restore('${esc(o.id)}')">Terughalen</button>`
+            : `<button class="danger" onclick="cancel('${esc(o.id)}')">Annuleren</button>`}
+        </div>
+      </div>
+    `;
+  }
+
+  function resolveMaterialHard(materialId) {
+    const st = getState();
+    if (!st) return;
+
+    st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
+    st.alerts.forEach(function(a) {
+      if (String(a.materialId || "") === String(materialId)) {
+        a.resolved = true;
+        a.resolvedAt = new Date().toLocaleString();
+      }
+    });
+
+    const material = materialById(materialId);
+    if (material) {
+      material.status = "free";
+      material.issueText = "";
+      material.usable = true;
+    }
+
+    recalcReservationsHard();
+    saveNow();
+    try { if (typeof renderAll === "function") renderAll(); } catch (e) {}
+    msg("Materiaal vrijgegeven");
+  }
+
+  function showAlertsHard() {
+    const alerts = (getState().alerts || []).filter(function(a) { return !a.resolved; });
+    if (!alerts.length) {
+      alert("Geen open systeemmeldingen.");
+      return;
+    }
+
+    const list = alerts.map(function(a, i) {
+      return `${i+1}. ${a.title || a.type || "Melding"}\n${a.text || ""}\n${a.time || ""}`;
+    }).join("\n\n");
+
+    const choice = prompt("Open meldingen:\n\n" + list + "\n\nNummer kiezen:");
+    const alertItem = alerts[Number(choice) - 1];
+    if (!alertItem) return;
+
+    const action = prompt("1 = opgelost/gerepareerd\n2 = wis storing\n3 = materiaal openen");
+    if (action === "1") {
+      alertItem.resolved = true;
+      alertItem.resolvedAt = new Date().toLocaleString();
+      if (alertItem.materialId) resolveMaterialHard(alertItem.materialId);
+      saveNow();
+    } else if (action === "2") {
+      getState().alerts = (getState().alerts || []).filter(function(a) { return a.id !== alertItem.id; });
+      saveNow();
+    } else if (action === "3" && alertItem.materialId) {
+      showMaterialInfo(alertItem.materialId);
+    }
+
+    try { if (typeof renderAll === "function") renderAll(); } catch (e) {}
+  }
+
+  function patchAlertFor() {
+    window.alertFor = function(orderId, type) {
+      const order = getOrders().find(function(o) { return String(o.id) === String(orderId); });
+      if (!order) return;
+
+      const materials = order.materials || [];
+      if (!materials.length) {
+        const text = prompt("Omschrijving melding:");
+        if (text === null) return;
+        const st = getState();
+        st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
+        st.alerts.push({
+          id: makeId(),
+          orderId,
+          title: (type || "Melding") + " - " + (order.number || ""),
+          type: type || "Melding",
+          text: text || "",
+          time: new Date().toLocaleString(),
+          resolved: false
+        });
+        saveNow();
+        return;
+      }
+
+      const pick = prompt("Welk materiaal?\n" + materials.map(function(m,i) {
+        return `${i+1}. ${m.code || ""} ${m.name || ""}`;
+      }).join("\n"));
+
+      const material = materials[Number(pick)-1];
+      if (!material) return;
+
+      const text = prompt("Omschrijving schade/vermissing/storing:");
+      if (text === null) return;
+
+      const usable = confirm("Is het materiaal nog inzetbaar?\nOK = ja, Annuleren = nee");
+      const st = getState();
+      st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
+      st.alerts.push({
+        id: makeId(),
+        orderId,
+        materialId: material.id,
+        title: (type || "Melding") + " - " + (material.code || ""),
+        type: type || "Melding",
+        text: text || "",
+        usable,
+        time: new Date().toLocaleString(),
+        resolved: false
+      });
+
+      if (!usable) {
+        const master = materialById(material.id);
+        if (master) {
+          master.status = "defect";
+          master.issueText = text || "Defect";
+          master.usable = false;
+        }
+      }
+
+      saveNow();
+      try { if (typeof renderAll === "function") renderAll(); } catch (e) {}
+    };
+
+    try { alertFor = window.alertFor; } catch (e) {}
+  }
+
+  function installCss() {
+    if (document.getElementById("bns-hard-override-style")) return;
+    const style = document.createElement("style");
+    style.id = "bns-hard-override-style";
+    style.textContent = `
+      #materialList .material-row,
+      #materialList .material-row.free,
+      #materialList .material-row.reserved,
+      #materialList .material-row.defect,
+      #materialList .material-row.inactive {
+        background: var(--panel,#fff) !important;
+        color: var(--text,#172033) !important;
+      }
+      #materialList .badge.reserved{background:#fee2e2!important;color:#991b1b!important}
+      #materialList .badge.defect{background:#fee2e2!important;color:#991b1b!important;animation:bnsDefectBlink .45s infinite alternate!important}
+      #materialList .badge.free{background:#dcfce7!important;color:#166534!important}
+      #materialList .badge.inactive{background:#e2e8f0!important;color:#334155!important}
+      #materialList .badge.now{background:#dbeafe!important;color:#1e40af!important}
+      #alertsBtn.bns-blink{animation:bnsAlertBlink .7s infinite alternate!important}
+      @keyframes bnsAlertBlink{from{background:#b91c1c;color:#fff}to{background:#ef4444;color:#fff;box-shadow:0 0 18px rgba(239,68,68,.75)}}
+      @keyframes bnsDefectBlink{from{opacity:.45}to{opacity:1}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function patchRenderAll() {
+    if (window.__bnsRenderAllPatched) return;
+    window.__bnsRenderAllPatched = true;
+
+    const old = window.renderAll || (typeof renderAll !== "undefined" ? renderAll : null);
+    if (typeof old === "function") {
+      const wrapped = function() {
+        old();
+        finishAfterRender();
+      };
+      window.renderAll = wrapped;
+      try { renderAll = wrapped; } catch (e) {}
+    }
+  }
+
+  function finishAfterRender() {
+    const btn = byId("alertsBtn");
+    if (btn) {
+      const count = (getState()?.alerts || []).filter(function(a) { return !a.resolved; }).length;
+      btn.textContent = "Systeemmeldingen (" + count + ")";
+      btn.classList.toggle("bns-blink", count > 0);
+      btn.onclick = showAlertsHard;
+    }
+  }
+
+  function install() {
+    installCss();
+
+    window.renderMaterials = renderMaterialsHard;
+    window.addMat = addMatHard;
+    window.saveCurrentOrder = saveOrderHard;
+    window.renderOrders = renderOrdersHard;
+    window.BNS_copyOrder = copyOrderHard;
+
+    try { renderMaterials = renderMaterialsHard; } catch (e) {}
+    try { addMat = addMatHard; } catch (e) {}
+    try { saveCurrentOrder = saveOrderHard; } catch (e) {}
+    try { renderOrders = renderOrdersHard; } catch (e) {}
+
+    patchAlertFor();
+    patchRenderAll();
+    recalcReservationsHard();
+
+    const search = byId("materialSearch");
+    if (search && !search.dataset.bnsHardBound) {
+      search.dataset.bnsHardBound = "1";
+      search.addEventListener("input", function() {
+        renderMaterialsHard(getCurrentCat());
+      });
+    }
+
+    renderOrdersHard();
+    renderMaterialsHard(getCurrentCat());
+    finishAfterRender();
+    installed = true;
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function() {
+      setTimeout(install, 1000);
+    });
+  } else {
+    setTimeout(install, 1000);
+  }
+
+  setTimeout(install, 2000);
+  setTimeout(install, 4000);
 })();
 
