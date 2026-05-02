@@ -2861,3 +2861,384 @@ setTimeout(()=>{
   setInterval(install, 1000);
 })();
 
+
+
+/* =========================================================
+   BNS V12 PRO - WAZE + AGENDA + POSTCODEZOEKER
+   Extra functies zonder bestaande functies te wissen:
+   - Waze route knop bij planner en bezorger
+   - Google Agenda knop bij planner
+   - Automatisch extra "Ophalen TR blauw" agenda item op einddatum
+   - Postcode + huisnummer zoeker vult adresvelden
+   ========================================================= */
+(function bnsPlannerRouteAgendaPostcode(){
+  "use strict";
+
+  const STYLE_ID = "bns-route-agenda-postcode-style";
+  const POSTCODE_BOX_ID = "bnsPostcodeBox";
+  const PLANNER_TOOLS_ID = "bnsPlannerTools";
+
+  function qs(sel, root){ return (root || document).querySelector(sel); }
+  function qsa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+  function byId(id){ return document.getElementById(id); }
+
+  function getState(){
+    try { return typeof state !== "undefined" ? state : null; } catch(e){ return null; }
+  }
+
+  function currentUser(){
+    try { return typeof user !== "undefined" ? user : null; } catch(e){ return null; }
+  }
+
+  function roleAllowed(){
+    const u = currentUser();
+    const role = String(u && u.role || "").toLowerCase();
+    return role === "admin" || role === "planner" || role === "bezorger";
+  }
+
+  function plannerAllowed(){
+    const u = currentUser();
+    const role = String(u && u.role || "").toLowerCase();
+    return role === "admin" || role === "planner";
+  }
+
+  function fieldValue(id){
+    const input = byId(id);
+    return input ? String(input.value || "").trim() : "";
+  }
+
+  function niceAddressFromForm(){
+    const locationAddress = [
+      fieldValue("locationStreet"),
+      fieldValue("locationZip"),
+      fieldValue("locationCity")
+    ].filter(Boolean).join(" ");
+
+    const customerAddress = [
+      fieldValue("customerStreet"),
+      fieldValue("customerZip"),
+      fieldValue("customerCity")
+    ].filter(Boolean).join(" ");
+
+    return locationAddress || customerAddress;
+  }
+
+  function openWaze(address){
+    const q = String(address || "").trim();
+    if (!q) {
+      alert("Geen adres gevonden. Vul eerst klant- of locatieadres in.");
+      return;
+    }
+
+    window.open("https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes", "_blank");
+  }
+
+  function openGoogleMaps(address){
+    const q = String(address || "").trim();
+    if (!q) {
+      alert("Geen adres gevonden. Vul eerst klant- of locatieadres in.");
+      return;
+    }
+
+    window.open("https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(q), "_blank");
+  }
+
+  function toCalendarDate(value, endOfDay){
+    const safe = value || new Date().toISOString().slice(0, 10);
+    const compact = safe.replaceAll("-", "");
+    return compact + (endOfDay ? "T170000" : "T090000");
+  }
+
+  function currentMaterialCodes(){
+    try {
+      if (Array.isArray(chosen) && chosen.length) {
+        return chosen.map(function(item){ return item.code || item.name || ""; }).filter(Boolean);
+      }
+    } catch(e){}
+
+    return [];
+  }
+
+  function currentFirstMaterialCat(){
+    try {
+      if (Array.isArray(chosen) && chosen.length) {
+        return String(chosen[0].cat || chosen[0].code || "").toUpperCase();
+      }
+    } catch(e){}
+
+    return "";
+  }
+
+  function openCalendarForCurrentOrder(type){
+    const number = fieldValue("orderNumber");
+    const title = fieldValue("orderTitle") || "Opdracht";
+    const customer = fieldValue("customerName");
+    const materialCodes = currentMaterialCodes();
+    const materialCat = currentFirstMaterialCat();
+
+    const start = fieldValue("dateStart");
+    const end = fieldValue("dateEnd") || start;
+    const address = niceAddressFromForm();
+
+    let eventTitle;
+    let eventStart;
+    let eventEnd;
+    let details;
+
+    if (type === "pickup") {
+      eventTitle = "Ophalen TR blauw - " + [number, customer, title].filter(Boolean).join(" - ");
+      eventStart = toCalendarDate(end, False);
+    } else {
+      eventTitle = [
+        "Opdracht",
+        materialCat ? "[" + materialCat + "]" : "",
+        number,
+        customer,
+        title
+      ].filter(Boolean).join(" - ");
+      eventStart = toCalendarDate(start, False);
+    }
+
+    eventEnd = type === "pickup" ? toCalendarDate(end, True) : toCalendarDate(end || start, True);
+
+    details = [
+      "Event Planner PRO",
+      "Opdracht: " + number,
+      "Titel: " + title,
+      "Klant: " + customer,
+      "Materialen: " + (materialCodes.join(", ") || "Nog geen materialen"),
+      "Kleur artikel/rubriek: " + (materialCat || "onbekend"),
+      type === "pickup" ? "Ophalen: TR kleur blauw" : "",
+      "Adres: " + address
+    ].filter(Boolean).join("\n");
+
+    const url = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+      + "&text=" + encodeURIComponent(eventTitle)
+      + "&dates=" + encodeURIComponent(eventStart + "/" + eventEnd)
+      + "&location=" + encodeURIComponent(address)
+      + "&details=" + encodeURIComponent(details);
+
+    window.open(url, "_blank");
+  }
+
+  // JavaScript heeft true/false lowercase nodig; deze hulpfuncties voorkomen typefouten in strings.
+  const False = false;
+  const True = true;
+
+  function ensureStyle(){
+    if (byId(STYLE_ID)) return;
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${PLANNER_TOOLS_ID},
+      #${POSTCODE_BOX_ID}{
+        margin:12px 0!important;
+        padding:12px!important;
+        border:1px solid var(--border,#dbe3ef)!important;
+        border-radius:16px!important;
+        background:var(--panel,#fff)!important;
+        color:var(--text,#172033)!important;
+        display:flex!important;
+        gap:10px!important;
+        flex-wrap:wrap!important;
+        align-items:center!important;
+      }
+
+      #${PLANNER_TOOLS_ID} b,
+      #${POSTCODE_BOX_ID} b{
+        width:100%!important;
+        font-size:16px!important;
+      }
+
+      #${POSTCODE_BOX_ID} input{
+        width:150px!important;
+        min-width:120px!important;
+      }
+
+      .bns-tool-green{
+        background:#16a34a!important;
+      }
+
+      .bns-tool-orange{
+        background:#ea580c!important;
+      }
+
+      .bns-tool-dark{
+        background:#334155!important;
+      }
+
+      .bns-route-button{
+        margin-left:6px!important;
+        padding:7px 10px!important;
+        font-size:13px!important;
+        border-radius:10px!important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensurePlannerTools(){
+    if (!plannerAllowed()) return;
+
+    const newOrderPage = byId("newOrder") || qs(".page.active");
+    if (!newOrderPage || byId(PLANNER_TOOLS_ID)) return;
+
+    const orderHead = qs(".order-head", newOrderPage) || qs("h2", newOrderPage) || newOrderPage.firstElementChild;
+
+    const box = document.createElement("div");
+    box.id = PLANNER_TOOLS_ID;
+    box.innerHTML = `
+      <b>Planner snelknoppen</b>
+      <button type="button" id="bnsWazePlannerBtn" class="bns-tool-green">Waze route naar opdracht</button>
+      <button type="button" id="bnsMapsPlannerBtn" class="bns-tool-dark">Google Maps route</button>
+      <button type="button" id="bnsAgendaOrderBtn">Agenda opdracht maken</button>
+      <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda ophalen TR blauw</button>
+    `;
+
+    if (orderHead && orderHead.insertAdjacentElement) {
+      orderHead.insertAdjacentElement("afterend", box);
+    } else {
+      newOrderPage.prepend(box);
+    }
+
+    byId("bnsWazePlannerBtn").onclick = function(){ openWaze(niceAddressFromForm()); };
+    byId("bnsMapsPlannerBtn").onclick = function(){ openGoogleMaps(niceAddressFromForm()); };
+    byId("bnsAgendaOrderBtn").onclick = function(){ openCalendarForCurrentOrder("order"); };
+    byId("bnsAgendaPickupBtn").onclick = function(){ openCalendarForCurrentOrder("pickup"); };
+  }
+
+  function ensurePostcodeSearch(){
+    const locationPanel = byId("locationPanel") || byId("customerPanel") || byId("newOrder");
+    if (!locationPanel || byId(POSTCODE_BOX_ID)) return;
+
+    const box = document.createElement("div");
+    box.id = POSTCODE_BOX_ID;
+    box.innerHTML = `
+      <b>Postcode zoeker</b>
+      <input id="bnsPostcodeInput" placeholder="Postcode">
+      <input id="bnsHouseNumberInput" placeholder="Huisnr">
+      <button type="button" id="bnsPostcodeSearchBtn">Adres zoeken</button>
+      <button type="button" id="bnsPostcodeMapsBtn" class="bns-tool-dark">Zoek in Maps</button>
+      <span id="bnsPostcodeStatus"></span>
+    `;
+
+    const h3 = qs("h3", locationPanel) || locationPanel.firstElementChild;
+    if (h3 && h3.insertAdjacentElement) h3.insertAdjacentElement("afterend", box);
+    else locationPanel.prepend(box);
+
+    byId("bnsPostcodeSearchBtn").onclick = lookupPostcode;
+    byId("bnsPostcodeMapsBtn").onclick = function(){
+      const pc = fieldValue("bnsPostcodeInput");
+      const nr = fieldValue("bnsHouseNumberInput");
+      openGoogleMaps([pc, nr, "Nederland"].filter(Boolean).join(" "));
+    };
+  }
+
+  async function lookupPostcode(){
+    const pc = fieldValue("bnsPostcodeInput").replace(/\s+/g, "").toUpperCase();
+    const nr = fieldValue("bnsHouseNumberInput");
+    const status = byId("bnsPostcodeStatus");
+
+    if (!pc || !nr) {
+      alert("Vul postcode en huisnummer in.");
+      return;
+    }
+
+    if (status) status.textContent = "Zoeken...";
+
+    // PDOK Locatieserver, geen API-key nodig. Als exacte huisnummer niet gevonden wordt,
+    // vult hij in ieder geval straat/plaats van de postcode aan.
+    const query = encodeURIComponent(pc + " " + nr);
+    const url = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=" + query + "&rows=1";
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Postcode service geeft geen antwoord");
+
+      const data = await response.json();
+      const doc = data && data.response && data.response.docs && data.response.docs[0];
+
+      if (!doc) {
+        if (status) status.textContent = "Niet gevonden";
+        openGoogleMaps(pc + " " + nr + " Nederland");
+        return;
+      }
+
+      const street = doc.straatnaam || doc.weergavenaam || "";
+      const city = doc.woonplaatsnaam || "";
+
+      if (byId("locationStreet")) byId("locationStreet").value = [street, nr].filter(Boolean).join(" ");
+      if (byId("locationZip")) byId("locationZip").value = pc;
+      if (byId("locationCity")) byId("locationCity").value = city;
+
+      // Als locatievelden niet bestaan, klantvelden vullen.
+      if (!byId("locationStreet")) {
+        if (byId("customerStreet")) byId("customerStreet").value = [street, nr].filter(Boolean).join(" ");
+        if (byId("customerZip")) byId("customerZip").value = pc;
+        if (byId("customerCity")) byId("customerCity").value = city;
+      }
+
+      if (status) status.textContent = "Adres ingevuld";
+
+      try {
+        if (typeof renderSummary === "function") renderSummary();
+      } catch(e){}
+    } catch(error) {
+      console.warn(error);
+      if (status) status.textContent = "Niet gelukt, Maps geopend";
+      openGoogleMaps(pc + " " + nr + " Nederland");
+    }
+  }
+
+  function addressFromOrderCard(card){
+    const text = (card.textContent || "").replace(/\s+/g, " ");
+    const match = text.match(/Locatie:\s*([^|]+)|Adres:\s*([^|]+)/i);
+    return match ? (match[1] || match[2] || "").trim() : "";
+  }
+
+  function ensureDriverWazeButtons(){
+    if (!roleAllowed()) return;
+
+    qsa(".order-card, .driver-card, .melding-card").forEach(function(card){
+      if (card.dataset.bnsWazeAdded) return;
+      const text = card.textContent || "";
+
+      if (!/Locatie:|Adres:|Klant:/i.test(text)) return;
+
+      card.dataset.bnsWazeAdded = "1";
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "bns-route-button bns-tool-green";
+      button.textContent = "Waze";
+
+      button.onclick = function(event){
+        event.stopPropagation();
+
+        const address = addressFromOrderCard(card) || niceAddressFromForm();
+        openWaze(address);
+      };
+
+      card.appendChild(button);
+    });
+  }
+
+  function install(){
+    ensureStyle();
+    ensurePlannerTools();
+    ensurePostcodeSearch();
+    ensureDriverWazeButtons();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(install, 700);
+    });
+  } else {
+    setTimeout(install, 700);
+  }
+
+  setInterval(install, 1500);
+})();
+
