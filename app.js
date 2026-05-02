@@ -28,19 +28,26 @@ function toastMsg(t){
     left: 50%;
     transform: translateX(-50%);
     background: #1e293b;
-    color: #ffffff;
+    color: #fff;
     padding: 12px 18px;
     border-radius: 10px;
     font-weight: 600;
     z-index: 99999;
     box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    opacity: 1;
   `;
 
+  // ⬇️ BELANGRIJK: echt verbergen
   setTimeout(()=>{
-    toast.textContent = '';
-  }, 2200);
-}
+    toast.style.opacity = '0';
+    setTimeout(()=>{
+      toast.style.display = 'none';
+    }, 300);
+  }, 2000);
 
+  // ⬇️ weer tonen bij nieuwe melding
+  toast.style.display = 'block';
+}
 function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(p).classList.add('active');document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));renderAll();}
 function init(){
  document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{if(pin.length<4)pin+=b.dataset.pin;pinView.textContent=(pin.split('').map(x=>'•').join(' ')+' - - - -').split(' ').slice(0,4).join(' ');if(pin.length===4)doLogin();});
