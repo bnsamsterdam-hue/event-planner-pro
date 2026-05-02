@@ -669,4 +669,45 @@ body.bns-v112 .bns-app-toast{position:fixed;right:18px;bottom:18px;z-index:99999
   padding:12px !important;
   font-weight:900 !important;
 }
+/* materiaalkaarten volgen thema */
+.material-row.free,
+.material-row.reserved,
+.material-row.defect,
+.material-row.inactive {
+  background: var(--panel) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
 
+/* tekst volgt thema */
+.material-row,
+.material-row b,
+.material-row small {
+  color: var(--text) !important;
+}
+
+/* prijs/subtekst zachter */
+.material-row small {
+  color: var(--muted) !important;
+}
+
+/* status rechts blijft eigen statuskleur */
+.material-row .badge.free {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.material-row .badge.reserved {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.material-row .badge.defect {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.material-row .badge.inactive {
+  background: #e2e8f0 !important;
+  color: #334155 !important;
+}
