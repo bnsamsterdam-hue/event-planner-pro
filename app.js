@@ -4170,16 +4170,23 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   BNS UPDATE - SELECTIE ROOD + OPSLAAN SLUITEN + FACTUUR/OPDRACHTBON
-   - Materiaal dat rechts gekozen is krijgt links rood/selectie status.
-   - Als selectie fout is, kun je rechts met kruisje verwijderen.
-   - Direct opslaan sluit terug naar Opdrachten.
-   - Knoppen "Factuur maken" en "Opdracht bon" naast Extra.
+   BNS ROBUUSTE UI FIX - KNOPPEN + GEKOZEN MATERIAAL ROOD
+   Werkt onafhankelijk van bestaande render volgorde.
+   - Factuur maken + Opdracht bon naast Extra
+   - Gekozen materiaal links rood/duidelijk
+   - Direct opslaan gaat terug naar Opdrachten
+   - Geen interval, alleen MutationObserver bij DOM-wijzigingen
    ========================================================= */
 (function(){
   "use strict";
 
+  let scheduled = false;
+
   function $(id){ return document.getElementById(id); }
+
+  function text(el){
+    return String(el && el.textContent || "").trim();
+  }
 
   function esc(v){
     return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
@@ -4187,7 +4194,7 @@ setInterval(install,1500);
     });
   }
 
-  function chosenList(){
+  function chosenArr(){
     try {
       if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen;
     } catch(e) {}
@@ -4197,158 +4204,104 @@ setInterval(install,1500);
     return [];
   }
 
-  function chosenHas(materialId){
-    return chosenList().some(function(item){
-      return String(item.id) === String(materialId);
-    });
+  function chosenIds(){
+    return chosenArr().map(function(item){ return String(item.id); });
   }
 
-  function forceSelectedMaterialStyle(){
-    var selectedIds = chosenList().map(function(item){ return String(item.id); });
+  function materialIdFromRow(row){
+    if (!row) return "";
 
-    document.querySelectorAll("[data-material-id], .material-row, .bns-material-row").forEach(function(row){
-      var mid = row.getAttribute("data-material-id") ||
-                row.getAttribute("data-bns-material-id") ||
-                "";
+    let id =
+      row.getAttribute("data-material-id") ||
+      row.getAttribute("data-bns-material-id") ||
+      row.dataset.materialId ||
+      row.dataset.bnsMaterialId ||
+      "";
 
-      if (!mid) {
-        var onclick = row.getAttribute("onclick") || "";
-        var match = onclick.match(/addMat\(['"]([^'"]+)['"]\)/);
-        if (match) mid = match[1];
-      }
+    if (id) return String(id);
 
-      var selected = selectedIds.indexOf(String(mid)) !== -1;
+    const onclick = row.getAttribute("onclick") || "";
+    let match = onclick.match(/addMat\(['"]([^'"]+)['"]\)/);
+    if (match) return match[1];
 
-      row.classList.toggle("bns-chosen-red", selected);
+    const html = row.outerHTML || "";
+    match = html.match(/addMat\(['"]([^'"]+)['"]\)/);
+    if (match) return match[1];
+
+    return "";
+  }
+
+  function markChosenMaterials(){
+    const ids = chosenIds();
+
+    const rows = Array.from(document.querySelectorAll(
+      "#materialList [data-material-id], #materialList [data-bns-material-id], #materialList .material-row, #materialList .bns-material-row, #materialList .bns-cat-row"
+    ));
+
+    rows.forEach(function(row){
+      const mid = materialIdFromRow(row);
+      const selected = mid && ids.indexOf(String(mid)) !== -1;
+
+      row.classList.toggle("bns-selected-material-red", !!selected);
 
       if (selected) {
         row.style.setProperty("background", "#fee2e2", "important");
         row.style.setProperty("border-color", "#dc2626", "important");
-        row.style.setProperty("box-shadow", "inset 6px 0 0 #dc2626", "important");
+        row.style.setProperty("box-shadow", "inset 7px 0 0 #dc2626", "important");
 
-        row.querySelectorAll(".mat-status-badge,.bns-status-pill,.v112-pill,.status-free,.status-reserved").forEach(function(pill){
-          pill.textContent = "● ● Gekozen";
-          pill.style.setProperty("background", "#fecaca", "important");
-          pill.style.setProperty("color", "#7f1d1d", "important");
-          pill.style.setProperty("font-weight", "900", "important");
-        });
+        const status =
+          row.querySelector(".bns-status-pill") ||
+          row.querySelector(".mat-status-badge") ||
+          row.querySelector(".v112-pill") ||
+          row.querySelector("span:last-child");
 
-        row.querySelectorAll("i,.bns-dot,.cat-dot").forEach(function(dot){
+        if (status) {
+          status.textContent = "● ● Gekozen";
+          status.style.setProperty("background", "#fecaca", "important");
+          status.style.setProperty("color", "#7f1d1d", "important");
+          status.style.setProperty("font-weight", "900", "important");
+          status.style.setProperty("border-radius", "999px", "important");
+          status.style.setProperty("padding", "5px 10px", "important");
+        }
+
+        Array.from(row.querySelectorAll("i, .dot, .bns-dot, .cat-dot")).forEach(function(dot){
           dot.style.setProperty("background", "#dc2626", "important");
         });
+      } else {
+        row.style.removeProperty("background");
+        row.style.removeProperty("border-color");
+        row.style.removeProperty("box-shadow");
       }
     });
   }
 
-  function patchRenderMaterials(){
-    var oldRender = window.renderMaterials || (typeof renderMaterials === "function" ? renderMaterials : null);
-    if (!oldRender || oldRender.__bnsChosenRedWrapped) return;
-
-    var wrapped = function(){
-      var result = oldRender.apply(this, arguments);
-      setTimeout(forceSelectedMaterialStyle, 0);
-      return result;
-    };
-
-    wrapped.__bnsChosenRedWrapped = true;
-    window.renderMaterials = wrapped;
-    try { renderMaterials = wrapped; } catch(e) {}
-  }
-
-  function patchRenderChosen(){
-    var oldRenderChosen = window.renderChosen || (typeof renderChosen === "function" ? renderChosen : null);
-    if (!oldRenderChosen || oldRenderChosen.__bnsChosenRedWrapped) return;
-
-    var wrapped = function(){
-      var result = oldRenderChosen.apply(this, arguments);
-      setTimeout(forceSelectedMaterialStyle, 0);
-      return result;
-    };
-
-    wrapped.__bnsChosenRedWrapped = true;
-    window.renderChosen = wrapped;
-    try { renderChosen = wrapped; } catch(e) {}
-  }
-
-  function patchAddMat(){
-    var oldAddMat = window.addMat || (typeof addMat === "function" ? addMat : null);
-    if (!oldAddMat || oldAddMat.__bnsChosenRedWrapped) return;
-
-    var wrapped = function(){
-      var result = oldAddMat.apply(this, arguments);
-      setTimeout(forceSelectedMaterialStyle, 0);
-      return result;
-    };
-
-    wrapped.__bnsChosenRedWrapped = true;
-    window.addMat = wrapped;
-    try { addMat = wrapped; } catch(e) {}
-  }
-
-  function goToOrdersAfterSave(){
-    try {
-      if (typeof showPage === "function") {
-        showPage("orders");
-        return;
-      }
-    } catch(e) {}
-
-    try {
-      var ordersButton = Array.from(document.querySelectorAll("button,.nav button,.side button")).find(function(btn){
-        return /^opdrachten$/i.test((btn.textContent || "").trim());
-      });
-      if (ordersButton) ordersButton.click();
-    } catch(e) {}
-  }
-
-  function patchSave(){
-    var oldSaveCurrentOrder = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null);
-    if (oldSaveCurrentOrder && !oldSaveCurrentOrder.__bnsCloseAfterSave) {
-      var wrappedSave = function(){
-        var result = oldSaveCurrentOrder.apply(this, arguments);
-        setTimeout(goToOrdersAfterSave, 80);
-        return result;
-      };
-      wrappedSave.__bnsCloseAfterSave = true;
-      window.saveCurrentOrder = wrappedSave;
-      try { saveCurrentOrder = wrappedSave; } catch(e) {}
-    }
-
-    document.querySelectorAll("button").forEach(function(button){
-      var txt = (button.textContent || "").trim().toLowerCase();
-      if ((txt === "direct opslaan" || txt === "opslaan") && !button.dataset.bnsCloseAfterSave) {
-        button.dataset.bnsCloseAfterSave = "1";
-        button.addEventListener("click", function(){
-          setTimeout(goToOrdersAfterSave, 180);
-        }, false);
-      }
+  function findExtraButton(){
+    return Array.from(document.querySelectorAll("button")).find(function(btn){
+      return /^extra$/i.test(text(btn));
     });
   }
 
-  function currentOrderIdFromForm(){
-    try {
-      if (typeof editing !== "undefined" && editing) return editing;
-    } catch(e) {}
-    try {
-      if (window.editing) return window.editing;
-    } catch(e) {}
-    return "";
-  }
-
-  function clickButtonByText(regex){
-    var button = Array.from(document.querySelectorAll("button")).find(function(btn){
-      return regex.test(btn.textContent || "");
+  function clickFirstButton(regex){
+    const btn = Array.from(document.querySelectorAll("button")).find(function(button){
+      return regex.test(text(button));
     });
-    if (button) {
-      button.click();
+    if (btn) {
+      btn.click();
       return true;
     }
     return false;
   }
 
   function makeInvoice(){
-    // Gebruik bestaande functie/knoppen als die in de app aanwezig zijn.
-    if (clickButtonByText(/factuur|invoice/i)) return;
+    // Probeer bestaande factuurknop/functie te gebruiken.
+    if (clickFirstButton(/^(factuur|factuur maken|invoice)$/i)) return;
+
+    try {
+      if (typeof window.makeInvoice === "function") {
+        window.makeInvoice();
+        return;
+      }
+    } catch(e) {}
 
     try {
       if (typeof safePrint === "function") {
@@ -4361,13 +4314,18 @@ setInterval(install,1500);
   }
 
   function makeOrderBon(){
-    // Gebruik bestaande opdrachtbevestiging/overzicht functie.
-    if (clickButtonByText(/opdrachtbevestiging|overzicht maken|overzicht \/ opdrachtbevestiging/i)) return;
+    // Probeer bestaande opdrachtbon/overzicht knop.
+    if (clickFirstButton(/opdracht bon|opdrachtbevestiging|overzicht maken|overzicht \/ opdrachtbevestiging/i)) return;
 
     try {
       if (typeof makeConfirmationText === "function") {
-        alert(makeConfirmationText());
-        return;
+        const msg = makeConfirmationText();
+        const w = window.open("", "_blank");
+        if (w) {
+          w.document.write("<pre style='font-family:Arial;white-space:pre-wrap'>" + esc(msg) + "</pre>");
+          w.document.close();
+          return;
+        }
       }
     } catch(e) {}
 
@@ -4375,103 +4333,184 @@ setInterval(install,1500);
   }
 
   function ensureTopButtons(){
-    if ($("bnsTopInvoiceBtn") && $("bnsTopOrderBonBtn")) return;
+    const extra = findExtraButton();
+    if (!extra || !extra.parentNode) return;
 
-    var extraBtn = Array.from(document.querySelectorAll("button")).find(function(btn){
-      return /^extra$/i.test((btn.textContent || "").trim());
+    if (!$("bnsFactuurTopBtn")) {
+      const btn = document.createElement("button");
+      btn.id = "bnsFactuurTopBtn";
+      btn.type = "button";
+      btn.textContent = "Factuur maken";
+      btn.className = extra.className || "";
+      btn.addEventListener("click", function(e){
+        e.preventDefault();
+        makeInvoice();
+      });
+      extra.insertAdjacentElement("afterend", btn);
+    }
+
+    if (!$("bnsOpdrachtBonTopBtn")) {
+      const btn = document.createElement("button");
+      btn.id = "bnsOpdrachtBonTopBtn";
+      btn.type = "button";
+      btn.textContent = "Opdracht bon";
+      btn.className = extra.className || "";
+      btn.addEventListener("click", function(e){
+        e.preventDefault();
+        makeOrderBon();
+      });
+
+      const factuur = $("bnsFactuurTopBtn");
+      if (factuur) factuur.insertAdjacentElement("afterend", btn);
+      else extra.insertAdjacentElement("afterend", btn);
+    }
+  }
+
+  function goOrders(){
+    try {
+      if (typeof showPage === "function") {
+        showPage("orders");
+        return;
+      }
+    } catch(e) {}
+
+    const btn = Array.from(document.querySelectorAll("button,.nav button,.side button")).find(function(button){
+      return /^opdrachten$/i.test(text(button));
+    });
+    if (btn) btn.click();
+  }
+
+  function patchSaveButtons(){
+    Array.from(document.querySelectorAll("button")).forEach(function(btn){
+      const label = text(btn).toLowerCase();
+
+      if ((label === "direct opslaan" || label === "opslaan") && !btn.dataset.bnsCloseAfterSaveRobust) {
+        btn.dataset.bnsCloseAfterSaveRobust = "1";
+        btn.addEventListener("click", function(){
+          setTimeout(goOrders, 250);
+        }, false);
+      }
     });
 
-    if (!extraBtn || !extraBtn.parentNode) return;
+    try {
+      const fn = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null);
+      if (fn && !fn.__bnsCloseAfterSaveRobust) {
+        const wrapped = function(){
+          const result = fn.apply(this, arguments);
+          setTimeout(goOrders, 250);
+          return result;
+        };
+        wrapped.__bnsCloseAfterSaveRobust = true;
+        window.saveCurrentOrder = wrapped;
+        try { saveCurrentOrder = wrapped; } catch(e) {}
+      }
+    } catch(e) {}
+  }
 
-    if (!$("bnsTopInvoiceBtn")) {
-      var invoice = document.createElement("button");
-      invoice.id = "bnsTopInvoiceBtn";
-      invoice.type = "button";
-      invoice.textContent = "Factuur maken";
-      invoice.className = extraBtn.className || "";
-      invoice.onclick = makeInvoice;
-      extraBtn.insertAdjacentElement("afterend", invoice);
-    }
+  function patchAddAndRemove(){
+    try {
+      const fn = window.addMat || (typeof addMat === "function" ? addMat : null);
+      if (fn && !fn.__bnsMarkChosenRobust) {
+        const wrapped = function(){
+          const result = fn.apply(this, arguments);
+          scheduleApply();
+          return result;
+        };
+        wrapped.__bnsMarkChosenRobust = true;
+        window.addMat = wrapped;
+        try { addMat = wrapped; } catch(e) {}
+      }
+    } catch(e) {}
 
-    if (!$("bnsTopOrderBonBtn")) {
-      var bon = document.createElement("button");
-      bon.id = "bnsTopOrderBonBtn";
-      bon.type = "button";
-      bon.textContent = "Opdracht bon";
-      bon.className = extraBtn.className || "";
-      bon.onclick = makeOrderBon;
+    try {
+      const fn = window.renderMaterials || (typeof renderMaterials === "function" ? renderMaterials : null);
+      if (fn && !fn.__bnsMarkChosenRobust) {
+        const wrapped = function(){
+          const result = fn.apply(this, arguments);
+          scheduleApply();
+          return result;
+        };
+        wrapped.__bnsMarkChosenRobust = true;
+        window.renderMaterials = wrapped;
+        try { renderMaterials = wrapped; } catch(e) {}
+      }
+    } catch(e) {}
 
-      var invoiceBtn = $("bnsTopInvoiceBtn");
-      if (invoiceBtn) invoiceBtn.insertAdjacentElement("afterend", bon);
-      else extraBtn.insertAdjacentElement("afterend", bon);
-    }
+    try {
+      const fn = window.renderChosen || (typeof renderChosen === "function" ? renderChosen : null);
+      if (fn && !fn.__bnsMarkChosenRobust) {
+        const wrapped = function(){
+          const result = fn.apply(this, arguments);
+          scheduleApply();
+          return result;
+        };
+        wrapped.__bnsMarkChosenRobust = true;
+        window.renderChosen = wrapped;
+        try { renderChosen = wrapped; } catch(e) {}
+      }
+    } catch(e) {}
   }
 
   function installCss(){
-    if ($("bnsChosenRedCss")) return;
+    if ($("bnsRobustUiFixCss")) return;
 
-    var style = document.createElement("style");
-    style.id = "bnsChosenRedCss";
+    const style = document.createElement("style");
+    style.id = "bnsRobustUiFixCss";
     style.textContent = `
-      .bns-chosen-red {
-        background: #fee2e2 !important;
-        border-color: #dc2626 !important;
-        box-shadow: inset 6px 0 0 #dc2626 !important;
-      }
-      .bns-chosen-red .mat-status-badge,
-      .bns-chosen-red .bns-status-pill {
-        background: #fecaca !important;
-        color: #7f1d1d !important;
-        font-weight: 900 !important;
-      }
-      #bnsTopInvoiceBtn,
-      #bnsTopOrderBonBtn {
+      #bnsFactuurTopBtn,
+      #bnsOpdrachtBonTopBtn {
         margin-left: 8px !important;
-        background: #0f172a !important;
-        color: #fff !important;
         border: none !important;
         border-radius: 12px !important;
         padding: 10px 18px !important;
+        color: #fff !important;
         font-weight: 900 !important;
       }
-      #bnsTopInvoiceBtn {
+      #bnsFactuurTopBtn {
         background: #2563eb !important;
       }
-      #bnsTopOrderBonBtn {
+      #bnsOpdrachtBonTopBtn {
         background: #16a34a !important;
       }
+      .bns-selected-material-red {
+        background: #fee2e2 !important;
+        border-color: #dc2626 !important;
+        box-shadow: inset 7px 0 0 #dc2626 !important;
+      }
     `;
-
     document.head.appendChild(style);
   }
 
-  function install(){
+  function applyAll(){
+    scheduled = false;
     installCss();
-    patchRenderMaterials();
-    patchRenderChosen();
-    patchAddMat();
-    patchSave();
+    patchAddAndRemove();
+    patchSaveButtons();
     ensureTopButtons();
-    forceSelectedMaterialStyle();
+    markChosenMaterials();
   }
 
-  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-  if (oldRenderAll && !oldRenderAll.__bnsSelectSaveButtons) {
-    var wrappedRenderAll = function(){
-      var result = oldRenderAll.apply(this, arguments);
-      setTimeout(install, 0);
-      return result;
-    };
-    wrappedRenderAll.__bnsSelectSaveButtons = true;
-    window.renderAll = wrappedRenderAll;
-    try { renderAll = wrappedRenderAll; } catch(e) {}
+  function scheduleApply(){
+    if (scheduled) return;
+    scheduled = true;
+    setTimeout(applyAll, 80);
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); });
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(applyAll, 300);
+    });
   } else {
-    setTimeout(install, 300);
+    setTimeout(applyAll, 300);
   }
 
-  setTimeout(install, 1200);
+  // Observer zonder re-render: alleen knoppen/styling toepassen als DOM verandert.
+  try {
+    const observer = new MutationObserver(function(){
+      scheduleApply();
+    });
+    observer.observe(document.documentElement, {childList:true, subtree:true});
+  } catch(e) {}
+
+  setTimeout(applyAll, 1200);
 })();
