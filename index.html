@@ -1,23 +1,711 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="nl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Event Planner PRO V10.1 BNS</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-<div id="toast"></div>
-<section id="login" class="login"><div class="login-card"><div class="lock">🔐</div><h1>EVENT PLANNER PRO</h1><p>V10.1 BNS patch</p><div id="pinView" class="pin-view">- - - -</div><div class="pin-grid"><button data-pin="1">1</button><button data-pin="2">2</button><button data-pin="3">3</button><button data-pin="4">4</button><button data-pin="5">5</button><button data-pin="6">6</button><button data-pin="7">7</button><button data-pin="8">8</button><button data-pin="9">9</button><button id="pinClear">C</button><button data-pin="0">0</button><button id="pinOk">OK</button></div><small>Admin 1111 | Bezorger 2222 | Planner 3333</small></div></section>
-<div id="app" class="app hidden"><aside class="side"><h1>EVENT PLANNER<br>PRO</h1><p>V10.1</p><button class="nav active" data-page="dashboard">Dashboard</button><button class="nav" data-page="newOrder">Nieuwe opdracht</button><button class="nav" data-page="orders">Opdrachten</button><button class="nav" data-page="driver">Bezorger meldingen</button><button class="nav admin-only" data-page="admin">Admin</button><button id="logout" class="logout">Uitloggen</button></aside>
-<main><header class="top"><input id="globalSearch" placeholder="Zoek opdracht, klant, materiaal, adres..."><button id="alertsBtn">Systeemmeldingen (0)</button><button id="syncBtn">Systeem status</button><div id="globalLayoutTools" class="global-layout-tools"><select id="globalThemeSelect"><option value="blue">Blauw</option><option value="dark">Donker</option><option value="green">Groen</option><option value="orange">Oranje</option><option value="light">Licht</option><option value="purple">Paars</option><option value="red">Rood</option><option value="neon">Neon</option><option value="glass">Glas</option></select><select id="globalLayoutSelect"><option value="normal">Normaal</option><option value="compact">Compact</option><option value="wide">Breed</option><option value="cards">Cards</option><option value="planning">Planning</option><option value="large">Grote knoppen</option></select></div></header>
-<section id="dashboard" class="page active"><h2>Dashboard</h2><div id="dashboardToolsV91" class="dashboard-tools"><button id="editDashboardBtn" type="button">Dashboard indeling aanpassen</button><select id="themeSelect"><option value="blue">Blauw</option><option value="dark">Donker</option><option value="green">Groen</option><option value="orange">Oranje</option><option value="light">Licht</option></select></div><div id="dashboardGrid" class="dash-grid"><section class="dash-widget" draggable="true" data-widget="stats"><h3>Statistieken</h3><div class="stats"><div><b>Opdrachten</b><span id="statOrders">0</span></div><div><b>Materialen</b><span id="statMaterials">0</span></div><div><b>Systeemmeldingen</b><span id="statAlerts">0</span></div></div></section><section class="dash-widget" draggable="true" data-widget="orders"><h3>Eerstvolgende opdrachten</h3><div id="dashOrders"></div></section></div></section>
-<section id="newOrder" class="page"><h2>Nieuwe opdracht</h2><div class="order-head"><label>Opdr.nr<input id="orderNumber" readonly></label><label>Status<select id="orderStatus"><option>Offerte</option><option>Opdracht</option><option>Uitgevoerd</option><option>Geannuleerd</option><option>Bevestigd</option></select></label><label>Begin<div class="date-wrap"><input id="dateStart" type="date"><button id="startMinus" type="button" class="date-btn">-</button><button id="startPlus" type="button" class="date-btn">+</button></div></label><label>Einde<div class="date-wrap"><input id="dateEnd" type="date"><button id="endMinus" type="button" class="date-btn">-</button><button id="endPlus" type="button" class="date-btn">+</button><button id="endPlus3" type="button" class="date-btn wide hidden">+3d</button></div></label><label>Titel<input id="orderTitle"></label><label>Biermerk / merk<input id="orderBrand"></label></div><div class="tabs"><button class="worktab active" data-tab="customerPanel">Klant</button><button class="worktab" data-tab="locationPanel">Locatie</button><button class="worktab" data-tab="materialPanel">Materialen</button><button class="worktab" data-tab="driverPanel">Bezorger</button><button class="worktab" data-tab="vehiclePanel">Voertuig</button><button class="worktab" data-tab="extraPanel">Extra</button></div><div id="summary" class="summary"></div>
-<div id="customerPanel" class="panel workpanel"><h3>Klant</h3><div class="actions"><button id="openCustomer">Klantenbestand openen</button><button id="clearCustomer" class="grey">Leegmaken</button></div><div id="customerBox" class="chooser hidden"><button id="closeCustomer" class="grey">Sluiten</button><input id="customerSearch" placeholder="Typ minimaal 2 letters"><div id="customerResults"></div></div><div class="grid"><input id="customerName" placeholder="Klantnaam"><input id="customerStreet" placeholder="Straat + huisnummer"><input id="customerZip" placeholder="Postcode"><input id="customerCity" placeholder="Plaats"><input id="customerPhone" placeholder="Telefoon"><input id="customerEmail" placeholder="Email"></div></div>
-<div id="locationPanel" class="panel workpanel hidden"><h3>Locatie</h3><div class="actions"><button id="openLocation">Locatiebestand openen</button><button id="clearLocation" class="grey">Leegmaken</button></div><div id="locationBox" class="chooser hidden"><button id="closeLocation" class="grey">Sluiten</button><input id="locationSearch" placeholder="Typ minimaal 2 letters"><div id="locationResults"></div></div><div class="grid"><input id="locationName" placeholder="Locatienaam"><input id="locationStreet" placeholder="Straat + huisnummer"><input id="locationZip" placeholder="Postcode"><input id="locationCity" placeholder="Plaats"><input id="locationContact" placeholder="Contactpersoon"><input id="locationPhone" placeholder="Telefoon locatie"></div><label><input id="showLocationOnDocs" type="checkbox" checked> Locatie tonen op factuur/opdrachtbevestiging</label></div>
-<div id="materialPanel" class="panel workpanel hidden"><h3>Materialen</h3><div class="material-workspace"><aside class="material-picker"><h4>Materiaal kiezen</h4><div id="materialCats" class="cat-tabs"></div><input id="materialSearch" placeholder="Zoek binnen rubriek"><div id="materialList"></div></aside><section class="material-order"><h4>Materialen voor deze klant</h4><div class="material-table-head"><span>Materiaal</span><span>Aantal</span><span>Prijs</span><span>Borg</span><span>Opmerking</span><span></span></div><div id="chosenMaterials"></div><div class="hidden-pricing"><input id="priceExcl" value="0.00"><input id="discountAmount" value="0.00"><input id="vatPercent" value="21"><input id="depositAmount" value="0.00"><input id="vatAmount"><input id="totalIncl"></div><div class="totals-box"><div>Subtotaal materialen: <b id="materialsTotal">€ 0,00</b></div><div>Totaal borg: <b id="depositTotal">€ 0,00</b></div><div>Btw 21%: <b id="vatTotal">€ 0,00</b></div><div>Eindtotaal: <b id="grandTotal">€ 0,00</b></div></div><button id="makeOverviewBtn" type="button">Overzicht / opdrachtbevestiging maken</button></section></div><div id="confirmationBox" class="confirmation hidden"><h3>Opdrachtbevestiging controleren</h3><textarea id="confirmationText"></textarea><div class="actions"><button id="backToEditBtn" class="grey" type="button">Terug naar bewerken</button><button id="saveFromOverviewBtn" type="button">Opslaan</button><button id="printOverviewBtn" type="button">Afdrukken</button><button id="mailOverviewBtn" type="button">Mailen</button></div></div></div>
-<div id="driverPanel" class="panel workpanel hidden"><h3>Bezorger</h3><select id="orderDriver"></select></div><div id="vehiclePanel" class="panel workpanel hidden"><h3>Voertuig</h3><input id="orderVehicle" placeholder="Bus, truck, aanhanger"></div><div id="extraPanel" class="panel workpanel hidden"><h3>Extra</h3><textarea id="orderExtra" placeholder="Bijzonderheden"></textarea></div><div class="actions sticky"><button id="makeOverviewBottomBtn">Overzicht maken</button><button id="saveOrder">Direct opslaan</button><button id="printConfirm">Afdrukken</button></div></section>
-<section id="orders" class="page"><h2>Opdrachten vanaf 2023</h2><input id="ordersSearch" placeholder="Zoek op opdracht, klant, datum, adres, materiaal..."><div class="actions"><button id="activeOrders">Actieve opdrachten</button><button id="doneOrders" class="grey">Uitgevoerde opdrachten</button><button id="cancelledOrders" class="grey">Geannuleerde opdrachten</button></div><div id="ordersList"></div></section>
-<section id="driver" class="page"><h2>Bezorger meldingen</h2><div id="driverList"></div><div id="driverArchive"></div></section>
-<section id="admin" class="page"><h2>Admin</h2><div class="admin-lock"><input id="adminPin" type="password" maxlength="4" placeholder="PIN"><button id="unlockAdmin">Open beheer</button></div><div id="adminArea" class="hidden"><div class="tabs admin-tabs"><button class="adminTab active" data-admin="adminMaterials">Materialen</button><button class="adminTab" data-admin="adminCustomers">Klanten</button><button class="adminTab" data-admin="adminLocations">Locaties</button><button class="adminTab" data-admin="adminUsers">Bezorgers</button><button class="adminTab" data-admin="adminData">Data</button></div><div id="adminMaterials" class="adminPane panel"><h3>Materialen beheren</h3><div class="grid"><input id="adminMatCat" placeholder="Rubriek bv TW / TO / KA"><input id="adminMatCode" placeholder="Code"><input id="adminMatName" placeholder="Naam"><input id="adminMatPrice" placeholder="Prijs / vrije tekst"><select id="adminMatStatus"><option value="free">Vrij</option><option value="reserved">Gereserveerd</option><option value="defect">Defect</option><option value="inactive">Niet actief</option></select></div><div id="adminSelectedMat" class="selected-admin-item">Nieuw materiaal</div><button id="adminSaveMat">Opslaan materiaal</button><button id="adminDeleteMat" class="delete" type="button">Verwijder gekozen materiaal</button><button id="adminNewMat" class="grey" type="button">Nieuw/leeg</button><input id="adminMatSearch" placeholder="Zoek rubriek/code/naam"><div id="adminMatList"></div></div><div id="adminCustomers" class="adminPane panel hidden"><h3>Klanten beheren</h3><input id="adminCustomerSearch" placeholder="Zoek klant"><div class="grid"><input id="adminCustomerName" placeholder="Naam"><input id="adminCustomerStreet" placeholder="Straat"><input id="adminCustomerZip" placeholder="Postcode"><input id="adminCustomerCity" placeholder="Plaats"><input id="adminCustomerPhone" placeholder="Telefoon"><input id="adminCustomerEmail" placeholder="Email"></div><div id="adminSelectedCustomer" class="selected-admin-item">Nieuwe klant</div><button id="adminSaveCustomer">Opslaan klant</button><button id="adminDeleteCustomer" class="delete" type="button">Verwijder gekozen klant</button><button id="adminNewCustomer" class="grey" type="button">Nieuw/leeg</button><div id="adminCustomerList"></div></div><div id="adminLocations" class="adminPane panel hidden"><h3>Locaties beheren</h3><input id="adminLocationSearch" placeholder="Zoek locatie"><div class="grid"><input id="adminLocationName" placeholder="Naam"><input id="adminLocationStreet" placeholder="Straat"><input id="adminLocationZip" placeholder="Postcode"><input id="adminLocationCity" placeholder="Plaats"><input id="adminLocationContact" placeholder="Contactpersoon"><input id="adminLocationPhone" placeholder="Telefoon"></div><div id="adminSelectedLocation" class="selected-admin-item">Nieuwe locatie</div><button id="adminSaveLocation">Opslaan locatie</button><button id="adminDeleteLocation" class="delete" type="button">Verwijder gekozen locatie</button><button id="adminNewLocation" class="grey" type="button">Nieuw/leeg</button><div id="adminLocationList"></div></div><div id="adminUsers" class="adminPane panel hidden"><h3>Gebruiker aanmaken</h3><div class="grid"><input id="adminUserName" placeholder="Naam"><input id="adminUserPin" placeholder="PIN 4 cijfers"><select id="adminUserRole"><option>Bezorger</option><option>Planner</option><option>Admin</option></select></div><button id="adminSaveUser">Opslaan gebruiker</button></div><div id="adminData" class="adminPane panel hidden"><button id="backupBtn">Backup JSON downloaden</button></div></div></section>
-</main></div><div id="modal" class="modal hidden"><div class="modal-card"><h3 id="modalTitle"></h3><div id="modalBody"></div><div class="actions"><button id="modalClose" class="grey">Sluiten</button><button id="modalOk" class="danger">OK</button></div></div></div><script src="app.js"></script></body></html>
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <title>
+   Event Planner PRO V10.1 BNS
+  </title>
+  <link href="styles.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div id="toast">
+  </div>
+  <section class="login" id="login">
+   <div class="login-card">
+    <div class="lock">
+     🔐
+    </div>
+    <h1>
+     EVENT PLANNER PRO
+    </h1>
+    <p>
+     V10.1 BNS patch
+    </p>
+    <div class="pin-view" id="pinView">
+     - - - -
+    </div>
+    <div class="pin-grid">
+     <button data-pin="1">
+      1
+     </button>
+     <button data-pin="2">
+      2
+     </button>
+     <button data-pin="3">
+      3
+     </button>
+     <button data-pin="4">
+      4
+     </button>
+     <button data-pin="5">
+      5
+     </button>
+     <button data-pin="6">
+      6
+     </button>
+     <button data-pin="7">
+      7
+     </button>
+     <button data-pin="8">
+      8
+     </button>
+     <button data-pin="9">
+      9
+     </button>
+     <button id="pinClear">
+      C
+     </button>
+     <button data-pin="0">
+      0
+     </button>
+     <button id="pinOk">
+      OK
+     </button>
+    </div>
+    <small>
+     Admin 1111 | Bezorger 2222 | Planner 3333
+    </small>
+   </div>
+  </section>
+  <div class="app hidden" id="app">
+   <aside class="side">
+    <h1>
+     EVENT PLANNER
+     <br/>
+     PRO
+    </h1>
+    <p>
+     V10.1
+    </p>
+    <button class="nav active" data-page="dashboard">
+     Dashboard
+    </button>
+    <button class="nav" data-page="newOrder">
+     Nieuwe opdracht
+    </button>
+    <button class="nav" data-page="orders">
+     Opdrachten
+    </button>
+    <button class="nav" data-page="driver">
+     Bezorger meldingen
+    </button>
+    <button class="nav admin-only" data-page="admin">
+     Admin
+    </button>
+    <button class="logout" id="logout">
+     Uitloggen
+    </button>
+   </aside>
+   <main>
+    <header class="top">
+     <input id="globalSearch" placeholder="Zoek opdracht, klant, materiaal, adres..."/>
+     <button id="alertsBtn">
+      Systeemmeldingen (0)
+     </button>
+     <button id="syncBtn">
+      Systeem status
+     </button>
+     <div class="global-layout-tools" id="globalLayoutTools">
+      <select id="globalThemeSelect">
+       <option value="blue">
+        Blauw
+       </option>
+       <option value="dark">
+        Donker
+       </option>
+       <option value="green">
+        Groen
+       </option>
+       <option value="orange">
+        Oranje
+       </option>
+       <option value="light">
+        Licht
+       </option>
+       <option value="purple">
+        Paars
+       </option>
+       <option value="red">
+        Rood
+       </option>
+       <option value="neon">
+        Neon
+       </option>
+       <option value="glass">
+        Glas
+       </option>
+      </select>
+      <select id="globalLayoutSelect">
+       <option value="normal">
+        Normaal
+       </option>
+       <option value="compact">
+        Compact
+       </option>
+       <option value="wide">
+        Breed
+       </option>
+       <option value="cards">
+        Cards
+       </option>
+       <option value="planning">
+        Planning
+       </option>
+       <option value="large">
+        Grote knoppen
+       </option>
+      </select>
+     </div>
+    </header>
+    <section class="page active" id="dashboard">
+     <h2>
+      Dashboard
+     </h2>
+     <div class="dashboard-tools" id="dashboardToolsV91">
+      <button id="editDashboardBtn" type="button">
+       Dashboard indeling aanpassen
+      </button>
+      <select id="themeSelect">
+       <option value="blue">
+        Blauw
+       </option>
+       <option value="dark">
+        Donker
+       </option>
+       <option value="green">
+        Groen
+       </option>
+       <option value="orange">
+        Oranje
+       </option>
+       <option value="light">
+        Licht
+       </option>
+      </select>
+     </div>
+     <div class="dash-grid" id="dashboardGrid">
+      <section class="dash-widget" data-widget="stats" draggable="true">
+       <h3>
+        Statistieken
+       </h3>
+       <div class="stats">
+        <div>
+         <b>
+          Opdrachten
+         </b>
+         <span id="statOrders">
+          0
+         </span>
+        </div>
+        <div>
+         <b>
+          Materialen
+         </b>
+         <span id="statMaterials">
+          0
+         </span>
+        </div>
+        <div>
+         <b>
+          Systeemmeldingen
+         </b>
+         <span id="statAlerts">
+          0
+         </span>
+        </div>
+       </div>
+      </section>
+      <section class="dash-widget" data-widget="orders" draggable="true">
+       <h3>
+        Eerstvolgende opdrachten
+       </h3>
+       <div id="dashOrders">
+       </div>
+      </section>
+     </div>
+    </section>
+    <section class="page" id="newOrder">
+     <h2>
+      Nieuwe opdracht
+     </h2>
+     <div class="order-head">
+      <label>
+       Opdr.nr
+       <input id="orderNumber" readonly=""/>
+      </label>
+      <label>
+       Status
+       <select id="orderStatus">
+        <option>
+         Offerte
+        </option>
+        <option>
+         Opdracht
+        </option>
+        <option>
+         Uitgevoerd
+        </option>
+        <option>
+         Geannuleerd
+        </option>
+        <option>
+         Bevestigd
+        </option>
+       </select>
+      </label>
+      <label>
+       Begin
+       <div class="date-wrap">
+        <input id="dateStart" type="date"/>
+        <button class="date-btn" id="startMinus" type="button">
+         -
+        </button>
+        <button class="date-btn" id="startPlus" type="button">
+         +
+        </button>
+       </div>
+      </label>
+      <label>
+       Einde
+       <div class="date-wrap">
+        <input id="dateEnd" type="date"/>
+        <button class="date-btn" id="endMinus" type="button">
+         -
+        </button>
+        <button class="date-btn" id="endPlus" type="button">
+         +
+        </button>
+        <button class="date-btn wide hidden" id="endPlus3" type="button">
+         +3d
+        </button>
+       </div>
+      </label>
+      <label>
+       Titel
+       <input id="orderTitle"/>
+      </label>
+      <label>
+       Biermerk / merk
+       <input id="orderBrand"/>
+      </label>
+     </div>
+     <div class="tabs">
+      <button class="worktab active" data-tab="customerPanel">
+       Klant
+      </button>
+      <button class="worktab" data-tab="locationPanel">
+       Locatie
+      </button>
+      <button class="worktab" data-tab="materialPanel">
+       Materialen
+      </button>
+      <button class="worktab" data-tab="driverPanel">
+       Bezorger
+      </button>
+      <button class="worktab" data-tab="vehiclePanel">
+       Voertuig
+      </button>
+      <button class="worktab" data-tab="extraPanel">
+       Extra
+      </button>
+     </div>
+     <div class="summary" id="summary">
+     </div>
+     <div class="panel workpanel" id="customerPanel">
+      <h3>
+       Klant
+      </h3>
+      <div class="actions">
+       <button id="openCustomer">
+        Klantenbestand openen
+       </button>
+       <button class="grey" id="clearCustomer">
+        Leegmaken
+       </button>
+      </div>
+      <div class="chooser hidden" id="customerBox">
+       <button class="grey" id="closeCustomer">
+        Sluiten
+       </button>
+       <input id="customerSearch" placeholder="Typ minimaal 2 letters"/>
+       <div id="customerResults">
+       </div>
+      </div>
+      <div class="grid">
+       <input id="customerName" placeholder="Klantnaam"/>
+       <input id="customerStreet" placeholder="Straat + huisnummer"/>
+       <input id="customerZip" placeholder="Postcode"/>
+       <input id="customerCity" placeholder="Plaats"/>
+       <input id="customerPhone" placeholder="Telefoon"/>
+       <input id="customerEmail" placeholder="Email"/>
+      </div>
+     </div>
+     <div class="panel workpanel hidden" id="locationPanel">
+      <h3>
+       Locatie
+      </h3>
+      <div class="actions">
+       <button id="openLocation">
+        Locatiebestand openen
+       </button>
+       <button class="grey" id="clearLocation">
+        Leegmaken
+       </button>
+      </div>
+      <div class="chooser hidden" id="locationBox">
+       <button class="grey" id="closeLocation">
+        Sluiten
+       </button>
+       <input id="locationSearch" placeholder="Typ minimaal 2 letters"/>
+       <div id="locationResults">
+       </div>
+      </div>
+      <div class="grid">
+       <input id="locationName" placeholder="Locatienaam"/>
+       <input id="locationStreet" placeholder="Straat + huisnummer"/>
+       <input id="locationZip" placeholder="Postcode"/>
+       <input id="locationCity" placeholder="Plaats"/>
+       <input id="locationContact" placeholder="Contactpersoon"/>
+       <input id="locationPhone" placeholder="Telefoon locatie"/>
+      </div>
+      <label>
+       <input checked="" id="showLocationOnDocs" type="checkbox"/>
+       Locatie tonen op factuur/opdrachtbevestiging
+      </label>
+     </div>
+     <div class="panel workpanel hidden" id="materialPanel">
+      <h3>
+       Materialen
+      </h3>
+      <div class="material-workspace">
+       <aside class="material-picker">
+        <h4>
+         Materiaal kiezen
+        </h4>
+        <div class="cat-tabs" id="materialCats">
+        </div>
+        <input id="materialSearch" placeholder="Zoek binnen rubriek"/>
+        <div id="materialList">
+        </div>
+       </aside>
+       <section class="material-order">
+        <h4>
+         Materialen voor deze klant
+        </h4>
+        <div class="material-table-head">
+         <span>
+          Materiaal
+         </span>
+         <span>
+          Aantal
+         </span>
+         <span>
+          Prijs
+         </span>
+         <span>
+          Borg
+         </span>
+         <span>
+          Opmerking
+         </span>
+         <span>
+         </span>
+        </div>
+        <div id="chosenMaterials">
+        </div>
+        <div class="hidden-pricing">
+         <input id="priceExcl" value="0.00"/>
+         <input id="discountAmount" value="0.00"/>
+         <input id="vatPercent" value="21"/>
+         <input id="depositAmount" value="0.00"/>
+         <input id="vatAmount"/>
+         <input id="totalIncl"/>
+        </div>
+        <div class="totals-box">
+         <div>
+          Subtotaal materialen:
+          <b id="materialsTotal">
+           € 0,00
+          </b>
+         </div>
+         <div>
+          Totaal borg:
+          <b id="depositTotal">
+           € 0,00
+          </b>
+         </div>
+         <div>
+          Btw 21%:
+          <b id="vatTotal">
+           € 0,00
+          </b>
+         </div>
+         <div>
+          Eindtotaal:
+          <b id="grandTotal">
+           € 0,00
+          </b>
+         </div>
+        </div>
+        <button id="makeOverviewBtn" type="button">
+         Overzicht / opdrachtbevestiging maken
+        </button>
+       </section>
+      </div>
+      <div class="confirmation hidden" id="confirmationBox">
+       <h3>
+        Opdrachtbevestiging controleren
+       </h3>
+       <textarea id="confirmationText"></textarea>
+       <div class="actions">
+        <button class="grey" id="backToEditBtn" type="button">
+         Terug naar bewerken
+        </button>
+        <button id="saveFromOverviewBtn" type="button">
+         Opslaan
+        </button>
+        <button id="printOverviewBtn" type="button">
+         Afdrukken
+        </button>
+        <button id="mailOverviewBtn" type="button">
+         Mailen
+        </button>
+       </div>
+      </div>
+     </div>
+     <div class="panel workpanel hidden" id="driverPanel">
+      <h3>
+       Bezorger
+      </h3>
+      <select id="orderDriver">
+      </select>
+     </div>
+     <div class="panel workpanel hidden" id="vehiclePanel">
+      <h3>
+       Voertuig
+      </h3>
+      <input id="orderVehicle" placeholder="Bus, truck, aanhanger"/>
+     </div>
+     <div class="panel workpanel hidden" id="extraPanel">
+      <h3>
+       Extra
+      </h3>
+      <textarea id="orderExtra" placeholder="Bijzonderheden"></textarea>
+     </div>
+     <div class="actions sticky">
+      <button id="makeOverviewBottomBtn">
+       Overzicht maken
+      </button>
+      <button id="saveOrder">
+       Direct opslaan
+      </button>
+      <button id="printConfirm">
+       Afdrukken
+      </button>
+     </div>
+    </section>
+    <section class="page" id="orders">
+     <h2>
+      Opdrachten vanaf 2023
+     </h2>
+     <input id="ordersSearch" placeholder="Zoek op opdracht, klant, datum, adres, materiaal..."/>
+     <div class="actions">
+      <button id="activeOrders">
+       Actieve opdrachten
+      </button>
+      <button class="grey" id="doneOrders">
+       Uitgevoerde opdrachten
+      </button>
+      <button class="grey" id="cancelledOrders">
+       Geannuleerde opdrachten
+      </button>
+     </div>
+     <div id="ordersList">
+     </div>
+    </section>
+    <section class="page" id="driver">
+     <h2>
+      Bezorger meldingen
+     </h2>
+     <div id="driverList">
+     </div>
+     <div id="driverArchive">
+     </div>
+    </section>
+    <section class="page" id="admin">
+     <h2>
+      Admin
+     </h2>
+     <div class="admin-lock">
+      <input id="adminPin" maxlength="4" placeholder="PIN" type="password"/>
+      <button id="unlockAdmin">
+       Open beheer
+      </button>
+     </div>
+     <div class="hidden" id="adminArea">
+      <div class="tabs admin-tabs">
+       <button class="adminTab active" data-admin="adminMaterials">
+        Materialen
+       </button>
+       <button class="adminTab" data-admin="adminCustomers">
+        Klanten
+       </button>
+       <button class="adminTab" data-admin="adminLocations">
+        Locaties
+       </button>
+       <button class="adminTab" data-admin="adminUsers">
+        Bezorgers
+       </button>
+       <button class="adminTab" data-admin="adminData">
+        Data
+       </button>
+      </div>
+      <div class="adminPane panel" id="adminMaterials">
+       <h3>
+        Materialen beheren
+       </h3>
+       <div class="grid">
+        <input id="adminMatCat" placeholder="Rubriek bv TW / TO / KA"/>
+        <input id="adminMatCode" placeholder="Code"/>
+        <input id="adminMatName" placeholder="Naam"/>
+        <input id="adminMatPrice" placeholder="Prijs / vrije tekst"/>
+        <select id="adminMatStatus">
+         <option value="free">
+          Vrij
+         </option>
+         <option value="reserved">
+          Gereserveerd
+         </option>
+         <option value="defect">
+          Defect
+         </option>
+         <option value="inactive">
+          Niet actief
+         </option>
+        </select>
+       </div>
+       <div class="selected-admin-item" id="adminSelectedMat">
+        Nieuw materiaal
+       </div>
+       <button id="adminSaveMat">
+        Opslaan materiaal
+       </button>
+       <button class="delete" id="adminDeleteMat" type="button">
+        Verwijder gekozen materiaal
+       </button>
+       <button class="grey" id="adminNewMat" type="button">
+        Nieuw/leeg
+       </button>
+       <input id="adminMatSearch" placeholder="Zoek rubriek/code/naam"/>
+       <div id="adminMatList">
+       </div>
+      </div>
+      <div class="adminPane panel hidden" id="adminCustomers">
+       <h3>
+        Klanten beheren
+       </h3>
+       <input id="adminCustomerSearch" placeholder="Zoek klant"/>
+       <div class="grid">
+        <input id="adminCustomerName" placeholder="Naam"/>
+        <input id="adminCustomerStreet" placeholder="Straat"/>
+        <input id="adminCustomerZip" placeholder="Postcode"/>
+        <input id="adminCustomerCity" placeholder="Plaats"/>
+        <input id="adminCustomerPhone" placeholder="Telefoon"/>
+        <input id="adminCustomerEmail" placeholder="Email"/>
+       </div>
+       <div class="selected-admin-item" id="adminSelectedCustomer">
+        Nieuwe klant
+       </div>
+       <button id="adminSaveCustomer">
+        Opslaan klant
+       </button>
+       <button class="delete" id="adminDeleteCustomer" type="button">
+        Verwijder gekozen klant
+       </button>
+       <button class="grey" id="adminNewCustomer" type="button">
+        Nieuw/leeg
+       </button>
+       <div id="adminCustomerList">
+       </div>
+      </div>
+      <div class="adminPane panel hidden" id="adminLocations">
+       <h3>
+        Locaties beheren
+       </h3>
+       <input id="adminLocationSearch" placeholder="Zoek locatie"/>
+       <div class="grid">
+        <input id="adminLocationName" placeholder="Naam"/>
+        <input id="adminLocationStreet" placeholder="Straat"/>
+        <input id="adminLocationZip" placeholder="Postcode"/>
+        <input id="adminLocationCity" placeholder="Plaats"/>
+        <input id="adminLocationContact" placeholder="Contactpersoon"/>
+        <input id="adminLocationPhone" placeholder="Telefoon"/>
+       </div>
+       <div class="selected-admin-item" id="adminSelectedLocation">
+        Nieuwe locatie
+       </div>
+       <button id="adminSaveLocation">
+        Opslaan locatie
+       </button>
+       <button class="delete" id="adminDeleteLocation" type="button">
+        Verwijder gekozen locatie
+       </button>
+       <button class="grey" id="adminNewLocation" type="button">
+        Nieuw/leeg
+       </button>
+       <div id="adminLocationList">
+       </div>
+      </div>
+      <div class="adminPane panel hidden" id="adminUsers">
+       <h3>
+        Gebruiker aanmaken
+       </h3>
+       <div class="grid">
+        <input id="adminUserName" placeholder="Naam"/>
+        <input id="adminUserPin" placeholder="PIN 4 cijfers"/>
+        <select id="adminUserRole">
+         <option>
+          Bezorger
+         </option>
+         <option>
+          Planner
+         </option>
+         <option>
+          Admin
+         </option>
+        </select>
+       </div>
+       <button id="adminSaveUser">
+        Opslaan gebruiker
+       </button>
+      </div>
+      <div class="adminPane panel hidden" id="adminData">
+       <button id="backupBtn">
+        Backup JSON downloaden
+       </button>
+      </div>
+     </div>
+    </section>
+   </main>
+  </div>
+  <div class="modal hidden" id="modal">
+   <div class="modal-card">
+    <h3 id="modalTitle">
+    </h3>
+    <div id="modalBody">
+    </div>
+    <div class="actions">
+     <button class="grey" id="modalClose">
+      Sluiten
+     </button>
+     <button class="danger" id="modalOk">
+      OK
+     </button>
+    </div>
+   </div>
+  </div>
+  <script src="app.js">
+  </script>
+ </body>
+</html>
