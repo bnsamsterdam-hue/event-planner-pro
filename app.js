@@ -3242,3 +3242,1040 @@ setTimeout(()=>{
   setInterval(install, 1500);
 })();
 
+
+
+/* =========================================================
+   BNS V12 PRO - RESERVERING COPY MELDINGEN EINDFIX
+   Toegevoegd onderaan op de werkende app.js:
+   - Copy knop bij planner/opdrachten
+   - Materiaal niet dubbel reserveren bij overlap of defect/storing
+   - Klik op gereserveerd/defect materiaal toont klant, datum en acties
+   - Systeemmeldingen klikbaar met oplossen/wissen/vrijgeven
+   - Bezorger kan schade/vermissing/defect melden met vrije tekst
+   - Materiaalkaart volgt thema, dus niet groen als achtergrond
+   ========================================================= */
+(function bnsV12ProReservationCopyAlertsFinal() {
+  "use strict";
+
+  const STYLE_ID = "bns-v12-pro-reservation-alert-style";
+  const MODAL_ID = "bnsSystemModal";
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+  function qs(sel, root) {
+    return (root || document).querySelector(sel);
+  }
+
+  function qsa(sel, root) {
+    return Array.from((root || document).querySelectorAll(sel));
+  }
+
+  function s() {
+    try {
+      return typeof state !== "undefined" ? state : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getOrders() {
+    const stateRef = s();
+    return stateRef && Array.isArray(stateRef.orders) ? stateRef.orders : [];
+  }
+
+  function getMaterials() {
+    const stateRef = s();
+    return stateRef && Array.isArray(stateRef.materials) ? stateRef.materials : [];
+  }
+
+  function getAlerts() {
+    const stateRef = s();
+    if (!stateRef) return [];
+    stateRef.alerts = Array.isArray(stateRef.alerts) ? stateRef.alerts : [];
+    return stateRef.alerts;
+  }
+
+  function getChosen() {
+    try {
+      return Array.isArray(chosen) ? chosen : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function setChosen(list) {
+    try {
+      chosen = list;
+    } catch (error) {}
+  }
+
+  function getEditing() {
+    try {
+      return editing || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function setEditing(value) {
+    try {
+      editing = value;
+    } catch (error) {}
+  }
+
+  function currentCategory() {
+    try {
+      return currentCat || "TW";
+    } catch (error) {
+      return "TW";
+    }
+  }
+
+  function saveState() {
+    try {
+      if (typeof save === "function") save();
+    } catch (error) {}
+  }
+
+  function notify(text) {
+    try {
+      if (typeof toastMsg === "function") toastMsg(text);
+      else if (typeof toast === "function") toast(text);
+    } catch (error) {}
+  }
+
+  function makeId(prefix) {
+    try {
+      if (typeof id === "function") return id();
+    } catch (error) {}
+    return (prefix || "id") + "_" + Math.random().toString(36).slice(2, 10);
+  }
+
+  function clone(value) {
+    try {
+      return typeof structuredClone === "function"
+        ? structuredClone(value)
+        : JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      return Object.assign({}, value);
+    }
+  }
+
+  function esc(value) {
+    return String(value ?? "").replace(/[&<>"']/g, function(ch) {
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
+    });
+  }
+
+  function niceDate(dateValue) {
+    try {
+      if (typeof nice === "function") return nice(dateValue);
+    } catch (error) {}
+    if (!dateValue) return "";
+    return new Date(dateValue + "T00:00:00").toLocaleDateString("nl-NL");
+  }
+
+  function statusClass(status) {
+    const value = String(status || "free").toLowerCase();
+    if (value === "reserved" || value === "gereserveerd") return "reserved";
+    if (value === "defect" || value === "storing") return "defect";
+    if (value === "inactive" || value === "niet actief" || value === "niet beschikbaar") return "inactive";
+    return "free";
+  }
+
+  function statusText(status) {
+    const cls = statusClass(status);
+    if (cls === "reserved") return "Gereserveerd";
+    if (cls === "defect") return "Defect / storing";
+    if (cls === "inactive") return "Niet beschikbaar";
+    return "Vrij";
+  }
+
+  function dateValue(id) {
+    const el = $(id);
+    return el && el.value ? el.value : "";
+  }
+
+  function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+    const a1 = aStart || aEnd || "1900-01-01";
+    const a2 = aEnd || aStart || "2999-12-31";
+    const b1 = bStart || bEnd || "1900-01-01";
+    const b2 = bEnd || bStart || "2999-12-31";
+    return a1 <= b2 && b1 <= a2;
+  }
+
+  function activeOrder(order) {
+    return order && order.status !== "Geannuleerd" && order.status !== "Uitgevoerd";
+  }
+
+  function getMaterial(materialId) {
+    return getMaterials().find(function(material) {
+      return String(material.id) === String(materialId);
+    });
+  }
+
+  function materialHasOpenAlert(materialId) {
+    return getAlerts().find(function(alert) {
+      return !alert.resolved && String(alert.materialId || "") === String(materialId);
+    });
+  }
+
+  function reservationFor(materialId, options) {
+    const opts = options || {};
+    const skipOrderId = opts.skipOrderId || getEditing();
+    const start = opts.start || dateValue("dateStart");
+    const end = opts.end || dateValue("dateEnd");
+
+    for (const order of getOrders()) {
+      if (!activeOrder(order)) continue;
+      if (skipOrderId && String(order.id) === String(skipOrderId)) continue;
+      if (!rangesOverlap(start, end, order.start, order.end)) continue;
+
+      const found = (order.materials || []).find(function(material) {
+        return String(material.id) === String(materialId);
+      });
+
+      if (found) {
+        return {
+          orderId: order.id,
+          orderNumber: order.number || "",
+          orderTitle: order.title || "",
+          customer: order.customer?.name || "",
+          start: order.start || "",
+          end: order.end || "",
+          material: found
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function materialIssue(material) {
+    if (!material) return null;
+
+    const cls = statusClass(material.status);
+    const openAlert = materialHasOpenAlert(material.id);
+
+    if (openAlert) {
+      return {
+        type: "alert",
+        text: openAlert.text || openAlert.title || "Open melding",
+        alert: openAlert
+      };
+    }
+
+    if (cls === "defect" || cls === "inactive") {
+      return {
+        type: cls,
+        text: material.issueText || material.notes || statusText(material.status)
+      };
+    }
+
+    return null;
+  }
+
+  function canUseMaterial(materialId, silent) {
+    const material = getMaterial(materialId);
+    const issue = materialIssue(material);
+    const reservation = reservationFor(materialId);
+
+    if (issue) {
+      if (!silent) showMaterialDetails(materialId);
+      return false;
+    }
+
+    if (reservation) {
+      if (!silent) showMaterialDetails(materialId);
+      return false;
+    }
+
+    return true;
+  }
+
+  function setMaterialStatus(materialId, status, details) {
+    const material = getMaterial(materialId);
+    if (!material) return;
+
+    material.status = status;
+    material.issueText = details?.text || "";
+    material.usable = details?.usable !== false;
+    material.updatedAt = new Date().toISOString();
+  }
+
+  function recalcMaterialStatuses() {
+    const nowReservations = {};
+
+    getOrders().forEach(function(order) {
+      if (!activeOrder(order)) return;
+      (order.materials || []).forEach(function(material) {
+        if (!material || !material.id) return;
+        nowReservations[String(material.id)] = {
+          orderId: order.id,
+          number: order.number || "",
+          customer: order.customer?.name || "",
+          start: order.start || "",
+          end: order.end || ""
+        };
+      });
+    });
+
+    getMaterials().forEach(function(material) {
+      const issue = materialHasOpenAlert(material.id);
+      const cls = statusClass(material.status);
+
+      if (issue || cls === "defect" || cls === "inactive") return;
+
+      const reservation = nowReservations[String(material.id)];
+      if (reservation) {
+        material.status = "reserved";
+        material.reservedBy = reservation.customer;
+        material.reservedOrder = reservation.number;
+        material.reservedOrderId = reservation.orderId;
+        material.reservedFrom = reservation.start;
+        material.reservedTo = reservation.end;
+      } else {
+        material.status = "free";
+        material.reservedBy = "";
+        material.reservedOrder = "";
+        material.reservedOrderId = "";
+        material.reservedFrom = "";
+        material.reservedTo = "";
+      }
+    });
+  }
+
+  function buildMaterialRow(material, selected) {
+    const reservation = reservationFor(material.id);
+    const issue = materialIssue(material);
+    let cls = statusClass(material.status);
+    let label = statusText(material.status);
+    let small = material.price || "";
+
+    if (selected) {
+      label = "Nu toegevoegd";
+      cls = "now";
+    } else if (issue) {
+      cls = "defect";
+      label = "Storing";
+      small = "Klik voor melding";
+    } else if (reservation) {
+      cls = "reserved";
+      label = "Gereserveerd";
+      small = "Klik voor klant/datum";
+    }
+
+    return `
+      <div class="material-row ${selected ? "selected" : ""} ${cls}" data-material-id="${esc(material.id)}">
+        <div class="catbar cat-${esc(material.cat || "")}"></div>
+        <div>
+          <b>${esc(material.code || "")}</b> ${esc(material.name || "")}
+          <br>
+          <small>${esc(small)}</small>
+        </div>
+        <div class="bns-mat-actions">
+          <span class="badge ${cls}">${esc(label)}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMaterialsFixed(cat) {
+    const list = $("materialList");
+    const search = $("materialSearch");
+    if (!list) return;
+
+    const activeCat = String(cat || currentCategory()).toUpperCase();
+    const q = (search?.value || "").toLowerCase();
+    const chosenNow = getChosen();
+
+    const rows = getMaterials()
+      .filter(function(material) {
+        return String(material.cat || "").toUpperCase() === activeCat;
+      })
+      .filter(function(material) {
+        return !q || JSON.stringify(material).toLowerCase().includes(q);
+      });
+
+    list.innerHTML = rows.map(function(material) {
+      const selected = chosenNow.some(function(chosenMaterial) {
+        return String(chosenMaterial.id) === String(material.id);
+      });
+      return buildMaterialRow(material, selected);
+    }).join("") || "<p>Geen materiaal</p>";
+
+    qsa(".material-row", list).forEach(function(row) {
+      row.addEventListener("click", function() {
+        const materialId = row.dataset.materialId;
+        const selected = getChosen().some(function(chosenMaterial) {
+          return String(chosenMaterial.id) === String(materialId);
+        });
+
+        if (selected) {
+          showMaterialDetails(materialId);
+          return;
+        }
+
+        addMatFixed(materialId);
+      });
+    });
+  }
+
+  function addMatFixed(materialId) {
+    if (!canUseMaterial(materialId, false)) return;
+
+    const material = getMaterial(materialId);
+    if (!material) return;
+
+    const already = getChosen().some(function(chosenMaterial) {
+      return String(chosenMaterial.id) === String(materialId);
+    });
+
+    if (!already) {
+      const copy = clone(material);
+      copy.status = "reserved";
+      getChosen().push(copy);
+    }
+
+    if (typeof renderChosen === "function") renderChosen();
+    renderMaterialsFixed(currentCategory());
+    if (typeof summaryRender === "function") summaryRender();
+  }
+
+  function showMaterialDetails(materialId) {
+    const material = getMaterial(materialId);
+    if (!material) return;
+
+    const reservation = reservationFor(materialId);
+    const issue = materialIssue(material);
+
+    let body = `
+      <h3>${esc(material.code || "")} ${esc(material.name || "")}</h3>
+      <p><b>Status:</b> ${esc(issue ? "Storing/defect" : (reservation ? "Gereserveerd" : statusText(material.status)))}</p>
+    `;
+
+    if (reservation) {
+      body += `
+        <div class="bns-info-box">
+          <b>Gereserveerd door:</b> ${esc(reservation.customer || "Onbekend")}<br>
+          <b>Opdracht:</b> ${esc(reservation.orderNumber)} - ${esc(reservation.orderTitle)}<br>
+          <b>Datum:</b> ${esc(niceDate(reservation.start))} t/m ${esc(niceDate(reservation.end))}
+        </div>
+        <div class="actions">
+          <button type="button" onclick="BNS_openOrder('${esc(reservation.orderId)}')">Wijzig opdracht</button>
+        </div>
+      `;
+    }
+
+    if (issue) {
+      body += `
+        <div class="bns-info-box defect">
+          <b>Melding:</b> ${esc(issue.text || "Geen omschrijving")}<br>
+          <b>Inzetbaar:</b> ${material.usable === false ? "Nee" : "Ja / onbekend"}
+        </div>
+        <div class="actions">
+          <button type="button" onclick="BNS_resolveMaterial('${esc(material.id)}')">Gerepareerd / vrijgeven</button>
+          <button type="button" class="danger" onclick="BNS_markMaterialDefect('${esc(material.id)}')">Defect houden</button>
+        </div>
+      `;
+    }
+
+    if (!reservation && !issue) {
+      body += `
+        <p>Dit materiaal is vrij.</p>
+        <button type="button" onclick="BNS_addMaterialFromModal('${esc(material.id)}')">Toevoegen aan opdracht</button>
+      `;
+    }
+
+    openSystemModal("Materiaal informatie", body);
+  }
+
+  function collectOrderFromForm() {
+    return {
+      id: getEditing() || makeId("order"),
+      number: $("orderNumber")?.value || "",
+      status: $("orderStatus")?.value || "Offerte",
+      title: $("orderTitle")?.value || "Zonder titel",
+      start: $("dateStart")?.value || "",
+      end: $("dateEnd")?.value || "",
+      brand: $("orderBrand")?.value || "",
+      customer: {
+        name: $("customerName")?.value || "",
+        street: $("customerStreet")?.value || "",
+        zip: $("customerZip")?.value || "",
+        city: $("customerCity")?.value || "",
+        phone: $("customerPhone")?.value || "",
+        email: $("customerEmail")?.value || ""
+      },
+      location: {
+        name: $("locationName")?.value || "",
+        street: $("locationStreet")?.value || "",
+        zip: $("locationZip")?.value || "",
+        city: $("locationCity")?.value || "",
+        contact: $("locationContact")?.value || "",
+        phone: $("locationPhone")?.value || "",
+        show: $("showLocationOnDocs")?.checked ?? true
+      },
+      materials: getChosen().map(function(material) {
+        const copy = clone(material);
+        copy.status = "reserved";
+        return copy;
+      }),
+      driver: $("orderDriver")?.value || "",
+      vehicle: $("orderVehicle")?.value || "",
+      extra: $("orderExtra")?.value || "",
+      pricing: typeof calcTotals === "function" ? calcTotals() : undefined
+    };
+  }
+
+  function validateChosenMaterials() {
+    const editingId = getEditing();
+    const start = dateValue("dateStart");
+    const end = dateValue("dateEnd");
+
+    for (const material of getChosen()) {
+      const issue = materialIssue(getMaterial(material.id));
+      if (issue) {
+        alert(`${material.code || ""} ${material.name || ""} heeft een storing/defect en kan niet worden opgeslagen.`);
+        return false;
+      }
+
+      const reservation = reservationFor(material.id, {skipOrderId: editingId, start, end});
+      if (reservation) {
+        alert(`${material.code || ""} ${material.name || ""} is al gereserveerd door ${reservation.customer || "onbekend"} van ${niceDate(reservation.start)} t/m ${niceDate(reservation.end)}.`);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  function saveCurrentOrderFixed() {
+    const stateRef = s();
+    if (!stateRef) return;
+
+    if (!validateChosenMaterials()) return;
+
+    const order = collectOrderFromForm();
+
+    try {
+      if (typeof upsertCustomer === "function") upsertCustomer(order.customer);
+      if (typeof upsertLocation === "function") upsertLocation(order.location);
+    } catch (error) {}
+
+    const index = getOrders().findIndex(function(existing) {
+      return String(existing.id) === String(order.id);
+    });
+
+    if (index >= 0) {
+      stateRef.orders[index] = order;
+    } else {
+      stateRef.orders.push(order);
+    }
+
+    recalcMaterialStatuses();
+
+    setEditing(null);
+    saveState();
+
+    if (typeof clearOrder === "function") clearOrder();
+    if (typeof renderAll === "function") renderAll();
+    if (typeof showPage === "function") showPage("orders");
+
+    notify("Opdracht opgeslagen. Materialen zijn gecontroleerd.");
+  }
+
+  function nextOrderNumber() {
+    const year = new Date().getFullYear();
+    const nums = getOrders()
+      .map(function(order) {
+        return String(order.number || "").match(new RegExp("^" + year + "-(\\d+)$"));
+      })
+      .filter(Boolean)
+      .map(function(match) {
+        return Number(match[1]);
+      });
+
+    return year + "-" + String(nums.length ? Math.max.apply(null, nums) + 1 : 1).padStart(4, "0");
+  }
+
+  function copyOrder(orderId) {
+    if (typeof editOrder !== "function") return;
+
+    editOrder(orderId);
+
+    setTimeout(function() {
+      setEditing(null);
+
+      const number = $("orderNumber");
+      if (number) number.value = nextOrderNumber();
+
+      const status = $("orderStatus");
+      if (status) status.value = "Offerte";
+
+      notify("Kopie gemaakt. Pas alleen de datum aan en sla op.");
+      if (typeof summaryRender === "function") summaryRender();
+    }, 80);
+  }
+
+  function enhanceOrderCards() {
+    qsa(".order-card").forEach(function(card) {
+      if (card.dataset.bnsCopyReady) return;
+
+      const editButton = qsa("button", card).find(function(button) {
+        return /wijzigen/i.test(button.textContent || "");
+      });
+
+      if (!editButton) return;
+
+      const onclick = editButton.getAttribute("onclick") || "";
+      const match = onclick.match(/editOrder\('([^']+)'\)/);
+      if (!match) return;
+
+      const orderId = match[1];
+
+      const copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.textContent = "Copy";
+      copyButton.className = "bns-copy-btn";
+      copyButton.addEventListener("click", function(event) {
+        event.preventDefault();
+        copyOrder(orderId);
+      });
+
+      editButton.insertAdjacentElement("afterend", copyButton);
+      card.dataset.bnsCopyReady = "1";
+    });
+  }
+
+  function openSystemModal(title, bodyHtml) {
+    let modal = $(MODAL_ID);
+
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = MODAL_ID;
+      modal.className = "bns-modal hidden";
+      modal.innerHTML = `
+        <div class="bns-modal-card">
+          <h2 id="bnsModalTitle"></h2>
+          <div id="bnsModalBody"></div>
+          <div class="actions">
+            <button type="button" onclick="BNS_closeModal()">Sluiten</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    $("bnsModalTitle").textContent = title || "Melding";
+    $("bnsModalBody").innerHTML = bodyHtml || "";
+    modal.classList.remove("hidden");
+  }
+
+  function closeModal() {
+    const modal = $(MODAL_ID);
+    if (modal) modal.classList.add("hidden");
+  }
+
+  function updateAlertButton() {
+    const btn = $("alertsBtn");
+    if (!btn) return;
+
+    const count = getAlerts().filter(function(alert) {
+      return !alert.resolved;
+    }).length;
+
+    btn.textContent = "Systeemmeldingen (" + count + ")";
+    btn.classList.toggle("bns-alert-blink", count > 0);
+
+    if (!btn.dataset.bnsAlertClick) {
+      btn.dataset.bnsAlertClick = "1";
+      btn.addEventListener("click", function() {
+        showAlerts();
+      });
+    }
+  }
+
+  function showAlerts() {
+    const open = getAlerts().filter(function(alert) {
+      return !alert.resolved;
+    });
+
+    const archived = getAlerts().filter(function(alert) {
+      return alert.resolved;
+    }).slice(-20).reverse();
+
+    const body = `
+      <h3>Open meldingen</h3>
+      ${open.length ? open.map(alertRow).join("") : "<p>Geen open meldingen.</p>"}
+      <h3>Archief</h3>
+      ${archived.length ? archived.map(alertRow).join("") : "<p>Geen archief.</p>"}
+    `;
+
+    openSystemModal("Systeemmeldingen", body);
+  }
+
+  function alertRow(alert) {
+    const material = alert.materialId ? getMaterial(alert.materialId) : null;
+    const order = alert.orderId ? getOrders().find(function(item) {
+      return String(item.id) === String(alert.orderId);
+    }) : null;
+
+    return `
+      <div class="bns-alert-row ${alert.resolved ? "resolved" : ""}">
+        <b>${esc(alert.title || alert.type || "Melding")}</b><br>
+        <small>${esc(alert.time || "")}</small><br>
+        ${material ? `<span>Materiaal: ${esc(material.code || "")} ${esc(material.name || "")}</span><br>` : ""}
+        ${order ? `<span>Opdracht: ${esc(order.number || "")} ${esc(order.customer?.name || "")}</span><br>` : ""}
+        ${alert.text ? `<p>${esc(alert.text)}</p>` : ""}
+        ${alert.usable !== undefined ? `<p>Inzetbaar: ${alert.usable ? "Ja" : "Nee"}</p>` : ""}
+        <div class="actions">
+          ${!alert.resolved ? `<button type="button" onclick="BNS_resolveAlert('${esc(alert.id)}')">Opgelost / gerepareerd</button>` : ""}
+          ${alert.materialId ? `<button type="button" onclick="BNS_openMaterial('${esc(alert.materialId)}')">Materiaal openen</button>` : ""}
+          <button type="button" class="danger" onclick="BNS_deleteAlert('${esc(alert.id)}')">Wis storing</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function resolveAlert(alertId) {
+    const alert = getAlerts().find(function(item) {
+      return String(item.id) === String(alertId);
+    });
+
+    if (!alert) return;
+
+    alert.resolved = true;
+    alert.resolvedAt = new Date().toLocaleString();
+
+    if (alert.materialId) {
+      setMaterialStatus(alert.materialId, "free", {text: "", usable: true});
+    }
+
+    recalcMaterialStatuses();
+    saveState();
+    updateAlertButton();
+    showAlerts();
+    notify("Melding opgelost");
+  }
+
+  function deleteAlert(alertId) {
+    const stateRef = s();
+    if (!stateRef) return;
+
+    stateRef.alerts = getAlerts().filter(function(alert) {
+      return String(alert.id) !== String(alertId);
+    });
+
+    recalcMaterialStatuses();
+    saveState();
+    updateAlertButton();
+    showAlerts();
+    notify("Melding gewist");
+  }
+
+  function reportMaterialIssue(materialId, orderId, type) {
+    const material = getMaterial(materialId);
+    if (!material) return;
+
+    const text = prompt("Omschrijf schade, vermissing of storing:");
+    if (text === null) return;
+
+    const usable = confirm("Is het materiaal nog inzetbaar?\nOK = ja, Annuleren = nee");
+
+    const alert = {
+      id: makeId("alert"),
+      materialId: materialId,
+      orderId: orderId || "",
+      type: type || "Materiaal melding",
+      title: (type || "Melding") + " - " + (material.code || ""),
+      text: text || "",
+      usable: usable,
+      time: new Date().toLocaleString(),
+      resolved: false
+    };
+
+    getAlerts().push(alert);
+
+    setMaterialStatus(materialId, usable ? "free" : "defect", {
+      text: text || type || "Melding",
+      usable: usable
+    });
+
+    saveState();
+    updateAlertButton();
+    notify("Melding opgeslagen");
+  }
+
+  function alertForFixed(orderId, type) {
+    const order = getOrders().find(function(item) {
+      return String(item.id) === String(orderId);
+    });
+
+    if (!order) return;
+
+    const materials = order.materials || [];
+
+    if (!materials.length) {
+      const text = prompt("Omschrijf de melding:");
+      if (text === null) return;
+
+      getAlerts().push({
+        id: makeId("alert"),
+        orderId: orderId,
+        type: type || "Melding",
+        title: (type || "Melding") + " - " + (order.number || ""),
+        text: text || "",
+        time: new Date().toLocaleString(),
+        resolved: false
+      });
+
+      saveState();
+      updateAlertButton();
+      notify("Melding opgeslagen");
+      return;
+    }
+
+    const choice = prompt(
+      "Voor welk materiaal?\n" +
+      materials.map(function(material, index) {
+        return (index + 1) + ". " + (material.code || "") + " " + (material.name || "");
+      }).join("\n")
+    );
+
+    const index = Number(choice) - 1;
+    const material = materials[index];
+
+    if (!material) return;
+
+    reportMaterialIssue(material.id, orderId, type || "Melding");
+  }
+
+  function resolveMaterial(materialId) {
+    const material = getMaterial(materialId);
+    if (!material) return;
+
+    getAlerts().forEach(function(alert) {
+      if (String(alert.materialId || "") === String(materialId)) {
+        alert.resolved = true;
+        alert.resolvedAt = new Date().toLocaleString();
+      }
+    });
+
+    setMaterialStatus(materialId, "free", {text: "", usable: true});
+    recalcMaterialStatuses();
+
+    saveState();
+    updateAlertButton();
+    closeModal();
+    renderMaterialsFixed(currentCategory());
+    notify("Materiaal vrijgegeven");
+  }
+
+  function markMaterialDefect(materialId) {
+    const material = getMaterial(materialId);
+    if (!material) return;
+
+    const text = prompt("Waarom defect houden?", material.issueText || "");
+    if (text === null) return;
+
+    setMaterialStatus(materialId, "defect", {text: text, usable: false});
+
+    getAlerts().push({
+      id: makeId("alert"),
+      materialId: materialId,
+      type: "Defect",
+      title: "Defect - " + (material.code || ""),
+      text: text || "Defect",
+      usable: false,
+      time: new Date().toLocaleString(),
+      resolved: false
+    });
+
+    saveState();
+    updateAlertButton();
+    closeModal();
+    renderMaterialsFixed(currentCategory());
+    notify("Materiaal blijft defect");
+  }
+
+  function addMaterialFromModal(materialId) {
+    closeModal();
+    addMatFixed(materialId);
+  }
+
+  function openOrder(orderId) {
+    closeModal();
+    if (typeof editOrder === "function") editOrder(orderId);
+  }
+
+  function installStyles() {
+    if ($(STYLE_ID)) return;
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      #materialList .material-row,
+      #materialList .material-row.free,
+      #materialList .material-row.reserved,
+      #materialList .material-row.defect,
+      #materialList .material-row.inactive {
+        background: var(--panel, #ffffff) !important;
+        color: var(--text, #172033) !important;
+        border-color: var(--border, #dbe3ef) !important;
+      }
+
+      #materialList .material-row small {
+        color: var(--muted, #64748b) !important;
+      }
+
+      #materialList .badge.free {
+        background: #dcfce7 !important;
+        color: #166534 !important;
+      }
+
+      #materialList .badge.reserved {
+        background: #fee2e2 !important;
+        color: #991b1b !important;
+      }
+
+      #materialList .badge.defect {
+        background: #fee2e2 !important;
+        color: #991b1b !important;
+        animation: bnsDefectBlink .45s infinite alternate !important;
+      }
+
+      #materialList .badge.inactive {
+        background: #e2e8f0 !important;
+        color: #334155 !important;
+      }
+
+      #materialList .badge.now {
+        background: #dbeafe !important;
+        color: #1e40af !important;
+      }
+
+      .bns-alert-blink {
+        animation: bnsAlertBlink .7s infinite alternate !important;
+      }
+
+      @keyframes bnsAlertBlink {
+        from { background:#b91c1c; color:#fff; }
+        to { background:#ef4444; color:#fff; box-shadow:0 0 18px rgba(239,68,68,.75); }
+      }
+
+      @keyframes bnsDefectBlink {
+        from { opacity:.45; }
+        to { opacity:1; }
+      }
+
+      .bns-copy-btn {
+        background:#334155 !important;
+        color:#fff !important;
+      }
+
+      .bns-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(15,23,42,.55);
+        display: grid;
+        place-items: center;
+        z-index: 99999;
+        padding: 20px;
+      }
+
+      .bns-modal.hidden {
+        display: none !important;
+      }
+
+      .bns-modal-card {
+        width: min(760px, 96vw);
+        max-height: 90vh;
+        overflow: auto;
+        background: var(--panel, #ffffff);
+        color: var(--text, #172033);
+        border-radius: 22px;
+        border: 1px solid var(--border, #dbe3ef);
+        box-shadow: 0 20px 55px rgba(15,23,42,.25);
+        padding: 22px;
+      }
+
+      .bns-info-box,
+      .bns-alert-row {
+        border: 1px solid var(--border, #dbe3ef);
+        border-radius: 16px;
+        padding: 12px;
+        margin: 10px 0;
+        background: rgba(148,163,184,.12);
+      }
+
+      .bns-info-box.defect {
+        border-color: #ef4444;
+        background: rgba(239,68,68,.10);
+      }
+
+      .bns-alert-row.resolved {
+        opacity: .65;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function install() {
+    installStyles();
+
+    window.renderMaterials = renderMaterialsFixed;
+    window.addMat = addMatFixed;
+    window.saveCurrentOrder = saveCurrentOrderFixed;
+    window.alertFor = alertForFixed;
+
+    window.BNS_closeModal = closeModal;
+    window.BNS_openOrder = openOrder;
+    window.BNS_openMaterial = showMaterialDetails;
+    window.BNS_resolveAlert = resolveAlert;
+    window.BNS_deleteAlert = deleteAlert;
+    window.BNS_resolveMaterial = resolveMaterial;
+    window.BNS_markMaterialDefect = markMaterialDefect;
+    window.BNS_addMaterialFromModal = addMaterialFromModal;
+
+    try { renderMaterials = renderMaterialsFixed; } catch (error) {}
+    try { addMat = addMatFixed; } catch (error) {}
+    try { saveCurrentOrder = saveCurrentOrderFixed; } catch (error) {}
+    try { alertFor = alertForFixed; } catch (error) {}
+
+    recalcMaterialStatuses();
+    updateAlertButton();
+    enhanceOrderCards();
+
+    const ordersList = $("ordersList");
+    if (ordersList && !ordersList.dataset.bnsCopyObserver) {
+      ordersList.dataset.bnsCopyObserver = "1";
+      new MutationObserver(enhanceOrderCards).observe(ordersList, {childList: true, subtree: true});
+    }
+
+    const materialSearch = $("materialSearch");
+    if (materialSearch && !materialSearch.dataset.bnsMatSearchFixed) {
+      materialSearch.dataset.bnsMatSearchFixed = "1";
+      materialSearch.addEventListener("input", function() {
+        renderMaterialsFixed(currentCategory());
+      });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function() {
+      setTimeout(install, 600);
+    });
+  } else {
+    setTimeout(install, 600);
+  }
+
+  setInterval(function() {
+    install();
+    updateAlertButton();
+    enhanceOrderCards();
+  }, 1500);
+})();
+
