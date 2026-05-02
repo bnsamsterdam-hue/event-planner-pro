@@ -654,3 +654,19 @@ body.bns-v112 .bns-app-toast{position:fixed;right:18px;bottom:18px;z-index:99999
 .bns-admin-color-label{display:flex!important;align-items:center!important;gap:8px!important;font-weight:800!important;}.bns-admin-color-label input[type="color"]{width:54px!important;height:42px!important;padding:2px!important;}
 .bns-admin-material-row{display:grid!important;grid-template-columns:8px minmax(0,1fr) auto auto!important;align-items:center!important;gap:10px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:14px!important;padding:8px 10px!important;margin:7px 0!important;color:#172033!important;}.bns-admin-cat{width:8px!important;height:32px!important;border-radius:999px!important;background:var(--cat-color,#1683d8)!important;}.bns-admin-text{min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;}.bns-empty{color:#64748b!important;font-weight:800!important;}
 
+
+/* BNS admin opslaan duidelijk zichtbaar */
+#adminSaveMat{
+  background:#16a34a !important;
+  font-size:18px !important;
+  padding:14px 22px !important;
+  margin-top:12px !important;
+}
+#adminSelectedMat{
+  font-size:18px !important;
+  background:#e0f2fe !important;
+  border-radius:14px !important;
+  padding:12px !important;
+  font-weight:900 !important;
+}
+

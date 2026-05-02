@@ -1890,3 +1890,173 @@ setTimeout(()=>{
   setTimeout(install,1400);
 })();
 
+
+/* =========================================================
+   BNS FIX - ADMIN MATERIAAL WIJZIGEN OPSLAAN
+   Probleem: oude save zocht op rubriek+code. Bij wijzigen van code/rubriek
+   werd daardoor een nieuw materiaal gemaakt. Deze fix bewaart op gekozen ID.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  let bnsSelectedMaterialId = null;
+
+  function byId(id){ return document.getElementById(id); }
+
+  function cleanCat(value){
+    return String(value || "EXTRA").trim().toUpperCase() || "EXTRA";
+  }
+
+  function getMaterialById(id){
+    try {
+      return state.materials.find(function(material){
+        return String(material.id) === String(id);
+      });
+    } catch(error) {
+      return null;
+    }
+  }
+
+  function fillSelectedMaterial(id){
+    const material = getMaterialById(id);
+    if (!material) return;
+
+    bnsSelectedMaterialId = material.id;
+
+    if (byId("adminMatCat")) byId("adminMatCat").value = material.cat || "";
+    if (byId("adminMatCode")) byId("adminMatCode").value = material.code || "";
+    if (byId("adminMatName")) byId("adminMatName").value = material.name || "";
+    if (byId("adminMatPrice")) byId("adminMatPrice").value = material.price || "";
+    if (byId("adminMatStatus")) byId("adminMatStatus").value = material.status || "free";
+
+    if (byId("adminSelectedMat")) {
+      byId("adminSelectedMat").textContent = "Gekozen: " + (material.code || "") + " " + (material.name || "");
+    }
+
+    if (typeof BNS_V12_renderAdminMaterials === "function") {
+      BNS_V12_renderAdminMaterials();
+    }
+  }
+
+  function saveSelectedMaterial(){
+    if (!byId("adminMatCat") || !byId("adminMatCode") || !byId("adminMatName")) return;
+
+    const cat = cleanCat(byId("adminMatCat").value);
+    const code = String(byId("adminMatCode").value || "").trim().toUpperCase();
+    const name = String(byId("adminMatName").value || "").trim();
+    const price = byId("adminMatPrice") ? byId("adminMatPrice").value : "";
+    const status = byId("adminMatStatus") ? byId("adminMatStatus").value : "free";
+
+    if (!code || !name) {
+      if (typeof toastMsg === "function") toastMsg("Vul code en naam in");
+      else alert("Vul code en naam in");
+      return;
+    }
+
+    let material = bnsSelectedMaterialId ? getMaterialById(bnsSelectedMaterialId) : null;
+
+    if (material) {
+      Object.assign(material, {cat: cat, code: code, name: name, price: price, status: status});
+    } else {
+      try {
+        state.materials.push({
+          id: (typeof id === "function" ? id() : Math.random().toString(36).slice(2,10)),
+          cat: cat,
+          code: code,
+          name: name,
+          price: price,
+          status: status
+        });
+      } catch(error) {
+        console.error(error);
+        return;
+      }
+    }
+
+    if (typeof save === "function") save();
+
+    if (typeof BNS_V12_renderCats === "function") BNS_V12_renderCats();
+    if (typeof BNS_V12_renderMaterials === "function") BNS_V12_renderMaterials(window.currentCat || cat);
+    if (typeof BNS_V12_renderAdminMaterials === "function") BNS_V12_renderAdminMaterials();
+    if (typeof adminRender === "function") adminRender();
+
+    if (byId("adminSelectedMat")) {
+      byId("adminSelectedMat").textContent = "Opgeslagen: " + code + " " + name;
+    }
+
+    if (typeof toastMsg === "function") toastMsg("Materiaal opgeslagen");
+  }
+
+  function newMaterial(){
+    bnsSelectedMaterialId = null;
+    ["adminMatCat","adminMatCode","adminMatName","adminMatPrice"].forEach(function(inputId){
+      const input = byId(inputId);
+      if (input) input.value = inputId === "adminMatCat" ? "TW" : "";
+    });
+    if (byId("adminMatStatus")) byId("adminMatStatus").value = "free";
+    if (byId("adminSelectedMat")) byId("adminSelectedMat").textContent = "Nieuw materiaal";
+  }
+
+  function deleteSelectedMaterial(){
+    if (!bnsSelectedMaterialId) return;
+    if (!confirm("Gekozen materiaal verwijderen?")) return;
+
+    try {
+      state.materials = state.materials.filter(function(material){
+        return String(material.id) !== String(bnsSelectedMaterialId);
+      });
+    } catch(error) {
+      console.error(error);
+      return;
+    }
+
+    bnsSelectedMaterialId = null;
+    if (typeof save === "function") save();
+    newMaterial();
+
+    if (typeof BNS_V12_renderCats === "function") BNS_V12_renderCats();
+    if (typeof BNS_V12_renderMaterials === "function") BNS_V12_renderMaterials(window.currentCat || "TW");
+    if (typeof BNS_V12_renderAdminMaterials === "function") BNS_V12_renderAdminMaterials();
+    if (typeof adminRender === "function") adminRender();
+
+    if (typeof toastMsg === "function") toastMsg("Materiaal verwijderd");
+  }
+
+  function installAdminSaveFix(){
+    window.fillMat = fillSelectedMaterial;
+
+    try { fillMat = fillSelectedMaterial; } catch(error) {}
+
+    const saveButton = byId("adminSaveMat");
+    if (saveButton && !saveButton.dataset.bnsSaveFix) {
+      saveButton.dataset.bnsSaveFix = "1";
+      saveButton.onclick = saveSelectedMaterial;
+      saveButton.type = "button";
+    }
+
+    const newButton = byId("adminNewMat");
+    if (newButton && !newButton.dataset.bnsSaveFix) {
+      newButton.dataset.bnsSaveFix = "1";
+      newButton.onclick = newMaterial;
+      newButton.type = "button";
+    }
+
+    const deleteButton = byId("adminDeleteMat");
+    if (deleteButton && !deleteButton.dataset.bnsSaveFix) {
+      deleteButton.dataset.bnsSaveFix = "1";
+      deleteButton.onclick = deleteSelectedMaterial;
+      deleteButton.type = "button";
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(installAdminSaveFix, 600);
+    });
+  } else {
+    setTimeout(installAdminSaveFix, 600);
+  }
+
+  setTimeout(installAdminSaveFix, 1500);
+})();
+
