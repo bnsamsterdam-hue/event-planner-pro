@@ -3278,7 +3278,7 @@ function reserv(mid){for(const o of ORD()){if(!active(o))continue;if(ED()&&Strin
 function block(mid){const m=mat(mid);if(!m)return{blocked:true,status:"missing"};const s=stOf(m);if(s==="reserved")return{blocked:true,status:"reserved",material:m,order:reserv(mid)};if(s==="damage"||s==="missing"||s==="defect"||s==="inactive")return{blocked:true,status:s,material:m};return{blocked:false,status:"free",material:m}}
 function addStable(mid){const b=block(mid);if(b.blocked){popup(mid);return}const m=b.material;if(!m)return;if(!CH().some(x=>String(x.id)===String(mid))){let c=CL(m);c.status="reserved";CH().push(c)}try{renderChosen()}catch(e){}try{renderMaterials(CC())}catch(e){}try{summaryRender()}catch(e){}setTimeout(patchRows,0)}
 function intercept(e){const row=e.target.closest&&e.target.closest(".material-row");const list=E("materialList");if(!row||!list||!list.contains(row))return;const mid=midFromRow(row);if(!mid)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();addStable(mid);return false}
-function popup(mid){const b=block(mid),m=b.material||mat(mid);if(!m)return;let body=`<h3>${H(m.code||"")} ${H(m.name||"")}</h3>`;if(b.status==="reserved"){const o=b.order;body+=o?`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br><b>Klant:</b> ${H(o.customer?.name||"Onbekend")}<br><b>Opdracht:</b> ${H(o.number||"")} - ${H(o.title||"")}<br><b>Datum:</b> ${H(NICE(o.start))} t/m ${H(NICE(o.end))}</div>`:`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br>Geen opdracht gevonden.</div>`}else{body+=`<div class="bns-box defect"><b>Status:</b> ${H(label(b.status))}<br><b>Omschrijving:</b> ${H(m.issueText||m.notes||"")}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button></div>`}openModal("Materiaal status",body)}
+function popup(mid){const b=block(mid),m=b.material||mat(mid);if(!m)return;let body=`<h3>${H(m.code||"")} ${H(m.name||"")}</h3>`;if(b.status==="reserved"){const o=b.order;body+=o?`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br><b>Klant:</b> ${H(o.customer?.name||"Onbekend")}<br><b>Opdracht:</b> ${H(o.number||"")} - ${H(o.title||"")}<br><b>Datum:</b> ${H(NICE(o.start))} tot datum ${H(NICE(o.end))}</div>`:`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br>Geen opdracht gevonden.</div>`}else{body+=`<div class="bns-box defect"><b>Status:</b> ${H(label(b.status))}<br><b>Omschrijving:</b> ${H(m.issueText||m.notes||"")}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button></div>`}openModal("Materiaal status",body)}
 function openModal(t,b){let m=E(MODAL_ID);if(!m){m=document.createElement("div");m.id=MODAL_ID;m.className="bns-modal hidden";m.innerHTML='<div class="bns-modal-card"><h2 id="bnsStabielTitle"></h2><div id="bnsStabielBody"></div><div class="actions"><button onclick="BNS_STABIEL_close()">Sluiten</button></div></div>';document.body.appendChild(m)}E("bnsStabielTitle").textContent=t||"Info";E("bnsStabielBody").innerHTML=b||"";m.classList.remove("hidden")}
 function closeModal(){const m=E(MODAL_ID);if(m)m.classList.add("hidden")}
 function freeMat(mid){const m=mat(mid);if(!m)return;m.status="free";m.issueText="";m.usable=true;SAVE();closeModal();try{renderAll()}catch(e){}try{renderMaterials(CC())}catch(e){}setTimeout(patchRows,0)}
@@ -3311,7 +3311,7 @@ setInterval(install,1500);
    - Bezorger meldingen: alleen actieve opdrachten.
    - Nieuwe opdracht: startdatum mag niet in verleden.
    - Einddatum mag niet vóór startdatum.
-   - Kaarten tonen start t/m einddatum.
+   - Kaarten tonen start tot datum einddatum.
    - Geen setInterval, geen bewegend beeld.
    ========================================================= */
 (function(){
@@ -3415,7 +3415,7 @@ setInterval(install,1500);
   function dateRange(order){
     var start = nice2(order.start);
     var end = nice2(order.end || order.start);
-    return start && end && start !== end ? start + " t/m " + end : (start || end || "");
+    return start && end && start !== end ? start + " tot datum " + end : (start || end || "");
   }
 
   function matChips(materials){
@@ -3747,4 +3747,423 @@ setInterval(install,1500);
 
   // Eén extra late run voor scripts die na DOMContentLoaded nog bouwen. Geen interval.
   setTimeout(refreshFinal, 1200);
+})();
+
+
+/* =========================================================
+   BNS UPDATE - OPDRACHTENRECHT VOOR BEZORGER + SCHADE MELDINGEN TAB
+   - Nieuwe knop naast geannuleerde opdrachten: Schade meldingen.
+   - Meldingen type Storing / Schade / Vermissing staan daar overzichtelijk.
+   - Bezorger kan recht krijgen om Opdrachten te bekijken/zoeken.
+   - Geen interval, geen bewegend scherm.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  var DAMAGE_MODE = "damage";
+
+  function $(id){ return document.getElementById(id); }
+
+  function appState(){
+    try {
+      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
+    } catch(e) {}
+    try {
+      if (window.state && Array.isArray(window.state.orders)) return window.state;
+    } catch(e) {}
+    try {
+      var raw = localStorage.getItem("eventPlannerProV91") ||
+                localStorage.getItem("eventPlannerPro") ||
+                localStorage.getItem("plannerState");
+      var parsed = JSON.parse(raw || "{}");
+      if (parsed && Array.isArray(parsed.orders)) return parsed;
+    } catch(e) {}
+    return {orders: [], users: [], alerts: []};
+  }
+
+  function saveState(){
+    try {
+      if (typeof save === "function") save();
+      else localStorage.setItem("eventPlannerProV91", JSON.stringify(appState()));
+    } catch(e) {}
+  }
+
+  function esc(v){
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function dateOnly(v){
+    var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  }
+
+  function niceDate(v){
+    try {
+      if (typeof nice === "function") return nice(v);
+    } catch(e) {}
+    var d = dateOnly(v);
+    if (!d) return v || "";
+    return String(d.getDate()).padStart(2, "0") + "-" +
+           String(d.getMonth() + 1).padStart(2, "0") + "-" +
+           d.getFullYear();
+  }
+
+  function findOrder(orderId){
+    return (appState().orders || []).find(function(order){
+      return String(order.id) === String(orderId);
+    });
+  }
+
+  function alertType(alertItem){
+    var txt = String(alertItem.type || alertItem.title || alertItem.note || alertItem.message || "").toLowerCase();
+    if (txt.indexOf("storing") !== -1) return "Storing";
+    if (txt.indexOf("vermissing") !== -1 || txt.indexOf("vermist") !== -1) return "Vermissing";
+    if (txt.indexOf("schade") !== -1) return "Schade";
+    return "Melding";
+  }
+
+  function isDamageAlert(alertItem){
+    var type = alertType(alertItem);
+    return type === "Storing" || type === "Schade" || type === "Vermissing";
+  }
+
+  function getMode(){
+    try {
+      if (typeof mode !== "undefined" && mode) return mode;
+    } catch(e) {}
+    return window.mode || "active";
+  }
+
+  function setMode(nextMode){
+    window.mode = nextMode;
+    try { mode = nextMode; } catch(e) {}
+  }
+
+  function findButtonByText(regex){
+    return Array.from(document.querySelectorAll("button")).find(function(button){
+      return regex.test(button.textContent || "");
+    });
+  }
+
+  function ensureDamageButton(){
+    if ($("damageOrders")) return $("damageOrders");
+
+    var cancelled = $("cancelledOrders") || findButtonByText(/geannuleerde opdrachten/i);
+    var done = $("doneOrders") || findButtonByText(/uitgevoerde opdrachten/i);
+
+    var button = document.createElement("button");
+    button.id = "damageOrders";
+    button.type = "button";
+    button.textContent = "Schade meldingen";
+
+    if (cancelled && cancelled.parentNode) {
+      cancelled.insertAdjacentElement("afterend", button);
+    } else if (done && done.parentNode) {
+      done.insertAdjacentElement("afterend", button);
+    }
+
+    return button;
+  }
+
+  function paintDamageButton(){
+    var current = getMode();
+    var damage = $("damageOrders");
+    if (!damage) return;
+
+    var active = current === DAMAGE_MODE;
+    damage.classList.toggle("bns-damage-active", active);
+
+    if (active) {
+      damage.style.setProperty("background", "#7f1d1d", "important");
+      damage.style.setProperty("color", "#fff", "important");
+      damage.style.setProperty("border", "3px solid #f97316", "important");
+      damage.style.setProperty("box-shadow", "0 0 0 3px rgba(249,115,22,.25)", "important");
+    } else {
+      damage.style.removeProperty("background");
+      damage.style.removeProperty("color");
+      damage.style.removeProperty("border");
+      damage.style.removeProperty("box-shadow");
+    }
+  }
+
+  function damageCard(alertItem){
+    var order = findOrder(alertItem.orderId);
+    var type = alertType(alertItem);
+    var resolved = !!alertItem.resolved;
+    var msg = alertItem.message || alertItem.note || "";
+
+    return '' +
+      '<div class="order-card bns-damage-card ' + (resolved ? 'resolved' : 'open') + '">' +
+        '<div class="date-tile">' + esc((alertItem.time || "").split(",")[0] || "") + '</div>' +
+        '<div>' +
+          '<div class="order-title">' + esc(type) + ' ' +
+            '<span class="status">' + (resolved ? 'Opgelost' : 'Open') + '</span></div>' +
+          '<div><b>Opdracht:</b> ' + esc(order ? (order.number || "") + " - " + (order.title || "") : "Onbekend") + '</div>' +
+          '<div><b>Klant:</b> ' + esc(order && order.customer && order.customer.name || "") + '</div>' +
+          '<div><b>Datum opdracht:</b> ' + esc(order ? niceDate(order.start) + (order.end && order.end !== order.start ? " tot datum " + niceDate(order.end) : "") : "") + '</div>' +
+          '<div><b>Melding:</b> ' + esc(msg) + '</div>' +
+          '<div><b>Gemeld:</b> ' + esc(alertItem.time || "") + '</div>' +
+          (resolved ? '<div><b>Opgelost:</b> ' + esc(alertItem.resolvedAt || "") + '</div>' : '') +
+        '</div>' +
+        '<div class="actions">' +
+          (resolved ? '' : '<button type="button" onclick="BNS_damageResolve(\'' + esc(alertItem.id) + '\')">Opgelost na reparatie</button>') +
+          '<button type="button" onclick="BNS_damageDelete(\'' + esc(alertItem.id) + '\')" ' + (resolved ? '' : 'disabled') + '>Wissen</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderDamageAlerts(){
+    var list = $("ordersList");
+    if (!list) return;
+
+    var query = String(($("ordersSearch") || {}).value || "").toLowerCase().trim();
+
+    var alerts = (appState().alerts || [])
+      .filter(isDamageAlert)
+      .filter(function(alertItem){
+        if (!query) return true;
+        var order = findOrder(alertItem.orderId);
+        var text = [
+          alertType(alertItem),
+          alertItem.message,
+          alertItem.note,
+          alertItem.time,
+          order && order.number,
+          order && order.title,
+          order && order.customer && order.customer.name
+        ].join(" ").toLowerCase();
+        return text.indexOf(query) !== -1;
+      })
+      .sort(function(a, b){
+        return String(b.time || "").localeCompare(String(a.time || ""));
+      });
+
+    list.innerHTML = alerts.map(damageCard).join("") || "<p>Geen schade/storing/vermissing meldingen.</p>";
+    paintDamageButton();
+  }
+
+  window.BNS_damageResolve = function(alertId){
+    var item = (appState().alerts || []).find(function(alertItem){
+      return String(alertItem.id) === String(alertId);
+    });
+
+    if (!item) return;
+
+    item.resolved = true;
+    item.resolvedAt = new Date().toLocaleString();
+    saveState();
+    renderDamageAlerts();
+  };
+
+  window.BNS_damageDelete = function(alertId){
+    var s = appState();
+    var item = (s.alerts || []).find(function(alertItem){
+      return String(alertItem.id) === String(alertId);
+    });
+
+    if (!item) return;
+
+    if (!item.resolved) {
+      alert("Melding eerst op opgelost zetten na reparatie.");
+      return;
+    }
+
+    s.alerts = (s.alerts || []).filter(function(alertItem){
+      return String(alertItem.id) !== String(alertId);
+    });
+
+    saveState();
+    renderDamageAlerts();
+  };
+
+  function patchOrdersRender(){
+    var oldRenderOrders = window.renderOrders || (typeof renderOrders === "function" ? renderOrders : null);
+
+    if (oldRenderOrders && oldRenderOrders.__bnsDamageWrapped) return;
+
+    var wrapped = function(){
+      if (getMode() === DAMAGE_MODE) {
+        renderDamageAlerts();
+        return;
+      }
+
+      if (oldRenderOrders) oldRenderOrders.apply(this, arguments);
+      paintDamageButton();
+    };
+
+    wrapped.__bnsDamageWrapped = true;
+    window.renderOrders = wrapped;
+    try { renderOrders = wrapped; } catch(e) {}
+  }
+
+  function hookDamageButton(){
+    var button = ensureDamageButton();
+    if (!button) return;
+
+    button.onclick = function(event){
+      if (event) event.preventDefault();
+      setMode(DAMAGE_MODE);
+      renderDamageAlerts();
+      paintDamageButton();
+    };
+
+    var search = $("ordersSearch");
+    if (search && !search.dataset.bnsDamageSearch) {
+      search.dataset.bnsDamageSearch = "1";
+      search.addEventListener("input", function(){
+        if (getMode() === DAMAGE_MODE) renderDamageAlerts();
+      });
+    }
+
+    paintDamageButton();
+  }
+
+  function currentUser(){
+    try {
+      if (window.currentUser) return window.currentUser;
+    } catch(e) {}
+    try {
+      if (typeof currentUser !== "undefined" && currentUser) return currentUser;
+    } catch(e) {}
+    return null;
+  }
+
+  function userMaySeeOrders(user){
+    if (!user) return true;
+    if (user.role === "Admin" || user.role === "Planner") return true;
+    return !!(user.rights && (user.rights.orders || user.rights.opdrachten));
+  }
+
+  function applyOrderMenuPermission(){
+    var user = currentUser();
+    var navOrders = Array.from(document.querySelectorAll("button,.nav button,.side button")).find(function(el){
+      return /^opdrachten$/i.test((el.textContent || "").trim());
+    });
+
+    if (!navOrders) return;
+
+    if (userMaySeeOrders(user)) {
+      navOrders.style.display = "";
+    } else if (user && user.role === "Bezorger") {
+      navOrders.style.display = "none";
+    }
+  }
+
+  function ensureUserRightsCheckbox(){
+    var adminUsers = $("adminUsers") || document.querySelector("#adminUsers, [data-admin='adminUsers']");
+    if (!adminUsers) return;
+
+    if ($("bnsRightOrders")) return;
+
+    var box = document.createElement("label");
+    box.className = "bns-right-orders-box";
+    box.style.display = "block";
+    box.style.margin = "10px 0";
+    box.innerHTML = '<input type="checkbox" id="bnsRightOrders"> Opdrachten bekijken / zoeken';
+
+    var target = $("userRights") || $("adminUserRights") || adminUsers.querySelector(".rights") || adminUsers;
+    target.appendChild(box);
+
+    var checkbox = $("bnsRightOrders");
+
+    checkbox.addEventListener("change", function(){
+      try {
+        var selectedId = window.selectedUserId || window.bnsSelectedUserId || "";
+        var user = (appState().users || []).find(function(u){
+          return String(u.id) === String(selectedId);
+        });
+
+        // Fallback: als geen geselecteerde gebruiker bekend is, pas eerste bezorger aan.
+        if (!user) {
+          user = (appState().users || []).find(function(u){ return u.role === "Bezorger"; });
+        }
+
+        if (!user) return;
+
+        user.rights = user.rights || {};
+        user.rights.orders = checkbox.checked;
+        user.rights.opdrachten = checkbox.checked;
+        saveState();
+        applyOrderMenuPermission();
+      } catch(e) {}
+    });
+  }
+
+  function patchAdminUserFill(){
+    // Als er al bestaande user-form inputs zijn, vul de checkbox mee wanneer erop geklikt wordt.
+    document.addEventListener("click", function(event){
+      var row = event.target && event.target.closest && event.target.closest("[data-user-id]");
+      if (!row) return;
+
+      var userId = row.getAttribute("data-user-id");
+      window.bnsSelectedUserId = userId;
+
+      var user = (appState().users || []).find(function(u){
+        return String(u.id) === String(userId);
+      });
+
+      var checkbox = $("bnsRightOrders");
+      if (checkbox && user) {
+        checkbox.checked = !!(user.rights && (user.rights.orders || user.rights.opdrachten));
+      }
+    }, true);
+  }
+
+  function installCss(){
+    if ($("bnsDamageTabCss")) return;
+
+    var style = document.createElement("style");
+    style.id = "bnsDamageTabCss";
+    style.textContent = `
+      #damageOrders {
+        margin-left: 10px;
+      }
+      .bns-damage-card.open {
+        border-left: 7px solid #dc2626;
+      }
+      .bns-damage-card.resolved {
+        border-left: 7px solid #16a34a;
+        opacity: .86;
+      }
+      .bns-damage-card button[disabled] {
+        opacity: .45;
+        cursor: not-allowed;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function install(){
+    installCss();
+    patchOrdersRender();
+    hookDamageButton();
+    ensureUserRightsCheckbox();
+    patchAdminUserFill();
+    applyOrderMenuPermission();
+  }
+
+  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+
+  if (oldRenderAll && !oldRenderAll.__bnsDamageRightsWrapped) {
+    var wrappedRenderAll = function(){
+      var result = oldRenderAll.apply(this, arguments);
+      setTimeout(install, 0);
+      return result;
+    };
+
+    wrappedRenderAll.__bnsDamageRightsWrapped = true;
+    window.renderAll = wrappedRenderAll;
+    try { renderAll = wrappedRenderAll; } catch(e) {}
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); });
+  } else {
+    setTimeout(install, 300);
+  }
+
+  setTimeout(install, 1200);
 })();
