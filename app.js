@@ -1891,19 +1891,644 @@ setTimeout(()=>{
 })();
 
 
-
 /* =========================================================
-   BNS V12 PRO - ADMIN RECHTEN + PIN ENTER + MATERIAAL THEMA FIX
-   - Rechtenblok altijd zichtbaar onder Opslaan gebruiker
-   - Materiaalkaart volgt thema en wordt niet groen
-   - Admin PIN wordt leeggemaakt na openen
-   - Enter werkt in admin PIN veld
+   BNS FIX - ADMIN MATERIAAL WIJZIGEN OPSLAAN
+   Probleem: oude save zocht op rubriek+code. Bij wijzigen van code/rubriek
+   werd daardoor een nieuw materiaal gemaakt. Deze fix bewaart op gekozen ID.
    ========================================================= */
-(function bnsV12ProAdminRightsPinMaterialFix() {
+(function(){
   "use strict";
 
-  const STYLE_ID = "bns-v12-pro-final-style";
-  const RIGHTS_BOX_ID = "bnsForceUserRightsBox";
+  let bnsSelectedMaterialId = null;
+
+  function byId(id){ return document.getElementById(id); }
+
+  function cleanCat(value){
+    return String(value || "EXTRA").trim().toUpperCase() || "EXTRA";
+  }
+
+  function getMaterialById(id){
+    try {
+      return state.materials.find(function(material){
+        return String(material.id) === String(id);
+      });
+    } catch(error) {
+      return null;
+    }
+  }
+
+  function fillSelectedMaterial(id){
+    const material = getMaterialById(id);
+    if (!material) return;
+
+    bnsSelectedMaterialId = material.id;
+
+    if (byId("adminMatCat")) byId("adminMatCat").value = material.cat || "";
+    if (byId("adminMatCode")) byId("adminMatCode").value = material.code || "";
+    if (byId("adminMatName")) byId("adminMatName").value = material.name || "";
+    if (byId("adminMatPrice")) byId("adminMatPrice").value = material.price || "";
+    if (byId("adminMatStatus")) byId("adminMatStatus").value = material.status || "free";
+
+    if (byId("adminSelectedMat")) {
+      byId("adminSelectedMat").textContent = "Gekozen: " + (material.code || "") + " " + (material.name || "");
+    }
+
+    if (typeof BNS_V12_renderAdminMaterials === "function") {
+      BNS_V12_renderAdminMaterials();
+    }
+  }
+
+  function saveSelectedMaterial(){
+    if (!byId("adminMatCat") || !byId("adminMatCode") || !byId("adminMatName")) return;
+
+    const cat = cleanCat(byId("adminMatCat").value);
+    const code = String(byId("adminMatCode").value || "").trim().toUpperCase();
+    const name = String(byId("adminMatName").value || "").trim();
+    const price = byId("adminMatPrice") ? byId("adminMatPrice").value : "";
+    const status = byId("adminMatStatus") ? byId("adminMatStatus").value : "free";
+
+    if (!code || !name) {
+      if (typeof toastMsg === "function") toastMsg("Vul code en naam in");
+      else alert("Vul code en naam in");
+      return;
+    }
+
+    let material = bnsSelectedMaterialId ? getMaterialById(bnsSelectedMaterialId) : null;
+
+    if (material) {
+      Object.assign(material, {cat: cat, code: code, name: name, price: price, status: status});
+    } else {
+      try {
+        state.materials.push({
+          id: (typeof id === "function" ? id() : Math.random().toString(36).slice(2,10)),
+          cat: cat,
+          code: code,
+          name: name,
+          price: price,
+          status: status
+        });
+      } catch(error) {
+        console.error(error);
+        return;
+      }
+    }
+
+    if (typeof save === "function") save();
+
+    if (typeof BNS_V12_renderCats === "function") BNS_V12_renderCats();
+    if (typeof BNS_V12_renderMaterials === "function") BNS_V12_renderMaterials(window.currentCat || cat);
+    if (typeof BNS_V12_renderAdminMaterials === "function") BNS_V12_renderAdminMaterials();
+    if (typeof adminRender === "function") adminRender();
+
+    if (byId("adminSelectedMat")) {
+      byId("adminSelectedMat").textContent = "Opgeslagen: " + code + " " + name;
+    }
+
+    if (typeof toastMsg === "function") toastMsg("Materiaal opgeslagen");
+  }
+
+  function newMaterial(){
+    bnsSelectedMaterialId = null;
+    ["adminMatCat","adminMatCode","adminMatName","adminMatPrice"].forEach(function(inputId){
+      const input = byId(inputId);
+      if (input) input.value = inputId === "adminMatCat" ? "TW" : "";
+    });
+    if (byId("adminMatStatus")) byId("adminMatStatus").value = "free";
+    if (byId("adminSelectedMat")) byId("adminSelectedMat").textContent = "Nieuw materiaal";
+  }
+
+  function deleteSelectedMaterial(){
+    if (!bnsSelectedMaterialId) return;
+    if (!confirm("Gekozen materiaal verwijderen?")) return;
+
+    try {
+      state.materials = state.materials.filter(function(material){
+        return String(material.id) !== String(bnsSelectedMaterialId);
+      });
+    } catch(error) {
+      console.error(error);
+      return;
+    }
+
+    bnsSelectedMaterialId = null;
+    if (typeof save === "function") save();
+    newMaterial();
+
+    if (typeof BNS_V12_renderCats === "function") BNS_V12_renderCats();
+    if (typeof BNS_V12_renderMaterials === "function") BNS_V12_renderMaterials(window.currentCat || "TW");
+    if (typeof BNS_V12_renderAdminMaterials === "function") BNS_V12_renderAdminMaterials();
+    if (typeof adminRender === "function") adminRender();
+
+    if (typeof toastMsg === "function") toastMsg("Materiaal verwijderd");
+  }
+
+  function installAdminSaveFix(){
+    window.fillMat = fillSelectedMaterial;
+
+    try { fillMat = fillSelectedMaterial; } catch(error) {}
+
+    const saveButton = byId("adminSaveMat");
+    if (saveButton && !saveButton.dataset.bnsSaveFix) {
+      saveButton.dataset.bnsSaveFix = "1";
+      saveButton.onclick = saveSelectedMaterial;
+      saveButton.type = "button";
+    }
+
+    const newButton = byId("adminNewMat");
+    if (newButton && !newButton.dataset.bnsSaveFix) {
+      newButton.dataset.bnsSaveFix = "1";
+      newButton.onclick = newMaterial;
+      newButton.type = "button";
+    }
+
+    const deleteButton = byId("adminDeleteMat");
+    if (deleteButton && !deleteButton.dataset.bnsSaveFix) {
+      deleteButton.dataset.bnsSaveFix = "1";
+      deleteButton.onclick = deleteSelectedMaterial;
+      deleteButton.type = "button";
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(installAdminSaveFix, 600);
+    });
+  } else {
+    setTimeout(installAdminSaveFix, 600);
+  }
+
+  setTimeout(installAdminSaveFix, 1500);
+})();
+
+
+
+/* =========================================================
+   BNS V12 PRO - ADMIN GEBRUIKER RECHTEN
+   Voegt rechten toe bij Bezorgers/Gebruikers:
+   - prijzen zien
+   - Google agenda
+   - Waze/GPS route
+   - meldingen/storingen afmelden
+   - materialen, klanten, locaties, opdrachten, factuur/offerte
+   Bestaande functies/data blijven behouden.
+   ========================================================= */
+(function installBnsAdminUserRights() {
+  "use strict";
+
+  const STYLE_ID = "bns-admin-user-rights-style";
+
+  const RIGHTS = [
+    ["prices", "Prijzen zien"],
+    ["agenda", "Google agenda"],
+    ["gps", "Waze / route openen"],
+    ["resolve", "Meldingen / storingen afmelden"],
+    ["materials", "Materialen beheren"],
+    ["customers", "Klanten beheren"],
+    ["locations", "Locaties beheren"],
+    ["orders", "Opdrachten beheren"],
+    ["invoice", "Factuur / offerte"],
+    ["admin", "Admin beheer"]
+  ];
+
+  const DEFAULT_RIGHTS_BY_ROLE = {
+    Admin: {
+      prices: true,
+      agenda: true,
+      gps: true,
+      resolve: true,
+      materials: true,
+      customers: true,
+      locations: true,
+      orders: true,
+      invoice: true,
+      admin: true
+    },
+    Planner: {
+      prices: true,
+      agenda: true,
+      gps: false,
+      resolve: true,
+      materials: true,
+      customers: true,
+      locations: true,
+      orders: true,
+      invoice: true,
+      admin: false
+    },
+    Bezorger: {
+      prices: false,
+      agenda: false,
+      gps: true,
+      resolve: true,
+      materials: false,
+      customers: false,
+      locations: false,
+      orders: false,
+      invoice: false,
+      admin: false
+    }
+  };
+
+  let selectedUserId = null;
+
+  function byId(id) {
+    return document.getElementById(id);
+  }
+
+  function currentState() {
+    try {
+      return typeof state !== "undefined" ? state : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function saveState() {
+    if (typeof save === "function") {
+      save();
+    }
+  }
+
+  function toast(text) {
+    if (typeof toastMsg === "function") {
+      toastMsg(text);
+    }
+  }
+
+  function norm(value) {
+    return String(value || "").trim();
+  }
+
+  function getAdminArea() {
+    const headings = Array.from(document.querySelectorAll("h1, h2, h3, h4"));
+    const userHeading = headings.find(function (heading) {
+      return /Gebruiker aanmaken|Gebruikers|Bezorger/i.test(heading.textContent || "");
+    });
+
+    if (userHeading) {
+      return userHeading.closest(".panel, .card, section, div") || userHeading.parentElement;
+    }
+
+    const buttons = Array.from(document.querySelectorAll("button"));
+    const saveButton = buttons.find(function (button) {
+      return /Opslaan gebruiker/i.test(button.textContent || "");
+    });
+
+    return saveButton ? saveButton.closest(".panel, .card, section, div") : null;
+  }
+
+  function findNameInput(area) {
+    if (!area) return null;
+    return Array.from(area.querySelectorAll("input")).find(function (input) {
+      return /naam/i.test(input.placeholder || "");
+    }) || null;
+  }
+
+  function findPinInput(area) {
+    if (!area) return null;
+    return Array.from(area.querySelectorAll("input")).find(function (input) {
+      return /pin/i.test(input.placeholder || "");
+    }) || null;
+  }
+
+  function findRoleSelect(area) {
+    if (!area) return null;
+    return Array.from(area.querySelectorAll("select")).find(function (select) {
+      return /Admin|Planner|Bezorger/i.test(select.textContent || "");
+    }) || null;
+  }
+
+  function findSaveButton(area) {
+    const buttons = Array.from((area || document).querySelectorAll("button"));
+    return buttons.find(function (button) {
+      return /Opslaan gebruiker/i.test(button.textContent || "");
+    }) || null;
+  }
+
+  function selectedRole(area) {
+    const roleSelect = findRoleSelect(area);
+    return roleSelect ? norm(roleSelect.value || roleSelect.options[roleSelect.selectedIndex]?.text) : "Bezorger";
+  }
+
+  function defaultsForRole(role) {
+    return Object.assign({}, DEFAULT_RIGHTS_BY_ROLE[role] || DEFAULT_RIGHTS_BY_ROLE.Bezorger);
+  }
+
+  function getRightsFromForm() {
+    const rights = {};
+    RIGHTS.forEach(function ([key]) {
+      const input = byId("bnsRight_" + key);
+      rights[key] = !!(input && input.checked);
+    });
+    return rights;
+  }
+
+  function setRightsForm(rights) {
+    const safeRights = rights || {};
+    RIGHTS.forEach(function ([key]) {
+      const input = byId("bnsRight_" + key);
+      if (input) {
+        input.checked = !!safeRights[key];
+      }
+    });
+  }
+
+  function ensureStyle() {
+    if (byId(STYLE_ID)) return;
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      .bns-user-rights-box {
+        margin-top: 14px;
+        padding: 14px;
+        border: 1px solid var(--border, #dbe3ef);
+        border-radius: 16px;
+        background: var(--panel, #ffffff);
+        color: var(--text, #172033);
+      }
+
+      .bns-user-rights-title {
+        font-size: 18px;
+        font-weight: 900;
+        margin-bottom: 10px;
+      }
+
+      .bns-user-rights-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+        gap: 8px 14px;
+      }
+
+      .bns-user-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 38px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: rgba(148, 163, 184, .12);
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .bns-user-right input {
+        width: 20px;
+        height: 20px;
+      }
+
+      .bns-user-list {
+        margin-top: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .bns-user-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--border, #dbe3ef);
+        background: var(--panel, #ffffff);
+      }
+
+      .bns-user-row b {
+        color: var(--text, #172033);
+      }
+
+      .bns-user-row small {
+        color: var(--muted, #64748b);
+        font-weight: 700;
+      }
+
+      .bns-user-row button {
+        padding: 8px 12px !important;
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function ensureRightsBox() {
+    const area = getAdminArea();
+    if (!area || byId("bnsUserRightsBox")) return;
+
+    const roleSelect = findRoleSelect(area);
+    const saveButton = findSaveButton(area);
+
+    const box = document.createElement("div");
+    box.id = "bnsUserRightsBox";
+    box.className = "bns-user-rights-box";
+    box.innerHTML = `
+      <div class="bns-user-rights-title">Wat mag deze medewerker zien / doen?</div>
+      <div class="bns-user-rights-grid">
+        ${RIGHTS.map(function ([key, label]) {
+          return `
+            <label class="bns-user-right">
+              <input id="bnsRight_${key}" type="checkbox">
+              <span>${label}</span>
+            </label>
+          `;
+        }).join("")}
+      </div>
+      <div id="bnsUserList" class="bns-user-list"></div>
+    `;
+
+    if (saveButton) {
+      saveButton.insertAdjacentElement("beforebegin", box);
+    } else if (roleSelect) {
+      roleSelect.insertAdjacentElement("afterend", box);
+    } else {
+      area.appendChild(box);
+    }
+
+    if (roleSelect && !roleSelect.dataset.bnsRightsBound) {
+      roleSelect.dataset.bnsRightsBound = "1";
+      roleSelect.addEventListener("change", function () {
+        if (!selectedUserId) {
+          setRightsForm(defaultsForRole(selectedRole(area)));
+        }
+      });
+    }
+
+    setRightsForm(defaultsForRole(selectedRole(area)));
+  }
+
+  function findUserAfterOriginalSave(area) {
+    const s = currentState();
+    if (!s || !Array.isArray(s.users)) return null;
+
+    const name = norm(findNameInput(area)?.value);
+    const pin = norm(findPinInput(area)?.value);
+    const role = selectedRole(area);
+
+    if (selectedUserId) {
+      const selected = s.users.find(function (user) {
+        return String(user.id) === String(selectedUserId);
+      });
+      if (selected) return selected;
+    }
+
+    return s.users.find(function (user) {
+      return norm(user.pin) === pin;
+    }) || s.users.find(function (user) {
+      return norm(user.name).toLowerCase() === name.toLowerCase() && norm(user.role) === role;
+    }) || null;
+  }
+
+  function applyRightsToSavedUser() {
+    const area = getAdminArea();
+    const user = findUserAfterOriginalSave(area);
+
+    if (!user) return;
+
+    user.rights = Object.assign({}, user.rights || {}, getRightsFromForm());
+
+    saveState();
+    renderUserList();
+    toast("Gebruiker + rechten opgeslagen");
+  }
+
+  function bindSaveButton() {
+    const area = getAdminArea();
+    const saveButton = findSaveButton(area);
+
+    if (!saveButton || saveButton.dataset.bnsRightsSaveBound) return;
+
+    saveButton.dataset.bnsRightsSaveBound = "1";
+    saveButton.type = "button";
+
+    saveButton.addEventListener("click", function () {
+      setTimeout(applyRightsToSavedUser, 150);
+    });
+  }
+
+  function loadUserIntoForm(userId) {
+    const s = currentState();
+    if (!s || !Array.isArray(s.users)) return;
+
+    const user = s.users.find(function (item) {
+      return String(item.id) === String(userId);
+    });
+
+    if (!user) return;
+
+    selectedUserId = user.id;
+
+    const area = getAdminArea();
+    const nameInput = findNameInput(area);
+    const pinInput = findPinInput(area);
+    const roleSelect = findRoleSelect(area);
+
+    if (nameInput) nameInput.value = user.name || "";
+    if (pinInput) pinInput.value = user.pin || "";
+    if (roleSelect) roleSelect.value = user.role || "Bezorger";
+
+    setRightsForm(Object.assign(defaultsForRole(user.role), user.rights || {}));
+    toast("Gebruiker gekozen");
+  }
+
+  function deleteUser(userId) {
+    const s = currentState();
+    if (!s || !Array.isArray(s.users)) return;
+
+    const user = s.users.find(function (item) {
+      return String(item.id) === String(userId);
+    });
+
+    if (!user) return;
+
+    if ((user.role || "").toLowerCase() === "admin") {
+      alert("Admin gebruiker niet verwijderen.");
+      return;
+    }
+
+    if (!confirm("Gebruiker verwijderen?")) return;
+
+    s.users = s.users.filter(function (item) {
+      return String(item.id) !== String(userId);
+    });
+
+    saveState();
+    selectedUserId = null;
+    renderUserList();
+    toast("Gebruiker verwijderd");
+  }
+
+  function renderUserList() {
+    const list = byId("bnsUserList");
+    const s = currentState();
+
+    if (!list || !s || !Array.isArray(s.users)) return;
+
+    list.innerHTML = s.users.map(function (user) {
+      const rights = user.rights || {};
+      const allowed = RIGHTS
+        .filter(function ([key]) {
+          return !!rights[key];
+        })
+        .map(function ([, label]) {
+          return label;
+        })
+        .join(", ");
+
+      return `
+        <div class="bns-user-row" data-user-id="${String(user.id)}">
+          <span>
+            <b>${String(user.name || "")}</b>
+            <small>${String(user.role || "")} - PIN ${String(user.pin || "")}</small>
+            <small>${allowed || "Geen extra rechten"}</small>
+          </span>
+          <button type="button" class="bns-user-edit">Wijzig</button>
+          <button type="button" class="bns-user-delete delete">Verwijder</button>
+        </div>
+      `;
+    }).join("");
+
+    list.querySelectorAll(".bns-user-row").forEach(function (row) {
+      row.querySelector(".bns-user-edit").addEventListener("click", function () {
+        loadUserIntoForm(row.dataset.userId);
+      });
+
+      row.querySelector(".bns-user-delete").addEventListener("click", function () {
+        deleteUser(row.dataset.userId);
+      });
+    });
+  }
+
+  function install() {
+    ensureStyle();
+    ensureRightsBox();
+    bindSaveButton();
+    renderUserList();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(install, 700);
+    });
+  } else {
+    setTimeout(install, 700);
+  }
+
+  setInterval(install, 2000);
+})();
+
+
+
+/* =========================================================
+   BNS FORCE FIX - RECHTENBLOK ALTIJD TONEN BIJ OPSLAAN GEBRUIKER
+   Deze patch zoekt letterlijk de knop "Opslaan gebruiker" en zet daaronder
+   de rechtenknoppen. Werkt ook als de admin HTML anders is opgebouwd.
+   ========================================================= */
+(function bnsForceUserRightsBlock(){
+  "use strict";
+
+  const STYLE_ID = "bns-force-user-rights-style";
+  const BOX_ID = "bnsForceUserRightsBox";
 
   const RIGHTS = [
     ["prices", "Prijzen zien"],
@@ -1925,360 +2550,207 @@ setTimeout(()=>{
   };
 
   let selectedUserId = null;
-  let lastAdminPinOpened = false;
 
-  function qs(sel, root) {
-    return (root || document).querySelector(sel);
+  function qs(sel, root){ return (root || document).querySelector(sel); }
+  function qsa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+
+  function getState(){
+    try { return typeof state !== "undefined" ? state : null; } catch(e){ return null; }
   }
 
-  function qsa(sel, root) {
-    return Array.from((root || document).querySelectorAll(sel));
+  function doSave(){
+    try { if (typeof save === "function") save(); } catch(e){}
   }
 
-  function getState() {
-    try {
-      return typeof state !== "undefined" ? state : null;
-    } catch (error) {
-      return null;
-    }
+  function makeId(){
+    try { if (typeof id === "function") return id(); } catch(e){}
+    return "u_" + Math.random().toString(36).slice(2,10);
   }
 
-  function doSave() {
-    try {
-      if (typeof save === "function") save();
-    } catch (error) {}
-  }
-
-  function makeId() {
-    try {
-      if (typeof id === "function") return id();
-    } catch (error) {}
-    return "u_" + Math.random().toString(36).slice(2, 10);
-  }
-
-  function msg(text) {
+  function toast(text){
     try {
       if (typeof toastMsg === "function") toastMsg(text);
       else if (typeof toast === "function") toast(text);
-    } catch (error) {}
+    } catch(e){}
   }
 
-  function ensureStyle() {
+  function findSaveButton(){
+    return qsa("button").find(btn => (btn.textContent || "").trim().toLowerCase().includes("opslaan gebruiker"));
+  }
+
+  function formRoot(){
+    const btn = findSaveButton();
+    if (!btn) return null;
+    return btn.closest(".panel, .adminPane, section, main, div") || btn.parentElement;
+  }
+
+  function inputs(){
+    const root = formRoot() || document;
+    const allInputs = qsa("input", root);
+    const allSelects = qsa("select", root);
+
+    const name = allInputs.find(i => /naam/i.test(i.placeholder || "")) || allInputs[0] || null;
+    const pin = allInputs.find(i => /pin/i.test(i.placeholder || "")) || allInputs[1] || null;
+    const role = allSelects.find(s => /bezorger|planner|admin/i.test(s.textContent || "")) || allSelects[0] || null;
+
+    return {name, pin, role};
+  }
+
+  function currentRole(){
+    const {role} = inputs();
+    return role ? (role.value || role.options[role.selectedIndex]?.text || "Bezorger") : "Bezorger";
+  }
+
+  function defaultsFor(role){
+    return Object.assign({}, DEFAULTS[role] || DEFAULTS.Bezorger);
+  }
+
+  function ensureStyle(){
     if (qs("#" + STYLE_ID)) return;
 
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-      /* Materiaalkaart: nooit meer groen als achtergrond, maar thema-kleur */
-      #materialList .material-row,
-      #materialList .material-row.free,
-      #materialList .material-row.reserved,
-      #materialList .material-row.defect,
-      #materialList .material-row.inactive,
-      #materialList .bns-material-row,
-      #materialList .bns-material-row.free,
-      #materialList .bns-material-row.reserved,
-      #materialList .bns-material-row.defect,
-      #materialList .bns-material-row.inactive,
-      #materialList .bns-material-row.status-free,
-      #materialList .bns-material-row.status-reserved,
-      #materialList .bns-material-row.status-defect,
-      #materialList .bns-material-row.status-inactive {
-        background: var(--panel, #ffffff) !important;
-        color: var(--text, #172033) !important;
-        border-color: var(--border, #dbe3ef) !important;
+      #${BOX_ID}{
+        margin-top:16px!important;
+        margin-bottom:16px!important;
+        padding:16px!important;
+        border:2px solid #93c5fd!important;
+        border-radius:18px!important;
+        background:var(--panel,#fff)!important;
+        color:var(--text,#172033)!important;
+        box-shadow:0 8px 22px rgba(15,23,42,.10)!important;
+        display:block!important;
+        width:100%!important;
       }
-
-      #materialList .material-row *,
-      #materialList .bns-material-row * {
-        color: inherit;
+      #${BOX_ID} .bns-right-title{
+        font-size:20px!important;
+        font-weight:900!important;
+        margin-bottom:12px!important;
       }
-
-      #materialList .material-row small,
-      #materialList .bns-material-row small {
-        color: var(--muted, #64748b) !important;
+      #${BOX_ID} .bns-right-grid{
+        display:grid!important;
+        grid-template-columns:repeat(2,minmax(220px,1fr))!important;
+        gap:10px 14px!important;
       }
-
-      #materialList .badge.free,
-      #materialList .bns-status-pill.free {
-        background: #dcfce7 !important;
-        color: #166534 !important;
+      #${BOX_ID} label{
+        display:flex!important;
+        align-items:center!important;
+        gap:10px!important;
+        padding:10px 12px!important;
+        border-radius:14px!important;
+        background:rgba(148,163,184,.14)!important;
+        font-weight:800!important;
+        cursor:pointer!important;
       }
-
-      #materialList .badge.reserved,
-      #materialList .bns-status-pill.reserved {
-        background: #fee2e2 !important;
-        color: #991b1b !important;
+      #${BOX_ID} input[type="checkbox"]{
+        width:22px!important;
+        height:22px!important;
+        min-width:22px!important;
       }
-
-      #materialList .badge.defect,
-      #materialList .bns-status-pill.defect {
-        background: #fee2e2 !important;
-        color: #991b1b !important;
-        animation: bnsDefectBlink .45s infinite alternate !important;
+      #bnsForceUserList{
+        margin-top:16px!important;
+        display:flex!important;
+        flex-direction:column!important;
+        gap:8px!important;
       }
-
-      #materialList .badge.inactive,
-      #materialList .bns-status-pill.inactive {
-        background: #e2e8f0 !important;
-        color: #334155 !important;
+      .bns-force-user-row{
+        display:grid!important;
+        grid-template-columns:minmax(0,1fr) auto auto!important;
+        gap:10px!important;
+        align-items:center!important;
+        padding:10px 12px!important;
+        border:1px solid var(--border,#dbe3ef)!important;
+        border-radius:14px!important;
+        background:var(--panel,#fff)!important;
       }
-
-      @keyframes bnsDefectBlink {
-        from { opacity: .45; }
-        to { opacity: 1; }
+      .bns-force-user-row small{
+        display:block!important;
+        color:var(--muted,#64748b)!important;
+        font-weight:700!important;
       }
-
-      #${RIGHTS_BOX_ID} {
-        margin-top: 16px !important;
-        margin-bottom: 16px !important;
-        padding: 16px !important;
-        border: 2px solid #93c5fd !important;
-        border-radius: 18px !important;
-        background: var(--panel, #ffffff) !important;
-        color: var(--text, #172033) !important;
-        box-shadow: 0 8px 22px rgba(15,23,42,.10) !important;
-        display: block !important;
-        width: 100% !important;
-      }
-
-      #${RIGHTS_BOX_ID} .bns-right-title {
-        font-size: 20px !important;
-        font-weight: 900 !important;
-        margin-bottom: 12px !important;
-      }
-
-      #${RIGHTS_BOX_ID} .bns-right-grid {
-        display: grid !important;
-        grid-template-columns: repeat(2, minmax(220px, 1fr)) !important;
-        gap: 10px 14px !important;
-      }
-
-      #${RIGHTS_BOX_ID} label {
-        display: flex !important;
-        align-items: center !important;
-        gap: 10px !important;
-        padding: 10px 12px !important;
-        border-radius: 14px !important;
-        background: rgba(148,163,184,.14) !important;
-        font-weight: 800 !important;
-        cursor: pointer !important;
-      }
-
-      #${RIGHTS_BOX_ID} input[type="checkbox"] {
-        width: 22px !important;
-        height: 22px !important;
-        min-width: 22px !important;
-      }
-
-      #bnsForceUserList {
-        margin-top: 16px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 8px !important;
-      }
-
-      .bns-force-user-row {
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) auto auto !important;
-        gap: 10px !important;
-        align-items: center !important;
-        padding: 10px 12px !important;
-        border: 1px solid var(--border, #dbe3ef) !important;
-        border-radius: 14px !important;
-        background: var(--panel, #fff) !important;
-      }
-
-      .bns-force-user-row small {
-        display: block !important;
-        color: var(--muted, #64748b) !important;
-        font-weight: 700 !important;
-      }
-
-      .bns-force-user-row button {
-        padding: 8px 12px !important;
+      .bns-force-user-row button{
+        padding:8px 12px!important;
       }
     `;
     document.head.appendChild(style);
   }
 
-  function findAdminPinInput() {
-    return qs("#adminPin") || qsa("input").find(function(input) {
-      return /pin/i.test(input.placeholder || "") && input.type === "password";
-    });
-  }
-
-  function findOpenBeheerButton() {
-    return qsa("button").find(function(button) {
-      return /open beheer/i.test(button.textContent || "");
-    });
-  }
-
-  function patchAdminPin() {
-    const pinInput = findAdminPinInput();
-    const openButton = findOpenBeheerButton();
-
-    if (pinInput && openButton && !pinInput.dataset.bnsEnterBound) {
-      pinInput.dataset.bnsEnterBound = "1";
-      pinInput.addEventListener("keydown", function(event) {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          openButton.click();
-        }
-      });
-    }
-
-    if (pinInput && openButton && !openButton.dataset.bnsClearPinBound) {
-      openButton.dataset.bnsClearPinBound = "1";
-      openButton.addEventListener("click", function() {
-        setTimeout(function() {
-          if (!pinInput.value || pinInput.value === "1111") {
-            pinInput.value = "";
-          } else if (document.body.textContent.includes("Materialen beheren") || document.body.textContent.includes("Gebruiker aanmaken")) {
-            pinInput.value = "";
-          }
-        }, 250);
-      });
-    }
-
-    if (pinInput && !lastAdminPinOpened && document.body.textContent.includes("Gebruiker aanmaken")) {
-      lastAdminPinOpened = true;
-      pinInput.value = "";
-    }
-  }
-
-  function findSaveUserButton() {
-    return qsa("button").find(function(button) {
-      return (button.textContent || "").trim().toLowerCase().includes("opslaan gebruiker");
-    });
-  }
-
-  function userFormRoot() {
-    const button = findSaveUserButton();
-    if (!button) return null;
-    return button.closest(".panel, .adminPane, section, main, div") || button.parentElement;
-  }
-
-  function userInputs() {
-    const root = userFormRoot() || document;
-    const allInputs = qsa("input", root);
-    const allSelects = qsa("select", root);
-
-    const name = allInputs.find(function(input) {
-      return /naam/i.test(input.placeholder || "");
-    }) || allInputs[0] || null;
-
-    const pin = allInputs.find(function(input) {
-      return /pin/i.test(input.placeholder || "");
-    }) || allInputs[1] || null;
-
-    const role = allSelects.find(function(select) {
-      return /bezorger|planner|admin/i.test(select.textContent || "");
-    }) || allSelects[0] || null;
-
-    return { name, pin, role };
-  }
-
-  function currentRole() {
-    const fields = userInputs();
-    return fields.role ? (fields.role.value || fields.role.options[fields.role.selectedIndex]?.text || "Bezorger") : "Bezorger";
-  }
-
-  function defaultsFor(role) {
-    return Object.assign({}, DEFAULTS[role] || DEFAULTS.Bezorger);
-  }
-
-  function readRights() {
+  function readRights(){
     const rights = {};
-    RIGHTS.forEach(function(item) {
-      const key = item[0];
-      const checkbox = qs("#bnsForceRight_" + key);
-      rights[key] = !!(checkbox && checkbox.checked);
+    RIGHTS.forEach(([key]) => {
+      const cb = qs("#bnsForceRight_" + key);
+      rights[key] = !!(cb && cb.checked);
     });
     return rights;
   }
 
-  function setRights(rights) {
+  function setRights(rights){
     const source = rights || {};
-    RIGHTS.forEach(function(item) {
-      const key = item[0];
-      const checkbox = qs("#bnsForceRight_" + key);
-      if (checkbox) checkbox.checked = !!source[key];
+    RIGHTS.forEach(([key]) => {
+      const cb = qs("#bnsForceRight_" + key);
+      if (cb) cb.checked = !!source[key];
     });
   }
 
-  function ensureRightsBox() {
-    const button = findSaveUserButton();
-    if (!button) return;
+  function ensureBox(){
+    const btn = findSaveButton();
+    if (!btn) return;
 
-    let box = qs("#" + RIGHTS_BOX_ID);
+    let box = qs("#" + BOX_ID);
     if (!box) {
       box = document.createElement("div");
-      box.id = RIGHTS_BOX_ID;
+      box.id = BOX_ID;
       box.innerHTML = `
         <div class="bns-right-title">Wat mag deze medewerker zien / doen?</div>
         <div class="bns-right-grid">
-          ${RIGHTS.map(function(item) {
-            const key = item[0];
-            const label = item[1];
-            return `
-              <label>
-                <input id="bnsForceRight_${key}" type="checkbox">
-                <span>${label}</span>
-              </label>
-            `;
-          }).join("")}
+          ${RIGHTS.map(([key,label]) => `
+            <label>
+              <input id="bnsForceRight_${key}" type="checkbox">
+              <span>${label}</span>
+            </label>
+          `).join("")}
         </div>
         <div id="bnsForceUserList"></div>
       `;
-      button.insertAdjacentElement("afterend", box);
+
+      btn.insertAdjacentElement("afterend", box);
       setRights(defaultsFor(currentRole()));
     }
 
-    const fields = userInputs();
-    if (fields.role && !fields.role.dataset.bnsForceRightsRole) {
-      fields.role.dataset.bnsForceRightsRole = "1";
-      fields.role.addEventListener("change", function() {
+    const {role} = inputs();
+    if (role && !role.dataset.bnsForceRightsRole) {
+      role.dataset.bnsForceRightsRole = "1";
+      role.addEventListener("change", () => {
         if (!selectedUserId) setRights(defaultsFor(currentRole()));
       });
     }
   }
 
-  function saveUserWithRights() {
+  function saveUserWithRights(){
     const s = getState();
     if (!s) return;
 
     s.users = Array.isArray(s.users) ? s.users : [];
 
-    const fields = userInputs();
-    const userName = (fields.name?.value || "").trim();
-    const userPin = (fields.pin?.value || "").trim();
-    const userRole = fields.role ? (fields.role.value || "Bezorger") : "Bezorger";
+    const {name, pin, role} = inputs();
+    const userName = (name?.value || "").trim();
+    const userPin = (pin?.value || "").trim();
+    const userRole = role ? (role.value || "Bezorger") : "Bezorger";
 
     if (!userName || !userPin) {
       alert("Vul naam en PIN in.");
       return;
     }
 
-    let user = selectedUserId ? s.users.find(function(item) {
-      return String(item.id) === String(selectedUserId);
-    }) : null;
+    let user = selectedUserId ? s.users.find(u => String(u.id) === String(selectedUserId)) : null;
 
     if (!user) {
-      user = s.users.find(function(item) {
-        return String(item.pin) === userPin;
-      });
+      user = s.users.find(u => String(u.pin) === userPin);
     }
 
     if (!user) {
-      user = {
-        id: makeId(),
-        name: userName,
-        pin: userPin,
-        role: userRole,
-        phone: "",
-        rights: {}
-      };
+      user = {id:makeId(), name:userName, pin:userPin, role:userRole, phone:"", rights:{}};
       s.users.push(user);
     }
 
@@ -2290,39 +2762,33 @@ setTimeout(()=>{
     selectedUserId = user.id;
 
     doSave();
-    renderUserList();
-    msg("Gebruiker + rechten opgeslagen");
+    renderList();
+    toast("Gebruiker + rechten opgeslagen");
   }
 
-  function editUser(userId) {
+  function editUser(userId){
     const s = getState();
     if (!s || !Array.isArray(s.users)) return;
 
-    const user = s.users.find(function(item) {
-      return String(item.id) === String(userId);
-    });
-
+    const user = s.users.find(u => String(u.id) === String(userId));
     if (!user) return;
 
     selectedUserId = user.id;
 
-    const fields = userInputs();
-    if (fields.name) fields.name.value = user.name || "";
-    if (fields.pin) fields.pin.value = user.pin || "";
-    if (fields.role) fields.role.value = user.role || "Bezorger";
+    const {name, pin, role} = inputs();
+    if (name) name.value = user.name || "";
+    if (pin) pin.value = user.pin || "";
+    if (role) role.value = user.role || "Bezorger";
 
     setRights(Object.assign(defaultsFor(user.role), user.rights || {}));
-    msg("Gebruiker gekozen");
+    toast("Gebruiker gekozen");
   }
 
-  function deleteUser(userId) {
+  function deleteUser(userId){
     const s = getState();
     if (!s || !Array.isArray(s.users)) return;
 
-    const user = s.users.find(function(item) {
-      return String(item.id) === String(userId);
-    });
-
+    const user = s.users.find(u => String(u.id) === String(userId));
     if (!user) return;
 
     if ((user.role || "").toLowerCase() === "admin") {
@@ -2332,31 +2798,23 @@ setTimeout(()=>{
 
     if (!confirm("Gebruiker verwijderen?")) return;
 
-    s.users = s.users.filter(function(item) {
-      return String(item.id) !== String(userId);
-    });
-
+    s.users = s.users.filter(u => String(u.id) !== String(userId));
     if (selectedUserId === userId) selectedUserId = null;
 
     doSave();
-    renderUserList();
+    renderList();
   }
 
-  function renderUserList() {
+  function renderList(){
     const list = qs("#bnsForceUserList");
     const s = getState();
-
     if (!list || !s || !Array.isArray(s.users)) return;
 
-    list.innerHTML = s.users.map(function(user) {
+    list.innerHTML = s.users.map(user => {
       const rights = user.rights || {};
       const allowed = RIGHTS
-        .filter(function(item) {
-          return !!rights[item[0]];
-        })
-        .map(function(item) {
-          return item[1];
-        })
+        .filter(([key]) => !!rights[key])
+        .map(([,label]) => label)
         .join(", ");
 
       return `
@@ -2372,41 +2830,415 @@ setTimeout(()=>{
       `;
     }).join("");
 
-    qsa(".bns-force-user-row", list).forEach(function(row) {
-      qs(".bns-force-edit", row).onclick = function() {
-        editUser(row.dataset.userId);
-      };
-      qs(".bns-force-delete", row).onclick = function() {
-        deleteUser(row.dataset.userId);
-      };
+    qsa(".bns-force-user-row", list).forEach(row => {
+      qs(".bns-force-edit", row).onclick = () => editUser(row.dataset.userId);
+      qs(".bns-force-delete", row).onclick = () => deleteUser(row.dataset.userId);
     });
   }
 
-  function bindSaveUserButton() {
-    const button = findSaveUserButton();
-    if (!button || button.dataset.bnsForceRightsSave) return;
+  function bindSave(){
+    const btn = findSaveButton();
+    if (!btn || btn.dataset.bnsForceRightsSave) return;
 
-    button.dataset.bnsForceRightsSave = "1";
-    button.type = "button";
-    button.onclick = saveUserWithRights;
+    btn.dataset.bnsForceRightsSave = "1";
+    btn.type = "button";
+    btn.onclick = saveUserWithRights;
   }
 
-  function install() {
+  function install(){
     ensureStyle();
-    patchAdminPin();
-    ensureRightsBox();
-    bindSaveUserButton();
-    renderUserList();
+    ensureBox();
+    bindSave();
+    renderList();
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function() {
-      setTimeout(install, 500);
-    });
+    document.addEventListener("DOMContentLoaded", () => setTimeout(install, 500));
   } else {
     setTimeout(install, 500);
   }
 
   setInterval(install, 1000);
+})();
+
+
+
+/* =========================================================
+   BNS V12 PRO - WAZE + AGENDA + POSTCODEZOEKER
+   Extra functies zonder bestaande functies te wissen:
+   - Waze route knop bij planner en bezorger
+   - Google Agenda knop bij planner
+   - Automatisch extra "Ophalen TR blauw" agenda item op einddatum
+   - Postcode + huisnummer zoeker vult adresvelden
+   ========================================================= */
+(function bnsPlannerRouteAgendaPostcode(){
+  "use strict";
+
+  const STYLE_ID = "bns-route-agenda-postcode-style";
+  const POSTCODE_BOX_ID = "bnsPostcodeBox";
+  const PLANNER_TOOLS_ID = "bnsPlannerTools";
+
+  function qs(sel, root){ return (root || document).querySelector(sel); }
+  function qsa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+  function byId(id){ return document.getElementById(id); }
+
+  function getState(){
+    try { return typeof state !== "undefined" ? state : null; } catch(e){ return null; }
+  }
+
+  function currentUser(){
+    try { return typeof user !== "undefined" ? user : null; } catch(e){ return null; }
+  }
+
+  function roleAllowed(){
+    const u = currentUser();
+    const role = String(u && u.role || "").toLowerCase();
+    return role === "admin" || role === "planner" || role === "bezorger";
+  }
+
+  function plannerAllowed(){
+    const u = currentUser();
+    const role = String(u && u.role || "").toLowerCase();
+    return role === "admin" || role === "planner";
+  }
+
+  function fieldValue(id){
+    const input = byId(id);
+    return input ? String(input.value || "").trim() : "";
+  }
+
+  function niceAddressFromForm(){
+    const locationAddress = [
+      fieldValue("locationStreet"),
+      fieldValue("locationZip"),
+      fieldValue("locationCity")
+    ].filter(Boolean).join(" ");
+
+    const customerAddress = [
+      fieldValue("customerStreet"),
+      fieldValue("customerZip"),
+      fieldValue("customerCity")
+    ].filter(Boolean).join(" ");
+
+    return locationAddress || customerAddress;
+  }
+
+  function openWaze(address){
+    const q = String(address || "").trim();
+    if (!q) {
+      alert("Geen adres gevonden. Vul eerst klant- of locatieadres in.");
+      return;
+    }
+
+    window.open("https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes", "_blank");
+  }
+
+  function openGoogleMaps(address){
+    const q = String(address || "").trim();
+    if (!q) {
+      alert("Geen adres gevonden. Vul eerst klant- of locatieadres in.");
+      return;
+    }
+
+    window.open("https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(q), "_blank");
+  }
+
+  function toCalendarDate(value, endOfDay){
+    const safe = value || new Date().toISOString().slice(0, 10);
+    const compact = safe.replaceAll("-", "");
+    return compact + (endOfDay ? "T170000" : "T090000");
+  }
+
+  function currentMaterialCodes(){
+    try {
+      if (Array.isArray(chosen) && chosen.length) {
+        return chosen.map(function(item){ return item.code || item.name || ""; }).filter(Boolean);
+      }
+    } catch(e){}
+
+    return [];
+  }
+
+  function currentFirstMaterialCat(){
+    try {
+      if (Array.isArray(chosen) && chosen.length) {
+        return String(chosen[0].cat || chosen[0].code || "").toUpperCase();
+      }
+    } catch(e){}
+
+    return "";
+  }
+
+  function openCalendarForCurrentOrder(type){
+    const number = fieldValue("orderNumber");
+    const title = fieldValue("orderTitle") || "Opdracht";
+    const customer = fieldValue("customerName");
+    const materialCodes = currentMaterialCodes();
+    const materialCat = currentFirstMaterialCat();
+
+    const start = fieldValue("dateStart");
+    const end = fieldValue("dateEnd") || start;
+    const address = niceAddressFromForm();
+
+    let eventTitle;
+    let eventStart;
+    let eventEnd;
+    let details;
+
+    if (type === "pickup") {
+      eventTitle = "Ophalen TR blauw - " + [number, customer, title].filter(Boolean).join(" - ");
+      eventStart = toCalendarDate(end, False);
+    } else {
+      eventTitle = [
+        "Opdracht",
+        materialCat ? "[" + materialCat + "]" : "",
+        number,
+        customer,
+        title
+      ].filter(Boolean).join(" - ");
+      eventStart = toCalendarDate(start, False);
+    }
+
+    eventEnd = type === "pickup" ? toCalendarDate(end, True) : toCalendarDate(end || start, True);
+
+    details = [
+      "Event Planner PRO",
+      "Opdracht: " + number,
+      "Titel: " + title,
+      "Klant: " + customer,
+      "Materialen: " + (materialCodes.join(", ") || "Nog geen materialen"),
+      "Kleur artikel/rubriek: " + (materialCat || "onbekend"),
+      type === "pickup" ? "Ophalen: TR kleur blauw" : "",
+      "Adres: " + address
+    ].filter(Boolean).join("\n");
+
+    const url = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+      + "&text=" + encodeURIComponent(eventTitle)
+      + "&dates=" + encodeURIComponent(eventStart + "/" + eventEnd)
+      + "&location=" + encodeURIComponent(address)
+      + "&details=" + encodeURIComponent(details);
+
+    window.open(url, "_blank");
+  }
+
+  // JavaScript heeft true/false lowercase nodig; deze hulpfuncties voorkomen typefouten in strings.
+  const False = false;
+  const True = true;
+
+  function ensureStyle(){
+    if (byId(STYLE_ID)) return;
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${PLANNER_TOOLS_ID},
+      #${POSTCODE_BOX_ID}{
+        margin:12px 0!important;
+        padding:12px!important;
+        border:1px solid var(--border,#dbe3ef)!important;
+        border-radius:16px!important;
+        background:var(--panel,#fff)!important;
+        color:var(--text,#172033)!important;
+        display:flex!important;
+        gap:10px!important;
+        flex-wrap:wrap!important;
+        align-items:center!important;
+      }
+
+      #${PLANNER_TOOLS_ID} b,
+      #${POSTCODE_BOX_ID} b{
+        width:100%!important;
+        font-size:16px!important;
+      }
+
+      #${POSTCODE_BOX_ID} input{
+        width:150px!important;
+        min-width:120px!important;
+      }
+
+      .bns-tool-green{
+        background:#16a34a!important;
+      }
+
+      .bns-tool-orange{
+        background:#ea580c!important;
+      }
+
+      .bns-tool-dark{
+        background:#334155!important;
+      }
+
+      .bns-route-button{
+        margin-left:6px!important;
+        padding:7px 10px!important;
+        font-size:13px!important;
+        border-radius:10px!important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensurePlannerTools(){
+    if (!plannerAllowed()) return;
+
+    const newOrderPage = byId("newOrder") || qs(".page.active");
+    if (!newOrderPage || byId(PLANNER_TOOLS_ID)) return;
+
+    const orderHead = qs(".order-head", newOrderPage) || qs("h2", newOrderPage) || newOrderPage.firstElementChild;
+
+    const box = document.createElement("div");
+    box.id = PLANNER_TOOLS_ID;
+    box.innerHTML = `
+      <b>Planner snelknoppen</b>
+      <button type="button" id="bnsWazePlannerBtn" class="bns-tool-green">Waze route naar opdracht</button>
+      <button type="button" id="bnsMapsPlannerBtn" class="bns-tool-dark">Google Maps route</button>
+      <button type="button" id="bnsAgendaOrderBtn">Agenda opdracht maken</button>
+      <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda ophalen TR blauw</button>
+    `;
+
+    if (orderHead && orderHead.insertAdjacentElement) {
+      orderHead.insertAdjacentElement("afterend", box);
+    } else {
+      newOrderPage.prepend(box);
+    }
+
+    byId("bnsWazePlannerBtn").onclick = function(){ openWaze(niceAddressFromForm()); };
+    byId("bnsMapsPlannerBtn").onclick = function(){ openGoogleMaps(niceAddressFromForm()); };
+    byId("bnsAgendaOrderBtn").onclick = function(){ openCalendarForCurrentOrder("order"); };
+    byId("bnsAgendaPickupBtn").onclick = function(){ openCalendarForCurrentOrder("pickup"); };
+  }
+
+  function ensurePostcodeSearch(){
+    const locationPanel = byId("locationPanel") || byId("customerPanel") || byId("newOrder");
+    if (!locationPanel || byId(POSTCODE_BOX_ID)) return;
+
+    const box = document.createElement("div");
+    box.id = POSTCODE_BOX_ID;
+    box.innerHTML = `
+      <b>Postcode zoeker</b>
+      <input id="bnsPostcodeInput" placeholder="Postcode">
+      <input id="bnsHouseNumberInput" placeholder="Huisnr">
+      <button type="button" id="bnsPostcodeSearchBtn">Adres zoeken</button>
+      <button type="button" id="bnsPostcodeMapsBtn" class="bns-tool-dark">Zoek in Maps</button>
+      <span id="bnsPostcodeStatus"></span>
+    `;
+
+    const h3 = qs("h3", locationPanel) || locationPanel.firstElementChild;
+    if (h3 && h3.insertAdjacentElement) h3.insertAdjacentElement("afterend", box);
+    else locationPanel.prepend(box);
+
+    byId("bnsPostcodeSearchBtn").onclick = lookupPostcode;
+    byId("bnsPostcodeMapsBtn").onclick = function(){
+      const pc = fieldValue("bnsPostcodeInput");
+      const nr = fieldValue("bnsHouseNumberInput");
+      openGoogleMaps([pc, nr, "Nederland"].filter(Boolean).join(" "));
+    };
+  }
+
+  async function lookupPostcode(){
+    const pc = fieldValue("bnsPostcodeInput").replace(/\s+/g, "").toUpperCase();
+    const nr = fieldValue("bnsHouseNumberInput");
+    const status = byId("bnsPostcodeStatus");
+
+    if (!pc || !nr) {
+      alert("Vul postcode en huisnummer in.");
+      return;
+    }
+
+    if (status) status.textContent = "Zoeken...";
+
+    // PDOK Locatieserver, geen API-key nodig. Als exacte huisnummer niet gevonden wordt,
+    // vult hij in ieder geval straat/plaats van de postcode aan.
+    const query = encodeURIComponent(pc + " " + nr);
+    const url = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=" + query + "&rows=1";
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Postcode service geeft geen antwoord");
+
+      const data = await response.json();
+      const doc = data && data.response && data.response.docs && data.response.docs[0];
+
+      if (!doc) {
+        if (status) status.textContent = "Niet gevonden";
+        openGoogleMaps(pc + " " + nr + " Nederland");
+        return;
+      }
+
+      const street = doc.straatnaam || doc.weergavenaam || "";
+      const city = doc.woonplaatsnaam || "";
+
+      if (byId("locationStreet")) byId("locationStreet").value = [street, nr].filter(Boolean).join(" ");
+      if (byId("locationZip")) byId("locationZip").value = pc;
+      if (byId("locationCity")) byId("locationCity").value = city;
+
+      // Als locatievelden niet bestaan, klantvelden vullen.
+      if (!byId("locationStreet")) {
+        if (byId("customerStreet")) byId("customerStreet").value = [street, nr].filter(Boolean).join(" ");
+        if (byId("customerZip")) byId("customerZip").value = pc;
+        if (byId("customerCity")) byId("customerCity").value = city;
+      }
+
+      if (status) status.textContent = "Adres ingevuld";
+
+      try {
+        if (typeof renderSummary === "function") renderSummary();
+      } catch(e){}
+    } catch(error) {
+      console.warn(error);
+      if (status) status.textContent = "Niet gelukt, Maps geopend";
+      openGoogleMaps(pc + " " + nr + " Nederland");
+    }
+  }
+
+  function addressFromOrderCard(card){
+    const text = (card.textContent || "").replace(/\s+/g, " ");
+    const match = text.match(/Locatie:\s*([^|]+)|Adres:\s*([^|]+)/i);
+    return match ? (match[1] || match[2] || "").trim() : "";
+  }
+
+  function ensureDriverWazeButtons(){
+    if (!roleAllowed()) return;
+
+    qsa(".order-card, .driver-card, .melding-card").forEach(function(card){
+      if (card.dataset.bnsWazeAdded) return;
+      const text = card.textContent || "";
+
+      if (!/Locatie:|Adres:|Klant:/i.test(text)) return;
+
+      card.dataset.bnsWazeAdded = "1";
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "bns-route-button bns-tool-green";
+      button.textContent = "Waze";
+
+      button.onclick = function(event){
+        event.stopPropagation();
+
+        const address = addressFromOrderCard(card) || niceAddressFromForm();
+        openWaze(address);
+      };
+
+      card.appendChild(button);
+    });
+  }
+
+  function install(){
+    ensureStyle();
+    ensurePlannerTools();
+    ensurePostcodeSearch();
+    ensureDriverWazeButtons();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(install, 700);
+    });
+  } else {
+    setTimeout(install, 700);
+  }
+
+  setInterval(install, 1500);
 })();
 
