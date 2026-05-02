@@ -3302,109 +3302,99 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   BNS VEILIGE UPDATE - SYSTEEMMELDINGEN + OPDRACHT RUBRIEKEN
-   Doel:
-   1. Bezorger kan kiezen: Storing, Schade, Vermissing.
-   2. Planner ziet duidelijk type melding + opdracht + materiaal/opmerking.
-   3. Opgeloste meldingen kunnen door planner en bezorger worden gewist.
-   4. Oude opdrachten met verstreken einddatum vallen onder Uitgevoerd.
-   5. Knoppen Actieve / Uitgevoerde / Geannuleerde opdrachten krijgen actieve kleur.
+   BNS FIX - ACTIEF / UITGEVOERD DATUM + VEILIGE MATERIAALPOPUP
+   - Vandaag en toekomstige einddatums blijven bij Actieve opdrachten.
+   - Vanaf morgen na de einddatum gaat opdracht naar Uitgevoerde opdrachten.
+   - Geannuleerde opdrachten blijven bij Geannuleerde opdrachten.
+   - Deze patch wijzigt geen bestaande data.
    ========================================================= */
 (function(){
   "use strict";
 
-  function $(id){ return document.getElementById(id); }
+  function byId(id){ return document.getElementById(id); }
+
+  function getState(){
+    try {
+      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
+    } catch(e) {}
+    try {
+      if (window.state && Array.isArray(window.state.orders)) return window.state;
+    } catch(e) {}
+    return {orders:[]};
+  }
 
   function esc(value){
-    return String(value ?? "").replace(/[&<>"']/g, function(char){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char];
+    return String(value ?? "").replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function appState(){
-    try {
-      if (typeof state !== "undefined" && state) return state;
-      if (window.state) return window.state;
-    } catch(error) {}
-    return {orders:[], alerts:[]};
+  function parseDateOnly(value){
+    if (!value) return null;
+    const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return null;
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0);
   }
 
-  function saveState(){
-    try {
-      if (typeof save === "function") save();
-      else localStorage.setItem("eventPlannerProV91", JSON.stringify(appState()));
-    } catch(error) {
-      console.error("Opslaan mislukt", error);
-    }
+  function todayOnly(){
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function isCancelled(order){
+    return String(order && order.status || "").toLowerCase() === "geannuleerd";
+  }
+
+  function isExplicitDone(order){
+    return String(order && order.status || "").toLowerCase() === "uitgevoerd";
+  }
+
+  function isPastEndDate(order){
+    const end = parseDateOnly(order && (order.end || order.start));
+    if (!end) return false;
+
+    // Let op: einddatum vandaag blijft actief.
+    return end < todayOnly();
+  }
+
+  function orderGroup(order){
+    if (isCancelled(order)) return "cancelled";
+    if (isExplicitDone(order) || isPastEndDate(order)) return "done";
+    return "active";
   }
 
   function niceDate(value){
     try {
       if (typeof nice === "function") return nice(value);
-    } catch(error) {}
-    if (!value) return "";
-    const parts = String(value).split("-");
-    return parts.length === 3 ? parts[2] + "-" + parts[1] + "-" + parts[0] : String(value);
+    } catch(e) {}
+    const d = parseDateOnly(value);
+    if (!d) return value || "";
+    return String(d.getDate()).padStart(2, "0") + "-" +
+           String(d.getMonth() + 1).padStart(2, "0") + "-" +
+           d.getFullYear();
   }
 
-  function todayIso(){
-    return new Date().toISOString().slice(0, 10);
+  function currentMode(){
+    try {
+      if (typeof mode !== "undefined" && mode) return mode;
+    } catch(e) {}
+    return window.mode || "active";
   }
 
-  function orderIsExpired(order){
-    const end = order && (order.end || order.start);
-    if (!end) return false;
-    return String(end) < todayIso();
+  function setMode(nextMode){
+    try { mode = nextMode; } catch(e) {}
+    window.mode = nextMode;
   }
 
-  function orderBucket(order){
-    const status = String(order && order.status || "").toLowerCase();
-
-    if (status === "geannuleerd") return "cancelled";
-    if (status === "uitgevoerd") return "done";
-    if (orderIsExpired(order)) return "done";
-
-    return "active";
-  }
-
-  function sortedOrderList(){
-    const s = appState();
-    return (s.orders || []).slice().sort(function(a, b){
-      return String(a.start || "9999").localeCompare(String(b.start || "9999"));
-    });
-  }
-
-  function setOrderModeButtons(){
-    const currentMode = (typeof mode !== "undefined" ? mode : window.mode) || "active";
-    const pairs = [
-      ["activeOrders", "active"],
-      ["doneOrders", "done"],
-      ["cancelledOrders", "cancelled"]
-    ];
-
-    pairs.forEach(function(pair){
-      const button = $(pair[0]);
-      if (!button) return;
-
-      const isActive = pair[1] === currentMode;
-      button.classList.toggle("bns-order-mode-active", isActive);
-
-      if (isActive) {
-        button.style.background = "#0f172a";
-        button.style.color = "#ffffff";
-        button.style.boxShadow = "0 8px 20px rgba(15,23,42,.28)";
-      } else {
-        button.style.background = "";
-        button.style.color = "";
-        button.style.boxShadow = "";
-      }
-    });
-  }
-
-  function matchOrderSearch(order, query){
+  function searchMatches(order, query){
     if (!query) return true;
 
-    const haystack = [
+    const materialText = (order.materials || []).map(function(m){
+      return [m.cat, m.code, m.name].join(" ");
+    }).join(" ");
+
+    const text = [
       order.number,
       order.title,
       order.status,
@@ -3416,19 +3406,15 @@ setInterval(install,1500);
       order.location && order.location.name,
       order.location && order.location.street,
       order.location && order.location.city,
-      (order.materials || []).map(function(material){
-        return [material.code, material.name, material.cat].join(" ");
-      }).join(" ")
+      materialText
     ].join(" ").toLowerCase();
 
-    return haystack.indexOf(query) !== -1;
+    return text.indexOf(query) !== -1;
   }
 
-  function safeCard(order){
-    if (typeof card === "function") return card(order);
-
-    const materials = (order.materials || []).map(function(material){
-      return material.code || material.name || "";
+  function fallbackCard(order){
+    const materials = (order.materials || []).map(function(m){
+      return m.code || m.name || "";
     }).filter(Boolean).join(", ");
 
     return `
@@ -3437,351 +3423,141 @@ setInterval(install,1500);
         <div>
           <div class="order-title">${esc(order.number || "")} - ${esc(order.title || "")}</div>
           <div>Klant: ${esc(order.customer && order.customer.name || "")}</div>
-          <div>Datum: ${esc(niceDate(order.start))} t/m ${esc(niceDate(order.end))}</div>
+          <div>Locatie: ${esc(order.location && [order.location.name, order.location.street, order.location.city].filter(Boolean).join(" ") || "")}</div>
           <div>Materialen: ${esc(materials)}</div>
         </div>
       </div>
     `;
   }
 
-  window.renderOrders = function(){
-    const searchEl = $("ordersSearch");
-    const listEl = $("ordersList");
+  function renderCard(order){
+    try {
+      if (typeof card === "function") return card(order);
+    } catch(e) {}
+    try {
+      if (typeof window.card === "function") return window.card(order);
+    } catch(e) {}
+    return fallbackCard(order);
+  }
+
+  function updateModeButtons(){
+    const map = [
+      ["activeOrders", "active"],
+      ["doneOrders", "done"],
+      ["cancelledOrders", "cancelled"]
+    ];
+
+    const activeMode = currentMode();
+
+    map.forEach(function(item){
+      const btn = byId(item[0]);
+      if (!btn) return;
+
+      const active = item[1] === activeMode;
+      btn.classList.toggle("bns-order-mode-active", active);
+
+      if (active) {
+        btn.style.background = "#0f172a";
+        btn.style.color = "#fff";
+        btn.style.boxShadow = "0 8px 20px rgba(15,23,42,.25)";
+      } else {
+        btn.style.background = "";
+        btn.style.color = "";
+        btn.style.boxShadow = "";
+      }
+    });
+  }
+
+  function renderOrdersFixed(){
+    const listEl = byId("ordersList");
     if (!listEl) return;
 
-    const currentMode = (typeof mode !== "undefined" ? mode : window.mode) || "active";
-    const query = String(searchEl && searchEl.value || "").toLowerCase().trim();
+    const query = String((byId("ordersSearch") || {}).value || "").toLowerCase().trim();
+    const selectedMode = currentMode();
 
-    const list = sortedOrderList()
-      .filter(function(order){ return orderBucket(order) === currentMode; })
-      .filter(function(order){ return matchOrderSearch(order, query); });
+    const orders = (getState().orders || [])
+      .slice()
+      .sort(function(a, b){
+        return String(a.start || "9999-99-99").localeCompare(String(b.start || "9999-99-99"));
+      })
+      .filter(function(order){
+        return orderGroup(order) === selectedMode;
+      })
+      .filter(function(order){
+        return searchMatches(order, query);
+      });
 
-    listEl.innerHTML = list.map(safeCard).join("") || "<p>Niets gevonden</p>";
-    setOrderModeButtons();
-  };
-
-  function alertLabel(type){
-    const clean = String(type || "").toLowerCase();
-    if (clean.indexOf("storing") !== -1) return "Storing";
-    if (clean.indexOf("schade") !== -1) return "Schade";
-    if (clean.indexOf("vermissing") !== -1 || clean.indexOf("vermist") !== -1) return "Vermissing";
-    return type || "Melding";
+    listEl.innerHTML = orders.map(renderCard).join("") || "<p>Niets gevonden</p>";
+    updateModeButtons();
   }
 
-  function findOrder(orderId){
-    const s = appState();
-    return (s.orders || []).find(function(order){
-      return String(order.id) === String(orderId);
-    });
-  }
+  function hookButtons(){
+    const active = byId("activeOrders");
+    const done = byId("doneOrders");
+    const cancelled = byId("cancelledOrders");
+    const search = byId("ordersSearch");
 
-  function createDriverAlert(orderId, type){
-    const s = appState();
-    const order = findOrder(orderId);
-    const cleanType = alertLabel(type);
-    const message = prompt(cleanType + " melden. Omschrijving / materiaal:", "") || "";
-
-    s.alerts = s.alerts || [];
-    s.alerts.push({
-      id: (typeof id === "function" ? id() : "alert_" + Date.now()),
-      orderId: orderId,
-      type: cleanType,
-      title: cleanType + " - " + (order && order.number || ""),
-      message: message,
-      note: message,
-      time: new Date().toLocaleString(),
-      resolved: false,
-      source: "bezorger"
-    });
-
-    saveState();
-
-    if (typeof toastMsg === "function") toastMsg(cleanType + " gemeld");
-    else alert(cleanType + " gemeld");
-
-    if (typeof renderAll === "function") renderAll();
-  }
-
-  window.alertFor = createDriverAlert;
-
-  window.BNS_alertResolve = function(alertId){
-    const s = appState();
-    const item = (s.alerts || []).find(function(alertItem){
-      return String(alertItem.id) === String(alertId);
-    });
-
-    if (!item) return;
-
-    item.resolved = true;
-    item.resolvedAt = new Date().toLocaleString();
-
-    saveState();
-    showAlerts();
-    refreshEverything();
-  };
-
-  window.BNS_alertDelete = function(alertId){
-    const s = appState();
-    const item = (s.alerts || []).find(function(alertItem){
-      return String(alertItem.id) === String(alertId);
-    });
-
-    if (!item) return;
-
-    if (!item.resolved) {
-      alert("Melding eerst op opgelost zetten na reparatie.");
-      return;
-    }
-
-    s.alerts = (s.alerts || []).filter(function(alertItem){
-      return String(alertItem.id) !== String(alertId);
-    });
-
-    saveState();
-    showAlerts();
-    refreshEverything();
-  };
-
-  function alertCard(alertItem){
-    const order = findOrder(alertItem.orderId);
-    const type = alertLabel(alertItem.type || alertItem.title);
-    const resolved = !!alertItem.resolved;
-
-    return `
-      <div class="bns-alert-card ${resolved ? "resolved" : "open"}">
-        <div class="bns-alert-head">
-          <b>${esc(type)}</b>
-          <span>${resolved ? "Opgelost" : "Open"}</span>
-        </div>
-        <div><b>Opdracht:</b> ${esc(order ? (order.number || "") + " - " + (order.title || "") : "Onbekend")}</div>
-        <div><b>Klant:</b> ${esc(order && order.customer && order.customer.name || "")}</div>
-        <div><b>Datum:</b> ${esc(order ? niceDate(order.start) + " t/m " + niceDate(order.end) : "")}</div>
-        <div><b>Melding:</b> ${esc(alertItem.message || alertItem.note || "")}</div>
-        <div><b>Tijd:</b> ${esc(alertItem.time || "")}</div>
-        ${resolved ? `<div><b>Opgelost:</b> ${esc(alertItem.resolvedAt || "")}</div>` : ""}
-        <div class="actions bns-alert-actions">
-          ${resolved ? "" : `<button type="button" onclick="BNS_alertResolve('${esc(alertItem.id)}')">Opgelost na reparatie</button>`}
-          <button type="button" onclick="BNS_alertDelete('${esc(alertItem.id)}')" ${resolved ? "" : "disabled"}>Wissen</button>
-        </div>
-      </div>
-    `;
-  }
-
-  function ensureAlertModal(){
-    let modal = $("bnsAlertsModal");
-    if (modal) return modal;
-
-    modal = document.createElement("div");
-    modal.id = "bnsAlertsModal";
-    modal.className = "bns-modal hidden";
-    modal.innerHTML = `
-      <div class="bns-modal-card bns-alert-modal-card">
-        <h2>Systeemmeldingen</h2>
-        <div id="bnsAlertsBody"></div>
-        <div class="actions">
-          <button type="button" onclick="document.getElementById('bnsAlertsModal').classList.add('hidden')">Sluiten</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-    return modal;
-  }
-
-  function showAlerts(){
-    const s = appState();
-    const modal = ensureAlertModal();
-    const body = $("bnsAlertsBody");
-    const alerts = (s.alerts || []).slice().sort(function(a, b){
-      return String(b.time || "").localeCompare(String(a.time || ""));
-    });
-
-    body.innerHTML = alerts.length
-      ? alerts.map(alertCard).join("")
-      : "<p>Geen systeemmeldingen.</p>";
-
-    modal.classList.remove("hidden");
-    updateAlertButton();
-  }
-
-  window.BNS_showAlerts = showAlerts;
-
-  function updateAlertButton(){
-    const s = appState();
-    const button = $("alertsBtn");
-    if (!button) return;
-
-    const openCount = (s.alerts || []).filter(function(alertItem){
-      return !alertItem.resolved;
-    }).length;
-
-    button.textContent = "Systeemmeldingen (" + openCount + ")";
-    button.classList.toggle("alarm-red", openCount > 0);
-    button.onclick = showAlerts;
-  }
-
-  function renderDriverSafe(){
-    const driverList = $("driverList");
-    if (!driverList) return;
-
-    const orders = sortedOrderList().filter(function(order){
-      return orderBucket(order) === "active";
-    }).slice(0, 40);
-
-    driverList.innerHTML = orders.map(function(order){
-      const materials = (order.materials || []).map(function(material){
-        return material.code || material.name || "";
-      }).filter(Boolean).join(", ");
-
-      return `
-        <div class="order-card">
-          <div class="date-tile">${esc(niceDate(order.start))}</div>
-          <div>
-            <b>${esc(order.number || "")} - ${esc(order.title || "")}</b><br>
-            <span>${esc(materials)}</span>
-          </div>
-          <div class="actions">
-            <button type="button" onclick="alertFor('${esc(order.id)}','Storing')">Storing</button>
-            <button type="button" onclick="alertFor('${esc(order.id)}','Schade')">Schade</button>
-            <button type="button" onclick="alertFor('${esc(order.id)}','Vermissing')">Vermissing</button>
-          </div>
-        </div>
-      `;
-    }).join("") || "<p>Geen actieve opdrachten.</p>";
-  }
-
-  window.renderDriver = renderDriverSafe;
-
-  function injectStyles(){
-    if ($("bnsAlertOrderStyle")) return;
-
-    const style = document.createElement("style");
-    style.id = "bnsAlertOrderStyle";
-    style.textContent = `
-      .bns-order-mode-active {
-        background: #0f172a !important;
-        color: #fff !important;
-      }
-      .bns-alert-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 14px;
-        padding: 14px;
-        margin: 12px 0;
-        background: #fff;
-        box-shadow: 0 8px 24px rgba(15,23,42,.08);
-      }
-      .bns-alert-card.open {
-        border-left: 7px solid #dc2626;
-      }
-      .bns-alert-card.resolved {
-        border-left: 7px solid #16a34a;
-        opacity: .85;
-      }
-      .bns-alert-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 8px;
-        font-size: 18px;
-      }
-      .bns-alert-head span {
-        border-radius: 999px;
-        padding: 4px 10px;
-        background: #f1f5f9;
-        font-weight: 800;
-      }
-      .bns-alert-actions button[disabled] {
-        opacity: .45;
-        cursor: not-allowed;
-      }
-      .bns-alert-modal-card {
-        max-width: 760px;
-        width: min(760px, 92vw);
-        max-height: 86vh;
-        overflow: auto;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function hookOrderModeButtons(){
-    const active = $("activeOrders");
-    const done = $("doneOrders");
-    const cancelled = $("cancelledOrders");
-    const search = $("ordersSearch");
-
-    if (active && !active.dataset.bnsOrderHooked) {
-      active.dataset.bnsOrderHooked = "1";
+    if (active) {
       active.onclick = function(){
-        try { mode = "active"; } catch(error) { window.mode = "active"; }
-        window.renderOrders();
+        setMode("active");
+        renderOrdersFixed();
       };
     }
 
-    if (done && !done.dataset.bnsOrderHooked) {
-      done.dataset.bnsOrderHooked = "1";
+    if (done) {
       done.onclick = function(){
-        try { mode = "done"; } catch(error) { window.mode = "done"; }
-        window.renderOrders();
+        setMode("done");
+        renderOrdersFixed();
       };
     }
 
-    if (cancelled && !cancelled.dataset.bnsOrderHooked) {
-      cancelled.dataset.bnsOrderHooked = "1";
+    if (cancelled) {
       cancelled.onclick = function(){
-        try { mode = "cancelled"; } catch(error) { window.mode = "cancelled"; }
-        window.renderOrders();
+        setMode("cancelled");
+        renderOrdersFixed();
       };
     }
 
-    if (search && !search.dataset.bnsSearchHooked) {
-      search.dataset.bnsSearchHooked = "1";
-      search.addEventListener("input", window.renderOrders);
+    if (search && !search.dataset.bnsDateFixSearch) {
+      search.dataset.bnsDateFixSearch = "1";
+      search.addEventListener("input", renderOrdersFixed);
     }
   }
 
-  function refreshEverything(){
-    injectStyles();
-    hookOrderModeButtons();
-    updateAlertButton();
+  window.BNS_renderOrdersDateFixed = renderOrdersFixed;
 
-    try { window.renderOrders(); } catch(error) {}
-    try { window.renderDriver(); } catch(error) {}
+  const oldRenderOrders = window.renderOrders;
+  window.renderOrders = function(){
+    renderOrdersFixed();
+  };
 
-    try {
-      const dashAlerts = $("statAlerts");
-      if (dashAlerts) dashAlerts.textContent = (appState().alerts || []).length;
-    } catch(error) {}
-  }
+  try { renderOrders = window.renderOrders; } catch(e) {}
 
   const oldRenderAll = window.renderAll;
-  window.renderAll = function(){
-    if (typeof oldRenderAll === "function") {
-      try { oldRenderAll.apply(this, arguments); } catch(error) {}
-    }
-
-    refreshEverything();
-
-    const driverSelect = $("orderDriver");
-    if (driverSelect && appState().users) {
-      driverSelect.innerHTML = '<option value="">Geen</option>' + (appState().users || [])
-        .filter(function(user){ return user.role === "Bezorger"; })
-        .map(function(user){ return "<option>" + esc(user.name) + "</option>"; })
-        .join("");
-    }
-
-    if (typeof summaryRender === "function") {
-      try { summaryRender(); } catch(error) {}
-    }
-  };
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(refreshEverything, 300);
-    });
-  } else {
-    setTimeout(refreshEverything, 300);
+  if (typeof oldRenderAll === "function" && !oldRenderAll.__bnsDateFixWrapped) {
+    const wrapped = function(){
+      const result = oldRenderAll.apply(this, arguments);
+      setTimeout(function(){
+        hookButtons();
+        renderOrdersFixed();
+      }, 0);
+      return result;
+    };
+    wrapped.__bnsDateFixWrapped = true;
+    window.renderAll = wrapped;
+    try { renderAll = wrapped; } catch(e) {}
   }
 
-  setTimeout(refreshEverything, 1000);
+  function install(){
+    hookButtons();
+    renderOrdersFixed();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); });
+  } else {
+    setTimeout(install, 300);
+  }
+
+  setTimeout(install, 1000);
 })();
