@@ -65,25 +65,20 @@ function addMat(mid){let m=state.materials.find(x=>x.id===mid); if(m&&!chosen.so
 function renderChosen(){chosenMaterials.innerHTML=chosen.map(m=>`<span class="chip">${m.code} ${m.name}<button onclick="removeMat('${m.id}')">x</button></span>`).join('')}
 function removeMat(mid){chosen=chosen.filter(m=>m.id!==mid);renderChosen();renderMaterials(currentCat);summaryRender();}
 function newNo(){let y=new Date().getFullYear();let nums=state.orders.map(o=>String(o.number||'').match(new RegExp('^'+y+'-(\\d+)$'))).filter(Boolean).map(m=>+m[1]);orderNumber.value=y+'-'+String(nums.length?Math.max(...nums)+1:1).padStart(4,'0')}
-function saveCurrentOrder(){let sd=bnsDateOnly(dateStart.value),ed=bnsDateOnly(dateEnd.value||dateStart.value),td=bnsTodayOnly();if(sd&&sd<td){alert('Je kunt geen nieuwe opdracht in het verleden plannen. Vandaag mag wel.');return false}if(sd&&ed&&ed<sd){alert('Einddatum kan niet vóór startdatum liggen.');return false}let o={id:editing||id(),number:orderNumber.value,status:orderStatus.value,title:orderTitle.value||'Zonder titel',start:dateStart.value,end:dateEnd.value,brand:orderBrand.value,customer:{name:customerName.value,street:customerStreet.value,zip:customerZip.value,city:customerCity.value,phone:customerPhone.value,email:customerEmail.value},location:{name:locationName.value,street:locationStreet.value,zip:locationZip.value,city:locationCity.value,contact:locationContact.value,phone:locationPhone.value,show:showLocationOnDocs.checked},materials:chosen,driver:orderDriver.value,vehicle:orderVehicle.value,extra:orderExtra.value,pricing:calcTotals()};upsertCustomer(o.customer);upsertLocation(o.location);if(editing){let i=state.orders.findIndex(x=>x.id===editing);state.orders[i]=o}else state.orders.push(o);editing=null;save();clearOrder();renderAll();showPage('orders');}
+function saveCurrentOrder(){let o={id:editing||id(),number:orderNumber.value,status:orderStatus.value,title:orderTitle.value||'Zonder titel',start:dateStart.value,end:dateEnd.value,brand:orderBrand.value,customer:{name:customerName.value,street:customerStreet.value,zip:customerZip.value,city:customerCity.value,phone:customerPhone.value,email:customerEmail.value},location:{name:locationName.value,street:locationStreet.value,zip:locationZip.value,city:locationCity.value,contact:locationContact.value,phone:locationPhone.value,show:showLocationOnDocs.checked},materials:chosen,driver:orderDriver.value,vehicle:orderVehicle.value,extra:orderExtra.value,pricing:calcTotals()};upsertCustomer(o.customer);upsertLocation(o.location);if(editing){let i=state.orders.findIndex(x=>x.id===editing);state.orders[i]=o}else state.orders.push(o);editing=null;save();clearOrder();renderAll();showPage('orders');}
 function upsertCustomer(c){if(!c.name)return;let e=state.customers.find(x=>(x.name||'').toLowerCase()===c.name.toLowerCase()&&(x.street||'')===c.street);e?Object.assign(e,c):state.customers.push({id:id(),...c})}
 function upsertLocation(l){if(!l.name&&!l.street)return;let e=state.locations.find(x=>(x.name||'').toLowerCase()===(l.name||'').toLowerCase()&&(x.street||'')===l.street);e?Object.assign(e,l):state.locations.push({id:id(),...l})}
 function clearOrder(){['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderVehicle','orderExtra'].forEach(i=>$(i).value='');chosen=[];renderChosen(); if($('priceExcl')) $('priceExcl').value='0.00'; if($('discountAmount')) $('discountAmount').value='0.00'; if($('vatPercent')) $('vatPercent').value='21'; if($('depositAmount')) $('depositAmount').value='0.00'; calcTotals(); newNo();summaryRender();}
 function editOrder(oid){let o=state.orders.find(x=>x.id===oid); if(!o)return;showPage('newOrder');editing=oid;orderNumber.value=o.number||'';orderStatus.value=o.status||'Offerte';dateStart.value=o.start||'';dateEnd.value=o.end||'';orderTitle.value=o.title||'';orderBrand.value=o.brand||''; if(o.pricing){priceExcl.value=(o.pricing.excl||0).toFixed(2); discountAmount.value=(o.pricing.discount||0).toFixed(2); vatPercent.value=o.pricing.vatP||21; depositAmount.value=(o.pricing.deposit||0).toFixed(2); calcTotals();}Object.assign(customerName,{value:o.customer?.name||''});customerStreet.value=o.customer?.street||'';customerZip.value=o.customer?.zip||'';customerCity.value=o.customer?.city||'';customerPhone.value=o.customer?.phone||'';customerEmail.value=o.customer?.email||'';locationName.value=o.location?.name||'';locationStreet.value=o.location?.street||'';locationZip.value=o.location?.zip||'';locationCity.value=o.location?.city||'';locationContact.value=o.location?.contact||'';locationPhone.value=o.location?.phone||'';chosen=structuredClone(o.materials||[]);orderDriver.value=o.driver||'';orderVehicle.value=o.vehicle||'';orderExtra.value=o.extra||'';renderChosen();summaryRender();workTab('customerPanel')}
 function nice(d){if(!d)return '';let p=d.split('-');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:d}
-function bnsDateOnly(v){let m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),0,0,0,0):null}
-function bnsTodayOnly(){let d=new Date();d.setHours(0,0,0,0);return d}
-function bnsPastEnd(o){let e=bnsDateOnly(o&&(o.end||o.start));return !!e&&e<bnsTodayOnly()}
-function bnsOrderGroup(o){let s=String(o?.status||'').toLowerCase();if(s==='geannuleerd')return'cancelled';if(s==='uitgevoerd'||bnsPastEnd(o))return'done';return'active'}
-function bnsActiveOrder(o){return bnsOrderGroup(o)==='active'}
 function sortedOrders(){return state.orders.slice().sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999'))}
-function renderOrders(){let q=ordersSearch.value.toLowerCase();let list=sortedOrders().filter(o=>bnsOrderGroup(o)===mode).filter(o=>!q||JSON.stringify(o).toLowerCase().includes(q)||[nice(o.start),nice(o.end)].join(' ').toLowerCase().includes(q));ordersList.innerHTML=list.map(card).join('')||'<p>Niets gevonden</p>';try{document.querySelectorAll('#activeOrders,#doneOrders,#cancelledOrders').forEach(b=>b.classList.remove('bns-active-filter'));let id=mode==='active'?'activeOrders':mode==='done'?'doneOrders':'cancelledOrders';let btn=document.getElementById(id);if(btn)btn.classList.add('bns-active-filter')}catch(e){}}
-function card(o){let addr=[o.location?.street,o.location?.zip,o.location?.city].filter(Boolean).join(' ');let mats=(o.materials||[]).map(m=>m.code).join(', ');let dateRange=nice(o.start)+(o.end&&o.end!==o.start?' t/m '+nice(o.end):'');return `<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><div class="order-title">${o.number} - ${o.title} <span class="status status-${o.status}">${o.status}</span></div><div><b>Datum:</b> ${dateRange}</div><div>Klant: ${o.customer?.name||''}</div><div>Locatie: ${addr}</div><div>Materialen: ${mats}</div><div>Totaal: ${o.pricing?money(o.pricing.grand):'€ 0,00'} | Borg: ${o.pricing?money(o.pricing.deposit):'€ 0,00'}</div></div><div class="actions"><button onclick="editOrder('${o.id}')">Wijzigen</button>${o.status==='Geannuleerd'?`<button onclick="restore('${o.id}')">Terughalen</button>`:`<button class="danger" onclick="cancel('${o.id}')">Annuleren</button>`}</div></div>`}
+function renderOrders(){let q=ordersSearch.value.toLowerCase();let list=sortedOrders().filter(o=>mode==='cancelled'?o.status==='Geannuleerd':(mode==='done'?o.status==='Uitgevoerd':(o.status!=='Geannuleerd'&&o.status!=='Uitgevoerd'))).filter(o=>!q||JSON.stringify(o).toLowerCase().includes(q));ordersList.innerHTML=list.map(card).join('')||'<p>Niets gevonden</p>'}
+function card(o){let addr=[o.location?.street,o.location?.zip,o.location?.city].filter(Boolean).join(' ');let mats=(o.materials||[]).map(m=>m.code).join(', ');return `<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><div class="order-title">${o.number} - ${o.title} <span class="status status-${o.status}">${o.status}</span></div><div>Klant: ${o.customer?.name||''}</div><div>Locatie: ${addr}</div><div>Materialen: ${mats}</div><div>Totaal: ${o.pricing?money(o.pricing.grand):'€ 0,00'} | Borg: ${o.pricing?money(o.pricing.deposit):'€ 0,00'}</div></div><div class="actions"><button onclick="editOrder('${o.id}')">Wijzigen</button>${o.status==='Geannuleerd'?`<button onclick="restore('${o.id}')">Terughalen</button>`:`<button class="danger" onclick="cancel('${o.id}')">Annuleren</button>`}</div></div>`}
 function cancel(oid){let o=state.orders.find(x=>x.id===oid); if(o){o.status='Geannuleerd';save();renderOrders()}}
 function restore(oid){let o=state.orders.find(x=>x.id===oid); if(o){o.status='Opdracht';save();renderOrders()}}
 function markDone(oid){let o=state.orders.find(x=>x.id===oid); if(o){o.status='Uitgevoerd';save();renderOrders();renderDashboard();}}
-function renderDashboard(){statOrders.textContent=state.orders.length;statMaterials.textContent=state.materials.length;statAlerts.textContent=state.alerts.length;dashOrders.innerHTML=sortedOrders().filter(bnsActiveOrder).slice(0,6).map(card).join('')||'<p>Geen aankomende opdrachten.</p>'}
-function renderDriver(){driverList.innerHTML=sortedOrders().filter(bnsActiveOrder).slice(0,25).map(o=>`<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><b>${o.number} - ${o.title}</b><br><b>Datum:</b> ${nice(o.start)}${o.end&&o.end!==o.start?' t/m '+nice(o.end):''}<br>${(o.materials||[]).map(m=>m.code).join(', ')}</div><div><button onclick="alertFor('${o.id}','Storing')">Storing</button><button onclick="alertFor('${o.id}','Schade')">Schade</button><button onclick="alertFor('${o.id}','Vermissing')">Vermissing</button></div></div>`).join('')||'<p>Geen actieve opdrachten.</p>'}
+function renderDashboard(){statOrders.textContent=state.orders.length;statMaterials.textContent=state.materials.length;statAlerts.textContent=state.alerts.length;dashOrders.innerHTML=sortedOrders().filter(o=>o.status!=='Geannuleerd').slice(0,6).map(card).join('')}
+function renderDriver(){driverList.innerHTML=sortedOrders().slice(0,25).map(o=>`<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><b>${o.number} - ${o.title}</b><br>${(o.materials||[]).map(m=>m.code).join(', ')}</div><div><button onclick="alertFor('${o.id}','Schade')">Schade</button><button onclick="alertFor('${o.id}','Foto voor')">Foto voor</button><button onclick="alertFor('${o.id}','Foto na')">Foto na</button></div></div>`).join('')}
 function alertFor(oid,type){let o=state.orders.find(x=>x.id===oid);state.alerts.push({id:id(),orderId:oid,title:type+' - '+(o?.number||''),time:new Date().toLocaleString(),resolved:false});save();renderAll()}
 function renderAll(){renderDashboard();renderOrders();renderDriver();orderDriver.innerHTML='<option value="">Geen</option>'+state.users.filter(u=>u.role==='Bezorger').map(u=>`<option>${u.name}</option>`).join('');alertsBtn.textContent='Systeemmeldingen ('+state.alerts.filter(a=>!a.resolved).length+')';summaryRender()}
 
@@ -3305,13 +3300,451 @@ setInterval(install,1500);
 })();
 
 
+
+/* =========================================================
+   BNS LAATSTE HARDE EINDDATUM FIX
+   Staat helemaal onderaan en wint van alle oudere patches.
+
+   - Dashboard: alleen opdrachten met einddatum vandaag of later.
+   - Opdrachten actief: einddatum vandaag of later.
+   - Uitgevoerd: einddatum vóór vandaag.
+   - Bezorger meldingen: alleen actieve opdrachten.
+   - Nieuwe opdracht: startdatum mag niet in verleden.
+   - Einddatum mag niet vóór startdatum.
+   - Kaarten tonen start t/m einddatum.
+   - Geen setInterval, geen bewegend beeld.
+   ========================================================= */
 (function(){
-  function addCss(){
-    if(document.getElementById('bns-einddatum-fix-css'))return;
-    let s=document.createElement('style');
-    s.id='bns-einddatum-fix-css';
-    s.textContent='.bns-active-filter{background:#0f172a!important;color:#fff!important;border:3px solid #22d3ee!important;box-shadow:0 0 0 3px rgba(34,211,238,.25)!important}';
-    document.head.appendChild(s);
+  "use strict";
+
+  var BNS_MODE = "active";
+
+  function byId(id){ return document.getElementById(id); }
+
+  function S(){
+    try {
+      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
+    } catch(e) {}
+    try {
+      if (window.state && Array.isArray(window.state.orders)) return window.state;
+    } catch(e) {}
+    try {
+      var raw = localStorage.getItem("eventPlannerProV91") ||
+                localStorage.getItem("eventPlannerPro") ||
+                localStorage.getItem("eventPlannerState") ||
+                localStorage.getItem("plannerState");
+      var parsed = JSON.parse(raw || "{}");
+      if (parsed && Array.isArray(parsed.orders)) return parsed;
+    } catch(e) {}
+    return {orders: [], materials: [], alerts: [], users: []};
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addCss);else addCss();
+
+  function saveState(){
+    try {
+      if (typeof save === "function") save();
+      else localStorage.setItem("eventPlannerProV91", JSON.stringify(S()));
+    } catch(e) {}
+  }
+
+  function esc(v){
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function parseDate(v){
+    var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  }
+
+  function today(){
+    var d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function nice2(v){
+    try {
+      if (typeof nice === "function") return nice(v);
+    } catch(e) {}
+    var d = parseDate(v);
+    if (!d) return v || "";
+    return String(d.getDate()).padStart(2, "0") + "-" +
+           String(d.getMonth() + 1).padStart(2, "0") + "-" +
+           d.getFullYear();
+  }
+
+  function endDate(order){
+    return parseDate(order && (order.end || order.start));
+  }
+
+  function isPastEnd(order){
+    var e = endDate(order);
+    return !!e && e < today();
+  }
+
+  function group(order){
+    var status = String(order && order.status || "").toLowerCase();
+
+    if (status === "geannuleerd") return "cancelled";
+    if (status === "uitgevoerd") return "done";
+    if (isPastEnd(order)) return "done";
+
+    return "active";
+  }
+
+  function activeOrder(order){
+    return group(order) === "active";
+  }
+
+  function sortedOrders(){
+    return (S().orders || []).slice().sort(function(a, b){
+      return String(a.start || "9999-99-99").localeCompare(String(b.start || "9999-99-99"));
+    });
+  }
+
+  function money2(v){
+    try {
+      if (typeof money === "function") return money(v || 0);
+      if (typeof euro === "function") return euro(v || 0);
+    } catch(e) {}
+    return "€ " + Number(v || 0).toFixed(2).replace(".", ",");
+  }
+
+  function dateRange(order){
+    var start = nice2(order.start);
+    var end = nice2(order.end || order.start);
+    return start && end && start !== end ? start + " t/m " + end : (start || end || "");
+  }
+
+  function matChips(materials){
+    return (materials || []).map(function(m){
+      var code = m.code || m.name || "";
+      return '<span class="material-code-chip">' + esc(code) + '</span>';
+    }).join(" ");
+  }
+
+  function bnsCard(order){
+    var loc = order.location || {};
+    var addr = [loc.name, loc.street, loc.city].filter(Boolean).join(" ");
+    var total = order.pricing && order.pricing.grand != null ? order.pricing.grand : order.amount;
+    var deposit = order.pricing && order.pricing.deposit != null ? order.pricing.deposit : 0;
+    var status = order.status || "";
+
+    return '' +
+      '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
+        '<div class="date-tile">' + esc(nice2(order.start)) + '</div>' +
+        '<div>' +
+          '<div class="order-title">' + esc(order.number || "") + ' - ' + esc(order.title || "") +
+            ' <span class="status status-' + esc(status) + '">' + esc(status) + '</span></div>' +
+          '<div><b>Datum:</b> ' + esc(dateRange(order)) + '</div>' +
+          '<div>Klant: ' + esc(order.customer && order.customer.name || "") + '</div>' +
+          '<div>Locatie: ' + esc(addr) + '</div>' +
+          '<div>Materialen: ' + matChips(order.materials || []) + '</div>' +
+          '<div>Totaal: ' + money2(total) + ' | Borg: ' + money2(deposit) + '</div>' +
+          '<button type="button" class="bns-waze-btn" onclick="window.open(\'https://waze.com/ul?q=' + encodeURIComponent(addr) + '&navigate=yes\',\'_blank\')">Waze</button>' +
+        '</div>' +
+        '<div class="actions">' +
+          '<button type="button" onclick="editOrder(\'' + esc(order.id) + '\')">Wijzigen</button>' +
+          (status === "Geannuleerd"
+            ? '<button type="button" onclick="restore(\'' + esc(order.id) + '\')">Terughalen</button>'
+            : '<button type="button" class="danger" onclick="cancel(\'' + esc(order.id) + '\')">Annuleren</button>') +
+        '</div>' +
+      '</div>';
+  }
+
+  function searchMatch(order, q){
+    if (!q) return true;
+
+    var matText = (order.materials || []).map(function(m){
+      return [m.cat, m.code, m.name, m.price, m.status].join(" ");
+    }).join(" ");
+
+    var haystack = [
+      order.id,
+      order.oldId,
+      order.number,
+      order.title,
+      order.status,
+      order.start,
+      order.end,
+      nice2(order.start),
+      nice2(order.end),
+      dateRange(order),
+      order.customer && order.customer.name,
+      order.customer && order.customer.phone,
+      order.customer && order.customer.email,
+      order.location && order.location.name,
+      order.location && order.location.street,
+      order.location && order.location.city,
+      matText
+    ].join(" ").toLowerCase();
+
+    return haystack.indexOf(q) !== -1;
+  }
+
+  function getMode(){
+    try {
+      if (typeof mode !== "undefined" && mode) return mode;
+    } catch(e) {}
+    return window.mode || BNS_MODE || "active";
+  }
+
+  function setMode(m){
+    BNS_MODE = m;
+    window.mode = m;
+    try { mode = m; } catch(e) {}
+  }
+
+  function findButton(textRegex, id){
+    return byId(id) || Array.from(document.querySelectorAll("button")).find(function(b){
+      return textRegex.test(b.textContent || "");
+    });
+  }
+
+  function paintModeButtons(){
+    var current = getMode();
+    var list = [
+      [findButton(/actieve opdrachten/i, "activeOrders"), "active"],
+      [findButton(/uitgevoerde opdrachten/i, "doneOrders"), "done"],
+      [findButton(/geannuleerde opdrachten/i, "cancelledOrders"), "cancelled"]
+    ];
+
+    list.forEach(function(pair){
+      var btn = pair[0];
+      var active = pair[1] === current;
+      if (!btn) return;
+
+      btn.classList.toggle("bns-final-active-filter", active);
+
+      if (active) {
+        btn.style.setProperty("background", "#0f172a", "important");
+        btn.style.setProperty("color", "#fff", "important");
+        btn.style.setProperty("border", "3px solid #22d3ee", "important");
+        btn.style.setProperty("box-shadow", "0 0 0 3px rgba(34,211,238,.25)", "important");
+      } else {
+        btn.style.removeProperty("background");
+        btn.style.removeProperty("color");
+        btn.style.removeProperty("border");
+        btn.style.removeProperty("box-shadow");
+      }
+    });
+  }
+
+  function renderOrdersFinal(){
+    var list = byId("ordersList");
+    if (!list) {
+      paintModeButtons();
+      return;
+    }
+
+    var q = String((byId("ordersSearch") || {}).value || "").toLowerCase().trim();
+    var m = getMode();
+
+    var rows = sortedOrders()
+      .filter(function(order){ return group(order) === m; })
+      .filter(function(order){ return searchMatch(order, q); });
+
+    list.innerHTML = rows.map(bnsCard).join("") || "<p>Niets gevonden</p>";
+    paintModeButtons();
+  }
+
+  function renderDashboardFinal(){
+    try {
+      if (byId("statOrders")) byId("statOrders").textContent = (S().orders || []).length;
+      if (byId("statMaterials")) byId("statMaterials").textContent = (S().materials || []).length;
+      if (byId("statAlerts")) byId("statAlerts").textContent = (S().alerts || []).length;
+    } catch(e) {}
+
+    var box = byId("dashOrders");
+    if (!box) return;
+
+    var rows = sortedOrders()
+      .filter(activeOrder)
+      .slice(0, 6);
+
+    box.innerHTML = rows.map(bnsCard).join("") || "<p>Geen aankomende opdrachten.</p>";
+  }
+
+  function renderDriverFinal(){
+    var box = byId("driverList");
+    if (!box) return;
+
+    var rows = sortedOrders()
+      .filter(activeOrder)
+      .slice(0, 25);
+
+    box.innerHTML = rows.map(function(order){
+      return '' +
+        '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
+          '<div class="date-tile">' + esc(nice2(order.start)) + '</div>' +
+          '<div>' +
+            '<b>' + esc(order.number || "") + ' - ' + esc(order.title || "") + '</b><br>' +
+            '<b>Datum:</b> ' + esc(dateRange(order)) + '<br>' +
+            esc((order.materials || []).map(function(m){ return m.code || m.name || ""; }).join(", ")) +
+          '</div>' +
+          '<div class="actions">' +
+            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Storing\')">Storing</button>' +
+            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Schade\')">Schade</button>' +
+            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Vermissing\')">Vermissing</button>' +
+          '</div>' +
+        '</div>';
+    }).join("") || "<p>Geen actieve opdrachten.</p>";
+  }
+
+  function validNewOrderDate(){
+    var startInput = byId("dateStart");
+    var endInput = byId("dateEnd");
+
+    if (!startInput) return true;
+
+    var start = parseDate(startInput.value);
+    var end = parseDate((endInput && endInput.value) || startInput.value);
+    var now = today();
+
+    if (start && start < now) {
+      alert("Je kunt geen nieuwe opdracht in het verleden plannen. Vandaag mag wel.");
+      return false;
+    }
+
+    if (start && end && end < start) {
+      alert("Einddatum kan niet vóór startdatum liggen.");
+      return false;
+    }
+
+    return true;
+  }
+
+  function hookButtonsFinal(){
+    var active = findButton(/actieve opdrachten/i, "activeOrders");
+    var done = findButton(/uitgevoerde opdrachten/i, "doneOrders");
+    var cancelled = findButton(/geannuleerde opdrachten/i, "cancelledOrders");
+
+    if (active) active.onclick = function(e){ if(e)e.preventDefault(); setMode("active"); renderOrdersFinal(); };
+    if (done) done.onclick = function(e){ if(e)e.preventDefault(); setMode("done"); renderOrdersFinal(); };
+    if (cancelled) cancelled.onclick = function(e){ if(e)e.preventDefault(); setMode("cancelled"); renderOrdersFinal(); };
+
+    var search = byId("ordersSearch");
+    if (search && !search.dataset.bnsFinalHardSearch) {
+      search.dataset.bnsFinalHardSearch = "1";
+      search.addEventListener("input", renderOrdersFinal);
+    }
+
+    var saveBtn = byId("saveOrder");
+    if (saveBtn && !saveBtn.dataset.bnsFinalDateCheck) {
+      saveBtn.dataset.bnsFinalDateCheck = "1";
+      saveBtn.addEventListener("click", function(e){
+        if (!validNewOrderDate()) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return false;
+        }
+      }, true);
+    }
+
+    paintModeButtons();
+  }
+
+  function installCss(){
+    if (byId("bns-final-hard-css")) return;
+
+    var style = document.createElement("style");
+    style.id = "bns-final-hard-css";
+    style.textContent = '' +
+      '.bns-final-active-filter{background:#0f172a!important;color:#fff!important;border:3px solid #22d3ee!important;box-shadow:0 0 0 3px rgba(34,211,238,.25)!important}' +
+      '.bns-waze-btn{margin-top:10px;background:#16a34a!important;color:white!important;border:none!important;border-radius:10px!important;padding:8px 22px!important;font-weight:800!important}';
+    document.head.appendChild(style);
+  }
+
+  function refreshFinal(){
+    installCss();
+    hookButtonsFinal();
+    renderDashboardFinal();
+    renderOrdersFinal();
+    renderDriverFinal();
+  }
+
+  // Vervang functies definitief.
+  window.card = bnsCard;
+  window.renderOrders = renderOrdersFinal;
+  window.renderDashboard = renderDashboardFinal;
+  window.renderDriver = renderDriverFinal;
+
+  try { card = bnsCard; } catch(e) {}
+  try { renderOrders = renderOrdersFinal; } catch(e) {}
+  try { renderDashboard = renderDashboardFinal; } catch(e) {}
+  try { renderDriver = renderDriverFinal; } catch(e) {}
+
+  // saveCurrentOrder ook afvangen.
+  if (typeof window.saveCurrentOrder === "function" && !window.saveCurrentOrder.__bnsFinalHardDate) {
+    var oldSave = window.saveCurrentOrder;
+    var newSave = function(){
+      if (!validNewOrderDate()) return false;
+      return oldSave.apply(this, arguments);
+    };
+    newSave.__bnsFinalHardDate = true;
+    window.saveCurrentOrder = newSave;
+    try { saveCurrentOrder = newSave; } catch(e) {}
+  } else {
+    try {
+      if (typeof saveCurrentOrder === "function" && !saveCurrentOrder.__bnsFinalHardDate) {
+        var oldSave2 = saveCurrentOrder;
+        var newSave2 = function(){
+          if (!validNewOrderDate()) return false;
+          return oldSave2.apply(this, arguments);
+        };
+        newSave2.__bnsFinalHardDate = true;
+        saveCurrentOrder = newSave2;
+        window.saveCurrentOrder = newSave2;
+      }
+    } catch(e) {}
+  }
+
+  // renderAll opnieuw vastzetten zonder interval.
+  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+  var newRenderAll = function(){
+    try {
+      if (oldRenderAll && oldRenderAll !== newRenderAll) oldRenderAll.apply(this, arguments);
+    } catch(e) {}
+
+    // Direct daarna definitief juiste lijsten tekenen.
+    hookButtonsFinal();
+    renderDashboardFinal();
+    renderOrdersFinal();
+    renderDriverFinal();
+
+    try {
+      var driverSelect = byId("orderDriver");
+      if (driverSelect && S().users) {
+        driverSelect.innerHTML = '<option value="">Geen</option>' + (S().users || [])
+          .filter(function(u){ return u.role === "Bezorger"; })
+          .map(function(u){ return "<option>" + esc(u.name) + "</option>"; })
+          .join("");
+      }
+    } catch(e) {}
+
+    try {
+      if (byId("alertsBtn")) {
+        var open = (S().alerts || []).filter(function(a){ return !a.resolved; }).length;
+        byId("alertsBtn").textContent = "🚨 Systeemmeldingen (" + open + ")";
+      }
+    } catch(e) {}
+
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+  };
+
+  window.renderAll = newRenderAll;
+  try { renderAll = newRenderAll; } catch(e) {}
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(refreshFinal, 250);
+    });
+  } else {
+    setTimeout(refreshFinal, 250);
+  }
+
+  // Eén extra late run voor scripts die na DOMContentLoaded nog bouwen. Geen interval.
+  setTimeout(refreshFinal, 1200);
 })();
