@@ -73,17 +73,17 @@ function editOrder(oid){let o=state.orders.find(x=>x.id===oid); if(!o)return;sho
 function nice(d){if(!d)return '';let p=d.split('-');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:d}
 function bnsDateOnly(v){let m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),0,0,0,0):null}
 function bnsTodayOnly(){let d=new Date();d.setHours(0,0,0,0);return d}
-function bnsPastEnd(o){let e=bnsDateOnly(o&&(o.end||o.start));return !!e && e<bnsTodayOnly()}
+function bnsPastEnd(o){let e=bnsDateOnly(o&&(o.end||o.start));return !!e&&e<bnsTodayOnly()}
 function bnsOrderGroup(o){let s=String(o?.status||'').toLowerCase();if(s==='geannuleerd')return'cancelled';if(s==='uitgevoerd'||bnsPastEnd(o))return'done';return'active'}
 function bnsActiveOrder(o){return bnsOrderGroup(o)==='active'}
 function sortedOrders(){return state.orders.slice().sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999'))}
 function renderOrders(){let q=ordersSearch.value.toLowerCase();let list=sortedOrders().filter(o=>bnsOrderGroup(o)===mode).filter(o=>!q||JSON.stringify(o).toLowerCase().includes(q)||[nice(o.start),nice(o.end)].join(' ').toLowerCase().includes(q));ordersList.innerHTML=list.map(card).join('')||'<p>Niets gevonden</p>';try{document.querySelectorAll('#activeOrders,#doneOrders,#cancelledOrders').forEach(b=>b.classList.remove('bns-active-filter'));let id=mode==='active'?'activeOrders':mode==='done'?'doneOrders':'cancelledOrders';let btn=document.getElementById(id);if(btn)btn.classList.add('bns-active-filter')}catch(e){}}
-function card(o){let addr=[o.location?.street,o.location?.zip,o.location?.city].filter(Boolean).join(' ');let mats=(o.materials||[]).map(m=>m.code).join(', ');return `<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><div class="order-title">${o.number} - ${o.title} <span class="status status-${o.status}">${o.status}</span></div><div>Klant: ${o.customer?.name||''}</div><div>Locatie: ${addr}</div><div>Materialen: ${mats}</div><div>Totaal: ${o.pricing?money(o.pricing.grand):'€ 0,00'} | Borg: ${o.pricing?money(o.pricing.deposit):'€ 0,00'}</div></div><div class="actions"><button onclick="editOrder('${o.id}')">Wijzigen</button>${o.status==='Geannuleerd'?`<button onclick="restore('${o.id}')">Terughalen</button>`:`<button class="danger" onclick="cancel('${o.id}')">Annuleren</button>`}</div></div>`}
+function card(o){let addr=[o.location?.street,o.location?.zip,o.location?.city].filter(Boolean).join(' ');let mats=(o.materials||[]).map(m=>m.code).join(', ');let dateRange=nice(o.start)+(o.end&&o.end!==o.start?' t/m '+nice(o.end):'');return `<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><div class="order-title">${o.number} - ${o.title} <span class="status status-${o.status}">${o.status}</span></div><div><b>Datum:</b> ${dateRange}</div><div>Klant: ${o.customer?.name||''}</div><div>Locatie: ${addr}</div><div>Materialen: ${mats}</div><div>Totaal: ${o.pricing?money(o.pricing.grand):'€ 0,00'} | Borg: ${o.pricing?money(o.pricing.deposit):'€ 0,00'}</div></div><div class="actions"><button onclick="editOrder('${o.id}')">Wijzigen</button>${o.status==='Geannuleerd'?`<button onclick="restore('${o.id}')">Terughalen</button>`:`<button class="danger" onclick="cancel('${o.id}')">Annuleren</button>`}</div></div>`}
 function cancel(oid){let o=state.orders.find(x=>x.id===oid); if(o){o.status='Geannuleerd';save();renderOrders()}}
 function restore(oid){let o=state.orders.find(x=>x.id===oid); if(o){o.status='Opdracht';save();renderOrders()}}
 function markDone(oid){let o=state.orders.find(x=>x.id===oid); if(o){o.status='Uitgevoerd';save();renderOrders();renderDashboard();}}
 function renderDashboard(){statOrders.textContent=state.orders.length;statMaterials.textContent=state.materials.length;statAlerts.textContent=state.alerts.length;dashOrders.innerHTML=sortedOrders().filter(bnsActiveOrder).slice(0,6).map(card).join('')||'<p>Geen aankomende opdrachten.</p>'}
-function renderDriver(){driverList.innerHTML=sortedOrders().filter(bnsActiveOrder).slice(0,25).map(o=>`<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><b>${o.number} - ${o.title}</b><br>${(o.materials||[]).map(m=>m.code).join(', ')}</div><div><button onclick="alertFor('${o.id}','Storing')">Storing</button><button onclick="alertFor('${o.id}','Schade')">Schade</button><button onclick="alertFor('${o.id}','Vermissing')">Vermissing</button></div></div>`).join('')||'<p>Geen actieve opdrachten.</p>'}
+function renderDriver(){driverList.innerHTML=sortedOrders().filter(bnsActiveOrder).slice(0,25).map(o=>`<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><b>${o.number} - ${o.title}</b><br><b>Datum:</b> ${nice(o.start)}${o.end&&o.end!==o.start?' t/m '+nice(o.end):''}<br>${(o.materials||[]).map(m=>m.code).join(', ')}</div><div><button onclick="alertFor('${o.id}','Storing')">Storing</button><button onclick="alertFor('${o.id}','Schade')">Schade</button><button onclick="alertFor('${o.id}','Vermissing')">Vermissing</button></div></div>`).join('')||'<p>Geen actieve opdrachten.</p>'}
 function alertFor(oid,type){let o=state.orders.find(x=>x.id===oid);state.alerts.push({id:id(),orderId:oid,title:type+' - '+(o?.number||''),time:new Date().toLocaleString(),resolved:false});save();renderAll()}
 function renderAll(){renderDashboard();renderOrders();renderDriver();orderDriver.innerHTML='<option value="">Geen</option>'+state.users.filter(u=>u.role==='Bezorger').map(u=>`<option>${u.name}</option>`).join('');alertsBtn.textContent='Systeemmeldingen ('+state.alerts.filter(a=>!a.resolved).length+')';summaryRender()}
 
@@ -3307,9 +3307,9 @@ setInterval(install,1500);
 
 (function(){
   function addCss(){
-    if(document.getElementById('bns-direct-datefix-css'))return;
+    if(document.getElementById('bns-einddatum-fix-css'))return;
     let s=document.createElement('style');
-    s.id='bns-direct-datefix-css';
+    s.id='bns-einddatum-fix-css';
     s.textContent='.bns-active-filter{background:#0f172a!important;color:#fff!important;border:3px solid #22d3ee!important;box-shadow:0 0 0 3px rgba(34,211,238,.25)!important}';
     document.head.appendChild(s);
   }
