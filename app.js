@@ -46895,11 +46895,7 @@ setTimeout(() => {
             <b>Opdracht:</b> ${H(order.number || "")} - ${H(order.title || "")}<br>
             <b>Datum:</b> ${H(NICE(order.start))} t/m ${H(NICE(order.end))}
           </div>
-          <div class="actions bns-actions">
-            <button onclick="BNS_STABIEL_openOrder('${H(order.id)}')">Wijzig opdracht</button>
-            <button onclick="BNS_STABIEL_freeMaterial('${H(material.id)}')">Vrij maken</button>
-            <button onclick="BNS_STABIEL_forceAdd('${H(material.id)}')">Toch toevoegen planner</button>
-          </div>
+          
         `;
       } else {
         body += `
@@ -46907,10 +46903,7 @@ setTimeout(() => {
             <b>Status:</b> Gereserveerd<br>
             Geen opdracht gevonden.
           </div>
-          <div class="actions bns-actions">
-            <button onclick="BNS_STABIEL_freeMaterial('${H(material.id)}')">Vrij maken</button>
-            <button onclick="BNS_STABIEL_forceAdd('${H(material.id)}')">Toch toevoegen planner</button>
-          </div>
+        
         `;
       }
     } else {
