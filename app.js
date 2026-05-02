@@ -4517,11 +4517,11 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   BNS FIX - KNOPPEN BOVEN + MATERIALEN SCHERM BLIJFT OPEN
-   - Factuur maken / Opdracht bon niet meer in de materiaalkolom.
-   - Knoppen komen boven naast de tab Extra.
-   - Na materiaal kiezen blijft tab Materialen open.
-   - Je kunt achter elkaar TW / TO / KW / EXTRA blijven kiezen.
+   BNS DEFINITIEVE FIX - TOPRIJ KNOPPEN + MATERIALEN BLIJFT OPEN
+   - Copy opdracht / Factuur maken / Opdracht bon komen in de bovenste tabrij naast Extra.
+   - Niet meer in de materiaalkolom.
+   - Factuur maken en Opdracht bon werken zelfstandig.
+   - Materiaalscherm blijft open na materiaal kiezen.
    ========================================================= */
 (function(){
   "use strict";
@@ -4530,168 +4530,77 @@ setInterval(install,1500);
 
   function $(id){ return document.getElementById(id); }
 
-  function cleanText(el){
+  function txt(el){
     return String(el && el.textContent || "").trim();
   }
 
-  function htmlEsc(v){
+  function html(v){
     return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function isInsideMaterialChooser(el){
-    return !!(el && el.closest && (
-      el.closest("#materialCats") ||
-      el.closest("#materialList") ||
-      el.closest("#materialPanel .bns-cat-tabs") ||
-      el.closest("#materialPanel .material-cats")
-    ));
+  function isVisible(el){
+    if (!el) return false;
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
   }
 
-  function findTopExtraTab(){
-    var candidates = Array.from(document.querySelectorAll("button")).filter(function(btn){
-      return /^extra$/i.test(cleanText(btn)) && !isInsideMaterialChooser(btn);
+  function topTabButtons(){
+    var buttons = Array.from(document.querySelectorAll("button")).filter(function(btn){
+      return /^(klant|locatie|materialen|bezorger|voertuig|extra)$/i.test(txt(btn));
     });
 
-    return candidates.find(function(btn){
-      return btn.classList.contains("worktab") ||
-             btn.closest(".tabs") ||
-             btn.closest(".worktabs") ||
-             btn.closest(".tabbar") ||
-             btn.closest("#newOrder");
-    }) || candidates[0] || null;
-  }
+    var groups = [];
 
-  function removeMisplacedTopButtons(){
-    ["bnsFactuurTopBtn", "bnsOpdrachtBonTopBtn"].forEach(function(id){
-      var btn = $(id);
-      if (btn) btn.remove();
-    });
-  }
-
-  function clickFirstButton(regex){
-    var btn = Array.from(document.querySelectorAll("button")).find(function(button){
-      if (button.id === "bnsFactuurTopBtn" || button.id === "bnsOpdrachtBonTopBtn") return false;
-      return regex.test(cleanText(button));
-    });
-
-    if (btn) {
-      btn.click();
-      return true;
-    }
-
-    return false;
-  }
-
-  function makeInvoice(){
-    if (clickFirstButton(/^(factuur|factuur maken|invoice)$/i)) return;
-
-    try {
-      if (typeof window.makeInvoice === "function") {
-        window.makeInvoice();
-        return;
-      }
-    } catch(e) {}
-
-    try {
-      if (typeof safePrint === "function") {
-        safePrint();
-        return;
-      }
-    } catch(e) {}
-
-    window.print();
-  }
-
-  function makeOrderBon(){
-    if (clickFirstButton(/opdracht bon|opdrachtbevestiging|overzicht maken|overzicht \/ opdrachtbevestiging/i)) return;
-
-    try {
-      if (typeof makeConfirmationText === "function") {
-        var txt = makeConfirmationText();
-        var w = window.open("", "_blank");
-        if (w) {
-          w.document.write("<pre style='font-family:Arial;white-space:pre-wrap'>" + htmlEsc(txt) + "</pre>");
-          w.document.close();
+    buttons.forEach(function(btn){
+      var p = btn.parentElement;
+      while (p && p !== document.body) {
+        var groupBtns = Array.from(p.querySelectorAll(":scope > button")).filter(function(b){
+          return /^(klant|locatie|materialen|bezorger|voertuig|extra)$/i.test(txt(b));
+        });
+        if (groupBtns.length >= 4) {
+          groups.push({parent:p, buttons:groupBtns});
           return;
         }
+        p = p.parentElement;
       }
-    } catch(e) {}
+    });
 
-    window.print();
+    groups.sort(function(a,b){
+      return b.buttons.length - a.buttons.length;
+    });
+
+    return groups[0] || null;
   }
 
-  function ensureTopButtons(){
-    var extra = findTopExtraTab();
-    if (!extra || !extra.parentNode) return;
-
-    removeMisplacedTopButtons();
-
-    var factuur = document.createElement("button");
-    factuur.id = "bnsFactuurTopBtn";
-    factuur.type = "button";
-    factuur.textContent = "Factuur maken";
-    factuur.className = extra.className || "";
-    factuur.addEventListener("click", function(e){
-      e.preventDefault();
-      e.stopPropagation();
-      makeInvoice();
+  function removeOldButtonLocations(){
+    ["bnsFactuurTopBtn","bnsOpdrachtBonTopBtn"].forEach(function(id){
+      var b = $(id);
+      if (b) b.remove();
     });
 
-    var bon = document.createElement("button");
-    bon.id = "bnsOpdrachtBonTopBtn";
-    bon.type = "button";
-    bon.textContent = "Opdracht bon";
-    bon.className = extra.className || "";
-    bon.addEventListener("click", function(e){
-      e.preventDefault();
-      e.stopPropagation();
-      makeOrderBon();
-    });
+    var copy = $("bnsCopyOrderTop");
+    if (copy) copy.remove();
 
-    extra.insertAdjacentElement("afterend", factuur);
-    factuur.insertAdjacentElement("afterend", bon);
+    // Verwijder eerdere verkeerd geplaatste custom-knoppen in de materiaalkolom.
+    Array.from(document.querySelectorAll("#materialPanel button")).forEach(function(btn){
+      var t = txt(btn);
+      if (/^(factuur maken|opdracht bon|copy opdracht)$/i.test(t)) {
+        btn.remove();
+      }
+    });
   }
 
-  function showMaterialPanel(){
-    var materialBtn = Array.from(document.querySelectorAll("button")).find(function(btn){
-      return /^materialen$/i.test(cleanText(btn)) && !isInsideMaterialChooser(btn);
-    });
-
-    var panel = $("materialPanel");
-    if (panel) {
-      panel.classList.remove("hidden");
-      panel.style.display = "";
-    }
-
-    if (materialBtn) {
-      Array.from(document.querySelectorAll("button")).forEach(function(btn){
-        if (/^(klant|locatie|materialen|bezorger|voertuig|extra)$/i.test(cleanText(btn))) {
-          btn.classList.toggle("active", btn === materialBtn);
-        }
-      });
-    }
+  function value(id){
+    var el = $(id);
+    return el ? el.value || "" : "";
   }
 
-  function ensureMaterialBackButton(){
-    var panel = $("materialPanel");
-    if (!panel || $("bnsMaterialBackBtn")) return;
-
-    var btn = document.createElement("button");
-    btn.id = "bnsMaterialBackBtn";
-    btn.type = "button";
-    btn.textContent = "← Terug naar opdracht";
-    btn.addEventListener("click", function(){
-      var klant = Array.from(document.querySelectorAll("button")).find(function(b){
-        return /^klant$/i.test(cleanText(b)) && !isInsideMaterialChooser(b);
-      });
-      if (klant) klant.click();
-    });
-
-    var h = panel.querySelector("h3,h2") || panel.firstElementChild;
-    if (h && h.insertAdjacentElement) h.insertAdjacentElement("afterend", btn);
-    else panel.prepend(btn);
+  function money(v){
+    var n = Number(String(v || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+    if (!isFinite(n)) n = 0;
+    return "€ " + n.toFixed(2).replace(".", ",");
   }
 
   function chosenArr(){
@@ -4704,152 +4613,308 @@ setInterval(install,1500);
     return [];
   }
 
+  function lineRows(){
+    return chosenArr().map(function(m){
+      var qty = m.qty || 1;
+      var price = m.linePrice || m.price || 0;
+      var deposit = m.lineDeposit || m.deposit || 0;
+      var note = m.lineNote || m.note || "";
+      return {
+        code: m.code || "",
+        name: m.name || "",
+        qty: qty,
+        price: price,
+        deposit: deposit,
+        note: note
+      };
+    });
+  }
+
+  function totals(){
+    var sub = 0;
+    var dep = 0;
+    lineRows().forEach(function(r){
+      var q = Number(r.qty || 1);
+      var p = Number(String(r.price || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+      var d = Number(String(r.deposit || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+      if (!isFinite(q)) q = 1;
+      if (!isFinite(p)) p = 0;
+      if (!isFinite(d)) d = 0;
+      sub += q * p;
+      dep += q * d;
+    });
+    var vat = sub * 0.21;
+    return {sub:sub, vat:vat, dep:dep, total:sub+vat};
+  }
+
+  function orderText(title){
+    var t = totals();
+    var rows = lineRows().map(function(r){
+      return (r.qty || 1) + "x " + r.code + " " + r.name + " | prijs " + money(r.price) + " | borg " + money(r.deposit) + (r.note ? " | " + r.note : "");
+    }).join("\n");
+
+    return title + "\n\n" +
+      "Opdracht: " + value("orderNumber") + "\n" +
+      "Status: " + value("orderStatus") + "\n" +
+      "Titel: " + value("orderTitle") + "\n\n" +
+      "Klant:\n" +
+      value("customerName") + "\n" +
+      value("customerStreet") + "\n" +
+      value("customerZip") + " " + value("customerCity") + "\n\n" +
+      "Locatie:\n" +
+      value("locationName") + "\n" +
+      value("locationStreet") + "\n" +
+      value("locationZip") + " " + value("locationCity") + "\n\n" +
+      "Datum: " + value("dateStart") + (value("dateEnd") && value("dateEnd") !== value("dateStart") ? " tot datum " + value("dateEnd") : "") + "\n\n" +
+      "Materialen:\n" + (rows || "Geen materialen gekozen") + "\n\n" +
+      "Subtotaal: " + money(t.sub) + "\n" +
+      "Btw 21%: " + money(t.vat) + "\n" +
+      "Borg: " + money(t.dep) + "\n" +
+      "Eindtotaal: " + money(t.total) + "\n\n" +
+      "Bijzonderheden:\n" + value("orderExtra");
+  }
+
+  function openPrintDoc(title, bodyText){
+    var w = window.open("", "_blank");
+    if (!w) {
+      alert(bodyText);
+      return;
+    }
+
+    w.document.write(
+      "<!doctype html><html><head><title>" + html(title) + "</title>" +
+      "<style>body{font-family:Arial,sans-serif;padding:30px;font-size:14px;line-height:1.45}pre{white-space:pre-wrap}button{padding:10px 16px;border-radius:8px;border:0;background:#2563eb;color:white;font-weight:bold}</style>" +
+      "</head><body><button onclick='window.print()'>Afdrukken</button><pre>" + html(bodyText) + "</pre></body></html>"
+    );
+    w.document.close();
+  }
+
+  function makeInvoice(){
+    openPrintDoc("Factuur", orderText("FACTUUR"));
+  }
+
+  function makeOrderBon(){
+    try {
+      if (typeof makeConfirmationText === "function") {
+        openPrintDoc("Opdracht bon", makeConfirmationText().replace("OPDRACHTBEVESTIGING", "OPDRACHT BON"));
+        return;
+      }
+    } catch(e) {}
+
+    openPrintDoc("Opdracht bon", orderText("OPDRACHT BON"));
+  }
+
+  function copyOrder(){
+    try {
+      if (typeof editing !== "undefined") editing = null;
+      if (window.editing) window.editing = null;
+    } catch(e) {}
+
+    try {
+      if (typeof nextNo === "function" && $("orderNumber")) $("orderNumber").value = nextNo();
+    } catch(e) {}
+
+    if ($("orderStatus")) $("orderStatus").value = "Offerte";
+    if ($("dateStart")) $("dateStart").value = "";
+    if ($("dateEnd")) $("dateEnd").value = "";
+
+    if (typeof toastMsg === "function") toastMsg("Copy gemaakt. Vul nieuwe datum in en sla op.");
+    else if (typeof toast === "function") toast("Copy gemaakt. Vul nieuwe datum in en sla op.");
+    else alert("Copy gemaakt. Vul nieuwe datum in en sla op.");
+  }
+
+  function addButton(id, label, after, fn, className){
+    var btn = document.createElement("button");
+    btn.id = id;
+    btn.type = "button";
+    btn.textContent = label;
+    btn.className = className || "";
+    btn.addEventListener("click", function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      fn();
+    });
+    after.insertAdjacentElement("afterend", btn);
+    return btn;
+  }
+
+  function ensureTopButtons(){
+    var group = topTabButtons();
+    if (!group) return;
+
+    var extra = group.buttons.find(function(btn){ return /^extra$/i.test(txt(btn)); });
+    if (!extra) return;
+
+    removeOldButtonLocations();
+
+    var cls = extra.className || "worktab";
+    var copy = addButton("bnsCopyOrderTop", "Copy opdracht", extra, copyOrder, cls + " bns-copy-top");
+    var factuur = addButton("bnsFactuurTopBtn", "Factuur maken", copy, makeInvoice, cls);
+    addButton("bnsOpdrachtBonTopBtn", "Opdracht bon", factuur, makeOrderBon, cls);
+  }
+
   function materialIdFromRow(row){
     var id = row.getAttribute("data-material-id") ||
              row.getAttribute("data-bns-material-id") ||
              (row.dataset && (row.dataset.materialId || row.dataset.bnsMaterialId)) ||
              "";
-
     if (id) return String(id);
 
-    var html = row.outerHTML || "";
-    var match = html.match(/addMat\(['"]([^'"]+)['"]\)/);
-    return match ? match[1] : "";
+    var m = (row.outerHTML || "").match(/addMat\(['"]([^'"]+)['"]\)/);
+    return m ? m[1] : "";
   }
 
-  function markChosenMaterials(){
-    var ids = chosenArr().map(function(item){ return String(item.id); });
+  function markChosen(){
+    var ids = chosenArr().map(function(m){ return String(m.id); });
 
-    document.querySelectorAll("#materialList [data-material-id], #materialList [data-bns-material-id], #materialList .material-row, #materialList .bns-material-row, #materialList .bns-cat-row").forEach(function(row){
+    document.querySelectorAll("#materialList [data-material-id],#materialList [data-bns-material-id],#materialList .material-row,#materialList .bns-material-row,#materialList .bns-cat-row").forEach(function(row){
       var id = materialIdFromRow(row);
-      var selected = id && ids.indexOf(String(id)) !== -1;
-
-      row.classList.toggle("bns-selected-material-red", selected);
-
-      if (selected) {
+      var on = id && ids.indexOf(String(id)) !== -1;
+      row.classList.toggle("bns-selected-material-red", on);
+      if (on) {
         row.style.setProperty("background", "#fee2e2", "important");
         row.style.setProperty("border-color", "#dc2626", "important");
         row.style.setProperty("box-shadow", "inset 7px 0 0 #dc2626", "important");
-
-        var status = row.querySelector(".bns-status-pill") ||
-                     row.querySelector(".mat-status-badge") ||
-                     row.querySelector(".v112-pill") ||
-                     row.querySelector("span:last-child");
-
-        if (status) {
-          status.textContent = "● ● Gekozen";
-          status.style.setProperty("background", "#fecaca", "important");
-          status.style.setProperty("color", "#7f1d1d", "important");
-          status.style.setProperty("font-weight", "900", "important");
-          status.style.setProperty("border-radius", "999px", "important");
-          status.style.setProperty("padding", "5px 10px", "important");
+        var pill = row.querySelector(".bns-status-pill,.mat-status-badge,.v112-pill,span:last-child");
+        if (pill) {
+          pill.textContent = "● ● Gekozen";
+          pill.style.setProperty("background", "#fecaca", "important");
+          pill.style.setProperty("color", "#7f1d1d", "important");
+          pill.style.setProperty("font-weight", "900", "important");
         }
       }
     });
   }
 
-  function patchAddAndRender(){
+  function keepMaterialOpen(){
+    var panel = $("materialPanel");
+    if (panel) {
+      panel.classList.remove("hidden");
+      panel.style.display = "";
+    }
+    var group = topTabButtons();
+    if (group) {
+      group.buttons.forEach(function(btn){
+        if (/^materialen$/i.test(txt(btn))) btn.classList.add("active");
+        else if (/^(klant|locatie|bezorger|voertuig|extra)$/i.test(txt(btn))) btn.classList.remove("active");
+      });
+    }
+  }
+
+  function ensureBackButton(){
+    var panel = $("materialPanel");
+    if (!panel || $("bnsMaterialBackBtn")) return;
+    var btn = document.createElement("button");
+    btn.id = "bnsMaterialBackBtn";
+    btn.type = "button";
+    btn.textContent = "← Terug naar opdracht";
+    btn.onclick = function(){
+      var group = topTabButtons();
+      var klant = group && group.buttons.find(function(b){ return /^klant$/i.test(txt(b)); });
+      if (klant) klant.click();
+    };
+    var h = panel.querySelector("h2,h3") || panel.firstElementChild;
+    if (h && h.insertAdjacentElement) h.insertAdjacentElement("afterend", btn);
+    else panel.prepend(btn);
+  }
+
+  function patchAddMat(){
     try {
-      var oldAdd = window.addMat || (typeof addMat === "function" ? addMat : null);
-      if (oldAdd && !oldAdd.__bnsKeepMaterialOpen) {
-        var wrappedAdd = function(){
-          var result = oldAdd.apply(this, arguments);
+      var fn = window.addMat || (typeof addMat === "function" ? addMat : null);
+      if (fn && !fn.__bnsFinalKeepOpen) {
+        var wrapped = function(){
+          var res = fn.apply(this, arguments);
           setTimeout(function(){
-            showMaterialPanel();
-            markChosenMaterials();
-          }, 40);
-          return result;
+            keepMaterialOpen();
+            markChosen();
+          }, 30);
+          return res;
         };
-        wrappedAdd.__bnsKeepMaterialOpen = true;
-        window.addMat = wrappedAdd;
-        try { addMat = wrappedAdd; } catch(e) {}
+        wrapped.__bnsFinalKeepOpen = true;
+        window.addMat = wrapped;
+        try { addMat = wrapped; } catch(e) {}
       }
     } catch(e) {}
 
-    try {
-      var oldRenderMaterials = window.renderMaterials || (typeof renderMaterials === "function" ? renderMaterials : null);
-      if (oldRenderMaterials && !oldRenderMaterials.__bnsKeepMaterialOpen) {
-        var wrappedRenderMaterials = function(){
-          var result = oldRenderMaterials.apply(this, arguments);
-          setTimeout(markChosenMaterials, 40);
-          return result;
-        };
-        wrappedRenderMaterials.__bnsKeepMaterialOpen = true;
-        window.renderMaterials = wrappedRenderMaterials;
-        try { renderMaterials = wrappedRenderMaterials; } catch(e) {}
-      }
-    } catch(e) {}
+    // Capture click ook als oude addMat via inline onclick loopt.
+    var list = $("materialList");
+    if (list && !list.dataset.bnsFinalKeepOpen) {
+      list.dataset.bnsFinalKeepOpen = "1";
+      list.addEventListener("click", function(){
+        setTimeout(function(){
+          keepMaterialOpen();
+          markChosen();
+        }, 60);
+      }, true);
+    }
   }
 
   function patchSaveClose(){
     try {
       var fn = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null);
-      if (fn && !fn.__bnsGoOrdersAfterSave) {
+      if (fn && !fn.__bnsFinalCloseAfterSave) {
         var wrapped = function(){
-          var result = fn.apply(this, arguments);
+          var res = fn.apply(this, arguments);
           setTimeout(function(){
             try {
               if (typeof showPage === "function") showPage("orders");
               else {
-                var orders = Array.from(document.querySelectorAll("button")).find(function(btn){
-                  return /^opdrachten$/i.test(cleanText(btn));
-                });
+                var orders = Array.from(document.querySelectorAll("button")).find(function(b){ return /^opdrachten$/i.test(txt(b)); });
                 if (orders) orders.click();
               }
             } catch(e) {}
           }, 120);
-          return result;
+          return res;
         };
-        wrapped.__bnsGoOrdersAfterSave = true;
+        wrapped.__bnsFinalCloseAfterSave = true;
         window.saveCurrentOrder = wrapped;
         try { saveCurrentOrder = wrapped; } catch(e) {}
       }
     } catch(e) {}
   }
 
-  function installCss(){
-    if ($("bnsTopButtonsAndMaterialKeepCss")) return;
-
-    var style = document.createElement("style");
-    style.id = "bnsTopButtonsAndMaterialKeepCss";
-    style.textContent = `
-      #bnsFactuurTopBtn,
-      #bnsOpdrachtBonTopBtn {
-        margin-left: 8px !important;
-        border: none !important;
-        border-radius: 12px !important;
-        padding: 10px 18px !important;
-        color: #fff !important;
-        font-weight: 900 !important;
+  function css(){
+    if ($("bnsTopButtonsFinalCss")) return;
+    var s = document.createElement("style");
+    s.id = "bnsTopButtonsFinalCss";
+    s.textContent = `
+      #bnsCopyOrderTop,#bnsFactuurTopBtn,#bnsOpdrachtBonTopBtn{
+        margin-left:8px!important;
+        border:none!important;
+        border-radius:12px!important;
+        padding:10px 18px!important;
+        color:#fff!important;
+        font-weight:900!important;
       }
-      #bnsFactuurTopBtn { background: #2563eb !important; }
-      #bnsOpdrachtBonTopBtn { background: #16a34a !important; }
-      #bnsMaterialBackBtn {
-        margin: 8px 0 12px 0 !important;
-        background: #0f172a !important;
-        color: #fff !important;
-        border: none !important;
-        border-radius: 10px !important;
-        padding: 9px 14px !important;
-        font-weight: 900 !important;
+      #bnsCopyOrderTop{background:#047857!important}
+      #bnsFactuurTopBtn{background:#2563eb!important}
+      #bnsOpdrachtBonTopBtn{background:#16a34a!important}
+      #bnsMaterialBackBtn{
+        margin:8px 0 12px 0!important;
+        background:#0f172a!important;
+        color:white!important;
+        border:none!important;
+        border-radius:10px!important;
+        padding:9px 14px!important;
+        font-weight:900!important;
       }
-      .bns-selected-material-red {
-        background: #fee2e2 !important;
-        border-color: #dc2626 !important;
-        box-shadow: inset 7px 0 0 #dc2626 !important;
+      .bns-selected-material-red{
+        background:#fee2e2!important;
+        border-color:#dc2626!important;
+        box-shadow:inset 7px 0 0 #dc2626!important;
       }
     `;
-    document.head.appendChild(style);
+    document.head.appendChild(s);
   }
 
   function apply(){
     scheduled = false;
-    installCss();
-    patchAddAndRender();
-    patchSaveClose();
+    css();
     ensureTopButtons();
-    ensureMaterialBackButton();
-    markChosenMaterials();
+    ensureBackButton();
+    patchAddMat();
+    patchSaveClose();
+    markChosen();
   }
 
   function schedule(){
