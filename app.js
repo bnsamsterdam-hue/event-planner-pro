@@ -1,576 +1,883 @@
-/* =========================================================
-   V12 PRO FIX PATCH
-   Plak dit ONDERAAN app.js. Dit bestand wist niets.
+/* ============================================================
+   V12 PRO COMPLETE FIX
+   Plak dit HELE bestand onderaan je huidige werkende app.js.
    Doel:
-   - Kopie opdracht knop naast Extra
-   - Materiaal mag alleen gekozen worden als status 'vrij' is
-   - Gereserveerd/schade/vermissing toont info bij klik
-   - Planner/admin kan materiaal wijzigen/vrijgeven/wisselen
-   - Meldingsbalk leesbaar + meldingen afhandelen
-   - PIN invoer werkt met Enter en wordt na fout/poging leeg gemaakt
-   ========================================================= */
-(function v12ProFixPatch() {
-  'use strict';
+   - Werkende PIN met Enter + leegmaken na gebruik
+   - Knop "Kopie opdracht" naast Extra
+   - Complete opdracht kopiëren met nieuw opdrachtnummer
+   - Materiaal blokkeren bij gereserveerd / schade / vermissing / defect / reparatie
+   - Materiaal info tonen bij klik
+   - Materiaal wijzigen / vrijgeven
+   - Meldingenbalk leesbaar + wissen + gerepareerd/vrijgeven
+   - Groene materiaalkleur koppelen aan thema-kleur
+   - Waze / Google Maps openen verbeteren
+   ============================================================ */
 
-  const STORAGE = {
-    materials: 'v12pro.materials.db',
-    jobs: 'v12pro.jobs.db',
-    notifications: 'v12pro.notifications.db',
-    activeJob: 'v12pro.activeJob'
+(function () {
+  "use strict";
+
+  /* =========================
+     BASIS INSTELLINGEN
+     ========================= */
+
+  const V12_FIX = {
+    adminPin: localStorage.getItem("adminPin") || "1234",
+    themeMaterialColor: localStorage.getItem("themeMaterialColor") || localStorage.getItem("themeColor") || "#2563eb",
+    blockedStatuses: ["gereserveerd", "schade", "vermissing", "defect", "storing", "reparatie"],
+    freeStatuses: ["vrij", "", null, undefined],
+    materialStorageKey: "v12_material_database",
+    orderStorageKey: "v12_orders",
+    notificationStorageKey: "v12_notifications"
   };
 
-  const STATUS = {
-    FREE: 'vrij',
-    RESERVED: 'gereserveerd',
-    DAMAGE: 'schade',
-    MISSING: 'vermissing',
-    DEFECT: 'defect',
-    REPAIR: 'reparatie'
-  };
+  function qs(selector, root) {
+    return (root || document).querySelector(selector);
+  }
 
-  const BLOCKED_STATUSES = [
-    STATUS.RESERVED,
-    STATUS.DAMAGE,
-    STATUS.MISSING,
-    STATUS.DEFECT,
-    STATUS.REPAIR
-  ];
+  function qsa(selector, root) {
+    return Array.from((root || document).querySelectorAll(selector));
+  }
 
-  function readStore(key, fallback) {
+  function cleanText(value) {
+    return String(value || "").trim();
+  }
+
+  function nowId(prefix) {
+    return prefix + "-" + Date.now() + "-" + Math.floor(Math.random() * 10000);
+  }
+
+  function readJson(key, fallback) {
     try {
       const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch (error) {
-      console.warn('[V12 PRO] Kan opslag niet lezen:', key, error);
+      if (!raw) return fallback;
+      return JSON.parse(raw);
+    } catch (e) {
+      console.warn("Kon opslag niet lezen:", key, e);
       return fallback;
     }
   }
 
-  function writeStore(key, value) {
+  function writeJson(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
   }
 
-  function createId(prefix) {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  function normalizeText(value) {
-    return String(value || '').trim();
-  }
-
-  function normalizeDate(value) {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
-    return date.toISOString().slice(0, 10);
-  }
-
-  function rangesOverlap(startA, endA, startB, endB) {
-    const aStart = new Date(startA || '1900-01-01').getTime();
-    const aEnd = new Date(endA || startA || '2999-12-31').getTime();
-    const bStart = new Date(startB || '1900-01-01').getTime();
-    const bEnd = new Date(endB || startB || '2999-12-31').getTime();
-    return aStart <= bEnd && bStart <= aEnd;
-  }
-
-  function getJobs() {
-    return readStore(STORAGE.jobs, []);
-  }
-
-  function saveJobs(jobs) {
-    writeStore(STORAGE.jobs, jobs);
-  }
-
-  function getMaterials() {
-    return readStore(STORAGE.materials, []);
-  }
-
-  function saveMaterials(materials) {
-    writeStore(STORAGE.materials, materials);
-  }
-
-  function getNotifications() {
-    return readStore(STORAGE.notifications, []);
-  }
-
-  function saveNotifications(notifications) {
-    writeStore(STORAGE.notifications, notifications);
-  }
-
-  function addNotification(type, text, data) {
-    const notifications = getNotifications();
-    notifications.unshift({
-      id: createId('melding'),
-      type: type || 'info',
-      text: text || '',
-      data: data || {},
-      status: 'open',
-      createdAt: new Date().toISOString()
-    });
-    saveNotifications(notifications);
-    renderNotificationBar();
-  }
-
-  function getActiveJobFromForm() {
-    const existingNumber = valueOf(['#opdrachtNummer', '#orderNumber', '[name="opdrachtNummer"]', '[name="orderNumber"]']);
-    const job = {
-      id: existingNumber || createId('opdracht'),
-      opdrachtNummer: existingNumber || createJobNumber(),
-      klant: valueOf(['#klant', '#customer', '[name="klant"]', '[name="customer"]']),
-      telefoon: valueOf(['#telefoon', '#phone', '[name="telefoon"]', '[name="phone"]']),
-      adres: valueOf(['#adres', '#address', '[name="adres"]', '[name="address"]']),
-      plaats: valueOf(['#plaats', '#city', '[name="plaats"]', '[name="city"]']),
-      datumVan: normalizeDate(valueOf(['#datumVan', '#startDatum', '#dateFrom', '[name="datumVan"]', '[name="dateFrom"]'])),
-      datumTot: normalizeDate(valueOf(['#datumTot', '#eindDatum', '#dateTo', '[name="datumTot"]', '[name="dateTo"]'])),
-      materialen: collectSelectedMaterialIds(),
-      extra: valueOf(['#extra', '#extraInfo', '[name="extra"]', '[name="extraInfo"]']),
-      updatedAt: new Date().toISOString()
-    };
-    return job;
-  }
-
-  function createJobNumber() {
-    const now = new Date();
-    const ymd = now.toISOString().slice(0, 10).replaceAll('-', '');
-    const count = getJobs().filter(job => String(job.opdrachtNummer || '').includes(ymd)).length + 1;
-    return `OPD-${ymd}-${String(count).padStart(3, '0')}`;
-  }
-
-  function valueOf(selectors) {
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      if (element && 'value' in element) return normalizeText(element.value);
-      if (element) return normalizeText(element.textContent);
-    }
-    return '';
-  }
-
-  function setValue(selectors, value) {
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      if (!element) continue;
-      if ('value' in element) element.value = value || '';
-      else element.textContent = value || '';
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-      element.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
-    }
-    return false;
-  }
-
-  function collectSelectedMaterialIds() {
-    const checked = Array.from(document.querySelectorAll('[data-material-id].selected, [data-material-id][aria-pressed="true"], input[data-material-id]:checked'));
-    return checked.map(el => el.dataset.materialId).filter(Boolean);
-  }
-
-  function fillJobForm(job) {
-    setValue(['#opdrachtNummer', '#orderNumber', '[name="opdrachtNummer"]', '[name="orderNumber"]'], job.opdrachtNummer);
-    setValue(['#klant', '#customer', '[name="klant"]', '[name="customer"]'], job.klant);
-    setValue(['#telefoon', '#phone', '[name="telefoon"]', '[name="phone"]'], job.telefoon);
-    setValue(['#adres', '#address', '[name="adres"]', '[name="address"]'], job.adres);
-    setValue(['#plaats', '#city', '[name="plaats"]', '[name="city"]'], job.plaats);
-    setValue(['#datumVan', '#startDatum', '#dateFrom', '[name="datumVan"]', '[name="dateFrom"]'], job.datumVan || '');
-    setValue(['#datumTot', '#eindDatum', '#dateTo', '[name="datumTot"]', '[name="dateTo"]'], job.datumTot || '');
-    setValue(['#extra', '#extraInfo', '[name="extra"]', '[name="extraInfo"]'], job.extra);
-  }
-
-  function saveOrUpdateJob(job) {
-    const jobs = getJobs();
-    const index = jobs.findIndex(item => item.opdrachtNummer === job.opdrachtNummer || item.id === job.id);
-    if (index >= 0) jobs[index] = { ...jobs[index], ...job, updatedAt: new Date().toISOString() };
-    else jobs.push({ ...job, createdAt: new Date().toISOString() });
-    saveJobs(jobs);
-    reserveMaterialsForJob(job);
-    localStorage.setItem(STORAGE.activeJob, job.opdrachtNummer);
-    return job;
-  }
-
-  function copyCurrentJob() {
-    const original = getActiveJobFromForm();
-    const copy = {
-      ...original,
-      id: createId('opdracht'),
-      opdrachtNummer: createJobNumber(),
-      datumVan: '',
-      datumTot: '',
-      copiedFrom: original.opdrachtNummer || original.id,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    fillJobForm(copy);
-    localStorage.setItem(STORAGE.activeJob, copy.opdrachtNummer);
-    addNotification('info', `Opdracht gekopieerd naar ${copy.opdrachtNummer}. Vul alleen de nieuwe datum in en sla op.`, copy);
-  }
-
-  function ensureCopyButton() {
-    if (document.getElementById('v12-copy-opdracht-btn')) return;
-
-    const extraButton = findButtonByText(['extra', '+ extra']);
-    const target = extraButton || document.querySelector('#extra, .extra, [data-action="extra"]');
-    const parent = target ? target.parentElement : document.querySelector('main, body');
-
-    const button = document.createElement('button');
-    button.id = 'v12-copy-opdracht-btn';
-    button.type = 'button';
-    button.textContent = 'Kopie opdracht';
-    button.className = target && target.className ? target.className : 'v12-copy-opdracht-button';
-    button.style.marginLeft = '8px';
-    button.addEventListener('click', copyCurrentJob);
-
-    if (target && target.nextSibling) parent.insertBefore(button, target.nextSibling);
-    else parent.appendChild(button);
-  }
-
-  function findButtonByText(words) {
-    const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
-    return buttons.find(button => {
-      const text = normalizeText(button.textContent).toLowerCase();
-      return words.some(word => text === word || text.includes(word));
-    });
-  }
-
-  function reserveMaterialsForJob(job) {
-    if (!job.datumVan || !Array.isArray(job.materialen)) return;
-    const materials = getMaterials();
-    const jobs = getJobs();
-
-    for (const materialId of job.materialen) {
-      const material = materials.find(item => String(item.id) === String(materialId));
-      if (!material) continue;
-
-      const conflict = findMaterialConflict(material.id, job, jobs);
-      if (conflict) {
-        addNotification('error', `${material.naam || material.name || material.id} is al ${conflict.status} bij ${conflict.klant || 'onbekende klant'}.`, conflict);
-        continue;
-      }
-
-      material.status = STATUS.RESERVED;
-      material.reservedBy = job.klant;
-      material.reservedJobNumber = job.opdrachtNummer;
-      material.dateFrom = job.datumVan;
-      material.dateTo = job.datumTot || job.datumVan;
-      material.updatedAt = new Date().toISOString();
+  function showToast(message, type) {
+    let box = qs("#v12Toast");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "v12Toast";
+      box.style.position = "fixed";
+      box.style.left = "50%";
+      box.style.bottom = "22px";
+      box.style.transform = "translateX(-50%)";
+      box.style.zIndex = "999999";
+      box.style.padding = "12px 18px";
+      box.style.borderRadius = "10px";
+      box.style.fontWeight = "700";
+      box.style.boxShadow = "0 8px 30px rgba(0,0,0,.25)";
+      document.body.appendChild(box);
     }
 
-    saveMaterials(materials);
-    renderMaterialsState();
+    box.textContent = message;
+    box.style.background = type === "error" ? "#dc2626" : type === "warn" ? "#f59e0b" : "#16a34a";
+    box.style.color = "#fff";
+    box.style.display = "block";
+
+    clearTimeout(box._timer);
+    box._timer = setTimeout(() => {
+      box.style.display = "none";
+    }, 3500);
   }
 
-  function findMaterialConflict(materialId, currentJob, jobs) {
-    const materials = getMaterials();
-    const material = materials.find(item => String(item.id) === String(materialId));
+  /* =========================
+     1. PIN FIX
+     ========================= */
 
-    if (material && BLOCKED_STATUSES.includes(material.status) && material.reservedJobNumber !== currentJob.opdrachtNummer) {
-      if (!currentJob.datumVan || !material.dateFrom) return material;
-      if (rangesOverlap(currentJob.datumVan, currentJob.datumTot, material.dateFrom, material.dateTo)) return material;
-    }
-
-    for (const job of jobs) {
-      if (job.opdrachtNummer === currentJob.opdrachtNummer) continue;
-      if (!Array.isArray(job.materialen) || !job.materialen.includes(materialId)) continue;
-      if (rangesOverlap(currentJob.datumVan, currentJob.datumTot, job.datumVan, job.datumTot)) {
-        return {
-          status: STATUS.RESERVED,
-          klant: job.klant,
-          reservedJobNumber: job.opdrachtNummer,
-          dateFrom: job.datumVan,
-          dateTo: job.datumTot
-        };
-      }
-    }
-
-    return null;
+  function findPinInput() {
+    return (
+      qs("#pinInput") ||
+      qs("#adminPin") ||
+      qs("input[name='pin']") ||
+      qs("input[type='password']") ||
+      qsa("input").find(i => /pin|code|admin/i.test(i.id + " " + i.name + " " + i.placeholder))
+    );
   }
 
-  function handleMaterialClick(event) {
-    const element = event.target.closest('[data-material-id]');
-    if (!element) return;
+  function findPinScreen() {
+    return (
+      qs("#pinScreen") ||
+      qs("#pinOverlay") ||
+      qs(".pin-screen") ||
+      qs(".pinOverlay") ||
+      qs("[data-pin-screen]")
+    );
+  }
 
-    const materialId = element.dataset.materialId;
-    const materials = getMaterials();
-    const material = materials.find(item => String(item.id) === String(materialId));
-    if (!material) return;
+  function findAdminPanel() {
+    return (
+      qs("#adminPanel") ||
+      qs("#admin") ||
+      qs(".admin-panel") ||
+      qs("[data-admin-panel]")
+    );
+  }
 
-    if (BLOCKED_STATUSES.includes(material.status)) {
-      event.preventDefault();
-      event.stopPropagation();
-      showMaterialInfo(material);
+  window.resetAdminPinInput = function resetAdminPinInput() {
+    const input = findPinInput();
+    if (input) {
+      input.value = "";
+      input.blur();
+      setTimeout(() => input.focus && input.focus(), 80);
+    }
+  };
+
+  window.checkPin = function checkPin() {
+    const input = findPinInput();
+
+    if (!input) {
+      showToast("PIN invoerveld niet gevonden. Controleer id pinInput/adminPin.", "error");
       return false;
     }
 
-    element.classList.toggle('selected');
-    element.setAttribute('aria-pressed', element.classList.contains('selected') ? 'true' : 'false');
-    return true;
-  }
+    const value = cleanText(input.value);
+    const correctPin = cleanText(localStorage.getItem("adminPin") || V12_FIX.adminPin);
 
-  function showMaterialInfo(material) {
-    const text = [
-      `Materiaal: ${material.naam || material.name || material.id}`,
-      `Status: ${material.status || STATUS.FREE}`,
-      material.reservedBy ? `Klant: ${material.reservedBy}` : '',
-      material.reservedJobNumber ? `Opdracht: ${material.reservedJobNumber}` : '',
-      material.dateFrom ? `Van: ${material.dateFrom}` : '',
-      material.dateTo ? `Tot: ${material.dateTo}` : '',
-      material.note ? `Notitie: ${material.note}` : '',
-      '',
-      'Kies OK om te wijzigen/vrijgeven. Kies Annuleren om niets te doen.'
-    ].filter(Boolean).join('\n');
-
-    if (window.confirm(text)) editMaterialStatus(material.id);
-  }
-
-  function editMaterialStatus(materialId) {
-    const materials = getMaterials();
-    const material = materials.find(item => String(item.id) === String(materialId));
-    if (!material) return;
-
-    const status = window.prompt(
-      'Nieuwe status: vrij, gereserveerd, schade, vermissing, defect, reparatie',
-      material.status || STATUS.FREE
-    );
-    if (!status) return;
-
-    const cleanStatus = status.toLowerCase().trim();
-    material.status = cleanStatus;
-
-    if (cleanStatus === STATUS.FREE) {
-      material.reservedBy = '';
-      material.reservedJobNumber = '';
-      material.dateFrom = '';
-      material.dateTo = '';
-      material.note = '';
-    } else {
-      material.reservedBy = window.prompt('Klant / reden / bezorger:', material.reservedBy || '') || material.reservedBy || '';
-      material.reservedJobNumber = window.prompt('Opdracht nummer:', material.reservedJobNumber || '') || material.reservedJobNumber || '';
-      material.dateFrom = normalizeDate(window.prompt('Van datum:', material.dateFrom || '')) || material.dateFrom || '';
-      material.dateTo = normalizeDate(window.prompt('Tot datum:', material.dateTo || material.dateFrom || '')) || material.dateTo || '';
-      material.note = window.prompt('Vrije tekst schade/vermissing/reparatie:', material.note || '') || material.note || '';
+    if (value === correctPin) {
+      window.unlockAdminPanel();
+      window.resetAdminPinInput();
+      return true;
     }
 
-    material.updatedAt = new Date().toISOString();
-    saveMaterials(materials);
-    renderMaterialsState();
-    addNotification('info', `${material.naam || material.name || material.id} gewijzigd naar ${material.status}.`, material);
-  }
+    showToast("Foute pincode", "error");
+    window.resetAdminPinInput();
+    return false;
+  };
 
-  function renderMaterialsState() {
-    const materials = getMaterials();
-    document.querySelectorAll('[data-material-id]').forEach(element => {
-      const material = materials.find(item => String(item.id) === String(element.dataset.materialId));
-      if (!material) return;
-      const status = material.status || STATUS.FREE;
-      element.dataset.status = status;
-      element.title = materialTitle(material);
-      element.classList.toggle('is-blocked', BLOCKED_STATUSES.includes(status));
-      element.classList.toggle('is-free', status === STATUS.FREE);
-      if (BLOCKED_STATUSES.includes(status)) {
-        element.classList.remove('selected');
-        element.setAttribute('aria-disabled', 'true');
-        element.setAttribute('aria-pressed', 'false');
-      } else {
-        element.removeAttribute('aria-disabled');
+  window.unlockAdminPanel = function unlockAdminPanel() {
+    const screen = findPinScreen();
+    const panel = findAdminPanel();
+
+    if (screen) {
+      screen.style.display = "none";
+      screen.classList.add("hidden");
+    }
+
+    if (panel) {
+      panel.style.display = "block";
+      panel.classList.remove("hidden");
+      panel.style.visibility = "visible";
+      panel.style.opacity = "1";
+    }
+
+    document.body.classList.add("admin-unlocked");
+    localStorage.setItem("adminUnlocked", "1");
+    showToast("Admin geopend", "ok");
+  };
+
+  window.lockAdminPanel = function lockAdminPanel() {
+    const screen = findPinScreen();
+    const panel = findAdminPanel();
+
+    if (screen) {
+      screen.style.display = "block";
+      screen.classList.remove("hidden");
+    }
+
+    if (panel) {
+      panel.style.display = "none";
+      panel.classList.add("hidden");
+    }
+
+    document.body.classList.remove("admin-unlocked");
+    localStorage.removeItem("adminUnlocked");
+    window.resetAdminPinInput();
+  };
+
+  function initPinFix() {
+    const input = findPinInput();
+
+    if (input) {
+      input.value = "";
+      input.autocomplete = "off";
+      input.inputMode = "numeric";
+
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          window.checkPin();
+        }
+      });
+    }
+
+    qsa("button, input[type='button'], input[type='submit']").forEach(btn => {
+      const txt = cleanText(btn.textContent || btn.value).toLowerCase();
+      if (txt.includes("pin") || txt.includes("login") || txt.includes("admin") || txt.includes("open")) {
+        if (!btn.dataset.v12PinBound) {
+          btn.dataset.v12PinBound = "1";
+          btn.addEventListener("click", function () {
+            const active = document.activeElement;
+            if (active && active === input) window.checkPin();
+          });
+        }
       }
     });
   }
 
-  function materialTitle(material) {
-    if (!BLOCKED_STATUSES.includes(material.status)) return 'Vrij inzetbaar';
-    return `${material.status} - ${material.reservedBy || 'geen klant'} - ${material.dateFrom || '?'} t/m ${material.dateTo || '?'}`;
+  /* =========================
+     2. MATERIAAL DATABASE
+     ========================= */
+
+  function getMaterials() {
+    return readJson(V12_FIX.materialStorageKey, {});
   }
 
-  function renderNotificationBar() {
-    let bar = document.getElementById('v12-notification-bar');
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.id = 'v12-notification-bar';
-      document.body.prepend(bar);
+  function saveMaterials(materials) {
+    writeJson(V12_FIX.materialStorageKey, materials || {});
+  }
+
+  function normalizeMaterialName(name) {
+    return cleanText(name).toLowerCase();
+  }
+
+  function getMaterialStatus(name) {
+    const db = getMaterials();
+    const key = normalizeMaterialName(name);
+    const item = db[key];
+
+    if (!item) {
+      return {
+        name: cleanText(name),
+        status: "vrij"
+      };
     }
 
-    const notifications = getNotifications().filter(item => item.status !== 'closed').slice(0, 8);
-    bar.innerHTML = '';
-    bar.className = notifications.length ? 'v12-notification-bar has-alerts' : 'v12-notification-bar';
+    return item;
+  }
 
-    if (!notifications.length) {
-      bar.textContent = 'Geen open meldingen';
+  function setMaterialStatus(name, data) {
+    const db = getMaterials();
+    const key = normalizeMaterialName(name);
+
+    db[key] = Object.assign(
+      {
+        name: cleanText(name),
+        status: "vrij",
+        klant: "",
+        opdrachtNr: "",
+        datumVan: "",
+        datumTot: "",
+        melding: "",
+        inzetbaar: true
+      },
+      db[key] || {},
+      data || {}
+    );
+
+    saveMaterials(db);
+    renderMaterialBadges();
+    renderNotifications();
+  }
+
+  function isMaterialBlocked(item) {
+    if (!item) return false;
+    const status = normalizeMaterialName(item.status);
+    return V12_FIX.blockedStatuses.includes(status);
+  }
+
+  function dateRangesOverlap(aStart, aEnd, bStart, bEnd) {
+    if (!aStart || !bStart) return true;
+
+    const startA = new Date(aStart);
+    const endA = new Date(aEnd || aStart);
+    const startB = new Date(bStart);
+    const endB = new Date(bEnd || bStart);
+
+    return startA <= endB && startB <= endA;
+  }
+
+  function currentOrderDates() {
+    const start =
+      qs("#datumVan") ||
+      qs("#startDatum") ||
+      qs("#dateFrom") ||
+      qs("input[name='datumVan']") ||
+      qs("input[type='date']");
+
+    const end =
+      qs("#datumTot") ||
+      qs("#eindDatum") ||
+      qs("#dateTo") ||
+      qs("input[name='datumTot']");
+
+    return {
+      van: start ? start.value : "",
+      tot: end ? end.value : start ? start.value : ""
+    };
+  }
+
+  function currentCustomerName() {
+    const el =
+      qs("#klantNaam") ||
+      qs("#customerName") ||
+      qs("input[name='klant']") ||
+      qs("input[name='klantNaam']");
+
+    return el ? el.value : "";
+  }
+
+  function currentOrderNumber() {
+    const el =
+      qs("#opdrachtNr") ||
+      qs("#opdrachtNummer") ||
+      qs("input[name='opdrachtNr']") ||
+      qs("input[name='opdrachtNummer']");
+
+    return el ? el.value : "";
+  }
+
+  function materialNameFromElement(el) {
+    return cleanText(
+      el.dataset.material ||
+      el.dataset.name ||
+      el.getAttribute("data-materiaal") ||
+      el.textContent
+    ).replace(/\b(vrij|gereserveerd|schade|vermissing|defect|storing|reparatie)\b/gi, "").trim();
+  }
+
+  function isMaterialElement(el) {
+    if (!el) return false;
+
+    const text = (el.className + " " + el.id + " " + (el.dataset.material || "") + " " + el.textContent).toLowerCase();
+
+    return (
+      el.matches("[data-material], [data-materiaal], .materiaal, .material, .material-item, .materiaal-item") ||
+      text.includes("materiaal") ||
+      el.closest("#materialen, #materials, .materialen, .materials")
+    );
+  }
+
+  function showMaterialInfo(name) {
+    const item = getMaterialStatus(name);
+    const blocked = isMaterialBlocked(item);
+
+    let msg = "Materiaal: " + item.name + "\nStatus: " + (item.status || "vrij");
+
+    if (blocked) {
+      msg += "\nKlant: " + (item.klant || "onbekend");
+      msg += "\nOpdracht: " + (item.opdrachtNr || "onbekend");
+      msg += "\nDatum: " + (item.datumVan || "-") + " t/m " + (item.datumTot || item.datumVan || "-");
+      if (item.melding) msg += "\nMelding: " + item.melding;
+    }
+
+    const choice = confirm(
+      msg +
+      "\n\nKlik OK om dit materiaal te wijzigen/vrij te geven.\nKlik Annuleren om niets te doen."
+    );
+
+    if (choice) {
+      openMaterialEdit(name);
+    }
+  }
+
+  window.openMaterialEdit = function openMaterialEdit(name) {
+    const item = getMaterialStatus(name);
+
+    const status = prompt(
+      "Status voor " + item.name + ":\nKies: vrij, gereserveerd, schade, vermissing, defect, reparatie",
+      item.status || "vrij"
+    );
+
+    if (status === null) return;
+
+    const newStatus = cleanText(status).toLowerCase();
+
+    let data = {
+      status: newStatus,
+      inzetbaar: newStatus === "vrij"
+    };
+
+    if (newStatus !== "vrij") {
+      data.klant = prompt("Klant:", item.klant || currentCustomerName() || "") || "";
+      data.opdrachtNr = prompt("Opdracht nummer:", item.opdrachtNr || currentOrderNumber() || "") || "";
+      data.datumVan = prompt("Datum van:", item.datumVan || currentOrderDates().van || "") || "";
+      data.datumTot = prompt("Datum tot:", item.datumTot || currentOrderDates().tot || "") || "";
+      data.melding = prompt("Schade/vermissing/opmerking:", item.melding || "") || "";
+    } else {
+      data.klant = "";
+      data.opdrachtNr = "";
+      data.datumVan = "";
+      data.datumTot = "";
+      data.melding = "";
+    }
+
+    setMaterialStatus(name, data);
+    showToast("Materiaal bijgewerkt: " + item.name, "ok");
+  };
+
+  function blockMaterialClick(e) {
+    const el = e.target.closest("[data-material], [data-materiaal], .materiaal, .material, .material-item, .materiaal-item, button, li, div");
+
+    if (!el || !isMaterialElement(el)) return;
+
+    const name = materialNameFromElement(el);
+    if (!name) return;
+
+    const item = getMaterialStatus(name);
+
+    if (isMaterialBlocked(item)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      showMaterialInfo(name);
+      return false;
+    }
+
+    if (!el.dataset.v12FreeClickBound) {
+      el.dataset.v12FreeClickBound = "1";
+    }
+  }
+
+  function reserveSelectedMaterialsForCurrentOrder() {
+    const selected = qsa(
+      "[data-material].selected, [data-materiaal].selected, .materiaal.selected, .material.selected, .materiaal-item.selected, .material-item.selected, input[type='checkbox'][data-material]:checked, input[type='checkbox'][data-materiaal]:checked"
+    );
+
+    const dates = currentOrderDates();
+    const klant = currentCustomerName();
+    const opdrachtNr = currentOrderNumber();
+
+    selected.forEach(el => {
+      const name = materialNameFromElement(el);
+      if (!name) return;
+
+      const item = getMaterialStatus(name);
+
+      if (isMaterialBlocked(item)) return;
+
+      setMaterialStatus(name, {
+        status: "gereserveerd",
+        klant: klant,
+        opdrachtNr: opdrachtNr,
+        datumVan: dates.van,
+        datumTot: dates.tot,
+        inzetbaar: false
+      });
+    });
+  }
+
+  function renderMaterialBadges() {
+    qsa("[data-material], [data-materiaal], .materiaal, .material, .material-item, .materiaal-item").forEach(el => {
+      const name = materialNameFromElement(el);
+      if (!name) return;
+
+      const item = getMaterialStatus(name);
+      const status = normalizeMaterialName(item.status);
+      const blocked = isMaterialBlocked(item);
+
+      el.dataset.v12Status = status || "vrij";
+      el.style.borderColor = blocked ? "#dc2626" : V12_FIX.themeMaterialColor;
+      el.style.backgroundColor = blocked ? "#fee2e2" : "rgba(37,99,235,.08)";
+      el.style.color = blocked ? "#991b1b" : "";
+
+      let badge = qs(".v12-material-status", el);
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "v12-material-status";
+        badge.style.marginLeft = "8px";
+        badge.style.padding = "2px 7px";
+        badge.style.borderRadius = "999px";
+        badge.style.fontSize = "12px";
+        badge.style.fontWeight = "800";
+        el.appendChild(badge);
+      }
+
+      badge.textContent = blocked ? status : "vrij";
+      badge.style.background = blocked ? "#dc2626" : V12_FIX.themeMaterialColor;
+      badge.style.color = "#fff";
+    });
+  }
+
+  function initMaterialSystem() {
+    document.addEventListener("click", blockMaterialClick, true);
+
+    qsa("button").forEach(btn => {
+      const txt = cleanText(btn.textContent).toLowerCase();
+
+      if ((txt.includes("opslaan") || txt.includes("bewaar")) && !btn.dataset.v12ReserveBound) {
+        btn.dataset.v12ReserveBound = "1";
+        btn.addEventListener("click", function () {
+          setTimeout(reserveSelectedMaterialsForCurrentOrder, 50);
+        });
+      }
+    });
+
+    renderMaterialBadges();
+  }
+
+  /* =========================
+     3. KOPIE OPDRACHT
+     ========================= */
+
+  function generateOrderNumber() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const rand = Math.floor(Math.random() * 9000) + 1000;
+    return "OP-" + y + m + day + "-" + rand;
+  }
+
+  function findExtraButton() {
+    return qsa("button, a").find(el => cleanText(el.textContent).toLowerCase() === "extra" || cleanText(el.textContent).toLowerCase().includes("extra"));
+  }
+
+  function addCopyButton() {
+    if (qs("#v12CopyOrderBtn")) return;
+
+    const extra = findExtraButton();
+    const btn = document.createElement("button");
+
+    btn.id = "v12CopyOrderBtn";
+    btn.type = "button";
+    btn.textContent = "Kopie opdracht";
+    btn.className = extra ? extra.className : "btn";
+    btn.style.marginLeft = "8px";
+    btn.style.fontWeight = "800";
+
+    btn.addEventListener("click", copyCurrentOrder);
+
+    if (extra && extra.parentNode) {
+      extra.parentNode.insertBefore(btn, extra.nextSibling);
+    } else {
+      const top =
+        qs("#planner") ||
+        qs("#app") ||
+        qs("main") ||
+        document.body;
+
+      top.insertBefore(btn, top.firstChild);
+    }
+  }
+
+  function copyCurrentOrder() {
+    const newNr = generateOrderNumber();
+
+    qsa("input, textarea, select").forEach(el => {
+      const idName = (el.id + " " + el.name + " " + el.placeholder).toLowerCase();
+
+      if (idName.includes("opdracht") && (idName.includes("nr") || idName.includes("nummer"))) {
+        el.value = newNr;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+        return;
+      }
+
+      if (
+        idName.includes("datum") ||
+        idName.includes("date") ||
+        idName.includes("van") ||
+        idName.includes("tot")
+      ) {
+        if (el.type === "date" || idName.includes("datum") || idName.includes("date")) {
+          el.value = "";
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }
+    });
+
+    const orders = readJson(V12_FIX.orderStorageKey, []);
+    orders.push({
+      id: nowId("order-copy"),
+      opdrachtNr: newNr,
+      copiedAt: new Date().toISOString(),
+      note: "Gekopieerde opdracht. Controleer datum en materiaal en klik daarna opslaan."
+    });
+    writeJson(V12_FIX.orderStorageKey, orders);
+
+    showToast("Opdracht gekopieerd. Nieuw opdracht nr: " + newNr + ". Vul nu alleen de nieuwe datum in.", "ok");
+  }
+
+  /* =========================
+     4. MELDINGEN
+     ========================= */
+
+  function getNotifications() {
+    return readJson(V12_FIX.notificationStorageKey, []);
+  }
+
+  function saveNotifications(list) {
+    writeJson(V12_FIX.notificationStorageKey, list || []);
+  }
+
+  window.v12AddNotification = function v12AddNotification(message, data) {
+    const list = getNotifications();
+
+    list.unshift(Object.assign({
+      id: nowId("msg"),
+      message: message,
+      status: "open",
+      createdAt: new Date().toISOString()
+    }, data || {}));
+
+    saveNotifications(list);
+    renderNotifications();
+  };
+
+  window.v12ClearNotification = function v12ClearNotification(id) {
+    const list = getNotifications().filter(n => n.id !== id);
+    saveNotifications(list);
+    renderNotifications();
+  };
+
+  window.v12MarkNotificationFixed = function v12MarkNotificationFixed(id) {
+    const list = getNotifications().map(n => {
+      if (n.id === id) {
+        n.status = "gerepareerd";
+        n.fixedAt = new Date().toISOString();
+
+        if (n.material) {
+          setMaterialStatus(n.material, {
+            status: "vrij",
+            klant: "",
+            opdrachtNr: "",
+            datumVan: "",
+            datumTot: "",
+            melding: "",
+            inzetbaar: true
+          });
+        }
+      }
+
+      return n;
+    });
+
+    saveNotifications(list);
+    renderNotifications();
+  };
+
+  function findNotificationBar() {
+    return (
+      qs("#meldingen") ||
+      qs("#meldingBar") ||
+      qs("#notificationBar") ||
+      qs(".meldingen") ||
+      qs(".notification-bar")
+    );
+  }
+
+  function renderNotifications() {
+    let bar = findNotificationBar();
+
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "meldingBar";
+      document.body.insertBefore(bar, document.body.firstChild);
+    }
+
+    const list = getNotifications();
+
+    bar.style.display = "block";
+    bar.style.background = list.length ? "#fff7ed" : "#f1f5f9";
+    bar.style.color = "#111827";
+    bar.style.border = "2px solid " + (list.length ? "#f97316" : "#cbd5e1");
+    bar.style.padding = "10px";
+    bar.style.margin = "8px 0";
+    bar.style.borderRadius = "10px";
+    bar.style.fontWeight = "700";
+    bar.style.zIndex = "9999";
+
+    if (!list.length) {
+      bar.innerHTML = "<strong>Meldingen:</strong> geen open meldingen";
       return;
     }
 
-    for (const notification of notifications) {
-      const item = document.createElement('div');
-      item.className = `v12-notification-item ${notification.type || 'info'}`;
+    bar.innerHTML = "<strong>Meldingen:</strong>";
 
-      const text = document.createElement('span');
-      text.textContent = notification.text || 'Melding zonder tekst';
-      item.appendChild(text);
+    list.forEach(n => {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.gap = "8px";
+      row.style.alignItems = "center";
+      row.style.flexWrap = "wrap";
+      row.style.marginTop = "8px";
+      row.style.padding = "8px";
+      row.style.background = "#ffffff";
+      row.style.borderRadius = "8px";
+      row.style.border = "1px solid #fed7aa";
 
-      const repairButton = document.createElement('button');
-      repairButton.type = 'button';
-      repairButton.textContent = 'Gerepareerd/vrijgeven';
-      repairButton.addEventListener('click', () => closeNotification(notification.id, true));
-      item.appendChild(repairButton);
+      const text = document.createElement("span");
+      text.textContent = (n.status === "gerepareerd" ? "✓ " : "⚠ ") + n.message;
+      text.style.flex = "1";
 
-      const closeButton = document.createElement('button');
-      closeButton.type = 'button';
-      closeButton.textContent = 'Wissen';
-      closeButton.addEventListener('click', () => closeNotification(notification.id, false));
-      item.appendChild(closeButton);
+      const fixed = document.createElement("button");
+      fixed.type = "button";
+      fixed.textContent = "Gerepareerd / vrijgeven";
+      fixed.onclick = () => window.v12MarkNotificationFixed(n.id);
 
-      bar.appendChild(item);
+      const clear = document.createElement("button");
+      clear.type = "button";
+      clear.textContent = "Wissen";
+      clear.onclick = () => window.v12ClearNotification(n.id);
+
+      row.appendChild(text);
+      row.appendChild(fixed);
+      row.appendChild(clear);
+      bar.appendChild(row);
+    });
+  }
+
+  /* =========================
+     5. THEMA / GROENE KLEUR FIX
+     ========================= */
+
+  function applyMaterialThemeColor() {
+    const color =
+      localStorage.getItem("themeMaterialColor") ||
+      localStorage.getItem("themeColor") ||
+      V12_FIX.themeMaterialColor;
+
+    const styleId = "v12MaterialColorFix";
+    let style = qs("#" + styleId);
+
+    if (!style) {
+      style = document.createElement("style");
+      style.id = styleId;
+      document.head.appendChild(style);
     }
-  }
 
-  function closeNotification(id, releaseMaterial) {
-    const notifications = getNotifications();
-    const notification = notifications.find(item => item.id === id);
-    if (!notification) return;
-
-    notification.status = 'closed';
-    notification.closedAt = new Date().toISOString();
-
-    if (releaseMaterial && notification.data && notification.data.id) {
-      const materials = getMaterials();
-      const material = materials.find(item => String(item.id) === String(notification.data.id));
-      if (material) {
-        material.status = STATUS.FREE;
-        material.reservedBy = '';
-        material.reservedJobNumber = '';
-        material.dateFrom = '';
-        material.dateTo = '';
-        material.note = '';
-        material.updatedAt = new Date().toISOString();
-        saveMaterials(materials);
-      }
-    }
-
-    saveNotifications(notifications);
-    renderMaterialsState();
-    renderNotificationBar();
-  }
-
-  function fixPinInputs() {
-    const pinInputs = Array.from(document.querySelectorAll('input[type="password"], input[name*="pin" i], input[id*="pin" i]'));
-    pinInputs.forEach(input => {
-      input.setAttribute('autocomplete', 'one-time-code');
-      input.addEventListener('keydown', event => {
-        if (event.key !== 'Enter') return;
-        const form = input.closest('form');
-        const loginButton = form ? form.querySelector('button[type="submit"], button') : findButtonByText(['login', 'inloggen', 'admin']);
-        if (loginButton) loginButton.click();
-      });
-    });
-
-    document.addEventListener('click', event => {
-      const button = event.target.closest('button');
-      if (!button) return;
-      const text = normalizeText(button.textContent).toLowerCase();
-      if (!text.includes('login') && !text.includes('inloggen') && !text.includes('admin')) return;
-      setTimeout(() => pinInputs.forEach(input => { input.value = ''; }), 400);
-    });
-  }
-
-  function fixMapsButtons() {
-    document.addEventListener('click', event => {
-      const button = event.target.closest('[data-map], [data-waze], .waze, .googlemaps, .google-maps');
-      if (!button) return;
-      const address = valueOf(['#adres', '#address', '[name="adres"]', '[name="address"]']);
-      const city = valueOf(['#plaats', '#city', '[name="plaats"]', '[name="city"]']);
-      const query = encodeURIComponent(`${address} ${city}`.trim());
-      if (!query) return;
-      const isWaze = button.matches('[data-waze], .waze') || normalizeText(button.textContent).toLowerCase().includes('waze');
-      const url = isWaze ? `https://waze.com/ul?q=${query}&navigate=yes` : `https://www.google.com/maps/search/?api=1&query=${query}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
-    });
-  }
-
-  function injectStyles() {
-    if (document.getElementById('v12-pro-fix-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'v12-pro-fix-styles';
     style.textContent = `
       :root {
-        --v12-material-free-color: var(--theme-primary, var(--primary-color, #2563eb));
-        --v12-material-blocked-color: #b91c1c;
-        --v12-material-warning-color: #f59e0b;
-        --v12-panel-bg: var(--theme-surface, #ffffff);
-        --v12-panel-text: var(--theme-text, #111827);
+        --materiaal-kleur: ${color};
+        --material-color: ${color};
       }
 
-      [data-material-id].is-free {
-        border-color: var(--v12-material-free-color) !important;
-        color: var(--v12-material-free-color) !important;
-      }
-
-      [data-material-id].is-blocked {
-        border-color: var(--v12-material-blocked-color) !important;
-        background: rgba(185, 28, 28, 0.10) !important;
-        color: var(--v12-material-blocked-color) !important;
-        cursor: not-allowed !important;
-      }
-
-      #v12-copy-opdracht-btn,
-      .v12-copy-opdracht-button {
-        border-radius: 8px;
-        padding: 8px 12px;
-        font-weight: 700;
-        cursor: pointer;
-      }
-
-      .v12-notification-bar {
-        position: sticky;
-        top: 0;
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        padding: 8px;
-        background: var(--v12-panel-bg) !important;
-        color: var(--v12-panel-text) !important;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.12);
-      }
-
-      .v12-notification-bar.has-alerts {
-        background: #fff7ed !important;
-      }
-
-      .v12-notification-item {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        padding: 8px;
-        border-radius: 8px;
-        color: #111827 !important;
-        background: #ffffff !important;
-        border-left: 5px solid var(--v12-material-warning-color);
-      }
-
-      .v12-notification-item.error {
-        border-left-color: var(--v12-material-blocked-color);
-      }
-
-      .v12-notification-item button {
-        padding: 5px 8px;
-        border-radius: 6px;
-        cursor: pointer;
+      .materiaal:not([data-v12-status="gereserveerd"]):not([data-v12-status="schade"]):not([data-v12-status="vermissing"]):not([data-v12-status="defect"]),
+      .material:not([data-v12-status="gereserveerd"]):not([data-v12-status="schade"]):not([data-v12-status="vermissing"]):not([data-v12-status="defect"]),
+      .materiaal-item:not([data-v12-status="gereserveerd"]):not([data-v12-status="schade"]):not([data-v12-status="vermissing"]):not([data-v12-status="defect"]),
+      .material-item:not([data-v12-status="gereserveerd"]):not([data-v12-status="schade"]):not([data-v12-status="vermissing"]):not([data-v12-status="defect"]),
+      [data-material]:not([data-v12-status="gereserveerd"]):not([data-v12-status="schade"]):not([data-v12-status="vermissing"]):not([data-v12-status="defect"]),
+      [data-materiaal]:not([data-v12-status="gereserveerd"]):not([data-v12-status="schade"]):not([data-v12-status="vermissing"]):not([data-v12-status="defect"]) {
+        border-color: var(--materiaal-kleur) !important;
       }
     `;
-    document.head.appendChild(style);
+
+    renderMaterialBadges();
   }
 
-  function boot() {
-    injectStyles();
-    ensureCopyButton();
-    renderMaterialsState();
-    renderNotificationBar();
-    fixPinInputs();
-    fixMapsButtons();
-    document.addEventListener('click', handleMaterialClick, true);
+  window.v12SetMaterialColor = function v12SetMaterialColor(color) {
+    localStorage.setItem("themeMaterialColor", color);
+    V12_FIX.themeMaterialColor = color;
+    applyMaterialThemeColor();
+    showToast("Materiaalkleur aangepast", "ok");
+  };
+
+  /* =========================
+     6. WAZE / GOOGLE MAPS FIX
+     ========================= */
+
+  function getAddressFromForm() {
+    const candidates = [
+      "#adres",
+      "#address",
+      "#straat",
+      "#locatie",
+      "#location",
+      "input[name='adres']",
+      "input[name='address']",
+      "input[name='locatie']"
+    ];
+
+    const parts = [];
+
+    candidates.forEach(sel => {
+      const el = qs(sel);
+      if (el && el.value && !parts.includes(el.value)) parts.push(el.value);
+    });
+
+    const postcode = qs("#postcode, input[name='postcode']");
+    const plaats = qs("#plaats, #city, input[name='plaats'], input[name='city']");
+
+    if (postcode && postcode.value) parts.push(postcode.value);
+    if (plaats && plaats.value) parts.push(plaats.value);
+
+    return parts.join(" ");
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
+  window.openWaze = function openWaze(address) {
+    const q = encodeURIComponent(address || getAddressFromForm());
+
+    if (!q) {
+      showToast("Geen adres gevonden voor Waze", "warn");
+      return;
+    }
+
+    window.open("https://waze.com/ul?q=" + q + "&navigate=yes", "_blank");
+  };
+
+  window.openGoogleMaps = function openGoogleMaps(address) {
+    const q = encodeURIComponent(address || getAddressFromForm());
+
+    if (!q) {
+      showToast("Geen adres gevonden voor Google Maps", "warn");
+      return;
+    }
+
+    window.open("https://www.google.com/maps/search/?api=1&query=" + q, "_blank");
+  };
+
+  function bindNavigationButtons() {
+    qsa("button, a").forEach(el => {
+      const txt = cleanText(el.textContent).toLowerCase();
+
+      if (txt.includes("waze") && !el.dataset.v12WazeBound) {
+        el.dataset.v12WazeBound = "1";
+        el.addEventListener("click", function (e) {
+          e.preventDefault();
+          window.openWaze();
+        });
+      }
+
+      if ((txt.includes("google maps") || txt.includes("googlemaps") || txt === "maps") && !el.dataset.v12MapsBound) {
+        el.dataset.v12MapsBound = "1";
+        el.addEventListener("click", function (e) {
+          e.preventDefault();
+          window.openGoogleMaps();
+        });
+      }
+    });
+  }
+
+  /* =========================
+     7. INIT
+     ========================= */
+
+  function initV12ProFix() {
+    initPinFix();
+    initMaterialSystem();
+    addCopyButton();
+    renderNotifications();
+    applyMaterialThemeColor();
+    bindNavigationButtons();
+
+    const observer = new MutationObserver(function () {
+      addCopyButton();
+      bindNavigationButtons();
+      renderMaterialBadges();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    console.log("V12 PRO COMPLETE FIX geladen");
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initV12ProFix);
   } else {
-    boot();
+    initV12ProFix();
   }
 })();
