@@ -3243,712 +3243,243 @@ setTimeout(()=>{
 })();
 
 
-
 /* =========================================================
-   BNS HARD OVERRIDE - COPY + MATERIAAL BLOKKEREN
-   Deze patch staat bewust helemaal onderaan en wint van oude patches.
-   Hij vervangt na het laden renderMaterials, addMat, renderOrders en save.
+   BNS FINAL PRAKTISCH
+   Copy boven naast Extra + materiaal blokkeren + meldingen leesbaar + Maps/Waze fallback.
    ========================================================= */
-(function bnsHardOverrideCopyMaterial() {
-  "use strict";
+(function(){
+"use strict";
+const STYLE_ID="bns_final_praktisch_style", MODAL_ID="bns_final_modal";
 
-  let installed = false;
-
-  function byId(id) {
-    return document.getElementById(id);
+function E(id){return document.getElementById(id)}
+function A(sel,root){return Array.from((root||document).querySelectorAll(sel))}
+function S(){try{return state}catch(e){return null}}
+function O(){const s=S();return s&&Array.isArray(s.orders)?s.orders:[]}
+function M(){const s=S();return s&&Array.isArray(s.materials)?s.materials:[]}
+function AL(){const s=S();if(!s)return[];s.alerts=Array.isArray(s.alerts)?s.alerts:[];return s.alerts}
+function CH(){try{return Array.isArray(chosen)?chosen:[]}catch(e){return[]}}
+function ED(){try{return editing||null}catch(e){return null}}
+function SETED(v){try{editing=v}catch(e){}}
+function CC(){try{return currentCat||"TW"}catch(e){return"TW"}}
+function SV(){try{if(typeof save==="function")save()}catch(e){}}
+function MSG(t){try{if(typeof toastMsg==="function")toastMsg(t);else if(typeof toast==="function")toast(t)}catch(e){}}
+function ID(){try{if(typeof id==="function")return id()}catch(e){}return "id_"+Math.random().toString(36).slice(2,10)}
+function CL(x){try{return typeof structuredClone==="function"?structuredClone(x):JSON.parse(JSON.stringify(x))}catch(e){return Object.assign({},x)}}
+function H(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function NICE(v){try{if(typeof nice==="function")return nice(v)}catch(e){}if(!v)return"";try{return new Date(v+"T00:00:00").toLocaleDateString("nl-NL")}catch(e){return v}}
+function GV(id){return E(id)?.value||""}
+function SVL(id,v){const el=E(id);if(el)el.value=v||""}
+function active(o){return o&&o.status!=="Geannuleerd"&&o.status!=="Uitgevoerd"}
+function overlap(a,b,c,d){const a1=a||b||"1900-01-01",a2=b||a||"2999-12-31",b1=c||d||"1900-01-01",b2=d||c||"2999-12-31";return a1<=b2&&b1<=a2}
+function mat(mid){return M().find(m=>String(m.id)===String(mid))}
+function rowId(row){if(!row)return"";if(row.dataset.materialId)return row.dataset.materialId;if(row.dataset.bnsMaterialId)return row.dataset.bnsMaterialId;const m=(row.getAttribute("onclick")||"").match(/addMat\(['"]([^'"]+)['"]\)/);return m?m[1]:""}
+function status(m){const x=String(m?.status||"free").toLowerCase();if(x==="reserved"||x==="gereserveerd")return"reserved";if(x==="defect"||x==="storing")return"defect";if(x==="inactive"||x==="niet actief"||x==="niet beschikbaar")return"inactive";return"free"}
+function d1(){return GV("dateStart")}
+function d2(){return GV("dateEnd")||d1()}
+function openAlert(mid){return AL().find(a=>!a.resolved&&String(a.materialId||"")===String(mid))||null}
+function reservation(mid,opt){
+  opt=opt||{};
+  const skip=opt.skip===undefined?ED():opt.skip, start=opt.start===undefined?d1():opt.start, end=opt.end===undefined?d2():opt.end;
+  for(const o of O()){
+    if(!active(o))continue;
+    if(skip&&String(o.id)===String(skip))continue;
+    if(!overlap(start,end,o.start,o.end))continue;
+    if((o.materials||[]).some(m=>String(m.id)===String(mid)))return o;
   }
-
-  function qsa(sel, root) {
-    return Array.from((root || document).querySelectorAll(sel));
-  }
-
-  function getState() {
-    try { return state; } catch (e) { return null; }
-  }
-
-  function getOrders() {
-    const s = getState();
-    return s && Array.isArray(s.orders) ? s.orders : [];
-  }
-
-  function getMaterials() {
-    const s = getState();
-    return s && Array.isArray(s.materials) ? s.materials : [];
-  }
-
-  function getChosen() {
-    try { return Array.isArray(chosen) ? chosen : []; } catch (e) { return []; }
-  }
-
-  function getEditing() {
-    try { return editing || null; } catch (e) { return null; }
-  }
-
-  function setEditing(value) {
-    try { editing = value; } catch (e) {}
-  }
-
-  function getCurrentCat() {
-    try { return currentCat || "TW"; } catch (e) { return "TW"; }
-  }
-
-  function saveNow() {
-    try { if (typeof save === "function") save(); } catch (e) {}
-  }
-
-  function msg(text) {
-    try {
-      if (typeof toastMsg === "function") toastMsg(text);
-      else if (typeof toast === "function") toast(text);
-    } catch (e) {}
-  }
-
-  function esc(value) {
-    return String(value ?? "").replace(/[&<>"']/g, function(ch) {
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
-    });
-  }
-
-  function clone(value) {
-    try {
-      return typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value));
-    } catch (e) {
-      return Object.assign({}, value);
-    }
-  }
-
-  function makeId() {
-    try { if (typeof id === "function") return id(); } catch (e) {}
-    return "id_" + Math.random().toString(36).slice(2, 10);
-  }
-
-  function niceDate(value) {
-    try { if (typeof nice === "function") return nice(value); } catch (e) {}
-    if (!value) return "";
-    try { return new Date(value + "T00:00:00").toLocaleDateString("nl-NL"); } catch (e) { return value; }
-  }
-
-  function isActiveOrder(order) {
-    return order && order.status !== "Geannuleerd" && order.status !== "Uitgevoerd";
-  }
-
-  function overlap(aStart, aEnd, bStart, bEnd) {
-    const a1 = aStart || aEnd || "1900-01-01";
-    const a2 = aEnd || aStart || "2999-12-31";
-    const b1 = bStart || bEnd || "1900-01-01";
-    const b2 = bEnd || bStart || "2999-12-31";
-    return a1 <= b2 && b1 <= a2;
-  }
-
-  function formStart() {
-    return byId("dateStart")?.value || "";
-  }
-
-  function formEnd() {
-    return byId("dateEnd")?.value || formStart();
-  }
-
-  function reservationFor(materialId, options = {}) {
-    const skip = options.skip !== undefined ? options.skip : getEditing();
-    const start = options.start !== undefined ? options.start : formStart();
-    const end = options.end !== undefined ? options.end : formEnd();
-
-    for (const order of getOrders()) {
-      if (!isActiveOrder(order)) continue;
-      if (skip && String(order.id) === String(skip)) continue;
-      if (!overlap(start, end, order.start, order.end)) continue;
-
-      const found = (order.materials || []).find(function(m) {
-        return String(m.id) === String(materialId);
-      });
-
-      if (found) return order;
-    }
-
-    return null;
-  }
-
-  function materialById(materialId) {
-    return getMaterials().find(function(m) {
-      return String(m.id) === String(materialId);
-    });
-  }
-
-  function statusOf(material) {
-    const raw = String(material?.status || "free").toLowerCase();
-    if (raw === "defect" || raw === "storing") return "defect";
-    if (raw === "inactive" || raw === "niet actief" || raw === "niet beschikbaar") return "inactive";
-    if (raw === "reserved" || raw === "gereserveerd") return "reserved";
-    return "free";
-  }
-
-  function openIssue(materialId) {
-    const s = getState();
-    if (!s) return null;
-    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
-    return s.alerts.find(function(a) {
-      return !a.resolved && String(a.materialId || "") === String(materialId);
-    }) || null;
-  }
-
-  function materialBlocked(materialId) {
-    const material = materialById(materialId);
-    if (!material) return {blocked: true, reason: "Materiaal niet gevonden"};
-
-    const issue = openIssue(materialId);
-    const st = statusOf(material);
-
-    if (issue || st === "defect" || st === "inactive") {
-      return {blocked: true, type: "issue", material, issue};
-    }
-
-    const res = reservationFor(materialId);
-    if (res) return {blocked: true, type: "reserved", material, order: res};
-
-    return {blocked: false, material};
-  }
-
-  function showMaterialInfo(materialId) {
-    const material = materialById(materialId);
-    if (!material) return;
-
-    const issue = openIssue(materialId);
-    const st = statusOf(material);
-    const res = reservationFor(materialId);
-
-    if (issue || st === "defect" || st === "inactive") {
-      let text = `${material.code || ""} ${material.name || ""}\n\n`;
-      text += `STATUS: ${st === "inactive" ? "Niet beschikbaar" : "Defect / storing"}\n`;
-      text += `${issue?.text || material.issueText || material.notes || ""}\n\n`;
-      text += "OK = gerepareerd / vrijgeven\nAnnuleren = sluiten";
-      if (confirm(text)) {
-        resolveMaterialHard(materialId);
-      }
-      return;
-    }
-
-    if (res) {
-      let text = `${material.code || ""} ${material.name || ""}\n\n`;
-      text += `GERESERVEERD DOOR:\n${res.customer?.name || "Onbekend"}\n\n`;
-      text += `Opdracht: ${res.number || ""} - ${res.title || ""}\n`;
-      text += `Datum: ${niceDate(res.start)} t/m ${niceDate(res.end)}\n\n`;
-      text += "OK = Wijzig opdracht\nAnnuleren = sluiten";
-      if (confirm(text)) {
-        if (typeof editOrder === "function") editOrder(res.id);
-      }
-      return;
-    }
-
-    if (confirm(`${material.code || ""} ${material.name || ""}\n\nMateriaal is vrij.\nToevoegen aan opdracht?`)) {
-      addMatHard(materialId);
-    }
-  }
-
-  function addMatHard(materialId) {
-    const blocked = materialBlocked(materialId);
-
-    if (blocked.blocked) {
-      showMaterialInfo(materialId);
-      return;
-    }
-
-    const material = blocked.material;
-    const list = getChosen();
-
-    if (!list.some(function(item) { return String(item.id) === String(materialId); })) {
-      const copy = clone(material);
-      copy.status = "reserved";
-      list.push(copy);
-    }
-
-    try { if (typeof renderChosen === "function") renderChosen(); } catch (e) {}
-    renderMaterialsHard(getCurrentCat());
-    try { if (typeof summaryRender === "function") summaryRender(); } catch (e) {}
-  }
-
-  function handleMaterialClickHard(materialId) {
-    const selected = getChosen().some(function(item) {
-      return String(item.id) === String(materialId);
-    });
-
-    if (selected) {
-      showMaterialInfo(materialId);
-      return;
-    }
-
-    addMatHard(materialId);
-  }
-
-  function renderMaterialsHard(cat) {
-    const materialList = byId("materialList");
-    const materialSearch = byId("materialSearch");
-    if (!materialList) return;
-
-    const activeCat = String(cat || getCurrentCat() || "TW").toUpperCase();
-    const q = String(materialSearch?.value || "").toLowerCase();
-    const list = getChosen();
-
-    const rows = getMaterials()
-      .filter(function(m) { return String(m.cat || "").toUpperCase() === activeCat; })
-      .filter(function(m) { return !q || JSON.stringify(m).toLowerCase().includes(q); });
-
-    materialList.innerHTML = rows.map(function(m) {
-      const selected = list.some(function(item) { return String(item.id) === String(m.id); });
-      const issue = openIssue(m.id);
-      const res = reservationFor(m.id);
-      const st = statusOf(m);
-
-      let cls = "free";
-      let label = "Vrij";
-      let small = m.price || "";
-
-      if (selected) {
-        cls = "now";
-        label = "Nu toegevoegd";
-      } else if (issue || st === "defect") {
-        cls = "defect";
-        label = "Storing";
-        small = "Klik voor melding";
-      } else if (st === "inactive") {
-        cls = "inactive";
-        label = "Niet beschikbaar";
-        small = "Klik voor info";
-      } else if (res) {
-        cls = "reserved";
-        label = "Gereserveerd";
-        small = "Klik voor klant/datum";
-      }
-
-      return `
-        <div class="material-row ${selected ? "selected" : ""} ${cls}" data-bns-material-id="${esc(m.id)}">
-          <div class="catbar cat-${esc(m.cat || "")}"></div>
-          <div><b>${esc(m.code || "")}</b> ${esc(m.name || "")}<br><small>${esc(small)}</small></div>
-          <div><span class="badge ${cls}">${esc(label)}</span></div>
-        </div>
-      `;
-    }).join("") || "<p>Geen materiaal</p>";
-
-    qsa("[data-bns-material-id]", materialList).forEach(function(row) {
-      row.onclick = function() {
-        handleMaterialClickHard(row.dataset.bnsMaterialId);
-      };
-    });
-  }
-
-  function validateChosenHard() {
-    for (const m of getChosen()) {
-      const res = reservationFor(m.id, {
-        skip: getEditing(),
-        start: formStart(),
-        end: formEnd()
-      });
-
-      const master = materialById(m.id);
-      const issue = openIssue(m.id);
-      const st = statusOf(master);
-
-      if (issue || st === "defect" || st === "inactive") {
-        showMaterialInfo(m.id);
-        return false;
-      }
-
-      if (res) {
-        showMaterialInfo(m.id);
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  function saveOrderHard() {
-    if (!validateChosenHard()) return;
-
-    const order = {
-      id: getEditing() || makeId(),
-      number: byId("orderNumber")?.value || "",
-      status: byId("orderStatus")?.value || "Offerte",
-      title: byId("orderTitle")?.value || "Zonder titel",
-      start: byId("dateStart")?.value || "",
-      end: byId("dateEnd")?.value || "",
-      brand: byId("orderBrand")?.value || "",
-      customer: {
-        name: byId("customerName")?.value || "",
-        street: byId("customerStreet")?.value || "",
-        zip: byId("customerZip")?.value || "",
-        city: byId("customerCity")?.value || "",
-        phone: byId("customerPhone")?.value || "",
-        email: byId("customerEmail")?.value || ""
-      },
-      location: {
-        name: byId("locationName")?.value || "",
-        street: byId("locationStreet")?.value || "",
-        zip: byId("locationZip")?.value || "",
-        city: byId("locationCity")?.value || "",
-        contact: byId("locationContact")?.value || "",
-        phone: byId("locationPhone")?.value || "",
-        show: byId("showLocationOnDocs")?.checked ?? true
-      },
-      materials: getChosen().map(function(m) {
-        const copy = clone(m);
-        copy.status = "reserved";
-        return copy;
-      }),
-      driver: byId("orderDriver")?.value || "",
-      vehicle: byId("orderVehicle")?.value || "",
-      extra: byId("orderExtra")?.value || "",
-      pricing: (typeof calcTotals === "function") ? calcTotals() : undefined
-    };
-
-    try { if (typeof upsertCustomer === "function") upsertCustomer(order.customer); } catch (e) {}
-    try { if (typeof upsertLocation === "function") upsertLocation(order.location); } catch (e) {}
-
-    const orders = getOrders();
-    const idx = orders.findIndex(function(o) { return String(o.id) === String(order.id); });
-
-    if (idx >= 0) orders[idx] = order;
-    else orders.push(order);
-
-    recalcReservationsHard();
-    setEditing(null);
-    saveNow();
-
-    try { if (typeof clearOrder === "function") clearOrder(); } catch (e) {}
-    try { if (typeof renderAll === "function") renderAll(); } catch (e) {}
-    try { if (typeof showPage === "function") showPage("orders"); } catch (e) {}
-    msg("Opdracht opgeslagen. Materialen gecontroleerd.");
-  }
-
-  function recalcReservationsHard() {
-    const active = {};
-    getOrders().forEach(function(o) {
-      if (!isActiveOrder(o)) return;
-      (o.materials || []).forEach(function(m) {
-        if (!m || !m.id) return;
-        active[String(m.id)] = o;
-      });
-    });
-
-    getMaterials().forEach(function(m) {
-      const issue = openIssue(m.id);
-      const st = statusOf(m);
-      if (issue || st === "defect" || st === "inactive") return;
-
-      const o = active[String(m.id)];
-      if (o) {
-        m.status = "reserved";
-        m.reservedBy = o.customer?.name || "";
-        m.reservedOrder = o.number || "";
-        m.reservedOrderId = o.id;
-        m.reservedFrom = o.start || "";
-        m.reservedTo = o.end || "";
-      } else {
-        m.status = "free";
-        m.reservedBy = "";
-        m.reservedOrder = "";
-        m.reservedOrderId = "";
-        m.reservedFrom = "";
-        m.reservedTo = "";
-      }
-    });
-  }
-
-  function nextNoHard() {
-    const year = new Date().getFullYear();
-    const nums = getOrders()
-      .map(function(o) { return String(o.number || "").match(new RegExp("^" + year + "-(\\d+)$")); })
-      .filter(Boolean)
-      .map(function(match) { return Number(match[1]); });
-
-    return year + "-" + String(nums.length ? Math.max.apply(null, nums) + 1 : 1).padStart(4, "0");
-  }
-
-  function copyOrderHard(orderId) {
-    if (typeof editOrder !== "function") return;
-
-    editOrder(orderId);
-
-    setTimeout(function() {
-      setEditing(null);
-      const num = byId("orderNumber");
-      if (num) num.value = nextNoHard();
-
-      const status = byId("orderStatus");
-      if (status) status.value = "Offerte";
-
-      msg("Copy gemaakt. Pas datum aan en sla op.");
-    }, 100);
-  }
-
-  function renderOrdersHard() {
-    const ordersSearch = byId("ordersSearch");
-    const ordersList = byId("ordersList");
-    if (!ordersList) return;
-
-    let currentMode = "active";
-    try { currentMode = mode || "active"; } catch (e) {}
-
-    const q = String(ordersSearch?.value || "").toLowerCase();
-
-    const sorted = (typeof sortedOrders === "function")
-      ? sortedOrders()
-      : getOrders().slice().sort(function(a,b) { return String(a.start||"").localeCompare(String(b.start||"")); });
-
-    const visible = sorted
-      .filter(function(o) {
-        return currentMode === "cancelled"
-          ? o.status === "Geannuleerd"
-          : currentMode === "done"
-            ? o.status === "Uitgevoerd"
-            : (o.status !== "Geannuleerd" && o.status !== "Uitgevoerd");
-      })
-      .filter(function(o) {
-        return !q || JSON.stringify(o).toLowerCase().includes(q);
-      });
-
-    ordersList.innerHTML = visible.map(cardHard).join("") || "<p>Niets gevonden</p>";
-  }
-
-  function cardHard(o) {
-    const addr = [o.location?.street, o.location?.zip, o.location?.city].filter(Boolean).join(" ");
-    const mats = (o.materials || []).map(function(m) { return m.code; }).join(", ");
-    const total = o.pricing && typeof money === "function" ? money(o.pricing.grand) : "€ 0,00";
-    const deposit = o.pricing && typeof money === "function" ? money(o.pricing.deposit) : "€ 0,00";
-    const d = (typeof nice === "function") ? nice(o.start) : niceDate(o.start);
-
-    return `
-      <div class="order-card">
-        <div class="date-tile">${esc(d)}</div>
-        <div>
-          <div class="order-title">${esc(o.number || "")} - ${esc(o.title || "")} <span class="status status-${esc(o.status || "")}">${esc(o.status || "")}</span></div>
-          <div>Klant: ${esc(o.customer?.name || "")}</div>
-          <div>Locatie: ${esc(addr)}</div>
-          <div>Materialen: ${esc(mats)}</div>
-          <div>Totaal: ${esc(total)} | Borg: ${esc(deposit)}</div>
-        </div>
-        <div class="actions">
-          <button onclick="editOrder('${esc(o.id)}')">Wijzigen</button>
-          <button onclick="BNS_copyOrder('${esc(o.id)}')">Copy</button>
-          ${o.status === "Geannuleerd"
-            ? `<button onclick="restore('${esc(o.id)}')">Terughalen</button>`
-            : `<button class="danger" onclick="cancel('${esc(o.id)}')">Annuleren</button>`}
-        </div>
-      </div>
-    `;
-  }
-
-  function resolveMaterialHard(materialId) {
-    const st = getState();
-    if (!st) return;
-
-    st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
-    st.alerts.forEach(function(a) {
-      if (String(a.materialId || "") === String(materialId)) {
-        a.resolved = true;
-        a.resolvedAt = new Date().toLocaleString();
-      }
-    });
-
-    const material = materialById(materialId);
-    if (material) {
-      material.status = "free";
-      material.issueText = "";
-      material.usable = true;
-    }
-
-    recalcReservationsHard();
-    saveNow();
-    try { if (typeof renderAll === "function") renderAll(); } catch (e) {}
-    msg("Materiaal vrijgegeven");
-  }
-
-  function showAlertsHard() {
-    const alerts = (getState().alerts || []).filter(function(a) { return !a.resolved; });
-    if (!alerts.length) {
-      alert("Geen open systeemmeldingen.");
-      return;
-    }
-
-    const list = alerts.map(function(a, i) {
-      return `${i+1}. ${a.title || a.type || "Melding"}\n${a.text || ""}\n${a.time || ""}`;
-    }).join("\n\n");
-
-    const choice = prompt("Open meldingen:\n\n" + list + "\n\nNummer kiezen:");
-    const alertItem = alerts[Number(choice) - 1];
-    if (!alertItem) return;
-
-    const action = prompt("1 = opgelost/gerepareerd\n2 = wis storing\n3 = materiaal openen");
-    if (action === "1") {
-      alertItem.resolved = true;
-      alertItem.resolvedAt = new Date().toLocaleString();
-      if (alertItem.materialId) resolveMaterialHard(alertItem.materialId);
-      saveNow();
-    } else if (action === "2") {
-      getState().alerts = (getState().alerts || []).filter(function(a) { return a.id !== alertItem.id; });
-      saveNow();
-    } else if (action === "3" && alertItem.materialId) {
-      showMaterialInfo(alertItem.materialId);
-    }
-
-    try { if (typeof renderAll === "function") renderAll(); } catch (e) {}
-  }
-
-  function patchAlertFor() {
-    window.alertFor = function(orderId, type) {
-      const order = getOrders().find(function(o) { return String(o.id) === String(orderId); });
-      if (!order) return;
-
-      const materials = order.materials || [];
-      if (!materials.length) {
-        const text = prompt("Omschrijving melding:");
-        if (text === null) return;
-        const st = getState();
-        st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
-        st.alerts.push({
-          id: makeId(),
-          orderId,
-          title: (type || "Melding") + " - " + (order.number || ""),
-          type: type || "Melding",
-          text: text || "",
-          time: new Date().toLocaleString(),
-          resolved: false
-        });
-        saveNow();
-        return;
-      }
-
-      const pick = prompt("Welk materiaal?\n" + materials.map(function(m,i) {
-        return `${i+1}. ${m.code || ""} ${m.name || ""}`;
-      }).join("\n"));
-
-      const material = materials[Number(pick)-1];
-      if (!material) return;
-
-      const text = prompt("Omschrijving schade/vermissing/storing:");
-      if (text === null) return;
-
-      const usable = confirm("Is het materiaal nog inzetbaar?\nOK = ja, Annuleren = nee");
-      const st = getState();
-      st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
-      st.alerts.push({
-        id: makeId(),
-        orderId,
-        materialId: material.id,
-        title: (type || "Melding") + " - " + (material.code || ""),
-        type: type || "Melding",
-        text: text || "",
-        usable,
-        time: new Date().toLocaleString(),
-        resolved: false
-      });
-
-      if (!usable) {
-        const master = materialById(material.id);
-        if (master) {
-          master.status = "defect";
-          master.issueText = text || "Defect";
-          master.usable = false;
-        }
-      }
-
-      saveNow();
-      try { if (typeof renderAll === "function") renderAll(); } catch (e) {}
-    };
-
-    try { alertFor = window.alertFor; } catch (e) {}
-  }
-
-  function installCss() {
-    if (document.getElementById("bns-hard-override-style")) return;
-    const style = document.createElement("style");
-    style.id = "bns-hard-override-style";
-    style.textContent = `
-      #materialList .material-row,
-      #materialList .material-row.free,
-      #materialList .material-row.reserved,
-      #materialList .material-row.defect,
-      #materialList .material-row.inactive {
-        background: var(--panel,#fff) !important;
-        color: var(--text,#172033) !important;
-      }
-      #materialList .badge.reserved{background:#fee2e2!important;color:#991b1b!important}
-      #materialList .badge.defect{background:#fee2e2!important;color:#991b1b!important;animation:bnsDefectBlink .45s infinite alternate!important}
-      #materialList .badge.free{background:#dcfce7!important;color:#166534!important}
-      #materialList .badge.inactive{background:#e2e8f0!important;color:#334155!important}
-      #materialList .badge.now{background:#dbeafe!important;color:#1e40af!important}
-      #alertsBtn.bns-blink{animation:bnsAlertBlink .7s infinite alternate!important}
-      @keyframes bnsAlertBlink{from{background:#b91c1c;color:#fff}to{background:#ef4444;color:#fff;box-shadow:0 0 18px rgba(239,68,68,.75)}}
-      @keyframes bnsDefectBlink{from{opacity:.45}to{opacity:1}}
-    `;
-    document.head.appendChild(style);
-  }
-
-  function patchRenderAll() {
-    if (window.__bnsRenderAllPatched) return;
-    window.__bnsRenderAllPatched = true;
-
-    const old = window.renderAll || (typeof renderAll !== "undefined" ? renderAll : null);
-    if (typeof old === "function") {
-      const wrapped = function() {
-        old();
-        finishAfterRender();
-      };
-      window.renderAll = wrapped;
-      try { renderAll = wrapped; } catch (e) {}
-    }
-  }
-
-  function finishAfterRender() {
-    const btn = byId("alertsBtn");
-    if (btn) {
-      const count = (getState()?.alerts || []).filter(function(a) { return !a.resolved; }).length;
-      btn.textContent = "Systeemmeldingen (" + count + ")";
-      btn.classList.toggle("bns-blink", count > 0);
-      btn.onclick = showAlertsHard;
-    }
-  }
-
-  function install() {
-    installCss();
-
-    window.renderMaterials = renderMaterialsHard;
-    window.addMat = addMatHard;
-    window.saveCurrentOrder = saveOrderHard;
-    window.renderOrders = renderOrdersHard;
-    window.BNS_copyOrder = copyOrderHard;
-
-    try { renderMaterials = renderMaterialsHard; } catch (e) {}
-    try { addMat = addMatHard; } catch (e) {}
-    try { saveCurrentOrder = saveOrderHard; } catch (e) {}
-    try { renderOrders = renderOrdersHard; } catch (e) {}
-
-    patchAlertFor();
-    patchRenderAll();
-    recalcReservationsHard();
-
-    const search = byId("materialSearch");
-    if (search && !search.dataset.bnsHardBound) {
-      search.dataset.bnsHardBound = "1";
-      search.addEventListener("input", function() {
-        renderMaterialsHard(getCurrentCat());
-      });
-    }
-
-    renderOrdersHard();
-    renderMaterialsHard(getCurrentCat());
-    finishAfterRender();
-    installed = true;
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function() {
-      setTimeout(install, 1000);
-    });
+  return null;
+}
+function block(mid){
+  const m=mat(mid); if(!m)return{blocked:true,type:"missing"};
+  const al=openAlert(mid), st=status(m);
+  if(al||st==="defect"||st==="inactive")return{blocked:true,type:"issue",material:m,alert:al};
+  const res=reservation(mid); if(res)return{blocked:true,type:"reserved",material:m,order:res};
+  return{blocked:false,material:m};
+}
+function nextNo(){
+  const y=new Date().getFullYear();
+  const nums=O().map(o=>String(o.number||"").match(new RegExp("^"+y+"-(\\d+)$"))).filter(Boolean).map(m=>Number(m[1]));
+  return y+"-"+String(nums.length?Math.max(...nums)+1:1).padStart(4,"0");
+}
+function collectOrder(){
+  return {
+    id:ED()||ID(),
+    number:GV("orderNumber")||nextNo(),
+    status:GV("orderStatus")||"Offerte",
+    title:GV("orderTitle")||"Zonder titel",
+    start:GV("dateStart"), end:GV("dateEnd"), brand:GV("orderBrand"),
+    customer:{name:GV("customerName"),street:GV("customerStreet"),zip:GV("customerZip"),city:GV("customerCity"),phone:GV("customerPhone"),email:GV("customerEmail")},
+    location:{name:GV("locationName"),street:GV("locationStreet"),zip:GV("locationZip"),city:GV("locationCity"),contact:GV("locationContact"),phone:GV("locationPhone"),show:E("showLocationOnDocs")?.checked??true},
+    materials:CH().map(m=>{const c=CL(m);c.status="reserved";return c}),
+    driver:GV("orderDriver"),vehicle:GV("orderVehicle"),extra:GV("orderExtra"),
+    pricing:typeof calcTotals==="function"?calcTotals():undefined
+  };
+}
+function upsertOrder(o){const list=O();const i=list.findIndex(x=>String(x.id)===String(o.id));if(i>=0)list[i]=o;else list.push(o)}
+function saved(id){return !!O().find(o=>String(o.id)===String(id))}
+function copyTop(){
+  const cur=collectOrder();
+  if(!cur.title&&!cur.customer.name&&!cur.materials.length){alert("Vul eerst een opdracht in voordat je Copy gebruikt.");return}
+  if(!ED()||!saved(ED())){cur.id=ED()||ID();upsertOrder(cur)}else upsertOrder(cur);
+  const cp=CL(cur); cp.id=ID(); cp.number=nextNo(); cp.status="Offerte";
+  SETED(null); SVL("orderNumber",cp.number); SVL("orderStatus","Offerte");
+  try{chosen=cp.materials.map(m=>CL(m))}catch(e){}
+  recalc(); SV();
+  try{if(typeof renderChosen==="function")renderChosen()}catch(e){}
+  try{if(typeof summaryRender==="function")summaryRender()}catch(e){}
+  try{if(typeof renderAll==="function")renderAll()}catch(e){}
+  MSG("Copy gemaakt. Alleen datum aanpassen en opslaan.");
+}
+function installCopyButton(){
+  if(E("bnsCopyOrderTop"))return;
+  const extra=A("button").find(b=>(b.textContent||"").trim().toLowerCase()==="extra");
+  const btn=document.createElement("button");
+  btn.id="bnsCopyOrderTop"; btn.type="button"; btn.textContent="Copy opdracht"; btn.className="worktab bns-copy-top";
+  btn.onclick=e=>{e.preventDefault();copyTop()};
+  if(extra)extra.insertAdjacentElement("afterend",btn);
+  else (document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn);
+}
+function addSafe(mid){
+  const b=block(mid);
+  if(b.blocked){showMaterialInfo(mid);return}
+  if(!CH().some(x=>String(x.id)===String(mid))){const c=CL(b.material);c.status="reserved";CH().push(c)}
+  try{if(typeof renderChosen==="function")renderChosen()}catch(e){}
+  try{if(typeof renderMaterials==="function")renderMaterials(CC())}catch(e){}
+  try{if(typeof summaryRender==="function")summaryRender()}catch(e){}
+}
+function intercept(e){
+  const row=e.target.closest&&e.target.closest(".material-row");
+  if(!row||!E("materialList")||!E("materialList").contains(row))return;
+  const mid=rowId(row); if(!mid)return;
+  e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+  if(CH().some(x=>String(x.id)===String(mid)))showMaterialInfo(mid); else addSafe(mid);
+  return false;
+}
+function openModal(title,body){
+  let m=E(MODAL_ID);
+  if(!m){m=document.createElement("div");m.id=MODAL_ID;m.className="bns-modal hidden";m.innerHTML='<div class="bns-modal-card"><h2 id="bnsFinalModalTitle"></h2><div id="bnsFinalModalBody"></div><div class="actions"><button type="button" onclick="BNS_closeFinalModal()">Sluiten</button></div></div>';document.body.appendChild(m)}
+  E("bnsFinalModalTitle").textContent=title||"Info"; E("bnsFinalModalBody").innerHTML=body||""; m.classList.remove("hidden");
+}
+function closeModal(){const m=E(MODAL_ID);if(m)m.classList.add("hidden")}
+function showMaterialInfo(mid){
+  const m=mat(mid); if(!m)return;
+  const al=openAlert(mid), st=status(m), res=reservation(mid);
+  let body='<h3>'+H(m.code||"")+" "+H(m.name||"")+'</h3>';
+  if(res){
+    body += '<div class="bns-info-box"><b>Gereserveerd door:</b> '+H(res.customer?.name||"Onbekend")+'<br><b>Opdracht:</b> '+H(res.number||"")+' - '+H(res.title||"")+'<br><b>Datum:</b> '+H(NICE(res.start))+' t/m '+H(NICE(res.end))+'</div><div class="actions"><button type="button" onclick="BNS_openOrder(\''+H(res.id)+'\')">Wijzig opdracht</button></div>';
+  } else if(al||st==="defect"||st==="inactive"){
+    body += '<div class="bns-info-box defect"><b>Melding:</b> '+H(al?.text||m.issueText||m.notes||"Geen tekst")+'<br><b>Inzetbaar:</b> '+(m.usable===false?"Nee":"Onbekend / ja")+'</div><div class="actions"><button type="button" onclick="BNS_resolveMaterial(\''+H(m.id)+'\')">Gerepareerd / vrijgeven</button><button type="button" class="danger" onclick="BNS_keepDefect(\''+H(m.id)+'\')">Defect laten staan</button></div>';
   } else {
-    setTimeout(install, 1000);
+    body += '<p>Dit materiaal is vrij.</p><button type="button" onclick="BNS_addMaterialFromModal(\''+H(m.id)+'\')">Toevoegen</button>';
   }
-
-  setTimeout(install, 2000);
-  setTimeout(install, 4000);
+  openModal("Materiaal info",body);
+}
+function recalc(){
+  const active={};
+  O().forEach(o=>{if(!activeOrder(o))return;(o.materials||[]).forEach(m=>{if(m?.id)active[String(m.id)]=o})});
+  M().forEach(m=>{
+    const al=openAlert(m.id), st=status(m); if(al||st==="defect"||st==="inactive")return;
+    const o=active[String(m.id)];
+    if(o){m.status="reserved";m.reservedBy=o.customer?.name||"";m.reservedOrder=o.number||"";m.reservedOrderId=o.id;m.reservedFrom=o.start||"";m.reservedTo=o.end||""}
+    else{m.status="free";m.reservedBy="";m.reservedOrder="";m.reservedOrderId="";m.reservedFrom="";m.reservedTo=""}
+  });
+}
+function activeOrder(o){return active(o)}
+function resolveMaterial(mid){
+  AL().forEach(a=>{if(String(a.materialId||"")===String(mid)){a.resolved=true;a.resolvedAt=new Date().toLocaleString()}});
+  const m=mat(mid); if(m){m.status="free";m.issueText="";m.usable=true}
+  recalc(); SV(); closeModal(); try{if(typeof renderAll==="function")renderAll()}catch(e){} MSG("Materiaal vrijgegeven");
+}
+function keepDefect(mid){
+  const m=mat(mid); if(!m)return; const t=prompt("Waarom defect laten staan?",m.issueText||""); if(t===null)return;
+  m.status="defect";m.issueText=t||"Defect";m.usable=false;
+  AL().push({id:ID(),materialId:mid,type:"Defect",title:"Defect - "+(m.code||""),text:t||"Defect",usable:false,time:new Date().toLocaleString(),resolved:false});
+  SV(); closeModal(); try{if(typeof renderAll==="function")renderAll()}catch(e){}
+}
+function addFromModal(mid){closeModal();addSafe(mid)}
+function openOrder(id){closeModal();if(typeof editOrder==="function")editOrder(id)}
+function labelPatch(){
+  A("#materialList .material-row").forEach(row=>{
+    const mid=rowId(row), m=mat(mid); if(!m)return;
+    const badge=row.querySelector(".badge"), small=row.querySelector("small"), res=reservation(mid), al=openAlert(mid), st=status(m), selected=CH().some(x=>String(x.id)===String(mid));
+    row.classList.remove("free","reserved","defect","inactive","now"); row.removeAttribute("onclick");
+    if(selected){row.classList.add("now");if(badge){badge.textContent="Nu toegevoegd";badge.className="badge now"}}
+    else if(al||st==="defect"){row.classList.add("defect");if(badge){badge.textContent="Storing";badge.className="badge defect"}if(small)small.textContent="Klik voor melding"}
+    else if(st==="inactive"){row.classList.add("inactive");if(badge){badge.textContent="Niet beschikbaar";badge.className="badge inactive"}if(small)small.textContent="Klik voor info"}
+    else if(res){row.classList.add("reserved");if(badge){badge.textContent="Gereserveerd";badge.className="badge reserved"}if(small)small.textContent="Klik voor klant/datum"}
+    else{row.classList.add("free");if(badge){badge.textContent="Vrij";badge.className="badge free"}}
+  });
+}
+function validate(){
+  for(const m of CH()){
+    const master=mat(m.id), st=status(master), al=openAlert(m.id), res=reservation(m.id,{skip:ED(),start:d1(),end:d2()});
+    if(al||st==="defect"||st==="inactive"||res){showMaterialInfo(m.id);return false}
+  }
+  return true;
+}
+function patchSave(){
+  ["saveOrder","saveFromOverviewBtn"].map(E).filter(Boolean).forEach(btn=>{
+    if(btn.dataset.bnsFinalSavePatch)return; btn.dataset.bnsFinalSavePatch="1";
+    btn.addEventListener("click",e=>{
+      if(!validate()){e.preventDefault();e.stopImmediatePropagation();return false}
+      CH().forEach(m=>m.status="reserved"); setTimeout(()=>{recalc();SV()},100);
+    },true);
+  });
+}
+function showAlerts(){
+  const open=AL().filter(a=>!a.resolved), closed=AL().filter(a=>a.resolved).slice(-15).reverse();
+  const row=a=>'<div class="bns-alert-row '+(a.resolved?"resolved":"")+'"><b>'+H(a.title||a.type||"Melding")+'</b><br><small>'+H(a.time||"")+'</small><br>'+H(a.text||"")+'<div class="actions">'+(!a.resolved?'<button type="button" onclick="BNS_resolveAlert(\''+H(a.id)+'\')">Opgelost / gerepareerd</button>':"")+(a.materialId?'<button type="button" onclick="BNS_openMaterial(\''+H(a.materialId)+'\')">Materiaal openen</button>':"")+'<button type="button" class="danger" onclick="BNS_deleteAlert(\''+H(a.id)+'\')">Wis storing</button></div></div>';
+  openModal("Systeemmeldingen","<h3>Open meldingen</h3>"+(open.length?open.map(row).join(""):"<p>Geen open meldingen.</p>")+"<h3>Archief</h3>"+(closed.length?closed.map(row).join(""):"<p>Geen archief.</p>"));
+}
+function resolveAlert(id){const a=AL().find(x=>String(x.id)===String(id));if(!a)return;a.resolved=true;a.resolvedAt=new Date().toLocaleString();if(a.materialId){const m=mat(a.materialId);if(m){m.status="free";m.issueText="";m.usable=true}}recalc();SV();showAlerts();try{if(typeof renderAll==="function")renderAll()}catch(e){}}
+function deleteAlert(id){const s=S();s.alerts=AL().filter(a=>String(a.id)!==String(id));recalc();SV();showAlerts();try{if(typeof renderAll==="function")renderAll()}catch(e){}}
+function patchAlertsButton(){const b=E("alertsBtn");if(!b)return;const n=AL().filter(a=>!a.resolved).length;b.textContent="Systeemmeldingen ("+n+")";b.classList.toggle("bns-alert-blink",n>0);b.onclick=showAlerts}
+function patchAlertFor(){if(window.__bnsAlertForFinal)return;window.__bnsAlertForFinal=true;window.alertFor=function(oid,type){const o=O().find(x=>String(x.id)===String(oid));if(!o)return;const mats=o.materials||[];let m=null;if(mats.length){const c=prompt("Voor welk materiaal?\n"+mats.map((x,i)=>(i+1)+". "+(x.code||"")+" "+(x.name||"")).join("\n"));m=mats[Number(c)-1]||null;if(!m)return}const text=prompt("Omschrijving schade/vermissing/storing:");if(text===null)return;const usable=confirm("Is het materiaal nog inzetbaar?\nOK = ja, Annuleren = nee");AL().push({id:ID(),orderId:oid,materialId:m?.id||"",title:(type||"Melding")+" - "+(m?.code||o.number||""),type:type||"Melding",text:text||"",usable,time:new Date().toLocaleString(),resolved:false});if(m&&!usable){const mm=mat(m.id);if(mm){mm.status="defect";mm.issueText=text||"Defect";mm.usable=false}}SV();try{if(typeof renderAll==="function")renderAll()}catch(e){}};try{alertFor=window.alertFor}catch(e){}}
+function addr(o){return [o.location?.street,o.location?.zip,o.location?.city].filter(Boolean).join(" ")}
+function openWaze(oid){const o=O().find(x=>String(x.id)===String(oid));const a=o?addr(o):"";if(!a){alert("Geen locatieadres ingevuld.");return}window.open("https://waze.com/ul?q="+encodeURIComponent(a)+"&navigate=yes","_blank")}
+function openMaps(oid){const o=O().find(x=>String(x.id)===String(oid));const a=o?addr(o):"";if(!a){alert("Geen locatieadres ingevuld.");return}window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a),"_blank")}
+function addRouteButtons(){
+  A("#ordersList .order-card,#driverList .order-card").forEach(card=>{
+    if(card.dataset.bnsRouteButtons)return;
+    const btn=A("button",card)[0]; if(!btn)return;
+    const oc=btn.getAttribute("onclick")||""; const m=oc.match(/(?:editOrder|alertFor)\('([^']+)'/); if(!m)return;
+    const oid=m[1], w=document.createElement("button"), g=document.createElement("button");
+    w.type="button";w.textContent="Waze";w.className="bns-route-btn";w.onclick=e=>{e.preventDefault();openWaze(oid)};
+    g.type="button";g.textContent="Maps";g.className="bns-route-btn";g.onclick=e=>{e.preventDefault();openMaps(oid)};
+    btn.insertAdjacentElement("afterend",g);btn.insertAdjacentElement("afterend",w);card.dataset.bnsRouteButtons="1";
+  });
+}
+function css(){
+ if(E(STYLE_ID))return;const style=document.createElement("style");style.id=STYLE_ID;style.textContent=`
+ #bnsCopyOrderTop{background:#0f766e!important;color:#fff!important;font-weight:900!important}
+ #materialList .material-row,#materialList .material-row.free,#materialList .material-row.reserved,#materialList .material-row.defect,#materialList .material-row.inactive{background:var(--panel,#fff)!important;color:var(--text,#172033)!important;border-color:var(--border,#dbe3ef)!important}
+ #materialList .material-row small{color:var(--muted,#64748b)!important}
+ #materialList .badge.free{background:#dcfce7!important;color:#166534!important}
+ #materialList .badge.reserved{background:#fee2e2!important;color:#991b1b!important}
+ #materialList .badge.defect{background:#fee2e2!important;color:#991b1b!important;animation:bnsDefectBlink .45s infinite alternate!important}
+ #materialList .badge.inactive{background:#e2e8f0!important;color:#334155!important}
+ #materialList .badge.now{background:#dbeafe!important;color:#1e40af!important}
+ #alertsBtn{color:#fff!important;background:#334155!important;font-weight:900!important}
+ #alertsBtn.bns-alert-blink{animation:bnsAlertBlink .7s infinite alternate!important}
+ @keyframes bnsAlertBlink{from{background:#b91c1c;color:#fff}to{background:#ef4444;color:#fff;box-shadow:0 0 18px rgba(239,68,68,.75)}}
+ @keyframes bnsDefectBlink{from{opacity:.45}to{opacity:1}}
+ .bns-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:grid;place-items:center;z-index:99999;padding:20px}
+ .bns-modal.hidden{display:none!important}
+ .bns-modal-card{width:min(760px,96vw);max-height:90vh;overflow:auto;background:var(--panel,#fff);color:var(--text,#172033);border:1px solid var(--border,#dbe3ef);border-radius:22px;box-shadow:0 20px 55px rgba(15,23,42,.25);padding:22px}
+ .bns-info-box,.bns-alert-row{background:rgba(148,163,184,.12);border:1px solid var(--border,#dbe3ef);border-radius:16px;padding:12px;margin:10px 0}
+ .bns-info-box.defect{border-color:#ef4444;background:rgba(239,68,68,.10)}
+ .bns-route-btn{background:#2563eb!important;color:#fff!important}
+ `;document.head.appendChild(style);
+}
+function install(){
+ css(); installCopyButton(); window.addMat=addSafe; try{addMat=addSafe}catch(e){}; patchSave(); patchAlertsButton(); patchAlertFor();
+ const list=E("materialList"); if(list&&!list.dataset.bnsFinalClickBlock){list.dataset.bnsFinalClickBlock="1";list.addEventListener("click",intercept,true)}
+ const search=E("materialSearch"); if(search&&!search.dataset.bnsFinalSearch){search.dataset.bnsFinalSearch="1";search.addEventListener("input",()=>setTimeout(labelPatch,0))}
+ patchRenderAll(); recalc(); afterRender();
+}
+function afterRender(){installCopyButton();labelPatch();patchAlertsButton();addRouteButtons()}
+function patchRenderAll(){if(window.__bnsFinalRenderAllPatched)return;window.__bnsFinalRenderAllPatched=true;const old=window.renderAll||(typeof renderAll!=="undefined"?renderAll:null);if(typeof old==="function"){const w=function(){old();setTimeout(afterRender,0)};window.renderAll=w;try{renderAll=w}catch(e){}}}
+window.BNS_closeFinalModal=closeModal;window.BNS_openOrder=openOrder;window.BNS_openMaterial=showMaterialInfo;window.BNS_resolveMaterial=resolveMaterial;window.BNS_keepDefect=keepDefect;window.BNS_addMaterialFromModal=addFromModal;window.BNS_resolveAlert=resolveAlert;window.BNS_deleteAlert=deleteAlert;window.BNS_openWaze=openWaze;window.BNS_openMaps=openMaps;
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(install,800));else setTimeout(install,800);
+setInterval(install,1500);
 })();
 
