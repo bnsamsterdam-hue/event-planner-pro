@@ -3299,3 +3299,44 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 setInterval(install,1500);
 })();
 
+
+
+// ===== Terug naar gebleven opdracht feature =====
+
+// Gebruik dit vóór navigatie naar klant
+function saveLastOrder(orderId){
+  localStorage.setItem('lastOrderId', orderId);
+}
+
+// Gebruik dit om terug knop te tonen
+function renderBackToOrderButton(){
+  const lastOrderId = localStorage.getItem('lastOrderId');
+  if (!lastOrderId) return;
+
+  const btn = document.createElement('button');
+  btn.innerText = '⬅ Terug naar gebleven opdracht';
+  btn.style.background = '#ff9800';
+  btn.style.color = '#fff';
+  btn.style.padding = '10px';
+  btn.style.marginBottom = '10px';
+  btn.style.fontWeight = 'bold';
+  btn.style.border = 'none';
+  btn.style.cursor = 'pointer';
+
+  btn.onclick = () => {
+    openOrder(lastOrderId);
+  };
+
+  document.body.prepend(btn);
+}
+
+// Zorg dat deze functie bestaat of pas aan naar jouw systeem
+function openOrder(orderId){
+  const order = (state && state.orders || []).find(o => o.id === orderId);
+  if (order && typeof showOrder === 'function'){
+    showOrder(order);
+  } else {
+    console.warn('Order niet gevonden:', orderId);
+  }
+}
+
