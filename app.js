@@ -1,7 +1,7 @@
 
 
 // ===== V9.1 safety fixes =====
-function safePrint(){ window.print(); }
+function safePrint(){ window.print(); }F
 function safeMail(text, subject){
   const body = encodeURIComponent(text || '');
   window.location.href = 'mailto:?subject=' + encodeURIComponent(subject || 'Opdrachtbevestiging') + '&body=' + body;
@@ -3793,35 +3793,34 @@ setTimeout(()=>{
     return b;
   }
 
-  function plaatsKnoppenNaastVoertuig(){
+ function plaatsKnoppenNaastVoertuig(){
+
     var voertuig = document.querySelector('button[data-tab="vehiclePanel"]');
     var extra = document.querySelector('button[data-tab="extraPanel"]');
 
     if (extra) extra.textContent = "Bijzonderheden";
     if (!voertuig) return;
 
+    // voorkom dubbel
     if (document.getElementById("bnsCopyNaastVoertuig")) return;
 
     var copy = maakKnop("bnsCopyNaastVoertuig", "Copy opdracht", "#047857", function(){
-      if (typeof copyOrder === "function") copyOrder();
-      else alert("copyOrder functie niet gevonden");
+        if (typeof copyOrder === "function") copyOrder();
+        else alert("copyOrder functie niet gevonden");
     });
 
     var factuur = maakKnop("bnsFactuurNaastVoertuig", "Factuur maken", "#2563eb", function(){
-      if (typeof makeInvoice === "function") makeInvoice();
-      else alert("makeInvoice functie niet gevonden");
+        if (typeof makeInvoice === "function") makeInvoice();
+        else alert("makeInvoice functie niet gevonden");
     });
 
     var bevestiging = maakKnop("bnsBevestigingNaastVoertuig", "Opdracht bevestiging", "#16a34a", function(){
-      if (typeof makeConfirmation === "function") makeConfirmation();
-      else alert("makeConfirmation functie niet gevonden");
+        if (typeof makeConfirmation === "function") makeConfirmation();
+        else alert("makeConfirmation functie niet gevonden");
     });
 
     voertuig.insertAdjacentElement("afterend", copy);
     copy.insertAdjacentElement("afterend", factuur);
     factuur.insertAdjacentElement("afterend", bevestiging);
-  }
-
-  setTimeout(plaatsKnoppenNaastVoertuig, 1200);
-
-})();
+}
+setTimeout(plaatsKnoppenNaastVoertuig, 1200);
