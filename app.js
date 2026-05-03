@@ -4463,3 +4463,271 @@ setInterval(install,1500);
 
   try { window.BNS_PATCH_VERSION = PATCH_ID; } catch(e) {}
 })();
+
+/* =========================================================
+   BNS A12 HERSTEL - MATERIAAL + SCHADEMELDINGEN + DOCUMENTEN
+   Deze patch staat onderaan en raakt geen data kwijt.
+   - Materiaal kiezen blijft open.
+   - Gekozen materiaal wordt rood met: ● ● Gekozen.
+   - Gereserveerd materiaal toont klant/opdracht/datum.
+   - Schade/systeemmeldingen openen weer met afmelden + vrije tekst.
+   - Documenten tab blijft beschikbaar.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  var STYLE_ID = "bns_a12_herstel_v20260503_style";
+  var ALERT_MODAL_ID = "bns_a12_alert_modal";
+  var MAT_MODAL_ID = "bns_a12_material_modal";
+  var DOC_TAB_ID = "bnsDocumentenTab";
+  var DOC_PANEL_ID = "bnsDocumentenPanel";
+
+  function $(id){ return document.getElementById(id); }
+  function qa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+  function q(sel, root){ return (root || document).querySelector(sel); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c]; }); }
+  function clone(v){ try { return typeof structuredClone === "function" ? structuredClone(v) : JSON.parse(JSON.stringify(v)); } catch(e){ return Object.assign({}, v || {}); } }
+
+  function S(){
+    try { if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state; } catch(e) {}
+    try { if (window.state && Array.isArray(window.state.orders)) return window.state; } catch(e) {}
+    return {orders:[], materials:[], alerts:[]};
+  }
+  function saveState(){ try { if (typeof save === "function") save(); else localStorage.setItem("eventPlannerProV91", JSON.stringify(S())); } catch(e) {} }
+  function chosenList(){ try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e) {} try { if (Array.isArray(window.chosen)) return window.chosen; } catch(e) {} return []; }
+  function setChosenList(list){ try { chosen = list; } catch(e) {} try { window.chosen = list; } catch(e) {} }
+  function currentCategory(){ try { if (typeof currentCat !== "undefined" && currentCat) return String(currentCat); } catch(e) {} return window.currentCat || "TW"; }
+  function setCategory(cat){ cat = String(cat || "TW").toUpperCase(); try { currentCat = cat; } catch(e) {} window.currentCat = cat; return cat; }
+
+  function parseDate(v){ var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return null; return new Date(+m[1], +m[2]-1, +m[3]); }
+  function today(){ var d = new Date(); d.setHours(0,0,0,0); return d; }
+  function niceDate(v){
+    try { if (typeof nice === "function") return nice(v); } catch(e) {}
+    var d = parseDate(v); if (!d) return v || "";
+    return String(d.getDate()).padStart(2,"0") + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + d.getFullYear();
+  }
+  function orderEnd(o){ return parseDate(o && (o.end || o.start)); }
+  function orderActive(o){
+    var st = String(o && o.status || "").toLowerCase();
+    if (st === "geannuleerd" || st === "uitgevoerd") return false;
+    var e = orderEnd(o); return !e || e >= today();
+  }
+  function editingId(){ try { return editing || null; } catch(e) { return null; } }
+
+  function materialById(id){ return (S().materials || []).find(function(m){ return String(m.id) === String(id); }); }
+  function materialState(m){
+    var s = String(m && m.status || "free").toLowerCase().trim();
+    if (s === "reserved" || s === "gereserveerd") return "reserved";
+    if (s === "damage" || s === "schade") return "damage";
+    if (s === "missing" || s === "vermist" || s === "vermissing") return "missing";
+    if (s === "defect" || s === "storing") return "defect";
+    if (s === "inactive" || s === "niet actief" || s === "niet beschikbaar") return "inactive";
+    return "free";
+  }
+  function reservedOrder(mid){
+    var edit = editingId();
+    return (S().orders || []).find(function(o){
+      if (!orderActive(o)) return false;
+      if (edit && String(o.id) === String(edit)) return false;
+      return (o.materials || []).some(function(m){ return String(m.id) === String(mid); });
+    }) || null;
+  }
+  function materialStatus(mid){
+    var m = materialById(mid);
+    if (!m) return {kind:"missing", label:"Niet gevonden", blocked:true};
+    var selected = chosenList().some(function(x){ return String(x.id) === String(mid); });
+    if (selected) return {kind:"selected", label:"● ● Gekozen", blocked:false, material:m};
+    var ro = reservedOrder(mid);
+    if (ro) return {kind:"reserved", label:"Gereserveerd", blocked:true, material:m, order:ro};
+    var st = materialState(m);
+    if (st === "reserved") return {kind:"reserved", label:"Gereserveerd", blocked:true, material:m, order:ro};
+    if (st === "damage") return {kind:"damage", label:"Schade", blocked:true, material:m};
+    if (st === "missing") return {kind:"damage", label:"Vermissing", blocked:true, material:m};
+    if (st === "defect") return {kind:"damage", label:"Defect", blocked:true, material:m};
+    if (st === "inactive") return {kind:"inactive", label:"Niet actief", blocked:true, material:m};
+    return {kind:"free", label:"Vrij", blocked:false, material:m};
+  }
+
+  function ensureCss(){
+    if ($(STYLE_ID)) return;
+    var s = document.createElement("style");
+    s.id = STYLE_ID;
+    s.textContent = "" +
+      "#materialList .bns-a12-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:9px 0;padding:12px 14px;border-radius:16px;background:var(--panel,#fff);border:1px solid var(--border,#dbe3ef);cursor:pointer;color:var(--text,#172033)}" +
+      "#materialList .bns-a12-row.selected{background:#fee2e2!important;border-color:#dc2626!important;box-shadow:0 0 0 2px rgba(220,38,38,.18) inset}" +
+      "#materialList .bns-a12-row.reserved,#materialList .bns-a12-row.damage{background:#fff7ed;border-color:#fb923c}" +
+      "#materialList .bns-a12-row.inactive{background:#e5e7eb;color:#475569}" +
+      "#materialList .bns-a12-code{font-weight:900;font-size:18px;margin-right:6px}" +
+      "#materialList .bns-a12-small{font-size:13px;opacity:.72}" +
+      "#materialList .bns-a12-pill{white-space:nowrap;border-radius:999px;padding:8px 12px;font-weight:900;background:#dcfce7;color:#166534}" +
+      "#materialList .bns-a12-pill.selected{background:#fecaca!important;color:#7f1d1d!important}" +
+      "#materialList .bns-a12-pill.reserved,#materialList .bns-a12-pill.damage{background:#fee2e2;color:#991b1b}" +
+      "#materialList .bns-a12-pill.inactive{background:#cbd5e1;color:#334155}" +
+      "#"+ALERT_MODAL_ID+",#"+MAT_MODAL_ID+"{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.58);display:grid;place-items:center;padding:18px}" +
+      "#"+ALERT_MODAL_ID+".hidden,#"+MAT_MODAL_ID+".hidden{display:none!important}" +
+      ".bns-a12-card{width:min(820px,96vw);max-height:88vh;overflow:auto;background:var(--panel,#fff);color:var(--text,#172033);border-radius:22px;padding:22px;box-shadow:0 22px 70px rgba(15,23,42,.38)}" +
+      ".bns-a12-item{border:1px solid var(--border,#dbe3ef);border-radius:16px;padding:14px;margin:12px 0;background:rgba(148,163,184,.12)}" +
+      ".bns-a12-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.bns-a12-actions button{border:0;border-radius:12px;padding:11px 15px;font-weight:900;color:#fff;background:#2563eb;cursor:pointer}.bns-a12-actions button.green{background:#16a34a}.bns-a12-actions button.red{background:#dc2626}.bns-a12-actions button.dark{background:#0f172a}" +
+      "#alertsBtn.bns-a12-blink{animation:bnsA12Blink .65s infinite alternate!important}@keyframes bnsA12Blink{from{filter:brightness(.72);transform:scale(.99)}to{filter:brightness(1.2);transform:scale(1.01)}}" +
+      "#"+DOC_PANEL_ID+" .bns-doc-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}" +
+      "#"+DOC_PANEL_ID+" .bns-doc-btn{border:0;border-radius:14px;color:#fff;padding:14px 18px;font-size:17px;font-weight:900;cursor:pointer;box-shadow:0 6px 16px rgba(15,23,42,.16)}";
+    document.head.appendChild(s);
+  }
+
+  function renderMaterialsFinal(cat){
+    var list = $("materialList"); if (!list) return;
+    var active = setCategory(cat || currentCategory());
+    var search = (($("materialSearch") || {}).value || "").toLowerCase().trim();
+    var rows = (S().materials || []).filter(function(m){ return String(m.cat || "").toUpperCase() === active.toUpperCase(); }).filter(function(m){ return !search || [m.cat,m.code,m.name,m.price,m.notes,m.status].join(" ").toLowerCase().indexOf(search) >= 0; });
+    list.innerHTML = rows.map(function(m){
+      var st = materialStatus(m.id);
+      var cls = st.kind === "selected" ? "selected" : st.kind;
+      var hint = st.kind === "reserved" ? "Klik voor klant/opdracht" : (st.kind === "damage" || st.kind === "inactive" ? "Klik voor status" : (st.kind === "selected" ? "Klik om te verwijderen" : (m.price || "oude prijs: € 0")));
+      return '<div class="bns-a12-row '+esc(cls)+'" data-material-id="'+esc(m.id)+'">' +
+        '<div><span class="bns-a12-code">'+esc(m.code || '')+'</span> '+esc(m.name || '')+'<br><span class="bns-a12-small">'+esc(hint)+'</span></div>' +
+        '<span class="bns-a12-pill '+esc(cls)+'">'+esc(st.label)+'</span></div>';
+    }).join("") || '<p>Geen materiaal</p>';
+  }
+
+  function renderChosenFinal(){
+    try { if (typeof renderChosen === "function") renderChosen(); } catch(e) {}
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+    try { if (typeof calcTotals === "function") calcTotals(); } catch(e) {}
+  }
+
+  function addMaterialFinal(mid){
+    var st = materialStatus(mid);
+    if (st.kind === "selected") {
+      setChosenList(chosenList().filter(function(x){ return String(x.id) !== String(mid); }));
+      renderChosenFinal(); renderMaterialsFinal(currentCategory()); return;
+    }
+    if (st.blocked) { openMaterialModal(mid); return; }
+    var m = materialById(mid); if (!m) return;
+    var arr = chosenList();
+    if (!arr.some(function(x){ return String(x.id) === String(mid); })) {
+      var c = clone(m);
+      c.status = "reserved";
+      if (c.qty == null) c.qty = 1;
+      if (c.linePrice == null) c.linePrice = 0;
+      if (c.lineDeposit == null) c.lineDeposit = 0;
+      arr.push(c);
+      setChosenList(arr);
+    }
+    renderChosenFinal();
+    renderMaterialsFinal(currentCategory());
+  }
+
+  function openMaterialModal(mid){
+    var st = materialStatus(mid), m = st.material || materialById(mid); if (!m) return;
+    var modal = $(MAT_MODAL_ID); if (!modal) { modal = document.createElement("div"); modal.id = MAT_MODAL_ID; document.body.appendChild(modal); }
+    var html = '<div class="bns-a12-card"><h2>Materiaal status</h2><div class="bns-a12-item"><b>'+esc(m.code||'')+'</b> '+esc(m.name||'')+'<br><br>';
+    if (st.kind === "reserved") {
+      var o = st.order;
+      if (o) html += '<b>Status:</b> Gereserveerd<br><b>Klant:</b> '+esc((o.customer && o.customer.name) || 'Onbekend')+'<br><b>Opdracht:</b> '+esc(o.number||'')+' - '+esc(o.title||'')+'<br><b>Datum:</b> '+esc(niceDate(o.start))+' tot datum '+esc(niceDate(o.end));
+      else html += '<b>Status:</b> Gereserveerd<br>Geen actieve opdracht gevonden.';
+    } else {
+      html += '<b>Status:</b> '+esc(st.label)+'<br><b>Omschrijving:</b> '+esc(m.issueText || m.notes || '');
+    }
+    html += '</div><div class="bns-a12-actions"><button class="dark" onclick="document.getElementById(\''+MAT_MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button>';
+    if (st.kind !== "reserved") html += '<button class="green" onclick="BNS_A12_SET_MATERIAL_STATUS(\''+esc(mid)+'\',\'free\')">Vrij / opgelost</button><button class="red" onclick="BNS_A12_SET_MATERIAL_STATUS(\''+esc(mid)+'\',\'damage\')">Schade</button><button class="red" onclick="BNS_A12_SET_MATERIAL_STATUS(\''+esc(mid)+'\',\'defect\')">Defect</button>';
+    html += '</div></div>';
+    modal.innerHTML = html; modal.className = "";
+  }
+
+  window.BNS_A12_SET_MATERIAL_STATUS = function(mid, status){
+    var m = materialById(mid); if (!m) return;
+    if (status === "free") { m.status = "free"; m.issueText = ""; m.usable = true; }
+    else { var txt = prompt("Omschrijving / reden:", m.issueText || ""); if (txt === null) return; m.status = status; m.issueText = txt || status; m.usable = false; }
+    saveState();
+    var modal = $(MAT_MODAL_ID); if (modal) modal.classList.add("hidden");
+    renderMaterialsFinal(currentCategory());
+  };
+
+  function patchMaterial(){
+    window.renderMaterials = renderMaterialsFinal;
+    try { renderMaterials = renderMaterialsFinal; } catch(e) {}
+    window.addMat = addMaterialFinal;
+    try { addMat = addMaterialFinal; } catch(e) {}
+    var list = $("materialList");
+    if (list && !list.dataset.bnsA12FinalClick) {
+      list.dataset.bnsA12FinalClick = "1";
+      list.addEventListener("click", function(e){
+        var row = e.target.closest && e.target.closest("[data-material-id]");
+        if (!row || !list.contains(row)) return;
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        addMaterialFinal(row.dataset.materialId);
+      }, true);
+    }
+    var cats = $("materialCats");
+    if (cats && !cats.dataset.bnsA12FinalCats) {
+      cats.dataset.bnsA12FinalCats = "1";
+      cats.addEventListener("click", function(e){ var b=e.target.closest('button,[data-cat]'); if(!b)return; setTimeout(function(){ renderMaterialsFinal(b.dataset.cat || b.textContent || currentCategory()); }, 0); }, true);
+    }
+    var search = $("materialSearch");
+    if (search && !search.dataset.bnsA12FinalSearch) { search.dataset.bnsA12FinalSearch="1"; search.addEventListener("input", function(){ renderMaterialsFinal(currentCategory()); }); }
+    if ($("materialList")) renderMaterialsFinal(currentCategory());
+  }
+
+  function updateAlertButton(){
+    var btn = $("alertsBtn"); if (!btn) return;
+    var open = (S().alerts || []).filter(function(a){ return !a.resolved; });
+    btn.textContent = "🚨 Systeemmeldingen (" + open.length + ")";
+    btn.classList.toggle("bns-a12-blink", open.length > 0);
+  }
+  function openAlerts(){
+    var s = S(); s.alerts = s.alerts || [];
+    var open = s.alerts.filter(function(a){ return !a.resolved; });
+    var modal = $(ALERT_MODAL_ID); if (!modal) { modal = document.createElement("div"); modal.id = ALERT_MODAL_ID; document.body.appendChild(modal); }
+    var html = '<div class="bns-a12-card"><h2>🚨 Systeemmeldingen / schade meldingen</h2>';
+    if (!open.length) html += '<p>Geen open meldingen.</p>';
+    open.forEach(function(a){
+      html += '<div class="bns-a12-item"><b>'+esc(a.title || a.type || 'Systeemmelding')+'</b><br><small>'+esc(a.time || a.date || '')+'</small><p>'+esc(a.note || a.message || a.text || '')+'</p>' +
+        '<div class="bns-a12-actions"><button class="green" onclick="BNS_A12_RESOLVE_ALERT(\''+esc(a.id)+'\')">Afmelden met tekst</button><button class="red" onclick="BNS_A12_DELETE_ALERT(\''+esc(a.id)+'\')">Wissen</button></div></div>';
+    });
+    html += '<div class="bns-a12-actions"><button class="dark" onclick="document.getElementById(\''+ALERT_MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button></div></div>';
+    modal.innerHTML = html; modal.className = "";
+  }
+  window.BNS_A12_RESOLVE_ALERT = function(id){
+    var a = (S().alerts || []).find(function(x){ return String(x.id) === String(id); });
+    if (!a) return;
+    var note = prompt("Afmelding / oplossing:", a.resolveText || "");
+    if (note === null) return;
+    a.resolved = true; a.resolveText = note; a.resolvedAt = new Date().toLocaleString();
+    saveState(); updateAlertButton(); openAlerts();
+  };
+  window.BNS_A12_DELETE_ALERT = function(id){
+    var s = S(); s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
+    saveState(); updateAlertButton(); openAlerts();
+  };
+  function patchAlerts(){
+    var btn = $("alertsBtn");
+    if (btn && !btn.dataset.bnsA12Final) { btn.dataset.bnsA12Final="1"; btn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); openAlerts(); }; }
+    updateAlertButton();
+  }
+
+  function ensureDocuments(){
+    var extra = q('button[data-tab="extraPanel"]'); if (extra) extra.textContent = "Bijzonderheden";
+    var vehicle = q('button[data-tab="vehiclePanel"]'); if (!vehicle) return;
+    if (!$(DOC_TAB_ID)) {
+      var tab = document.createElement("button"); tab.id = DOC_TAB_ID; tab.type="button"; tab.className = vehicle.className || "worktab"; if (tab.className.indexOf("worktab")<0) tab.className += " worktab"; tab.dataset.tab = DOC_PANEL_ID; tab.textContent = "Documenten"; vehicle.insertAdjacentElement("afterend", tab);
+      tab.onclick = function(e){ e.preventDefault(); e.stopPropagation(); qa('.workpanel').forEach(function(p){p.classList.add('hidden')}); var p=$(DOC_PANEL_ID); if(p)p.classList.remove('hidden'); qa('.worktab').forEach(function(b){b.classList.toggle('active', b.id===DOC_TAB_ID)}); };
+    }
+    if (!$(DOC_PANEL_ID)) {
+      var vehiclePanel = $("vehiclePanel"), parent = vehiclePanel && vehiclePanel.parentNode || $("newOrder") || document.body;
+      var panel = document.createElement("div"); panel.id = DOC_PANEL_ID; panel.className = "workpanel hidden";
+      panel.innerHTML = '<h2>Documenten</h2><div class="bns-doc-grid"><button class="bns-doc-btn" style="background:#047857" onclick="copyOrder&&copyOrder()">Copy opdracht</button><button class="bns-doc-btn" style="background:#2563eb" onclick="makeInvoice&&makeInvoice()">Factuur maken</button><button class="bns-doc-btn" style="background:#16a34a" onclick="makeConfirmation&&makeConfirmation()">Opdracht bevestiging</button></div>';
+      if (vehiclePanel && vehiclePanel.insertAdjacentElement) vehiclePanel.insertAdjacentElement("afterend", panel); else parent.appendChild(panel);
+    }
+  }
+
+  function install(){ ensureCss(); ensureDocuments(); patchAlerts(); patchMaterial(); }
+
+  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+  if (oldRenderAll && !oldRenderAll.__bnsA12FinalHerstel) {
+    var wrapped = function(){ var r = oldRenderAll.apply(this, arguments); setTimeout(install, 0); return r; };
+    wrapped.__bnsA12FinalHerstel = true;
+    window.renderAll = wrapped; try { renderAll = wrapped; } catch(e) {}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 700); }); else setTimeout(install, 700);
+  setTimeout(install, 1600);
+})();
