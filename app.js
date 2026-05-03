@@ -777,35 +777,23 @@ setTimeout(()=>{
     const img=byId('invoiceLogoPreview'); if(img){ if(inv.logo){img.src=inv.logo; img.style.display='block';} else {img.removeAttribute('src'); img.style.display='none';} }
   }
   function bindInvoiceAdminV10(){
-    const up=byId('invoiceLogoUpload'); if(up) up.onchange=function(e){
+    const up=byId('invoiceLogoUpload'); if(up) up.onchange=e=>{
       const f=e.target.files && e.target.files[0]; if(!f) return;
-      const r=new FileReader(); r.onload=function(){ ensureV10State(); getState().settings.invoice.logo=r.result; saveState(); loadInvoiceAdminV10(); toast('Logo opgeslagen'); }; r.readAsDataURL(f);
+      const r=new FileReader(); r.onload=()=>{ensureV10State(); getState().settings.invoice.logo=r.result; saveState(); loadInvoiceAdminV10(); toast('Logo opgeslagen');}; r.readAsDataURL(f);
     };
-    const saveBtn=byId('saveInvoiceLayoutV10'); if(saveBtn) saveBtn.onclick=function(e){ if(e){e.preventDefault(); e.stopPropagation();} saveInvoiceAdminV10(true); return false; };
-    const clear=byId('clearInvoiceLogoV10'); if(clear) clear.onclick=function(e){ if(e){e.preventDefault(); e.stopPropagation();} ensureV10State(); getState().settings.invoice.logo=''; saveState(); loadInvoiceAdminV10(); toast('Logo verwijderd'); return false; };
-    const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick=function(e){ if(e){e.preventDefault(); e.stopPropagation();} saveInvoiceAdminV10(false); renderInvoicePreviewV10(); return false; };
+    const saveBtn=byId('saveInvoiceLayoutV10'); if(saveBtn) saveBtn.onclick=saveInvoiceAdminV10;
+    const clear=byId('clearInvoiceLogoV10'); if(clear) clear.onclick=()=>{ensureV10State(); getState().settings.invoice.logo=''; saveState(); loadInvoiceAdminV10(); toast('Logo verwijderd');};
+    const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick=()=>{saveInvoiceAdminV10(false); renderInvoicePreviewV10();};
   }
-  function saveInvoiceAdminV10(show){
-    ensureV10State();
-    const s=getState();
-    s.settings = s.settings || {};
-    s.settings.invoice = s.settings.invoice || {};
-    const inv=s.settings.invoice;
-    const company=byId('invoiceCompanyName');
-    const title=byId('invoiceDocTitle');
-    const accent=byId('invoiceAccentColor');
-    const layout=byId('invoiceLayoutMode');
-    const intro=byId('invoiceIntroText');
-    const footer=byId('invoiceFooterText');
-    inv.companyName = company ? company.value : 'Event Planner PRO';
-    inv.title = title ? title.value : 'Opdrachtbevestiging / Offerte';
-    inv.accent = accent ? accent.value : '#2563eb';
-    inv.layout = layout ? layout.value : 'classic';
-    inv.intro = intro ? intro.value : '';
-    inv.footer = footer ? footer.value : '';
-    saveState();
-    loadInvoiceAdminV10();
-    if(show !== false) toast('Factuur/offerte layout opgeslagen');
+  function saveInvoiceAdminV10(show=true){
+    ensureV10State(); const inv=getState().settings.invoice;
+    inv.companyName=byId('invoiceCompanyName')?.value || 'Event Planner PRO';
+    inv.title=byId('invoiceDocTitle')?.value || 'Opdrachtbevestiging / Offerte';
+    inv.accent=byId('invoiceAccentColor')?.value || '#2563eb';
+    inv.layout=byId('invoiceLayoutMode')?.value || 'classic';
+    inv.intro=byId('invoiceIntroText')?.value || '';
+    inv.footer=byId('invoiceFooterText')?.value || '';
+    saveState(); if(show) toast('Factuur/offerte layout opgeslagen');
   }
   function renderInvoicePreviewV10(){
     const p=byId('invoiceAdminPreview'); const inv=getState()?.settings?.invoice; if(!p||!inv) return;
@@ -3041,16 +3029,20 @@ setTimeout(()=>{
     let details;
 
     if (type === "pickup") {
-      // TR-blauw agenda: altijd met hoofdletters TR voor de titeltekst.
-      eventTitle = "TR " + String(title || "Opdracht").toUpperCase();
-      eventStart = toCalendarDate(end, false);
+      eventTitle = "Ophalen TR blauw - " + [number, customer, title].filter(Boolean).join(" - ");
+      eventStart = toCalendarDate(end, False);
     } else {
-      // Normale agenda-opdracht: alleen de titeltekst van de opdracht overnemen.
-      eventTitle = title || "Opdracht";
-      eventStart = toCalendarDate(start, false);
+      eventTitle = [
+        "Opdracht",
+        materialCat ? "[" + materialCat + "]" : "",
+        number,
+        customer,
+        title
+      ].filter(Boolean).join(" - ");
+      eventStart = toCalendarDate(start, False);
     }
 
-    eventEnd = type === "pickup" ? toCalendarDate(end, true) : toCalendarDate(end || start, true);
+    eventEnd = type === "pickup" ? toCalendarDate(end, True) : toCalendarDate(end || start, True);
 
     details = [
       "Event Planner PRO",
@@ -5015,105 +5007,311 @@ setInterval(install,1500);
 })();
 
 /* =========================================================
-   BNS FINAL GERichte FIX - admin opslaan + meldingen overal + agenda titel
-   Alleen aanvulling: bestaande materialen/opdrachten blijven ongemoeid.
+   BNS V12.2 - PDOK postcode + harde admin factuur/offerte opslag
+   Toegevoegd zonder bestaande functies te verwijderen.
    ========================================================= */
-(function(){
+(function bnsPdokAndInvoiceHardSave(){
   "use strict";
-  function $(id){ return document.getElementById(id); }
-  function getS(){ try { return state; } catch(e) { return window.state || {alerts:[], settings:{}}; } }
-  function doSave(){ try { if (typeof save === "function") { save(); return; } } catch(e){} try { localStorage.setItem("event-planner-pro-v87", JSON.stringify(getS())); } catch(e){} }
-  function esc(v){ return String(v == null ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
-  function toastSafe(t){ try { if (typeof toast === "function") toast(t); else if (typeof toastMsg === "function") toastMsg(t); else alert(t); } catch(e){ alert(t); } }
 
-  window.BNS_FINAL_SAVE_INVOICE = function(show){
-    var s = getS();
+  var INVOICE_KEY = "bnsInvoiceSettingsV122";
+  var POSTCODE_BOX_ID = "bnsPostcodeBox";
+  var GREEN_SAVE_ID = "bnsInvoiceHardSaveV122";
+
+  function $(id){ return document.getElementById(id); }
+  function qs(sel, root){ return (root || document).querySelector(sel); }
+  function qsa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+  function S(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e){}
+    try { if (window.state) return window.state; } catch(e){}
+    return null;
+  }
+
+  function notify(txt){
+    try { if (typeof toastMsg === "function") return toastMsg(txt); } catch(e){}
+    try { if (typeof toast === "function") return toast(txt); } catch(e){}
+    alert(txt);
+  }
+
+  function ensureInvoiceState(){
+    var s = S();
+    if (!s) return null;
     s.settings = s.settings || {};
     s.settings.invoice = s.settings.invoice || {};
     var inv = s.settings.invoice;
-    inv.companyName = $('invoiceCompanyName') ? $('invoiceCompanyName').value : 'Event Planner PRO';
-    inv.title = $('invoiceDocTitle') ? $('invoiceDocTitle').value : 'Opdrachtbevestiging / Offerte';
-    inv.accent = $('invoiceAccentColor') ? $('invoiceAccentColor').value : '#2563eb';
-    inv.layout = $('invoiceLayoutMode') ? $('invoiceLayoutMode').value : 'classic';
-    inv.intro = $('invoiceIntroText') ? $('invoiceIntroText').value : '';
-    inv.footer = $('invoiceFooterText') ? $('invoiceFooterText').value : '';
-    doSave();
-    if (show !== false) toastSafe('Factuur/offerte layout opgeslagen');
+    if (!inv.companyName) inv.companyName = "Event Planner PRO";
+    if (!inv.title) inv.title = "Opdrachtbevestiging / Offerte";
+    if (!inv.accent) inv.accent = "#2563eb";
+    if (!inv.layout) inv.layout = "classic";
+    if (typeof inv.intro !== "string") inv.intro = "";
+    if (typeof inv.footer !== "string") inv.footer = "";
+    if (typeof inv.logo !== "string") inv.logo = "";
+    return inv;
+  }
+
+  function readInvoiceFromFields(){
+    var current = ensureInvoiceState() || {};
+    return {
+      companyName: $("invoiceCompanyName") ? $("invoiceCompanyName").value : (current.companyName || "Event Planner PRO"),
+      title: $("invoiceDocTitle") ? $("invoiceDocTitle").value : (current.title || "Opdrachtbevestiging / Offerte"),
+      accent: $("invoiceAccentColor") ? $("invoiceAccentColor").value : (current.accent || "#2563eb"),
+      layout: $("invoiceLayoutMode") ? $("invoiceLayoutMode").value : (current.layout || "classic"),
+      intro: $("invoiceIntroText") ? $("invoiceIntroText").value : (current.intro || ""),
+      footer: $("invoiceFooterText") ? $("invoiceFooterText").value : (current.footer || ""),
+      logo: current.logo || ""
+    };
+  }
+
+  function applyInvoiceToFields(inv){
+    if (!inv) return;
+    var pairs = {
+      invoiceCompanyName: inv.companyName,
+      invoiceDocTitle: inv.title,
+      invoiceAccentColor: inv.accent || "#2563eb",
+      invoiceLayoutMode: inv.layout || "classic",
+      invoiceIntroText: inv.intro,
+      invoiceFooterText: inv.footer
+    };
+    Object.keys(pairs).forEach(function(id){
+      var el = $(id);
+      if (el && typeof pairs[id] !== "undefined") el.value = pairs[id] || "";
+    });
+    var img = $("invoiceLogoPreview");
+    if (img) {
+      if (inv.logo) { img.src = inv.logo; img.style.display = "block"; }
+      else { img.removeAttribute("src"); img.style.display = "none"; }
+    }
+  }
+
+  function loadStoredInvoice(){
+    var inv = null;
+    try { inv = JSON.parse(localStorage.getItem(INVOICE_KEY) || "null"); } catch(e){}
+    if (!inv) {
+      var s = S();
+      inv = s && s.settings && s.settings.invoice ? s.settings.invoice : null;
+    }
+    if (inv) {
+      var target = ensureInvoiceState();
+      if (target) Object.assign(target, inv);
+      applyInvoiceToFields(inv);
+    }
+  }
+
+  function writeAllStateCopies(inv){
+    var s = S();
+    if (s) {
+      s.settings = s.settings || {};
+      s.settings.invoice = Object.assign({}, s.settings.invoice || {}, inv);
+    }
+    try { localStorage.setItem(INVOICE_KEY, JSON.stringify(inv)); } catch(e){}
+    try { if (typeof save === "function") save(); } catch(e){}
+
+    // Extra zekerheid: werk bekende opgeslagen app-states bij, zonder andere data te wijzigen.
+    try {
+      var keys = [];
+      for (var i=0; i<localStorage.length; i++) keys.push(localStorage.key(i));
+      keys.forEach(function(k){
+        if (!k || k === INVOICE_KEY) return;
+        var raw = localStorage.getItem(k);
+        if (!raw || raw.charAt(0) !== "{") return;
+        var obj;
+        try { obj = JSON.parse(raw); } catch(e){ return; }
+        if (!obj || typeof obj !== "object") return;
+        var looksLikeAppState = obj.orders || obj.materials || obj.users || obj.settings || obj.version;
+        if (!looksLikeAppState) return;
+        obj.settings = obj.settings || {};
+        obj.settings.invoice = Object.assign({}, obj.settings.invoice || {}, inv);
+        try { localStorage.setItem(k, JSON.stringify(obj)); } catch(e){}
+      });
+    } catch(e){}
+  }
+
+  window.bnsSaveInvoiceLayoutV122 = function(show){
+    var inv = readInvoiceFromFields();
+    writeAllStateCopies(inv);
+    applyInvoiceToFields(inv);
+    var b = $(GREEN_SAVE_ID) || $("saveInvoiceLayoutV10");
+    if (b) {
+      b.style.background = "#16a34a";
+      b.style.color = "#fff";
+      b.textContent = "Opgeslagen ✓";
+      setTimeout(function(){ b.textContent = b.id === GREEN_SAVE_ID ? "Groen opslaan" : "Opslaan layout"; }, 1600);
+    }
+    if (show !== false) notify("Factuur/offerte layout opgeslagen");
     return inv;
   };
 
-  window.BNS_FINAL_PREVIEW_INVOICE = function(){
-    var inv = window.BNS_FINAL_SAVE_INVOICE(false);
-    var p = $('invoiceAdminPreview'); if (!p) return;
-    p.classList.remove('hidden');
-    p.innerHTML = '<div class="invoice-top" style="border-color:'+esc(inv.accent || '#2563eb')+'">' +
-      (inv.logo ? '<img class="invoice-logo" src="'+esc(inv.logo)+'">' : '') +
-      '<div><h2>'+esc(inv.title || 'Opdrachtbevestiging')+'</h2><b>'+esc(inv.companyName || '')+'</b></div></div>' +
-      '<div class="free-text">'+esc(inv.intro || 'Vrije tekst bovenaan')+'</div>' +
-      '<p><b>Voorbeeld materialen en totaal komen hier bij een echte opdracht.</b></p>' +
-      '<div class="free-text">'+esc(inv.footer || 'Vrije tekst onderaan')+'</div>';
+  window.bnsRenderInvoicePreviewV122 = function(){
+    var inv = window.bnsSaveInvoiceLayoutV122(false);
+    var p = $("invoiceAdminPreview");
+    if (!p) return;
+    p.classList.remove("hidden");
+    p.innerHTML = '<div class="invoice-top" style="border-color:'+(inv.accent||'#2563eb')+'">'
+      + (inv.logo ? '<img class="invoice-logo" src="'+inv.logo+'">' : '')
+      + '<div><h2>'+(inv.title||'Opdrachtbevestiging / Offerte')+'</h2><b>'+(inv.companyName||'')+'</b></div></div>'
+      + '<div class="free-text">'+String(inv.intro||'Vrije tekst bovenaan').replace(/</g,'&lt;')+'</div>'
+      + '<p><b>Voorbeeld materialen en totaal komen hier bij een echte opdracht.</b></p>'
+      + '<div class="free-text">'+String(inv.footer||'Vrije tekst onderaan').replace(/</g,'&lt;')+'</div>';
   };
 
-  function openAlertsFinal(){
-    var s = getS(); s.alerts = s.alerts || [];
-    var open = s.alerts.filter(function(a){ return !a.resolved; });
-    var old = $('bnsFinalAlertsModal'); if (old) old.remove();
-    var modal = document.createElement('div');
-    modal.id = 'bnsFinalAlertsModal';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:20px';
-    var html = '<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:780px;width:100%;max-height:82vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.30)">';
-    html += '<button type="button" onclick="document.getElementById(\'bnsFinalAlertsModal\').remove()" style="float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-weight:800">Sluiten</button>';
-    html += '<h2 style="margin:0 0 16px">🚨 Systeemmeldingen / schade meldingen</h2>';
-    if (!open.length) html += '<p>Geen open Systeemmeldingen.</p>';
-    open.forEach(function(a){
-      var o = (s.orders || []).find(function(x){ return String(x.id) === String(a.orderId); }) || {};
-      html += '<div style="border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc">' +
-        '<b>'+esc(a.title || a.type || 'Systeemmelding')+'</b><br><small>'+esc(a.time || a.date || '')+'</small>' +
-        (o.id ? '<div><b>Opdracht:</b> '+esc(o.number || '')+' - '+esc(o.title || '')+'</div>' : '') +
-        '<p style="white-space:pre-wrap;margin:8px 0">'+esc(a.note || a.message || a.text || '')+'</p>' +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
-        '<button type="button" onclick="BNS_FINAL_ALERT_RESOLVE(\''+esc(a.id)+'\')" style="background:#16a34a;color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:800">Afmelden met tekst</button>' +
-        '<button type="button" onclick="BNS_FINAL_ALERT_DELETE(\''+esc(a.id)+'\')" style="background:#dc2626;color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:800">Verwijderen</button>' +
-        '</div></div>';
-    });
-    html += '</div>'; modal.innerHTML = html; document.body.appendChild(modal);
+  function addGreenSaveButton(){
+    var old = $("saveInvoiceLayoutV10");
+    if (!old || $(GREEN_SAVE_ID)) return;
+    var b = document.createElement("button");
+    b.id = GREEN_SAVE_ID;
+    b.type = "button";
+    b.textContent = "Groen opslaan";
+    b.style.background = "#16a34a";
+    b.style.color = "#fff";
+    b.style.fontWeight = "bold";
+    b.style.border = "none";
+    b.style.borderRadius = "10px";
+    b.style.padding = "10px 14px";
+    old.insertAdjacentElement("afterend", b);
   }
-  function updateAlertsFinal(){
-    var b = $('alertsBtn'); if (!b) return;
-    var open = ((getS().alerts || []).filter(function(a){ return !a.resolved; })).length;
-    b.textContent = '🚨 Systeemmeldingen (' + open + ')';
-    b.classList.toggle('alarm-red', open > 0);
-    b.classList.toggle('bns-a12-blink', open > 0);
-  }
-  window.BNS_FINAL_ALERT_RESOLVE = function(id){
-    var s = getS(); var a = (s.alerts || []).find(function(x){ return String(x.id) === String(id); });
-    if (!a) return; var txt = prompt('Afmelding / oplossing:', a.resolveText || ''); if (txt === null) return;
-    a.resolved = true; a.resolveText = txt; a.resolvedAt = new Date().toLocaleString(); doSave(); updateAlertsFinal(); openAlertsFinal();
-  };
-  window.BNS_FINAL_ALERT_DELETE = function(id){
-    var s = getS(); var txt = prompt('Reden verwijderen:', ''); if (txt === null) return;
-    s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); }); doSave(); updateAlertsFinal(); openAlertsFinal();
-  };
 
-  document.addEventListener('click', function(e){
+  function bindInvoiceHard(){
+    loadStoredInvoice();
+    addGreenSaveButton();
+    var up = $("invoiceLogoUpload");
+    if (up && !up.dataset.bnsLogoHardBound) {
+      up.dataset.bnsLogoHardBound = "1";
+      up.addEventListener("change", function(e){
+        var f = e.target.files && e.target.files[0];
+        if (!f) return;
+        var r = new FileReader();
+        r.onload = function(){
+          var inv = readInvoiceFromFields();
+          inv.logo = r.result;
+          writeAllStateCopies(inv);
+          applyInvoiceToFields(inv);
+          notify("Logo opgeslagen");
+        };
+        r.readAsDataURL(f);
+      });
+    }
+  }
+
+  document.addEventListener("click", function(e){
     var t = e.target;
     if (!t) return;
-    if (t.id === 'saveInvoiceLayoutV10') { e.preventDefault(); e.stopPropagation(); window.BNS_FINAL_SAVE_INVOICE(true); return false; }
-    if (t.id === 'previewInvoiceLayoutV10') { e.preventDefault(); e.stopPropagation(); window.BNS_FINAL_PREVIEW_INVOICE(); return false; }
-    if (t.id === 'alertsBtn') { e.preventDefault(); e.stopPropagation(); openAlertsFinal(); return false; }
+    if (t.id === "saveInvoiceLayoutV10" || t.id === GREEN_SAVE_ID) {
+      e.preventDefault(); e.stopPropagation();
+      window.bnsSaveInvoiceLayoutV122(true);
+    }
+    if (t.id === "previewInvoiceLayoutV10") {
+      e.preventDefault(); e.stopPropagation();
+      window.bnsRenderInvoicePreviewV122();
+    }
+    if (t.id === "clearInvoiceLogoV10") {
+      setTimeout(function(){
+        var inv = readInvoiceFromFields();
+        inv.logo = "";
+        writeAllStateCopies(inv);
+        applyInvoiceToFields(inv);
+      }, 50);
+    }
   }, true);
 
-  function install(){ updateAlertsFinal(); }
-  var oldRenderAll = window.renderAll || (typeof renderAll === 'function' ? renderAll : null);
-  if (oldRenderAll && !oldRenderAll.__bnsFinalLastPatch) {
-    var r = function(){ var x = oldRenderAll.apply(this, arguments); setTimeout(install, 0); return x; };
-    r.__bnsFinalLastPatch = true; window.renderAll = r; try { renderAll = r; } catch(e){}
+  function setVal(id, value){
+    var el = $(id);
+    if (el) {
+      el.value = value || "";
+      try { el.dispatchEvent(new Event("input", {bubbles:true})); } catch(e){}
+      try { el.dispatchEvent(new Event("change", {bubbles:true})); } catch(e){}
+    }
   }
-  var oldShowPage = window.showPage || (typeof showPage === 'function' ? showPage : null);
-  if (oldShowPage && !oldShowPage.__bnsFinalLastPatch) {
-    var sp = function(){ var x = oldShowPage.apply(this, arguments); setTimeout(install, 0); return x; };
-    sp.__bnsFinalLastPatch = true; window.showPage = sp; try { showPage = sp; } catch(e){}
+
+  function fillAddress(street, nr, pc, city){
+    var streetNr = [street, nr].filter(Boolean).join(" ");
+    // Nieuwe opdracht: eerst locatie vullen, anders klant.
+    if ($("locationStreet") || $("locationZip") || $("locationCity")) {
+      setVal("locationStreet", streetNr);
+      setVal("locationZip", pc);
+      setVal("locationCity", city);
+    } else {
+      setVal("customerStreet", streetNr);
+      setVal("customerZip", pc);
+      setVal("customerCity", city);
+    }
+    // Als klantvelden zichtbaar/leeg zijn, ook handig invullen.
+    if ($("customerStreet") && !$("customerStreet").value) setVal("customerStreet", streetNr);
+    if ($("customerZip") && !$("customerZip").value) setVal("customerZip", pc);
+    if ($("customerCity") && !$("customerCity").value) setVal("customerCity", city);
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e){}
+    try { if (typeof renderSummary === "function") renderSummary(); } catch(e){}
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 250); }); else setTimeout(install, 250);
-  setTimeout(install, 1200);
+
+  window.bnsLookupPostcodePDOKV122 = async function(){
+    var pcEl = $("bnsPostcodeInput") || $("postcode") || $("locationZip") || $("customerZip");
+    var nrEl = $("bnsHouseNumberInput") || $("huisnummer") || $("houseNumber") || $("locationHouseNumber") || $("customerHouseNumber");
+    var pc = pcEl ? String(pcEl.value || "").replace(/\s+/g, "").toUpperCase() : "";
+    var nr = nrEl ? String(nrEl.value || "").trim() : "";
+    var status = $("bnsPostcodeStatus");
+
+    if (!pc) { alert("Vul postcode in."); return; }
+    if (status) status.textContent = "PDOK zoeken...";
+
+    var q = encodeURIComponent([pc, nr].filter(Boolean).join(" "));
+    var url = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?fq=type:adres&q=" + q + "&rows=1";
+    try {
+      var res = await fetch(url);
+      if (!res.ok) throw new Error("PDOK geeft geen antwoord");
+      var data = await res.json();
+      var docs = data && data.response && data.response.docs || [];
+      var doc = docs[0];
+      if (!doc) {
+        // Fallback zonder adresfilter, soms geeft PDOK dan wel straat/postcode terug.
+        res = await fetch("https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=" + q + "&rows=1");
+        data = await res.json();
+        docs = data && data.response && data.response.docs || [];
+        doc = docs[0];
+      }
+      if (!doc) throw new Error("Niet gevonden");
+      var street = doc.straatnaam || "";
+      var city = doc.woonplaatsnaam || doc.gemeentenaam || "";
+      var postcode = (doc.postcode || pc || "").replace(/\s+/g, "").toUpperCase();
+      var huisnummer = doc.huisnummer || nr || "";
+      if (!street && doc.weergavenaam) street = String(doc.weergavenaam).split(",")[0].replace(/\s+\d+.*/, "");
+      fillAddress(street, huisnummer, postcode, city);
+      if (status) status.textContent = "Adres ingevuld via PDOK";
+    } catch(err) {
+      console.warn(err);
+      if (status) status.textContent = "Niet gevonden via PDOK";
+      alert("Postcode niet gevonden via PDOK. Controleer postcode en huisnummer.");
+    }
+  };
+
+  function ensurePdokBox(){
+    var panel = $("locationPanel") || $("customerPanel") || $("newOrder") || qs(".page.active");
+    if (!panel) return;
+    var box = $(POSTCODE_BOX_ID);
+    if (!box) {
+      box = document.createElement("div");
+      box.id = POSTCODE_BOX_ID;
+      box.style.cssText = "margin:12px 0;padding:12px;border:1px solid #dbe3ef;border-radius:16px;background:#fff;display:flex;gap:10px;flex-wrap:wrap;align-items:center";
+      box.innerHTML = '<b style="width:100%">Postcode zoeken via PDOK</b>'
+        + '<input id="bnsPostcodeInput" placeholder="Postcode" style="width:150px">'
+        + '<input id="bnsHouseNumberInput" placeholder="Huisnr" style="width:110px">'
+        + '<button type="button" id="bnsPostcodeSearchBtn">Adres zoeken</button>'
+        + '<span id="bnsPostcodeStatus"></span>';
+      var h = qs("h3", panel) || qs("h2", panel) || panel.firstElementChild;
+      if (h && h.insertAdjacentElement) h.insertAdjacentElement("afterend", box);
+      else panel.prepend(box);
+    }
+    var btn = $("bnsPostcodeSearchBtn");
+    if (btn) btn.onclick = window.bnsLookupPostcodePDOKV122;
+  }
+
+  function tick(){
+    bindInvoiceHard();
+    ensurePdokBox();
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick);
+  else tick();
+  setTimeout(tick, 500);
+  setTimeout(tick, 1500);
+  setInterval(tick, 4000);
 })();
+
