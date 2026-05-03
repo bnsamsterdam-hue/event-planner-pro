@@ -3661,21 +3661,32 @@ setTimeout(()=>{
   }
 
   function placeButtons(){
-    removeButtons();
     renameExtra();
 
-    var vehicle = Array.from(document.querySelectorAll(".worktab")).find(function(btn){
-      return /^voertuig$/i.test(T(btn));
-    });
+    var vehicle = document.querySelector('button[data-tab="vehiclePanel"], .worktab[data-tab="vehiclePanel"]');
+    if (!vehicle) {
+      vehicle = Array.from(document.querySelectorAll("button,.worktab")).find(function(btn){
+        return /^voertuig$/i.test(T(btn));
+      });
+    }
 
     if (!vehicle) return;
 
+    if (E("bnsTopCopyStable") && E("bnsTopInvoiceStable") && E("bnsTopConfirmStable")) {
+      return;
+    }
+
     function make(id, label, fn, cls){
+      var existing = E(id);
+      if (existing) existing.remove();
       var btn = document.createElement("button");
       btn.id = id;
       btn.type = "button";
       btn.textContent = label;
       btn.className = "bns-top-action " + cls;
+      btn.style.display = "inline-flex";
+      btn.style.alignItems = "center";
+      btn.style.justifyContent = "center";
       btn.onclick = function(ev){
         ev.preventDefault();
         ev.stopPropagation();
@@ -3775,4 +3786,5 @@ setTimeout(()=>{
   }
 
   setTimeout(install, 1200);
+  setInterval(function(){ try { placeButtons(); } catch(e) {} }, 1000);
 })();
