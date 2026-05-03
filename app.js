@@ -3484,7 +3484,7 @@ setTimeout(()=>{
       "Opdracht: " + v("orderNumber") + "\n" +
       "Status: " + v("orderStatus") + "\n" +
       "Titel: " + v("orderTitle") + "\n" +
-      "Biermerk / merk: " + v("orderBrand") + "\n" +
+      "Uitstraling / merk: " + v("orderBrand") + "\n" +
       "Datum: " + v("dateStart") + (v("dateEnd") && v("dateEnd") !== v("dateStart") ? " tot datum " + v("dateEnd") : "") + "\n\n" +
       "Klant:\n" + v("customerName") + "\n" + v("customerStreet") + "\n" + v("customerZip") + " " + v("customerCity") + "\n" + v("customerPhone") + "\n" + v("customerEmail") + "\n\n" +
       "Locatie:\n" + v("locationName") + "\n" + v("locationStreet") + "\n" + v("locationZip") + " " + v("locationCity") + "\nContact: " + v("locationContact") + "\n" + v("locationPhone") + "\n\n" +
@@ -3776,3 +3776,59 @@ setTimeout(()=>{
 
   setTimeout(install, 1200);
 })();
+setInterval(() => {
+  const tabs = Array.from(document.querySelectorAll(".worktab"));
+
+  const voertuig = tabs.find(b =>
+    (b.textContent || "").trim().toLowerCase() === "voertuig"
+  );
+
+  if (!voertuig) return;
+
+  // voorkom dubbel
+  if (document.getElementById("FIX_copy_btn")) return;
+
+  function btn(id, text, color, fn){
+    const b = document.createElement("button");
+    b.id = id;
+    b.innerText = text;
+    b.style.marginLeft = "8px";
+    b.style.padding = "10px 16px";
+    b.style.borderRadius = "10px";
+    b.style.border = "none";
+    b.style.fontWeight = "bold";
+    b.style.color = "#fff";
+    b.style.background = color;
+    b.style.cursor = "pointer";
+    b.onclick = fn;
+    return b;
+  }
+
+  const copy = btn("FIX_copy_btn","Copy opdracht","#047857", () => {
+    if (typeof copyOrder === "function") copyOrder();
+    else alert("copyOrder niet gevonden");
+  });
+
+  const factuur = btn("FIX_factuur_btn","Factuur maken","#2563eb", () => {
+    if (typeof makeInvoice === "function") makeInvoice();
+    else alert("makeInvoice niet gevonden");
+  });
+
+  const bevestiging = btn("FIX_bev_btn","Opdracht bevestiging","#16a34a", () => {
+    if (typeof makeConfirmation === "function") makeConfirmation();
+    else alert("makeConfirmation niet gevonden");
+  });
+
+  voertuig.after(copy);
+  copy.after(factuur);
+  factuur.after(bevestiging);
+
+}, 800);
+
+setInterval(() => {
+  document.querySelectorAll(".worktab").forEach(btn => {
+    if ((btn.textContent || "").trim().toLowerCase() === "extra") {
+      btn.textContent = "Bijzonderheden";
+    }
+  });
+}, 800);
