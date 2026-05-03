@@ -758,6 +758,7 @@ setTimeout(()=>{
         <div class="actions"><button id="saveInvoiceLayoutV10" type="button">Opslaan layout</button><button id="clearInvoiceLogoV10" class="grey" type="button">Logo verwijderen</button><button id="previewInvoiceLayoutV10" type="button">Voorbeeld maken</button></div>
         <div id="invoiceAdminPreview" class="invoice-preview hidden"></div>`;
       area.appendChild(pane);
+      bindInvoiceAdminV10();
     }
     document.querySelectorAll('.adminTab').forEach(b=>{
       b.addEventListener('click',()=>{
