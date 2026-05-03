@@ -3136,7 +3136,7 @@ setTimeout(()=>{
       <button type="button" id="bnsWazePlannerBtn" class="bns-tool-green">Waze route naar opdracht</button>
       <button type="button" id="bnsMapsPlannerBtn" class="bns-tool-dark">Google Maps route</button>
       <button type="button" id="bnsAgendaOrderBtn">Agenda opdracht maken</button>
-      <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda TR ophalen</button>
+      <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda ophalen TR blauw</button>
     `;
 
     if (orderHead && orderHead.insertAdjacentElement) {
@@ -3190,30 +3190,17 @@ setTimeout(()=>{
 
     if (status) status.textContent = "Zoeken...";
 
-  const query = encodeURIComponent(pc + " " + nr);
-const suggestUrl = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=" + query + "&rows=1";
+    // PDOK Locatieserver, geen API-key nodig. Als exacte huisnummer niet gevonden wordt,
+    // vult hij in ieder geval straat/plaats van de postcode aan.
+    const query = encodeURIComponent(pc + " " + nr);
+    const url = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=" + query + "&rows=1";
 
-try {
-  const sRes = await fetch(suggestUrl);
-  const sData = await sRes.json();
-  const first = sData.response && sData.response.docs && sData.response.docs[0];
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Postcode service geeft geen antwoord");
 
-  if (!first || !first.id) {
-    if (status) status.textContent = "Niet gevonden";
-    alert("Adres niet gevonden");
-    return;
-  }
-
-  const lookupUrl = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=" + encodeURIComponent(first.id);
-  const lRes = await fetch(lookupUrl);
-  const lData = await lRes.json();
-  const doc = lData.response && lData.response.docs && lData.response.docs[0];
-
-  if (!doc) {
-    if (status) status.textContent = "Niet gevonden";
-    alert("Adres niet gevonden");
-    return;
-  }
+      const data = await response.json();
+      const doc = data && data.response && data.response.docs && data.response.docs[0];
 
       if (!doc) {
         if (status) status.textContent = "Niet gevonden";
@@ -5582,4 +5569,201 @@ setInterval(install,1500);
   function tick(){ addTemplateUpload(); ensurePdokVisible(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
   setTimeout(tick, 500); setTimeout(tick, 1500); setInterval(tick, 4000);
+})();
+
+// ===== BNS PATCH 2026-05-03: klant postcode + annuleren + systeemmeldingen overal =====
+(function(){
+  'use strict';
+
+  function E(id){ return document.getElementById(id); }
+  function q(sel, root){ return (root || document).querySelector(sel); }
+  function qa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+  function val(id){ var el=E(id); return el ? String(el.value || '').trim() : ''; }
+  function setVal(id, v){ var el=E(id); if(el) el.value = v || ''; }
+  function saveBns(){ try{ if(typeof save === 'function') save(); else if(typeof saveState === 'function') saveState(); }catch(e){} }
+  function toastBns(t){ try{ if(typeof toast === 'function') toast(t); else if(typeof toastMsg === 'function') toastMsg(t); else console.log(t); }catch(e){} }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  function addStyle(){
+    if(E('bns-final-patch-style')) return;
+    var s=document.createElement('style');
+    s.id='bns-final-patch-style';
+    s.textContent = '.bns-postcode-inline{margin:10px 0;padding:10px;border:1px solid var(--border,#dbe3ef);border-radius:14px;background:rgba(255,255,255,.78);display:flex;gap:8px;flex-wrap:wrap;align-items:center}.bns-postcode-inline b{width:100%;font-size:15px}.bns-postcode-inline input{max-width:150px}.bns-postcode-inline button,.bns-cancel-order{border:0;border-radius:12px;padding:10px 14px;font-weight:800;cursor:pointer}.bns-postcode-inline button{background:#2563eb;color:#fff}.bns-cancel-order{background:#dc2626!important;color:#fff!important;margin-left:8px}.bns-alert-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:999999;display:grid;place-items:center}.bns-alert-card{background:#fff;color:#172033;border-radius:18px;box-shadow:0 16px 50px rgba(0,0,0,.35);padding:20px;min-width:360px;max-width:min(760px,94vw);max-height:86vh;overflow:auto}.bns-alert-row{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc}.bns-alert-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bns-alert-actions button{border:0;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer}.bns-alert-resolve{background:#16a34a;color:#fff}.bns-alert-delete{background:#dc2626;color:#fff}.bns-alert-close{background:#2563eb;color:#fff;margin-top:12px}.alarm-red{background:#dc2626!important;color:#fff!important}';
+    document.head.appendChild(s);
+  }
+
+  async function pdokLookup(pc, nr){
+    pc = String(pc || '').replace(/\s+/g,'').toUpperCase();
+    nr = String(nr || '').trim();
+    if(!pc || !nr) throw new Error('Vul postcode en huisnummer in.');
+    var query = encodeURIComponent(pc + ' ' + nr);
+    var urls = [
+      'https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=' + query + '&rows=1',
+      'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=' + query + '&rows=1'
+    ];
+    var doc = null;
+    for(var i=0;i<urls.length && !doc;i++){
+      var res = await fetch(urls[i]);
+      if(!res.ok) continue;
+      var data = await res.json();
+      var first = data && data.response && data.response.docs && data.response.docs[0];
+      if(!first) continue;
+      if(first.id && urls[i].indexOf('/suggest?') !== -1){
+        var lres = await fetch('https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=' + encodeURIComponent(first.id));
+        if(lres.ok){
+          var ldata = await lres.json();
+          doc = ldata && ldata.response && ldata.response.docs && ldata.response.docs[0];
+        }
+      } else {
+        doc = first;
+      }
+    }
+    if(!doc) throw new Error('Adres niet gevonden');
+    return {
+      street: doc.straatnaam || (doc.weergavenaam ? String(doc.weergavenaam).split(',')[0] : ''),
+      city: doc.woonplaatsnaam || '',
+      zip: pc,
+      house: nr
+    };
+  }
+
+  async function lookupTarget(target){
+    var isCustomer = target === 'customer';
+    var pcId = isCustomer ? 'bnsCustomerPostcodeInput' : 'bnsLocationPostcodeInput';
+    var nrId = isCustomer ? 'bnsCustomerHouseNumberInput' : 'bnsLocationHouseNumberInput';
+    var statusId = isCustomer ? 'bnsCustomerPostcodeStatus' : 'bnsLocationPostcodeStatus';
+    var status = E(statusId);
+    try{
+      if(status) status.textContent='Zoeken...';
+      var adr = await pdokLookup(val(pcId), val(nrId));
+      if(isCustomer){
+        setVal('customerStreet', [adr.street, adr.house].filter(Boolean).join(' '));
+        setVal('customerZip', adr.zip);
+        setVal('customerCity', adr.city);
+      } else {
+        setVal('locationStreet', [adr.street, adr.house].filter(Boolean).join(' '));
+        setVal('locationZip', adr.zip);
+        setVal('locationCity', adr.city);
+      }
+      if(status) status.textContent='Adres ingevuld';
+      try{ if(typeof summaryRender === 'function') summaryRender(); }catch(e){}
+      toastBns('Adres ingevuld');
+    }catch(err){
+      if(status) status.textContent='Niet gevonden';
+      alert(err.message || 'Postcode zoeken lukt niet');
+    }
+  }
+
+  function postcodeBox(target){
+    var isCustomer = target === 'customer';
+    var id = isCustomer ? 'bnsCustomerPostcodeBox' : 'bnsLocationPostcodeBox';
+    if(E(id)) return;
+    var panel = E(isCustomer ? 'customerPanel' : 'locationPanel');
+    if(!panel) return;
+    var box = document.createElement('div');
+    box.id = id;
+    box.className = 'bns-postcode-inline';
+    box.innerHTML = '<b>'+(isCustomer?'Klant adres zoeken':'Locatie adres zoeken')+'</b>'+
+      '<input id="'+(isCustomer?'bnsCustomerPostcodeInput':'bnsLocationPostcodeInput')+'" placeholder="Postcode">'+
+      '<input id="'+(isCustomer?'bnsCustomerHouseNumberInput':'bnsLocationHouseNumberInput')+'" placeholder="Huisnr">'+
+      '<button type="button" id="'+(isCustomer?'bnsCustomerPostcodeSearchBtn':'bnsLocationPostcodeSearchBtn')+'">🔍 Zoek adres</button>'+
+      '<span id="'+(isCustomer?'bnsCustomerPostcodeStatus':'bnsLocationPostcodeStatus')+'"></span>';
+    var anchor = q('h3,h2', panel) || panel.firstElementChild;
+    if(anchor && anchor.insertAdjacentElement) anchor.insertAdjacentElement('afterend', box); else panel.prepend(box);
+    E(isCustomer?'bnsCustomerPostcodeSearchBtn':'bnsLocationPostcodeSearchBtn').onclick = function(){ lookupTarget(target); };
+  }
+
+  function installPostcode(){
+    addStyle();
+    postcodeBox('customer');
+    postcodeBox('location');
+    // oude losse postcodebox mag blijven, maar locatie-knop ook zeker koppelen indien aanwezig
+    var old = E('bnsPostcodeSearchBtn');
+    if(old && !old.dataset.bnsFinalPc){ old.dataset.bnsFinalPc='1'; old.onclick=function(){ lookupTarget('location'); }; }
+  }
+
+  var lastPage = 'orders';
+  function installCancelButton(){
+    addStyle();
+    var saveBtn = E('saveOrder');
+    if(!saveBtn || E('bnsCancelNewOrderBtn')) return;
+    var btn=document.createElement('button');
+    btn.id='bnsCancelNewOrderBtn';
+    btn.type='button';
+    btn.className='bns-cancel-order';
+    btn.textContent='Annuleren';
+    btn.onclick=function(e){
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      try{ if(typeof clearOrder === 'function') clearOrder(); }catch(x){}
+      try{ editing = null; }catch(x){}
+      var dest = lastPage && lastPage !== 'newOrder' ? lastPage : 'orders';
+      try{ if(typeof showPage === 'function') showPage(dest); }catch(x){}
+      return false;
+    };
+    saveBtn.insertAdjacentElement('afterend', btn);
+  }
+
+  function openBnsAlerts(){
+    addStyle();
+    var old=E('bnsAlertModalFinal'); if(old) old.remove();
+    var list=(window.state && Array.isArray(state.alerts) ? state.alerts : []).filter(function(a){ return !a.resolved; });
+    var wrap=document.createElement('div');
+    wrap.id='bnsAlertModalFinal';
+    wrap.className='bns-alert-modal';
+    var html='<div class="bns-alert-card"><h2>🚨 Systeemmeldingen</h2>';
+    if(!list.length){ html += '<p>Geen open systeemmeldingen.</p>'; }
+    else {
+      html += list.map(function(a){
+        var o=(state.orders||[]).find(function(x){ return x.id===a.orderId; }) || {};
+        return '<div class="bns-alert-row"><b>'+esc(a.title||'Melding')+'</b><br>'+
+          'Opdracht: '+esc(o.number||'')+' '+esc(o.title||'')+'<br>'+
+          esc(a.note||'')+'<br><small>'+esc(a.time||'')+'</small>'+
+          '<div class="bns-alert-actions">'+
+          '<button class="bns-alert-resolve" type="button" data-resolve="'+esc(a.id)+'">Afmelden</button>'+
+          '<button class="bns-alert-delete" type="button" data-delete="'+esc(a.id)+'">Verwijderen</button>'+
+          '</div></div>';
+      }).join('');
+    }
+    html += '<button class="bns-alert-close" type="button">Sluiten</button></div>';
+    wrap.innerHTML=html;
+    document.body.appendChild(wrap);
+    qa('[data-resolve]',wrap).forEach(function(b){ b.onclick=function(){ var id=b.getAttribute('data-resolve'); state.alerts=(state.alerts||[]).map(function(a){ return a.id===id ? Object.assign({},a,{resolved:true,resolvedAt:new Date().toLocaleString()}) : a; }); saveBns(); updateBnsAlertButton(); openBnsAlerts(); }; });
+    qa('[data-delete]',wrap).forEach(function(b){ b.onclick=function(){ var id=b.getAttribute('data-delete'); if(!confirm('Deze systeemmelding verwijderen?')) return; state.alerts=(state.alerts||[]).filter(function(a){ return a.id!==id; }); saveBns(); updateBnsAlertButton(); openBnsAlerts(); }; });
+    q('.bns-alert-close',wrap).onclick=function(){ wrap.remove(); };
+  }
+
+  function updateBnsAlertButton(){
+    var n=(window.state && Array.isArray(state.alerts) ? state.alerts : []).filter(function(a){ return !a.resolved; }).length;
+    qa('#alertsBtn,[data-alerts],.alertsBtn').forEach(function(btn){
+      btn.textContent = n ? '🚨 Systeemmeldingen ('+n+')' : 'Systeemmeldingen (0)';
+      btn.classList.toggle('alarm-red', n>0);
+      if(!btn.dataset.bnsFinalAlert){ btn.dataset.bnsFinalAlert='1'; btn.onclick=function(e){ if(e){e.preventDefault();e.stopPropagation();} openBnsAlerts(); return false; }; }
+    });
+  }
+
+  window.openAlerts = openBnsAlerts;
+  window.openAlertsV91 = openBnsAlerts;
+  window.resolveAlert = function(id){ state.alerts=(state.alerts||[]).map(function(a){ return a.id===id ? Object.assign({},a,{resolved:true,resolvedAt:new Date().toLocaleString()}) : a; }); saveBns(); updateBnsAlertButton(); openBnsAlerts(); };
+  window.deleteAlert = function(id){ state.alerts=(state.alerts||[]).filter(function(a){ return a.id!==id; }); saveBns(); updateBnsAlertButton(); openBnsAlerts(); };
+
+  if(typeof showPage === 'function' && !showPage.__bnsFinalWrapped){
+    var oldShowPage = showPage;
+    showPage = function(p){
+      try{ var active=q('.page.active'); if(active && active.id && active.id !== p) lastPage=active.id; }catch(e){}
+      var r=oldShowPage.apply(this, arguments);
+      setTimeout(installAll, 50);
+      return r;
+    };
+    showPage.__bnsFinalWrapped=true;
+  }
+  if(typeof renderAll === 'function' && !renderAll.__bnsFinalWrapped){
+    var oldRenderAll = renderAll;
+    renderAll = function(){ var r=oldRenderAll.apply(this, arguments); setTimeout(installAll, 50); return r; };
+    renderAll.__bnsFinalWrapped=true;
+  }
+
+  function installAll(){ installPostcode(); installCancelButton(); updateBnsAlertButton(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installAll); else installAll();
+  setTimeout(installAll,300);
+  setTimeout(installAll,1000);
 })();
