@@ -3244,507 +3244,319 @@ setTimeout(()=>{
 
 
 /* =========================================================
-   BNS SIMPEL STABIEL
-   - Vrij materiaal blijft klikbaar.
-   - Alleen reserved / defect / damage / missing / inactive blokkeert.
-   - Copy opdracht staat naast Extra en kopieert huidige schermgegevens.
-   ========================================================= */
-(function(){
-"use strict";
-const STYLE_ID="bns_simpel_stabiel_style", MODAL_ID="bns_simpel_stabiel_modal";
-function E(id){return document.getElementById(id)}
-function A(s,r){return Array.from((r||document).querySelectorAll(s))}
-function ST(){try{return state}catch(e){return null}}
-function ORD(){const s=ST();return s&&Array.isArray(s.orders)?s.orders:[]}
-function MAT(){const s=ST();return s&&Array.isArray(s.materials)?s.materials:[]}
-function CH(){try{return Array.isArray(chosen)?chosen:[]}catch(e){return[]}}
-function ED(){try{return editing||null}catch(e){return null}}
-function SETED(v){try{editing=v}catch(e){}}
-function CC(){try{return currentCat||"TW"}catch(e){return"TW"}}
-function SAVE(){try{if(typeof save==="function")save()}catch(e){}}
-function TOAST(t){try{if(typeof toastMsg==="function")toastMsg(t);else if(typeof toast==="function")toast(t)}catch(e){}}
-function CL(v){try{return typeof structuredClone==="function"?structuredClone(v):JSON.parse(JSON.stringify(v))}catch(e){return Object.assign({},v)}}
-function H(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function V(id){return E(id)?.value||""}
-function SV(id,v){const x=E(id);if(x)x.value=v||""}
-function NICE(v){try{if(typeof nice==="function")return nice(v)}catch(e){}return v||""}
-function mat(mid){return MAT().find(m=>String(m.id)===String(mid))}
-function midFromRow(row){if(!row)return"";if(row.dataset.materialId)return row.dataset.materialId;if(row.dataset.bnsMaterialId)return row.dataset.bnsMaterialId;let m=(row.getAttribute("onclick")||"").match(/addMat\(['"]([^'"]+)['"]\)/);return m?m[1]:""}
-function stOf(m){let s=String(m?.status||"free").trim().toLowerCase();if(s==="reserved"||s==="gereserveerd")return"reserved";if(s==="damage"||s==="schade")return"damage";if(s==="missing"||s==="vermissing"||s==="vermist")return"missing";if(s==="defect"||s==="storing")return"defect";if(s==="inactive"||s==="niet actief"||s==="niet beschikbaar")return"inactive";return"free"}
-function label(s){return s==="reserved"?"Gereserveerd":s==="damage"?"Schade":s==="missing"?"Vermissing":s==="defect"?"Defect / storing":s==="inactive"?"Niet beschikbaar":"Vrij"}
-function cls(s){return s==="reserved"?"reserved":(s==="damage"||s==="missing"||s==="defect")?"defect":s==="inactive"?"inactive":"free"}
-function active(o){return o&&o.status!=="Geannuleerd"&&o.status!=="Uitgevoerd"}
-function reserv(mid){for(const o of ORD()){if(!active(o))continue;if(ED()&&String(o.id)===String(ED()))continue;if((o.materials||[]).some(m=>String(m.id)===String(mid)))return o}return null}
-function block(mid){const m=mat(mid);if(!m)return{blocked:true,status:"missing"};const s=stOf(m);if(s==="reserved")return{blocked:true,status:"reserved",material:m,order:reserv(mid)};if(s==="damage"||s==="missing"||s==="defect"||s==="inactive")return{blocked:true,status:s,material:m};return{blocked:false,status:"free",material:m}}
-function addStable(mid){const b=block(mid);if(b.blocked){popup(mid);return}const m=b.material;if(!m)return;if(!CH().some(x=>String(x.id)===String(mid))){let c=CL(m);c.status="reserved";CH().push(c)}try{renderChosen()}catch(e){}try{renderMaterials(CC())}catch(e){}try{summaryRender()}catch(e){}setTimeout(patchRows,0)}
-function intercept(e){const row=e.target.closest&&e.target.closest(".material-row");const list=E("materialList");if(!row||!list||!list.contains(row))return;const mid=midFromRow(row);if(!mid)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();addStable(mid);return false}
-function popup(mid){const b=block(mid),m=b.material||mat(mid);if(!m)return;let body=`<h3>${H(m.code||"")} ${H(m.name||"")}</h3>`;if(b.status==="reserved"){const o=b.order;body+=o?`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br><b>Klant:</b> ${H(o.customer?.name||"Onbekend")}<br><b>Opdracht:</b> ${H(o.number||"")} - ${H(o.title||"")}<br><b>Datum:</b> ${H(NICE(o.start))} t/m ${H(NICE(o.end))}</div>`:`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br>Geen opdracht gevonden.</div>`}else{body+=`<div class="bns-box defect"><b>Status:</b> ${H(label(b.status))}<br><b>Omschrijving:</b> ${H(m.issueText||m.notes||"")}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button></div>`}openModal("Materiaal status",body)}
-function openModal(t,b){let m=E(MODAL_ID);if(!m){m=document.createElement("div");m.id=MODAL_ID;m.className="bns-modal hidden";m.innerHTML='<div class="bns-modal-card"><h2 id="bnsStabielTitle"></h2><div id="bnsStabielBody"></div><div class="actions"><button onclick="BNS_STABIEL_close()">Sluiten</button></div></div>';document.body.appendChild(m)}E("bnsStabielTitle").textContent=t||"Info";E("bnsStabielBody").innerHTML=b||"";m.classList.remove("hidden")}
-function closeModal(){const m=E(MODAL_ID);if(m)m.classList.add("hidden")}
-function freeMat(mid){const m=mat(mid);if(!m)return;m.status="free";m.issueText="";m.usable=true;SAVE();closeModal();try{renderAll()}catch(e){}try{renderMaterials(CC())}catch(e){}setTimeout(patchRows,0)}
-function mark(mid,status){const m=mat(mid);if(!m)return;if(status==="free"){m.status="free";m.issueText="";m.usable=true}else{const txt=prompt("Omschrijving / reden:",m.issueText||"");if(txt===null)return;m.status=status;m.issueText=txt||label(status);m.usable=false}SAVE();closeModal();try{renderAll()}catch(e){}try{renderMaterials(CC())}catch(e){}setTimeout(patchRows,0)}
-function forceAdd(mid){const m=mat(mid);if(!m)return;if(!CH().some(x=>String(x.id)===String(mid))){let c=CL(m);c.status="reserved";CH().push(c)}closeModal();try{renderChosen()}catch(e){}try{summaryRender()}catch(e){}setTimeout(patchRows,0)}
-function openOrder(oid){closeModal();if(typeof editOrder==="function")editOrder(oid)}
-function nextNo(){let y=new Date().getFullYear();let nums=ORD().map(o=>String(o.number||"").match(new RegExp("^"+y+"-(\\d+)$"))).filter(Boolean).map(m=>Number(m[1]));return y+"-"+String(nums.length?Math.max(...nums)+1:1).padStart(4,"0")}
-function copyTop(){SETED(null);SV("orderNumber",nextNo());SV("orderStatus","Offerte");SV("dateStart","");SV("dateEnd","");TOAST("Copy gemaakt. Klant/locatie/materialen blijven staan. Vul nieuwe datum in en sla op.")}
-function installCopy(){let btn=E("bnsCopyOrderTop");if(!btn){btn=document.createElement("button");btn.id="bnsCopyOrderTop";btn.type="button";btn.textContent="Copy opdracht";btn.className="worktab bns-copy-top";btn.onclick=e=>{e.preventDefault();copyTop()}}let extra=A("button").find(b=>(b.textContent||"").trim().toLowerCase()==="extra");if(extra&&btn.previousElementSibling!==extra)extra.insertAdjacentElement("afterend",btn);else if(!btn.parentElement)(document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn)}
-function patchRows(){A("#materialList .material-row").forEach(row=>{const mid=midFromRow(row),m=mat(mid);if(!m)return;const b=block(mid);const selected=CH().some(x=>String(x.id)===String(mid));let visual=selected?"now":(b.blocked?cls(b.status):"free");let lab=selected?"Nu toegevoegd":(b.blocked?label(b.status):"Vrij");let small=m.price||"";if(!selected&&b.blocked)small=b.status==="reserved"?"Klik voor klant/datum":"Klik voor status";row.classList.remove("free","reserved","defect","inactive","now");row.classList.add(visual);row.removeAttribute("onclick");let badge=row.querySelector(".badge");if(badge){badge.textContent=lab;badge.className="badge "+visual}let sm=row.querySelector("small");if(sm)sm.textContent=small})}
-function patchAdd(){window.addMat=addStable;try{addMat=addStable}catch(e){}}
-function css(){if(E(STYLE_ID))return;let style=document.createElement("style");style.id=STYLE_ID;style.textContent=`#bnsCopyOrderTop{background:#0f766e!important;color:#fff!important;font-weight:900!important;border:2px solid #99f6e4!important}#materialList .material-row,#materialList .material-row.free,#materialList .material-row.reserved,#materialList .material-row.defect,#materialList .material-row.inactive,#materialList .material-row.now{background:var(--panel,#fff)!important;color:var(--text,#172033)!important}#materialList .badge.free{background:#dcfce7!important;color:#166534!important}#materialList .badge.reserved{background:#fee2e2!important;color:#991b1b!important}#materialList .badge.defect{background:#fee2e2!important;color:#991b1b!important;animation:bnsBlink .45s infinite alternate!important}#materialList .badge.inactive{background:#e2e8f0!important;color:#334155!important}#materialList .badge.now{background:#dbeafe!important;color:#1e40af!important}@keyframes bnsBlink{from{opacity:.45}to{opacity:1}}.bns-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.6);display:grid;place-items:center;padding:20px}.bns-modal.hidden{display:none!important}.bns-modal-card{width:min(760px,96vw);max-height:90vh;overflow:auto;background:var(--panel,#fff);color:var(--text,#172033);border-radius:22px;padding:22px;box-shadow:0 20px 60px rgba(15,23,42,.35)}.bns-box{border:1px solid var(--border,#dbe3ef);border-radius:16px;padding:14px;margin:12px 0;background:rgba(148,163,184,.12);line-height:1.5}.bns-box.reserved,.bns-box.defect{border-color:#ef4444;background:rgba(239,68,68,.1)}.bns-actions{display:flex;flex-wrap:wrap;gap:10px}.bns-actions button{font-size:16px!important;padding:12px 16px!important;border-radius:14px!important;font-weight:900!important}`;document.head.appendChild(style)}
-function patchRenderAll(){if(window.__bnsStabielRenderAll)return;window.__bnsStabielRenderAll=true;let old=window.renderAll||(typeof renderAll!=="undefined"?renderAll:null);if(typeof old==="function"){let wrapped=function(){old();setTimeout(afterRender,0)};window.renderAll=wrapped;try{renderAll=wrapped}catch(e){}}}
-function afterRender(){installCopy();patchRows()}
-function install(){css();installCopy();patchAdd();patchRenderAll();let list=E("materialList");if(list&&!list.dataset.bnsStabielClick){list.dataset.bnsStabielClick="1";list.addEventListener("click",intercept,true)}let search=E("materialSearch");if(search&&!search.dataset.bnsStabielSearch){search.dataset.bnsStabielSearch="1";search.addEventListener("input",()=>setTimeout(patchRows,0))}afterRender()}
-window.BNS_STABIEL_close=closeModal;window.BNS_STABIEL_freeMaterial=freeMat;window.BNS_STABIEL_markStatus=mark;window.BNS_STABIEL_forceAdd=forceAdd;window.BNS_STABIEL_openOrder=openOrder;
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(install,800));else setTimeout(install,800);
-setInterval(install,1500);
-})();
+   BNS BASIS EXTRA KNOPPEN - RUSTIG EN SCHOON
+   Alleen toegevoegd:
+   - Copy opdracht bovenin naast Extra
+   - Factuur maken bovenin naast Extra
+   - Opdracht bevestiging bovenin naast Extra
 
-
-
-/* =========================================================
-   BNS LAATSTE HARDE EINDDATUM FIX
-   Staat helemaal onderaan en wint van alle oudere patches.
-
-   - Dashboard: alleen opdrachten met einddatum vandaag of later.
-   - Opdrachten actief: einddatum vandaag of later.
-   - Uitgevoerd: einddatum vóór vandaag.
-   - Bezorger meldingen: alleen actieve opdrachten.
-   - Nieuwe opdracht: startdatum mag niet in verleden.
-   - Einddatum mag niet vóór startdatum.
-   - Kaarten tonen start t/m einddatum.
-   - Geen setInterval, geen bewegend beeld.
+   Geen MutationObserver.
+   Geen setInterval.
+   Geen override van materiaalkeuze.
+   Geen automatische render-loop.
    ========================================================= */
 (function(){
   "use strict";
 
-  var BNS_MODE = "active";
-
   function byId(id){ return document.getElementById(id); }
 
-  function S(){
-    try {
-      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
-    } catch(e) {}
-    try {
-      if (window.state && Array.isArray(window.state.orders)) return window.state;
-    } catch(e) {}
-    try {
-      var raw = localStorage.getItem("eventPlannerProV91") ||
-                localStorage.getItem("eventPlannerPro") ||
-                localStorage.getItem("eventPlannerState") ||
-                localStorage.getItem("plannerState");
-      var parsed = JSON.parse(raw || "{}");
-      if (parsed && Array.isArray(parsed.orders)) return parsed;
-    } catch(e) {}
-    return {orders: [], materials: [], alerts: [], users: []};
+  function label(el){
+    return String(el && el.textContent || "").trim();
   }
 
-  function saveState(){
-    try {
-      if (typeof save === "function") save();
-      else localStorage.setItem("eventPlannerProV91", JSON.stringify(S()));
-    } catch(e) {}
-  }
-
-  function esc(v){
-    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  function esc(value){
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function parseDate(v){
-    var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!m) return null;
-    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  function value(id){
+    var el = byId(id);
+    return el ? (el.value || "") : "";
   }
 
-  function today(){
-    var d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-
-  function nice2(v){
+  function selectedMaterials(){
     try {
-      if (typeof nice === "function") return nice(v);
+      if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen;
     } catch(e) {}
-    var d = parseDate(v);
-    if (!d) return v || "";
-    return String(d.getDate()).padStart(2, "0") + "-" +
-           String(d.getMonth() + 1).padStart(2, "0") + "-" +
-           d.getFullYear();
+
+    try {
+      if (window.chosen && Array.isArray(window.chosen)) return window.chosen;
+    } catch(e) {}
+
+    return [];
   }
 
-  function endDate(order){
-    return parseDate(order && (order.end || order.start));
+  function money(value){
+    var n = Number(String(value || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+    if (!isFinite(n)) n = 0;
+    return "€ " + n.toFixed(2).replace(".", ",");
   }
 
-  function isPastEnd(order){
-    var e = endDate(order);
-    return !!e && e < today();
-  }
+  function materialLines(){
+    return selectedMaterials().map(function(material){
+      var qty = material.qty || material.count || 1;
+      var price = material.linePrice || material.price || 0;
+      var deposit = material.lineDeposit || material.deposit || 0;
+      var note = material.lineNote || material.note || "";
 
-  function group(order){
-    var status = String(order && order.status || "").toLowerCase();
-
-    if (status === "geannuleerd") return "cancelled";
-    if (status === "uitgevoerd") return "done";
-    if (isPastEnd(order)) return "done";
-
-    return "active";
-  }
-
-  function activeOrder(order){
-    return group(order) === "active";
-  }
-
-  function sortedOrders(){
-    return (S().orders || []).slice().sort(function(a, b){
-      return String(a.start || "9999-99-99").localeCompare(String(b.start || "9999-99-99"));
+      return {
+        qty: qty,
+        code: material.code || "",
+        name: material.name || "",
+        price: price,
+        deposit: deposit,
+        note: note
+      };
     });
   }
 
-  function money2(v){
-    try {
-      if (typeof money === "function") return money(v || 0);
-      if (typeof euro === "function") return euro(v || 0);
-    } catch(e) {}
-    return "€ " + Number(v || 0).toFixed(2).replace(".", ",");
+  function documentText(title){
+    var lines = materialLines().map(function(row){
+      return (row.qty || 1) + "x " + row.code + " " + row.name +
+        " | prijs " + money(row.price) +
+        " | borg " + money(row.deposit) +
+        (row.note ? " | " + row.note : "");
+    }).join("\n");
+
+    return title + "\n\n" +
+      "Opdracht: " + value("orderNumber") + "\n" +
+      "Status: " + value("orderStatus") + "\n" +
+      "Titel: " + value("orderTitle") + "\n" +
+      "Biermerk / merk: " + value("orderBrand") + "\n\n" +
+
+      "Datum: " + value("dateStart") +
+      (value("dateEnd") && value("dateEnd") !== value("dateStart") ? " tot datum " + value("dateEnd") : "") +
+      "\n\n" +
+
+      "Klant:\n" +
+      value("customerName") + "\n" +
+      value("customerStreet") + "\n" +
+      value("customerZip") + " " + value("customerCity") + "\n" +
+      value("customerPhone") + "\n" +
+      value("customerEmail") + "\n\n" +
+
+      "Locatie:\n" +
+      value("locationName") + "\n" +
+      value("locationStreet") + "\n" +
+      value("locationZip") + " " + value("locationCity") + "\n" +
+      value("locationContact") + "\n" +
+      value("locationPhone") + "\n\n" +
+
+      "Materialen:\n" + (lines || "Geen materialen gekozen") + "\n\n" +
+
+      "Bezorger: " + value("orderDriver") + "\n" +
+      "Voertuig: " + value("orderVehicle") + "\n\n" +
+
+      "Extra / opmerkingen:\n" + value("orderExtra");
   }
 
-  function dateRange(order){
-    var start = nice2(order.start);
-    var end = nice2(order.end || order.start);
-    return start && end && start !== end ? start + " t/m " + end : (start || end || "");
-  }
+  function openPrintWindow(title, text){
+    var win = window.open("", "_blank");
 
-  function matChips(materials){
-    return (materials || []).map(function(m){
-      var code = m.code || m.name || "";
-      return '<span class="material-code-chip">' + esc(code) + '</span>';
-    }).join(" ");
-  }
-
-  function bnsCard(order){
-    var loc = order.location || {};
-    var addr = [loc.name, loc.street, loc.city].filter(Boolean).join(" ");
-    var total = order.pricing && order.pricing.grand != null ? order.pricing.grand : order.amount;
-    var deposit = order.pricing && order.pricing.deposit != null ? order.pricing.deposit : 0;
-    var status = order.status || "";
-
-    return '' +
-      '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
-        '<div class="date-tile">' + esc(nice2(order.start)) + '</div>' +
-        '<div>' +
-          '<div class="order-title">' + esc(order.number || "") + ' - ' + esc(order.title || "") +
-            ' <span class="status status-' + esc(status) + '">' + esc(status) + '</span></div>' +
-          '<div><b>Datum:</b> ' + esc(dateRange(order)) + '</div>' +
-          '<div>Klant: ' + esc(order.customer && order.customer.name || "") + '</div>' +
-          '<div>Locatie: ' + esc(addr) + '</div>' +
-          '<div>Materialen: ' + matChips(order.materials || []) + '</div>' +
-          '<div>Totaal: ' + money2(total) + ' | Borg: ' + money2(deposit) + '</div>' +
-          '<button type="button" class="bns-waze-btn" onclick="window.open(\'https://waze.com/ul?q=' + encodeURIComponent(addr) + '&navigate=yes\',\'_blank\')">Waze</button>' +
-        '</div>' +
-        '<div class="actions">' +
-          '<button type="button" onclick="editOrder(\'' + esc(order.id) + '\')">Wijzigen</button>' +
-          (status === "Geannuleerd"
-            ? '<button type="button" onclick="restore(\'' + esc(order.id) + '\')">Terughalen</button>'
-            : '<button type="button" class="danger" onclick="cancel(\'' + esc(order.id) + '\')">Annuleren</button>') +
-        '</div>' +
-      '</div>';
-  }
-
-  function searchMatch(order, q){
-    if (!q) return true;
-
-    var matText = (order.materials || []).map(function(m){
-      return [m.cat, m.code, m.name, m.price, m.status].join(" ");
-    }).join(" ");
-
-    var haystack = [
-      order.id,
-      order.oldId,
-      order.number,
-      order.title,
-      order.status,
-      order.start,
-      order.end,
-      nice2(order.start),
-      nice2(order.end),
-      dateRange(order),
-      order.customer && order.customer.name,
-      order.customer && order.customer.phone,
-      order.customer && order.customer.email,
-      order.location && order.location.name,
-      order.location && order.location.street,
-      order.location && order.location.city,
-      matText
-    ].join(" ").toLowerCase();
-
-    return haystack.indexOf(q) !== -1;
-  }
-
-  function getMode(){
-    try {
-      if (typeof mode !== "undefined" && mode) return mode;
-    } catch(e) {}
-    return window.mode || BNS_MODE || "active";
-  }
-
-  function setMode(m){
-    BNS_MODE = m;
-    window.mode = m;
-    try { mode = m; } catch(e) {}
-  }
-
-  function findButton(textRegex, id){
-    return byId(id) || Array.from(document.querySelectorAll("button")).find(function(b){
-      return textRegex.test(b.textContent || "");
-    });
-  }
-
-  function paintModeButtons(){
-    var current = getMode();
-    var list = [
-      [findButton(/actieve opdrachten/i, "activeOrders"), "active"],
-      [findButton(/uitgevoerde opdrachten/i, "doneOrders"), "done"],
-      [findButton(/geannuleerde opdrachten/i, "cancelledOrders"), "cancelled"]
-    ];
-
-    list.forEach(function(pair){
-      var btn = pair[0];
-      var active = pair[1] === current;
-      if (!btn) return;
-
-      btn.classList.toggle("bns-final-active-filter", active);
-
-      if (active) {
-        btn.style.setProperty("background", "#0f172a", "important");
-        btn.style.setProperty("color", "#fff", "important");
-        btn.style.setProperty("border", "3px solid #22d3ee", "important");
-        btn.style.setProperty("box-shadow", "0 0 0 3px rgba(34,211,238,.25)", "important");
-      } else {
-        btn.style.removeProperty("background");
-        btn.style.removeProperty("color");
-        btn.style.removeProperty("border");
-        btn.style.removeProperty("box-shadow");
-      }
-    });
-  }
-
-  function renderOrdersFinal(){
-    var list = byId("ordersList");
-    if (!list) {
-      paintModeButtons();
+    if (!win) {
+      alert(text);
       return;
     }
 
-    var q = String((byId("ordersSearch") || {}).value || "").toLowerCase().trim();
-    var m = getMode();
+    win.document.write(
+      "<!doctype html><html><head><title>" + esc(title) + "</title>" +
+      "<style>" +
+      "body{font-family:Arial,sans-serif;padding:32px;line-height:1.45;font-size:14px}" +
+      "pre{white-space:pre-wrap;font-family:Arial,sans-serif}" +
+      "button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:bold;margin-bottom:18px}" +
+      "</style></head><body>" +
+      "<button onclick='window.print()'>Afdrukken</button>" +
+      "<pre>" + esc(text) + "</pre>" +
+      "</body></html>"
+    );
 
-    var rows = sortedOrders()
-      .filter(function(order){ return group(order) === m; })
-      .filter(function(order){ return searchMatch(order, q); });
-
-    list.innerHTML = rows.map(bnsCard).join("") || "<p>Niets gevonden</p>";
-    paintModeButtons();
+    win.document.close();
   }
 
-  function renderDashboardFinal(){
+  function makeInvoice(){
+    openPrintWindow("Factuur", documentText("FACTUUR"));
+  }
+
+  function makeOrderConfirmation(){
     try {
-      if (byId("statOrders")) byId("statOrders").textContent = (S().orders || []).length;
-      if (byId("statMaterials")) byId("statMaterials").textContent = (S().materials || []).length;
-      if (byId("statAlerts")) byId("statAlerts").textContent = (S().alerts || []).length;
+      if (typeof makeConfirmationText === "function") {
+        openPrintWindow("Opdracht bevestiging", makeConfirmationText());
+        return;
+      }
     } catch(e) {}
 
-    var box = byId("dashOrders");
-    if (!box) return;
-
-    var rows = sortedOrders()
-      .filter(activeOrder)
-      .slice(0, 6);
-
-    box.innerHTML = rows.map(bnsCard).join("") || "<p>Geen aankomende opdrachten.</p>";
+    openPrintWindow("Opdracht bevestiging", documentText("OPDRACHTBEVESTIGING"));
   }
 
-  function renderDriverFinal(){
-    var box = byId("driverList");
-    if (!box) return;
+  function nextOrderNumberSafe(){
+    try {
+      if (typeof nextNo === "function") return nextNo();
+    } catch(e) {}
 
-    var rows = sortedOrders()
-      .filter(activeOrder)
-      .slice(0, 25);
+    try {
+      var year = new Date().getFullYear();
+      var orders = (state && Array.isArray(state.orders)) ? state.orders : [];
+      var nums = orders
+        .map(function(order){
+          var match = String(order.number || "").match(new RegExp("^" + year + "-(\\d+)$"));
+          return match ? Number(match[1]) : 0;
+        })
+        .filter(Boolean);
 
-    box.innerHTML = rows.map(function(order){
-      return '' +
-        '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
-          '<div class="date-tile">' + esc(nice2(order.start)) + '</div>' +
-          '<div>' +
-            '<b>' + esc(order.number || "") + ' - ' + esc(order.title || "") + '</b><br>' +
-            '<b>Datum:</b> ' + esc(dateRange(order)) + '<br>' +
-            esc((order.materials || []).map(function(m){ return m.code || m.name || ""; }).join(", ")) +
-          '</div>' +
-          '<div class="actions">' +
-            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Storing\')">Storing</button>' +
-            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Schade\')">Schade</button>' +
-            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Vermissing\')">Vermissing</button>' +
-          '</div>' +
-        '</div>';
-    }).join("") || "<p>Geen actieve opdrachten.</p>";
+      var next = nums.length ? Math.max.apply(null, nums) + 1 : 1;
+      return year + "-" + String(next).padStart(4, "0");
+    } catch(e) {
+      return String(new Date().getFullYear()) + "-0001";
+    }
   }
 
-  function validNewOrderDate(){
-    var startInput = byId("dateStart");
-    var endInput = byId("dateEnd");
+  function copyOrderKeepEverything(){
+    try { editing = null; } catch(e) {}
+    try { window.editing = null; } catch(e) {}
 
-    if (!startInput) return true;
+    var number = byId("orderNumber");
+    if (number) number.value = nextOrderNumberSafe();
 
-    var start = parseDate(startInput.value);
-    var end = parseDate((endInput && endInput.value) || startInput.value);
-    var now = today();
+    var status = byId("orderStatus");
+    if (status) status.value = "Offerte";
 
-    if (start && start < now) {
-      alert("Je kunt geen nieuwe opdracht in het verleden plannen. Vandaag mag wel.");
-      return false;
-    }
+    var start = byId("dateStart");
+    var end = byId("dateEnd");
 
-    if (start && end && end < start) {
-      alert("Einddatum kan niet vóór startdatum liggen.");
-      return false;
-    }
+    if (start) start.value = "";
+    if (end) end.value = "";
 
-    return true;
+    try {
+      if (typeof summaryRender === "function") summaryRender();
+    } catch(e) {}
+
+    try {
+      if (typeof toastMsg === "function") {
+        toastMsg("Copy gemaakt. Alleen datum aanpassen en opslaan.");
+        return;
+      }
+    } catch(e) {}
+
+    alert("Copy gemaakt. Alleen datum aanpassen en opslaan.");
   }
 
-  function hookButtonsFinal(){
-    var active = findButton(/actieve opdrachten/i, "activeOrders");
-    var done = findButton(/uitgevoerde opdrachten/i, "doneOrders");
-    var cancelled = findButton(/geannuleerde opdrachten/i, "cancelledOrders");
-
-    if (active) active.onclick = function(e){ if(e)e.preventDefault(); setMode("active"); renderOrdersFinal(); };
-    if (done) done.onclick = function(e){ if(e)e.preventDefault(); setMode("done"); renderOrdersFinal(); };
-    if (cancelled) cancelled.onclick = function(e){ if(e)e.preventDefault(); setMode("cancelled"); renderOrdersFinal(); };
-
-    var search = byId("ordersSearch");
-    if (search && !search.dataset.bnsFinalHardSearch) {
-      search.dataset.bnsFinalHardSearch = "1";
-      search.addEventListener("input", renderOrdersFinal);
-    }
-
-    var saveBtn = byId("saveOrder");
-    if (saveBtn && !saveBtn.dataset.bnsFinalDateCheck) {
-      saveBtn.dataset.bnsFinalDateCheck = "1";
-      saveBtn.addEventListener("click", function(e){
-        if (!validNewOrderDate()) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          return false;
-        }
-      }, true);
-    }
-
-    paintModeButtons();
+  function removeExistingButtons(){
+    ["bnsBasisCopyBtn", "bnsBasisInvoiceBtn", "bnsBasisConfirmBtn"].forEach(function(id){
+      var el = byId(id);
+      if (el) el.remove();
+    });
   }
 
-  function installCss(){
-    if (byId("bns-final-hard-css")) return;
+  function findTopExtraButton(){
+    var buttons = Array.from(document.querySelectorAll("button.worktab, .worktab"));
+
+    var extra = buttons.find(function(button){
+      return /^extra$/i.test(label(button));
+    });
+
+    if (extra) return extra;
+
+    return Array.from(document.querySelectorAll("button")).find(function(button){
+      return /^extra$/i.test(label(button)) && !button.closest("#materialPanel");
+    }) || null;
+  }
+
+  function addButton(id, text, after, onClick, className){
+    var button = document.createElement("button");
+    button.id = id;
+    button.type = "button";
+    button.textContent = text;
+    button.className = className || "worktab";
+
+    button.addEventListener("click", function(event){
+      event.preventDefault();
+      event.stopPropagation();
+      onClick();
+    });
+
+    after.insertAdjacentElement("afterend", button);
+    return button;
+  }
+
+  function placeButtons(){
+    removeExistingButtons();
+
+    var extra = findTopExtraButton();
+    if (!extra || !extra.parentNode) return;
+
+    var cls = extra.className || "worktab";
+
+    var copy = addButton("bnsBasisCopyBtn", "Copy opdracht", extra, copyOrderKeepEverything, cls + " bns-basis-copy");
+    var invoice = addButton("bnsBasisInvoiceBtn", "Factuur maken", copy, makeInvoice, cls + " bns-basis-invoice");
+    addButton("bnsBasisConfirmBtn", "Opdracht bevestiging", invoice, makeOrderConfirmation, cls + " bns-basis-confirm");
+  }
+
+  function addCss(){
+    if (byId("bnsBasisButtonsCss")) return;
 
     var style = document.createElement("style");
-    style.id = "bns-final-hard-css";
-    style.textContent = '' +
-      '.bns-final-active-filter{background:#0f172a!important;color:#fff!important;border:3px solid #22d3ee!important;box-shadow:0 0 0 3px rgba(34,211,238,.25)!important}' +
-      '.bns-waze-btn{margin-top:10px;background:#16a34a!important;color:white!important;border:none!important;border-radius:10px!important;padding:8px 22px!important;font-weight:800!important}';
+    style.id = "bnsBasisButtonsCss";
+    style.textContent =
+      "#bnsBasisCopyBtn,#bnsBasisInvoiceBtn,#bnsBasisConfirmBtn{" +
+      "margin-left:8px!important;border:none!important;border-radius:12px!important;" +
+      "padding:10px 18px!important;color:#fff!important;font-weight:900!important;" +
+      "}" +
+      "#bnsBasisCopyBtn{background:#047857!important}" +
+      "#bnsBasisInvoiceBtn{background:#2563eb!important}" +
+      "#bnsBasisConfirmBtn{background:#16a34a!important}";
+
     document.head.appendChild(style);
   }
 
-  function refreshFinal(){
-    installCss();
-    hookButtonsFinal();
-    renderDashboardFinal();
-    renderOrdersFinal();
-    renderDriverFinal();
+  function install(){
+    addCss();
+    placeButtons();
   }
 
-  // Vervang functies definitief.
-  window.card = bnsCard;
-  window.renderOrders = renderOrdersFinal;
-  window.renderDashboard = renderDashboardFinal;
-  window.renderDriver = renderDriverFinal;
+  var oldWorkTab = null;
 
-  try { card = bnsCard; } catch(e) {}
-  try { renderOrders = renderOrdersFinal; } catch(e) {}
-  try { renderDashboard = renderDashboardFinal; } catch(e) {}
-  try { renderDriver = renderDriverFinal; } catch(e) {}
+  try {
+    oldWorkTab = window.workTab || (typeof workTab === "function" ? workTab : null);
+  } catch(e) {}
 
-  // saveCurrentOrder ook afvangen.
-  if (typeof window.saveCurrentOrder === "function" && !window.saveCurrentOrder.__bnsFinalHardDate) {
-    var oldSave = window.saveCurrentOrder;
-    var newSave = function(){
-      if (!validNewOrderDate()) return false;
-      return oldSave.apply(this, arguments);
+  if (oldWorkTab && !oldWorkTab.__bnsBasisButtons) {
+    var wrappedWorkTab = function(id){
+      var result = oldWorkTab.apply(this, arguments);
+      setTimeout(placeButtons, 0);
+      return result;
     };
-    newSave.__bnsFinalHardDate = true;
-    window.saveCurrentOrder = newSave;
-    try { saveCurrentOrder = newSave; } catch(e) {}
-  } else {
-    try {
-      if (typeof saveCurrentOrder === "function" && !saveCurrentOrder.__bnsFinalHardDate) {
-        var oldSave2 = saveCurrentOrder;
-        var newSave2 = function(){
-          if (!validNewOrderDate()) return false;
-          return oldSave2.apply(this, arguments);
-        };
-        newSave2.__bnsFinalHardDate = true;
-        saveCurrentOrder = newSave2;
-        window.saveCurrentOrder = newSave2;
-      }
-    } catch(e) {}
+
+    wrappedWorkTab.__bnsBasisButtons = true;
+    window.workTab = wrappedWorkTab;
+    try { workTab = wrappedWorkTab; } catch(e) {}
   }
 
-  // renderAll opnieuw vastzetten zonder interval.
-  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-  var newRenderAll = function(){
-    try {
-      if (oldRenderAll && oldRenderAll !== newRenderAll) oldRenderAll.apply(this, arguments);
-    } catch(e) {}
+  var oldRenderAll = null;
 
-    // Direct daarna definitief juiste lijsten tekenen.
-    hookButtonsFinal();
-    renderDashboardFinal();
-    renderOrdersFinal();
-    renderDriverFinal();
+  try {
+    oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+  } catch(e) {}
 
-    try {
-      var driverSelect = byId("orderDriver");
-      if (driverSelect && S().users) {
-        driverSelect.innerHTML = '<option value="">Geen</option>' + (S().users || [])
-          .filter(function(u){ return u.role === "Bezorger"; })
-          .map(function(u){ return "<option>" + esc(u.name) + "</option>"; })
-          .join("");
-      }
-    } catch(e) {}
+  if (oldRenderAll && !oldRenderAll.__bnsBasisButtons) {
+    var wrappedRenderAll = function(){
+      var result = oldRenderAll.apply(this, arguments);
+      setTimeout(placeButtons, 0);
+      return result;
+    };
 
-    try {
-      if (byId("alertsBtn")) {
-        var open = (S().alerts || []).filter(function(a){ return !a.resolved; }).length;
-        byId("alertsBtn").textContent = "🚨 Systeemmeldingen (" + open + ")";
-      }
-    } catch(e) {}
-
-    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
-  };
-
-  window.renderAll = newRenderAll;
-  try { renderAll = newRenderAll; } catch(e) {}
+    wrappedRenderAll.__bnsBasisButtons = true;
+    window.renderAll = wrappedRenderAll;
+    try { renderAll = wrappedRenderAll; } catch(e) {}
+  }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(refreshFinal, 250);
+      setTimeout(install, 300);
     });
   } else {
-    setTimeout(refreshFinal, 250);
+    setTimeout(install, 300);
   }
 
-  // Eén extra late run voor scripts die na DOMContentLoaded nog bouwen. Geen interval.
-  setTimeout(refreshFinal, 1200);
+  setTimeout(install, 1000);
 })();
