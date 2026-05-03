@@ -3822,6 +3822,8 @@ setTimeout(()=>{
     voertuig.insertAdjacentElement("afterend", copy);
     copy.insertAdjacentElement("afterend", factuur);
     factuur.insertAdjacentElement("afterend", bevestiging);
+   
  });
+  
 setTimeout(plaatsKnoppenNaastVoertuig, 1200);
 })();
