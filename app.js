@@ -257,7 +257,7 @@ function saveDashboardOrderV91(){
 function renderAlarmV91(){
   const open=(state.alerts||[]).filter(a=>!a.resolved);
   const btn=document.getElementById('alertsBtn');
-  if(!btn) return;
+ if(!btn) return;
   btn.textContent = open.length ? `🚨 Systeemmeldingen (${open.length})` : 'Systeemmeldingen (0)';
   btn.classList.toggle('alarm-red', open.length>0);
 }
@@ -269,11 +269,54 @@ function makeDamageAlertV91(orderId, type='Schade'){
   renderAll();
 }
 function openAlertsV91(){
-  const open=(state.alerts||[]).filter(a=>!a.resolved);
-  if(!open.length){ alert('Geen open meldingen'); return; }
-  const a=open[0];
-  const o=(state.orders||[]).find(x=>x.id===a.orderId)||{};
-  alert(`${a.title}\nOpdracht: ${o.number||''} ${o.title||''}\n${a.time}\n${a.note||''}`);
+  const open = (state.alerts || []).filter(a => !a.resolved);
+
+  let html = `
+    <div style="position:fixed;top:20%;left:50%;transform:translateX(-50%);
+    background:#fff;padding:20px;border-radius:14px;box-shadow:0 5px 20px rgba(0,0,0,0.35);
+    z-index:9999;min-width:360px;max-width:700px;">
+      <h3>🚨 Systeemmeldingen</h3>
+  `;
+
+  if(!open.length){
+    html += `<p>Geen open Systeemmeldingen.</p>`;
+  } else {
+    html += open.map(a => {
+      const o = (state.orders || []).find(x => x.id === a.orderId) || {};
+      return `
+        <div style="margin-bottom:14px;padding:10px;border-bottom:1px solid #ddd;">
+          <b>${a.title || "Melding"}</b><br>
+          Opdracht: ${o.number || ""} ${o.title || ""}<br>
+          ${a.note || ""}<br>
+          <small>${a.time || ""}</small><br><br>
+          <button onclick="resolveAlert('${a.id}')"
+            style="background:#16a34a;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-weight:bold;">
+            Afmelden
+          </button>
+        </div>
+      `;
+    }).join("");
+  }
+
+  html += `
+      <button onclick="this.closest('div').remove()"
+        style="margin-top:10px;background:#2563eb;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-weight:bold;">
+        Sluiten
+      </button>
+    </div>
+  `;
+
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  document.body.appendChild(div);
+}
+function resolveAlert(id){
+  state.alerts = (state.alerts || []).map(a =>
+    a.id === id ? {...a, resolved: true} : a
+  );
+  save();
+  renderAlarmV91();
+  openAlertsV91(); // refresh lijst
 }
 const oldRenderAllV91 = typeof renderAll === 'function' ? renderAll : null;
 renderAll = function(){
