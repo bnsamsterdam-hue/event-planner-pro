@@ -3278,7 +3278,7 @@ function reserv(mid){for(const o of ORD()){if(!active(o))continue;if(ED()&&Strin
 function block(mid){const m=mat(mid);if(!m)return{blocked:true,status:"missing"};const s=stOf(m);if(s==="reserved")return{blocked:true,status:"reserved",material:m,order:reserv(mid)};if(s==="damage"||s==="missing"||s==="defect"||s==="inactive")return{blocked:true,status:s,material:m};return{blocked:false,status:"free",material:m}}
 function addStable(mid){const b=block(mid);if(b.blocked){popup(mid);return}const m=b.material;if(!m)return;if(!CH().some(x=>String(x.id)===String(mid))){let c=CL(m);c.status="reserved";CH().push(c)}try{renderChosen()}catch(e){}try{renderMaterials(CC())}catch(e){}try{summaryRender()}catch(e){}setTimeout(patchRows,0)}
 function intercept(e){const row=e.target.closest&&e.target.closest(".material-row");const list=E("materialList");if(!row||!list||!list.contains(row))return;const mid=midFromRow(row);if(!mid)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();addStable(mid);return false}
-function popup(mid){const b=block(mid),m=b.material||mat(mid);if(!m)return;let body=`<h3>${H(m.code||"")} ${H(m.name||"")}</h3>`;if(b.status==="reserved"){const o=b.order;body+=o?`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br><b>Klant:</b> ${H(o.customer?.name||"Onbekend")}<br><b>Opdracht:</b> ${H(o.number||"")} - ${H(o.title||"")}<br><b>Datum:</b> ${H(NICE(o.start))} t/m ${H(NICE(o.end))}</div>`:`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br>Geen opdracht gevonden.</div>`}else{body+=`<div class="bns-box defect"><b>Status:</b> ${H(label(b.status))}<br><b>Omschrijving:</b> ${H(m.issueText||m.notes||"")}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button></div>`}openModal("Materiaal status",body)}
+function popup(mid){const b=block(mid),m=b.material||mat(mid);if(!m)return;let body=`<h3>${H(m.code||"")} ${H(m.name||"")}</h3>`;if(b.status==="reserved"){const o=b.order;body+=o?`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br><b>Klant:</b> ${H(o.customer?.name||"Onbekend")}<br><b>Opdracht:</b> ${H(o.number||"")} - ${H(o.title||"")}<br><b>Datum:</b> ${H(NICE(o.start))} tot datum ${H(NICE(o.end))}</div>`:`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br>Geen opdracht gevonden.</div>`}else{body+=`<div class="bns-box defect"><b>Status:</b> ${H(label(b.status))}<br><b>Omschrijving:</b> ${H(m.issueText||m.notes||"")}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button></div>`}openModal("Materiaal status",body)}
 function openModal(t,b){let m=E(MODAL_ID);if(!m){m=document.createElement("div");m.id=MODAL_ID;m.className="bns-modal hidden";m.innerHTML='<div class="bns-modal-card"><h2 id="bnsStabielTitle"></h2><div id="bnsStabielBody"></div><div class="actions"><button onclick="BNS_STABIEL_close()">Sluiten</button></div></div>';document.body.appendChild(m)}E("bnsStabielTitle").textContent=t||"Info";E("bnsStabielBody").innerHTML=b||"";m.classList.remove("hidden")}
 function closeModal(){const m=E(MODAL_ID);if(m)m.classList.add("hidden")}
 function freeMat(mid){const m=mat(mid);if(!m)return;m.status="free";m.issueText="";m.usable=true;SAVE();closeModal();try{renderAll()}catch(e){}try{renderMaterials(CC())}catch(e){}setTimeout(patchRows,0)}
@@ -3302,377 +3302,861 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   BNS DIRECTE FIX - MATERIALEN BLIJFT STAAN + KNOPPEN BOVEN
-   Geen observer, geen interval, geen knipperen.
+   BNS LAATSTE HARDE EINDDATUM FIX
+   Staat helemaal onderaan en wint van alle oudere patches.
+
+   - Dashboard: alleen opdrachten met einddatum vandaag of later.
+   - Opdrachten actief: einddatum vandaag of later.
+   - Uitgevoerd: einddatum vóór vandaag.
+   - Bezorger meldingen: alleen actieve opdrachten.
+   - Nieuwe opdracht: startdatum mag niet in verleden.
+   - Einddatum mag niet vóór startdatum.
+   - Kaarten tonen start tot datum einddatum.
+   - Geen setInterval, geen bewegend beeld.
    ========================================================= */
 (function(){
   "use strict";
 
-  function $(id){ return document.getElementById(id); }
+  var BNS_MODE = "active";
 
-  function T(el){ return String(el && el.textContent || "").trim(); }
+  function byId(id){ return document.getElementById(id); }
 
-  function H(v){
+  function S(){
+    try {
+      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
+    } catch(e) {}
+    try {
+      if (window.state && Array.isArray(window.state.orders)) return window.state;
+    } catch(e) {}
+    try {
+      var raw = localStorage.getItem("eventPlannerProV91") ||
+                localStorage.getItem("eventPlannerPro") ||
+                localStorage.getItem("eventPlannerState") ||
+                localStorage.getItem("plannerState");
+      var parsed = JSON.parse(raw || "{}");
+      if (parsed && Array.isArray(parsed.orders)) return parsed;
+    } catch(e) {}
+    return {orders: [], materials: [], alerts: [], users: []};
+  }
+
+  function saveState(){
+    try {
+      if (typeof save === "function") save();
+      else localStorage.setItem("eventPlannerProV91", JSON.stringify(S()));
+    } catch(e) {}
+  }
+
+  function esc(v){
     return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function stateObj(){
-    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
-    return window.state || {materials:[], orders:[]};
+  function parseDate(v){
+    var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
   }
 
-  function chosenArr(){
-    try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e) {}
-    return window.chosen || [];
+  function today(){
+    var d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
   }
 
-  function setChosen(next){
-    try { chosen = next; } catch(e) {}
-    window.chosen = next;
+  function nice2(v){
+    try {
+      if (typeof nice === "function") return nice(v);
+    } catch(e) {}
+    var d = parseDate(v);
+    if (!d) return v || "";
+    return String(d.getDate()).padStart(2, "0") + "-" +
+           String(d.getMonth() + 1).padStart(2, "0") + "-" +
+           d.getFullYear();
   }
 
-  function catKey(v){
-    return String(v || "TW").trim().toUpperCase() || "TW";
+  function endDate(order){
+    return parseDate(order && (order.end || order.start));
   }
 
-  function getCurrentCat(){
-    try { if (typeof currentCat !== "undefined" && currentCat) return catKey(currentCat); } catch(e) {}
-    return catKey(window.currentCat || "TW");
+  function isPastEnd(order){
+    var e = endDate(order);
+    return !!e && e < today();
   }
 
-  function setCurrentCat(cat){
-    var c = catKey(cat);
-    try { currentCat = c; } catch(e) {}
-    window.currentCat = c;
-    return c;
+  function group(order){
+    var status = String(order && order.status || "").toLowerCase();
+
+    if (status === "geannuleerd") return "cancelled";
+    if (status === "uitgevoerd") return "done";
+    if (isPastEnd(order)) return "done";
+
+    return "active";
   }
 
-  function materialStatus(m, selected){
-    if (selected) return ["Gekozen", "chosen"];
-    var s = String(m && m.status || "free").toLowerCase();
-    if (s === "reserved" || s === "gereserveerd") return ["Gereserveerd", "reserved"];
-    if (s === "defect") return ["Defect", "defect"];
-    if (s === "inactive" || s === "niet actief" || s === "niet beschikbaar") return ["Niet actief", "inactive"];
-    return ["Vrij", "free"];
+  function activeOrder(order){
+    return group(order) === "active";
   }
 
-  function renderCatsDirect(){
-    var box = $("materialCats");
-    if (!box) return;
-
-    var s = stateObj();
-    var cats = Array.from(new Set((s.materials || []).map(function(m){
-      return catKey(m.cat || "EXTRA");
-    }))).sort();
-
-    if (!cats.length) cats = ["TW","TO","KW","EXTRA"];
-
-    var cur = getCurrentCat();
-    if (cats.indexOf(cur) === -1) cur = setCurrentCat(cats[0]);
-
-    box.innerHTML = cats.map(function(cat){
-      return '<button type="button" class="' + (cat === cur ? 'active' : '') + '" data-bns-cat="' + H(cat) + '">' + H(cat) + '</button>';
-    }).join("");
-
-    Array.from(box.querySelectorAll("[data-bns-cat]")).forEach(function(btn){
-      btn.onclick = function(e){
-        e.preventDefault();
-        setCurrentCat(btn.getAttribute("data-bns-cat"));
-        renderCatsDirect();
-        renderMaterialsDirect(getCurrentCat());
-      };
+  function sortedOrders(){
+    return (S().orders || []).slice().sort(function(a, b){
+      return String(a.start || "9999-99-99").localeCompare(String(b.start || "9999-99-99"));
     });
   }
 
-  function renderMaterialsDirect(cat){
-    var list = $("materialList");
-    if (!list) return;
+  function money2(v){
+    try {
+      if (typeof money === "function") return money(v || 0);
+      if (typeof euro === "function") return euro(v || 0);
+    } catch(e) {}
+    return "€ " + Number(v || 0).toFixed(2).replace(".", ",");
+  }
 
-    var s = stateObj();
-    var active = setCurrentCat(cat || getCurrentCat());
-    var q = String(($("materialSearch") || {}).value || "").toLowerCase().trim();
-    var chosenIds = chosenArr().map(function(x){ return String(x.id); });
+  function dateRange(order){
+    var start = nice2(order.start);
+    var end = nice2(order.end || order.start);
+    return start && end && start !== end ? start + " tot datum " + end : (start || end || "");
+  }
 
-    var rows = (s.materials || [])
-      .filter(function(m){ return catKey(m.cat) === active; })
-      .filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q) !== -1; });
+  function matChips(materials){
+    return (materials || []).map(function(m){
+      var code = m.code || m.name || "";
+      return '<span class="material-code-chip">' + esc(code) + '</span>';
+    }).join(" ");
+  }
 
-    list.innerHTML = rows.map(function(m){
-      var selected = chosenIds.indexOf(String(m.id)) !== -1;
-      var st = materialStatus(m, selected);
-      return '' +
-        '<div class="material-row bns-direct-row ' + (selected ? 'bns-selected-material-red selected' : '') + ' status-' + st[1] + '" data-material-id="' + H(m.id) + '">' +
-          '<div class="catbar cat-' + H(catKey(m.cat)) + '"></div>' +
-          '<div><b>' + H(m.code) + '</b> ' + H(m.name) + '<br><small>' + H(m.price || "") + '</small></div>' +
-          '<div><span class="badge ' + st[1] + '">' + (selected ? '● ● ' : '') + H(st[0]) + '</span></div>' +
-        '</div>';
-    }).join("") || "<p>Geen materiaal</p>";
+  function bnsCard(order){
+    var loc = order.location || {};
+    var addr = [loc.name, loc.street, loc.city].filter(Boolean).join(" ");
+    var total = order.pricing && order.pricing.grand != null ? order.pricing.grand : order.amount;
+    var deposit = order.pricing && order.pricing.deposit != null ? order.pricing.deposit : 0;
+    var status = order.status || "";
 
-    Array.from(list.querySelectorAll("[data-material-id]")).forEach(function(row){
-      row.onclick = function(e){
-        e.preventDefault();
-        addMatDirect(row.getAttribute("data-material-id"));
-      };
+    return '' +
+      '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
+        '<div class="date-tile">' + esc(nice2(order.start)) + '</div>' +
+        '<div>' +
+          '<div class="order-title">' + esc(order.number || "") + ' - ' + esc(order.title || "") +
+            ' <span class="status status-' + esc(status) + '">' + esc(status) + '</span></div>' +
+          '<div><b>Datum:</b> ' + esc(dateRange(order)) + '</div>' +
+          '<div>Klant: ' + esc(order.customer && order.customer.name || "") + '</div>' +
+          '<div>Locatie: ' + esc(addr) + '</div>' +
+          '<div>Materialen: ' + matChips(order.materials || []) + '</div>' +
+          '<div>Totaal: ' + money2(total) + ' | Borg: ' + money2(deposit) + '</div>' +
+          '<button type="button" class="bns-waze-btn" onclick="window.open(\'https://waze.com/ul?q=' + encodeURIComponent(addr) + '&navigate=yes\',\'_blank\')">Waze</button>' +
+        '</div>' +
+        '<div class="actions">' +
+          '<button type="button" onclick="editOrder(\'' + esc(order.id) + '\')">Wijzigen</button>' +
+          (status === "Geannuleerd"
+            ? '<button type="button" onclick="restore(\'' + esc(order.id) + '\')">Terughalen</button>'
+            : '<button type="button" class="danger" onclick="cancel(\'' + esc(order.id) + '\')">Annuleren</button>') +
+        '</div>' +
+      '</div>';
+  }
+
+  function searchMatch(order, q){
+    if (!q) return true;
+
+    var matText = (order.materials || []).map(function(m){
+      return [m.cat, m.code, m.name, m.price, m.status].join(" ");
+    }).join(" ");
+
+    var haystack = [
+      order.id,
+      order.oldId,
+      order.number,
+      order.title,
+      order.status,
+      order.start,
+      order.end,
+      nice2(order.start),
+      nice2(order.end),
+      dateRange(order),
+      order.customer && order.customer.name,
+      order.customer && order.customer.phone,
+      order.customer && order.customer.email,
+      order.location && order.location.name,
+      order.location && order.location.street,
+      order.location && order.location.city,
+      matText
+    ].join(" ").toLowerCase();
+
+    return haystack.indexOf(q) !== -1;
+  }
+
+  function getMode(){
+    try {
+      if (typeof mode !== "undefined" && mode) return mode;
+    } catch(e) {}
+    return window.mode || BNS_MODE || "active";
+  }
+
+  function setMode(m){
+    BNS_MODE = m;
+    window.mode = m;
+    try { mode = m; } catch(e) {}
+  }
+
+  function findButton(textRegex, id){
+    return byId(id) || Array.from(document.querySelectorAll("button")).find(function(b){
+      return textRegex.test(b.textContent || "");
     });
   }
 
-  function addMatDirect(mid){
-    var s = stateObj();
-    var arr = chosenArr();
-    var m = (s.materials || []).find(function(x){ return String(x.id) === String(mid); });
+  function paintModeButtons(){
+    var current = getMode();
+    var list = [
+      [findButton(/actieve opdrachten/i, "activeOrders"), "active"],
+      [findButton(/uitgevoerde opdrachten/i, "doneOrders"), "done"],
+      [findButton(/geannuleerde opdrachten/i, "cancelledOrders"), "cancelled"]
+    ];
 
-    if (!m) return;
+    list.forEach(function(pair){
+      var btn = pair[0];
+      var active = pair[1] === current;
+      if (!btn) return;
 
-    if (!arr.some(function(x){ return String(x.id) === String(mid); })) {
-      var copy;
-      try { copy = structuredClone(m); }
-      catch(e) { copy = JSON.parse(JSON.stringify(m)); }
-      arr.push(copy);
-      setChosen(arr);
-    }
+      btn.classList.toggle("bns-final-active-filter", active);
 
-    renderChosenDirect();
-    renderMaterialsDirect(getCurrentCat());
-
-    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
-  }
-
-  function removeMatDirect(mid){
-    var arr = chosenArr().filter(function(m){
-      return String(m.id) !== String(mid);
-    });
-    setChosen(arr);
-    renderChosenDirect();
-    renderMaterialsDirect(getCurrentCat());
-    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
-  }
-
-  function renderChosenDirect(){
-    var box = $("chosenMaterials");
-    if (!box) return;
-
-    box.innerHTML = chosenArr().map(function(m){
-      return '<span class="chip">' + H(m.code || "") + ' ' + H(m.name || "") +
-        '<button type="button" data-remove-mat="' + H(m.id) + '">x</button></span>';
-    }).join("");
-
-    Array.from(box.querySelectorAll("[data-remove-mat]")).forEach(function(btn){
-      btn.onclick = function(e){
-        e.preventDefault();
-        removeMatDirect(btn.getAttribute("data-remove-mat"));
-      };
+      if (active) {
+        btn.style.setProperty("background", "#0f172a", "important");
+        btn.style.setProperty("color", "#fff", "important");
+        btn.style.setProperty("border", "3px solid #22d3ee", "important");
+        btn.style.setProperty("box-shadow", "0 0 0 3px rgba(34,211,238,.25)", "important");
+      } else {
+        btn.style.removeProperty("background");
+        btn.style.removeProperty("color");
+        btn.style.removeProperty("border");
+        btn.style.removeProperty("box-shadow");
+      }
     });
   }
 
-  function workTabDirect(idv){
-    Array.from(document.querySelectorAll(".workpanel")).forEach(function(x){
-      x.classList.add("hidden");
-    });
-
-    var panel = $(idv);
-    if (panel) panel.classList.remove("hidden");
-
-    Array.from(document.querySelectorAll(".worktab")).forEach(function(x){
-      x.classList.toggle("active", x.dataset.tab === idv);
-    });
-
-    if (idv === "materialPanel") {
-      renderCatsDirect();
-      renderMaterialsDirect(getCurrentCat());
-    }
-
-    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
-    placeTopButtons();
-  }
-
-  function val(id){
-    var el = $(id);
-    return el ? el.value || "" : "";
-  }
-
-  function euro(v){
-    var n = Number(String(v || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
-    if (!isFinite(n)) n = 0;
-    return "€ " + n.toFixed(2).replace(".", ",");
-  }
-
-  function documentText(title){
-    var lines = chosenArr().map(function(m){
-      return "1x " + (m.code || "") + " " + (m.name || "") + " | Prijs " + (m.price || "0");
-    }).join("\n");
-
-    return title + "\n\n" +
-      "Opdracht: " + val("orderNumber") + "\n" +
-      "Titel: " + val("orderTitle") + "\n" +
-      "Datum: " + val("dateStart") + (val("dateEnd") && val("dateEnd") !== val("dateStart") ? " tot datum " + val("dateEnd") : "") + "\n\n" +
-      "Klant:\n" + val("customerName") + "\n" + val("customerStreet") + "\n" + val("customerZip") + " " + val("customerCity") + "\n\n" +
-      "Locatie:\n" + val("locationName") + "\n" + val("locationStreet") + "\n" + val("locationZip") + " " + val("locationCity") + "\n\n" +
-      "Materialen:\n" + (lines || "Geen materialen gekozen") + "\n\n" +
-      "Extra:\n" + val("orderExtra");
-  }
-
-  function openDoc(title, body){
-    var w = window.open("", "_blank");
-    if (!w) {
-      alert(body);
+  function renderOrdersFinal(){
+    var list = byId("ordersList");
+    if (!list) {
+      paintModeButtons();
       return;
     }
 
-    w.document.write("<!doctype html><html><head><title>" + H(title) + "</title><style>body{font-family:Arial;padding:32px;line-height:1.45}pre{white-space:pre-wrap;font-family:Arial}button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:bold;margin-bottom:18px}</style></head><body><button onclick='window.print()'>Afdrukken</button><pre>" + H(body) + "</pre></body></html>");
-    w.document.close();
+    var q = String((byId("ordersSearch") || {}).value || "").toLowerCase().trim();
+    var m = getMode();
+
+    var rows = sortedOrders()
+      .filter(function(order){ return group(order) === m; })
+      .filter(function(order){ return searchMatch(order, q); });
+
+    list.innerHTML = rows.map(bnsCard).join("") || "<p>Niets gevonden</p>";
+    paintModeButtons();
   }
 
-  function copyOrder(){
-    try { editing = null; } catch(e) {}
-    window.editing = null;
-
-    if ($("orderStatus")) $("orderStatus").value = "Offerte";
-    if ($("dateStart")) $("dateStart").value = "";
-    if ($("dateEnd")) $("dateEnd").value = "";
-
+  function renderDashboardFinal(){
     try {
-      if (typeof nextNo === "function" && $("orderNumber")) $("orderNumber").value = nextNo();
+      if (byId("statOrders")) byId("statOrders").textContent = (S().orders || []).length;
+      if (byId("statMaterials")) byId("statMaterials").textContent = (S().materials || []).length;
+      if (byId("statAlerts")) byId("statAlerts").textContent = (S().alerts || []).length;
     } catch(e) {}
 
-    alert("Copy gemaakt. Vul nieuwe datum in en sla op.");
+    var box = byId("dashOrders");
+    if (!box) return;
+
+    var rows = sortedOrders()
+      .filter(activeOrder)
+      .slice(0, 6);
+
+    box.innerHTML = rows.map(bnsCard).join("") || "<p>Geen aankomende opdrachten.</p>";
   }
 
-  function makeInvoice(){
-    openDoc("Factuur", documentText("FACTUUR"));
+  function renderDriverFinal(){
+    var box = byId("driverList");
+    if (!box) return;
+
+    var rows = sortedOrders()
+      .filter(activeOrder)
+      .slice(0, 25);
+
+    box.innerHTML = rows.map(function(order){
+      return '' +
+        '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
+          '<div class="date-tile">' + esc(nice2(order.start)) + '</div>' +
+          '<div>' +
+            '<b>' + esc(order.number || "") + ' - ' + esc(order.title || "") + '</b><br>' +
+            '<b>Datum:</b> ' + esc(dateRange(order)) + '<br>' +
+            esc((order.materials || []).map(function(m){ return m.code || m.name || ""; }).join(", ")) +
+          '</div>' +
+          '<div class="actions">' +
+            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Storing\')">Storing</button>' +
+            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Schade\')">Schade</button>' +
+            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Vermissing\')">Vermissing</button>' +
+          '</div>' +
+        '</div>';
+    }).join("") || "<p>Geen actieve opdrachten.</p>";
   }
 
-  function makeOrderBon(){
-    try {
-      if (typeof makeConfirmationText === "function") {
-        openDoc("Opdracht bon", makeConfirmationText().replace(/OPDRACHTBEVESTIGING/gi, "OPDRACHT BON"));
-        return;
-      }
-    } catch(e) {}
+  function validNewOrderDate(){
+    var startInput = byId("dateStart");
+    var endInput = byId("dateEnd");
 
-    openDoc("Opdracht bon", documentText("OPDRACHT BON"));
-  }
+    if (!startInput) return true;
 
-  function removeOldTopButtons(){
-    ["bnsCopyTopReal", "bnsInvoiceTopReal", "bnsBonTopReal"].forEach(function(id){
-      var el = $(id);
-      if (el) el.remove();
-    });
-  }
+    var start = parseDate(startInput.value);
+    var end = parseDate((endInput && endInput.value) || startInput.value);
+    var now = today();
 
-  function placeTopButtons(){
-    removeOldTopButtons();
-
-    var extra = Array.from(document.querySelectorAll(".worktab")).find(function(btn){
-      return /^extra$/i.test(T(btn));
-    });
-
-    if (!extra || !extra.parentNode) return;
-
-    function make(id, text, fn, cls){
-      var b = document.createElement("button");
-      b.id = id;
-      b.type = "button";
-      b.textContent = text;
-      b.className = (extra.className || "worktab") + " " + cls;
-      b.onclick = function(e){
-        e.preventDefault();
-        e.stopPropagation();
-        fn();
-      };
-      return b;
+    if (start && start < now) {
+      alert("Je kunt geen nieuwe opdracht in het verleden plannen. Vandaag mag wel.");
+      return false;
     }
 
-    var copy = make("bnsCopyTopReal", "Copy opdracht", copyOrder, "bns-copy-top");
-    var inv = make("bnsInvoiceTopReal", "Factuur maken", makeInvoice, "bns-invoice-top");
-    var bon = make("bnsBonTopReal", "Opdracht bon", makeOrderBon, "bns-bon-top");
+    if (start && end && end < start) {
+      alert("Einddatum kan niet vóór startdatum liggen.");
+      return false;
+    }
 
-    extra.insertAdjacentElement("afterend", copy);
-    copy.insertAdjacentElement("afterend", inv);
-    inv.insertAdjacentElement("afterend", bon);
+    return true;
   }
 
-  function patchSaveClose(){
+  function hookButtonsFinal(){
+    var active = findButton(/actieve opdrachten/i, "activeOrders");
+    var done = findButton(/uitgevoerde opdrachten/i, "doneOrders");
+    var cancelled = findButton(/geannuleerde opdrachten/i, "cancelledOrders");
+
+    if (active) active.onclick = function(e){ if(e)e.preventDefault(); setMode("active"); renderOrdersFinal(); };
+    if (done) done.onclick = function(e){ if(e)e.preventDefault(); setMode("done"); renderOrdersFinal(); };
+    if (cancelled) cancelled.onclick = function(e){ if(e)e.preventDefault(); setMode("cancelled"); renderOrdersFinal(); };
+
+    var search = byId("ordersSearch");
+    if (search && !search.dataset.bnsFinalHardSearch) {
+      search.dataset.bnsFinalHardSearch = "1";
+      search.addEventListener("input", renderOrdersFinal);
+    }
+
+    var saveBtn = byId("saveOrder");
+    if (saveBtn && !saveBtn.dataset.bnsFinalDateCheck) {
+      saveBtn.dataset.bnsFinalDateCheck = "1";
+      saveBtn.addEventListener("click", function(e){
+        if (!validNewOrderDate()) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return false;
+        }
+      }, true);
+    }
+
+    paintModeButtons();
+  }
+
+  function installCss(){
+    if (byId("bns-final-hard-css")) return;
+
+    var style = document.createElement("style");
+    style.id = "bns-final-hard-css";
+    style.textContent = '' +
+      '.bns-final-active-filter{background:#0f172a!important;color:#fff!important;border:3px solid #22d3ee!important;box-shadow:0 0 0 3px rgba(34,211,238,.25)!important}' +
+      '.bns-waze-btn{margin-top:10px;background:#16a34a!important;color:white!important;border:none!important;border-radius:10px!important;padding:8px 22px!important;font-weight:800!important}';
+    document.head.appendChild(style);
+  }
+
+  function refreshFinal(){
+    installCss();
+    hookButtonsFinal();
+    renderDashboardFinal();
+    renderOrdersFinal();
+    renderDriverFinal();
+  }
+
+  // Vervang functies definitief.
+  window.card = bnsCard;
+  window.renderOrders = renderOrdersFinal;
+  window.renderDashboard = renderDashboardFinal;
+  window.renderDriver = renderDriverFinal;
+
+  try { card = bnsCard; } catch(e) {}
+  try { renderOrders = renderOrdersFinal; } catch(e) {}
+  try { renderDashboard = renderDashboardFinal; } catch(e) {}
+  try { renderDriver = renderDriverFinal; } catch(e) {}
+
+  // saveCurrentOrder ook afvangen.
+  if (typeof window.saveCurrentOrder === "function" && !window.saveCurrentOrder.__bnsFinalHardDate) {
+    var oldSave = window.saveCurrentOrder;
+    var newSave = function(){
+      if (!validNewOrderDate()) return false;
+      return oldSave.apply(this, arguments);
+    };
+    newSave.__bnsFinalHardDate = true;
+    window.saveCurrentOrder = newSave;
+    try { saveCurrentOrder = newSave; } catch(e) {}
+  } else {
     try {
-      var fn = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null);
-      if (fn && !fn.__bnsDirectCloseAfterSave) {
-        var wrapped = function(){
-          var r = fn.apply(this, arguments);
-          setTimeout(function(){
-            try { if (typeof showPage === "function") showPage("orders"); } catch(e) {}
-          }, 100);
-          return r;
+      if (typeof saveCurrentOrder === "function" && !saveCurrentOrder.__bnsFinalHardDate) {
+        var oldSave2 = saveCurrentOrder;
+        var newSave2 = function(){
+          if (!validNewOrderDate()) return false;
+          return oldSave2.apply(this, arguments);
         };
-        wrapped.__bnsDirectCloseAfterSave = true;
-        window.saveCurrentOrder = wrapped;
-        try { saveCurrentOrder = wrapped; } catch(e) {}
+        newSave2.__bnsFinalHardDate = true;
+        saveCurrentOrder = newSave2;
+        window.saveCurrentOrder = newSave2;
       }
     } catch(e) {}
   }
 
-  function addCss(){
-    if ($("bnsDirectMaterialTopCss")) return;
+  // renderAll opnieuw vastzetten zonder interval.
+  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+  var newRenderAll = function(){
+    try {
+      if (oldRenderAll && oldRenderAll !== newRenderAll) oldRenderAll.apply(this, arguments);
+    } catch(e) {}
+
+    // Direct daarna definitief juiste lijsten tekenen.
+    hookButtonsFinal();
+    renderDashboardFinal();
+    renderOrdersFinal();
+    renderDriverFinal();
+
+    try {
+      var driverSelect = byId("orderDriver");
+      if (driverSelect && S().users) {
+        driverSelect.innerHTML = '<option value="">Geen</option>' + (S().users || [])
+          .filter(function(u){ return u.role === "Bezorger"; })
+          .map(function(u){ return "<option>" + esc(u.name) + "</option>"; })
+          .join("");
+      }
+    } catch(e) {}
+
+    try {
+      if (byId("alertsBtn")) {
+        var open = (S().alerts || []).filter(function(a){ return !a.resolved; }).length;
+        byId("alertsBtn").textContent = "🚨 Systeemmeldingen (" + open + ")";
+      }
+    } catch(e) {}
+
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+  };
+
+  window.renderAll = newRenderAll;
+  try { renderAll = newRenderAll; } catch(e) {}
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(refreshFinal, 250);
+    });
+  } else {
+    setTimeout(refreshFinal, 250);
+  }
+
+  // Eén extra late run voor scripts die na DOMContentLoaded nog bouwen. Geen interval.
+  setTimeout(refreshFinal, 1200);
+})();
+
+
+/* =========================================================
+   BNS UPDATE - OPDRACHTENRECHT VOOR BEZORGER + SCHADE MELDINGEN TAB
+   - Nieuwe knop naast geannuleerde opdrachten: Schade meldingen.
+   - Meldingen type Storing / Schade / Vermissing staan daar overzichtelijk.
+   - Bezorger kan recht krijgen om Opdrachten te bekijken/zoeken.
+   - Geen interval, geen bewegend scherm.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  var DAMAGE_MODE = "damage";
+
+  function $(id){ return document.getElementById(id); }
+
+  function appState(){
+    try {
+      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
+    } catch(e) {}
+    try {
+      if (window.state && Array.isArray(window.state.orders)) return window.state;
+    } catch(e) {}
+    try {
+      var raw = localStorage.getItem("eventPlannerProV91") ||
+                localStorage.getItem("eventPlannerPro") ||
+                localStorage.getItem("plannerState");
+      var parsed = JSON.parse(raw || "{}");
+      if (parsed && Array.isArray(parsed.orders)) return parsed;
+    } catch(e) {}
+    return {orders: [], users: [], alerts: []};
+  }
+
+  function saveState(){
+    try {
+      if (typeof save === "function") save();
+      else localStorage.setItem("eventPlannerProV91", JSON.stringify(appState()));
+    } catch(e) {}
+  }
+
+  function esc(v){
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function dateOnly(v){
+    var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  }
+
+  function niceDate(v){
+    try {
+      if (typeof nice === "function") return nice(v);
+    } catch(e) {}
+    var d = dateOnly(v);
+    if (!d) return v || "";
+    return String(d.getDate()).padStart(2, "0") + "-" +
+           String(d.getMonth() + 1).padStart(2, "0") + "-" +
+           d.getFullYear();
+  }
+
+  function findOrder(orderId){
+    return (appState().orders || []).find(function(order){
+      return String(order.id) === String(orderId);
+    });
+  }
+
+  function alertType(alertItem){
+    var txt = String(alertItem.type || alertItem.title || alertItem.note || alertItem.message || "").toLowerCase();
+    if (txt.indexOf("storing") !== -1) return "Storing";
+    if (txt.indexOf("vermissing") !== -1 || txt.indexOf("vermist") !== -1) return "Vermissing";
+    if (txt.indexOf("schade") !== -1) return "Schade";
+    return "Melding";
+  }
+
+  function isDamageAlert(alertItem){
+    var type = alertType(alertItem);
+    return type === "Storing" || type === "Schade" || type === "Vermissing";
+  }
+
+  function getMode(){
+    try {
+      if (typeof mode !== "undefined" && mode) return mode;
+    } catch(e) {}
+    return window.mode || "active";
+  }
+
+  function setMode(nextMode){
+    window.mode = nextMode;
+    try { mode = nextMode; } catch(e) {}
+  }
+
+  function findButtonByText(regex){
+    return Array.from(document.querySelectorAll("button")).find(function(button){
+      return regex.test(button.textContent || "");
+    });
+  }
+
+  function ensureDamageButton(){
+    if ($("damageOrders")) return $("damageOrders");
+
+    var cancelled = $("cancelledOrders") || findButtonByText(/geannuleerde opdrachten/i);
+    var done = $("doneOrders") || findButtonByText(/uitgevoerde opdrachten/i);
+
+    var button = document.createElement("button");
+    button.id = "damageOrders";
+    button.type = "button";
+    button.textContent = "Schade meldingen";
+
+    if (cancelled && cancelled.parentNode) {
+      cancelled.insertAdjacentElement("afterend", button);
+    } else if (done && done.parentNode) {
+      done.insertAdjacentElement("afterend", button);
+    }
+
+    return button;
+  }
+
+  function paintDamageButton(){
+    var current = getMode();
+    var damage = $("damageOrders");
+    if (!damage) return;
+
+    var active = current === DAMAGE_MODE;
+    damage.classList.toggle("bns-damage-active", active);
+
+    if (active) {
+      damage.style.setProperty("background", "#7f1d1d", "important");
+      damage.style.setProperty("color", "#fff", "important");
+      damage.style.setProperty("border", "3px solid #f97316", "important");
+      damage.style.setProperty("box-shadow", "0 0 0 3px rgba(249,115,22,.25)", "important");
+    } else {
+      damage.style.removeProperty("background");
+      damage.style.removeProperty("color");
+      damage.style.removeProperty("border");
+      damage.style.removeProperty("box-shadow");
+    }
+  }
+
+  function damageCard(alertItem){
+    var order = findOrder(alertItem.orderId);
+    var type = alertType(alertItem);
+    var resolved = !!alertItem.resolved;
+    var msg = alertItem.message || alertItem.note || "";
+
+    return '' +
+      '<div class="order-card bns-damage-card ' + (resolved ? 'resolved' : 'open') + '">' +
+        '<div class="date-tile">' + esc((alertItem.time || "").split(",")[0] || "") + '</div>' +
+        '<div>' +
+          '<div class="order-title">' + esc(type) + ' ' +
+            '<span class="status">' + (resolved ? 'Opgelost' : 'Open') + '</span></div>' +
+          '<div><b>Opdracht:</b> ' + esc(order ? (order.number || "") + " - " + (order.title || "") : "Onbekend") + '</div>' +
+          '<div><b>Klant:</b> ' + esc(order && order.customer && order.customer.name || "") + '</div>' +
+          '<div><b>Datum opdracht:</b> ' + esc(order ? niceDate(order.start) + (order.end && order.end !== order.start ? " tot datum " + niceDate(order.end) : "") : "") + '</div>' +
+          '<div><b>Melding:</b> ' + esc(msg) + '</div>' +
+          '<div><b>Gemeld:</b> ' + esc(alertItem.time || "") + '</div>' +
+          (resolved ? '<div><b>Opgelost:</b> ' + esc(alertItem.resolvedAt || "") + '</div>' : '') +
+        '</div>' +
+        '<div class="actions">' +
+          (resolved ? '' : '<button type="button" onclick="BNS_damageResolve(\'' + esc(alertItem.id) + '\')">Opgelost na reparatie</button>') +
+          '<button type="button" onclick="BNS_damageDelete(\'' + esc(alertItem.id) + '\')" ' + (resolved ? '' : 'disabled') + '>Wissen</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderDamageAlerts(){
+    var list = $("ordersList");
+    if (!list) return;
+
+    var query = String(($("ordersSearch") || {}).value || "").toLowerCase().trim();
+
+    var alerts = (appState().alerts || [])
+      .filter(isDamageAlert)
+      .filter(function(alertItem){
+        if (!query) return true;
+        var order = findOrder(alertItem.orderId);
+        var text = [
+          alertType(alertItem),
+          alertItem.message,
+          alertItem.note,
+          alertItem.time,
+          order && order.number,
+          order && order.title,
+          order && order.customer && order.customer.name
+        ].join(" ").toLowerCase();
+        return text.indexOf(query) !== -1;
+      })
+      .sort(function(a, b){
+        return String(b.time || "").localeCompare(String(a.time || ""));
+      });
+
+    list.innerHTML = alerts.map(damageCard).join("") || "<p>Geen schade/storing/vermissing meldingen.</p>";
+    paintDamageButton();
+  }
+
+  window.BNS_damageResolve = function(alertId){
+    var item = (appState().alerts || []).find(function(alertItem){
+      return String(alertItem.id) === String(alertId);
+    });
+
+    if (!item) return;
+
+    item.resolved = true;
+    item.resolvedAt = new Date().toLocaleString();
+    saveState();
+    renderDamageAlerts();
+  };
+
+  window.BNS_damageDelete = function(alertId){
+    var s = appState();
+    var item = (s.alerts || []).find(function(alertItem){
+      return String(alertItem.id) === String(alertId);
+    });
+
+    if (!item) return;
+
+    if (!item.resolved) {
+      alert("Melding eerst op opgelost zetten na reparatie.");
+      return;
+    }
+
+    s.alerts = (s.alerts || []).filter(function(alertItem){
+      return String(alertItem.id) !== String(alertId);
+    });
+
+    saveState();
+    renderDamageAlerts();
+  };
+
+  function patchOrdersRender(){
+    var oldRenderOrders = window.renderOrders || (typeof renderOrders === "function" ? renderOrders : null);
+
+    if (oldRenderOrders && oldRenderOrders.__bnsDamageWrapped) return;
+
+    var wrapped = function(){
+      if (getMode() === DAMAGE_MODE) {
+        renderDamageAlerts();
+        return;
+      }
+
+      if (oldRenderOrders) oldRenderOrders.apply(this, arguments);
+      paintDamageButton();
+    };
+
+    wrapped.__bnsDamageWrapped = true;
+    window.renderOrders = wrapped;
+    try { renderOrders = wrapped; } catch(e) {}
+  }
+
+  function hookDamageButton(){
+    var button = ensureDamageButton();
+    if (!button) return;
+
+    button.onclick = function(event){
+      if (event) event.preventDefault();
+      setMode(DAMAGE_MODE);
+      renderDamageAlerts();
+      paintDamageButton();
+    };
+
+    var search = $("ordersSearch");
+    if (search && !search.dataset.bnsDamageSearch) {
+      search.dataset.bnsDamageSearch = "1";
+      search.addEventListener("input", function(){
+        if (getMode() === DAMAGE_MODE) renderDamageAlerts();
+      });
+    }
+
+    paintDamageButton();
+  }
+
+  function currentUser(){
+    try {
+      if (window.currentUser) return window.currentUser;
+    } catch(e) {}
+    try {
+      if (typeof currentUser !== "undefined" && currentUser) return currentUser;
+    } catch(e) {}
+    return null;
+  }
+
+  function userMaySeeOrders(user){
+    if (!user) return true;
+    if (user.role === "Admin" || user.role === "Planner") return true;
+    return !!(user.rights && (user.rights.orders || user.rights.opdrachten));
+  }
+
+  function applyOrderMenuPermission(){
+    var user = currentUser();
+    var navOrders = Array.from(document.querySelectorAll("button,.nav button,.side button")).find(function(el){
+      return /^opdrachten$/i.test((el.textContent || "").trim());
+    });
+
+    if (!navOrders) return;
+
+    if (userMaySeeOrders(user)) {
+      navOrders.style.display = "";
+    } else if (user && user.role === "Bezorger") {
+      navOrders.style.display = "none";
+    }
+  }
+
+  function ensureUserRightsCheckbox(){
+    var adminUsers = $("adminUsers") || document.querySelector("#adminUsers, [data-admin='adminUsers']");
+    if (!adminUsers) return;
+
+    if ($("bnsRightOrders")) return;
+
+    var box = document.createElement("label");
+    box.className = "bns-right-orders-box";
+    box.style.display = "block";
+    box.style.margin = "10px 0";
+    box.innerHTML = '<input type="checkbox" id="bnsRightOrders"> Opdrachten bekijken / zoeken';
+
+    var target = $("userRights") || $("adminUserRights") || adminUsers.querySelector(".rights") || adminUsers;
+    target.appendChild(box);
+
+    var checkbox = $("bnsRightOrders");
+
+    checkbox.addEventListener("change", function(){
+      try {
+        var selectedId = window.selectedUserId || window.bnsSelectedUserId || "";
+        var user = (appState().users || []).find(function(u){
+          return String(u.id) === String(selectedId);
+        });
+
+        // Fallback: als geen geselecteerde gebruiker bekend is, pas eerste bezorger aan.
+        if (!user) {
+          user = (appState().users || []).find(function(u){ return u.role === "Bezorger"; });
+        }
+
+        if (!user) return;
+
+        user.rights = user.rights || {};
+        user.rights.orders = checkbox.checked;
+        user.rights.opdrachten = checkbox.checked;
+        saveState();
+        applyOrderMenuPermission();
+      } catch(e) {}
+    });
+  }
+
+  function patchAdminUserFill(){
+    // Als er al bestaande user-form inputs zijn, vul de checkbox mee wanneer erop geklikt wordt.
+    document.addEventListener("click", function(event){
+      var row = event.target && event.target.closest && event.target.closest("[data-user-id]");
+      if (!row) return;
+
+      var userId = row.getAttribute("data-user-id");
+      window.bnsSelectedUserId = userId;
+
+      var user = (appState().users || []).find(function(u){
+        return String(u.id) === String(userId);
+      });
+
+      var checkbox = $("bnsRightOrders");
+      if (checkbox && user) {
+        checkbox.checked = !!(user.rights && (user.rights.orders || user.rights.opdrachten));
+      }
+    }, true);
+  }
+
+  function installCss(){
+    if ($("bnsDamageTabCss")) return;
+
     var style = document.createElement("style");
-    style.id = "bnsDirectMaterialTopCss";
+    style.id = "bnsDamageTabCss";
     style.textContent = `
-      .bns-selected-material-red {
-        background: #fee2e2 !important;
-        border-color: #dc2626 !important;
-        box-shadow: inset 7px 0 0 #dc2626 !important;
+      #damageOrders {
+        margin-left: 10px;
       }
-      .bns-selected-material-red .badge {
-        background: #fecaca !important;
-        color: #7f1d1d !important;
-        font-weight: 900 !important;
+      .bns-damage-card.open {
+        border-left: 7px solid #dc2626;
       }
-      #bnsCopyTopReal, #bnsInvoiceTopReal, #bnsBonTopReal {
-        margin-left: 8px !important;
-        border: none !important;
-        border-radius: 12px !important;
-        padding: 10px 18px !important;
-        color: #fff !important;
-        font-weight: 900 !important;
+      .bns-damage-card.resolved {
+        border-left: 7px solid #16a34a;
+        opacity: .86;
       }
-      #bnsCopyTopReal { background: #047857 !important; }
-      #bnsInvoiceTopReal { background: #2563eb !important; }
-      #bnsBonTopReal { background: #16a34a !important; }
+      .bns-damage-card button[disabled] {
+        opacity: .45;
+        cursor: not-allowed;
+      }
     `;
     document.head.appendChild(style);
   }
 
   function install(){
-    addCss();
+    installCss();
+    patchOrdersRender();
+    hookDamageButton();
+    ensureUserRightsCheckbox();
+    patchAdminUserFill();
+    applyOrderMenuPermission();
+  }
 
-    window.renderCats = renderCatsDirect;
-    window.renderMaterials = renderMaterialsDirect;
-    window.renderChosen = renderChosenDirect;
-    window.addMat = addMatDirect;
-    window.removeMat = removeMatDirect;
-    window.workTab = workTabDirect;
+  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
 
-    try { renderCats = renderCatsDirect; } catch(e) {}
-    try { renderMaterials = renderMaterialsDirect; } catch(e) {}
-    try { renderChosen = renderChosenDirect; } catch(e) {}
-    try { addMat = addMatDirect; } catch(e) {}
-    try { removeMat = removeMatDirect; } catch(e) {}
-    try { workTab = workTabDirect; } catch(e) {}
+  if (oldRenderAll && !oldRenderAll.__bnsDamageRightsWrapped) {
+    var wrappedRenderAll = function(){
+      var result = oldRenderAll.apply(this, arguments);
+      setTimeout(install, 0);
+      return result;
+    };
 
-    Array.from(document.querySelectorAll(".worktab")).forEach(function(btn){
-      btn.onclick = function(e){
-        e.preventDefault();
-        workTabDirect(btn.dataset.tab);
-      };
-    });
-
-    if ($("materialPanel") && !$("materialPanel").classList.contains("hidden")) {
-      renderCatsDirect();
-      renderMaterialsDirect(getCurrentCat());
-    }
-
-    renderChosenDirect();
-    placeTopButtons();
-    patchSaveClose();
+    wrappedRenderAll.__bnsDamageRightsWrapped = true;
+    window.renderAll = wrappedRenderAll;
+    try { renderAll = wrappedRenderAll; } catch(e) {}
   }
 
   if (document.readyState === "loading") {
@@ -3681,5 +4165,301 @@ setInterval(install,1500);
     setTimeout(install, 300);
   }
 
-  setTimeout(install, 1000);
+  setTimeout(install, 1200);
+})();
+
+/* =========================================================
+   BNS V10.1 Documenten map + behoud A12 functies
+   Basis: A12 met werkende einddatum/opdrachtmappen/systeemmeldingen.
+   Toevoeging:
+   - Nieuwe map/tab naast Voertuig: Documenten
+   - In Documenten: Copy opdracht, Factuur maken, Opdracht bevestiging
+   - Extra tab heet Bijzonderheden
+   - Geen setInterval, geen observer; alleen na render en op tab-klik
+   ========================================================= */
+(function installBnsDocumentenMap(){
+  "use strict";
+
+  var PATCH_ID = "bns-documenten-map-v101-1205";
+  var DOC_TAB_ID = "bnsDocumentenTab";
+  var DOC_PANEL_ID = "documentsPanel";
+  var CSS_ID = "bnsDocumentenMapCss";
+
+  function E(id){ return document.getElementById(id); }
+  function q(sel, root){ return (root || document).querySelector(sel); }
+  function qa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+
+  function esc(v){
+    return String(v == null ? "" : v).replace(/[&<>\"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function val(id){ var el = E(id); return el ? (el.value || "") : ""; }
+  function setVal(id, value){ var el = E(id); if (el) el.value = value || ""; }
+  function checked(id){ var el = E(id); return !!(el && el.checked); }
+  function setChecked(id, value){ var el = E(id); if (el) el.checked = !!value; }
+
+  function appState(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    try { if (window.state) return window.state; } catch(e) {}
+    return {orders: [], materials: [], alerts: [], users: []};
+  }
+
+  function saveState(){
+    try { if (typeof save === "function") save(); } catch(e) {}
+  }
+
+  function clone(obj){
+    try { return structuredClone(obj); }
+    catch(e){ return JSON.parse(JSON.stringify(obj)); }
+  }
+
+  function chosenList(){
+    try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e) {}
+    try { if (Array.isArray(window.chosen)) return window.chosen; } catch(e) {}
+    return [];
+  }
+
+  function setChosen(list){
+    try { chosen = list; } catch(e) {}
+    try { window.chosen = list; } catch(e) {}
+  }
+
+  function makeNumber(){
+    var year = new Date().getFullYear();
+    var nums = (appState().orders || []).map(function(o){
+      var m = String(o.number || "").match(new RegExp("^" + year + "-(\\d+)$"));
+      return m ? Number(m[1]) : 0;
+    }).filter(Boolean);
+    return year + "-" + String(nums.length ? Math.max.apply(null, nums) + 1 : 1).padStart(4, "0");
+  }
+
+  function materialText(){
+    return chosenList().map(function(m){
+      var qty = m.qty || m.count || 1;
+      var price = m.linePrice != null ? m.linePrice : (m.priceAmount != null ? m.priceAmount : "");
+      var borg = m.deposit != null ? m.deposit : (m.borg != null ? m.borg : "");
+      return [qty + " x", m.code || "", m.name || "", price !== "" ? "prijs " + price : "", borg !== "" ? "borg " + borg : ""].filter(Boolean).join(" ");
+    }).join("\n");
+  }
+
+  function documentText(title){
+    var start = val("dateStart");
+    var end = val("dateEnd");
+    return title + "\n\n" +
+      "Opdracht: " + val("orderNumber") + "\n" +
+      "Status: " + val("orderStatus") + "\n" +
+      "Titel: " + val("orderTitle") + "\n" +
+      "Biermerk / merk: " + val("orderBrand") + "\n" +
+      "Datum: " + start + (end && end !== start ? " tot datum " + end : "") + "\n\n" +
+      "Klant:\n" + val("customerName") + "\n" + val("customerStreet") + "\n" + val("customerZip") + " " + val("customerCity") + "\n" + val("customerPhone") + "\n" + val("customerEmail") + "\n\n" +
+      "Locatie:\n" + val("locationName") + "\n" + val("locationStreet") + "\n" + val("locationZip") + " " + val("locationCity") + "\nContact: " + val("locationContact") + "\n" + val("locationPhone") + "\n\n" +
+      "Materialen:\n" + (materialText() || "Geen materialen gekozen") + "\n\n" +
+      "Bezorger: " + val("orderDriver") + "\n" +
+      "Voertuig: " + val("orderVehicle") + "\n\n" +
+      "Bijzonderheden:\n" + val("orderExtra");
+  }
+
+  function printDoc(title, body){
+    var w = window.open("", "_blank");
+    if (!w) { alert(body); return; }
+    w.document.write("<!doctype html><html><head><title>" + esc(title) + "</title>" +
+      "<style>body{font-family:Arial,sans-serif;padding:32px;line-height:1.45;font-size:14px;color:#172033}pre{white-space:pre-wrap;font-family:Arial,sans-serif}button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:bold;margin-bottom:18px}</style>" +
+      "</head><body><button onclick='window.print()'>Afdrukken</button><pre>" + esc(body) + "</pre></body></html>");
+    w.document.close();
+  }
+
+  window.makeInvoice = window.makeInvoice || function(){
+    printDoc("Factuur", documentText("FACTUUR"));
+  };
+
+  window.makeConfirmation = window.makeConfirmation || function(){
+    try {
+      if (typeof makeConfirmationText === "function") {
+        printDoc("Opdracht bevestiging", makeConfirmationText());
+        return;
+      }
+    } catch(e) {}
+    printDoc("Opdracht bevestiging", documentText("OPDRACHTBEVESTIGING"));
+  };
+
+  function snapshotCurrentOrder(){
+    return {
+      orderTitle: val("orderTitle"),
+      orderBrand: val("orderBrand"),
+      customerName: val("customerName"),
+      customerStreet: val("customerStreet"),
+      customerZip: val("customerZip"),
+      customerCity: val("customerCity"),
+      customerPhone: val("customerPhone"),
+      customerEmail: val("customerEmail"),
+      locationName: val("locationName"),
+      locationStreet: val("locationStreet"),
+      locationZip: val("locationZip"),
+      locationCity: val("locationCity"),
+      locationContact: val("locationContact"),
+      locationPhone: val("locationPhone"),
+      showLocationOnDocs: checked("showLocationOnDocs"),
+      materials: clone(chosenList()),
+      orderDriver: val("orderDriver"),
+      orderVehicle: val("orderVehicle"),
+      orderExtra: val("orderExtra"),
+      priceExcl: val("priceExcl"),
+      discountAmount: val("discountAmount"),
+      vatPercent: val("vatPercent"),
+      depositAmount: val("depositAmount")
+    };
+  }
+
+  function fillCopiedOrder(data){
+    try { if (typeof showPage === "function") showPage("newOrder"); } catch(e) {}
+    try { editing = null; } catch(e) {}
+    try { window.editing = null; } catch(e) {}
+
+    setVal("orderNumber", makeNumber());
+    setVal("orderStatus", "Offerte");
+    setVal("dateStart", "");
+    setVal("dateEnd", "");
+
+    Object.keys(data || {}).forEach(function(key){
+      if (key === "materials" || key === "showLocationOnDocs") return;
+      setVal(key, data[key]);
+    });
+    setChecked("showLocationOnDocs", data && data.showLocationOnDocs);
+    setChosen(clone((data && data.materials) || []));
+
+    try { if (typeof renderChosen === "function") renderChosen(); } catch(e) {}
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+    try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || (typeof currentCat !== "undefined" ? currentCat : "TW")); } catch(e) {}
+  }
+
+  window.copyOrder = window.copyOrder || function(){
+    var snap = snapshotCurrentOrder();
+
+    try {
+      if (typeof saveCurrentOrder === "function" && val("orderNumber")) saveCurrentOrder();
+    } catch(e) {}
+
+    setTimeout(function(){
+      fillCopiedOrder(snap);
+      try { if (typeof toastMsg === "function") toastMsg("Copy opdracht gemaakt. Vul nieuwe datum in en sla op."); } catch(e) {}
+    }, 50);
+  };
+
+  function activateTab(tabId){
+    qa(".workpanel").forEach(function(panel){ panel.classList.add("hidden"); });
+    var panel = E(tabId);
+    if (panel) panel.classList.remove("hidden");
+    qa(".worktab").forEach(function(button){ button.classList.toggle("active", button.dataset.tab === tabId); });
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+  }
+
+  function ensureCss(){
+    if (E(CSS_ID)) return;
+    var style = document.createElement("style");
+    style.id = CSS_ID;
+    style.textContent = "" +
+      "#" + DOC_PANEL_ID + " .bns-doc-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}" +
+      "#" + DOC_PANEL_ID + " .bns-doc-btn{border:0;border-radius:14px;color:#fff;padding:14px 18px;font-size:17px;font-weight:900;cursor:pointer;box-shadow:0 6px 16px rgba(15,23,42,.16)}" +
+      "#" + DOC_PANEL_ID + " .bns-doc-card{background:var(--panel,#fff);border:1px solid var(--border,#dbe3ef);border-radius:18px;padding:18px;margin-top:14px}" +
+      "#" + DOC_PANEL_ID + " small{display:block;margin-top:10px;opacity:.75}" +
+      "#" + DOC_TAB_ID + "{background:#0f172a!important;color:#fff!important}";
+    document.head.appendChild(style);
+  }
+
+  function makeButton(text, color, fn){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "bns-doc-btn";
+    b.textContent = text;
+    b.style.background = color;
+    b.onclick = function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      fn();
+    };
+    return b;
+  }
+
+  function ensureDocumentsPanel(){
+    var existing = E(DOC_PANEL_ID);
+    if (existing) return existing;
+
+    var vehiclePanel = E("vehiclePanel");
+    var extraPanel = E("extraPanel");
+    var parent = vehiclePanel && vehiclePanel.parentNode ? vehiclePanel.parentNode : (extraPanel && extraPanel.parentNode ? extraPanel.parentNode : E("newOrder"));
+    if (!parent) return null;
+
+    var panel = document.createElement("div");
+    panel.id = DOC_PANEL_ID;
+    panel.className = "workpanel hidden";
+    panel.innerHTML = '<h2>Documenten</h2><div class="bns-doc-card"><b>Opdracht documenten</b><div class="bns-doc-grid"></div><small>Gebruik deze map voor Copy opdracht, Factuur en Opdracht bevestiging. Datum/filters/systeemmeldingen blijven uit A12 behouden.</small></div>';
+
+    var grid = q(".bns-doc-grid", panel);
+    grid.appendChild(makeButton("Copy opdracht", "#047857", function(){ window.copyOrder(); }));
+    grid.appendChild(makeButton("Factuur maken", "#2563eb", function(){ window.makeInvoice(); }));
+    grid.appendChild(makeButton("Opdracht bevestiging", "#16a34a", function(){ window.makeConfirmation(); }));
+
+    if (vehiclePanel && vehiclePanel.insertAdjacentElement) vehiclePanel.insertAdjacentElement("afterend", panel);
+    else if (extraPanel && extraPanel.insertAdjacentElement) extraPanel.insertAdjacentElement("beforebegin", panel);
+    else parent.appendChild(panel);
+
+    return panel;
+  }
+
+  function ensureDocumentsTab(){
+    ensureCss();
+
+    var extra = q('button[data-tab="extraPanel"]');
+    if (extra) extra.textContent = "Bijzonderheden";
+
+    var vehicle = q('button[data-tab="vehiclePanel"]');
+    if (!vehicle) return;
+
+    ensureDocumentsPanel();
+
+    var tab = E(DOC_TAB_ID);
+    if (!tab) {
+      tab = document.createElement("button");
+      tab.id = DOC_TAB_ID;
+      tab.type = "button";
+      tab.className = vehicle.className || "worktab";
+      if (tab.className.indexOf("worktab") === -1) tab.className += " worktab";
+      tab.dataset.tab = DOC_PANEL_ID;
+      tab.textContent = "Documenten";
+      vehicle.insertAdjacentElement("afterend", tab);
+    }
+
+    tab.onclick = function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      activateTab(DOC_PANEL_ID);
+    };
+  }
+
+  function install(){
+    ensureDocumentsTab();
+  }
+
+  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+  if (oldRenderAll && !oldRenderAll.__bnsDocumentenMap) {
+    var wrapped = function(){
+      var result = oldRenderAll.apply(this, arguments);
+      setTimeout(install, 0);
+      return result;
+    };
+    wrapped.__bnsDocumentenMap = true;
+    window.renderAll = wrapped;
+    try { renderAll = wrapped; } catch(e) {}
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 600); });
+  } else {
+    setTimeout(install, 600);
+  }
+  setTimeout(install, 1500);
+
+  try { window.BNS_PATCH_VERSION = PATCH_ID; } catch(e) {}
 })();
