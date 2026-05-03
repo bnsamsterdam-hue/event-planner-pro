@@ -4859,3 +4859,106 @@ setInterval(install,1500);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
   setTimeout(install, 1000);
 })();
+
+// ===== BNS V10.1 meer-artikelen duidelijk zichtbaar =====
+(function(){
+  function byId(id){ return document.getElementById(id); }
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function stateNow(){
+    try { if (typeof state !== 'undefined' && state && Array.isArray(state.orders)) return state; } catch(e) {}
+    try { if (window.state && Array.isArray(window.state.orders)) return window.state; } catch(e) {}
+    try {
+      var keys = ['eventPlannerProV91','eventPlannerPro','plannerState'];
+      for (var i=0;i<keys.length;i++) {
+        var raw = localStorage.getItem(keys[i]);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.orders)) return parsed;
+        }
+      }
+    } catch(e) {}
+    return {orders:[]};
+  }
+  function orderMaterialCount(order){
+    return Array.isArray(order && order.materials) ? order.materials.length : 0;
+  }
+  function orderLabel(order){
+    var n = orderMaterialCount(order);
+    if (n <= 1) return '';
+    return '⚠️ LET OP: ' + n + ' artikelen voor deze klant';
+  }
+  function findOrderForCard(card, orders){
+    var oid = card.getAttribute('data-bns-order-id') || card.dataset.bnsOrderId || card.dataset.orderId || '';
+    if (oid) {
+      var byIdOrder = orders.find(function(o){ return String(o.id) === String(oid); });
+      if (byIdOrder) return byIdOrder;
+    }
+    var text = card.textContent || '';
+    return orders.find(function(o){ return o && o.number && text.indexOf(String(o.number)) !== -1; }) || null;
+  }
+  function decorateMeerArtikelen(){
+    var s = stateNow();
+    var orders = s.orders || [];
+    document.querySelectorAll('.order-card').forEach(function(card){
+      var order = findOrderForCard(card, orders);
+      if (!order) return;
+      var label = orderLabel(order);
+      var old = card.querySelector('.bns-meer-artikelen-badge');
+      if (!label) {
+        if (old) old.remove();
+        card.classList.remove('bns-meer-artikelen-card');
+        return;
+      }
+      card.classList.add('bns-meer-artikelen-card');
+      if (!old) {
+        old = document.createElement('div');
+        old.className = 'bns-meer-artikelen-badge';
+        var title = card.querySelector('.order-title, b') || card.querySelector('div:nth-child(2)') || card;
+        if (title && title.parentNode) title.insertAdjacentElement('afterend', old);
+        else card.insertBefore(old, card.firstChild);
+      }
+      old.textContent = label;
+      old.title = 'Deze opdracht heeft meer dan 1 artikel: goed opletten bij laden/bezorgen.';
+    });
+  }
+  function addCss(){
+    if (byId('bns-meer-artikelen-css')) return;
+    var st = document.createElement('style');
+    st.id = 'bns-meer-artikelen-css';
+    st.textContent = '' +
+      '.bns-meer-artikelen-badge{display:inline-flex;align-items:center;gap:6px;margin:6px 0 4px 0;padding:6px 10px;border-radius:999px;background:#f97316!important;color:#fff!important;font-weight:900;font-size:13px;box-shadow:0 2px 8px rgba(249,115,22,.25)}' +
+      '.bns-meer-artikelen-card{border-left:7px solid #f97316!important}' +
+      '#driverList .bns-meer-artikelen-badge{font-size:15px;padding:8px 12px;background:#dc2626!important}' +
+      '#driverList .bns-meer-artikelen-card{box-shadow:0 0 0 3px rgba(220,38,38,.15)!important}';
+    document.head.appendChild(st);
+  }
+  function wrapRender(name){
+    try {
+      var fn = window[name];
+      if (typeof fn !== 'function' || fn.__bnsMeerArtikelen) return;
+      var wrapped = function(){
+        var r = fn.apply(this, arguments);
+        setTimeout(decorateMeerArtikelen, 0);
+        return r;
+      };
+      wrapped.__bnsMeerArtikelen = true;
+      window[name] = wrapped;
+      try { eval(name + ' = window[name]'); } catch(e) {}
+    } catch(e) {}
+  }
+  function install(){
+    addCss();
+    wrapRender('renderOrders');
+    wrapRender('renderDashboard');
+    wrapRender('renderDriver');
+    wrapRender('renderAll');
+    decorateMeerArtikelen();
+  }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 300); });
+  setTimeout(install, 800);
+  setTimeout(decorateMeerArtikelen, 1600);
+})();
