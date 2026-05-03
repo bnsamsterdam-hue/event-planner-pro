@@ -785,7 +785,8 @@ if(saveBtn) saveBtn.onclick = function(){
   saveInvoiceAdminV10(true);
 };
     const clear=byId('clearInvoiceLogoV10'); if(clear) clear.onclick=()=>{ensureV10State(); getState().settings.invoice.logo=''; saveState(); loadInvoiceAdminV10(); toast('Logo verwijderd');};
-    const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick = function(){
+   const preview = byId('previewInvoiceLayoutV10');
+if(preview) preview.onclick = function(){
   saveInvoiceAdminV10(false);
   renderInvoicePreviewV10();
 };
@@ -812,7 +813,7 @@ if(saveBtn) saveBtn.onclick = function(){
     toast('Factuur/offerte layout opgeslagen');
   }
 }
-  }
+  
   function renderInvoicePreviewV10(){
     const p=byId('invoiceAdminPreview'); const inv=getState()?.settings?.invoice; if(!p||!inv) return;
     p.classList.remove('hidden');
