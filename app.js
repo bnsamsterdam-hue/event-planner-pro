@@ -1,7 +1,7 @@
 
 
 // ===== V9.1 safety fixes =====
-function safePrint(){ window.print(); }F
+function safePrint(){ window.print(); }
 function safeMail(text, subject){
   const body = encodeURIComponent(text || '');
   window.location.href = 'mailto:?subject=' + encodeURIComponent(subject || 'Opdrachtbevestiging') + '&body=' + body;
@@ -3484,7 +3484,7 @@ setTimeout(()=>{
       "Opdracht: " + v("orderNumber") + "\n" +
       "Status: " + v("orderStatus") + "\n" +
       "Titel: " + v("orderTitle") + "\n" +
-      "Uitstraling / merk: " + v("orderBrand") + "\n" +
+      "Biermerk / merk: " + v("orderBrand") + "\n" +
       "Datum: " + v("dateStart") + (v("dateEnd") && v("dateEnd") !== v("dateStart") ? " tot datum " + v("dateEnd") : "") + "\n\n" +
       "Klant:\n" + v("customerName") + "\n" + v("customerStreet") + "\n" + v("customerZip") + " " + v("customerCity") + "\n" + v("customerPhone") + "\n" + v("customerEmail") + "\n\n" +
       "Locatie:\n" + v("locationName") + "\n" + v("locationStreet") + "\n" + v("locationZip") + " " + v("locationCity") + "\nContact: " + v("locationContact") + "\n" + v("locationPhone") + "\n\n" +
@@ -3774,56 +3774,5 @@ setTimeout(()=>{
     setTimeout(install, 300);
   }
 
-// ===== BNS knoppen naast Voertuig =====
-(function(){
-
-  function maakKnop(id, tekst, kleur, klik){
-    var b = document.createElement("button");
-    b.id = id;
-    b.type = "button";
-    b.textContent = tekst;
-    b.className = "worktab bns-sort-item";
-    b.style.background = kleur;
-    b.style.marginLeft = "8px";
-    b.onclick = function(e){
-      e.preventDefault();
-      e.stopPropagation();
-      klik();
-    };
-    return b;
-  }
-
- function plaatsKnoppenNaastVoertuig(){
-
-    var voertuig = document.querySelector('button[data-tab="vehiclePanel"]');
-    var extra = document.querySelector('button[data-tab="extraPanel"]');
-
-    if (extra) extra.textContent = "Bijzonderheden";
-    if (!voertuig) return;
-
-    // voorkom dubbel
-    if (document.getElementById("bnsCopyNaastVoertuig")) return;
-
-    var copy = maakKnop("bnsCopyNaastVoertuig", "Copy opdracht", "#047857", function(){
-        if (typeof copyOrder === "function") copyOrder();
-        else alert("copyOrder functie niet gevonden");
-    });
-
-    var factuur = maakKnop("bnsFactuurNaastVoertuig", "Factuur maken", "#2563eb", function(){
-        if (typeof makeInvoice === "function") makeInvoice();
-        else alert("makeInvoice functie niet gevonden");
-    });
-
-    var bevestiging = maakKnop("bnsBevestigingNaastVoertuig", "Opdracht bevestiging", "#16a34a", function(){
-        if (typeof makeConfirmation === "function") makeConfirmation();
-        else alert("makeConfirmation functie niet gevonden");
-    });
-
-    voertuig.insertAdjacentElement("afterend", copy);
-    copy.insertAdjacentElement("afterend", factuur);
-    factuur.insertAdjacentElement("afterend", bevestiging);
-   
- });
-  
-setTimeout(plaatsKnoppenNaastVoertuig, 1200);
+  setTimeout(install, 1200);
 })();
