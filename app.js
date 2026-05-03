@@ -3774,46 +3774,7 @@ setTimeout(()=>{
     setTimeout(install, 300);
   }
 
-  setTimeout(install, 1200);
-})();
-
-  if (!voertuig) return;
-
-  // voorkom dubbel
-  if (document.getElementById("FIX_copy_btn")) return;
-
-  function btn(id, text, color, fn){
-    const b = document.createElement("button");
-    b.id = id;
-    b.innerText = text;
-    b.style.marginLeft = "8px";
-    b.style.padding = "10px 16px";
-    b.style.borderRadius = "10px";
-    b.style.border = "none";
-    b.style.fontWeight = "bold";
-    b.style.color = "#fff";
-    b.style.background = color;
-    b.style.cursor = "pointer";
-    b.onclick = fn;
-    return b;
-  }
-
-  const copy = btn("FIX_copy_btn","Copy opdracht","#047857", () => {
-    if (typeof copyOrder === "function") copyOrder();
-    else alert("copyOrder niet gevonden");
-  });
-
-  const factuur = btn("FIX_factuur_btn","Factuur maken","#2563eb", () => {
-    if (typeof makeInvoice === "function") makeInvoice();
-    else alert("makeInvoice niet gevonden");
-  });
-
-  const bevestiging = btn("FIX_bev_btn","Opdracht bevestiging","#16a34a", () => {
-    if (typeof makeConfirmation === "function") makeConfirmation();
-    else alert("makeConfirmation niet gevonden");
-  });
-
-// ===== BNS knoppen naast Voertuig =====
+ // ===== BNS knoppen naast Voertuig =====
 (function(){
   function maakKnop(id, tekst, kleur, klik){
     var b = document.createElement("button");
@@ -3830,37 +3791,35 @@ setTimeout(()=>{
     };
     return b;
   }
-function plaatsKnoppenNaastVoertuig(){
 
+  function plaatsKnoppenNaastVoertuig(){
     var voertuig = document.querySelector('button[data-tab="vehiclePanel"]');
     var extra = document.querySelector('button[data-tab="extraPanel"]');
 
     if (extra) extra.textContent = "Bijzonderheden";
     if (!voertuig) return;
 
-    // voorkom dubbel
     if (document.getElementById("bnsCopyNaastVoertuig")) return;
 
     var copy = maakKnop("bnsCopyNaastVoertuig", "Copy opdracht", "#047857", function(){
-        if (typeof copyOrder === "function") copyOrder();
-        else alert("copyOrder functie niet gevonden");
+      if (typeof copyOrder === "function") copyOrder();
+      else alert("copyOrder functie niet gevonden");
     });
 
     var factuur = maakKnop("bnsFactuurNaastVoertuig", "Factuur maken", "#2563eb", function(){
-        if (typeof makeInvoice === "function") makeInvoice();
-        else alert("makeInvoice functie niet gevonden");
+      if (typeof makeInvoice === "function") makeInvoice();
+      else alert("makeInvoice functie niet gevonden");
     });
 
     var bevestiging = maakKnop("bnsBevestigingNaastVoertuig", "Opdracht bevestiging", "#16a34a", function(){
-        if (typeof makeConfirmation === "function") makeConfirmation();
-        else alert("makeConfirmation functie niet gevonden");
+      if (typeof makeConfirmation === "function") makeConfirmation();
+      else alert("makeConfirmation functie niet gevonden");
     });
 
     voertuig.insertAdjacentElement("afterend", copy);
     copy.insertAdjacentElement("afterend", factuur);
     factuur.insertAdjacentElement("afterend", bevestiging);
-}
+  }
 
-// 1x uitvoeren
-setTimeout(plaatsKnoppenNaastVoertuig, 500);
-})();  
+  setTimeout(plaatsKnoppenNaastVoertuig, 1200);
+})();
