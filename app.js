@@ -790,15 +790,28 @@ if(saveBtn) saveBtn.onclick = function(){
   renderInvoicePreviewV10();
 };
   }
-  function saveInvoiceAdminV10(show=true){
-    ensureV10State(); const inv=getState().settings.invoice;
-    inv.companyName=byId('invoiceCompanyName')?.value || 'Event Planner PRO';
-    inv.title=byId('invoiceDocTitle')?.value || 'Opdrachtbevestiging / Offerte';
-    inv.accent=byId('invoiceAccentColor')?.value || '#2563eb';
-    inv.layout=byId('invoiceLayoutMode')?.value || 'classic';
-    inv.intro=byId('invoiceIntroText')?.value || '';
-    inv.footer=byId('invoiceFooterText')?.value || '';
-    saveState(); if(show) toast('Factuur/offerte layout opgeslagen');
+ function saveInvoiceAdminV10(show){
+  ensureV10State();
+
+  const s = getState();
+  s.settings = s.settings || {};
+  s.settings.invoice = s.settings.invoice || {};
+
+  const inv = s.settings.invoice;
+
+  inv.companyName = byId('invoiceCompanyName') ? byId('invoiceCompanyName').value : 'Event Planner PRO';
+  inv.title = byId('invoiceDocTitle') ? byId('invoiceDocTitle').value : 'Opdrachtbevestiging / Offerte';
+  inv.accent = byId('invoiceAccentColor') ? byId('invoiceAccentColor').value : '#2563eb';
+  inv.layout = byId('invoiceLayoutMode') ? byId('invoiceLayoutMode').value : 'classic';
+  inv.intro = byId('invoiceIntroText') ? byId('invoiceIntroText').value : '';
+  inv.footer = byId('invoiceFooterText') ? byId('invoiceFooterText').value : '';
+
+  save();
+
+  if(show !== false){
+    toast('Factuur/offerte layout opgeslagen');
+  }
+}
   }
   function renderInvoicePreviewV10(){
     const p=byId('invoiceAdminPreview'); const inv=getState()?.settings?.invoice; if(!p||!inv) return;
