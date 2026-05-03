@@ -757,8 +757,7 @@ setTimeout(()=>{
         <label>Vrije tekst onderaan / voorwaarden<textarea id="invoiceFooterText" placeholder="Voorwaarden, betaling, borg, schade, schoonmaak enz."></textarea></label>
         <div class="actions"><button id="saveInvoiceLayoutV10" type="button">Opslaan layout</button><button id="clearInvoiceLogoV10" class="grey" type="button">Logo verwijderen</button><button id="previewInvoiceLayoutV10" type="button">Voorbeeld maken</button></div>
         <div id="invoiceAdminPreview" class="invoice-preview hidden"></div>`;
-      area.appendChild(pane);
-      bindInvoiceAdminV10();
+      area.appendChild(pane);  
     }
     document.querySelectorAll('.adminTab').forEach(b=>{
       b.addEventListener('click',()=>{
@@ -782,9 +781,14 @@ setTimeout(()=>{
       const f=e.target.files && e.target.files[0]; if(!f) return;
       const r=new FileReader(); r.onload=()=>{ensureV10State(); getState().settings.invoice.logo=r.result; saveState(); loadInvoiceAdminV10(); toast('Logo opgeslagen');}; r.readAsDataURL(f);
     };
-  if(saveBtn) saveBtn.onclick = () => saveInvoiceAdminV10(true);
+if(saveBtn) saveBtn.onclick = function(){
+  saveInvoiceAdminV10(true);
+};
     const clear=byId('clearInvoiceLogoV10'); if(clear) clear.onclick=()=>{ensureV10State(); getState().settings.invoice.logo=''; saveState(); loadInvoiceAdminV10(); toast('Logo verwijderd');};
-    const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick=()=>{saveInvoiceAdminV10(false); renderInvoicePreviewV10();};
+    const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick = function(){
+  saveInvoiceAdminV10(false);
+  renderInvoicePreviewV10();
+};
   }
   function saveInvoiceAdminV10(show=true){
     ensureV10State(); const inv=getState().settings.invoice;
