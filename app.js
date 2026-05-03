@@ -601,7 +601,7 @@ setTimeout(()=>{
   applyGlobalStyleV93();
 },0);
 
-// ===== BNS V10.1 gerichte patch: datum, admin factuur/offerte, layout/kleur, extra knoppen =====
+// ===== BNS V10.1 test gerichte patch: datum, admin factuur/offerte, layout/kleur, extra knoppen =====
 (function(){
   function onReady(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
   function byId(id){ return document.getElementById(id); }
