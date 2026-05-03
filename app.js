@@ -3774,8 +3774,9 @@ setTimeout(()=>{
     setTimeout(install, 300);
   }
 
- // ===== BNS knoppen naast Voertuig =====
+// ===== BNS knoppen naast Voertuig =====
 (function(){
+
   function maakKnop(id, tekst, kleur, klik){
     var b = document.createElement("button");
     b.id = id;
@@ -3822,4 +3823,5 @@ setTimeout(()=>{
   }
 
   setTimeout(plaatsKnoppenNaastVoertuig, 1200);
+
 })();
