@@ -5315,3 +5315,258 @@ setInterval(install,1500);
   setInterval(tick, 4000);
 })();
 
+
+/* =========================================================
+   BNS V12.3 - factuur/offerte gebruikt admin layout + PDOK robuust
+   - Overschrijft alleen document-output en postcode-zoeker.
+   - Laat bestaande data/functies staan.
+   ========================================================= */
+(function bnsInvoiceOutputAndPdokV123(){
+  "use strict";
+
+  var INVOICE_KEY = "bnsInvoiceSettingsV122";
+  var TEMPLATE_KEY = "bnsInvoiceTemplateV123";
+
+  function $(id){ return document.getElementById(id); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+  function val(id){ var el=$(id); return el ? (el.value || "") : ""; }
+  function S(){ try { if (typeof state !== "undefined" && state) return state; } catch(e){} try { return window.state || null; } catch(e){ return null; } }
+  function notify(t){ try { if (typeof toast === "function") return toast(t); } catch(e){} try { if (typeof toastMsg === "function") return toastMsg(t); } catch(e){} alert(t); }
+  function saveAny(){ try { if (typeof save === "function") save(); } catch(e){} try { if (typeof saveState === "function") saveState(); } catch(e){} }
+
+  function getInvoiceSettings(){
+    var inv = null;
+    try { inv = JSON.parse(localStorage.getItem(INVOICE_KEY) || "null"); } catch(e){}
+    var s = S();
+    if (!inv && s && s.settings && s.settings.invoice) inv = s.settings.invoice;
+    inv = inv || {};
+    inv.companyName = inv.companyName || "Event Planner PRO";
+    inv.title = inv.title || "Opdrachtbevestiging / Offerte";
+    inv.accent = inv.accent || "#2563eb";
+    inv.layout = inv.layout || "modern";
+    inv.intro = typeof inv.intro === "string" ? inv.intro : "";
+    inv.footer = typeof inv.footer === "string" ? inv.footer : "";
+    inv.logo = typeof inv.logo === "string" ? inv.logo : "";
+    try { inv.template = localStorage.getItem(TEMPLATE_KEY) || inv.template || ""; } catch(e){}
+    return inv;
+  }
+
+  function putInvoiceSettings(inv){
+    var s = S();
+    if (s) { s.settings = s.settings || {}; s.settings.invoice = Object.assign({}, s.settings.invoice || {}, inv); }
+    try { localStorage.setItem(INVOICE_KEY, JSON.stringify(inv)); } catch(e){}
+    if (inv.template) { try { localStorage.setItem(TEMPLATE_KEY, inv.template); } catch(e){} }
+    saveAny();
+  }
+
+  function currentOrderData(){
+    return {
+      number: val("orderNumber"),
+      status: val("orderStatus"),
+      title: val("orderTitle") || "Zonder titel",
+      brand: val("orderBrand"),
+      start: val("dateStart"),
+      end: val("dateEnd"),
+      driver: val("orderDriver"),
+      vehicle: val("orderVehicle"),
+      extra: val("orderExtra"),
+      customer: {
+        name: val("customerName"), street: val("customerStreet"), zip: val("customerZip"), city: val("customerCity"),
+        phone: val("customerPhone"), email: val("customerEmail")
+      },
+      location: {
+        name: val("locationName"), street: val("locationStreet"), zip: val("locationZip"), city: val("locationCity"),
+        contact: val("locationContact"), phone: val("locationPhone")
+      }
+    };
+  }
+
+  function chosenMaterials(){
+    var list = [];
+    try { if (Array.isArray(chosen)) list = chosen; } catch(e){}
+    if (!list.length) {
+      try {
+        var s = S();
+        if (s && s.currentOrder && Array.isArray(s.currentOrder.materials)) list = s.currentOrder.materials;
+      } catch(e){}
+    }
+    return list || [];
+  }
+
+  function materialRows(){
+    var list = chosenMaterials();
+    if (!list.length) return '<tr><td colspan="5" class="muted">Geen materialen gekozen</td></tr>';
+    return list.map(function(m, i){
+      var qty = m.qty || m.count || 1;
+      var price = m.linePrice != null ? m.linePrice : (m.priceAmount != null ? m.priceAmount : (m.price || ""));
+      return '<tr>'+
+        '<td>'+(i+1)+'</td><td>'+esc(qty)+'</td><td>'+esc([m.code||"", m.name||""].filter(Boolean).join(" - "))+'</td>'+
+        '<td>'+esc(m.cat||"")+'</td><td>'+esc(price||"")+'</td></tr>';
+    }).join('');
+  }
+
+  function totalsHtml(){
+    var excl = val("priceExcl"), discount = val("discountAmount"), vat = val("vatPercent"), deposit = val("depositAmount");
+    if (!excl && !discount && !vat && !deposit) return "";
+    return '<div class="totals"><table>'+
+      (excl ? '<tr><td>Bedrag excl.</td><td>€ '+esc(excl)+'</td></tr>' : '')+
+      (discount ? '<tr><td>Korting</td><td>€ '+esc(discount)+'</td></tr>' : '')+
+      (vat ? '<tr><td>BTW</td><td>'+esc(vat)+'%</td></tr>' : '')+
+      (deposit ? '<tr><td>Borg</td><td>€ '+esc(deposit)+'</td></tr>' : '')+
+      '</table></div>';
+  }
+
+  function styledDocumentHtml(docType){
+    var inv = getInvoiceSettings();
+    var o = currentOrderData();
+    var accent = inv.accent || "#2563eb";
+    var title = docType || inv.title || "Document";
+    var templateStyle = inv.template ? 'background-image:url('+inv.template+');background-size:cover;background-position:top center;background-repeat:no-repeat;' : '';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title>'+
+      '<style>'+
+      '@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}'+
+      '.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:24mm 18mm;'+templateStyle+'}'+
+      '.top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:5px solid '+accent+';padding-bottom:18px;margin-bottom:24px}'+
+      '.logo{max-width:190px;max-height:90px;object-fit:contain}.company{font-size:15px;font-weight:800;color:'+accent+'}.doctype{font-size:30px;font-weight:900;text-transform:uppercase;letter-spacing:.4px}'+
+      '.card{border:1px solid #dbe3ef;border-radius:16px;padding:14px;margin:12px 0;background:rgba(255,255,255,.94)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.label{font-size:11px;color:#64748b;text-transform:uppercase;font-weight:800}.value{font-size:14px;white-space:pre-wrap}'+
+      'table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.96)}th{background:'+accent+';color:white;text-align:left}th,td{padding:10px;border-bottom:1px solid #e5e7eb;font-size:13px}.muted{color:#64748b}.free{white-space:pre-wrap;line-height:1.45}.totals{display:flex;justify-content:flex-end}.totals table{width:260px}.footer{margin-top:28px;border-top:2px solid #e5e7eb;padding-top:12px;font-size:12px;color:#334155}'+
+      '.print{position:fixed;top:12px;left:12px;background:'+accent+';color:white;border:0;border-radius:10px;padding:11px 16px;font-weight:800;cursor:pointer}@media print{body{background:white}.page{margin:0;box-shadow:none}.print{display:none}}'+
+      '</style></head><body><button class="print" onclick="window.print()">Afdrukken</button><main class="page">'+
+      '<section class="top"><div>'+(inv.logo?'<img class="logo" src="'+inv.logo+'">':'<div class="company">'+esc(inv.companyName)+'</div>')+'</div><div style="text-align:right"><div class="doctype">'+esc(title)+'</div><div class="company">'+esc(inv.companyName)+'</div><div>Opdracht '+esc(o.number)+'</div></div></section>'+
+      (inv.intro?'<section class="card free">'+esc(inv.intro)+'</section>':'')+
+      '<section class="grid"><div class="card"><div class="label">Klant</div><div class="value"><b>'+esc(o.customer.name)+'</b><br>'+esc(o.customer.street)+'<br>'+esc(o.customer.zip+' '+o.customer.city)+'<br>'+esc(o.customer.phone)+'<br>'+esc(o.customer.email)+'</div></div>'+
+      '<div class="card"><div class="label">Locatie</div><div class="value"><b>'+esc(o.location.name)+'</b><br>'+esc(o.location.street)+'<br>'+esc(o.location.zip+' '+o.location.city)+'<br>'+esc(o.location.contact)+'<br>'+esc(o.location.phone)+'</div></div></section>'+
+      '<section class="card"><div class="label">Opdracht</div><div class="value"><b>'+esc(o.title)+'</b><br>Status: '+esc(o.status)+'<br>Datum: '+esc(o.start)+(o.end && o.end!==o.start ? ' tot datum '+esc(o.end) : '')+'<br>Merk: '+esc(o.brand)+'<br>Bezorger: '+esc(o.driver)+'<br>Voertuig: '+esc(o.vehicle)+'</div></section>'+
+      '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Artikel</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRows()+'</tbody></table></section>'+
+      totalsHtml()+
+      (o.extra?'<section class="card"><div class="label">Bijzonderheden</div><div class="free">'+esc(o.extra)+'</div></section>':'')+
+      (inv.footer?'<section class="footer free">'+esc(inv.footer)+'</section>':'')+
+      '</main></body></html>';
+  }
+
+  function openStyledDoc(type){
+    var w = window.open("", "_blank");
+    var html = styledDocumentHtml(type);
+    if (!w) { alert("Pop-up geblokkeerd. Sta pop-ups toe voor factuur/offerte."); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  }
+
+  window.makeInvoice = function(){ openStyledDoc("Factuur"); };
+  window.makeConfirmation = function(){ openStyledDoc("Opdrachtbevestiging / Offerte"); };
+
+  function addTemplateUpload(){
+    var upload = $("invoiceLogoUpload");
+    if (!upload || $("bnsInvoiceTemplateUpload")) return;
+    var wrap = document.createElement("label");
+    wrap.innerHTML = 'Eigen factuur/briefpapier uploaden <input id="bnsInvoiceTemplateUpload" type="file" accept="image/*"><small style="display:block;color:#64748b">Upload PNG/JPG van jullie eigen factuurstijl. Deze wordt als briefpapier-achtergrond gebruikt.</small>';
+    upload.closest("label")?.insertAdjacentElement("afterend", wrap);
+    var clear = document.createElement("button");
+    clear.type = "button";
+    clear.id = "bnsClearInvoiceTemplate";
+    clear.textContent = "Briefpapier verwijderen";
+    clear.style.marginLeft = "8px";
+    wrap.insertAdjacentElement("afterend", clear);
+  }
+
+  document.addEventListener("change", function(e){
+    if (!e.target || e.target.id !== "bnsInvoiceTemplateUpload") return;
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function(){
+      var inv = getInvoiceSettings(); inv.template = r.result; putInvoiceSettings(inv);
+      notify("Eigen factuur/briefpapier opgeslagen");
+    };
+    r.readAsDataURL(f);
+  }, true);
+
+  document.addEventListener("click", function(e){
+    if (e.target && e.target.id === "bnsClearInvoiceTemplate") {
+      e.preventDefault();
+      try { localStorage.removeItem(TEMPLATE_KEY); } catch(err){}
+      var inv = getInvoiceSettings(); inv.template = ""; putInvoiceSettings(inv);
+      notify("Briefpapier verwijderd");
+    }
+  }, true);
+
+  function setVal(id, value){
+    var el = $(id); if (!el) return false;
+    el.value = value || "";
+    try { el.dispatchEvent(new Event("input", {bubbles:true})); } catch(e){}
+    try { el.dispatchEvent(new Event("change", {bubbles:true})); } catch(e){}
+    return true;
+  }
+
+  function fillPdokAddress(doc, pc, nr){
+    var street = doc.straatnaam || "";
+    var city = doc.woonplaatsnaam || doc.gemeentenaam || "";
+    var postcode = (doc.postcode || pc || "").replace(/\s+/g, "").toUpperCase();
+    var house = doc.huisnummer || nr || "";
+    if (!street && doc.weergavenaam) street = String(doc.weergavenaam).split(",")[0].replace(/\s+\d+.*/, "");
+    var streetNr = [street, house].filter(Boolean).join(" ");
+    var did = false;
+    ["locationStreet","customerStreet"].forEach(function(id){ did = setVal(id, streetNr) || did; });
+    ["locationZip","customerZip"].forEach(function(id){ did = setVal(id, postcode) || did; });
+    ["locationCity","customerCity"].forEach(function(id){ did = setVal(id, city) || did; });
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e){}
+    try { if (typeof renderSummary === "function") renderSummary(); } catch(e){}
+    return did;
+  }
+
+  async function fetchPdok(q, rows){
+    var urls = [
+      "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?fq=type:adres&q=" + encodeURIComponent(q) + "&rows=" + (rows||5),
+      "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=" + encodeURIComponent(q) + "&rows=" + (rows||5)
+    ];
+    for (var i=0;i<urls.length;i++){
+      var res = await fetch(urls[i]);
+      if (!res.ok) continue;
+      var data = await res.json();
+      var docs = data && data.response && data.response.docs || [];
+      if (docs.length) return docs;
+    }
+    return [];
+  }
+
+  window.bnsLookupPostcodePDOKV123 = async function(){
+    var pcEl = $("bnsPostcodeInput") || $("locationZip") || $("customerZip") || $("postcode");
+    var nrEl = $("bnsHouseNumberInput") || $("huisnummer") || $("houseNumber") || $("locationHouseNumber") || $("customerHouseNumber");
+    var pc = pcEl ? String(pcEl.value || "").replace(/\s+/g, "").toUpperCase() : "";
+    var nr = nrEl ? String(nrEl.value || "").trim() : "";
+    var status = $("bnsPostcodeStatus");
+    if (!pc) { alert("Vul postcode in."); return; }
+    if (!nr) { alert("Vul huisnummer in."); return; }
+    if (status) status.textContent = "PDOK zoekt " + pc + " " + nr + "...";
+    try {
+      var docs = await fetchPdok(pc + " " + nr, 5);
+      if (!docs.length) docs = await fetchPdok(pc, 5);
+      var doc = docs[0];
+      if (!doc) throw new Error("Geen adres gevonden");
+      fillPdokAddress(doc, pc, nr);
+      if (status) status.textContent = "Adres ingevuld: " + (doc.straatnaam || "") + " " + (doc.huisnummer || nr) + ", " + (doc.woonplaatsnaam || "");
+    } catch(err) {
+      console.warn("PDOK fout", err);
+      if (status) status.textContent = "Niet gevonden via PDOK";
+      alert("PDOK kon dit adres niet vinden. Controleer postcode en huisnummer.");
+    }
+  };
+
+  function ensurePdokVisible(){
+    var panel = $("locationPanel") || $("customerPanel") || $("newOrder") || document.body;
+    var box = $("bnsPostcodeBox");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "bnsPostcodeBox";
+      box.style.cssText = "margin:12px 0;padding:12px;border:2px solid #2563eb;border-radius:16px;background:#eff6ff;display:flex;gap:10px;flex-wrap:wrap;align-items:center";
+      box.innerHTML = '<b style="width:100%">Postcode zoeken via PDOK</b><input id="bnsPostcodeInput" placeholder="Postcode bv 1422AB" style="width:160px"><input id="bnsHouseNumberInput" placeholder="Huisnr" style="width:110px"><button type="button" id="bnsPostcodeSearchBtn">Adres zoeken</button><span id="bnsPostcodeStatus"></span>';
+      var h = panel.querySelector && (panel.querySelector("h3") || panel.querySelector("h2"));
+      if (h) h.insertAdjacentElement("afterend", box); else panel.prepend(box);
+    }
+    var btn = $("bnsPostcodeSearchBtn");
+    if (btn) btn.onclick = window.bnsLookupPostcodePDOKV123;
+  }
+
+  function tick(){ addTemplateUpload(); ensurePdokVisible(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
+  setTimeout(tick, 500); setTimeout(tick, 1500); setInterval(tick, 4000);
+})();
