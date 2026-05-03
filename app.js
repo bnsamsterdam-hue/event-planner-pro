@@ -4731,3 +4731,131 @@ setInterval(install,1500);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 700); }); else setTimeout(install, 700);
   setTimeout(install, 1600);
 })();
+
+// ===== BNS A12 systeemmeldingen herstel: alleen meldingen, geen andere functies =====
+(function(){
+  var MODAL_ID = "bnsA12SysteemModalClean";
+
+  function $(id){ return document.getElementById(id); }
+  function esc(v){
+    return String(v == null ? "" : v)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+  function S(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    try { if (window.state) return window.state; } catch(e) {}
+    return {orders:[], alerts:[]};
+  }
+  function SAVE(){
+    try { if (typeof save === "function") { save(); return; } } catch(e) {}
+    try { if (typeof saveState === "function") { saveState(); return; } } catch(e) {}
+    try { localStorage.setItem("event-planner-pro-v87", JSON.stringify(S())); } catch(e) {}
+  }
+  function findOrder(orderId){
+    var s = S();
+    return (s.orders || []).find(function(o){ return String(o.id) === String(orderId); }) || null;
+  }
+  function openAlerts(){
+    var s = S();
+    s.alerts = s.alerts || [];
+    var open = s.alerts.filter(function(a){ return !a.resolved; });
+    var old = $(MODAL_ID); if (old) old.remove();
+    var modal = document.createElement("div");
+    modal.id = MODAL_ID;
+    modal.style.cssText = "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:20px";
+
+    var html = '<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:760px;width:100%;max-height:82vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.30)">';
+    html += '<button type="button" onclick="document.getElementById(\''+MODAL_ID+'\').remove()" style="float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-weight:800">Sluiten</button>';
+    html += '<h2 style="margin:0 0 16px">🚨 Systeemmeldingen / schade meldingen</h2>';
+
+    if (!open.length) {
+      html += '<p>Geen open Systeemmeldingen.</p>';
+    } else {
+      open.forEach(function(a){
+        var o = a.orderId ? findOrder(a.orderId) : null;
+        var title = a.title || a.type || "Systeemmelding";
+        var note = a.note || a.message || a.text || "";
+        html += '<div style="border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc">';
+        html += '<b>'+esc(title)+'</b><br><small>'+esc(a.time || a.date || "")+'</small>';
+        if (o) html += '<div><b>Opdracht:</b> '+esc(o.number || "")+' - '+esc(o.title || "")+'</div>';
+        if (o && o.customer) html += '<div><b>Klant:</b> '+esc(o.customer.name || "Onbekend")+'</div>';
+        if (note) html += '<p style="white-space:pre-wrap;margin:8px 0">'+esc(note)+'</p>';
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">';
+        html += '<button type="button" onclick="BNS_A12_ALERT_RESOLVE(\''+esc(a.id)+'\')" style="background:#16a34a;color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:800">Afmelden met tekst</button>';
+        html += '<button type="button" onclick="BNS_A12_ALERT_DELETE(\''+esc(a.id)+'\')" style="background:#dc2626;color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:800">Verwijderen</button>';
+        html += '</div></div>';
+      });
+    }
+    html += '</div>';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+  }
+  function updateButton(){
+    var b = $("alertsBtn"); if (!b) return;
+    var s = S();
+    var open = (s.alerts || []).filter(function(a){ return !a.resolved; });
+    b.textContent = "🚨 Systeemmeldingen (" + open.length + ")";
+    b.style.animation = open.length ? "bnsA12AlertBlink .75s infinite alternate" : "";
+    b.onclick = function(e){ if(e){e.preventDefault(); e.stopPropagation();} openAlerts(); return false; };
+  }
+
+  window.BNS_A12_ALERT_RESOLVE = function(id){
+    var s = S();
+    var a = (s.alerts || []).find(function(x){ return String(x.id) === String(id); });
+    if (!a) return;
+    var txt = prompt("Afmelding / oplossing:", a.resolveText || "");
+    if (txt === null) return;
+    a.resolved = true;
+    a.resolveText = txt;
+    a.resolvedAt = new Date().toLocaleString();
+    try { a.resolvedBy = (typeof user !== "undefined" && user && (user.name || user.role)) || ""; } catch(e) {}
+    SAVE(); updateButton(); openAlerts();
+  };
+  window.BNS_A12_ALERT_DELETE = function(id){
+    var s = S();
+    var txt = prompt("Reden verwijderen:", "");
+    if (txt === null) return;
+    s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
+    SAVE(); updateButton(); openAlerts();
+  };
+
+  window.alertFor = function(orderId, type){
+    var s = S(); s.alerts = s.alerts || [];
+    var o = findOrder(orderId) || {};
+    var now = new Date().toLocaleString();
+    var note = prompt((type || "Melding") + " omschrijving:", "");
+    if (note === null) return;
+    s.alerts.push({
+      id: (typeof id === "function" ? id() : ("alert_" + Date.now() + "_" + Math.random().toString(36).slice(2))),
+      orderId: orderId,
+      type: type || "Systeemmelding",
+      title: (type || "Systeemmelding") + (o.number ? " - " + o.number : ""),
+      note: note || "Melding aangemaakt",
+      time: now,
+      resolved: false,
+      source: "systeem"
+    });
+    SAVE();
+    try { if (typeof renderAll === "function") renderAll(); } catch(e) {}
+    updateButton();
+  };
+  try { alertFor = window.alertFor; } catch(e) {}
+
+  function install(){
+    if (!document.getElementById("bnsA12AlertBlinkCss")) {
+      var st = document.createElement("style"); st.id = "bnsA12AlertBlinkCss";
+      st.textContent = "@keyframes bnsA12AlertBlink{from{filter:brightness(.75);transform:scale(.99)}to{filter:brightness(1.2);transform:scale(1.01)}}";
+      document.head.appendChild(st);
+    }
+    updateButton();
+  }
+  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+  if (oldRenderAll && !oldRenderAll.__bnsA12AlertsOnly) {
+    var wrapped = function(){ var r = oldRenderAll.apply(this, arguments); setTimeout(install, 0); return r; };
+    wrapped.__bnsA12AlertsOnly = true;
+    window.renderAll = wrapped; try { renderAll = wrapped; } catch(e) {}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
+  setTimeout(install, 1000);
+})();
