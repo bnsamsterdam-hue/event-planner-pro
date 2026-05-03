@@ -4732,15 +4732,9 @@ setInterval(install,1500);
   setTimeout(install, 1600);
 })();
 
-// ===== BNS V10.1 STORINGEN / SYSTEEMMELDINGEN HERSTEL =====
-// Alleen meldingen/storingen: keuze + vrije tekst, zichtbaar voor planner en bezorger,
-// afmelden of verwijderen met vrije tekst. Verder geen functies aanpassen.
+// ===== BNS A12 systeemmeldingen herstel: alleen meldingen, geen andere functies =====
 (function(){
-  "use strict";
-
-  var LIST_MODAL_ID = "bnsStoringenLijstModalV101";
-  var CREATE_MODAL_ID = "bnsStoringenMaakModalV101";
-  var TYPE_OPTIONS = ["Storing", "Schade", "Vermissing", "Overig"];
+  var MODAL_ID = "bnsA12SysteemModalClean";
 
   function $(id){ return document.getElementById(id); }
   function esc(v){
@@ -4748,211 +4742,121 @@ setInterval(install,1500);
       .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
       .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
   }
-  function now(){ return new Date().toLocaleString(); }
-  function makeId(){
-    try { if (typeof id === "function") return id(); } catch(e) {}
-    return "alert_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-  }
-
   function S(){
-    try { if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state; } catch(e) {}
-    try { if (window.state && Array.isArray(window.state.orders)) return window.state; } catch(e) {}
-    var keys = ["eventPlannerProV91", "eventPlannerPro", "eventPlannerProState", "plannerState", "eventPlannerState", "event-planner-pro-v87"];
-    for (var i=0;i<keys.length;i++) {
-      try {
-        var raw = localStorage.getItem(keys[i]);
-        if (!raw) continue;
-        var parsed = JSON.parse(raw);
-        if (parsed && (Array.isArray(parsed.orders) || Array.isArray(parsed.alerts))) return parsed;
-      } catch(e) {}
-    }
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    try { if (window.state) return window.state; } catch(e) {}
     return {orders:[], alerts:[]};
   }
-
   function SAVE(){
     try { if (typeof save === "function") { save(); return; } } catch(e) {}
     try { if (typeof saveState === "function") { saveState(); return; } } catch(e) {}
-    var s = S();
-    ["eventPlannerProV91", "eventPlannerPro", "plannerState"].forEach(function(k){
-      try { localStorage.setItem(k, JSON.stringify(s)); } catch(e) {}
-    });
+    try { localStorage.setItem("event-planner-pro-v87", JSON.stringify(S())); } catch(e) {}
   }
-
-  function alerts(){
-    var s = S();
-    if (!Array.isArray(s.alerts)) s.alerts = [];
-    return s.alerts;
-  }
-  function openAlerts(){ return alerts().filter(function(a){ return !a.resolved && a.status !== "opgelost" && a.status !== "verwijderd"; }); }
   function findOrder(orderId){
     var s = S();
     return (s.orders || []).find(function(o){ return String(o.id) === String(orderId); }) || null;
   }
-  function currentUserName(){
-    try { if (typeof user !== "undefined" && user) return user.name || user.role || ""; } catch(e) {}
-    try { if (window.user) return window.user.name || window.user.role || ""; } catch(e) {}
-    return "";
-  }
-
-  function closeModal(id){ var el = $(id); if (el) el.remove(); }
-  window.BNS_STORING_CLOSE = closeModal;
-
-  function modalShell(id, bodyHtml){
-    closeModal(id);
+  function openAlerts(){
+    var s = S();
+    s.alerts = s.alerts || [];
+    var open = s.alerts.filter(function(a){ return !a.resolved; });
+    var old = $(MODAL_ID); if (old) old.remove();
     var modal = document.createElement("div");
-    modal.id = id;
-    modal.style.cssText = "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;padding:18px";
-    modal.innerHTML = '<div class="bns-storing-modal-card">' + bodyHtml + '</div>';
-    document.body.appendChild(modal);
-    return modal;
-  }
+    modal.id = MODAL_ID;
+    modal.style.cssText = "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:20px";
 
-  function updateButton(){
-    var b = $("alertsBtn");
-    if (!b) return;
-    var n = openAlerts().length;
-    b.textContent = "🚨 Systeemmeldingen (" + n + ")";
-    b.classList.toggle("bns-storing-blink", n > 0);
-    b.onclick = function(e){ if(e){ e.preventDefault(); e.stopPropagation(); } window.BNS_OPEN_STORINGEN(); return false; };
-  }
+    var html = '<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:760px;width:100%;max-height:82vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.30)">';
+    html += '<button type="button" onclick="document.getElementById(\''+MODAL_ID+'\').remove()" style="float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-weight:800">Sluiten</button>';
+    html += '<h2 style="margin:0 0 16px">🚨 Systeemmeldingen / schade meldingen</h2>';
 
-  window.BNS_OPEN_STORINGEN = function(){
-    var list = openAlerts();
-    var html = '';
-    html += '<button type="button" class="bns-storing-close" onclick="BNS_STORING_CLOSE(\''+LIST_MODAL_ID+'\')">Sluiten</button>';
-    html += '<h2>🚨 Systeemmeldingen / storingen</h2>';
-    html += '<p class="bns-storing-help">Planner en bezorger kunnen meldingen afmelden of verwijderen. Afmelden vraagt altijd om een vrije tekst.</p>';
-    if (!list.length) {
-      html += '<p><b>Geen open meldingen.</b></p>';
+    if (!open.length) {
+      html += '<p>Geen open Systeemmeldingen.</p>';
     } else {
-      list.forEach(function(a){
+      open.forEach(function(a){
         var o = a.orderId ? findOrder(a.orderId) : null;
-        var type = a.type || a.kind || "Systeemmelding";
+        var title = a.title || a.type || "Systeemmelding";
         var note = a.note || a.message || a.text || "";
-        html += '<div class="bns-storing-item">';
-        html += '<div class="bns-storing-title">' + esc(type) + '</div>';
-        html += '<small>' + esc(a.time || a.date || "") + '</small>';
-        if (o) html += '<div><b>Opdracht:</b> ' + esc(o.number || "") + ' - ' + esc(o.title || "") + '</div>';
-        if (o && o.customer) html += '<div><b>Klant:</b> ' + esc(o.customer.name || "Onbekend") + '</div>';
-        if (o) html += '<div><b>Datum:</b> ' + esc(o.start || "") + (o.end ? ' tot datum ' + esc(o.end) : '') + '</div>';
-        html += '<div><b>Melding:</b></div><div class="bns-storing-note">' + esc(note || "Geen tekst ingevuld") + '</div>';
-        html += '<div class="bns-storing-actions">';
-        html += '<button type="button" class="bns-green" onclick="BNS_STORING_RESOLVE(\''+esc(a.id)+'\')">Afmelden / opgelost</button>';
-        html += '<button type="button" class="bns-red" onclick="BNS_STORING_DELETE(\''+esc(a.id)+'\')">Verwijderen</button>';
+        html += '<div style="border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc">';
+        html += '<b>'+esc(title)+'</b><br><small>'+esc(a.time || a.date || "")+'</small>';
+        if (o) html += '<div><b>Opdracht:</b> '+esc(o.number || "")+' - '+esc(o.title || "")+'</div>';
+        if (o && o.customer) html += '<div><b>Klant:</b> '+esc(o.customer.name || "Onbekend")+'</div>';
+        if (note) html += '<p style="white-space:pre-wrap;margin:8px 0">'+esc(note)+'</p>';
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">';
+        html += '<button type="button" onclick="BNS_A12_ALERT_RESOLVE(\''+esc(a.id)+'\')" style="background:#16a34a;color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:800">Afmelden met tekst</button>';
+        html += '<button type="button" onclick="BNS_A12_ALERT_DELETE(\''+esc(a.id)+'\')" style="background:#dc2626;color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:800">Verwijderen</button>';
         html += '</div></div>';
       });
     }
-    modalShell(LIST_MODAL_ID, html);
-  };
+    html += '</div>';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+  }
+  function updateButton(){
+    var b = $("alertsBtn"); if (!b) return;
+    var s = S();
+    var open = (s.alerts || []).filter(function(a){ return !a.resolved; });
+    b.textContent = "🚨 Systeemmeldingen (" + open.length + ")";
+    b.style.animation = open.length ? "bnsA12AlertBlink .75s infinite alternate" : "";
+    b.onclick = function(e){ if(e){e.preventDefault(); e.stopPropagation();} openAlerts(); return false; };
+  }
 
-  window.BNS_STORING_RESOLVE = function(alertId){
-    var a = alerts().find(function(x){ return String(x.id) === String(alertId); });
+  window.BNS_A12_ALERT_RESOLVE = function(id){
+    var s = S();
+    var a = (s.alerts || []).find(function(x){ return String(x.id) === String(id); });
     if (!a) return;
-    var txt = prompt("Afmelding / oplossing omschrijving:", a.resolveText || "");
+    var txt = prompt("Afmelding / oplossing:", a.resolveText || "");
     if (txt === null) return;
     a.resolved = true;
-    a.status = "opgelost";
     a.resolveText = txt;
-    a.resolvedAt = now();
-    a.resolvedBy = currentUserName();
-    SAVE(); updateButton(); window.BNS_OPEN_STORINGEN();
-    try { if (typeof renderAll === "function") renderAll(); } catch(e) {}
+    a.resolvedAt = new Date().toLocaleString();
+    try { a.resolvedBy = (typeof user !== "undefined" && user && (user.name || user.role)) || ""; } catch(e) {}
+    SAVE(); updateButton(); openAlerts();
   };
-
-  window.BNS_STORING_DELETE = function(alertId){
+  window.BNS_A12_ALERT_DELETE = function(id){
     var s = S();
-    if (!Array.isArray(s.alerts)) s.alerts = [];
-    var txt = prompt("Reden verwijderen / wissen:", "");
+    var txt = prompt("Reden verwijderen:", "");
     if (txt === null) return;
-    s.alerts = s.alerts.filter(function(x){ return String(x.id) !== String(alertId); });
-    SAVE(); updateButton(); window.BNS_OPEN_STORINGEN();
-    try { if (typeof renderAll === "function") renderAll(); } catch(e) {}
+    s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
+    SAVE(); updateButton(); openAlerts();
   };
 
-  window.BNS_STORING_CREATE_SAVE = function(orderId){
-    var typeEl = $("bnsStoringType");
-    var textEl = $("bnsStoringText");
-    var type = typeEl ? typeEl.value : "Storing";
-    var note = textEl ? textEl.value.trim() : "";
-    if (!note) { alert("Vul eerst een vrije tekst in bij de melding."); return; }
-    var s = S();
-    if (!Array.isArray(s.alerts)) s.alerts = [];
+  window.alertFor = function(orderId, type){
+    var s = S(); s.alerts = s.alerts || [];
     var o = findOrder(orderId) || {};
+    var now = new Date().toLocaleString();
+    var note = prompt((type || "Melding") + " omschrijving:", "");
+    if (note === null) return;
     s.alerts.push({
-      id: makeId(),
+      id: (typeof id === "function" ? id() : ("alert_" + Date.now() + "_" + Math.random().toString(36).slice(2))),
       orderId: orderId,
-      type: type,
-      title: type + (o.number ? " - " + o.number : ""),
-      note: note,
-      message: note,
-      text: note,
-      time: now(),
-      date: now(),
+      type: type || "Systeemmelding",
+      title: (type || "Systeemmelding") + (o.number ? " - " + o.number : ""),
+      note: note || "Melding aangemaakt",
+      time: now,
       resolved: false,
-      status: "open",
-      createdBy: currentUserName(),
       source: "systeem"
     });
     SAVE();
-    closeModal(CREATE_MODAL_ID);
-    updateButton();
     try { if (typeof renderAll === "function") renderAll(); } catch(e) {}
-    alert("Melding opgeslagen.");
-  };
-
-  window.alertFor = function(orderId, defaultType){
-    var o = findOrder(orderId) || {};
-    var selected = TYPE_OPTIONS.indexOf(defaultType) >= 0 ? defaultType : "Storing";
-    var opts = TYPE_OPTIONS.map(function(t){ return '<option value="'+esc(t)+'" '+(t===selected?'selected':'')+'>'+esc(t)+'</option>'; }).join('');
-    var html = '';
-    html += '<button type="button" class="bns-storing-close" onclick="BNS_STORING_CLOSE(\''+CREATE_MODAL_ID+'\')">Sluiten</button>';
-    html += '<h2>Nieuwe melding aanmaken</h2>';
-    if (o.id) {
-      html += '<div class="bns-storing-order"><b>Opdracht:</b> '+esc(o.number || '')+' - '+esc(o.title || '')+'<br>';
-      if (o.customer) html += '<b>Klant:</b> '+esc(o.customer.name || 'Onbekend')+'<br>';
-      html += '<b>Datum:</b> '+esc(o.start || '')+(o.end ? ' tot datum '+esc(o.end) : '')+'</div>';
-    }
-    html += '<label><b>Soort melding</b></label>';
-    html += '<select id="bnsStoringType" class="bns-storing-input">'+opts+'</select>';
-    html += '<label><b>Vrije tekst / omschrijving</b></label>';
-    html += '<textarea id="bnsStoringText" class="bns-storing-input" rows="6" placeholder="Omschrijf de storing, schade of vermissing..."></textarea>';
-    html += '<div class="bns-storing-actions"><button type="button" class="bns-green" onclick="BNS_STORING_CREATE_SAVE(\''+esc(orderId)+'\')">Melding opslaan</button></div>';
-    modalShell(CREATE_MODAL_ID, html);
-    setTimeout(function(){ var t = $("bnsStoringText"); if (t) t.focus(); }, 50);
+    updateButton();
   };
   try { alertFor = window.alertFor; } catch(e) {}
 
-  function addCss(){
-    if ($("bnsStoringenCssV101")) return;
-    var st = document.createElement("style");
-    st.id = "bnsStoringenCssV101";
-    st.textContent = "" +
-      ".bns-storing-modal-card{background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:820px;width:100%;max-height:84vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32);font-family:inherit}" +
-      ".bns-storing-close{float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-weight:900;cursor:pointer}" +
-      ".bns-storing-help{background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:10px 12px}" +
-      ".bns-storing-item{border:1px solid #d8dee9;border-left:7px solid #dc2626;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc}" +
-      ".bns-storing-title{font-size:18px;font-weight:900;color:#dc2626}" +
-      ".bns-storing-note{white-space:pre-wrap;background:#fff;border-radius:10px;padding:10px;margin:6px 0;border:1px solid #e5e7eb}" +
-      ".bns-storing-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}" +
-      ".bns-storing-actions button{border:0;border-radius:10px;padding:10px 13px;font-weight:900;cursor:pointer}" +
-      ".bns-green{background:#16a34a!important;color:#fff!important}" +
-      ".bns-red{background:#dc2626!important;color:#fff!important}" +
-      ".bns-storing-input{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:12px;padding:11px 12px;margin:6px 0 14px;background:#fff;color:#172033;font:inherit}" +
-      ".bns-storing-order{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin:10px 0}" +
-      "#alertsBtn.bns-storing-blink{animation:bnsStoringBlink .75s infinite alternate!important}" +
-      "@keyframes bnsStoringBlink{from{filter:brightness(.72);transform:scale(.99)}to{filter:brightness(1.25);transform:scale(1.01)}}";
-    document.head.appendChild(st);
+  function install(){
+    if (!document.getElementById("bnsA12AlertBlinkCss")) {
+      var st = document.createElement("style"); st.id = "bnsA12AlertBlinkCss";
+      st.textContent = "@keyframes bnsA12AlertBlink{from{filter:brightness(.75);transform:scale(.99)}to{filter:brightness(1.2);transform:scale(1.01)}}";
+      document.head.appendChild(st);
+    }
+    updateButton();
   }
-
-  function install(){ addCss(); updateButton(); }
   var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-  if (oldRenderAll && !oldRenderAll.__bnsStoringenV101) {
+  if (oldRenderAll && !oldRenderAll.__bnsA12AlertsOnly) {
     var wrapped = function(){ var r = oldRenderAll.apply(this, arguments); setTimeout(install, 0); return r; };
-    wrapped.__bnsStoringenV101 = true;
+    wrapped.__bnsA12AlertsOnly = true;
     window.renderAll = wrapped; try { renderAll = wrapped; } catch(e) {}
   }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 250); });
-  else setTimeout(install, 250);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
   setTimeout(install, 1000);
 })();
 
