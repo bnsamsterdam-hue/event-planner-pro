@@ -60,7 +60,7 @@ function renderLocations(){let q=locationSearch.value.toLowerCase().trim(); if(q
 function pickLocation(lid){let l=state.locations.find(x=>x.id===lid); if(!l)return; locationName.value=l.name||'';locationStreet.value=l.street||'';locationZip.value=l.zip||'';locationCity.value=l.city||'';locationContact.value=l.contact||'';locationPhone.value=l.phone||'';locationBox.classList.add('hidden');summaryRender();}
 function cats(){return [...new Set(state.materials.map(m=>(m.cat||'EXTRA').toUpperCase()))].sort()}
 function renderCats(){let cs=cats(); if(!cs.includes(currentCat))currentCat=cs[0]||'TW'; materialCats.innerHTML=cs.map(c=>`<button class="${c===currentCat?'active':''}" onclick="currentCat='${c}';renderCats();renderMaterials('${c}')">${c}</button>`).join('')}
-function renderMaterials(cat){let q=materialSearch.value.toLowerCase();let rows=state.materials.filter(m=>(m.cat||'').toUpperCase()===cat.toUpperCase()).filter(m=>!q||JSON.stringify(m).toLowerCase().includes(q));materialList.innerHTML=rows.map(m=>{let sel=chosen.some(x=>x.id===m.id);return `<div class="material-row ${sel?'selected':''}" onclick="addMat('${m.id}')"><div class="catbar cat-${m.cat}"></div><div><b>${m.code}</b> ${m.name}<br><small>${m.price||''}</small></div><div><span class="badge ${sel?'now':''}">${sel?'Nu toegevoegd':'Vrij'}</span></div></div>`}).join('')||'<p>Geen materiaal</p>';}
+function renderMaterials(cat){currentCat=cat||currentCat||'TW';let q=materialSearch.value.toLowerCase();let rows=state.materials.filter(m=>(m.cat||'').toUpperCase()===currentCat.toUpperCase()).filter(m=>!q||JSON.stringify(m).toLowerCase().includes(q));materialList.innerHTML=rows.map(m=>{let sel=chosen.some(x=>x.id===m.id);let st=(m.status||'free').toLowerCase();let lab=sel?'● ● Gekozen':(st==='reserved'?'Gereserveerd':(st==='defect'?'Defect':((st==='inactive'||st==='niet actief')?'Niet actief':'Vrij')));let cls=sel?'selected bns-picked':(st==='reserved'?'reserved':(st==='defect'?'defect':((st==='inactive'||st==='niet actief')?'inactive':'free')));return `<div class="material-row ${cls}" onclick="addMat('${m.id}')"><div class="catbar cat-${m.cat}"></div><div><b>${m.code}</b> ${m.name}<br><small>${m.price||''}</small></div><div><span class="badge ${sel?'picked':cls}">${lab}</span></div></div>`}).join('')||'<p>Geen materiaal</p>';}
 function addMat(mid){let m=state.materials.find(x=>x.id===mid); if(m&&!chosen.some(x=>x.id===mid))chosen.push(structuredClone(m));renderChosen();renderMaterials(currentCat);summaryRender();}
 function renderChosen(){chosenMaterials.innerHTML=chosen.map(m=>`<span class="chip">${m.code} ${m.name}<button onclick="removeMat('${m.id}')">x</button></span>`).join('')}
 function removeMat(mid){chosen=chosen.filter(m=>m.id!==mid);renderChosen();renderMaterials(currentCat);summaryRender();}
@@ -3244,1327 +3244,45 @@ setTimeout(()=>{
 
 
 /* =========================================================
-   BNS SIMPEL STABIEL
-   - Vrij materiaal blijft klikbaar.
-   - Alleen reserved / defect / damage / missing / inactive blokkeert.
-   - Copy opdracht staat naast Extra en kopieert huidige schermgegevens.
-   ========================================================= */
-(function(){
-"use strict";
-const STYLE_ID="bns_simpel_stabiel_style", MODAL_ID="bns_simpel_stabiel_modal";
-function E(id){return document.getElementById(id)}
-function A(s,r){return Array.from((r||document).querySelectorAll(s))}
-function ST(){try{return state}catch(e){return null}}
-function ORD(){const s=ST();return s&&Array.isArray(s.orders)?s.orders:[]}
-function MAT(){const s=ST();return s&&Array.isArray(s.materials)?s.materials:[]}
-function CH(){try{return Array.isArray(chosen)?chosen:[]}catch(e){return[]}}
-function ED(){try{return editing||null}catch(e){return null}}
-function SETED(v){try{editing=v}catch(e){}}
-function CC(){try{return currentCat||"TW"}catch(e){return"TW"}}
-function SAVE(){try{if(typeof save==="function")save()}catch(e){}}
-function TOAST(t){try{if(typeof toastMsg==="function")toastMsg(t);else if(typeof toast==="function")toast(t)}catch(e){}}
-function CL(v){try{return typeof structuredClone==="function"?structuredClone(v):JSON.parse(JSON.stringify(v))}catch(e){return Object.assign({},v)}}
-function H(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function V(id){return E(id)?.value||""}
-function SV(id,v){const x=E(id);if(x)x.value=v||""}
-function NICE(v){try{if(typeof nice==="function")return nice(v)}catch(e){}return v||""}
-function mat(mid){return MAT().find(m=>String(m.id)===String(mid))}
-function midFromRow(row){if(!row)return"";if(row.dataset.materialId)return row.dataset.materialId;if(row.dataset.bnsMaterialId)return row.dataset.bnsMaterialId;let m=(row.getAttribute("onclick")||"").match(/addMat\(['"]([^'"]+)['"]\)/);return m?m[1]:""}
-function stOf(m){let s=String(m?.status||"free").trim().toLowerCase();if(s==="reserved"||s==="gereserveerd")return"reserved";if(s==="damage"||s==="schade")return"damage";if(s==="missing"||s==="vermissing"||s==="vermist")return"missing";if(s==="defect"||s==="storing")return"defect";if(s==="inactive"||s==="niet actief"||s==="niet beschikbaar")return"inactive";return"free"}
-function label(s){return s==="reserved"?"Gereserveerd":s==="damage"?"Schade":s==="missing"?"Vermissing":s==="defect"?"Defect / storing":s==="inactive"?"Niet beschikbaar":"Vrij"}
-function cls(s){return s==="reserved"?"reserved":(s==="damage"||s==="missing"||s==="defect")?"defect":s==="inactive"?"inactive":"free"}
-function active(o){return o&&o.status!=="Geannuleerd"&&o.status!=="Uitgevoerd"}
-function reserv(mid){for(const o of ORD()){if(!active(o))continue;if(ED()&&String(o.id)===String(ED()))continue;if((o.materials||[]).some(m=>String(m.id)===String(mid)))return o}return null}
-function block(mid){const m=mat(mid);if(!m)return{blocked:true,status:"missing"};const s=stOf(m);if(s==="reserved")return{blocked:true,status:"reserved",material:m,order:reserv(mid)};if(s==="damage"||s==="missing"||s==="defect"||s==="inactive")return{blocked:true,status:s,material:m};return{blocked:false,status:"free",material:m}}
-function addStable(mid){const b=block(mid);if(b.blocked){popup(mid);return}const m=b.material;if(!m)return;if(!CH().some(x=>String(x.id)===String(mid))){let c=CL(m);c.status="reserved";CH().push(c)}try{renderChosen()}catch(e){}try{renderMaterials(CC())}catch(e){}try{summaryRender()}catch(e){}setTimeout(patchRows,0)}
-function intercept(e){const row=e.target.closest&&e.target.closest(".material-row");const list=E("materialList");if(!row||!list||!list.contains(row))return;const mid=midFromRow(row);if(!mid)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();addStable(mid);return false}
-function popup(mid){const b=block(mid),m=b.material||mat(mid);if(!m)return;let body=`<h3>${H(m.code||"")} ${H(m.name||"")}</h3>`;if(b.status==="reserved"){const o=b.order;body+=o?`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br><b>Klant:</b> ${H(o.customer?.name||"Onbekend")}<br><b>Opdracht:</b> ${H(o.number||"")} - ${H(o.title||"")}<br><b>Datum:</b> ${H(NICE(o.start))} tot datum ${H(NICE(o.end))}</div>`:`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br>Geen opdracht gevonden.</div>`}else{body+=`<div class="bns-box defect"><b>Status:</b> ${H(label(b.status))}<br><b>Omschrijving:</b> ${H(m.issueText||m.notes||"")}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button></div>`}openModal("Materiaal status",body)}
-function openModal(t,b){let m=E(MODAL_ID);if(!m){m=document.createElement("div");m.id=MODAL_ID;m.className="bns-modal hidden";m.innerHTML='<div class="bns-modal-card"><h2 id="bnsStabielTitle"></h2><div id="bnsStabielBody"></div><div class="actions"><button onclick="BNS_STABIEL_close()">Sluiten</button></div></div>';document.body.appendChild(m)}E("bnsStabielTitle").textContent=t||"Info";E("bnsStabielBody").innerHTML=b||"";m.classList.remove("hidden")}
-function closeModal(){const m=E(MODAL_ID);if(m)m.classList.add("hidden")}
-function freeMat(mid){const m=mat(mid);if(!m)return;m.status="free";m.issueText="";m.usable=true;SAVE();closeModal();try{renderAll()}catch(e){}try{renderMaterials(CC())}catch(e){}setTimeout(patchRows,0)}
-function mark(mid,status){const m=mat(mid);if(!m)return;if(status==="free"){m.status="free";m.issueText="";m.usable=true}else{const txt=prompt("Omschrijving / reden:",m.issueText||"");if(txt===null)return;m.status=status;m.issueText=txt||label(status);m.usable=false}SAVE();closeModal();try{renderAll()}catch(e){}try{renderMaterials(CC())}catch(e){}setTimeout(patchRows,0)}
-function forceAdd(mid){const m=mat(mid);if(!m)return;if(!CH().some(x=>String(x.id)===String(mid))){let c=CL(m);c.status="reserved";CH().push(c)}closeModal();try{renderChosen()}catch(e){}try{summaryRender()}catch(e){}setTimeout(patchRows,0)}
-function openOrder(oid){closeModal();if(typeof editOrder==="function")editOrder(oid)}
-function nextNo(){let y=new Date().getFullYear();let nums=ORD().map(o=>String(o.number||"").match(new RegExp("^"+y+"-(\\d+)$"))).filter(Boolean).map(m=>Number(m[1]));return y+"-"+String(nums.length?Math.max(...nums)+1:1).padStart(4,"0")}
-function copyTop(){SETED(null);SV("orderNumber",nextNo());SV("orderStatus","Offerte");SV("dateStart","");SV("dateEnd","");TOAST("Copy gemaakt. Klant/locatie/materialen blijven staan. Vul nieuwe datum in en sla op.")}
-function installCopy(){let btn=E("bnsCopyOrderTop");if(!btn){btn=document.createElement("button");btn.id="bnsCopyOrderTop";btn.type="button";btn.textContent="Copy opdracht";btn.className="worktab bns-copy-top";btn.onclick=e=>{e.preventDefault();copyTop()}}let extra=A("button").find(b=>(b.textContent||"").trim().toLowerCase()==="extra");if(extra&&btn.previousElementSibling!==extra)extra.insertAdjacentElement("afterend",btn);else if(!btn.parentElement)(document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn)}
-function patchRows(){A("#materialList .material-row").forEach(row=>{const mid=midFromRow(row),m=mat(mid);if(!m)return;const b=block(mid);const selected=CH().some(x=>String(x.id)===String(mid));let visual=selected?"now":(b.blocked?cls(b.status):"free");let lab=selected?"Nu toegevoegd":(b.blocked?label(b.status):"Vrij");let small=m.price||"";if(!selected&&b.blocked)small=b.status==="reserved"?"Klik voor klant/datum":"Klik voor status";row.classList.remove("free","reserved","defect","inactive","now");row.classList.add(visual);row.removeAttribute("onclick");let badge=row.querySelector(".badge");if(badge){badge.textContent=lab;badge.className="badge "+visual}let sm=row.querySelector("small");if(sm)sm.textContent=small})}
-function patchAdd(){window.addMat=addStable;try{addMat=addStable}catch(e){}}
-function css(){if(E(STYLE_ID))return;let style=document.createElement("style");style.id=STYLE_ID;style.textContent=`#bnsCopyOrderTop{background:#0f766e!important;color:#fff!important;font-weight:900!important;border:2px solid #99f6e4!important}#materialList .material-row,#materialList .material-row.free,#materialList .material-row.reserved,#materialList .material-row.defect,#materialList .material-row.inactive,#materialList .material-row.now{background:var(--panel,#fff)!important;color:var(--text,#172033)!important}#materialList .badge.free{background:#dcfce7!important;color:#166534!important}#materialList .badge.reserved{background:#fee2e2!important;color:#991b1b!important}#materialList .badge.defect{background:#fee2e2!important;color:#991b1b!important;animation:bnsBlink .45s infinite alternate!important}#materialList .badge.inactive{background:#e2e8f0!important;color:#334155!important}#materialList .badge.now{background:#dbeafe!important;color:#1e40af!important}@keyframes bnsBlink{from{opacity:.45}to{opacity:1}}.bns-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.6);display:grid;place-items:center;padding:20px}.bns-modal.hidden{display:none!important}.bns-modal-card{width:min(760px,96vw);max-height:90vh;overflow:auto;background:var(--panel,#fff);color:var(--text,#172033);border-radius:22px;padding:22px;box-shadow:0 20px 60px rgba(15,23,42,.35)}.bns-box{border:1px solid var(--border,#dbe3ef);border-radius:16px;padding:14px;margin:12px 0;background:rgba(148,163,184,.12);line-height:1.5}.bns-box.reserved,.bns-box.defect{border-color:#ef4444;background:rgba(239,68,68,.1)}.bns-actions{display:flex;flex-wrap:wrap;gap:10px}.bns-actions button{font-size:16px!important;padding:12px 16px!important;border-radius:14px!important;font-weight:900!important}`;document.head.appendChild(style)}
-function patchRenderAll(){if(window.__bnsStabielRenderAll)return;window.__bnsStabielRenderAll=true;let old=window.renderAll||(typeof renderAll!=="undefined"?renderAll:null);if(typeof old==="function"){let wrapped=function(){old();setTimeout(afterRender,0)};window.renderAll=wrapped;try{renderAll=wrapped}catch(e){}}}
-function afterRender(){installCopy();patchRows()}
-function install(){css();installCopy();patchAdd();patchRenderAll();let list=E("materialList");if(list&&!list.dataset.bnsStabielClick){list.dataset.bnsStabielClick="1";list.addEventListener("click",intercept,true)}let search=E("materialSearch");if(search&&!search.dataset.bnsStabielSearch){search.dataset.bnsStabielSearch="1";search.addEventListener("input",()=>setTimeout(patchRows,0))}afterRender()}
-window.BNS_STABIEL_close=closeModal;window.BNS_STABIEL_freeMaterial=freeMat;window.BNS_STABIEL_markStatus=mark;window.BNS_STABIEL_forceAdd=forceAdd;window.BNS_STABIEL_openOrder=openOrder;
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(install,800));else setTimeout(install,800);
-setInterval(install,1500);
-})();
-
-
-
-/* =========================================================
-   BNS LAATSTE HARDE EINDDATUM FIX
-   Staat helemaal onderaan en wint van alle oudere patches.
-
-   - Dashboard: alleen opdrachten met einddatum vandaag of later.
-   - Opdrachten actief: einddatum vandaag of later.
-   - Uitgevoerd: einddatum vóór vandaag.
-   - Bezorger meldingen: alleen actieve opdrachten.
-   - Nieuwe opdracht: startdatum mag niet in verleden.
-   - Einddatum mag niet vóór startdatum.
-   - Kaarten tonen start tot datum einddatum.
-   - Geen setInterval, geen bewegend beeld.
-   ========================================================= */
-(function(){
-  "use strict";
-
-  var BNS_MODE = "active";
-
-  function byId(id){ return document.getElementById(id); }
-
-  function S(){
-    try {
-      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
-    } catch(e) {}
-    try {
-      if (window.state && Array.isArray(window.state.orders)) return window.state;
-    } catch(e) {}
-    try {
-      var raw = localStorage.getItem("eventPlannerProV91") ||
-                localStorage.getItem("eventPlannerPro") ||
-                localStorage.getItem("eventPlannerState") ||
-                localStorage.getItem("plannerState");
-      var parsed = JSON.parse(raw || "{}");
-      if (parsed && Array.isArray(parsed.orders)) return parsed;
-    } catch(e) {}
-    return {orders: [], materials: [], alerts: [], users: []};
-  }
-
-  function saveState(){
-    try {
-      if (typeof save === "function") save();
-      else localStorage.setItem("eventPlannerProV91", JSON.stringify(S()));
-    } catch(e) {}
-  }
-
-  function esc(v){
-    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
-    });
-  }
-
-  function parseDate(v){
-    var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!m) return null;
-    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
-  }
-
-  function today(){
-    var d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-
-  function nice2(v){
-    try {
-      if (typeof nice === "function") return nice(v);
-    } catch(e) {}
-    var d = parseDate(v);
-    if (!d) return v || "";
-    return String(d.getDate()).padStart(2, "0") + "-" +
-           String(d.getMonth() + 1).padStart(2, "0") + "-" +
-           d.getFullYear();
-  }
-
-  function endDate(order){
-    return parseDate(order && (order.end || order.start));
-  }
-
-  function isPastEnd(order){
-    var e = endDate(order);
-    return !!e && e < today();
-  }
-
-  function group(order){
-    var status = String(order && order.status || "").toLowerCase();
-
-    if (status === "geannuleerd") return "cancelled";
-    if (status === "uitgevoerd") return "done";
-    if (isPastEnd(order)) return "done";
-
-    return "active";
-  }
-
-  function activeOrder(order){
-    return group(order) === "active";
-  }
-
-  function sortedOrders(){
-    return (S().orders || []).slice().sort(function(a, b){
-      return String(a.start || "9999-99-99").localeCompare(String(b.start || "9999-99-99"));
-    });
-  }
-
-  function money2(v){
-    try {
-      if (typeof money === "function") return money(v || 0);
-      if (typeof euro === "function") return euro(v || 0);
-    } catch(e) {}
-    return "€ " + Number(v || 0).toFixed(2).replace(".", ",");
-  }
-
-  function dateRange(order){
-    var start = nice2(order.start);
-    var end = nice2(order.end || order.start);
-    return start && end && start !== end ? start + " tot datum " + end : (start || end || "");
-  }
-
-  function matChips(materials){
-    return (materials || []).map(function(m){
-      var code = m.code || m.name || "";
-      return '<span class="material-code-chip">' + esc(code) + '</span>';
-    }).join(" ");
-  }
-
-  function bnsCard(order){
-    var loc = order.location || {};
-    var addr = [loc.name, loc.street, loc.city].filter(Boolean).join(" ");
-    var total = order.pricing && order.pricing.grand != null ? order.pricing.grand : order.amount;
-    var deposit = order.pricing && order.pricing.deposit != null ? order.pricing.deposit : 0;
-    var status = order.status || "";
-
-    return '' +
-      '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
-        '<div class="date-tile">' + esc(nice2(order.start)) + '</div>' +
-        '<div>' +
-          '<div class="order-title">' + esc(order.number || "") + ' - ' + esc(order.title || "") +
-            ' <span class="status status-' + esc(status) + '">' + esc(status) + '</span></div>' +
-          '<div><b>Datum:</b> ' + esc(dateRange(order)) + '</div>' +
-          '<div>Klant: ' + esc(order.customer && order.customer.name || "") + '</div>' +
-          '<div>Locatie: ' + esc(addr) + '</div>' +
-          '<div>Materialen: ' + matChips(order.materials || []) + '</div>' +
-          '<div>Totaal: ' + money2(total) + ' | Borg: ' + money2(deposit) + '</div>' +
-          '<button type="button" class="bns-waze-btn" onclick="window.open(\'https://waze.com/ul?q=' + encodeURIComponent(addr) + '&navigate=yes\',\'_blank\')">Waze</button>' +
-        '</div>' +
-        '<div class="actions">' +
-          '<button type="button" onclick="editOrder(\'' + esc(order.id) + '\')">Wijzigen</button>' +
-          (status === "Geannuleerd"
-            ? '<button type="button" onclick="restore(\'' + esc(order.id) + '\')">Terughalen</button>'
-            : '<button type="button" class="danger" onclick="cancel(\'' + esc(order.id) + '\')">Annuleren</button>') +
-        '</div>' +
-      '</div>';
-  }
-
-  function searchMatch(order, q){
-    if (!q) return true;
-
-    var matText = (order.materials || []).map(function(m){
-      return [m.cat, m.code, m.name, m.price, m.status].join(" ");
-    }).join(" ");
-
-    var haystack = [
-      order.id,
-      order.oldId,
-      order.number,
-      order.title,
-      order.status,
-      order.start,
-      order.end,
-      nice2(order.start),
-      nice2(order.end),
-      dateRange(order),
-      order.customer && order.customer.name,
-      order.customer && order.customer.phone,
-      order.customer && order.customer.email,
-      order.location && order.location.name,
-      order.location && order.location.street,
-      order.location && order.location.city,
-      matText
-    ].join(" ").toLowerCase();
-
-    return haystack.indexOf(q) !== -1;
-  }
-
-  function getMode(){
-    try {
-      if (typeof mode !== "undefined" && mode) return mode;
-    } catch(e) {}
-    return window.mode || BNS_MODE || "active";
-  }
-
-  function setMode(m){
-    BNS_MODE = m;
-    window.mode = m;
-    try { mode = m; } catch(e) {}
-  }
-
-  function findButton(textRegex, id){
-    return byId(id) || Array.from(document.querySelectorAll("button")).find(function(b){
-      return textRegex.test(b.textContent || "");
-    });
-  }
-
-  function paintModeButtons(){
-    var current = getMode();
-    var list = [
-      [findButton(/actieve opdrachten/i, "activeOrders"), "active"],
-      [findButton(/uitgevoerde opdrachten/i, "doneOrders"), "done"],
-      [findButton(/geannuleerde opdrachten/i, "cancelledOrders"), "cancelled"]
-    ];
-
-    list.forEach(function(pair){
-      var btn = pair[0];
-      var active = pair[1] === current;
-      if (!btn) return;
-
-      btn.classList.toggle("bns-final-active-filter", active);
-
-      if (active) {
-        btn.style.setProperty("background", "#0f172a", "important");
-        btn.style.setProperty("color", "#fff", "important");
-        btn.style.setProperty("border", "3px solid #22d3ee", "important");
-        btn.style.setProperty("box-shadow", "0 0 0 3px rgba(34,211,238,.25)", "important");
-      } else {
-        btn.style.removeProperty("background");
-        btn.style.removeProperty("color");
-        btn.style.removeProperty("border");
-        btn.style.removeProperty("box-shadow");
-      }
-    });
-  }
-
-  function renderOrdersFinal(){
-    var list = byId("ordersList");
-    if (!list) {
-      paintModeButtons();
-      return;
-    }
-
-    var q = String((byId("ordersSearch") || {}).value || "").toLowerCase().trim();
-    var m = getMode();
-
-    var rows = sortedOrders()
-      .filter(function(order){ return group(order) === m; })
-      .filter(function(order){ return searchMatch(order, q); });
-
-    list.innerHTML = rows.map(bnsCard).join("") || "<p>Niets gevonden</p>";
-    paintModeButtons();
-  }
-
-  function renderDashboardFinal(){
-    try {
-      if (byId("statOrders")) byId("statOrders").textContent = (S().orders || []).length;
-      if (byId("statMaterials")) byId("statMaterials").textContent = (S().materials || []).length;
-      if (byId("statAlerts")) byId("statAlerts").textContent = (S().alerts || []).length;
-    } catch(e) {}
-
-    var box = byId("dashOrders");
-    if (!box) return;
-
-    var rows = sortedOrders()
-      .filter(activeOrder)
-      .slice(0, 6);
-
-    box.innerHTML = rows.map(bnsCard).join("") || "<p>Geen aankomende opdrachten.</p>";
-  }
-
-  function renderDriverFinal(){
-    var box = byId("driverList");
-    if (!box) return;
-
-    var rows = sortedOrders()
-      .filter(activeOrder)
-      .slice(0, 25);
-
-    box.innerHTML = rows.map(function(order){
-      return '' +
-        '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
-          '<div class="date-tile">' + esc(nice2(order.start)) + '</div>' +
-          '<div>' +
-            '<b>' + esc(order.number || "") + ' - ' + esc(order.title || "") + '</b><br>' +
-            '<b>Datum:</b> ' + esc(dateRange(order)) + '<br>' +
-            esc((order.materials || []).map(function(m){ return m.code || m.name || ""; }).join(", ")) +
-          '</div>' +
-          '<div class="actions">' +
-            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Storing\')">Storing</button>' +
-            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Schade\')">Schade</button>' +
-            '<button type="button" onclick="alertFor(\'' + esc(order.id) + '\',\'Vermissing\')">Vermissing</button>' +
-          '</div>' +
-        '</div>';
-    }).join("") || "<p>Geen actieve opdrachten.</p>";
-  }
-
-  function validNewOrderDate(){
-    var startInput = byId("dateStart");
-    var endInput = byId("dateEnd");
-
-    if (!startInput) return true;
-
-    var start = parseDate(startInput.value);
-    var end = parseDate((endInput && endInput.value) || startInput.value);
-    var now = today();
-
-    if (start && start < now) {
-      alert("Je kunt geen nieuwe opdracht in het verleden plannen. Vandaag mag wel.");
-      return false;
-    }
-
-    if (start && end && end < start) {
-      alert("Einddatum kan niet vóór startdatum liggen.");
-      return false;
-    }
-
-    return true;
-  }
-
-  function hookButtonsFinal(){
-    var active = findButton(/actieve opdrachten/i, "activeOrders");
-    var done = findButton(/uitgevoerde opdrachten/i, "doneOrders");
-    var cancelled = findButton(/geannuleerde opdrachten/i, "cancelledOrders");
-
-    if (active) active.onclick = function(e){ if(e)e.preventDefault(); setMode("active"); renderOrdersFinal(); };
-    if (done) done.onclick = function(e){ if(e)e.preventDefault(); setMode("done"); renderOrdersFinal(); };
-    if (cancelled) cancelled.onclick = function(e){ if(e)e.preventDefault(); setMode("cancelled"); renderOrdersFinal(); };
-
-    var search = byId("ordersSearch");
-    if (search && !search.dataset.bnsFinalHardSearch) {
-      search.dataset.bnsFinalHardSearch = "1";
-      search.addEventListener("input", renderOrdersFinal);
-    }
-
-    var saveBtn = byId("saveOrder");
-    if (saveBtn && !saveBtn.dataset.bnsFinalDateCheck) {
-      saveBtn.dataset.bnsFinalDateCheck = "1";
-      saveBtn.addEventListener("click", function(e){
-        if (!validNewOrderDate()) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          return false;
-        }
-      }, true);
-    }
-
-    paintModeButtons();
-  }
-
-  function installCss(){
-    if (byId("bns-final-hard-css")) return;
-
-    var style = document.createElement("style");
-    style.id = "bns-final-hard-css";
-    style.textContent = '' +
-      '.bns-final-active-filter{background:#0f172a!important;color:#fff!important;border:3px solid #22d3ee!important;box-shadow:0 0 0 3px rgba(34,211,238,.25)!important}' +
-      '.bns-waze-btn{margin-top:10px;background:#16a34a!important;color:white!important;border:none!important;border-radius:10px!important;padding:8px 22px!important;font-weight:800!important}';
-    document.head.appendChild(style);
-  }
-
-  function refreshFinal(){
-    installCss();
-    hookButtonsFinal();
-    renderDashboardFinal();
-    renderOrdersFinal();
-    renderDriverFinal();
-  }
-
-  // Vervang functies definitief.
-  window.card = bnsCard;
-  window.renderOrders = renderOrdersFinal;
-  window.renderDashboard = renderDashboardFinal;
-  window.renderDriver = renderDriverFinal;
-
-  try { card = bnsCard; } catch(e) {}
-  try { renderOrders = renderOrdersFinal; } catch(e) {}
-  try { renderDashboard = renderDashboardFinal; } catch(e) {}
-  try { renderDriver = renderDriverFinal; } catch(e) {}
-
-  // saveCurrentOrder ook afvangen.
-  if (typeof window.saveCurrentOrder === "function" && !window.saveCurrentOrder.__bnsFinalHardDate) {
-    var oldSave = window.saveCurrentOrder;
-    var newSave = function(){
-      if (!validNewOrderDate()) return false;
-      return oldSave.apply(this, arguments);
-    };
-    newSave.__bnsFinalHardDate = true;
-    window.saveCurrentOrder = newSave;
-    try { saveCurrentOrder = newSave; } catch(e) {}
-  } else {
-    try {
-      if (typeof saveCurrentOrder === "function" && !saveCurrentOrder.__bnsFinalHardDate) {
-        var oldSave2 = saveCurrentOrder;
-        var newSave2 = function(){
-          if (!validNewOrderDate()) return false;
-          return oldSave2.apply(this, arguments);
-        };
-        newSave2.__bnsFinalHardDate = true;
-        saveCurrentOrder = newSave2;
-        window.saveCurrentOrder = newSave2;
-      }
-    } catch(e) {}
-  }
-
-  // renderAll opnieuw vastzetten zonder interval.
-  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-  var newRenderAll = function(){
-    try {
-      if (oldRenderAll && oldRenderAll !== newRenderAll) oldRenderAll.apply(this, arguments);
-    } catch(e) {}
-
-    // Direct daarna definitief juiste lijsten tekenen.
-    hookButtonsFinal();
-    renderDashboardFinal();
-    renderOrdersFinal();
-    renderDriverFinal();
-
-    try {
-      var driverSelect = byId("orderDriver");
-      if (driverSelect && S().users) {
-        driverSelect.innerHTML = '<option value="">Geen</option>' + (S().users || [])
-          .filter(function(u){ return u.role === "Bezorger"; })
-          .map(function(u){ return "<option>" + esc(u.name) + "</option>"; })
-          .join("");
-      }
-    } catch(e) {}
-
-    try {
-      if (byId("alertsBtn")) {
-        var open = (S().alerts || []).filter(function(a){ return !a.resolved; }).length;
-        byId("alertsBtn").textContent = "🚨 Systeemmeldingen (" + open + ")";
-      }
-    } catch(e) {}
-
-    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
-  };
-
-  window.renderAll = newRenderAll;
-  try { renderAll = newRenderAll; } catch(e) {}
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(refreshFinal, 250);
-    });
-  } else {
-    setTimeout(refreshFinal, 250);
-  }
-
-  // Eén extra late run voor scripts die na DOMContentLoaded nog bouwen. Geen interval.
-  setTimeout(refreshFinal, 1200);
-})();
-
-
-/* =========================================================
-   BNS UPDATE - OPDRACHTENRECHT VOOR BEZORGER + SCHADE MELDINGEN TAB
-   - Nieuwe knop naast geannuleerde opdrachten: Schade meldingen.
-   - Meldingen type Storing / Schade / Vermissing staan daar overzichtelijk.
-   - Bezorger kan recht krijgen om Opdrachten te bekijken/zoeken.
-   - Geen interval, geen bewegend scherm.
-   ========================================================= */
-(function(){
-  "use strict";
-
-  var DAMAGE_MODE = "damage";
-
-  function $(id){ return document.getElementById(id); }
-
-  function appState(){
-    try {
-      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
-    } catch(e) {}
-    try {
-      if (window.state && Array.isArray(window.state.orders)) return window.state;
-    } catch(e) {}
-    try {
-      var raw = localStorage.getItem("eventPlannerProV91") ||
-                localStorage.getItem("eventPlannerPro") ||
-                localStorage.getItem("plannerState");
-      var parsed = JSON.parse(raw || "{}");
-      if (parsed && Array.isArray(parsed.orders)) return parsed;
-    } catch(e) {}
-    return {orders: [], users: [], alerts: []};
-  }
-
-  function saveState(){
-    try {
-      if (typeof save === "function") save();
-      else localStorage.setItem("eventPlannerProV91", JSON.stringify(appState()));
-    } catch(e) {}
-  }
-
-  function esc(v){
-    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
-    });
-  }
-
-  function dateOnly(v){
-    var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!m) return null;
-    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
-  }
-
-  function niceDate(v){
-    try {
-      if (typeof nice === "function") return nice(v);
-    } catch(e) {}
-    var d = dateOnly(v);
-    if (!d) return v || "";
-    return String(d.getDate()).padStart(2, "0") + "-" +
-           String(d.getMonth() + 1).padStart(2, "0") + "-" +
-           d.getFullYear();
-  }
-
-  function findOrder(orderId){
-    return (appState().orders || []).find(function(order){
-      return String(order.id) === String(orderId);
-    });
-  }
-
-  function alertType(alertItem){
-    var txt = String(alertItem.type || alertItem.title || alertItem.note || alertItem.message || "").toLowerCase();
-    if (txt.indexOf("storing") !== -1) return "Storing";
-    if (txt.indexOf("vermissing") !== -1 || txt.indexOf("vermist") !== -1) return "Vermissing";
-    if (txt.indexOf("schade") !== -1) return "Schade";
-    return "Melding";
-  }
-
-  function isDamageAlert(alertItem){
-    var type = alertType(alertItem);
-    return type === "Storing" || type === "Schade" || type === "Vermissing";
-  }
-
-  function getMode(){
-    try {
-      if (typeof mode !== "undefined" && mode) return mode;
-    } catch(e) {}
-    return window.mode || "active";
-  }
-
-  function setMode(nextMode){
-    window.mode = nextMode;
-    try { mode = nextMode; } catch(e) {}
-  }
-
-  function findButtonByText(regex){
-    return Array.from(document.querySelectorAll("button")).find(function(button){
-      return regex.test(button.textContent || "");
-    });
-  }
-
-  function ensureDamageButton(){
-    if ($("damageOrders")) return $("damageOrders");
-
-    var cancelled = $("cancelledOrders") || findButtonByText(/geannuleerde opdrachten/i);
-    var done = $("doneOrders") || findButtonByText(/uitgevoerde opdrachten/i);
-
-    var button = document.createElement("button");
-    button.id = "damageOrders";
-    button.type = "button";
-    button.textContent = "Schade meldingen";
-
-    if (cancelled && cancelled.parentNode) {
-      cancelled.insertAdjacentElement("afterend", button);
-    } else if (done && done.parentNode) {
-      done.insertAdjacentElement("afterend", button);
-    }
-
-    return button;
-  }
-
-  function paintDamageButton(){
-    var current = getMode();
-    var damage = $("damageOrders");
-    if (!damage) return;
-
-    var active = current === DAMAGE_MODE;
-    damage.classList.toggle("bns-damage-active", active);
-
-    if (active) {
-      damage.style.setProperty("background", "#7f1d1d", "important");
-      damage.style.setProperty("color", "#fff", "important");
-      damage.style.setProperty("border", "3px solid #f97316", "important");
-      damage.style.setProperty("box-shadow", "0 0 0 3px rgba(249,115,22,.25)", "important");
-    } else {
-      damage.style.removeProperty("background");
-      damage.style.removeProperty("color");
-      damage.style.removeProperty("border");
-      damage.style.removeProperty("box-shadow");
-    }
-  }
-
-  function damageCard(alertItem){
-    var order = findOrder(alertItem.orderId);
-    var type = alertType(alertItem);
-    var resolved = !!alertItem.resolved;
-    var msg = alertItem.message || alertItem.note || "";
-
-    return '' +
-      '<div class="order-card bns-damage-card ' + (resolved ? 'resolved' : 'open') + '">' +
-        '<div class="date-tile">' + esc((alertItem.time || "").split(",")[0] || "") + '</div>' +
-        '<div>' +
-          '<div class="order-title">' + esc(type) + ' ' +
-            '<span class="status">' + (resolved ? 'Opgelost' : 'Open') + '</span></div>' +
-          '<div><b>Opdracht:</b> ' + esc(order ? (order.number || "") + " - " + (order.title || "") : "Onbekend") + '</div>' +
-          '<div><b>Klant:</b> ' + esc(order && order.customer && order.customer.name || "") + '</div>' +
-          '<div><b>Datum opdracht:</b> ' + esc(order ? niceDate(order.start) + (order.end && order.end !== order.start ? " tot datum " + niceDate(order.end) : "") : "") + '</div>' +
-          '<div><b>Melding:</b> ' + esc(msg) + '</div>' +
-          '<div><b>Gemeld:</b> ' + esc(alertItem.time || "") + '</div>' +
-          (resolved ? '<div><b>Opgelost:</b> ' + esc(alertItem.resolvedAt || "") + '</div>' : '') +
-        '</div>' +
-        '<div class="actions">' +
-          (resolved ? '' : '<button type="button" onclick="BNS_damageResolve(\'' + esc(alertItem.id) + '\')">Opgelost na reparatie</button>') +
-          '<button type="button" onclick="BNS_damageDelete(\'' + esc(alertItem.id) + '\')" ' + (resolved ? '' : 'disabled') + '>Wissen</button>' +
-        '</div>' +
-      '</div>';
-  }
-
-  function renderDamageAlerts(){
-    var list = $("ordersList");
-    if (!list) return;
-
-    var query = String(($("ordersSearch") || {}).value || "").toLowerCase().trim();
-
-    var alerts = (appState().alerts || [])
-      .filter(isDamageAlert)
-      .filter(function(alertItem){
-        if (!query) return true;
-        var order = findOrder(alertItem.orderId);
-        var text = [
-          alertType(alertItem),
-          alertItem.message,
-          alertItem.note,
-          alertItem.time,
-          order && order.number,
-          order && order.title,
-          order && order.customer && order.customer.name
-        ].join(" ").toLowerCase();
-        return text.indexOf(query) !== -1;
-      })
-      .sort(function(a, b){
-        return String(b.time || "").localeCompare(String(a.time || ""));
-      });
-
-    list.innerHTML = alerts.map(damageCard).join("") || "<p>Geen schade/storing/vermissing meldingen.</p>";
-    paintDamageButton();
-  }
-
-  window.BNS_damageResolve = function(alertId){
-    var item = (appState().alerts || []).find(function(alertItem){
-      return String(alertItem.id) === String(alertId);
-    });
-
-    if (!item) return;
-
-    item.resolved = true;
-    item.resolvedAt = new Date().toLocaleString();
-    saveState();
-    renderDamageAlerts();
-  };
-
-  window.BNS_damageDelete = function(alertId){
-    var s = appState();
-    var item = (s.alerts || []).find(function(alertItem){
-      return String(alertItem.id) === String(alertId);
-    });
-
-    if (!item) return;
-
-    if (!item.resolved) {
-      alert("Melding eerst op opgelost zetten na reparatie.");
-      return;
-    }
-
-    s.alerts = (s.alerts || []).filter(function(alertItem){
-      return String(alertItem.id) !== String(alertId);
-    });
-
-    saveState();
-    renderDamageAlerts();
-  };
-
-  function patchOrdersRender(){
-    var oldRenderOrders = window.renderOrders || (typeof renderOrders === "function" ? renderOrders : null);
-
-    if (oldRenderOrders && oldRenderOrders.__bnsDamageWrapped) return;
-
-    var wrapped = function(){
-      if (getMode() === DAMAGE_MODE) {
-        renderDamageAlerts();
-        return;
-      }
-
-      if (oldRenderOrders) oldRenderOrders.apply(this, arguments);
-      paintDamageButton();
-    };
-
-    wrapped.__bnsDamageWrapped = true;
-    window.renderOrders = wrapped;
-    try { renderOrders = wrapped; } catch(e) {}
-  }
-
-  function hookDamageButton(){
-    var button = ensureDamageButton();
-    if (!button) return;
-
-    button.onclick = function(event){
-      if (event) event.preventDefault();
-      setMode(DAMAGE_MODE);
-      renderDamageAlerts();
-      paintDamageButton();
-    };
-
-    var search = $("ordersSearch");
-    if (search && !search.dataset.bnsDamageSearch) {
-      search.dataset.bnsDamageSearch = "1";
-      search.addEventListener("input", function(){
-        if (getMode() === DAMAGE_MODE) renderDamageAlerts();
-      });
-    }
-
-    paintDamageButton();
-  }
-
-  function currentUser(){
-    try {
-      if (window.currentUser) return window.currentUser;
-    } catch(e) {}
-    try {
-      if (typeof currentUser !== "undefined" && currentUser) return currentUser;
-    } catch(e) {}
-    return null;
-  }
-
-  function userMaySeeOrders(user){
-    if (!user) return true;
-    if (user.role === "Admin" || user.role === "Planner") return true;
-    return !!(user.rights && (user.rights.orders || user.rights.opdrachten));
-  }
-
-  function applyOrderMenuPermission(){
-    var user = currentUser();
-    var navOrders = Array.from(document.querySelectorAll("button,.nav button,.side button")).find(function(el){
-      return /^opdrachten$/i.test((el.textContent || "").trim());
-    });
-
-    if (!navOrders) return;
-
-    if (userMaySeeOrders(user)) {
-      navOrders.style.display = "";
-    } else if (user && user.role === "Bezorger") {
-      navOrders.style.display = "none";
-    }
-  }
-
-  function ensureUserRightsCheckbox(){
-    var adminUsers = $("adminUsers") || document.querySelector("#adminUsers, [data-admin='adminUsers']");
-    if (!adminUsers) return;
-
-    if ($("bnsRightOrders")) return;
-
-    var box = document.createElement("label");
-    box.className = "bns-right-orders-box";
-    box.style.display = "block";
-    box.style.margin = "10px 0";
-    box.innerHTML = '<input type="checkbox" id="bnsRightOrders"> Opdrachten bekijken / zoeken';
-
-    var target = $("userRights") || $("adminUserRights") || adminUsers.querySelector(".rights") || adminUsers;
-    target.appendChild(box);
-
-    var checkbox = $("bnsRightOrders");
-
-    checkbox.addEventListener("change", function(){
-      try {
-        var selectedId = window.selectedUserId || window.bnsSelectedUserId || "";
-        var user = (appState().users || []).find(function(u){
-          return String(u.id) === String(selectedId);
-        });
-
-        // Fallback: als geen geselecteerde gebruiker bekend is, pas eerste bezorger aan.
-        if (!user) {
-          user = (appState().users || []).find(function(u){ return u.role === "Bezorger"; });
-        }
-
-        if (!user) return;
-
-        user.rights = user.rights || {};
-        user.rights.orders = checkbox.checked;
-        user.rights.opdrachten = checkbox.checked;
-        saveState();
-        applyOrderMenuPermission();
-      } catch(e) {}
-    });
-  }
-
-  function patchAdminUserFill(){
-    // Als er al bestaande user-form inputs zijn, vul de checkbox mee wanneer erop geklikt wordt.
-    document.addEventListener("click", function(event){
-      var row = event.target && event.target.closest && event.target.closest("[data-user-id]");
-      if (!row) return;
-
-      var userId = row.getAttribute("data-user-id");
-      window.bnsSelectedUserId = userId;
-
-      var user = (appState().users || []).find(function(u){
-        return String(u.id) === String(userId);
-      });
-
-      var checkbox = $("bnsRightOrders");
-      if (checkbox && user) {
-        checkbox.checked = !!(user.rights && (user.rights.orders || user.rights.opdrachten));
-      }
-    }, true);
-  }
-
-  function installCss(){
-    if ($("bnsDamageTabCss")) return;
-
-    var style = document.createElement("style");
-    style.id = "bnsDamageTabCss";
-    style.textContent = `
-      #damageOrders {
-        margin-left: 10px;
-      }
-      .bns-damage-card.open {
-        border-left: 7px solid #dc2626;
-      }
-      .bns-damage-card.resolved {
-        border-left: 7px solid #16a34a;
-        opacity: .86;
-      }
-      .bns-damage-card button[disabled] {
-        opacity: .45;
-        cursor: not-allowed;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function install(){
-    installCss();
-    patchOrdersRender();
-    hookDamageButton();
-    ensureUserRightsCheckbox();
-    patchAdminUserFill();
-    applyOrderMenuPermission();
-  }
-
-  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-
-  if (oldRenderAll && !oldRenderAll.__bnsDamageRightsWrapped) {
-    var wrappedRenderAll = function(){
-      var result = oldRenderAll.apply(this, arguments);
-      setTimeout(install, 0);
-      return result;
-    };
-
-    wrappedRenderAll.__bnsDamageRightsWrapped = true;
-    window.renderAll = wrappedRenderAll;
-    try { renderAll = wrappedRenderAll; } catch(e) {}
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); });
-  } else {
-    setTimeout(install, 300);
-  }
-
-  setTimeout(install, 1200);
-})();
-
-
-/* =========================================================
-   BNS ROBUUSTE UI FIX - KNOPPEN + GEKOZEN MATERIAAL ROOD
-   Werkt onafhankelijk van bestaande render volgorde.
-   - Factuur maken + Opdracht bon naast Extra
-   - Gekozen materiaal links rood/duidelijk
-   - Direct opslaan gaat terug naar Opdrachten
-   - Geen interval, alleen MutationObserver bij DOM-wijzigingen
-   ========================================================= */
-(function(){
-  "use strict";
-
-  let scheduled = false;
-
-  function $(id){ return document.getElementById(id); }
-
-  function text(el){
-    return String(el && el.textContent || "").trim();
-  }
-
-  function esc(v){
-    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
-    });
-  }
-
-  function chosenArr(){
-    try {
-      if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen;
-    } catch(e) {}
-    try {
-      if (window.chosen && Array.isArray(window.chosen)) return window.chosen;
-    } catch(e) {}
-    return [];
-  }
-
-  function chosenIds(){
-    return chosenArr().map(function(item){ return String(item.id); });
-  }
-
-  function materialIdFromRow(row){
-    if (!row) return "";
-
-    let id =
-      row.getAttribute("data-material-id") ||
-      row.getAttribute("data-bns-material-id") ||
-      row.dataset.materialId ||
-      row.dataset.bnsMaterialId ||
-      "";
-
-    if (id) return String(id);
-
-    const onclick = row.getAttribute("onclick") || "";
-    let match = onclick.match(/addMat\(['"]([^'"]+)['"]\)/);
-    if (match) return match[1];
-
-    const html = row.outerHTML || "";
-    match = html.match(/addMat\(['"]([^'"]+)['"]\)/);
-    if (match) return match[1];
-
-    return "";
-  }
-
-  function markChosenMaterials(){
-    const ids = chosenIds();
-
-    const rows = Array.from(document.querySelectorAll(
-      "#materialList [data-material-id], #materialList [data-bns-material-id], #materialList .material-row, #materialList .bns-material-row, #materialList .bns-cat-row"
-    ));
-
-    rows.forEach(function(row){
-      const mid = materialIdFromRow(row);
-      const selected = mid && ids.indexOf(String(mid)) !== -1;
-
-      row.classList.toggle("bns-selected-material-red", !!selected);
-
-      if (selected) {
-        row.style.setProperty("background", "#fee2e2", "important");
-        row.style.setProperty("border-color", "#dc2626", "important");
-        row.style.setProperty("box-shadow", "inset 7px 0 0 #dc2626", "important");
-
-        const status =
-          row.querySelector(".bns-status-pill") ||
-          row.querySelector(".mat-status-badge") ||
-          row.querySelector(".v112-pill") ||
-          row.querySelector("span:last-child");
-
-        if (status) {
-          status.textContent = "● ● Gekozen";
-          status.style.setProperty("background", "#fecaca", "important");
-          status.style.setProperty("color", "#7f1d1d", "important");
-          status.style.setProperty("font-weight", "900", "important");
-          status.style.setProperty("border-radius", "999px", "important");
-          status.style.setProperty("padding", "5px 10px", "important");
-        }
-
-        Array.from(row.querySelectorAll("i, .dot, .bns-dot, .cat-dot")).forEach(function(dot){
-          dot.style.setProperty("background", "#dc2626", "important");
-        });
-      } else {
-        row.style.removeProperty("background");
-        row.style.removeProperty("border-color");
-        row.style.removeProperty("box-shadow");
-      }
-    });
-  }
-
-  function findExtraButton(){
-    return Array.from(document.querySelectorAll("button")).find(function(btn){
-      return /^extra$/i.test(text(btn));
-    });
-  }
-
-  function clickFirstButton(regex){
-    const btn = Array.from(document.querySelectorAll("button")).find(function(button){
-      return regex.test(text(button));
-    });
-    if (btn) {
-      btn.click();
-      return true;
-    }
-    return false;
-  }
-
-  function makeInvoice(){
-    // Probeer bestaande factuurknop/functie te gebruiken.
-    if (clickFirstButton(/^(factuur|factuur maken|invoice)$/i)) return;
-
-    try {
-      if (typeof window.makeInvoice === "function") {
-        window.makeInvoice();
-        return;
-      }
-    } catch(e) {}
-
-    try {
-      if (typeof safePrint === "function") {
-        safePrint();
-        return;
-      }
-    } catch(e) {}
-
-    window.print();
-  }
-
-  function makeOrderBon(){
-    // Probeer bestaande opdrachtbon/overzicht knop.
-    if (clickFirstButton(/opdracht bon|opdrachtbevestiging|overzicht maken|overzicht \/ opdrachtbevestiging/i)) return;
-
-    try {
-      if (typeof makeConfirmationText === "function") {
-        const msg = makeConfirmationText();
-        const w = window.open("", "_blank");
-        if (w) {
-          w.document.write("<pre style='font-family:Arial;white-space:pre-wrap'>" + esc(msg) + "</pre>");
-          w.document.close();
-          return;
-        }
-      }
-    } catch(e) {}
-
-    window.print();
-  }
-
-  function ensureTopButtons(){
-    const extra = findExtraButton();
-    if (!extra || !extra.parentNode) return;
-
-    if (!$("bnsFactuurTopBtn")) {
-      const btn = document.createElement("button");
-      btn.id = "bnsFactuurTopBtn";
-      btn.type = "button";
-      btn.textContent = "Factuur maken";
-      btn.className = extra.className || "";
-      btn.addEventListener("click", function(e){
-        e.preventDefault();
-        makeInvoice();
-      });
-      extra.insertAdjacentElement("afterend", btn);
-    }
-
-    if (!$("bnsOpdrachtBonTopBtn")) {
-      const btn = document.createElement("button");
-      btn.id = "bnsOpdrachtBonTopBtn";
-      btn.type = "button";
-      btn.textContent = "Opdracht bon";
-      btn.className = extra.className || "";
-      btn.addEventListener("click", function(e){
-        e.preventDefault();
-        makeOrderBon();
-      });
-
-      const factuur = $("bnsFactuurTopBtn");
-      if (factuur) factuur.insertAdjacentElement("afterend", btn);
-      else extra.insertAdjacentElement("afterend", btn);
-    }
-  }
-
-  function goOrders(){
-    try {
-      if (typeof showPage === "function") {
-        showPage("orders");
-        return;
-      }
-    } catch(e) {}
-
-    const btn = Array.from(document.querySelectorAll("button,.nav button,.side button")).find(function(button){
-      return /^opdrachten$/i.test(text(button));
-    });
-    if (btn) btn.click();
-  }
-
-  function patchSaveButtons(){
-    Array.from(document.querySelectorAll("button")).forEach(function(btn){
-      const label = text(btn).toLowerCase();
-
-      if ((label === "direct opslaan" || label === "opslaan") && !btn.dataset.bnsCloseAfterSaveRobust) {
-        btn.dataset.bnsCloseAfterSaveRobust = "1";
-        btn.addEventListener("click", function(){
-          setTimeout(goOrders, 250);
-        }, false);
-      }
-    });
-
-    try {
-      const fn = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null);
-      if (fn && !fn.__bnsCloseAfterSaveRobust) {
-        const wrapped = function(){
-          const result = fn.apply(this, arguments);
-          setTimeout(goOrders, 250);
-          return result;
-        };
-        wrapped.__bnsCloseAfterSaveRobust = true;
-        window.saveCurrentOrder = wrapped;
-        try { saveCurrentOrder = wrapped; } catch(e) {}
-      }
-    } catch(e) {}
-  }
-
-  function patchAddAndRemove(){
-    try {
-      const fn = window.addMat || (typeof addMat === "function" ? addMat : null);
-      if (fn && !fn.__bnsMarkChosenRobust) {
-        const wrapped = function(){
-          const result = fn.apply(this, arguments);
-          scheduleApply();
-          return result;
-        };
-        wrapped.__bnsMarkChosenRobust = true;
-        window.addMat = wrapped;
-        try { addMat = wrapped; } catch(e) {}
-      }
-    } catch(e) {}
-
-    try {
-      const fn = window.renderMaterials || (typeof renderMaterials === "function" ? renderMaterials : null);
-      if (fn && !fn.__bnsMarkChosenRobust) {
-        const wrapped = function(){
-          const result = fn.apply(this, arguments);
-          scheduleApply();
-          return result;
-        };
-        wrapped.__bnsMarkChosenRobust = true;
-        window.renderMaterials = wrapped;
-        try { renderMaterials = wrapped; } catch(e) {}
-      }
-    } catch(e) {}
-
-    try {
-      const fn = window.renderChosen || (typeof renderChosen === "function" ? renderChosen : null);
-      if (fn && !fn.__bnsMarkChosenRobust) {
-        const wrapped = function(){
-          const result = fn.apply(this, arguments);
-          scheduleApply();
-          return result;
-        };
-        wrapped.__bnsMarkChosenRobust = true;
-        window.renderChosen = wrapped;
-        try { renderChosen = wrapped; } catch(e) {}
-      }
-    } catch(e) {}
-  }
-
-  function installCss(){
-    if ($("bnsRobustUiFixCss")) return;
-
-    const style = document.createElement("style");
-    style.id = "bnsRobustUiFixCss";
-    style.textContent = `
-      #bnsFactuurTopBtn,
-      #bnsOpdrachtBonTopBtn {
-        margin-left: 8px !important;
-        border: none !important;
-        border-radius: 12px !important;
-        padding: 10px 18px !important;
-        color: #fff !important;
-        font-weight: 900 !important;
-      }
-      #bnsFactuurTopBtn {
-        background: #2563eb !important;
-      }
-      #bnsOpdrachtBonTopBtn {
-        background: #16a34a !important;
-      }
-      .bns-selected-material-red {
-        background: #fee2e2 !important;
-        border-color: #dc2626 !important;
-        box-shadow: inset 7px 0 0 #dc2626 !important;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function applyAll(){
-    scheduled = false;
-    installCss();
-    patchAddAndRemove();
-    patchSaveButtons();
-    ensureTopButtons();
-    markChosenMaterials();
-  }
-
-  function scheduleApply(){
-    if (scheduled) return;
-    scheduled = true;
-    setTimeout(applyAll, 80);
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(applyAll, 300);
-    });
-  } else {
-    setTimeout(applyAll, 300);
-  }
-
-  // Observer zonder re-render: alleen knoppen/styling toepassen als DOM verandert.
-  try {
-    const observer = new MutationObserver(function(){
-      scheduleApply();
-    });
-    observer.observe(document.documentElement, {childList:true, subtree:true});
-  } catch(e) {}
-
-  setTimeout(applyAll, 1200);
-})();
-
-
-/* =========================================================
-   BNS SCHONE TOEVOEGING - COPY / FACTUUR / OPDRACHT BEVESTIGING
-   Werkt op stabiele basis.
-
-   Toegevoegd:
-   - Copy opdracht naast Voertuig / Extra
-   - Factuur maken naast Voertuig / Extra
-   - Opdracht bevestiging naast Voertuig / Extra
-
-   Copy gedrag:
-   - slaat huidige opdracht eerst op
-   - opent daarna direct een nieuwe opdracht
-   - zelfde klant / locatie / materialen / prijzen / bezorger / voertuig / extra
+   BNS SCHONE TOPRIJ - COPY / FACTUUR / OPDRACHTBEVESTIGING
+   Plaatsing:
+   - naast Voertuig
+   - Extra heet voortaan Bijzonderheden
+
+   Copy:
+   - huidige opdracht eerst opslaan
+   - daarna nieuw scherm met dezelfde gegevens
    - nieuw opdrachtnummer
-   - begin/einddatum leeg
+   - datum leeg
    - status Offerte
 
-   Niet toegevoegd:
-   - geen observer
-   - geen interval
-   - geen materiaal-render override
-   - geen admin/rechten/filter/meldingen wijziging
+   Geen observer.
+   Geen interval.
+   Geen aanpassing aan admin/rechten/opdrachtfilter/meldingen.
    ========================================================= */
 (function(){
   "use strict";
 
   function E(id){ return document.getElementById(id); }
+  function text(el){ return String(el && el.textContent || "").trim(); }
 
-  function txt(el){
-    return String(el && el.textContent || "").trim();
-  }
-
-  function esc(value){
-    return String(value == null ? "" : value).replace(/[&<>"']/g,function(c){
+  function esc(v){
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function value(id){
+  function val(id){
     var el = E(id);
     return el ? (el.value || "") : "";
   }
 
-  function setValue(id, value){
+  function setVal(id, value){
     var el = E(id);
     if (el) el.value = value || "";
   }
 
-  function checked(id){
+  function isChecked(id){
     var el = E(id);
     return !!(el && el.checked);
   }
@@ -4574,7 +3292,7 @@ setInterval(install,1500);
     if (el) el.checked = !!value;
   }
 
-  function deepCopy(obj){
+  function clone(obj){
     try { return structuredClone(obj); }
     catch(e) { return JSON.parse(JSON.stringify(obj)); }
   }
@@ -4585,30 +3303,30 @@ setInterval(install,1500);
     return [];
   }
 
-  function setChosenList(list){
+  function setChosen(list){
     try { chosen = list; } catch(e) {}
     try { window.chosen = list; } catch(e) {}
   }
 
-  function currentState(){
+  function getState(){
     try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
-    return window.state || {orders:[]};
+    return window.state || {orders: []};
   }
 
-  function nextOrderNumber(){
+  function nextNumber(){
     try {
+      var old = val("orderNumber");
       if (typeof newNo === "function") {
-        var old = value("orderNumber");
         newNo();
-        var generated = value("orderNumber");
-        setValue("orderNumber", old);
+        var generated = val("orderNumber");
+        setVal("orderNumber", old);
         if (generated) return generated;
       }
     } catch(e) {}
 
     try {
       var year = new Date().getFullYear();
-      var orders = Array.isArray(currentState().orders) ? currentState().orders : [];
+      var orders = Array.isArray(getState().orders) ? getState().orders : [];
       var nums = orders.map(function(order){
         var match = String(order.number || "").match(new RegExp("^" + year + "-(\\d+)$"));
         return match ? Number(match[1]) : 0;
@@ -4626,47 +3344,6 @@ setInterval(install,1500);
     return "€ " + n.toFixed(2).replace(".", ",");
   }
 
-  function calcDocumentTotals(){
-    var materialTotal = 0;
-    var depositTotal = 0;
-
-    chosenList().forEach(function(material){
-      var qty = Number(material.qty || material.count || 1);
-      var price = Number(String(material.linePrice || material.price || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
-      var deposit = Number(String(material.lineDeposit || material.deposit || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
-
-      if (!isFinite(qty)) qty = 1;
-      if (!isFinite(price)) price = 0;
-      if (!isFinite(deposit)) deposit = 0;
-
-      materialTotal += qty * price;
-      depositTotal += qty * deposit;
-    });
-
-    if (!materialTotal && E("priceExcl")) {
-      materialTotal = Number(String(value("priceExcl")).replace(",", ".")) || 0;
-    }
-
-    var discount = Number(String(value("discountAmount")).replace(",", ".")) || 0;
-    var vatPercent = Number(String(value("vatPercent")).replace(",", ".")) || 21;
-    var afterDiscount = Math.max(0, materialTotal - discount);
-    var vat = afterDiscount * (vatPercent / 100);
-
-    if (!depositTotal && E("depositAmount")) {
-      depositTotal = Number(String(value("depositAmount")).replace(",", ".")) || 0;
-    }
-
-    return {
-      materialTotal: materialTotal,
-      discount: discount,
-      afterDiscount: afterDiscount,
-      vatPercent: vatPercent,
-      vat: vat,
-      deposit: depositTotal,
-      grand: afterDiscount + vat
-    };
-  }
-
   function materialLines(){
     return chosenList().map(function(material){
       var qty = material.qty || material.count || 1;
@@ -4681,55 +3358,58 @@ setInterval(install,1500);
     }).join("\n");
   }
 
-  function documentText(title){
-    var totals = calcDocumentTotals();
-    var rows = materialLines() || "Geen materialen gekozen";
+  function totalsText(){
+    try {
+      if (typeof calcTotals === "function") {
+        var t = calcTotals();
+        if (t) {
+          return "Subtotaal: " + euro(t.materials || t.materialTotal || 0) + "\n" +
+                 "Btw 21%: " + euro(t.vat || 0) + "\n" +
+                 "Borg: " + euro(t.deposit || 0) + "\n" +
+                 "Eindtotaal: " + euro(t.grand || 0);
+        }
+      }
+    } catch(e) {}
 
-    return title + "\n\n" +
-      "Opdracht: " + value("orderNumber") + "\n" +
-      "Status: " + value("orderStatus") + "\n" +
-      "Titel: " + value("orderTitle") + "\n" +
-      "Biermerk / merk: " + value("orderBrand") + "\n" +
-      "Datum: " + value("dateStart") +
-        (value("dateEnd") && value("dateEnd") !== value("dateStart") ? " tot datum " + value("dateEnd") : "") +
-      "\n\n" +
-
-      "Klant:\n" +
-      value("customerName") + "\n" +
-      value("customerStreet") + "\n" +
-      value("customerZip") + " " + value("customerCity") + "\n" +
-      value("customerPhone") + "\n" +
-      value("customerEmail") + "\n\n" +
-
-      "Locatie:\n" +
-      value("locationName") + "\n" +
-      value("locationStreet") + "\n" +
-      value("locationZip") + " " + value("locationCity") + "\n" +
-      "Contact: " + value("locationContact") + "\n" +
-      value("locationPhone") + "\n\n" +
-
-      "Materialen:\n" + rows + "\n\n" +
-
-      "Subtotaal: " + euro(totals.materialTotal) + "\n" +
-      "Korting: " + euro(totals.discount) + "\n" +
-      "Btw " + totals.vatPercent + "%: " + euro(totals.vat) + "\n" +
-      "Borg: " + euro(totals.deposit) + "\n" +
-      "Eindtotaal: " + euro(totals.grand) + "\n\n" +
-
-      "Bezorger: " + value("orderDriver") + "\n" +
-      "Voertuig: " + value("orderVehicle") + "\n\n" +
-
-      "Extra / opmerkingen:\n" + value("orderExtra");
+    return "";
   }
 
-  function openPrintWindow(title, body){
-    var win = window.open("", "_blank");
-    if (!win) {
+  function docText(title){
+    return title + "\n\n" +
+      "Opdracht: " + val("orderNumber") + "\n" +
+      "Status: " + val("orderStatus") + "\n" +
+      "Titel: " + val("orderTitle") + "\n" +
+      "Biermerk / merk: " + val("orderBrand") + "\n" +
+      "Datum: " + val("dateStart") +
+        (val("dateEnd") && val("dateEnd") !== val("dateStart") ? " tot datum " + val("dateEnd") : "") +
+      "\n\n" +
+      "Klant:\n" +
+      val("customerName") + "\n" +
+      val("customerStreet") + "\n" +
+      val("customerZip") + " " + val("customerCity") + "\n" +
+      val("customerPhone") + "\n" +
+      val("customerEmail") + "\n\n" +
+      "Locatie:\n" +
+      val("locationName") + "\n" +
+      val("locationStreet") + "\n" +
+      val("locationZip") + " " + val("locationCity") + "\n" +
+      "Contact: " + val("locationContact") + "\n" +
+      val("locationPhone") + "\n\n" +
+      "Materialen:\n" + (materialLines() || "Geen materialen gekozen") + "\n\n" +
+      totalsText() + "\n\n" +
+      "Bezorger: " + val("orderDriver") + "\n" +
+      "Voertuig: " + val("orderVehicle") + "\n\n" +
+      "Bijzonderheden:\n" + val("orderExtra");
+  }
+
+  function printWindow(title, body){
+    var w = window.open("", "_blank");
+    if (!w) {
       alert(body);
       return;
     }
 
-    win.document.write(
+    w.document.write(
       "<!doctype html><html><head><title>" + esc(title) + "</title>" +
       "<style>" +
       "body{font-family:Arial,sans-serif;padding:32px;line-height:1.45;font-size:14px}" +
@@ -4741,126 +3421,117 @@ setInterval(install,1500);
       "</body></html>"
     );
 
-    win.document.close();
+    w.document.close();
   }
 
   function makeInvoice(){
-    openPrintWindow("Factuur", documentText("FACTUUR"));
+    printWindow("Factuur", docText("FACTUUR"));
   }
 
   function makeConfirmation(){
     try {
       if (typeof makeConfirmationText === "function") {
-        openPrintWindow("Opdracht bevestiging", makeConfirmationText());
+        printWindow("Opdracht bevestiging", makeConfirmationText());
         return;
       }
     } catch(e) {}
 
-    openPrintWindow("Opdracht bevestiging", documentText("OPDRACHTBEVESTIGING"));
+    printWindow("Opdracht bevestiging", docText("OPDRACHTBEVESTIGING"));
   }
 
-  function snapshotCurrentOrderForm(){
+  function snapshotForm(){
     return {
-      status: value("orderStatus") || "Offerte",
-      title: value("orderTitle"),
-      brand: value("orderBrand"),
-      customerName: value("customerName"),
-      customerStreet: value("customerStreet"),
-      customerZip: value("customerZip"),
-      customerCity: value("customerCity"),
-      customerPhone: value("customerPhone"),
-      customerEmail: value("customerEmail"),
-      locationName: value("locationName"),
-      locationStreet: value("locationStreet"),
-      locationZip: value("locationZip"),
-      locationCity: value("locationCity"),
-      locationContact: value("locationContact"),
-      locationPhone: value("locationPhone"),
-      showLocationOnDocs: checked("showLocationOnDocs"),
-      materials: deepCopy(chosenList()),
-      driver: value("orderDriver"),
-      vehicle: value("orderVehicle"),
-      extra: value("orderExtra"),
-      priceExcl: value("priceExcl"),
-      discountAmount: value("discountAmount"),
-      vatPercent: value("vatPercent"),
-      depositAmount: value("depositAmount")
+      title: val("orderTitle"),
+      brand: val("orderBrand"),
+      customerName: val("customerName"),
+      customerStreet: val("customerStreet"),
+      customerZip: val("customerZip"),
+      customerCity: val("customerCity"),
+      customerPhone: val("customerPhone"),
+      customerEmail: val("customerEmail"),
+      locationName: val("locationName"),
+      locationStreet: val("locationStreet"),
+      locationZip: val("locationZip"),
+      locationCity: val("locationCity"),
+      locationContact: val("locationContact"),
+      locationPhone: val("locationPhone"),
+      showLocationOnDocs: isChecked("showLocationOnDocs"),
+      materials: clone(chosenList()),
+      driver: val("orderDriver"),
+      vehicle: val("orderVehicle"),
+      extra: val("orderExtra"),
+      priceExcl: val("priceExcl"),
+      discountAmount: val("discountAmount"),
+      vatPercent: val("vatPercent"),
+      depositAmount: val("depositAmount")
     };
   }
 
-  function fillCopiedOrderForm(copy){
-    try {
-      if (typeof showPage === "function") showPage("newOrder");
-    } catch(e) {}
+  function fillCopy(copy){
+    try { if (typeof showPage === "function") showPage("newOrder"); } catch(e) {}
 
     try { editing = null; } catch(e) {}
     try { window.editing = null; } catch(e) {}
 
-    setValue("orderNumber", nextOrderNumber());
-    setValue("orderStatus", "Offerte");
-    setValue("orderTitle", copy.title);
-    setValue("orderBrand", copy.brand);
+    setVal("orderNumber", nextNumber());
+    setVal("orderStatus", "Offerte");
+    setVal("dateStart", "");
+    setVal("dateEnd", "");
 
-    // Alleen datum leegmaken.
-    setValue("dateStart", "");
-    setValue("dateEnd", "");
+    setVal("orderTitle", copy.title);
+    setVal("orderBrand", copy.brand);
 
-    setValue("customerName", copy.customerName);
-    setValue("customerStreet", copy.customerStreet);
-    setValue("customerZip", copy.customerZip);
-    setValue("customerCity", copy.customerCity);
-    setValue("customerPhone", copy.customerPhone);
-    setValue("customerEmail", copy.customerEmail);
+    setVal("customerName", copy.customerName);
+    setVal("customerStreet", copy.customerStreet);
+    setVal("customerZip", copy.customerZip);
+    setVal("customerCity", copy.customerCity);
+    setVal("customerPhone", copy.customerPhone);
+    setVal("customerEmail", copy.customerEmail);
 
-    setValue("locationName", copy.locationName);
-    setValue("locationStreet", copy.locationStreet);
-    setValue("locationZip", copy.locationZip);
-    setValue("locationCity", copy.locationCity);
-    setValue("locationContact", copy.locationContact);
-    setValue("locationPhone", copy.locationPhone);
+    setVal("locationName", copy.locationName);
+    setVal("locationStreet", copy.locationStreet);
+    setVal("locationZip", copy.locationZip);
+    setVal("locationCity", copy.locationCity);
+    setVal("locationContact", copy.locationContact);
+    setVal("locationPhone", copy.locationPhone);
     setChecked("showLocationOnDocs", copy.showLocationOnDocs);
 
-    setChosenList(deepCopy(copy.materials || []));
+    setChosen(clone(copy.materials || []));
 
-    setValue("orderDriver", copy.driver);
-    setValue("orderVehicle", copy.vehicle);
-    setValue("orderExtra", copy.extra);
+    setVal("orderDriver", copy.driver);
+    setVal("orderVehicle", copy.vehicle);
+    setVal("orderExtra", copy.extra);
 
-    if (E("priceExcl")) setValue("priceExcl", copy.priceExcl || "0.00");
-    if (E("discountAmount")) setValue("discountAmount", copy.discountAmount || "0.00");
-    if (E("vatPercent")) setValue("vatPercent", copy.vatPercent || "21");
-    if (E("depositAmount")) setValue("depositAmount", copy.depositAmount || "0.00");
+    if (E("priceExcl")) setVal("priceExcl", copy.priceExcl || "0.00");
+    if (E("discountAmount")) setVal("discountAmount", copy.discountAmount || "0.00");
+    if (E("vatPercent")) setVal("vatPercent", copy.vatPercent || "21");
+    if (E("depositAmount")) setVal("depositAmount", copy.depositAmount || "0.00");
 
     try { if (typeof renderChosen === "function") renderChosen(); } catch(e) {}
     try { if (typeof renderMaterials === "function") renderMaterials(typeof currentCat !== "undefined" ? currentCat : "TW"); } catch(e) {}
     try { if (typeof calcTotals === "function") calcTotals(); } catch(e) {}
     try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+    try { if (typeof workTab === "function") workTab("customerPanel"); } catch(e) {}
 
-    try {
-      if (typeof workTab === "function") workTab("customerPanel");
-    } catch(e) {}
-
-    var firstDate = E("dateStart");
-    if (firstDate) firstDate.focus();
+    var start = E("dateStart");
+    if (start) start.focus();
   }
 
-  function copyOrderSaveThenOpenNew(){
-    var copy = snapshotCurrentOrderForm();
+  function copyOrder(){
+    var copy = snapshotForm();
 
-    // Eerst huidige opdracht opslaan.
     try {
       if (typeof saveCurrentOrder === "function") {
         saveCurrentOrder();
       }
     } catch(e) {
       console.error(e);
-      alert("Opslaan van huidige opdracht is niet gelukt.");
+      alert("Huidige opdracht opslaan is niet gelukt.");
       return;
     }
 
-    // Daarna nieuwe opdracht openen met zelfde gegevens, nieuw nummer en lege datum.
     setTimeout(function(){
-      fillCopiedOrderForm(copy);
+      fillCopy(copy);
       try {
         if (typeof toastMsg === "function") {
           toastMsg("Copy gemaakt. Vul alleen de nieuwe datum in en sla op.");
@@ -4869,76 +3540,85 @@ setInterval(install,1500);
       } catch(e) {}
 
       alert("Copy gemaakt. Vul alleen de nieuwe datum in en sla op.");
-    }, 120);
+    }, 150);
   }
 
   function removeOldButtons(){
     [
-      "bnsCopyOrderTop",
-      "bnsCopyOrderRealTop",
-      "bnsFactuurTopBtn",
-      "bnsFactuurRealTopBtn",
-      "bnsOpdrachtBonTopBtn",
-      "bnsOpdrachtBonRealTopBtn",
-      "bnsCopyTopClean",
-      "bnsInvoiceTopClean",
-      "bnsConfirmTopClean",
-      "bnsFinalCopyBtn",
-      "bnsFinalInvoiceBtn",
-      "bnsFinalConfirmBtn"
+      "bnsFinalCopyBtn","bnsFinalInvoiceBtn","bnsFinalConfirmBtn",
+      "bnsCopyOrderTop","bnsCopyOrderRealTop","bnsFactuurTopBtn","bnsFactuurRealTopBtn",
+      "bnsOpdrachtBonTopBtn","bnsOpdrachtBonRealTopBtn","bnsCopyTopClean","bnsInvoiceTopClean","bnsConfirmTopClean"
     ].forEach(function(id){
       var el = E(id);
       if (el) el.remove();
     });
+
+    // Verwijder fout geplaatste custom knoppen alleen uit Materialen.
+    var panel = E("materialPanel");
+    if (panel) {
+      Array.from(panel.querySelectorAll("button")).forEach(function(btn){
+        if (/^(copy opdracht|factuur maken|opdracht bon|opdracht bevestiging)$/i.test(text(btn))) btn.remove();
+      });
+    }
   }
 
-  function findTopAnchor(){
-    var tabs = Array.from(document.querySelectorAll(".worktab")).filter(function(button){
-      return /^(klant|locatie|materialen|bezorger|voertuig|extra)$/i.test(txt(button));
+  function getWorkTabs(){
+    return Array.from(document.querySelectorAll(".worktab")).filter(function(button){
+      return /^(klant|locatie|materialen|bezorger|voertuig|extra|bijzonderheden)$/i.test(text(button));
     });
-
-    var extra = tabs.find(function(button){ return /^extra$/i.test(txt(button)); });
-    var vehicle = tabs.find(function(button){ return /^voertuig$/i.test(txt(button)); });
-
-    return extra || vehicle || null;
   }
 
-  function addButton(id, label, after, onClick, className){
+  function renameExtra(){
+    getWorkTabs().forEach(function(button){
+      if (/^extra$/i.test(text(button))) {
+        button.textContent = "Bijzonderheden";
+      }
+    });
+  }
+
+  function findVehicleTab(){
+    return getWorkTabs().find(function(button){
+      return /^voertuig$/i.test(text(button));
+    }) || null;
+  }
+
+  function addButton(id, label, after, action, className){
     var button = document.createElement("button");
     button.id = id;
     button.type = "button";
     button.textContent = label;
     button.className = className || "worktab";
-
-    button.addEventListener("click", function(event){
+    button.onclick = function(event){
       event.preventDefault();
       event.stopPropagation();
-      onClick();
-    });
-
+      action();
+    };
     after.insertAdjacentElement("afterend", button);
     return button;
   }
 
   function placeButtons(){
     removeOldButtons();
+    renameExtra();
 
-    var anchor = findTopAnchor();
-    if (!anchor || !anchor.parentNode) return;
+    var vehicle = findVehicleTab();
+    if (!vehicle || !vehicle.parentNode) return;
 
-    var cls = (anchor.className || "worktab").replace(/\bactive\b/g, "").trim() || "worktab";
+    var className = (vehicle.className || "worktab").replace(/\bactive\b/g, "").trim() || "worktab";
 
-    var copy = addButton("bnsFinalCopyBtn", "Copy opdracht", anchor, copyOrderSaveThenOpenNew, cls + " bns-top-copy");
-    var invoice = addButton("bnsFinalInvoiceBtn", "Factuur maken", copy, makeInvoice, cls + " bns-top-invoice");
-    addButton("bnsFinalConfirmBtn", "Opdracht bevestiging", invoice, makeConfirmation, cls + " bns-top-confirm");
+    var copyBtn = addButton("bnsFinalCopyBtn", "Copy opdracht", vehicle, copyOrder, className + " bns-copy");
+    var invoiceBtn = addButton("bnsFinalInvoiceBtn", "Factuur maken", copyBtn, makeInvoice, className + " bns-invoice");
+    addButton("bnsFinalConfirmBtn", "Opdracht bevestiging", invoiceBtn, makeConfirmation, className + " bns-confirm");
   }
 
   function addCss(){
-    if (E("bnsFinalTopButtonsCss")) return;
+    if (E("bnsFinalTopRowCss")) return;
 
     var style = document.createElement("style");
-    style.id = "bnsFinalTopButtonsCss";
+    style.id = "bnsFinalTopRowCss";
     style.textContent =
+      ".material-row.bns-picked{background:#fee2e2!important;border-color:#dc2626!important;box-shadow:inset 7px 0 0 #dc2626!important}" +
+      ".material-row.bns-picked .badge,.badge.picked{background:#fecaca!important;color:#7f1d1d!important;font-weight:900!important}" +
       "#bnsFinalCopyBtn,#bnsFinalInvoiceBtn,#bnsFinalConfirmBtn{" +
       "margin-left:8px!important;border:none!important;border-radius:12px!important;" +
       "padding:10px 18px!important;color:#fff!important;font-weight:900!important;" +
@@ -4955,16 +3635,15 @@ setInterval(install,1500);
     placeButtons();
   }
 
-  // Alleen opnieuw plaatsen na bestaande schermwissel/render. Geen observer, geen interval.
   try {
     var oldWorkTab = window.workTab || (typeof workTab === "function" ? workTab : null);
-    if (oldWorkTab && !oldWorkTab.__bnsFinalTopButtons) {
+    if (oldWorkTab && !oldWorkTab.__bnsFinalTopRow) {
       var wrappedWorkTab = function(){
         var result = oldWorkTab.apply(this, arguments);
         setTimeout(placeButtons, 0);
         return result;
       };
-      wrappedWorkTab.__bnsFinalTopButtons = true;
+      wrappedWorkTab.__bnsFinalTopRow = true;
       window.workTab = wrappedWorkTab;
       try { workTab = wrappedWorkTab; } catch(e) {}
     }
@@ -4972,26 +3651,23 @@ setInterval(install,1500);
 
   try {
     var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-    if (oldRenderAll && !oldRenderAll.__bnsFinalTopButtons) {
+    if (oldRenderAll && !oldRenderAll.__bnsFinalTopRow) {
       var wrappedRenderAll = function(){
         var result = oldRenderAll.apply(this, arguments);
         setTimeout(placeButtons, 0);
         return result;
       };
-      wrappedRenderAll.__bnsFinalTopButtons = true;
+      wrappedRenderAll.__bnsFinalTopRow = true;
       window.renderAll = wrappedRenderAll;
       try { renderAll = wrappedRenderAll; } catch(e) {}
     }
   } catch(e) {}
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(install, 300);
-    });
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); });
   } else {
     setTimeout(install, 300);
   }
 
-  // Alleen late eenmalige plaatsing voor als de app later bouwt.
   setTimeout(install, 1200);
 })();
