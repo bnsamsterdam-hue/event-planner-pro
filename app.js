@@ -1,4 +1,5 @@
 
+
 // ===== V9.1 safety fixes =====
 function safePrint(){ window.print(); }
 function safeMail(text, subject){
@@ -776,23 +777,35 @@ setTimeout(()=>{
     const img=byId('invoiceLogoPreview'); if(img){ if(inv.logo){img.src=inv.logo; img.style.display='block';} else {img.removeAttribute('src'); img.style.display='none';} }
   }
   function bindInvoiceAdminV10(){
-    const up=byId('invoiceLogoUpload'); if(up) up.onchange=e=>{
+    const up=byId('invoiceLogoUpload'); if(up) up.onchange=function(e){
       const f=e.target.files && e.target.files[0]; if(!f) return;
-      const r=new FileReader(); r.onload=()=>{ensureV10State(); getState().settings.invoice.logo=r.result; saveState(); loadInvoiceAdminV10(); toast('Logo opgeslagen');}; r.readAsDataURL(f);
+      const r=new FileReader(); r.onload=function(){ ensureV10State(); getState().settings.invoice.logo=r.result; saveState(); loadInvoiceAdminV10(); toast('Logo opgeslagen'); }; r.readAsDataURL(f);
     };
-    const saveBtn=byId('saveInvoiceLayoutV10'); if(saveBtn) saveBtn.onclick=saveInvoiceAdminV10;
-    const clear=byId('clearInvoiceLogoV10'); if(clear) clear.onclick=()=>{ensureV10State(); getState().settings.invoice.logo=''; saveState(); loadInvoiceAdminV10(); toast('Logo verwijderd');};
-    const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick=()=>{saveInvoiceAdminV10(false); renderInvoicePreviewV10();};
+    const saveBtn=byId('saveInvoiceLayoutV10'); if(saveBtn) saveBtn.onclick=function(e){ if(e){e.preventDefault(); e.stopPropagation();} saveInvoiceAdminV10(true); return false; };
+    const clear=byId('clearInvoiceLogoV10'); if(clear) clear.onclick=function(e){ if(e){e.preventDefault(); e.stopPropagation();} ensureV10State(); getState().settings.invoice.logo=''; saveState(); loadInvoiceAdminV10(); toast('Logo verwijderd'); return false; };
+    const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick=function(e){ if(e){e.preventDefault(); e.stopPropagation();} saveInvoiceAdminV10(false); renderInvoicePreviewV10(); return false; };
   }
-  function saveInvoiceAdminV10(show=true){
-    ensureV10State(); const inv=getState().settings.invoice;
-    inv.companyName=byId('invoiceCompanyName')?.value || 'Event Planner PRO';
-    inv.title=byId('invoiceDocTitle')?.value || 'Opdrachtbevestiging / Offerte';
-    inv.accent=byId('invoiceAccentColor')?.value || '#2563eb';
-    inv.layout=byId('invoiceLayoutMode')?.value || 'classic';
-    inv.intro=byId('invoiceIntroText')?.value || '';
-    inv.footer=byId('invoiceFooterText')?.value || '';
-    saveState(); if(show) toast('Factuur/offerte layout opgeslagen');
+  function saveInvoiceAdminV10(show){
+    ensureV10State();
+    const s=getState();
+    s.settings = s.settings || {};
+    s.settings.invoice = s.settings.invoice || {};
+    const inv=s.settings.invoice;
+    const company=byId('invoiceCompanyName');
+    const title=byId('invoiceDocTitle');
+    const accent=byId('invoiceAccentColor');
+    const layout=byId('invoiceLayoutMode');
+    const intro=byId('invoiceIntroText');
+    const footer=byId('invoiceFooterText');
+    inv.companyName = company ? company.value : 'Event Planner PRO';
+    inv.title = title ? title.value : 'Opdrachtbevestiging / Offerte';
+    inv.accent = accent ? accent.value : '#2563eb';
+    inv.layout = layout ? layout.value : 'classic';
+    inv.intro = intro ? intro.value : '';
+    inv.footer = footer ? footer.value : '';
+    saveState();
+    loadInvoiceAdminV10();
+    if(show !== false) toast('Factuur/offerte layout opgeslagen');
   }
   function renderInvoicePreviewV10(){
     const p=byId('invoiceAdminPreview'); const inv=getState()?.settings?.invoice; if(!p||!inv) return;
@@ -3028,20 +3041,16 @@ setTimeout(()=>{
     let details;
 
     if (type === "pickup") {
-      eventTitle = "Ophalen TR blauw - " + [number, customer, title].filter(Boolean).join(" - ");
-      eventStart = toCalendarDate(end, False);
+      // TR-blauw agenda: altijd met hoofdletters TR voor de titeltekst.
+      eventTitle = "TR " + String(title || "Opdracht").toUpperCase();
+      eventStart = toCalendarDate(end, false);
     } else {
-      eventTitle = [
-        "Opdracht",
-        materialCat ? "[" + materialCat + "]" : "",
-        number,
-        customer,
-        title
-      ].filter(Boolean).join(" - ");
-      eventStart = toCalendarDate(start, False);
+      // Normale agenda-opdracht: alleen de titeltekst van de opdracht overnemen.
+      eventTitle = title || "Opdracht";
+      eventStart = toCalendarDate(start, false);
     }
 
-    eventEnd = type === "pickup" ? toCalendarDate(end, True) : toCalendarDate(end || start, True);
+    eventEnd = type === "pickup" ? toCalendarDate(end, true) : toCalendarDate(end || start, true);
 
     details = [
       "Event Planner PRO",
@@ -5003,4 +5012,108 @@ setInterval(install,1500);
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 300); });
   setTimeout(install, 800);
   setTimeout(decorateMeerArtikelen, 1600);
+})();
+
+/* =========================================================
+   BNS FINAL GERichte FIX - admin opslaan + meldingen overal + agenda titel
+   Alleen aanvulling: bestaande materialen/opdrachten blijven ongemoeid.
+   ========================================================= */
+(function(){
+  "use strict";
+  function $(id){ return document.getElementById(id); }
+  function getS(){ try { return state; } catch(e) { return window.state || {alerts:[], settings:{}}; } }
+  function doSave(){ try { if (typeof save === "function") { save(); return; } } catch(e){} try { localStorage.setItem("event-planner-pro-v87", JSON.stringify(getS())); } catch(e){} }
+  function esc(v){ return String(v == null ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+  function toastSafe(t){ try { if (typeof toast === "function") toast(t); else if (typeof toastMsg === "function") toastMsg(t); else alert(t); } catch(e){ alert(t); } }
+
+  window.BNS_FINAL_SAVE_INVOICE = function(show){
+    var s = getS();
+    s.settings = s.settings || {};
+    s.settings.invoice = s.settings.invoice || {};
+    var inv = s.settings.invoice;
+    inv.companyName = $('invoiceCompanyName') ? $('invoiceCompanyName').value : 'Event Planner PRO';
+    inv.title = $('invoiceDocTitle') ? $('invoiceDocTitle').value : 'Opdrachtbevestiging / Offerte';
+    inv.accent = $('invoiceAccentColor') ? $('invoiceAccentColor').value : '#2563eb';
+    inv.layout = $('invoiceLayoutMode') ? $('invoiceLayoutMode').value : 'classic';
+    inv.intro = $('invoiceIntroText') ? $('invoiceIntroText').value : '';
+    inv.footer = $('invoiceFooterText') ? $('invoiceFooterText').value : '';
+    doSave();
+    if (show !== false) toastSafe('Factuur/offerte layout opgeslagen');
+    return inv;
+  };
+
+  window.BNS_FINAL_PREVIEW_INVOICE = function(){
+    var inv = window.BNS_FINAL_SAVE_INVOICE(false);
+    var p = $('invoiceAdminPreview'); if (!p) return;
+    p.classList.remove('hidden');
+    p.innerHTML = '<div class="invoice-top" style="border-color:'+esc(inv.accent || '#2563eb')+'">' +
+      (inv.logo ? '<img class="invoice-logo" src="'+esc(inv.logo)+'">' : '') +
+      '<div><h2>'+esc(inv.title || 'Opdrachtbevestiging')+'</h2><b>'+esc(inv.companyName || '')+'</b></div></div>' +
+      '<div class="free-text">'+esc(inv.intro || 'Vrije tekst bovenaan')+'</div>' +
+      '<p><b>Voorbeeld materialen en totaal komen hier bij een echte opdracht.</b></p>' +
+      '<div class="free-text">'+esc(inv.footer || 'Vrije tekst onderaan')+'</div>';
+  };
+
+  function openAlertsFinal(){
+    var s = getS(); s.alerts = s.alerts || [];
+    var open = s.alerts.filter(function(a){ return !a.resolved; });
+    var old = $('bnsFinalAlertsModal'); if (old) old.remove();
+    var modal = document.createElement('div');
+    modal.id = 'bnsFinalAlertsModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:20px';
+    var html = '<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:780px;width:100%;max-height:82vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.30)">';
+    html += '<button type="button" onclick="document.getElementById(\'bnsFinalAlertsModal\').remove()" style="float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-weight:800">Sluiten</button>';
+    html += '<h2 style="margin:0 0 16px">🚨 Systeemmeldingen / schade meldingen</h2>';
+    if (!open.length) html += '<p>Geen open Systeemmeldingen.</p>';
+    open.forEach(function(a){
+      var o = (s.orders || []).find(function(x){ return String(x.id) === String(a.orderId); }) || {};
+      html += '<div style="border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc">' +
+        '<b>'+esc(a.title || a.type || 'Systeemmelding')+'</b><br><small>'+esc(a.time || a.date || '')+'</small>' +
+        (o.id ? '<div><b>Opdracht:</b> '+esc(o.number || '')+' - '+esc(o.title || '')+'</div>' : '') +
+        '<p style="white-space:pre-wrap;margin:8px 0">'+esc(a.note || a.message || a.text || '')+'</p>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
+        '<button type="button" onclick="BNS_FINAL_ALERT_RESOLVE(\''+esc(a.id)+'\')" style="background:#16a34a;color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:800">Afmelden met tekst</button>' +
+        '<button type="button" onclick="BNS_FINAL_ALERT_DELETE(\''+esc(a.id)+'\')" style="background:#dc2626;color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:800">Verwijderen</button>' +
+        '</div></div>';
+    });
+    html += '</div>'; modal.innerHTML = html; document.body.appendChild(modal);
+  }
+  function updateAlertsFinal(){
+    var b = $('alertsBtn'); if (!b) return;
+    var open = ((getS().alerts || []).filter(function(a){ return !a.resolved; })).length;
+    b.textContent = '🚨 Systeemmeldingen (' + open + ')';
+    b.classList.toggle('alarm-red', open > 0);
+    b.classList.toggle('bns-a12-blink', open > 0);
+  }
+  window.BNS_FINAL_ALERT_RESOLVE = function(id){
+    var s = getS(); var a = (s.alerts || []).find(function(x){ return String(x.id) === String(id); });
+    if (!a) return; var txt = prompt('Afmelding / oplossing:', a.resolveText || ''); if (txt === null) return;
+    a.resolved = true; a.resolveText = txt; a.resolvedAt = new Date().toLocaleString(); doSave(); updateAlertsFinal(); openAlertsFinal();
+  };
+  window.BNS_FINAL_ALERT_DELETE = function(id){
+    var s = getS(); var txt = prompt('Reden verwijderen:', ''); if (txt === null) return;
+    s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); }); doSave(); updateAlertsFinal(); openAlertsFinal();
+  };
+
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (!t) return;
+    if (t.id === 'saveInvoiceLayoutV10') { e.preventDefault(); e.stopPropagation(); window.BNS_FINAL_SAVE_INVOICE(true); return false; }
+    if (t.id === 'previewInvoiceLayoutV10') { e.preventDefault(); e.stopPropagation(); window.BNS_FINAL_PREVIEW_INVOICE(); return false; }
+    if (t.id === 'alertsBtn') { e.preventDefault(); e.stopPropagation(); openAlertsFinal(); return false; }
+  }, true);
+
+  function install(){ updateAlertsFinal(); }
+  var oldRenderAll = window.renderAll || (typeof renderAll === 'function' ? renderAll : null);
+  if (oldRenderAll && !oldRenderAll.__bnsFinalLastPatch) {
+    var r = function(){ var x = oldRenderAll.apply(this, arguments); setTimeout(install, 0); return x; };
+    r.__bnsFinalLastPatch = true; window.renderAll = r; try { renderAll = r; } catch(e){}
+  }
+  var oldShowPage = window.showPage || (typeof showPage === 'function' ? showPage : null);
+  if (oldShowPage && !oldShowPage.__bnsFinalLastPatch) {
+    var sp = function(){ var x = oldShowPage.apply(this, arguments); setTimeout(install, 0); return x; };
+    sp.__bnsFinalLastPatch = true; window.showPage = sp; try { showPage = sp; } catch(e){}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 250); }); else setTimeout(install, 250);
+  setTimeout(install, 1200);
 })();
