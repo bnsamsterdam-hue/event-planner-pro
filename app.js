@@ -601,7 +601,7 @@ setTimeout(()=>{
   applyGlobalStyleV93();
 },0);
 
-// ===== BNS V10.1 test gerichte patch: datum, admin factuur/offerte, layout/kleur, extra knoppen =====
+// ===== BNS V10.1 gerichte patch: datum, admin factuur/offerte, layout/kleur, extra knoppen =====
 (function(){
   function onReady(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
   function byId(id){ return document.getElementById(id); }
@@ -3776,12 +3776,6 @@ setTimeout(()=>{
 
   setTimeout(install, 1200);
 })();
-setInterval(() => {
-  const tabs = Array.from(document.querySelectorAll(".worktab"));
-
-  const voertuig = tabs.find(b =>
-    (b.textContent || "").trim().toLowerCase() === "voertuig"
-  );
 
   if (!voertuig) return;
 
@@ -3819,16 +3813,53 @@ setInterval(() => {
     else alert("makeConfirmation niet gevonden");
   });
 
-  voertuig.after(copy);
-  copy.after(factuur);
-  factuur.after(bevestiging);
+// ===== BNS knoppen naast Voertuig =====
+(function(){
+  function maakKnop(id, tekst, kleur, klik){
+    var b = document.createElement("button");
+    b.id = id;
+    b.type = "button";
+    b.textContent = tekst;
+    b.className = "worktab bns-sort-item";
+    b.style.background = kleur;
+    b.style.marginLeft = "8px";
+    b.onclick = function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      klik();
+    };
+    return b;
+  }
+function plaatsKnoppenNaastVoertuig(){
 
-}, 800);
+    var voertuig = document.querySelector('button[data-tab="vehiclePanel"]');
+    var extra = document.querySelector('button[data-tab="extraPanel"]');
 
-setInterval(() => {
-  document.querySelectorAll(".worktab").forEach(btn => {
-    if ((btn.textContent || "").trim().toLowerCase() === "extra") {
-      btn.textContent = "Bijzonderheden";
-    }
-  });
-}, 800);
+    if (extra) extra.textContent = "Bijzonderheden";
+    if (!voertuig) return;
+
+    // voorkom dubbel
+    if (document.getElementById("bnsCopyNaastVoertuig")) return;
+
+    var copy = maakKnop("bnsCopyNaastVoertuig", "Copy opdracht", "#047857", function(){
+        if (typeof copyOrder === "function") copyOrder();
+        else alert("copyOrder functie niet gevonden");
+    });
+
+    var factuur = maakKnop("bnsFactuurNaastVoertuig", "Factuur maken", "#2563eb", function(){
+        if (typeof makeInvoice === "function") makeInvoice();
+        else alert("makeInvoice functie niet gevonden");
+    });
+
+    var bevestiging = maakKnop("bnsBevestigingNaastVoertuig", "Opdracht bevestiging", "#16a34a", function(){
+        if (typeof makeConfirmation === "function") makeConfirmation();
+        else alert("makeConfirmation functie niet gevonden");
+    });
+
+    voertuig.insertAdjacentElement("afterend", copy);
+    copy.insertAdjacentElement("afterend", factuur);
+    factuur.insertAdjacentElement("afterend", bevestiging);
+}
+
+// 1x uitvoeren
+setTimeout(plaatsKnoppenNaastVoertuig, 500);
