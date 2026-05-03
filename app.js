@@ -3244,45 +3244,217 @@ setTimeout(()=>{
 
 
 /* =========================================================
-   BNS SCHONE TOPRIJ - COPY / FACTUUR / OPDRACHTBEVESTIGING
-   Plaatsing:
-   - naast Voertuig
-   - Extra heet voortaan Bijzonderheden
+   BNS LAATSTE STABIELE TOEVOEGING
+   Doel:
+   - NIET aan admin/rechten/opdrachtfilters/meldingen/kleuren komen.
+   - Materiaal kiezen blijft staan en gekozen materiaal wordt rood.
+   - Copy / Factuur / Opdracht bevestiging naast VOERTUIG.
+   - Extra wordt Bijzonderheden.
+   - Geen observer, geen interval.
 
-   Copy:
-   - huidige opdracht eerst opslaan
-   - daarna nieuw scherm met dezelfde gegevens
-   - nieuw opdrachtnummer
-   - datum leeg
-   - status Offerte
-
-   Geen observer.
-   Geen interval.
-   Geen aanpassing aan admin/rechten/opdrachtfilter/meldingen.
+   Deze patch gebruikt de bestaande data/functies en overschrijft alleen:
+   renderMaterials / addMat / removeMat voor het materiaal-keuzescherm.
    ========================================================= */
 (function(){
   "use strict";
 
   function E(id){ return document.getElementById(id); }
-  function text(el){ return String(el && el.textContent || "").trim(); }
 
-  function esc(v){
+  function T(el){
+    return String(el && el.textContent || "").trim();
+  }
+
+  function H(v){
     return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function val(id){
+  function clone(v){
+    try { return structuredClone(v); }
+    catch(e) { return JSON.parse(JSON.stringify(v)); }
+  }
+
+  function appState(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    return window.state || {materials:[], orders:[]};
+  }
+
+  function chosenList(){
+    try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e) {}
+    try { if (window.chosen && Array.isArray(window.chosen)) return window.chosen; } catch(e) {}
+    return [];
+  }
+
+  function setChosenList(arr){
+    try { chosen = arr; } catch(e) {}
+    window.chosen = arr;
+  }
+
+  function catKey(cat){
+    return String(cat || "EXTRA").trim().toUpperCase().replace(/[^A-Z0-9]/g, "") || "EXTRA";
+  }
+
+  function getCat(){
+    try { if (typeof currentCat !== "undefined" && currentCat) return catKey(currentCat); } catch(e) {}
+    return catKey(window.currentCat || "TW");
+  }
+
+  function setCat(cat){
+    var c = catKey(cat);
+    try { currentCat = c; } catch(e) {}
+    window.currentCat = c;
+    return c;
+  }
+
+  function colorFor(cat){
+    var defaults = {TW:"#1683d8",TO:"#f97316",KW:"#22c55e",KA:"#a855f7",SL:"#eab308",EXTRA:"#334155"};
+    try {
+      var m = JSON.parse(localStorage.getItem("bns_rubriek_kleuren_v12_pro") || "{}");
+      return m[catKey(cat)] || defaults[catKey(cat)] || "#1683d8";
+    } catch(e) {
+      return defaults[catKey(cat)] || "#1683d8";
+    }
+  }
+
+  function statusClass(st){
+    var s = String(st || "free").toLowerCase();
+    if (s === "reserved" || s === "gereserveerd") return "reserved";
+    if (s === "defect") return "defect";
+    if (s === "inactive" || s === "niet actief" || s === "niet beschikbaar") return "inactive";
+    return "free";
+  }
+
+  function statusText(st){
+    var c = statusClass(st);
+    if (c === "reserved") return "Gereserveerd";
+    if (c === "defect") return "Defect";
+    if (c === "inactive") return "Niet actief";
+    return "Vrij";
+  }
+
+  function renderMaterialsStable(cat){
+    var box = E("materialList");
+    if (!box) return;
+
+    var active = setCat(cat || getCat());
+    var search = String((E("materialSearch") || {}).value || "").toLowerCase().trim();
+    var selected = chosenList().map(function(m){ return String(m.id); });
+
+    var rows = (appState().materials || [])
+      .filter(function(m){ return catKey(m.cat) === active; })
+      .filter(function(m){
+        return !search || [m.cat,m.code,m.name,m.price,m.notes,m.status].join(" ").toLowerCase().indexOf(search) >= 0;
+      });
+
+    box.innerHTML = rows.map(function(m){
+      var isChosen = selected.indexOf(String(m.id)) !== -1;
+      var sc = statusClass(m.status);
+      var label = isChosen ? "● ● Gekozen" : statusText(m.status);
+
+      return '' +
+        '<div class="bns-material-row ' + (isChosen ? 'bns-picked selected ' : '') + 'status-' + sc + '" data-bns-material-id="' + H(m.id) + '" style="--cat-color:' + colorFor(m.cat) + '">' +
+          '<div class="bns-catbar"></div>' +
+          '<div class="bns-material-text"><strong>' + H(m.code || '') + '</strong><span>' + H(m.name || '') + '</span><small>' + H(m.price || 'oude prijs: € 0') + '</small></div>' +
+          '<span class="bns-status-pill ' + (isChosen ? 'picked' : sc) + '"><i></i>' + H(label) + '</span>' +
+        '</div>';
+    }).join("") || '<p class="bns-empty">Geen materiaal gevonden.</p>';
+
+    box.querySelectorAll("[data-bns-material-id]").forEach(function(row){
+      row.onclick = function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        addMatStable(row.getAttribute("data-bns-material-id"));
+      };
+    });
+  }
+
+  function renderCatsStable(){
+    var box = E("materialCats");
+    if (!box) return;
+
+    var cats = Array.from(new Set((appState().materials || []).map(function(m){ return catKey(m.cat); }))).sort();
+    if (!cats.length) cats = ["TW","TO","KW","EXTRA"];
+
+    var active = getCat();
+    if (cats.indexOf(active) === -1) active = setCat(cats.indexOf("TW") !== -1 ? "TW" : cats[0]);
+
+    box.innerHTML = cats.map(function(cat){
+      return '<button type="button" class="' + (cat === active ? 'active' : '') + '" data-bns-cat="' + H(cat) + '" style="border-bottom:5px solid ' + colorFor(cat) + '">' + H(cat) + '</button>';
+    }).join("");
+
+    box.querySelectorAll("[data-bns-cat]").forEach(function(btn){
+      btn.onclick = function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        setCat(btn.getAttribute("data-bns-cat"));
+        renderCatsStable();
+        renderMaterialsStable(getCat());
+      };
+    });
+  }
+
+  function renderChosenStable(){
+    try {
+      if (typeof renderChosen === "function" && renderChosen !== renderChosenStable) {
+        renderChosen();
+        return;
+      }
+    } catch(e) {}
+
+    var box = E("chosenMaterials");
+    if (!box) return;
+
+    box.innerHTML = chosenList().map(function(m){
+      return '<span class="chip">' + H(m.code || "") + ' ' + H(m.name || "") + '<button type="button" data-bns-remove="' + H(m.id) + '">x</button></span>';
+    }).join("");
+
+    box.querySelectorAll("[data-bns-remove]").forEach(function(btn){
+      btn.onclick = function(ev){
+        ev.preventDefault();
+        removeMatStable(btn.getAttribute("data-bns-remove"));
+      };
+    });
+  }
+
+  function addMatStable(id){
+    var arr = chosenList();
+    var mat = (appState().materials || []).find(function(m){ return String(m.id) === String(id); });
+    if (!mat) return;
+
+    if (!arr.some(function(m){ return String(m.id) === String(id); })) {
+      arr.push(clone(mat));
+      setChosenList(arr);
+    }
+
+    try { renderChosen(); } catch(e) { renderChosenStable(); }
+    renderCatsStable();
+    renderMaterialsStable(getCat());
+    try { if (typeof calcTotals === "function") calcTotals(); } catch(e) {}
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+  }
+
+  function removeMatStable(id){
+    setChosenList(chosenList().filter(function(m){ return String(m.id) !== String(id); }));
+
+    try { renderChosen(); } catch(e) { renderChosenStable(); }
+    renderCatsStable();
+    renderMaterialsStable(getCat());
+    try { if (typeof calcTotals === "function") calcTotals(); } catch(e) {}
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+  }
+
+  function v(id){
     var el = E(id);
     return el ? (el.value || "") : "";
   }
 
-  function setVal(id, value){
+  function sv(id, val){
     var el = E(id);
-    if (el) el.value = value || "";
+    if (el) el.value = val || "";
   }
 
-  function isChecked(id){
+  function checked(id){
     var el = E(id);
     return !!(el && el.checked);
   }
@@ -3292,117 +3464,37 @@ setTimeout(()=>{
     if (el) el.checked = !!value;
   }
 
-  function clone(obj){
-    try { return structuredClone(obj); }
-    catch(e) { return JSON.parse(JSON.stringify(obj)); }
+  function money(n){
+    var x = Number(String(n || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+    if (!isFinite(x)) x = 0;
+    return "€ " + x.toFixed(2).replace(".", ",");
   }
 
-  function chosenList(){
-    try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e) {}
-    try { if (window.chosen && Array.isArray(window.chosen)) return window.chosen; } catch(e) {}
-    return [];
-  }
-
-  function setChosen(list){
-    try { chosen = list; } catch(e) {}
-    try { window.chosen = list; } catch(e) {}
-  }
-
-  function getState(){
-    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
-    return window.state || {orders: []};
-  }
-
-  function nextNumber(){
-    try {
-      var old = val("orderNumber");
-      if (typeof newNo === "function") {
-        newNo();
-        var generated = val("orderNumber");
-        setVal("orderNumber", old);
-        if (generated) return generated;
-      }
-    } catch(e) {}
-
-    try {
-      var year = new Date().getFullYear();
-      var orders = Array.isArray(getState().orders) ? getState().orders : [];
-      var nums = orders.map(function(order){
-        var match = String(order.number || "").match(new RegExp("^" + year + "-(\\d+)$"));
-        return match ? Number(match[1]) : 0;
-      }).filter(Boolean);
-
-      return year + "-" + String(nums.length ? Math.max.apply(null, nums) + 1 : 1).padStart(4, "0");
-    } catch(e) {
-      return String(new Date().getFullYear()) + "-0001";
-    }
-  }
-
-  function euro(value){
-    var n = Number(String(value || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
-    if (!isFinite(n)) n = 0;
-    return "€ " + n.toFixed(2).replace(".", ",");
-  }
-
-  function materialLines(){
-    return chosenList().map(function(material){
-      var qty = material.qty || material.count || 1;
-      var price = material.linePrice || material.price || 0;
-      var deposit = material.lineDeposit || material.deposit || 0;
-      var note = material.lineNote || material.note || "";
-
-      return (qty || 1) + "x " + (material.code || "") + " " + (material.name || "") +
-        " | prijs " + euro(price) +
-        " | borg " + euro(deposit) +
-        (note ? " | " + note : "");
+  function materialText(){
+    return chosenList().map(function(m){
+      var qty = m.qty || m.count || 1;
+      var price = m.linePrice || m.price || 0;
+      var borg = m.lineDeposit || m.deposit || 0;
+      return qty + "x " + (m.code || "") + " " + (m.name || "") + " | prijs " + money(price) + " | borg " + money(borg);
     }).join("\n");
   }
 
-  function totalsText(){
-    try {
-      if (typeof calcTotals === "function") {
-        var t = calcTotals();
-        if (t) {
-          return "Subtotaal: " + euro(t.materials || t.materialTotal || 0) + "\n" +
-                 "Btw 21%: " + euro(t.vat || 0) + "\n" +
-                 "Borg: " + euro(t.deposit || 0) + "\n" +
-                 "Eindtotaal: " + euro(t.grand || 0);
-        }
-      }
-    } catch(e) {}
-
-    return "";
-  }
-
-  function docText(title){
+  function documentText(title){
     return title + "\n\n" +
-      "Opdracht: " + val("orderNumber") + "\n" +
-      "Status: " + val("orderStatus") + "\n" +
-      "Titel: " + val("orderTitle") + "\n" +
-      "Biermerk / merk: " + val("orderBrand") + "\n" +
-      "Datum: " + val("dateStart") +
-        (val("dateEnd") && val("dateEnd") !== val("dateStart") ? " tot datum " + val("dateEnd") : "") +
-      "\n\n" +
-      "Klant:\n" +
-      val("customerName") + "\n" +
-      val("customerStreet") + "\n" +
-      val("customerZip") + " " + val("customerCity") + "\n" +
-      val("customerPhone") + "\n" +
-      val("customerEmail") + "\n\n" +
-      "Locatie:\n" +
-      val("locationName") + "\n" +
-      val("locationStreet") + "\n" +
-      val("locationZip") + " " + val("locationCity") + "\n" +
-      "Contact: " + val("locationContact") + "\n" +
-      val("locationPhone") + "\n\n" +
-      "Materialen:\n" + (materialLines() || "Geen materialen gekozen") + "\n\n" +
-      totalsText() + "\n\n" +
-      "Bezorger: " + val("orderDriver") + "\n" +
-      "Voertuig: " + val("orderVehicle") + "\n\n" +
-      "Bijzonderheden:\n" + val("orderExtra");
+      "Opdracht: " + v("orderNumber") + "\n" +
+      "Status: " + v("orderStatus") + "\n" +
+      "Titel: " + v("orderTitle") + "\n" +
+      "Biermerk / merk: " + v("orderBrand") + "\n" +
+      "Datum: " + v("dateStart") + (v("dateEnd") && v("dateEnd") !== v("dateStart") ? " tot datum " + v("dateEnd") : "") + "\n\n" +
+      "Klant:\n" + v("customerName") + "\n" + v("customerStreet") + "\n" + v("customerZip") + " " + v("customerCity") + "\n" + v("customerPhone") + "\n" + v("customerEmail") + "\n\n" +
+      "Locatie:\n" + v("locationName") + "\n" + v("locationStreet") + "\n" + v("locationZip") + " " + v("locationCity") + "\nContact: " + v("locationContact") + "\n" + v("locationPhone") + "\n\n" +
+      "Materialen:\n" + (materialText() || "Geen materialen gekozen") + "\n\n" +
+      "Bezorger: " + v("orderDriver") + "\n" +
+      "Voertuig: " + v("orderVehicle") + "\n\n" +
+      "Bijzonderheden:\n" + v("orderExtra");
   }
 
-  function printWindow(title, body){
+  function printDoc(title, body){
     var w = window.open("", "_blank");
     if (!w) {
       alert(body);
@@ -3410,60 +3502,67 @@ setTimeout(()=>{
     }
 
     w.document.write(
-      "<!doctype html><html><head><title>" + esc(title) + "</title>" +
-      "<style>" +
-      "body{font-family:Arial,sans-serif;padding:32px;line-height:1.45;font-size:14px}" +
-      "pre{white-space:pre-wrap;font-family:Arial,sans-serif}" +
-      "button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:bold;margin-bottom:18px}" +
-      "</style></head><body>" +
-      "<button onclick='window.print()'>Afdrukken</button>" +
-      "<pre>" + esc(body) + "</pre>" +
-      "</body></html>"
+      "<!doctype html><html><head><title>" + H(title) + "</title>" +
+      "<style>body{font-family:Arial,sans-serif;padding:32px;line-height:1.45;font-size:14px}pre{white-space:pre-wrap;font-family:Arial,sans-serif}button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:bold;margin-bottom:18px}</style>" +
+      "</head><body><button onclick='window.print()'>Afdrukken</button><pre>" + H(body) + "</pre></body></html>"
     );
 
     w.document.close();
   }
 
   function makeInvoice(){
-    printWindow("Factuur", docText("FACTUUR"));
+    printDoc("Factuur", documentText("FACTUUR"));
   }
 
   function makeConfirmation(){
     try {
       if (typeof makeConfirmationText === "function") {
-        printWindow("Opdracht bevestiging", makeConfirmationText());
+        printDoc("Opdracht bevestiging", makeConfirmationText());
         return;
       }
     } catch(e) {}
 
-    printWindow("Opdracht bevestiging", docText("OPDRACHTBEVESTIGING"));
+    printDoc("Opdracht bevestiging", documentText("OPDRACHTBEVESTIGING"));
   }
 
-  function snapshotForm(){
+  function nextNumber(){
+    try {
+      var year = new Date().getFullYear();
+      var nums = (appState().orders || []).map(function(o){
+        var match = String(o.number || "").match(new RegExp("^" + year + "-(\\d+)$"));
+        return match ? Number(match[1]) : 0;
+      }).filter(Boolean);
+      return year + "-" + String(nums.length ? Math.max.apply(null, nums) + 1 : 1).padStart(4, "0");
+    } catch(e) {
+      return String(new Date().getFullYear()) + "-0001";
+    }
+  }
+
+  function snapshot(){
     return {
-      title: val("orderTitle"),
-      brand: val("orderBrand"),
-      customerName: val("customerName"),
-      customerStreet: val("customerStreet"),
-      customerZip: val("customerZip"),
-      customerCity: val("customerCity"),
-      customerPhone: val("customerPhone"),
-      customerEmail: val("customerEmail"),
-      locationName: val("locationName"),
-      locationStreet: val("locationStreet"),
-      locationZip: val("locationZip"),
-      locationCity: val("locationCity"),
-      locationContact: val("locationContact"),
-      locationPhone: val("locationPhone"),
-      showLocationOnDocs: isChecked("showLocationOnDocs"),
-      materials: clone(chosenList()),
-      driver: val("orderDriver"),
-      vehicle: val("orderVehicle"),
-      extra: val("orderExtra"),
-      priceExcl: val("priceExcl"),
-      discountAmount: val("discountAmount"),
-      vatPercent: val("vatPercent"),
-      depositAmount: val("depositAmount")
+      title:v("orderTitle"),
+      brand:v("orderBrand"),
+      customerName:v("customerName"),
+      customerStreet:v("customerStreet"),
+      customerZip:v("customerZip"),
+      customerCity:v("customerCity"),
+      customerPhone:v("customerPhone"),
+      customerEmail:v("customerEmail"),
+      locationName:v("locationName"),
+      locationStreet:v("locationStreet"),
+      locationZip:v("locationZip"),
+      locationCity:v("locationCity"),
+      locationContact:v("locationContact"),
+      locationPhone:v("locationPhone"),
+      showLocationOnDocs:checked("showLocationOnDocs"),
+      materials:clone(chosenList()),
+      driver:v("orderDriver"),
+      vehicle:v("orderVehicle"),
+      extra:v("orderExtra"),
+      priceExcl:v("priceExcl"),
+      discountAmount:v("discountAmount"),
+      vatPercent:v("vatPercent"),
+      depositAmount:v("depositAmount")
     };
   }
 
@@ -3471,44 +3570,45 @@ setTimeout(()=>{
     try { if (typeof showPage === "function") showPage("newOrder"); } catch(e) {}
 
     try { editing = null; } catch(e) {}
-    try { window.editing = null; } catch(e) {}
+    window.editing = null;
 
-    setVal("orderNumber", nextNumber());
-    setVal("orderStatus", "Offerte");
-    setVal("dateStart", "");
-    setVal("dateEnd", "");
+    sv("orderNumber", nextNumber());
+    sv("orderStatus", "Offerte");
+    sv("dateStart", "");
+    sv("dateEnd", "");
 
-    setVal("orderTitle", copy.title);
-    setVal("orderBrand", copy.brand);
+    sv("orderTitle", copy.title);
+    sv("orderBrand", copy.brand);
 
-    setVal("customerName", copy.customerName);
-    setVal("customerStreet", copy.customerStreet);
-    setVal("customerZip", copy.customerZip);
-    setVal("customerCity", copy.customerCity);
-    setVal("customerPhone", copy.customerPhone);
-    setVal("customerEmail", copy.customerEmail);
+    sv("customerName", copy.customerName);
+    sv("customerStreet", copy.customerStreet);
+    sv("customerZip", copy.customerZip);
+    sv("customerCity", copy.customerCity);
+    sv("customerPhone", copy.customerPhone);
+    sv("customerEmail", copy.customerEmail);
 
-    setVal("locationName", copy.locationName);
-    setVal("locationStreet", copy.locationStreet);
-    setVal("locationZip", copy.locationZip);
-    setVal("locationCity", copy.locationCity);
-    setVal("locationContact", copy.locationContact);
-    setVal("locationPhone", copy.locationPhone);
+    sv("locationName", copy.locationName);
+    sv("locationStreet", copy.locationStreet);
+    sv("locationZip", copy.locationZip);
+    sv("locationCity", copy.locationCity);
+    sv("locationContact", copy.locationContact);
+    sv("locationPhone", copy.locationPhone);
     setChecked("showLocationOnDocs", copy.showLocationOnDocs);
 
-    setChosen(clone(copy.materials || []));
+    setChosenList(clone(copy.materials || []));
 
-    setVal("orderDriver", copy.driver);
-    setVal("orderVehicle", copy.vehicle);
-    setVal("orderExtra", copy.extra);
+    sv("orderDriver", copy.driver);
+    sv("orderVehicle", copy.vehicle);
+    sv("orderExtra", copy.extra);
 
-    if (E("priceExcl")) setVal("priceExcl", copy.priceExcl || "0.00");
-    if (E("discountAmount")) setVal("discountAmount", copy.discountAmount || "0.00");
-    if (E("vatPercent")) setVal("vatPercent", copy.vatPercent || "21");
-    if (E("depositAmount")) setVal("depositAmount", copy.depositAmount || "0.00");
+    if (E("priceExcl")) sv("priceExcl", copy.priceExcl || "0.00");
+    if (E("discountAmount")) sv("discountAmount", copy.discountAmount || "0.00");
+    if (E("vatPercent")) sv("vatPercent", copy.vatPercent || "21");
+    if (E("depositAmount")) sv("depositAmount", copy.depositAmount || "0.00");
 
-    try { if (typeof renderChosen === "function") renderChosen(); } catch(e) {}
-    try { if (typeof renderMaterials === "function") renderMaterials(typeof currentCat !== "undefined" ? currentCat : "TW"); } catch(e) {}
+    try { renderChosen(); } catch(e) {}
+    renderCatsStable();
+    renderMaterialsStable(getCat());
     try { if (typeof calcTotals === "function") calcTotals(); } catch(e) {}
     try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
     try { if (typeof workTab === "function") workTab("customerPanel"); } catch(e) {}
@@ -3518,12 +3618,10 @@ setTimeout(()=>{
   }
 
   function copyOrder(){
-    var copy = snapshotForm();
+    var copy = snapshot();
 
     try {
-      if (typeof saveCurrentOrder === "function") {
-        saveCurrentOrder();
-      }
+      if (typeof saveCurrentOrder === "function") saveCurrentOrder();
     } catch(e) {
       console.error(e);
       alert("Huidige opdracht opslaan is niet gelukt.");
@@ -3538,112 +3636,119 @@ setTimeout(()=>{
           return;
         }
       } catch(e) {}
-
       alert("Copy gemaakt. Vul alleen de nieuwe datum in en sla op.");
     }, 150);
   }
 
-  function removeOldButtons(){
-    [
-      "bnsFinalCopyBtn","bnsFinalInvoiceBtn","bnsFinalConfirmBtn",
-      "bnsCopyOrderTop","bnsCopyOrderRealTop","bnsFactuurTopBtn","bnsFactuurRealTopBtn",
-      "bnsOpdrachtBonTopBtn","bnsOpdrachtBonRealTopBtn","bnsCopyTopClean","bnsInvoiceTopClean","bnsConfirmTopClean"
-    ].forEach(function(id){
+  function removeButtons(){
+    ["bnsTopCopyStable","bnsTopInvoiceStable","bnsTopConfirmStable"].forEach(function(id){
       var el = E(id);
       if (el) el.remove();
     });
 
-    // Verwijder fout geplaatste custom knoppen alleen uit Materialen.
     var panel = E("materialPanel");
     if (panel) {
-      Array.from(panel.querySelectorAll("button")).forEach(function(btn){
-        if (/^(copy opdracht|factuur maken|opdracht bon|opdracht bevestiging)$/i.test(text(btn))) btn.remove();
+      panel.querySelectorAll("button").forEach(function(btn){
+        if (/^(copy opdracht|factuur maken|opdracht bon|opdracht bevestiging)$/i.test(T(btn))) btn.remove();
       });
     }
   }
 
-  function getWorkTabs(){
-    return Array.from(document.querySelectorAll(".worktab")).filter(function(button){
-      return /^(klant|locatie|materialen|bezorger|voertuig|extra|bijzonderheden)$/i.test(text(button));
-    });
-  }
-
   function renameExtra(){
-    getWorkTabs().forEach(function(button){
-      if (/^extra$/i.test(text(button))) {
-        button.textContent = "Bijzonderheden";
-      }
+    document.querySelectorAll(".worktab").forEach(function(btn){
+      if (/^extra$/i.test(T(btn))) btn.textContent = "Bijzonderheden";
     });
-  }
-
-  function findVehicleTab(){
-    return getWorkTabs().find(function(button){
-      return /^voertuig$/i.test(text(button));
-    }) || null;
-  }
-
-  function addButton(id, label, after, action, className){
-    var button = document.createElement("button");
-    button.id = id;
-    button.type = "button";
-    button.textContent = label;
-    button.className = className || "worktab";
-    button.onclick = function(event){
-      event.preventDefault();
-      event.stopPropagation();
-      action();
-    };
-    after.insertAdjacentElement("afterend", button);
-    return button;
   }
 
   function placeButtons(){
-    removeOldButtons();
+    removeButtons();
     renameExtra();
 
-    var vehicle = findVehicleTab();
-    if (!vehicle || !vehicle.parentNode) return;
+    var vehicle = Array.from(document.querySelectorAll(".worktab")).find(function(btn){
+      return /^voertuig$/i.test(T(btn));
+    });
 
-    var className = (vehicle.className || "worktab").replace(/\bactive\b/g, "").trim() || "worktab";
+    if (!vehicle) return;
 
-    var copyBtn = addButton("bnsFinalCopyBtn", "Copy opdracht", vehicle, copyOrder, className + " bns-copy");
-    var invoiceBtn = addButton("bnsFinalInvoiceBtn", "Factuur maken", copyBtn, makeInvoice, className + " bns-invoice");
-    addButton("bnsFinalConfirmBtn", "Opdracht bevestiging", invoiceBtn, makeConfirmation, className + " bns-confirm");
+    function make(id, label, fn, cls){
+      var btn = document.createElement("button");
+      btn.id = id;
+      btn.type = "button";
+      btn.textContent = label;
+      btn.className = "bns-top-action " + cls;
+      btn.onclick = function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        fn();
+      };
+      return btn;
+    }
+
+    var copy = make("bnsTopCopyStable","Copy opdracht",copyOrder,"copy");
+    var invoice = make("bnsTopInvoiceStable","Factuur maken",makeInvoice,"invoice");
+    var confirm = make("bnsTopConfirmStable","Opdracht bevestiging",makeConfirmation,"confirm");
+
+    vehicle.insertAdjacentElement("afterend", copy);
+    copy.insertAdjacentElement("afterend", invoice);
+    invoice.insertAdjacentElement("afterend", confirm);
   }
 
-  function addCss(){
-    if (E("bnsFinalTopRowCss")) return;
-
+  function css(){
+    if (E("bnsStablePatchCss")) return;
     var style = document.createElement("style");
-    style.id = "bnsFinalTopRowCss";
+    style.id = "bnsStablePatchCss";
     style.textContent =
-      ".material-row.bns-picked{background:#fee2e2!important;border-color:#dc2626!important;box-shadow:inset 7px 0 0 #dc2626!important}" +
-      ".material-row.bns-picked .badge,.badge.picked{background:#fecaca!important;color:#7f1d1d!important;font-weight:900!important}" +
-      "#bnsFinalCopyBtn,#bnsFinalInvoiceBtn,#bnsFinalConfirmBtn{" +
-      "margin-left:8px!important;border:none!important;border-radius:12px!important;" +
-      "padding:10px 18px!important;color:#fff!important;font-weight:900!important;" +
-      "}" +
-      "#bnsFinalCopyBtn{background:#047857!important}" +
-      "#bnsFinalInvoiceBtn{background:#2563eb!important}" +
-      "#bnsFinalConfirmBtn{background:#16a34a!important}";
-
+      ".bns-material-row.bns-picked{background:#fee2e2!important;border-color:#dc2626!important;box-shadow:inset 7px 0 0 #dc2626!important}" +
+      ".bns-material-row.bns-picked .bns-status-pill,.bns-status-pill.picked{background:#fecaca!important;color:#7f1d1d!important;font-weight:900!important}" +
+      ".bns-top-action{margin-left:8px!important;border:none!important;border-radius:12px!important;padding:10px 18px!important;color:#fff!important;font-weight:900!important;box-shadow:0 8px 18px rgba(15,23,42,.16)!important}" +
+      ".bns-top-action.copy{background:#047857!important}" +
+      ".bns-top-action.invoice{background:#2563eb!important}" +
+      ".bns-top-action.confirm{background:#16a34a!important}";
     document.head.appendChild(style);
   }
 
   function install(){
-    addCss();
+    css();
+
+    window.renderCats = renderCatsStable;
+    window.renderMaterials = renderMaterialsStable;
+    window.addMat = addMatStable;
+    window.removeMat = removeMatStable;
+
+    try { renderCats = renderCatsStable; } catch(e) {}
+    try { renderMaterials = renderMaterialsStable; } catch(e) {}
+    try { addMat = addMatStable; } catch(e) {}
+    try { removeMat = removeMatStable; } catch(e) {}
+
+    var search = E("materialSearch");
+    if (search && !search.dataset.bnsStableSearch) {
+      search.dataset.bnsStableSearch = "1";
+      search.addEventListener("input", function(){ renderMaterialsStable(getCat()); });
+    }
+
+    if (E("materialPanel") && !E("materialPanel").classList.contains("hidden")) {
+      renderCatsStable();
+      renderMaterialsStable(getCat());
+    }
+
     placeButtons();
   }
 
   try {
     var oldWorkTab = window.workTab || (typeof workTab === "function" ? workTab : null);
-    if (oldWorkTab && !oldWorkTab.__bnsFinalTopRow) {
+    if (oldWorkTab && !oldWorkTab.__bnsStablePatch) {
       var wrappedWorkTab = function(){
         var result = oldWorkTab.apply(this, arguments);
-        setTimeout(placeButtons, 0);
+        setTimeout(function(){
+          if (E("materialPanel") && !E("materialPanel").classList.contains("hidden")) {
+            renderCatsStable();
+            renderMaterialsStable(getCat());
+          }
+          placeButtons();
+        }, 0);
         return result;
       };
-      wrappedWorkTab.__bnsFinalTopRow = true;
+      wrappedWorkTab.__bnsStablePatch = true;
       window.workTab = wrappedWorkTab;
       try { workTab = wrappedWorkTab; } catch(e) {}
     }
@@ -3651,13 +3756,13 @@ setTimeout(()=>{
 
   try {
     var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-    if (oldRenderAll && !oldRenderAll.__bnsFinalTopRow) {
+    if (oldRenderAll && !oldRenderAll.__bnsStablePatch) {
       var wrappedRenderAll = function(){
         var result = oldRenderAll.apply(this, arguments);
         setTimeout(placeButtons, 0);
         return result;
       };
-      wrappedRenderAll.__bnsFinalTopRow = true;
+      wrappedRenderAll.__bnsStablePatch = true;
       window.renderAll = wrappedRenderAll;
       try { renderAll = wrappedRenderAll; } catch(e) {}
     }
