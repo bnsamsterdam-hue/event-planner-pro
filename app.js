@@ -781,7 +781,7 @@ setTimeout(()=>{
       const f=e.target.files && e.target.files[0]; if(!f) return;
       const r=new FileReader(); r.onload=()=>{ensureV10State(); getState().settings.invoice.logo=r.result; saveState(); loadInvoiceAdminV10(); toast('Logo opgeslagen');}; r.readAsDataURL(f);
     };
-    const saveBtn=byId('saveInvoiceLayoutV10'); if(saveBtn) saveBtn.onclick=saveInvoiceAdminV10;
+  if(saveBtn) saveBtn.onclick = () => saveInvoiceAdminV10(true);
     const clear=byId('clearInvoiceLogoV10'); if(clear) clear.onclick=()=>{ensureV10State(); getState().settings.invoice.logo=''; saveState(); loadInvoiceAdminV10(); toast('Logo verwijderd');};
     const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick=()=>{saveInvoiceAdminV10(false); renderInvoicePreviewV10();};
   }
