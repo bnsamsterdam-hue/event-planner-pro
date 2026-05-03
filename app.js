@@ -4514,3 +4514,484 @@ setInterval(install,1500);
 
   setTimeout(applyAll, 1200);
 })();
+
+
+/* =========================================================
+   BNS SCHONE TOEVOEGING - COPY / FACTUUR / OPDRACHT BEVESTIGING
+   Werkt op stabiele basis.
+
+   Toegevoegd:
+   - Copy opdracht naast Voertuig / Extra
+   - Factuur maken naast Voertuig / Extra
+   - Opdracht bevestiging naast Voertuig / Extra
+
+   Copy gedrag:
+   - slaat huidige opdracht eerst op
+   - opent daarna direct een nieuwe opdracht
+   - zelfde klant / locatie / materialen / prijzen / bezorger / voertuig / extra
+   - nieuw opdrachtnummer
+   - begin/einddatum leeg
+   - status Offerte
+
+   Niet toegevoegd:
+   - geen observer
+   - geen interval
+   - geen materiaal-render override
+   - geen admin/rechten/filter/meldingen wijziging
+   ========================================================= */
+(function(){
+  "use strict";
+
+  function E(id){ return document.getElementById(id); }
+
+  function txt(el){
+    return String(el && el.textContent || "").trim();
+  }
+
+  function esc(value){
+    return String(value == null ? "" : value).replace(/[&<>"']/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function value(id){
+    var el = E(id);
+    return el ? (el.value || "") : "";
+  }
+
+  function setValue(id, value){
+    var el = E(id);
+    if (el) el.value = value || "";
+  }
+
+  function checked(id){
+    var el = E(id);
+    return !!(el && el.checked);
+  }
+
+  function setChecked(id, value){
+    var el = E(id);
+    if (el) el.checked = !!value;
+  }
+
+  function deepCopy(obj){
+    try { return structuredClone(obj); }
+    catch(e) { return JSON.parse(JSON.stringify(obj)); }
+  }
+
+  function chosenList(){
+    try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e) {}
+    try { if (window.chosen && Array.isArray(window.chosen)) return window.chosen; } catch(e) {}
+    return [];
+  }
+
+  function setChosenList(list){
+    try { chosen = list; } catch(e) {}
+    try { window.chosen = list; } catch(e) {}
+  }
+
+  function currentState(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    return window.state || {orders:[]};
+  }
+
+  function nextOrderNumber(){
+    try {
+      if (typeof newNo === "function") {
+        var old = value("orderNumber");
+        newNo();
+        var generated = value("orderNumber");
+        setValue("orderNumber", old);
+        if (generated) return generated;
+      }
+    } catch(e) {}
+
+    try {
+      var year = new Date().getFullYear();
+      var orders = Array.isArray(currentState().orders) ? currentState().orders : [];
+      var nums = orders.map(function(order){
+        var match = String(order.number || "").match(new RegExp("^" + year + "-(\\d+)$"));
+        return match ? Number(match[1]) : 0;
+      }).filter(Boolean);
+
+      return year + "-" + String(nums.length ? Math.max.apply(null, nums) + 1 : 1).padStart(4, "0");
+    } catch(e) {
+      return String(new Date().getFullYear()) + "-0001";
+    }
+  }
+
+  function euro(value){
+    var n = Number(String(value || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+    if (!isFinite(n)) n = 0;
+    return "€ " + n.toFixed(2).replace(".", ",");
+  }
+
+  function calcDocumentTotals(){
+    var materialTotal = 0;
+    var depositTotal = 0;
+
+    chosenList().forEach(function(material){
+      var qty = Number(material.qty || material.count || 1);
+      var price = Number(String(material.linePrice || material.price || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+      var deposit = Number(String(material.lineDeposit || material.deposit || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+
+      if (!isFinite(qty)) qty = 1;
+      if (!isFinite(price)) price = 0;
+      if (!isFinite(deposit)) deposit = 0;
+
+      materialTotal += qty * price;
+      depositTotal += qty * deposit;
+    });
+
+    if (!materialTotal && E("priceExcl")) {
+      materialTotal = Number(String(value("priceExcl")).replace(",", ".")) || 0;
+    }
+
+    var discount = Number(String(value("discountAmount")).replace(",", ".")) || 0;
+    var vatPercent = Number(String(value("vatPercent")).replace(",", ".")) || 21;
+    var afterDiscount = Math.max(0, materialTotal - discount);
+    var vat = afterDiscount * (vatPercent / 100);
+
+    if (!depositTotal && E("depositAmount")) {
+      depositTotal = Number(String(value("depositAmount")).replace(",", ".")) || 0;
+    }
+
+    return {
+      materialTotal: materialTotal,
+      discount: discount,
+      afterDiscount: afterDiscount,
+      vatPercent: vatPercent,
+      vat: vat,
+      deposit: depositTotal,
+      grand: afterDiscount + vat
+    };
+  }
+
+  function materialLines(){
+    return chosenList().map(function(material){
+      var qty = material.qty || material.count || 1;
+      var price = material.linePrice || material.price || 0;
+      var deposit = material.lineDeposit || material.deposit || 0;
+      var note = material.lineNote || material.note || "";
+
+      return (qty || 1) + "x " + (material.code || "") + " " + (material.name || "") +
+        " | prijs " + euro(price) +
+        " | borg " + euro(deposit) +
+        (note ? " | " + note : "");
+    }).join("\n");
+  }
+
+  function documentText(title){
+    var totals = calcDocumentTotals();
+    var rows = materialLines() || "Geen materialen gekozen";
+
+    return title + "\n\n" +
+      "Opdracht: " + value("orderNumber") + "\n" +
+      "Status: " + value("orderStatus") + "\n" +
+      "Titel: " + value("orderTitle") + "\n" +
+      "Biermerk / merk: " + value("orderBrand") + "\n" +
+      "Datum: " + value("dateStart") +
+        (value("dateEnd") && value("dateEnd") !== value("dateStart") ? " tot datum " + value("dateEnd") : "") +
+      "\n\n" +
+
+      "Klant:\n" +
+      value("customerName") + "\n" +
+      value("customerStreet") + "\n" +
+      value("customerZip") + " " + value("customerCity") + "\n" +
+      value("customerPhone") + "\n" +
+      value("customerEmail") + "\n\n" +
+
+      "Locatie:\n" +
+      value("locationName") + "\n" +
+      value("locationStreet") + "\n" +
+      value("locationZip") + " " + value("locationCity") + "\n" +
+      "Contact: " + value("locationContact") + "\n" +
+      value("locationPhone") + "\n\n" +
+
+      "Materialen:\n" + rows + "\n\n" +
+
+      "Subtotaal: " + euro(totals.materialTotal) + "\n" +
+      "Korting: " + euro(totals.discount) + "\n" +
+      "Btw " + totals.vatPercent + "%: " + euro(totals.vat) + "\n" +
+      "Borg: " + euro(totals.deposit) + "\n" +
+      "Eindtotaal: " + euro(totals.grand) + "\n\n" +
+
+      "Bezorger: " + value("orderDriver") + "\n" +
+      "Voertuig: " + value("orderVehicle") + "\n\n" +
+
+      "Extra / opmerkingen:\n" + value("orderExtra");
+  }
+
+  function openPrintWindow(title, body){
+    var win = window.open("", "_blank");
+    if (!win) {
+      alert(body);
+      return;
+    }
+
+    win.document.write(
+      "<!doctype html><html><head><title>" + esc(title) + "</title>" +
+      "<style>" +
+      "body{font-family:Arial,sans-serif;padding:32px;line-height:1.45;font-size:14px}" +
+      "pre{white-space:pre-wrap;font-family:Arial,sans-serif}" +
+      "button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:bold;margin-bottom:18px}" +
+      "</style></head><body>" +
+      "<button onclick='window.print()'>Afdrukken</button>" +
+      "<pre>" + esc(body) + "</pre>" +
+      "</body></html>"
+    );
+
+    win.document.close();
+  }
+
+  function makeInvoice(){
+    openPrintWindow("Factuur", documentText("FACTUUR"));
+  }
+
+  function makeConfirmation(){
+    try {
+      if (typeof makeConfirmationText === "function") {
+        openPrintWindow("Opdracht bevestiging", makeConfirmationText());
+        return;
+      }
+    } catch(e) {}
+
+    openPrintWindow("Opdracht bevestiging", documentText("OPDRACHTBEVESTIGING"));
+  }
+
+  function snapshotCurrentOrderForm(){
+    return {
+      status: value("orderStatus") || "Offerte",
+      title: value("orderTitle"),
+      brand: value("orderBrand"),
+      customerName: value("customerName"),
+      customerStreet: value("customerStreet"),
+      customerZip: value("customerZip"),
+      customerCity: value("customerCity"),
+      customerPhone: value("customerPhone"),
+      customerEmail: value("customerEmail"),
+      locationName: value("locationName"),
+      locationStreet: value("locationStreet"),
+      locationZip: value("locationZip"),
+      locationCity: value("locationCity"),
+      locationContact: value("locationContact"),
+      locationPhone: value("locationPhone"),
+      showLocationOnDocs: checked("showLocationOnDocs"),
+      materials: deepCopy(chosenList()),
+      driver: value("orderDriver"),
+      vehicle: value("orderVehicle"),
+      extra: value("orderExtra"),
+      priceExcl: value("priceExcl"),
+      discountAmount: value("discountAmount"),
+      vatPercent: value("vatPercent"),
+      depositAmount: value("depositAmount")
+    };
+  }
+
+  function fillCopiedOrderForm(copy){
+    try {
+      if (typeof showPage === "function") showPage("newOrder");
+    } catch(e) {}
+
+    try { editing = null; } catch(e) {}
+    try { window.editing = null; } catch(e) {}
+
+    setValue("orderNumber", nextOrderNumber());
+    setValue("orderStatus", "Offerte");
+    setValue("orderTitle", copy.title);
+    setValue("orderBrand", copy.brand);
+
+    // Alleen datum leegmaken.
+    setValue("dateStart", "");
+    setValue("dateEnd", "");
+
+    setValue("customerName", copy.customerName);
+    setValue("customerStreet", copy.customerStreet);
+    setValue("customerZip", copy.customerZip);
+    setValue("customerCity", copy.customerCity);
+    setValue("customerPhone", copy.customerPhone);
+    setValue("customerEmail", copy.customerEmail);
+
+    setValue("locationName", copy.locationName);
+    setValue("locationStreet", copy.locationStreet);
+    setValue("locationZip", copy.locationZip);
+    setValue("locationCity", copy.locationCity);
+    setValue("locationContact", copy.locationContact);
+    setValue("locationPhone", copy.locationPhone);
+    setChecked("showLocationOnDocs", copy.showLocationOnDocs);
+
+    setChosenList(deepCopy(copy.materials || []));
+
+    setValue("orderDriver", copy.driver);
+    setValue("orderVehicle", copy.vehicle);
+    setValue("orderExtra", copy.extra);
+
+    if (E("priceExcl")) setValue("priceExcl", copy.priceExcl || "0.00");
+    if (E("discountAmount")) setValue("discountAmount", copy.discountAmount || "0.00");
+    if (E("vatPercent")) setValue("vatPercent", copy.vatPercent || "21");
+    if (E("depositAmount")) setValue("depositAmount", copy.depositAmount || "0.00");
+
+    try { if (typeof renderChosen === "function") renderChosen(); } catch(e) {}
+    try { if (typeof renderMaterials === "function") renderMaterials(typeof currentCat !== "undefined" ? currentCat : "TW"); } catch(e) {}
+    try { if (typeof calcTotals === "function") calcTotals(); } catch(e) {}
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+
+    try {
+      if (typeof workTab === "function") workTab("customerPanel");
+    } catch(e) {}
+
+    var firstDate = E("dateStart");
+    if (firstDate) firstDate.focus();
+  }
+
+  function copyOrderSaveThenOpenNew(){
+    var copy = snapshotCurrentOrderForm();
+
+    // Eerst huidige opdracht opslaan.
+    try {
+      if (typeof saveCurrentOrder === "function") {
+        saveCurrentOrder();
+      }
+    } catch(e) {
+      console.error(e);
+      alert("Opslaan van huidige opdracht is niet gelukt.");
+      return;
+    }
+
+    // Daarna nieuwe opdracht openen met zelfde gegevens, nieuw nummer en lege datum.
+    setTimeout(function(){
+      fillCopiedOrderForm(copy);
+      try {
+        if (typeof toastMsg === "function") {
+          toastMsg("Copy gemaakt. Vul alleen de nieuwe datum in en sla op.");
+          return;
+        }
+      } catch(e) {}
+
+      alert("Copy gemaakt. Vul alleen de nieuwe datum in en sla op.");
+    }, 120);
+  }
+
+  function removeOldButtons(){
+    [
+      "bnsCopyOrderTop",
+      "bnsCopyOrderRealTop",
+      "bnsFactuurTopBtn",
+      "bnsFactuurRealTopBtn",
+      "bnsOpdrachtBonTopBtn",
+      "bnsOpdrachtBonRealTopBtn",
+      "bnsCopyTopClean",
+      "bnsInvoiceTopClean",
+      "bnsConfirmTopClean",
+      "bnsFinalCopyBtn",
+      "bnsFinalInvoiceBtn",
+      "bnsFinalConfirmBtn"
+    ].forEach(function(id){
+      var el = E(id);
+      if (el) el.remove();
+    });
+  }
+
+  function findTopAnchor(){
+    var tabs = Array.from(document.querySelectorAll(".worktab")).filter(function(button){
+      return /^(klant|locatie|materialen|bezorger|voertuig|extra)$/i.test(txt(button));
+    });
+
+    var extra = tabs.find(function(button){ return /^extra$/i.test(txt(button)); });
+    var vehicle = tabs.find(function(button){ return /^voertuig$/i.test(txt(button)); });
+
+    return extra || vehicle || null;
+  }
+
+  function addButton(id, label, after, onClick, className){
+    var button = document.createElement("button");
+    button.id = id;
+    button.type = "button";
+    button.textContent = label;
+    button.className = className || "worktab";
+
+    button.addEventListener("click", function(event){
+      event.preventDefault();
+      event.stopPropagation();
+      onClick();
+    });
+
+    after.insertAdjacentElement("afterend", button);
+    return button;
+  }
+
+  function placeButtons(){
+    removeOldButtons();
+
+    var anchor = findTopAnchor();
+    if (!anchor || !anchor.parentNode) return;
+
+    var cls = (anchor.className || "worktab").replace(/\bactive\b/g, "").trim() || "worktab";
+
+    var copy = addButton("bnsFinalCopyBtn", "Copy opdracht", anchor, copyOrderSaveThenOpenNew, cls + " bns-top-copy");
+    var invoice = addButton("bnsFinalInvoiceBtn", "Factuur maken", copy, makeInvoice, cls + " bns-top-invoice");
+    addButton("bnsFinalConfirmBtn", "Opdracht bevestiging", invoice, makeConfirmation, cls + " bns-top-confirm");
+  }
+
+  function addCss(){
+    if (E("bnsFinalTopButtonsCss")) return;
+
+    var style = document.createElement("style");
+    style.id = "bnsFinalTopButtonsCss";
+    style.textContent =
+      "#bnsFinalCopyBtn,#bnsFinalInvoiceBtn,#bnsFinalConfirmBtn{" +
+      "margin-left:8px!important;border:none!important;border-radius:12px!important;" +
+      "padding:10px 18px!important;color:#fff!important;font-weight:900!important;" +
+      "}" +
+      "#bnsFinalCopyBtn{background:#047857!important}" +
+      "#bnsFinalInvoiceBtn{background:#2563eb!important}" +
+      "#bnsFinalConfirmBtn{background:#16a34a!important}";
+
+    document.head.appendChild(style);
+  }
+
+  function install(){
+    addCss();
+    placeButtons();
+  }
+
+  // Alleen opnieuw plaatsen na bestaande schermwissel/render. Geen observer, geen interval.
+  try {
+    var oldWorkTab = window.workTab || (typeof workTab === "function" ? workTab : null);
+    if (oldWorkTab && !oldWorkTab.__bnsFinalTopButtons) {
+      var wrappedWorkTab = function(){
+        var result = oldWorkTab.apply(this, arguments);
+        setTimeout(placeButtons, 0);
+        return result;
+      };
+      wrappedWorkTab.__bnsFinalTopButtons = true;
+      window.workTab = wrappedWorkTab;
+      try { workTab = wrappedWorkTab; } catch(e) {}
+    }
+  } catch(e) {}
+
+  try {
+    var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+    if (oldRenderAll && !oldRenderAll.__bnsFinalTopButtons) {
+      var wrappedRenderAll = function(){
+        var result = oldRenderAll.apply(this, arguments);
+        setTimeout(placeButtons, 0);
+        return result;
+      };
+      wrappedRenderAll.__bnsFinalTopButtons = true;
+      window.renderAll = wrappedRenderAll;
+      try { renderAll = wrappedRenderAll; } catch(e) {}
+    }
+  } catch(e) {}
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(install, 300);
+    });
+  } else {
+    setTimeout(install, 300);
+  }
+
+  // Alleen late eenmalige plaatsing voor als de app later bouwt.
+  setTimeout(install, 1200);
+})();
