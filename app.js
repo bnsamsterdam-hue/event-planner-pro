@@ -60,7 +60,7 @@ function renderLocations(){let q=locationSearch.value.toLowerCase().trim(); if(q
 function pickLocation(lid){let l=state.locations.find(x=>x.id===lid); if(!l)return; locationName.value=l.name||'';locationStreet.value=l.street||'';locationZip.value=l.zip||'';locationCity.value=l.city||'';locationContact.value=l.contact||'';locationPhone.value=l.phone||'';locationBox.classList.add('hidden');summaryRender();}
 function cats(){return [...new Set(state.materials.map(m=>(m.cat||'EXTRA').toUpperCase()))].sort()}
 function renderCats(){let cs=cats(); if(!cs.includes(currentCat))currentCat=cs[0]||'TW'; materialCats.innerHTML=cs.map(c=>`<button class="${c===currentCat?'active':''}" onclick="currentCat='${c}';renderCats();renderMaterials('${c}')">${c}</button>`).join('')}
-function renderMaterials(cat){currentCat=cat||currentCat||'TW';let q=materialSearch.value.toLowerCase();let rows=state.materials.filter(m=>(m.cat||'').toUpperCase()===currentCat.toUpperCase()).filter(m=>!q||JSON.stringify(m).toLowerCase().includes(q));materialList.innerHTML=rows.map(m=>{let sel=chosen.some(x=>x.id===m.id);let st=(m.status||'free').toLowerCase();let lab=sel?'● ● Gekozen':(st==='reserved'?'Gereserveerd':(st==='defect'?'Defect':((st==='inactive'||st==='niet actief')?'Niet actief':'Vrij')));let cls=sel?'selected bns-picked':(st==='reserved'?'reserved':(st==='defect'?'defect':((st==='inactive'||st==='niet actief')?'inactive':'free')));return `<div class="material-row ${cls}" onclick="addMat('${m.id}')"><div class="catbar cat-${m.cat}"></div><div><b>${m.code}</b> ${m.name}<br><small>${m.price||''}</small></div><div><span class="badge ${sel?'picked':cls}">${lab}</span></div></div>`}).join('')||'<p>Geen materiaal</p>';}
+function renderMaterials(cat){let q=materialSearch.value.toLowerCase();let rows=state.materials.filter(m=>(m.cat||'').toUpperCase()===cat.toUpperCase()).filter(m=>!q||JSON.stringify(m).toLowerCase().includes(q));materialList.innerHTML=rows.map(m=>{let sel=chosen.some(x=>x.id===m.id);return `<div class="material-row ${sel?'selected':''}" onclick="addMat('${m.id}')"><div class="catbar cat-${m.cat}"></div><div><b>${m.code}</b> ${m.name}<br><small>${m.price||''}</small></div><div><span class="badge ${sel?'now':''}">${sel?'Nu toegevoegd':'Vrij'}</span></div></div>`}).join('')||'<p>Geen materiaal</p>';}
 function addMat(mid){let m=state.materials.find(x=>x.id===mid); if(m&&!chosen.some(x=>x.id===mid))chosen.push(structuredClone(m));renderChosen();renderMaterials(currentCat);summaryRender();}
 function renderChosen(){chosenMaterials.innerHTML=chosen.map(m=>`<span class="chip">${m.code} ${m.name}<button onclick="removeMat('${m.id}')">x</button></span>`).join('')}
 function removeMat(mid){chosen=chosen.filter(m=>m.id!==mid);renderChosen();renderMaterials(currentCat);summaryRender();}
@@ -3244,114 +3244,240 @@ setTimeout(()=>{
 
 
 /* =========================================================
-   BNS SCHONE TOPRIJ - COPY / FACTUUR / OPDRACHTBEVESTIGING
-   Plaatsing:
-   - naast Voertuig
-   - Extra heet voortaan Bijzonderheden
-
-   Copy:
-   - huidige opdracht eerst opslaan
-   - daarna nieuw scherm met dezelfde gegevens
-   - nieuw opdrachtnummer
-   - datum leeg
-   - status Offerte
-
-   Geen observer.
-   Geen interval.
-   Geen aanpassing aan admin/rechten/opdrachtfilter/meldingen.
+   BNS DIRECTE WERKENDE FIX - zoals vanmorgen
+   - renderCats / renderMaterials / addMat / removeMat / workTab direct gezet
+   - materiaal blijft staan na kiezen
+   - gekozen materiaal wordt rood met ● ● Gekozen
+   - Copy / Factuur / Opdracht bevestiging naast Voertuig
+   - Extra heet Bijzonderheden
+   - Copy slaat eerst op en opent daarna nieuwe opdracht met leeg datumveld
+   - Geen observer
+   - Geen interval
    ========================================================= */
 (function(){
   "use strict";
 
   function E(id){ return document.getElementById(id); }
-  function text(el){ return String(el && el.textContent || "").trim(); }
-
-  function esc(v){
+  function T(el){ return String(el && el.textContent || "").trim(); }
+  function H(v){
     return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function val(id){
-    var el = E(id);
-    return el ? (el.value || "") : "";
+  function stateObj(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    return window.state || {materials:[], orders:[]};
   }
 
-  function setVal(id, value){
-    var el = E(id);
-    if (el) el.value = value || "";
-  }
-
-  function isChecked(id){
-    var el = E(id);
-    return !!(el && el.checked);
-  }
-
-  function setChecked(id, value){
-    var el = E(id);
-    if (el) el.checked = !!value;
-  }
-
-  function clone(obj){
-    try { return structuredClone(obj); }
-    catch(e) { return JSON.parse(JSON.stringify(obj)); }
-  }
-
-  function chosenList(){
+  function chosenArr(){
     try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e) {}
     try { if (window.chosen && Array.isArray(window.chosen)) return window.chosen; } catch(e) {}
     return [];
   }
 
-  function setChosen(list){
-    try { chosen = list; } catch(e) {}
-    try { window.chosen = list; } catch(e) {}
+  function setChosenArr(next){
+    try { chosen = next; } catch(e) {}
+    try { window.chosen = next; } catch(e) {}
   }
 
-  function getState(){
-    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
-    return window.state || {orders: []};
+  function deepCopy(obj){
+    try { return structuredClone(obj); }
+    catch(e) { return JSON.parse(JSON.stringify(obj)); }
   }
 
-  function nextNumber(){
-    try {
-      var old = val("orderNumber");
-      if (typeof newNo === "function") {
-        newNo();
-        var generated = val("orderNumber");
-        setVal("orderNumber", old);
-        if (generated) return generated;
-      }
-    } catch(e) {}
+  function catKey(v){
+    return String(v || "TW").trim().toUpperCase() || "TW";
+  }
 
-    try {
-      var year = new Date().getFullYear();
-      var orders = Array.isArray(getState().orders) ? getState().orders : [];
-      var nums = orders.map(function(order){
-        var match = String(order.number || "").match(new RegExp("^" + year + "-(\\d+)$"));
-        return match ? Number(match[1]) : 0;
-      }).filter(Boolean);
+  function getCurrentCat(){
+    try { if (typeof currentCat !== "undefined" && currentCat) return catKey(currentCat); } catch(e) {}
+    return catKey(window.currentCat || "TW");
+  }
 
-      return year + "-" + String(nums.length ? Math.max.apply(null, nums) + 1 : 1).padStart(4, "0");
-    } catch(e) {
-      return String(new Date().getFullYear()) + "-0001";
+  function setCurrentCat(cat){
+    var c = catKey(cat);
+    try { currentCat = c; } catch(e) {}
+    window.currentCat = c;
+    return c;
+  }
+
+  function materialStatus(m, selected){
+    if (selected) return ["● ● Gekozen", "chosen"];
+    var s = String(m && m.status || "free").toLowerCase();
+    if (s === "reserved" || s === "gereserveerd") return ["Gereserveerd", "reserved"];
+    if (s === "defect") return ["Defect", "defect"];
+    if (s === "inactive" || s === "niet actief" || s === "niet beschikbaar") return ["Niet actief", "inactive"];
+    return ["Vrij", "free"];
+  }
+
+  function renderCatsDirect(){
+    var box = E("materialCats");
+    if (!box) return;
+
+    var s = stateObj();
+    var cats = Array.from(new Set((s.materials || []).map(function(m){
+      return catKey(m.cat || "EXTRA");
+    }))).sort();
+
+    if (!cats.length) cats = ["TW","TO","KW","EXTRA"];
+
+    var cur = getCurrentCat();
+    if (cats.indexOf(cur) === -1) cur = setCurrentCat(cats[0]);
+
+    box.innerHTML = cats.map(function(cat){
+      return '<button type="button" class="' + (cat === cur ? 'active' : '') + '" data-bns-cat="' + H(cat) + '">' + H(cat) + '</button>';
+    }).join("");
+
+    Array.from(box.querySelectorAll("[data-bns-cat]")).forEach(function(btn){
+      btn.onclick = function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        setCurrentCat(btn.getAttribute("data-bns-cat"));
+        renderCatsDirect();
+        renderMaterialsDirect(getCurrentCat());
+      };
+    });
+  }
+
+  function renderMaterialsDirect(cat){
+    var list = E("materialList");
+    if (!list) return;
+
+    var s = stateObj();
+    var active = setCurrentCat(cat || getCurrentCat());
+    var search = E("materialSearch");
+    var q = String(search && search.value || "").toLowerCase().trim();
+    var chosenIds = chosenArr().map(function(x){ return String(x.id); });
+
+    var rows = (s.materials || [])
+      .filter(function(m){ return catKey(m.cat) === active; })
+      .filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q) !== -1; });
+
+    list.innerHTML = rows.map(function(m){
+      var selected = chosenIds.indexOf(String(m.id)) !== -1;
+      var st = materialStatus(m, selected);
+
+      return '' +
+        '<div class="material-row bns-direct-row ' + (selected ? 'bns-selected-material-red selected' : '') + ' status-' + st[1] + '" data-material-id="' + H(m.id) + '">' +
+          '<div class="catbar cat-' + H(catKey(m.cat)) + '"></div>' +
+          '<div><b>' + H(m.code) + '</b> ' + H(m.name) + '<br><small>' + H(m.price || "") + '</small></div>' +
+          '<div><span class="badge ' + st[1] + '">' + H(st[0]) + '</span></div>' +
+        '</div>';
+    }).join("") || "<p>Geen materiaal</p>";
+
+    Array.from(list.querySelectorAll("[data-material-id]")).forEach(function(row){
+      row.onclick = function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        addMatDirect(row.getAttribute("data-material-id"));
+      };
+    });
+  }
+
+  function addMatDirect(mid){
+    var s = stateObj();
+    var arr = chosenArr();
+    var m = (s.materials || []).find(function(x){ return String(x.id) === String(mid); });
+
+    if (!m) return;
+
+    if (!arr.some(function(x){ return String(x.id) === String(mid); })) {
+      arr.push(deepCopy(m));
+      setChosenArr(arr);
     }
+
+    renderChosenDirect();
+    renderMaterialsDirect(getCurrentCat());
+
+    try { if (typeof calcTotals === "function") calcTotals(); } catch(e) {}
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
   }
 
-  function euro(value){
-    var n = Number(String(value || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+  function removeMatDirect(mid){
+    var arr = chosenArr().filter(function(m){ return String(m.id) !== String(mid); });
+    setChosenArr(arr);
+
+    renderChosenDirect();
+    renderMaterialsDirect(getCurrentCat());
+
+    try { if (typeof calcTotals === "function") calcTotals(); } catch(e) {}
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+  }
+
+  function renderChosenDirect(){
+    var box = E("chosenMaterials");
+    if (!box) return;
+
+    box.innerHTML = chosenArr().map(function(m){
+      return '<span class="chip">' + H(m.code || "") + ' ' + H(m.name || "") +
+        '<button type="button" data-remove-mat="' + H(m.id) + '">x</button></span>';
+    }).join("");
+
+    Array.from(box.querySelectorAll("[data-remove-mat]")).forEach(function(btn){
+      btn.onclick = function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        removeMatDirect(btn.getAttribute("data-remove-mat"));
+      };
+    });
+  }
+
+  function workTabDirect(idv){
+    Array.from(document.querySelectorAll(".workpanel")).forEach(function(panel){
+      panel.classList.add("hidden");
+    });
+
+    var panel = E(idv);
+    if (panel) panel.classList.remove("hidden");
+
+    Array.from(document.querySelectorAll(".worktab")).forEach(function(tab){
+      tab.classList.toggle("active", tab.dataset.tab === idv);
+    });
+
+    if (idv === "materialPanel") {
+      renderCatsDirect();
+      renderMaterialsDirect(getCurrentCat());
+    }
+
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+    placeTopButtons();
+  }
+
+  function value(id){
+    var el = E(id);
+    return el ? (el.value || "") : "";
+  }
+
+  function setValue(id, v){
+    var el = E(id);
+    if (el) el.value = v || "";
+  }
+
+  function setChecked(id, v){
+    var el = E(id);
+    if (el) el.checked = !!v;
+  }
+
+  function checked(id){
+    var el = E(id);
+    return !!(el && el.checked);
+  }
+
+  function euro(v){
+    var n = Number(String(v || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
     if (!isFinite(n)) n = 0;
     return "€ " + n.toFixed(2).replace(".", ",");
   }
 
   function materialLines(){
-    return chosenList().map(function(material){
-      var qty = material.qty || material.count || 1;
-      var price = material.linePrice || material.price || 0;
-      var deposit = material.lineDeposit || material.deposit || 0;
-      var note = material.lineNote || material.note || "";
+    return chosenArr().map(function(m){
+      var qty = m.qty || m.count || 1;
+      var price = m.linePrice || m.price || 0;
+      var deposit = m.lineDeposit || m.deposit || 0;
+      var note = m.lineNote || m.note || "";
 
-      return (qty || 1) + "x " + (material.code || "") + " " + (material.name || "") +
+      return (qty || 1) + "x " + (m.code || "") + " " + (m.name || "") +
         " | prijs " + euro(price) +
         " | borg " + euro(deposit) +
         (note ? " | " + note : "");
@@ -3370,39 +3496,38 @@ setTimeout(()=>{
         }
       }
     } catch(e) {}
-
     return "";
   }
 
-  function docText(title){
+  function documentText(title){
     return title + "\n\n" +
-      "Opdracht: " + val("orderNumber") + "\n" +
-      "Status: " + val("orderStatus") + "\n" +
-      "Titel: " + val("orderTitle") + "\n" +
-      "Biermerk / merk: " + val("orderBrand") + "\n" +
-      "Datum: " + val("dateStart") +
-        (val("dateEnd") && val("dateEnd") !== val("dateStart") ? " tot datum " + val("dateEnd") : "") +
+      "Opdracht: " + value("orderNumber") + "\n" +
+      "Status: " + value("orderStatus") + "\n" +
+      "Titel: " + value("orderTitle") + "\n" +
+      "Biermerk / merk: " + value("orderBrand") + "\n" +
+      "Datum: " + value("dateStart") +
+        (value("dateEnd") && value("dateEnd") !== value("dateStart") ? " tot datum " + value("dateEnd") : "") +
       "\n\n" +
       "Klant:\n" +
-      val("customerName") + "\n" +
-      val("customerStreet") + "\n" +
-      val("customerZip") + " " + val("customerCity") + "\n" +
-      val("customerPhone") + "\n" +
-      val("customerEmail") + "\n\n" +
+      value("customerName") + "\n" +
+      value("customerStreet") + "\n" +
+      value("customerZip") + " " + value("customerCity") + "\n" +
+      value("customerPhone") + "\n" +
+      value("customerEmail") + "\n\n" +
       "Locatie:\n" +
-      val("locationName") + "\n" +
-      val("locationStreet") + "\n" +
-      val("locationZip") + " " + val("locationCity") + "\n" +
-      "Contact: " + val("locationContact") + "\n" +
-      val("locationPhone") + "\n\n" +
+      value("locationName") + "\n" +
+      value("locationStreet") + "\n" +
+      value("locationZip") + " " + value("locationCity") + "\n" +
+      "Contact: " + value("locationContact") + "\n" +
+      value("locationPhone") + "\n\n" +
       "Materialen:\n" + (materialLines() || "Geen materialen gekozen") + "\n\n" +
       totalsText() + "\n\n" +
-      "Bezorger: " + val("orderDriver") + "\n" +
-      "Voertuig: " + val("orderVehicle") + "\n\n" +
-      "Bijzonderheden:\n" + val("orderExtra");
+      "Bezorger: " + value("orderDriver") + "\n" +
+      "Voertuig: " + value("orderVehicle") + "\n\n" +
+      "Bijzonderheden:\n" + value("orderExtra");
   }
 
-  function printWindow(title, body){
+  function openDoc(title, body){
     var w = window.open("", "_blank");
     if (!w) {
       alert(body);
@@ -3410,108 +3535,129 @@ setTimeout(()=>{
     }
 
     w.document.write(
-      "<!doctype html><html><head><title>" + esc(title) + "</title>" +
-      "<style>" +
-      "body{font-family:Arial,sans-serif;padding:32px;line-height:1.45;font-size:14px}" +
-      "pre{white-space:pre-wrap;font-family:Arial,sans-serif}" +
-      "button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:bold;margin-bottom:18px}" +
-      "</style></head><body>" +
-      "<button onclick='window.print()'>Afdrukken</button>" +
-      "<pre>" + esc(body) + "</pre>" +
-      "</body></html>"
+      "<!doctype html><html><head><title>" + H(title) + "</title>" +
+      "<style>body{font-family:Arial,sans-serif;padding:32px;line-height:1.45;font-size:14px}pre{white-space:pre-wrap;font-family:Arial,sans-serif}button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:bold;margin-bottom:18px}</style>" +
+      "</head><body><button onclick='window.print()'>Afdrukken</button><pre>" + H(body) + "</pre></body></html>"
     );
 
     w.document.close();
   }
 
   function makeInvoice(){
-    printWindow("Factuur", docText("FACTUUR"));
+    openDoc("Factuur", documentText("FACTUUR"));
   }
 
   function makeConfirmation(){
     try {
       if (typeof makeConfirmationText === "function") {
-        printWindow("Opdracht bevestiging", makeConfirmationText());
+        openDoc("Opdracht bevestiging", makeConfirmationText());
         return;
       }
     } catch(e) {}
 
-    printWindow("Opdracht bevestiging", docText("OPDRACHTBEVESTIGING"));
+    openDoc("Opdracht bevestiging", documentText("OPDRACHTBEVESTIGING"));
   }
 
   function snapshotForm(){
     return {
-      title: val("orderTitle"),
-      brand: val("orderBrand"),
-      customerName: val("customerName"),
-      customerStreet: val("customerStreet"),
-      customerZip: val("customerZip"),
-      customerCity: val("customerCity"),
-      customerPhone: val("customerPhone"),
-      customerEmail: val("customerEmail"),
-      locationName: val("locationName"),
-      locationStreet: val("locationStreet"),
-      locationZip: val("locationZip"),
-      locationCity: val("locationCity"),
-      locationContact: val("locationContact"),
-      locationPhone: val("locationPhone"),
-      showLocationOnDocs: isChecked("showLocationOnDocs"),
-      materials: clone(chosenList()),
-      driver: val("orderDriver"),
-      vehicle: val("orderVehicle"),
-      extra: val("orderExtra"),
-      priceExcl: val("priceExcl"),
-      discountAmount: val("discountAmount"),
-      vatPercent: val("vatPercent"),
-      depositAmount: val("depositAmount")
+      title: value("orderTitle"),
+      brand: value("orderBrand"),
+      customerName: value("customerName"),
+      customerStreet: value("customerStreet"),
+      customerZip: value("customerZip"),
+      customerCity: value("customerCity"),
+      customerPhone: value("customerPhone"),
+      customerEmail: value("customerEmail"),
+      locationName: value("locationName"),
+      locationStreet: value("locationStreet"),
+      locationZip: value("locationZip"),
+      locationCity: value("locationCity"),
+      locationContact: value("locationContact"),
+      locationPhone: value("locationPhone"),
+      showLocationOnDocs: checked("showLocationOnDocs"),
+      materials: deepCopy(chosenArr()),
+      driver: value("orderDriver"),
+      vehicle: value("orderVehicle"),
+      extra: value("orderExtra"),
+      priceExcl: value("priceExcl"),
+      discountAmount: value("discountAmount"),
+      vatPercent: value("vatPercent"),
+      depositAmount: value("depositAmount")
     };
   }
 
-  function fillCopy(copy){
+  function nextOrderNumber(){
+    try {
+      var old = value("orderNumber");
+      if (typeof newNo === "function") {
+        newNo();
+        var generated = value("orderNumber");
+        setValue("orderNumber", old);
+        if (generated) return generated;
+      }
+    } catch(e) {}
+
+    try {
+      var year = new Date().getFullYear();
+      var orders = Array.isArray(stateObj().orders) ? stateObj().orders : [];
+      var nums = orders.map(function(order){
+        var match = String(order.number || "").match(new RegExp("^" + year + "-(\\d+)$"));
+        return match ? Number(match[1]) : 0;
+      }).filter(Boolean);
+
+      return year + "-" + String(nums.length ? Math.max.apply(null, nums) + 1 : 1).padStart(4, "0");
+    } catch(e) {
+      return String(new Date().getFullYear()) + "-0001";
+    }
+  }
+
+  function fillCopiedOrder(copy){
     try { if (typeof showPage === "function") showPage("newOrder"); } catch(e) {}
 
     try { editing = null; } catch(e) {}
     try { window.editing = null; } catch(e) {}
 
-    setVal("orderNumber", nextNumber());
-    setVal("orderStatus", "Offerte");
-    setVal("dateStart", "");
-    setVal("dateEnd", "");
+    setValue("orderNumber", nextOrderNumber());
+    setValue("orderStatus", "Offerte");
+    setValue("dateStart", "");
+    setValue("dateEnd", "");
 
-    setVal("orderTitle", copy.title);
-    setVal("orderBrand", copy.brand);
+    setValue("orderTitle", copy.title);
+    setValue("orderBrand", copy.brand);
 
-    setVal("customerName", copy.customerName);
-    setVal("customerStreet", copy.customerStreet);
-    setVal("customerZip", copy.customerZip);
-    setVal("customerCity", copy.customerCity);
-    setVal("customerPhone", copy.customerPhone);
-    setVal("customerEmail", copy.customerEmail);
+    setValue("customerName", copy.customerName);
+    setValue("customerStreet", copy.customerStreet);
+    setValue("customerZip", copy.customerZip);
+    setValue("customerCity", copy.customerCity);
+    setValue("customerPhone", copy.customerPhone);
+    setValue("customerEmail", copy.customerEmail);
 
-    setVal("locationName", copy.locationName);
-    setVal("locationStreet", copy.locationStreet);
-    setVal("locationZip", copy.locationZip);
-    setVal("locationCity", copy.locationCity);
-    setVal("locationContact", copy.locationContact);
-    setVal("locationPhone", copy.locationPhone);
+    setValue("locationName", copy.locationName);
+    setValue("locationStreet", copy.locationStreet);
+    setValue("locationZip", copy.locationZip);
+    setValue("locationCity", copy.locationCity);
+    setValue("locationContact", copy.locationContact);
+    setValue("locationPhone", copy.locationPhone);
     setChecked("showLocationOnDocs", copy.showLocationOnDocs);
 
-    setChosen(clone(copy.materials || []));
+    setChosenArr(deepCopy(copy.materials || []));
 
-    setVal("orderDriver", copy.driver);
-    setVal("orderVehicle", copy.vehicle);
-    setVal("orderExtra", copy.extra);
+    setValue("orderDriver", copy.driver);
+    setValue("orderVehicle", copy.vehicle);
+    setValue("orderExtra", copy.extra);
 
-    if (E("priceExcl")) setVal("priceExcl", copy.priceExcl || "0.00");
-    if (E("discountAmount")) setVal("discountAmount", copy.discountAmount || "0.00");
-    if (E("vatPercent")) setVal("vatPercent", copy.vatPercent || "21");
-    if (E("depositAmount")) setVal("depositAmount", copy.depositAmount || "0.00");
+    if (E("priceExcl")) setValue("priceExcl", copy.priceExcl || "0.00");
+    if (E("discountAmount")) setValue("discountAmount", copy.discountAmount || "0.00");
+    if (E("vatPercent")) setValue("vatPercent", copy.vatPercent || "21");
+    if (E("depositAmount")) setValue("depositAmount", copy.depositAmount || "0.00");
 
-    try { if (typeof renderChosen === "function") renderChosen(); } catch(e) {}
-    try { if (typeof renderMaterials === "function") renderMaterials(typeof currentCat !== "undefined" ? currentCat : "TW"); } catch(e) {}
+    renderChosenDirect();
+    renderCatsDirect();
+    renderMaterialsDirect(getCurrentCat());
+
     try { if (typeof calcTotals === "function") calcTotals(); } catch(e) {}
     try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
-    try { if (typeof workTab === "function") workTab("customerPanel"); } catch(e) {}
+    try { workTabDirect("customerPanel"); } catch(e) {}
 
     var start = E("dateStart");
     if (start) start.focus();
@@ -3531,20 +3677,26 @@ setTimeout(()=>{
     }
 
     setTimeout(function(){
-      fillCopy(copy);
+      fillCopiedOrder(copy);
       try {
         if (typeof toastMsg === "function") {
           toastMsg("Copy gemaakt. Vul alleen de nieuwe datum in en sla op.");
           return;
         }
       } catch(e) {}
-
       alert("Copy gemaakt. Vul alleen de nieuwe datum in en sla op.");
     }, 150);
   }
 
-  function removeOldButtons(){
+  function renameExtra(){
+    Array.from(document.querySelectorAll(".worktab")).forEach(function(tab){
+      if (/^extra$/i.test(T(tab))) tab.textContent = "Bijzonderheden";
+    });
+  }
+
+  function removeOldTopButtons(){
     [
+      "bnsCopyTopReal","bnsInvoiceTopReal","bnsBonTopReal",
       "bnsFinalCopyBtn","bnsFinalInvoiceBtn","bnsFinalConfirmBtn",
       "bnsCopyOrderTop","bnsCopyOrderRealTop","bnsFactuurTopBtn","bnsFactuurRealTopBtn",
       "bnsOpdrachtBonTopBtn","bnsOpdrachtBonRealTopBtn","bnsCopyTopClean","bnsInvoiceTopClean","bnsConfirmTopClean"
@@ -3553,115 +3705,130 @@ setTimeout(()=>{
       if (el) el.remove();
     });
 
-    // Verwijder fout geplaatste custom knoppen alleen uit Materialen.
     var panel = E("materialPanel");
     if (panel) {
       Array.from(panel.querySelectorAll("button")).forEach(function(btn){
-        if (/^(copy opdracht|factuur maken|opdracht bon|opdracht bevestiging)$/i.test(text(btn))) btn.remove();
+        if (/^(copy opdracht|factuur maken|opdracht bon|opdracht bevestiging)$/i.test(T(btn))) btn.remove();
       });
     }
   }
 
-  function getWorkTabs(){
-    return Array.from(document.querySelectorAll(".worktab")).filter(function(button){
-      return /^(klant|locatie|materialen|bezorger|voertuig|extra|bijzonderheden)$/i.test(text(button));
-    });
-  }
-
-  function renameExtra(){
-    getWorkTabs().forEach(function(button){
-      if (/^extra$/i.test(text(button))) {
-        button.textContent = "Bijzonderheden";
-      }
-    });
-  }
-
-  function findVehicleTab(){
-    return getWorkTabs().find(function(button){
-      return /^voertuig$/i.test(text(button));
-    }) || null;
-  }
-
-  function addButton(id, label, after, action, className){
-    var button = document.createElement("button");
-    button.id = id;
-    button.type = "button";
-    button.textContent = label;
-    button.className = className || "worktab";
-    button.onclick = function(event){
-      event.preventDefault();
-      event.stopPropagation();
-      action();
-    };
-    after.insertAdjacentElement("afterend", button);
-    return button;
-  }
-
-  function placeButtons(){
-    removeOldButtons();
+  function placeTopButtons(){
+    removeOldTopButtons();
     renameExtra();
 
-    var vehicle = findVehicleTab();
+    var vehicle = Array.from(document.querySelectorAll(".worktab")).find(function(btn){
+      return /^voertuig$/i.test(T(btn));
+    });
+
     if (!vehicle || !vehicle.parentNode) return;
 
-    var className = (vehicle.className || "worktab").replace(/\bactive\b/g, "").trim() || "worktab";
+    function make(id, text, fn, cls){
+      var b = document.createElement("button");
+      b.id = id;
+      b.type = "button";
+      b.textContent = text;
+      b.className = (vehicle.className || "worktab").replace(/\bactive\b/g, "").trim() + " " + cls;
+      b.onclick = function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        fn();
+      };
+      return b;
+    }
 
-    var copyBtn = addButton("bnsFinalCopyBtn", "Copy opdracht", vehicle, copyOrder, className + " bns-copy");
-    var invoiceBtn = addButton("bnsFinalInvoiceBtn", "Factuur maken", copyBtn, makeInvoice, className + " bns-invoice");
-    addButton("bnsFinalConfirmBtn", "Opdracht bevestiging", invoiceBtn, makeConfirmation, className + " bns-confirm");
+    var copy = make("bnsCopyTopReal", "Copy opdracht", copyOrder, "bns-copy-top");
+    var invoice = make("bnsInvoiceTopReal", "Factuur maken", makeInvoice, "bns-invoice-top");
+    var confirmation = make("bnsBonTopReal", "Opdracht bevestiging", makeConfirmation, "bns-confirm-top");
+
+    vehicle.insertAdjacentElement("afterend", copy);
+    copy.insertAdjacentElement("afterend", invoice);
+    invoice.insertAdjacentElement("afterend", confirmation);
+  }
+
+  function patchSaveClose(){
+    try {
+      var fn = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null);
+      if (fn && !fn.__bnsDirectCloseAfterSave) {
+        var wrapped = function(){
+          var r = fn.apply(this, arguments);
+          setTimeout(function(){
+            try { if (typeof showPage === "function") showPage("orders"); } catch(e) {}
+          }, 100);
+          return r;
+        };
+        wrapped.__bnsDirectCloseAfterSave = true;
+        window.saveCurrentOrder = wrapped;
+        try { saveCurrentOrder = wrapped; } catch(e) {}
+      }
+    } catch(e) {}
   }
 
   function addCss(){
-    if (E("bnsFinalTopRowCss")) return;
+    if (E("bnsDirectMaterialTopCss")) return;
 
     var style = document.createElement("style");
-    style.id = "bnsFinalTopRowCss";
-    style.textContent =
-      ".material-row.bns-picked{background:#fee2e2!important;border-color:#dc2626!important;box-shadow:inset 7px 0 0 #dc2626!important}" +
-      ".material-row.bns-picked .badge,.badge.picked{background:#fecaca!important;color:#7f1d1d!important;font-weight:900!important}" +
-      "#bnsFinalCopyBtn,#bnsFinalInvoiceBtn,#bnsFinalConfirmBtn{" +
-      "margin-left:8px!important;border:none!important;border-radius:12px!important;" +
-      "padding:10px 18px!important;color:#fff!important;font-weight:900!important;" +
-      "}" +
-      "#bnsFinalCopyBtn{background:#047857!important}" +
-      "#bnsFinalInvoiceBtn{background:#2563eb!important}" +
-      "#bnsFinalConfirmBtn{background:#16a34a!important}";
-
+    style.id = "bnsDirectMaterialTopCss";
+    style.textContent = `
+      .bns-selected-material-red {
+        background: #fee2e2 !important;
+        border-color: #dc2626 !important;
+        box-shadow: inset 7px 0 0 #dc2626 !important;
+      }
+      .bns-selected-material-red .badge,
+      .badge.chosen {
+        background: #fecaca !important;
+        color: #7f1d1d !important;
+        font-weight: 900 !important;
+      }
+      #bnsCopyTopReal, #bnsInvoiceTopReal, #bnsBonTopReal {
+        margin-left: 8px !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 10px 18px !important;
+        color: #fff !important;
+        font-weight: 900 !important;
+      }
+      #bnsCopyTopReal { background: #047857 !important; }
+      #bnsInvoiceTopReal { background: #2563eb !important; }
+      #bnsBonTopReal { background: #16a34a !important; }
+    `;
     document.head.appendChild(style);
   }
 
   function install(){
     addCss();
-    placeButtons();
+
+    window.renderCats = renderCatsDirect;
+    window.renderMaterials = renderMaterialsDirect;
+    window.renderChosen = renderChosenDirect;
+    window.addMat = addMatDirect;
+    window.removeMat = removeMatDirect;
+    window.workTab = workTabDirect;
+
+    try { renderCats = renderCatsDirect; } catch(e) {}
+    try { renderMaterials = renderMaterialsDirect; } catch(e) {}
+    try { renderChosen = renderChosenDirect; } catch(e) {}
+    try { addMat = addMatDirect; } catch(e) {}
+    try { removeMat = removeMatDirect; } catch(e) {}
+    try { workTab = workTabDirect; } catch(e) {}
+
+    Array.from(document.querySelectorAll(".worktab")).forEach(function(btn){
+      btn.onclick = function(e){
+        e.preventDefault();
+        workTabDirect(btn.dataset.tab);
+      };
+    });
+
+    if (E("materialPanel") && !E("materialPanel").classList.contains("hidden")) {
+      renderCatsDirect();
+      renderMaterialsDirect(getCurrentCat());
+    }
+
+    renderChosenDirect();
+    placeTopButtons();
+    patchSaveClose();
   }
-
-  try {
-    var oldWorkTab = window.workTab || (typeof workTab === "function" ? workTab : null);
-    if (oldWorkTab && !oldWorkTab.__bnsFinalTopRow) {
-      var wrappedWorkTab = function(){
-        var result = oldWorkTab.apply(this, arguments);
-        setTimeout(placeButtons, 0);
-        return result;
-      };
-      wrappedWorkTab.__bnsFinalTopRow = true;
-      window.workTab = wrappedWorkTab;
-      try { workTab = wrappedWorkTab; } catch(e) {}
-    }
-  } catch(e) {}
-
-  try {
-    var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-    if (oldRenderAll && !oldRenderAll.__bnsFinalTopRow) {
-      var wrappedRenderAll = function(){
-        var result = oldRenderAll.apply(this, arguments);
-        setTimeout(placeButtons, 0);
-        return result;
-      };
-      wrappedRenderAll.__bnsFinalTopRow = true;
-      window.renderAll = wrappedRenderAll;
-      try { renderAll = wrappedRenderAll; } catch(e) {}
-    }
-  } catch(e) {}
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); });
@@ -3669,5 +3836,5 @@ setTimeout(()=>{
     setTimeout(install, 300);
   }
 
-  setTimeout(install, 1200);
+  setTimeout(install, 1000);
 })();
