@@ -3824,3 +3824,4 @@ setTimeout(()=>{
     factuur.insertAdjacentElement("afterend", bevestiging);
 }
 setTimeout(plaatsKnoppenNaastVoertuig, 1200);
+});
