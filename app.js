@@ -1,5 +1,4 @@
 
-
 // ===== V9.1 safety fixes =====
 function safePrint(){ window.print(); }
 function safeMail(text, subject){
@@ -757,7 +756,7 @@ setTimeout(()=>{
         <label>Vrije tekst onderaan / voorwaarden<textarea id="invoiceFooterText" placeholder="Voorwaarden, betaling, borg, schade, schoonmaak enz."></textarea></label>
         <div class="actions"><button id="saveInvoiceLayoutV10" type="button">Opslaan layout</button><button id="clearInvoiceLogoV10" class="grey" type="button">Logo verwijderen</button><button id="previewInvoiceLayoutV10" type="button">Voorbeeld maken</button></div>
         <div id="invoiceAdminPreview" class="invoice-preview hidden"></div>`;
-      area.appendChild(pane);  
+      area.appendChild(pane);
     }
     document.querySelectorAll('.adminTab').forEach(b=>{
       b.addEventListener('click',()=>{
@@ -777,68 +776,24 @@ setTimeout(()=>{
     const img=byId('invoiceLogoPreview'); if(img){ if(inv.logo){img.src=inv.logo; img.style.display='block';} else {img.removeAttribute('src'); img.style.display='none';} }
   }
   function bindInvoiceAdminV10(){
-  const saveBtn = byId('saveInvoiceLayoutV10');
-  if(saveBtn){
-    saveBtn.onclick = function(e){
-      e.preventDefault();
-      saveInvoiceAdminV10(true);
+    const up=byId('invoiceLogoUpload'); if(up) up.onchange=e=>{
+      const f=e.target.files && e.target.files[0]; if(!f) return;
+      const r=new FileReader(); r.onload=()=>{ensureV10State(); getState().settings.invoice.logo=r.result; saveState(); loadInvoiceAdminV10(); toast('Logo opgeslagen');}; r.readAsDataURL(f);
     };
-  }
-
-  const clear = byId('clearInvoiceLogoV10');
-  if(clear){
-    clear.onclick = function(e){
-      e.preventDefault();
-      ensureV10State();
-      getState().settings.invoice.logo = '';
-      save();
-      loadInvoiceAdminV10();
-      toast('Logo verwijderd');
-    };
-  }
-
-  const preview = byId('previewInvoiceLayoutV10');
-  if(preview){
-    preview.onclick = function(e){
-      e.preventDefault();
-      saveInvoiceAdminV10(false);
-      renderInvoicePreviewV10();
-    };
-  }
-}
-if(saveBtn) saveBtn.onclick = function(){
-  saveInvoiceAdminV10(true);
-};
+    const saveBtn=byId('saveInvoiceLayoutV10'); if(saveBtn) saveBtn.onclick=saveInvoiceAdminV10;
     const clear=byId('clearInvoiceLogoV10'); if(clear) clear.onclick=()=>{ensureV10State(); getState().settings.invoice.logo=''; saveState(); loadInvoiceAdminV10(); toast('Logo verwijderd');};
-   const preview = byId('previewInvoiceLayoutV10');
-if(preview) preview.onclick = function(){
-  saveInvoiceAdminV10(false);
-  renderInvoicePreviewV10();
-};
+    const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick=()=>{saveInvoiceAdminV10(false); renderInvoicePreviewV10();};
   }
- function saveInvoiceAdminV10(show){
-  ensureV10State();
-
-  const s = getState();
-  s.settings = s.settings || {};
-  s.settings.invoice = s.settings.invoice || {};
-
-  const inv = s.settings.invoice;
-
-  inv.companyName = byId('invoiceCompanyName') ? byId('invoiceCompanyName').value : 'Event Planner PRO';
-  inv.title = byId('invoiceDocTitle') ? byId('invoiceDocTitle').value : 'Opdrachtbevestiging / Offerte';
-  inv.accent = byId('invoiceAccentColor') ? byId('invoiceAccentColor').value : '#2563eb';
-  inv.layout = byId('invoiceLayoutMode') ? byId('invoiceLayoutMode').value : 'classic';
-  inv.intro = byId('invoiceIntroText') ? byId('invoiceIntroText').value : '';
-  inv.footer = byId('invoiceFooterText') ? byId('invoiceFooterText').value : '';
-
-  save();
-
-  if(show !== false){
-    toast('Factuur/offerte layout opgeslagen');
+  function saveInvoiceAdminV10(show=true){
+    ensureV10State(); const inv=getState().settings.invoice;
+    inv.companyName=byId('invoiceCompanyName')?.value || 'Event Planner PRO';
+    inv.title=byId('invoiceDocTitle')?.value || 'Opdrachtbevestiging / Offerte';
+    inv.accent=byId('invoiceAccentColor')?.value || '#2563eb';
+    inv.layout=byId('invoiceLayoutMode')?.value || 'classic';
+    inv.intro=byId('invoiceIntroText')?.value || '';
+    inv.footer=byId('invoiceFooterText')?.value || '';
+    saveState(); if(show) toast('Factuur/offerte layout opgeslagen');
   }
-}
-  
   function renderInvoicePreviewV10(){
     const p=byId('invoiceAdminPreview'); const inv=getState()?.settings?.invoice; if(!p||!inv) return;
     p.classList.remove('hidden');
