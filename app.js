@@ -3302,174 +3302,309 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   BNS RUSTIGE FIX - GEEN KNIPPEREN / GEEN SCHOKKEN
-   - Geen MutationObserver.
-   - Geen setInterval.
-   - Materiaal blijft zichtbaar na kiezen.
-   - Gekozen materiaal links rood.
-   - Verkeerd geplaatste Copy/Factuur/Opdracht bon in materiaalkolom worden verwijderd.
+   BNS DIRECTE FIX - MATERIALEN BLIJFT STAAN + KNOPPEN BOVEN
+   Geen observer, geen interval, geen knipperen.
    ========================================================= */
 (function(){
   "use strict";
 
   function $(id){ return document.getElementById(id); }
 
-  function txt(el){
-    return String(el && el.textContent || "").trim();
-  }
+  function T(el){ return String(el && el.textContent || "").trim(); }
 
-  function chosenItems(){
-    try {
-      if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen;
-    } catch(e) {}
-    try {
-      if (window.chosen && Array.isArray(window.chosen)) return window.chosen;
-    } catch(e) {}
-    return [];
-  }
-
-  function materialId(row){
-    var id =
-      row.getAttribute("data-material-id") ||
-      row.getAttribute("data-bns-material-id") ||
-      (row.dataset && (row.dataset.materialId || row.dataset.bnsMaterialId)) ||
-      "";
-
-    if (id) return String(id);
-
-    var m = (row.outerHTML || "").match(/addMat\(['"]([^'"]+)['"]\)/);
-    return m ? m[1] : "";
-  }
-
-  function removeWrongMaterialButtons(){
-    var panel = $("materialPanel");
-    if (!panel) return;
-
-    Array.from(panel.querySelectorAll("button")).forEach(function(button){
-      if (/^(copy opdracht|factuur maken|opdracht bon)$/i.test(txt(button))) {
-        button.remove();
-      }
+  function H(v){
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
     });
   }
 
-  function markChosenMaterials(){
-    var ids = chosenItems().map(function(item){
-      return String(item.id);
-    });
+  function stateObj(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    return window.state || {materials:[], orders:[]};
+  }
 
-    document.querySelectorAll(
-      "#materialList [data-material-id], #materialList [data-bns-material-id], #materialList .material-row, #materialList .bns-material-row, #materialList .bns-cat-row"
-    ).forEach(function(row){
-      var selected = ids.indexOf(String(materialId(row))) !== -1;
+  function chosenArr(){
+    try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e) {}
+    return window.chosen || [];
+  }
 
-      row.classList.toggle("bns-selected-material-red", selected);
+  function setChosen(next){
+    try { chosen = next; } catch(e) {}
+    window.chosen = next;
+  }
 
-      if (selected) {
-        row.style.setProperty("background", "#fee2e2", "important");
-        row.style.setProperty("border-color", "#dc2626", "important");
-        row.style.setProperty("box-shadow", "inset 7px 0 0 #dc2626", "important");
+  function catKey(v){
+    return String(v || "TW").trim().toUpperCase() || "TW";
+  }
 
-        var pill = row.querySelector(".bns-status-pill,.mat-status-badge,.v112-pill,span:last-child");
-        if (pill) {
-          pill.textContent = "● ● Gekozen";
-          pill.style.setProperty("background", "#fecaca", "important");
-          pill.style.setProperty("color", "#7f1d1d", "important");
-          pill.style.setProperty("font-weight", "900", "important");
-        }
-      }
+  function getCurrentCat(){
+    try { if (typeof currentCat !== "undefined" && currentCat) return catKey(currentCat); } catch(e) {}
+    return catKey(window.currentCat || "TW");
+  }
+
+  function setCurrentCat(cat){
+    var c = catKey(cat);
+    try { currentCat = c; } catch(e) {}
+    window.currentCat = c;
+    return c;
+  }
+
+  function materialStatus(m, selected){
+    if (selected) return ["Gekozen", "chosen"];
+    var s = String(m && m.status || "free").toLowerCase();
+    if (s === "reserved" || s === "gereserveerd") return ["Gereserveerd", "reserved"];
+    if (s === "defect") return ["Defect", "defect"];
+    if (s === "inactive" || s === "niet actief" || s === "niet beschikbaar") return ["Niet actief", "inactive"];
+    return ["Vrij", "free"];
+  }
+
+  function renderCatsDirect(){
+    var box = $("materialCats");
+    if (!box) return;
+
+    var s = stateObj();
+    var cats = Array.from(new Set((s.materials || []).map(function(m){
+      return catKey(m.cat || "EXTRA");
+    }))).sort();
+
+    if (!cats.length) cats = ["TW","TO","KW","EXTRA"];
+
+    var cur = getCurrentCat();
+    if (cats.indexOf(cur) === -1) cur = setCurrentCat(cats[0]);
+
+    box.innerHTML = cats.map(function(cat){
+      return '<button type="button" class="' + (cat === cur ? 'active' : '') + '" data-bns-cat="' + H(cat) + '">' + H(cat) + '</button>';
+    }).join("");
+
+    Array.from(box.querySelectorAll("[data-bns-cat]")).forEach(function(btn){
+      btn.onclick = function(e){
+        e.preventDefault();
+        setCurrentCat(btn.getAttribute("data-bns-cat"));
+        renderCatsDirect();
+        renderMaterialsDirect(getCurrentCat());
+      };
     });
   }
 
-  function keepMaterialPanelOpen(){
-    var panel = $("materialPanel");
-    if (panel) {
-      panel.classList.remove("hidden");
-      panel.style.display = "";
-    }
-
-    Array.from(document.querySelectorAll("button")).forEach(function(btn){
-      var t = txt(btn);
-      if (/^(klant|locatie|materialen|bezorger|voertuig|extra)$/i.test(t)) {
-        btn.classList.toggle("active", /^materialen$/i.test(t));
-      }
-    });
-  }
-
-  function refreshMaterialUi(){
-    removeWrongMaterialButtons();
-    keepMaterialPanelOpen();
-    markChosenMaterials();
-  }
-
-  function patchAddMat(){
-    try {
-      var original = window.addMat || (typeof addMat === "function" ? addMat : null);
-
-      if (original && !original.__bnsQuietMaterialPatch) {
-        var wrapped = function(){
-          var result = original.apply(this, arguments);
-
-          setTimeout(refreshMaterialUi, 50);
-
-          return result;
-        };
-
-        wrapped.__bnsQuietMaterialPatch = true;
-        window.addMat = wrapped;
-        try { addMat = wrapped; } catch(e) {}
-      }
-    } catch(e) {}
-
+  function renderMaterialsDirect(cat){
     var list = $("materialList");
-    if (list && !list.dataset.bnsQuietMaterialClick) {
-      list.dataset.bnsQuietMaterialClick = "1";
-      list.addEventListener("click", function(){
-        setTimeout(refreshMaterialUi, 80);
-      }, true);
-    }
+    if (!list) return;
+
+    var s = stateObj();
+    var active = setCurrentCat(cat || getCurrentCat());
+    var q = String(($("materialSearch") || {}).value || "").toLowerCase().trim();
+    var chosenIds = chosenArr().map(function(x){ return String(x.id); });
+
+    var rows = (s.materials || [])
+      .filter(function(m){ return catKey(m.cat) === active; })
+      .filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q) !== -1; });
+
+    list.innerHTML = rows.map(function(m){
+      var selected = chosenIds.indexOf(String(m.id)) !== -1;
+      var st = materialStatus(m, selected);
+      return '' +
+        '<div class="material-row bns-direct-row ' + (selected ? 'bns-selected-material-red selected' : '') + ' status-' + st[1] + '" data-material-id="' + H(m.id) + '">' +
+          '<div class="catbar cat-' + H(catKey(m.cat)) + '"></div>' +
+          '<div><b>' + H(m.code) + '</b> ' + H(m.name) + '<br><small>' + H(m.price || "") + '</small></div>' +
+          '<div><span class="badge ' + st[1] + '">' + (selected ? '● ● ' : '') + H(st[0]) + '</span></div>' +
+        '</div>';
+    }).join("") || "<p>Geen materiaal</p>";
+
+    Array.from(list.querySelectorAll("[data-material-id]")).forEach(function(row){
+      row.onclick = function(e){
+        e.preventDefault();
+        addMatDirect(row.getAttribute("data-material-id"));
+      };
+    });
   }
 
-  function patchRenderMaterials(){
+  function addMatDirect(mid){
+    var s = stateObj();
+    var arr = chosenArr();
+    var m = (s.materials || []).find(function(x){ return String(x.id) === String(mid); });
+
+    if (!m) return;
+
+    if (!arr.some(function(x){ return String(x.id) === String(mid); })) {
+      var copy;
+      try { copy = structuredClone(m); }
+      catch(e) { copy = JSON.parse(JSON.stringify(m)); }
+      arr.push(copy);
+      setChosen(arr);
+    }
+
+    renderChosenDirect();
+    renderMaterialsDirect(getCurrentCat());
+
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+  }
+
+  function removeMatDirect(mid){
+    var arr = chosenArr().filter(function(m){
+      return String(m.id) !== String(mid);
+    });
+    setChosen(arr);
+    renderChosenDirect();
+    renderMaterialsDirect(getCurrentCat());
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+  }
+
+  function renderChosenDirect(){
+    var box = $("chosenMaterials");
+    if (!box) return;
+
+    box.innerHTML = chosenArr().map(function(m){
+      return '<span class="chip">' + H(m.code || "") + ' ' + H(m.name || "") +
+        '<button type="button" data-remove-mat="' + H(m.id) + '">x</button></span>';
+    }).join("");
+
+    Array.from(box.querySelectorAll("[data-remove-mat]")).forEach(function(btn){
+      btn.onclick = function(e){
+        e.preventDefault();
+        removeMatDirect(btn.getAttribute("data-remove-mat"));
+      };
+    });
+  }
+
+  function workTabDirect(idv){
+    Array.from(document.querySelectorAll(".workpanel")).forEach(function(x){
+      x.classList.add("hidden");
+    });
+
+    var panel = $(idv);
+    if (panel) panel.classList.remove("hidden");
+
+    Array.from(document.querySelectorAll(".worktab")).forEach(function(x){
+      x.classList.toggle("active", x.dataset.tab === idv);
+    });
+
+    if (idv === "materialPanel") {
+      renderCatsDirect();
+      renderMaterialsDirect(getCurrentCat());
+    }
+
+    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
+    placeTopButtons();
+  }
+
+  function val(id){
+    var el = $(id);
+    return el ? el.value || "" : "";
+  }
+
+  function euro(v){
+    var n = Number(String(v || "0").replace(",", ".").replace(/[^\d.-]/g, ""));
+    if (!isFinite(n)) n = 0;
+    return "€ " + n.toFixed(2).replace(".", ",");
+  }
+
+  function documentText(title){
+    var lines = chosenArr().map(function(m){
+      return "1x " + (m.code || "") + " " + (m.name || "") + " | Prijs " + (m.price || "0");
+    }).join("\n");
+
+    return title + "\n\n" +
+      "Opdracht: " + val("orderNumber") + "\n" +
+      "Titel: " + val("orderTitle") + "\n" +
+      "Datum: " + val("dateStart") + (val("dateEnd") && val("dateEnd") !== val("dateStart") ? " tot datum " + val("dateEnd") : "") + "\n\n" +
+      "Klant:\n" + val("customerName") + "\n" + val("customerStreet") + "\n" + val("customerZip") + " " + val("customerCity") + "\n\n" +
+      "Locatie:\n" + val("locationName") + "\n" + val("locationStreet") + "\n" + val("locationZip") + " " + val("locationCity") + "\n\n" +
+      "Materialen:\n" + (lines || "Geen materialen gekozen") + "\n\n" +
+      "Extra:\n" + val("orderExtra");
+  }
+
+  function openDoc(title, body){
+    var w = window.open("", "_blank");
+    if (!w) {
+      alert(body);
+      return;
+    }
+
+    w.document.write("<!doctype html><html><head><title>" + H(title) + "</title><style>body{font-family:Arial;padding:32px;line-height:1.45}pre{white-space:pre-wrap;font-family:Arial}button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:bold;margin-bottom:18px}</style></head><body><button onclick='window.print()'>Afdrukken</button><pre>" + H(body) + "</pre></body></html>");
+    w.document.close();
+  }
+
+  function copyOrder(){
+    try { editing = null; } catch(e) {}
+    window.editing = null;
+
+    if ($("orderStatus")) $("orderStatus").value = "Offerte";
+    if ($("dateStart")) $("dateStart").value = "";
+    if ($("dateEnd")) $("dateEnd").value = "";
+
     try {
-      var original = window.renderMaterials || (typeof renderMaterials === "function" ? renderMaterials : null);
+      if (typeof nextNo === "function" && $("orderNumber")) $("orderNumber").value = nextNo();
+    } catch(e) {}
 
-      if (original && !original.__bnsQuietMaterialRenderPatch) {
-        var wrapped = function(){
-          var result = original.apply(this, arguments);
+    alert("Copy gemaakt. Vul nieuwe datum in en sla op.");
+  }
 
-          setTimeout(function(){
-            removeWrongMaterialButtons();
-            markChosenMaterials();
-          }, 30);
+  function makeInvoice(){
+    openDoc("Factuur", documentText("FACTUUR"));
+  }
 
-          return result;
-        };
-
-        wrapped.__bnsQuietMaterialRenderPatch = true;
-        window.renderMaterials = wrapped;
-        try { renderMaterials = wrapped; } catch(e) {}
+  function makeOrderBon(){
+    try {
+      if (typeof makeConfirmationText === "function") {
+        openDoc("Opdracht bon", makeConfirmationText().replace(/OPDRACHTBEVESTIGING/gi, "OPDRACHT BON"));
+        return;
       }
     } catch(e) {}
+
+    openDoc("Opdracht bon", documentText("OPDRACHT BON"));
+  }
+
+  function removeOldTopButtons(){
+    ["bnsCopyTopReal", "bnsInvoiceTopReal", "bnsBonTopReal"].forEach(function(id){
+      var el = $(id);
+      if (el) el.remove();
+    });
+  }
+
+  function placeTopButtons(){
+    removeOldTopButtons();
+
+    var extra = Array.from(document.querySelectorAll(".worktab")).find(function(btn){
+      return /^extra$/i.test(T(btn));
+    });
+
+    if (!extra || !extra.parentNode) return;
+
+    function make(id, text, fn, cls){
+      var b = document.createElement("button");
+      b.id = id;
+      b.type = "button";
+      b.textContent = text;
+      b.className = (extra.className || "worktab") + " " + cls;
+      b.onclick = function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        fn();
+      };
+      return b;
+    }
+
+    var copy = make("bnsCopyTopReal", "Copy opdracht", copyOrder, "bns-copy-top");
+    var inv = make("bnsInvoiceTopReal", "Factuur maken", makeInvoice, "bns-invoice-top");
+    var bon = make("bnsBonTopReal", "Opdracht bon", makeOrderBon, "bns-bon-top");
+
+    extra.insertAdjacentElement("afterend", copy);
+    copy.insertAdjacentElement("afterend", inv);
+    inv.insertAdjacentElement("afterend", bon);
   }
 
   function patchSaveClose(){
     try {
       var fn = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null);
-
-      if (fn && !fn.__bnsQuietCloseAfterSave) {
+      if (fn && !fn.__bnsDirectCloseAfterSave) {
         var wrapped = function(){
-          var result = fn.apply(this, arguments);
-
+          var r = fn.apply(this, arguments);
           setTimeout(function(){
-            try {
-              if (typeof showPage === "function") showPage("orders");
-            } catch(e) {}
+            try { if (typeof showPage === "function") showPage("orders"); } catch(e) {}
           }, 100);
-
-          return result;
+          return r;
         };
-
-        wrapped.__bnsQuietCloseAfterSave = true;
+        wrapped.__bnsDirectCloseAfterSave = true;
         window.saveCurrentOrder = wrapped;
         try { saveCurrentOrder = wrapped; } catch(e) {}
       }
@@ -3477,38 +3612,74 @@ setInterval(install,1500);
   }
 
   function addCss(){
-    if ($("bnsQuietMaterialCss")) return;
-
+    if ($("bnsDirectMaterialTopCss")) return;
     var style = document.createElement("style");
-    style.id = "bnsQuietMaterialCss";
+    style.id = "bnsDirectMaterialTopCss";
     style.textContent = `
       .bns-selected-material-red {
         background: #fee2e2 !important;
         border-color: #dc2626 !important;
         box-shadow: inset 7px 0 0 #dc2626 !important;
       }
+      .bns-selected-material-red .badge {
+        background: #fecaca !important;
+        color: #7f1d1d !important;
+        font-weight: 900 !important;
+      }
+      #bnsCopyTopReal, #bnsInvoiceTopReal, #bnsBonTopReal {
+        margin-left: 8px !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 10px 18px !important;
+        color: #fff !important;
+        font-weight: 900 !important;
+      }
+      #bnsCopyTopReal { background: #047857 !important; }
+      #bnsInvoiceTopReal { background: #2563eb !important; }
+      #bnsBonTopReal { background: #16a34a !important; }
     `;
-
     document.head.appendChild(style);
   }
 
   function install(){
     addCss();
-    patchAddMat();
-    patchRenderMaterials();
+
+    window.renderCats = renderCatsDirect;
+    window.renderMaterials = renderMaterialsDirect;
+    window.renderChosen = renderChosenDirect;
+    window.addMat = addMatDirect;
+    window.removeMat = removeMatDirect;
+    window.workTab = workTabDirect;
+
+    try { renderCats = renderCatsDirect; } catch(e) {}
+    try { renderMaterials = renderMaterialsDirect; } catch(e) {}
+    try { renderChosen = renderChosenDirect; } catch(e) {}
+    try { addMat = addMatDirect; } catch(e) {}
+    try { removeMat = removeMatDirect; } catch(e) {}
+    try { workTab = workTabDirect; } catch(e) {}
+
+    Array.from(document.querySelectorAll(".worktab")).forEach(function(btn){
+      btn.onclick = function(e){
+        e.preventDefault();
+        workTabDirect(btn.dataset.tab);
+      };
+    });
+
+    if ($("materialPanel") && !$("materialPanel").classList.contains("hidden")) {
+      renderCatsDirect();
+      renderMaterialsDirect(getCurrentCat());
+    }
+
+    renderChosenDirect();
+    placeTopButtons();
     patchSaveClose();
-    removeWrongMaterialButtons();
-    markChosenMaterials();
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(install, 300);
-    });
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); });
   } else {
     setTimeout(install, 300);
   }
 
-  // Eén extra late start, geen continue observer/interval.
   setTimeout(install, 1000);
 })();
