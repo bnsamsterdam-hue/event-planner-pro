@@ -3863,3 +3863,4 @@ function plaatsKnoppenNaastVoertuig(){
 
 // 1x uitvoeren
 setTimeout(plaatsKnoppenNaastVoertuig, 500);
+})();  
