@@ -3136,7 +3136,7 @@ setTimeout(()=>{
       <button type="button" id="bnsWazePlannerBtn" class="bns-tool-green">Waze route naar opdracht</button>
       <button type="button" id="bnsMapsPlannerBtn" class="bns-tool-dark">Google Maps route</button>
       <button type="button" id="bnsAgendaOrderBtn">Agenda opdracht maken</button>
-      <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda ophalen TR blauw</button>
+      <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda TR ophalen</button>
     `;
 
     if (orderHead && orderHead.insertAdjacentElement) {
@@ -3190,17 +3190,30 @@ setTimeout(()=>{
 
     if (status) status.textContent = "Zoeken...";
 
-    // PDOK Locatieserver, geen API-key nodig. Als exacte huisnummer niet gevonden wordt,
-    // vult hij in ieder geval straat/plaats van de postcode aan.
-    const query = encodeURIComponent(pc + " " + nr);
-    const url = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=" + query + "&rows=1";
+  const query = encodeURIComponent(pc + " " + nr);
+const suggestUrl = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=" + query + "&rows=1";
 
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Postcode service geeft geen antwoord");
+try {
+  const sRes = await fetch(suggestUrl);
+  const sData = await sRes.json();
+  const first = sData.response && sData.response.docs && sData.response.docs[0];
 
-      const data = await response.json();
-      const doc = data && data.response && data.response.docs && data.response.docs[0];
+  if (!first || !first.id) {
+    if (status) status.textContent = "Niet gevonden";
+    alert("Adres niet gevonden");
+    return;
+  }
+
+  const lookupUrl = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=" + encodeURIComponent(first.id);
+  const lRes = await fetch(lookupUrl);
+  const lData = await lRes.json();
+  const doc = lData.response && lData.response.docs && lData.response.docs[0];
+
+  if (!doc) {
+    if (status) status.textContent = "Niet gevonden";
+    alert("Adres niet gevonden");
+    return;
+  }
 
       if (!doc) {
         if (status) status.textContent = "Niet gevonden";
