@@ -777,10 +777,35 @@ setTimeout(()=>{
     const img=byId('invoiceLogoPreview'); if(img){ if(inv.logo){img.src=inv.logo; img.style.display='block';} else {img.removeAttribute('src'); img.style.display='none';} }
   }
   function bindInvoiceAdminV10(){
-    const up=byId('invoiceLogoUpload'); if(up) up.onchange=e=>{
-      const f=e.target.files && e.target.files[0]; if(!f) return;
-      const r=new FileReader(); r.onload=()=>{ensureV10State(); getState().settings.invoice.logo=r.result; saveState(); loadInvoiceAdminV10(); toast('Logo opgeslagen');}; r.readAsDataURL(f);
+  const saveBtn = byId('saveInvoiceLayoutV10');
+  if(saveBtn){
+    saveBtn.onclick = function(e){
+      e.preventDefault();
+      saveInvoiceAdminV10(true);
     };
+  }
+
+  const clear = byId('clearInvoiceLogoV10');
+  if(clear){
+    clear.onclick = function(e){
+      e.preventDefault();
+      ensureV10State();
+      getState().settings.invoice.logo = '';
+      save();
+      loadInvoiceAdminV10();
+      toast('Logo verwijderd');
+    };
+  }
+
+  const preview = byId('previewInvoiceLayoutV10');
+  if(preview){
+    preview.onclick = function(e){
+      e.preventDefault();
+      saveInvoiceAdminV10(false);
+      renderInvoicePreviewV10();
+    };
+  }
+}
 if(saveBtn) saveBtn.onclick = function(){
   saveInvoiceAdminV10(true);
 };
