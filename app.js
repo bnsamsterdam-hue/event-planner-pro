@@ -5767,3 +5767,133 @@ setInterval(install,1500);
   setTimeout(installAll,300);
   setTimeout(installAll,1000);
 })();
+
+/* =========================================================
+   BNS V12.5 - stabiele systeemmeldingen + defect knipper uit + afmelden menu
+   - Alleen laatste melding-handler actief, zodat teller niet 0/1 blijft pingelen.
+   - Defect-badge knippert niet meer.
+   - Afmelden knop onder Admin in linkermenu terug naar PIN-scherm.
+   ========================================================= */
+(function bnsStableAlertsLogoutV125(){
+  "use strict";
+  var MODAL_ID = "bnsStableAlertsModalV125";
+  var STYLE_ID = "bnsStableAlertsLogoutCssV125";
+  function byId(id){ return document.getElementById(id); }
+  function qsa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+  function S(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    try { if (window.state) return window.state; } catch(e) {}
+    return {orders:[], alerts:[]};
+  }
+  function SAVE(){
+    try { if (typeof save === "function") { save(); return; } } catch(e) {}
+    try { if (typeof saveState === "function") { saveState(); return; } } catch(e) {}
+  }
+  function openAlerts(){
+    var s = S(); s.alerts = s.alerts || [];
+    var open = s.alerts.filter(function(a){ return !a.resolved; });
+    var old = byId(MODAL_ID); if (old) old.remove();
+    var modal = document.createElement("div"); modal.id = MODAL_ID; modal.className = "bns-v125-alert-modal";
+    var html = '<div class="bns-v125-alert-card">';
+    html += '<button type="button" class="bns-v125-close" onclick="document.getElementById(\''+MODAL_ID+'\').remove()">Sluiten</button>';
+    html += '<h2>🚨 Systeemmeldingen / storingen</h2>';
+    if (!open.length) html += '<p>Geen open systeemmeldingen.</p>';
+    open.forEach(function(a){
+      var o = null;
+      try { if (a.orderId) o = (S().orders || []).find(function(x){ return String(x.id) === String(a.orderId); }); } catch(e) {}
+      html += '<div class="bns-v125-alert-item"><b>'+esc(a.title || a.type || 'Systeemmelding')+'</b><br><small>'+esc(a.time || a.date || '')+'</small>';
+      if (o) html += '<div><b>Opdracht:</b> '+esc(o.number || '')+' - '+esc(o.title || '')+'</div>';
+      if (o && o.customer) html += '<div><b>Klant:</b> '+esc(o.customer.name || '')+'</div>';
+      var note = a.note || a.message || a.text || '';
+      if (note) html += '<p>'+esc(note)+'</p>';
+      html += '<div class="bns-v125-alert-actions"><button type="button" class="green" onclick="BNS_V125_RESOLVE_ALERT(\''+esc(a.id)+'\')">Afmelden</button><button type="button" class="red" onclick="BNS_V125_DELETE_ALERT(\''+esc(a.id)+'\')">Verwijderen</button></div></div>';
+    });
+    html += '</div>';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+  }
+  function updateAlertButton(){
+    var b = byId("alertsBtn"); if (!b) return;
+    var open = (S().alerts || []).filter(function(a){ return !a.resolved; });
+    b.textContent = "🚨 Systeemmeldingen (" + open.length + ")";
+    b.classList.remove("bns-a12-blink");
+    b.style.animation = "none";
+  }
+  window.BNS_V125_RESOLVE_ALERT = function(id){
+    var s = S(); s.alerts = s.alerts || [];
+    var a = s.alerts.find(function(x){ return String(x.id) === String(id); });
+    if (!a) return;
+    var txt = prompt("Afmelding / oplossing:", a.resolveText || "");
+    if (txt === null) return;
+    a.resolved = true;
+    a.resolveText = txt;
+    a.resolvedAt = new Date().toLocaleString();
+    try { a.resolvedBy = (window.user && (window.user.name || window.user.role)) || (typeof user !== "undefined" && user && (user.name || user.role)) || ""; } catch(e) {}
+    SAVE(); updateAlertButton(); openAlerts();
+  };
+  window.BNS_V125_DELETE_ALERT = function(id){
+    var txt = prompt("Reden verwijderen:", "");
+    if (txt === null) return;
+    var s = S(); s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
+    SAVE(); updateAlertButton(); openAlerts();
+  };
+  function bindAlertButton(){
+    var b = byId("alertsBtn"); if (!b) return;
+    if (b.dataset.bnsV125Stable !== "1") {
+      b.dataset.bnsV125Stable = "1";
+      b.addEventListener("click", function(e){
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        updateAlertButton(); openAlerts(); return false;
+      }, true);
+    }
+    updateAlertButton();
+  }
+  function addLogoutButton(){
+    if (byId("bnsLogoutMenuBtn")) return;
+    var side = document.querySelector(".side") || document.querySelector(".sidebar") || document.querySelector("nav");
+    if (!side) return;
+    var adminBtn = qsa(".nav", side).filter(function(b){ return /admin/i.test((b.textContent || "") + " " + (b.dataset && b.dataset.page || "")); })[0];
+    var btn = document.createElement("button");
+    btn.id = "bnsLogoutMenuBtn";
+    btn.type = "button";
+    btn.className = adminBtn ? adminBtn.className : "nav";
+    btn.textContent = "Afmelden";
+    btn.style.background = "#dc2626";
+    btn.style.color = "#fff";
+    btn.style.fontWeight = "900";
+    btn.onclick = function(e){
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      try { pin = ""; } catch(x) {}
+      try { user = null; } catch(x) {}
+      var pv = byId("pinView"); if (pv) pv.textContent = "- - - -";
+      var app = byId("app"); if (app) app.classList.add("hidden");
+      var login = byId("login"); if (login) login.classList.remove("hidden");
+      qsa(".page").forEach(function(p){ p.classList.remove("active"); });
+      return false;
+    };
+    if (adminBtn && adminBtn.parentNode) adminBtn.insertAdjacentElement("afterend", btn); else side.appendChild(btn);
+  }
+  function css(){
+    if (byId(STYLE_ID)) return;
+    var st = document.createElement("style"); st.id = STYLE_ID;
+    st.textContent = "#materialList .badge.defect,#materialList .mat-status-badge.mat-defect,#materialList .mat-status-badge.status-defect,#materialList .v111-pill.v111-defect,#materialList .v112-pill.v112-defect,.mat-status-badge.mat-defect,.mat-status-badge.status-defect{animation:none!important;filter:none!important}"+
+      "#alertsBtn,#alertsBtn.bns-a12-blink{animation:none!important;filter:none!important;transform:none!important}"+
+      ".bns-v125-alert-modal{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;padding:18px}"+
+      ".bns-v125-alert-card{background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:780px;width:100%;max-height:84vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32)}"+
+      ".bns-v125-close{float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-weight:900}"+
+      ".bns-v125-alert-item{border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc}"+
+      ".bns-v125-alert-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bns-v125-alert-actions button{color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:900}.bns-v125-alert-actions .green{background:#16a34a}.bns-v125-alert-actions .red{background:#dc2626}";
+    document.head.appendChild(st);
+  }
+  function install(){ css(); bindAlertButton(); addLogoutButton(); }
+  var oldRender = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+  if (oldRender && !oldRender.__bnsV125StableAlertsLogout) {
+    var wrapped = function(){ var r = oldRender.apply(this, arguments); setTimeout(install, 0); return r; };
+    wrapped.__bnsV125StableAlertsLogout = true;
+    window.renderAll = wrapped; try { renderAll = wrapped; } catch(e) {}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
+  setTimeout(install, 800);
+  setInterval(updateAlertButton, 1200);
+})();
