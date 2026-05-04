@@ -147,14 +147,14 @@ async function live(){
   const t=await fb(); if(!t)return;
   COLLECTIONS.forEach(col=>{
     if(col==="settings"){
-      t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"),snap=>{
+     // t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
         if(uploading)return;
         const s=norm(loadLocal()||{}); if(snap.exists())s.settings=snap.data()||{};
         downloading=true; saveLocal(s); downloading=false; lastJson=json();
       });
       return;
     }
-    t.fsMod.onSnapshot(t.fsMod.collection(t.db,col),snap=>{
+   // t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
