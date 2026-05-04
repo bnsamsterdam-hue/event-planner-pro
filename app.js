@@ -6356,3 +6356,448 @@ setInterval(install,1500);
   setInterval(addButtons,2000);
 })();
 
+
+
+/* =========================================================
+   BNS V12.9 SAFE PATCH - alleen fouten herstellen
+   Basis blijft exact jouw laatste werkende app.js.
+   Raakt GEEN bestaande modules weg:
+   - afmelden / systeemmeldingen blijven staan
+   - waze / agenda blijven staan
+   - materiaal render wordt NIET vervangen
+   Fixes:
+   1. Oude opdrachten wijzigen mag, ook als startdatum in verleden ligt.
+      Nieuwe opdracht kijkt naar einddatum.
+   2. Admin materiaal opslaan werkt ook bij wijzigen + status gereserveerd.
+   3. Meldingen/toast: wit met zwarte letters.
+   4. Thema/kleur wordt blijvend opgeslagen na verversen.
+   5. Admin PIN veld wordt leeg na openen en Enter werkt.
+   ========================================================= */
+(function bnsV129SafePatchOnly() {
+  "use strict";
+
+  var PATCH_ID = "bnsV129SafePatchOnly";
+  var STYLE_ID = "bnsV129SafePatchStyle";
+  var selectedMaterialId = null;
+
+  if (window[PATCH_ID]) return;
+  window[PATCH_ID] = true;
+
+  function E(id) {
+    return document.getElementById(id);
+  }
+
+  function q(sel, root) {
+    return (root || document).querySelector(sel);
+  }
+
+  function qa(sel, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
+
+  function S() {
+    try {
+      if (typeof state !== "undefined" && state) return state;
+    } catch (e) {}
+    try {
+      if (window.state) return window.state;
+    } catch (e) {}
+    return null;
+  }
+
+  function SAVE() {
+    try {
+      if (typeof save === "function") {
+        save();
+        return;
+      }
+    } catch (e) {}
+
+    try {
+      var s = S();
+      if (s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    } catch (e) {}
+  }
+
+  function idNew() {
+    try {
+      if (typeof id === "function") return id();
+    } catch (e) {}
+    return "id_" + Math.random().toString(36).slice(2, 10);
+  }
+
+  function parseDate(value) {
+    var m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  }
+
+  function today() {
+    var d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function isPast(value) {
+    var d = parseDate(value);
+    return !!(d && d < today());
+  }
+
+  function getOrderNumberValue() {
+    var el = E("orderNumber");
+    return el ? String(el.value || "").trim() : "";
+  }
+
+  function isEditingOrder() {
+    try {
+      if (typeof editing !== "undefined" && editing) return true;
+    } catch (e) {}
+
+    var s = S();
+    var nr = getOrderNumberValue();
+
+    if (!s || !Array.isArray(s.orders) || !nr) return false;
+
+    return s.orders.some(function (o) {
+      return String(o.number || "").trim() === nr;
+    });
+  }
+
+  function showMsg(text) {
+    text = String(text || "");
+
+    var toast = E("toast") || q(".toast") || E("bnsToastV11");
+
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "bnsToastV129";
+      document.body.appendChild(toast);
+    }
+
+    toast.textContent = text;
+    toast.style.cssText =
+      "position:fixed;right:18px;bottom:18px;z-index:999999;" +
+      "background:#fff;color:#111827;border:2px solid #111827;" +
+      "padding:14px 18px;border-radius:16px;font-weight:900;" +
+      "box-shadow:0 18px 45px rgba(0,0,0,.35);max-width:520px;" +
+      "display:block;";
+
+    clearTimeout(toast._bnsTimer);
+    toast._bnsTimer = setTimeout(function () {
+      toast.style.display = "none";
+    }, 3200);
+  }
+
+  function installCss() {
+    if (E(STYLE_ID)) return;
+
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      #toast,
+      .toast,
+      #bnsToastV11,
+      #bnsToastV129 {
+        background: #ffffff !important;
+        color: #111827 !important;
+        border: 2px solid #111827 !important;
+        border-radius: 16px !important;
+        font-weight: 900 !important;
+        box-shadow: 0 18px 45px rgba(0,0,0,.35) !important;
+        z-index: 999999 !important;
+      }
+
+      /* Materiaalkaart blijft thema/panel kleur; status mag niet de hele kaart groen maken */
+      #materialList .material-row.free,
+      #materialList .material-row.reserved,
+      #materialList .material-row.defect,
+      #materialList .material-row.inactive,
+      #materialList .bns-cat-row.free,
+      #materialList .bns-cat-row.reserved,
+      #materialList .bns-cat-row.defect,
+      #materialList .bns-cat-row.inactive {
+        background: var(--panel, #ffffff) !important;
+        color: var(--text, #172033) !important;
+      }
+
+      #materialList .material-row small,
+      #materialList .bns-cat-row small {
+        color: var(--muted, #64748b) !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function patchAlertAndToast() {
+    if (!window.__bnsV129AlertPatched) {
+      window.__bnsV129AlertPatched = true;
+      window.alert = function (text) {
+        showMsg(text);
+      };
+    }
+
+    try {
+      if (typeof toastMsg === "function" && !toastMsg.__bnsV129Wrapped) {
+        var oldToast = toastMsg;
+        var wrapped = function (text) {
+          try {
+            oldToast(text);
+          } catch (e) {}
+          showMsg(text);
+        };
+        wrapped.__bnsV129Wrapped = true;
+        toastMsg = wrapped;
+        window.toastMsg = wrapped;
+      }
+    } catch (e) {}
+  }
+
+  function safeDateOk() {
+    var start = E("dateStart") ? E("dateStart").value : "";
+    var end = E("dateEnd") ? E("dateEnd").value : start;
+
+    if (parseDate(start) && parseDate(end) && parseDate(end) < parseDate(start)) {
+      showMsg("Einddatum kan niet vóór startdatum liggen.");
+      return false;
+    }
+
+    /* Bij wijzigen van bestaande opdracht nooit blokkeren op verleden. */
+    if (isEditingOrder()) return true;
+
+    /* Nieuwe opdracht: einddatum is leidend. Start mag in verleden als einddatum toekomst is. */
+    if (isPast(end || start)) {
+      showMsg("Je kunt geen nieuwe opdracht met einddatum in het verleden plannen. Wijzigen mag wel.");
+      return false;
+    }
+
+    return true;
+  }
+
+  function patchSaveOrderButton() {
+    var btn = E("saveOrder");
+    if (!btn || btn.dataset.bnsV129SavePatched === "1") return;
+
+    var clone = btn.cloneNode(true);
+    clone.dataset.bnsV129SavePatched = "1";
+
+    clone.onclick = function (event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      if (!safeDateOk()) return false;
+
+      try {
+        if (typeof saveCurrentOrder === "function") {
+          saveCurrentOrder();
+          return false;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
+      return false;
+    };
+
+    btn.parentNode.replaceChild(clone, btn);
+  }
+
+  function patchAdminPin() {
+    var pinInput =
+      E("adminPin") ||
+      qa("input").find(function (input) {
+        return /pin/i.test(input.placeholder || "") && input.type === "password";
+      });
+
+    var openButton =
+      E("unlockAdmin") ||
+      qa("button").find(function (button) {
+        return /open beheer/i.test(button.textContent || "");
+      });
+
+    if (!pinInput || !openButton) return;
+
+    if (pinInput.dataset.bnsV129Enter !== "1") {
+      pinInput.dataset.bnsV129Enter = "1";
+      pinInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          openButton.click();
+        }
+      });
+    }
+
+    if (openButton.dataset.bnsV129Clear !== "1") {
+      openButton.dataset.bnsV129Clear = "1";
+      openButton.addEventListener("click", function () {
+        setTimeout(function () {
+          pinInput.value = "";
+        }, 250);
+      });
+    }
+  }
+
+  function patchThemePersist() {
+    var themeSelect =
+      E("themeSelect") ||
+      qa("select").find(function (select) {
+        return /blauw|donker|neon|rood|groen|oranje/i.test(select.textContent || "");
+      });
+
+    if (themeSelect && themeSelect.dataset.bnsV129Theme !== "1") {
+      themeSelect.dataset.bnsV129Theme = "1";
+
+      themeSelect.addEventListener("change", function () {
+        var s = S();
+        if (s) {
+          s.settings = s.settings || {};
+          s.settings.theme = themeSelect.value;
+          SAVE();
+        }
+
+        try {
+          localStorage.setItem("bnsLastTheme", themeSelect.value);
+        } catch (e) {}
+      });
+    }
+
+    try {
+      var s2 = S();
+      var saved = (s2 && s2.settings && s2.settings.theme) || localStorage.getItem("bnsLastTheme");
+      if (themeSelect && saved && themeSelect.value !== saved) {
+        themeSelect.value = saved;
+        if (s2) {
+          s2.settings = s2.settings || {};
+          s2.settings.theme = saved;
+          SAVE();
+        }
+      }
+    } catch (e) {}
+  }
+
+  function materialById(mid) {
+    var s = S();
+    if (!s || !Array.isArray(s.materials)) return null;
+
+    return s.materials.find(function (m) {
+      return String(m.id) === String(mid);
+    }) || null;
+  }
+
+  function patchFillMat() {
+    try {
+      if (typeof fillMat === "function" && !fillMat.__bnsV129Wrapped) {
+        var oldFillMat = fillMat;
+        var wrapped = function (mid) {
+          selectedMaterialId = mid;
+          window.__bnsSelectedMaterialId = mid;
+          return oldFillMat.apply(this, arguments);
+        };
+        wrapped.__bnsV129Wrapped = true;
+        fillMat = wrapped;
+        window.fillMat = wrapped;
+      }
+    } catch (e) {}
+  }
+
+  function saveAdminMaterial() {
+    var s = S();
+    if (!s || !Array.isArray(s.materials)) return false;
+
+    var cat = E("adminMatCat") ? String(E("adminMatCat").value || "EXTRA").trim().toUpperCase() : "EXTRA";
+    var code = E("adminMatCode") ? String(E("adminMatCode").value || "").trim().toUpperCase() : "";
+    var name = E("adminMatName") ? String(E("adminMatName").value || "").trim() : "";
+    var price = E("adminMatPrice") ? String(E("adminMatPrice").value || "").trim() : "";
+    var status = E("adminMatStatus") ? String(E("adminMatStatus").value || "free").trim() : "free";
+
+    if (!code || !name) {
+      showMsg("Vul code en naam in.");
+      return false;
+    }
+
+    var mid = selectedMaterialId || window.__bnsSelectedMaterialId;
+    var material = mid ? materialById(mid) : null;
+
+    if (!material) {
+      material = s.materials.find(function (m) {
+        return String(m.cat || "").toUpperCase() === cat &&
+               String(m.code || "").toUpperCase() === code;
+      });
+    }
+
+    if (!material) {
+      material = {
+        id: idNew(),
+        cat: cat,
+        code: code,
+        name: name,
+        price: price,
+        status: status
+      };
+      s.materials.push(material);
+      selectedMaterialId = material.id;
+      window.__bnsSelectedMaterialId = material.id;
+    } else {
+      material.cat = cat;
+      material.code = code;
+      material.name = name;
+      material.price = price;
+      material.status = status;
+    }
+
+    SAVE();
+
+    try {
+      if (typeof adminRender === "function") adminRender();
+    } catch (e) {}
+
+    try {
+      if (typeof renderMaterials === "function") {
+        renderMaterials(window.currentCat || cat);
+      }
+    } catch (e) {}
+
+    showMsg("Materiaal opgeslagen: " + code + " = " + status);
+    return true;
+  }
+
+  function patchAdminMaterialSave() {
+    var btn = E("adminSaveMat");
+    if (!btn || btn.dataset.bnsV129MaterialSave === "1") return;
+
+    btn.dataset.bnsV129MaterialSave = "1";
+    btn.type = "button";
+
+    btn.onclick = function (event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      saveAdminMaterial();
+      return false;
+    };
+  }
+
+  function install() {
+    installCss();
+    patchAlertAndToast();
+    patchSaveOrderButton();
+    patchAdminPin();
+    patchThemePersist();
+    patchFillMat();
+    patchAdminMaterialSave();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(install, 400);
+    });
+  } else {
+    setTimeout(install, 400);
+  }
+
+  setTimeout(install, 1200);
+  setInterval(install, 2000);
+})();
+
