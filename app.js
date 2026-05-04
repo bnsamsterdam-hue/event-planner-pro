@@ -7680,180 +7680,66 @@ setInterval(install,1500);
 })();
 
 
-
-/* =========================================================
-   BNS SAFE FIX - SORTERING UITGEVOERD + GEANNULEERD
-   Basis blijft jouw laatst werkende app.js.
-   Actieve opdrachten worden NIET aangepast.
-   Alleen lijsten met status Uitgevoerd/Geannuleerd worden nieuwste boven gezet.
-   ========================================================= */
-(function bnsSafeSortDoneAndCancelledOnly() {
+/* BNS SAFE FIX - GEANNULEERD TOEKOMST VERWIJDERD */
+(function(){
   "use strict";
+  if(window.__bnsMapsFixV2)return; window.__bnsMapsFixV2=true;
+  var view="", selectedYear=null, STYLE="bnsMapsFixV2Style";
 
-  if (window.__bnsSafeSortDoneAndCancelledOnly) return;
-  window.__bnsSafeSortDoneAndCancelledOnly = true;
-
-  function getState() {
-    try {
-      if (typeof state !== "undefined" && state) return state;
-    } catch (e) {}
-
-    try {
-      return window.state || null;
-    } catch (e) {}
-
-    return null;
+  function qs(s,r){return (r||document).querySelector(s)}
+  function qsa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function st(){try{if(typeof state!=="undefined"&&state)return state}catch(e){} return window.state||null}
+  function saveIt(){try{if(typeof save==="function"){save();return}}catch(e){} try{var s=st(); if(s)localStorage.setItem("event-planner-pro-v87",JSON.stringify(s))}catch(e){}}
+  function n(v){return String(v||"").trim().toLowerCase()}
+  function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+  function stat(o){return n(o&&o.status)}
+  function done(o){var x=stat(o); return ["uitgevoerd","afgerond","voltooid","done","klaar"].includes(x)}
+  function cancel(o){var x=stat(o); return ["geannuleerd","geannuleerde","annulering","cancelled","canceled"].includes(x)}
+  function del(o){var x=stat(o); return ["verwijderd","gewist","deleted","trash"].includes(x)}
+  function dval(o){return String((o&&(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||o.startDate||o.date))||"").slice(0,10)}
+  function time(o){var d=new Date(dval(o)+"T00:00:00"); return isNaN(d.getTime())?0:d.getTime()}
+  function year(o){var m=dval(o).match(/^(\d{4})/); return m?m[1]:"Geen jaar"}
+  function nice(v){v=String(v||"").slice(0,10); var p=v.split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:v}
+  function future(o){var t=time(o), now=new Date(); now.setHours(0,0,0,0); return t>=now.getTime()&&!done(o)&&!cancel(o)&&!del(o)}
+  function newest(a,b){return time(b)-time(a)}
+  function listEl(){return document.getElementById("ordersList")||document.getElementById("orderList")||document.getElementById("ordersListV11")||qs("#orders .list")||qs("#orders")}
+  function msg(t){try{if(typeof toastMsg==="function"){toastMsg(t);return}}catch(e){} alert(t)}
+  function css(){
+    if(document.getElementById(STYLE))return;
+    var s=document.createElement("style"); s.id=STYLE;
+    s.textContent=".bns-tab-active,button.bns-tab-active{outline:3px solid var(--blue,#0ea5e9)!important;box-shadow:0 0 0 4px rgba(14,165,233,.25),0 0 18px rgba(14,165,233,.45)!important}.bns-title{font-size:24px;font-weight:900;margin:18px 0 12px}.bns-folders,.bns-toolbar{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.bns-card{display:grid;grid-template-columns:118px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px;border-radius:18px;background:var(--panel,#fff);color:var(--text,#172033);border:1px solid var(--border,#dbe3ef);margin-bottom:10px}.bns-date{background:#111827;color:#fff;border-radius:14px;padding:12px;text-align:center;font-weight:900}.bns-main b{font-size:18px}.bns-main small{display:block;color:var(--muted,#64748b);font-weight:700;margin-top:3px}.bns-danger{background:#dc2626!important;color:#fff!important}";
+    document.head.appendChild(s)
   }
-
-  function clean(value) {
-    return String(value || "").trim().toLowerCase();
+  function mats(o){var a=o.materials||o.mats||[]; return Array.isArray(a)?a.map(function(m){return typeof m==="string"?m:(m.code||m.name||"")}).filter(Boolean).join(", "):""}
+  function card(o){
+    var id=esc(o.id||""), num=esc(o.number||""), start=o.start||o.dateStart||o.startDate||"", end=o.end||o.dateEnd||o.endDate||"", dl=start&&end&&start!==end?nice(start)+" t/m "+nice(end):nice(start||end);
+    return '<div class="bns-card" data-order-id="'+id+'" data-order-number="'+num+'"><div class="bns-date">'+esc(nice(dval(o)))+'</div><div class="bns-main"><b>'+num+' - '+esc(o.title||"Zonder titel")+'</b><small>Status: '+esc(o.status||"")+'</small><small>Datum: '+esc(dl)+'</small><small>Klant: '+esc((o.customer&&o.customer.name)||o.customerName||"")+'</small><small>Locatie: '+esc((o.location&&o.location.name)||o.locationName||"")+'</small><small>Materialen: '+esc(mats(o))+'</small></div><div><button type="button" onclick="editOrder(\''+id+'\')">Open</button> <button type="button" class="bns-danger bns-soft-delete" data-order-id="'+id+'" data-order-number="'+num+'">Wis</button></div></div>'
   }
-
-  function isDone(order) {
-    var s = clean(order && order.status);
-    return (
-      s === "uitgevoerd" ||
-      s === "afgerond" ||
-      s === "voltooid" ||
-      s === "done" ||
-      s === "klaar"
-    );
-  }
-
-  function isCancelled(order) {
-    var s = clean(order && order.status);
-    return (
-      s === "geannuleerd" ||
-      s === "geannuleerde" ||
-      s === "annulering" ||
-      s === "cancelled" ||
-      s === "canceled"
-    );
-  }
-
-  function orderDateValue(order) {
-    if (!order) return "";
-
-    return String(
-      order.end ||
-      order.endDate ||
-      order.dateEnd ||
-      order.start ||
-      order.startDate ||
-      order.dateStart ||
-      order.date ||
-      ""
-    ).slice(0, 10);
-  }
-
-  function orderTime(order) {
-    var value = orderDateValue(order);
-    var date = new Date(value + "T00:00:00");
-
-    if (Number.isNaN(date.getTime())) {
-      return 0;
+  function rows(v){var s=st(); if(!s||!Array.isArray(s.orders))return []; if(v==="cancelled")return s.orders.filter(cancel).sort(newest); if(v==="future")return s.orders.filter(future).sort(newest); if(v==="deleted")return s.orders.filter(del).sort(newest); if(v==="done")return s.orders.filter(done).sort(newest); return []}
+  function renderYears(v,title){
+    var el=listEl(); if(!el)return false; var r=rows(v);
+    if(!r.length){el.innerHTML='<div class="bns-title">'+esc(title)+'</div><p>Geen opdrachten gevonden.</p>';return true}
+    var ys=Array.from(new Set(r.map(year))).sort(function(a,b){return String(b).localeCompare(String(a))});
+    if(!selectedYear){
+      el.innerHTML='<div class="bns-title">'+esc(title)+' per jaar</div><div class="bns-folders">'+ys.map(function(y){var c=r.filter(function(o){return year(o)===y}).length;return '<button type="button" data-bns-year="'+esc(y)+'">📁 '+esc(y)+' ('+c+')</button>'}).join("")+'</div>';
+      qsa("[data-bns-year]",el).forEach(function(b){b.onclick=function(){selectedYear=b.dataset.bnsYear;renderYears(v,title)}}); return true
     }
-
-    return date.getTime();
+    var rr=r.filter(function(o){return year(o)===selectedYear});
+    el.innerHTML='<div class="bns-title">'+esc(title)+' '+esc(selectedYear)+'</div><div class="bns-toolbar"><button type="button" id="bnsBackYears">Terug naar jaren</button>'+(v==="deleted"?'<button type="button" id="bnsEmptyDeleted" class="bns-danger">Verwijderde map leegmaken</button>':"")+'</div>'+rr.map(card).join("");
+    var back=document.getElementById("bnsBackYears"); if(back)back.onclick=function(){selectedYear=null;renderYears(v,title)};
+    var empty=document.getElementById("bnsEmptyDeleted"); if(empty)empty.onclick=function(){if(!confirm("Weet u zeker dat u deze verwijderde map definitief wilt leegmaken?"))return;var s=st();if(!s||!Array.isArray(s.orders))return;s.orders=s.orders.filter(function(o){return !(del(o)&&year(o)===selectedYear)});saveIt();selectedYear=null;renderYears(v,title)};
+    bindDelete(); return true
   }
-
-  function sortNewestFirst(list) {
-    if (!Array.isArray(list)) return list;
-
-    return list.sort(function (a, b) {
-      return orderTime(b) - orderTime(a);
-    });
-  }
-
-  function sortStateForDoneOrCancelledView() {
-    var s = getState();
-    if (!s || !Array.isArray(s.orders)) return;
-
-    var currentText = (document.body && document.body.innerText || "").toLowerCase();
-
-    var inDoneView = currentText.includes("uitgevoerde opdrachten") || currentText.includes("uitgevoerd");
-    var inCancelledView = currentText.includes("geannuleerde opdrachten") || currentText.includes("geannuleerd");
-
-    if (!inDoneView && !inCancelledView) return;
-
-    var done = [];
-    var cancelled = [];
-    var other = [];
-
-    s.orders.forEach(function (order) {
-      if (isDone(order)) {
-        done.push(order);
-      } else if (isCancelled(order)) {
-        cancelled.push(order);
-      } else {
-        other.push(order);
-      }
-    });
-
-    sortNewestFirst(done);
-    sortNewestFirst(cancelled);
-
-    if (inDoneView) {
-      s.orders = done.concat(other, cancelled);
-    } else if (inCancelledView) {
-      s.orders = cancelled.concat(other, done);
-    }
-  }
-
-  function patchRenderOrders() {
-    try {
-      if (typeof renderOrders === "function" && !renderOrders.__bnsDoneCancelSort) {
-        var oldRenderOrders = renderOrders;
-
-        var wrappedRenderOrders = function () {
-          sortStateForDoneOrCancelledView();
-          return oldRenderOrders.apply(this, arguments);
-        };
-
-        wrappedRenderOrders.__bnsDoneCancelSort = true;
-        renderOrders = wrappedRenderOrders;
-        window.renderOrders = wrappedRenderOrders;
-      }
-    } catch (e) {}
-  }
-
-  function bindButtons() {
-    Array.prototype.slice.call(document.querySelectorAll("button")).forEach(function (button) {
-      if (button.dataset.bnsDoneCancelSortBound === "1") return;
-
-      var text = String(button.textContent || "").toLowerCase();
-
-      if (!text.includes("uitgevoerde") && !text.includes("geannuleerde")) return;
-
-      button.dataset.bnsDoneCancelSortBound = "1";
-
-      button.addEventListener("click", function () {
-        setTimeout(function () {
-          sortStateForDoneOrCancelledView();
-
-          try {
-            if (typeof renderOrders === "function") renderOrders();
-          } catch (e) {}
-        }, 150);
-      }, true);
-    });
-  }
-
-  function install() {
-    patchRenderOrders();
-    bindButtons();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-      setTimeout(install, 300);
-    });
-  } else {
-    setTimeout(install, 300);
-  }
-
-  setTimeout(install, 1000);
-  setTimeout(install, 2500);
-  setInterval(install, 3000);
+  function renderFlat(v,title){var el=listEl(); if(!el)return false; var r=rows(v); el.innerHTML='<div class="bns-title">'+esc(title)+'</div>'+(r.length?r.map(card).join(""):"<p>Geen opdrachten gevonden.</p>"); bindDelete(); return true}
+  function render(v){view=v;if(v==="cancelled")return renderYears("cancelled","Geannuleerde opdrachten");if(v==="deleted")return renderYears("deleted","Verwijderde opdrachten");if(v==="future")return renderFlat("future","Toekomstige opdrachten");if(v==="done")return renderYears("done","Uitgevoerde opdrachten");return false}
+  function findOrder(btn){var s=st(); if(!s||!Array.isArray(s.orders))return null; var id=btn.dataset.orderId||(btn.closest("[data-order-id]")||{}).dataset?.orderId||"", num=btn.dataset.orderNumber||(btn.closest("[data-order-number]")||{}).dataset?.orderNumber||""; return (id&&s.orders.find(function(o){return String(o.id||"")===String(id)}))||(num&&s.orders.find(function(o){return String(o.number||"")===String(num)}))||null}
+  function softDelete(o){if(!o)return false;if(!confirm("Weet u zeker dat u deze opdracht wilt wissen? De opdracht gaat naar Verwijderde opdrachten."))return false;o._oldStatus=o.status||"";o.status="Verwijderd";o.deletedAt=new Date().toISOString();saveIt();msg("Opdracht verplaatst naar Verwijderde opdrachten");if(view)render(view);else try{if(typeof renderOrders==="function")renderOrders()}catch(e){} return true}
+  function bindDelete(){qsa("button").forEach(function(b){if(b.dataset.bnsSoftDeleteBound==="1")return;var t=n(b.textContent);if(t!=="wis"&&t!=="verwijder"&&!t.includes("wis opdracht")&&!t.includes("verwijder opdracht"))return;b.dataset.bnsSoftDeleteBound="1";b.addEventListener("click",function(e){var o=findOrder(b);if(!o){if(!confirm("Weet u zeker dat u wilt wissen?")){e.preventDefault();e.stopImmediatePropagation();return false}return true}e.preventDefault();e.stopImmediatePropagation();softDelete(o);return false},true)})}
+  function detect(b){var t=n(b.textContent);if(t.includes("geannuleerde"))return"cancelled";if(t.includes("toekomstige")||t.includes("inzien"))return"future";if(t.includes("uitgevoerde"))return"done";if(t.includes("verwijderde"))return"deleted";return""}
+  function addDeleted(){if(qsa("button").some(function(b){return n(b.textContent).includes("verwijderde opdrachten")}))return;var a=qsa("button").find(function(b){var t=n(b.textContent);return t.includes("geannuleerde opdrachten")||t.includes("toekomstige opdrachten")});if(!a)return;var b=document.createElement("button");b.type="button";b.textContent="Verwijderde opdrachten";a.insertAdjacentElement("afterend",b)}
+  function bindViews(){qsa("button").forEach(function(b){var v=detect(b);if(!v||b.dataset.bnsViewBound==="1")return;b.dataset.bnsViewBound="1";b.addEventListener("click",function(e){selectedYear=null;view=v;qsa("button").forEach(function(x){x.classList.remove("bns-tab-active")});b.classList.add("bns-tab-active");if(v==="cancelled"||v==="future"||v==="deleted"){e.preventDefault();e.stopImmediatePropagation();setTimeout(function(){render(v)},60);return false}if(v==="done")setTimeout(function(){render("done")},150)},true)})}
+  function install(){css();addDeleted();bindViews();bindDelete()}
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){setTimeout(install,300)});else setTimeout(install,300);
+  setTimeout(install,1200);setTimeout(install,2500);setInterval(install,3000)
 })();
 
