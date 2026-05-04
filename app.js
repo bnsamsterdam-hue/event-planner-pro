@@ -6801,3 +6801,274 @@ setInterval(install,1500);
   setInterval(install, 2000);
 })();
 
+
+
+/* =========================================================
+   BNS V12.9 EXTRA FIX - MELDING POPUP + THEMA BLIJFT NA REFRESH
+   - Eigen witte melding-popup met zwarte letters, altijd zichtbaar.
+   - Thema wordt direct in localStorage opgeslagen.
+   - Thema wordt bij verversen opnieuw toegepast.
+   - Werkt zonder bestaande functies te verwijderen.
+   ========================================================= */
+(function bnsV129ToastAndThemeExtraFix() {
+  "use strict";
+
+  var STYLE_ID = "bns-v129-toast-theme-extra-style";
+  var TOAST_ID = "bnsWhiteToast";
+  var THEME_KEYS = [
+    "bnsLastTheme",
+    "bns-v12-theme",
+    "bns-theme",
+    "theme",
+    "themeSelect"
+  ];
+
+  if (window.__bnsV129ToastThemeExtraFix) return;
+  window.__bnsV129ToastThemeExtraFix = true;
+
+  function qs(sel, root) {
+    return (root || document).querySelector(sel);
+  }
+
+  function qsa(sel, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
+
+  function getState() {
+    try {
+      if (typeof state !== "undefined" && state) return state;
+    } catch (e) {}
+    try {
+      return window.state || null;
+    } catch (e) {}
+    return null;
+  }
+
+  function saveState() {
+    try {
+      if (typeof save === "function") {
+        save();
+        return;
+      }
+    } catch (e) {}
+
+    try {
+      var s = getState();
+      if (s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    } catch (e) {}
+  }
+
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${TOAST_ID} {
+        position: fixed !important;
+        right: 22px !important;
+        bottom: 22px !important;
+        z-index: 99999999 !important;
+        max-width: 560px !important;
+        min-width: 280px !important;
+        background: #ffffff !important;
+        color: #111827 !important;
+        border: 3px solid #111827 !important;
+        border-radius: 18px !important;
+        padding: 16px 20px !important;
+        font-size: 18px !important;
+        font-weight: 900 !important;
+        line-height: 1.35 !important;
+        box-shadow: 0 18px 55px rgba(0,0,0,.45) !important;
+        display: none;
+      }
+
+      #${TOAST_ID}.show {
+        display: block !important;
+      }
+
+      #toast,
+      .toast,
+      #bnsToastV11,
+      #bnsToastV129 {
+        background: #ffffff !important;
+        color: #111827 !important;
+        border: 3px solid #111827 !important;
+        border-radius: 18px !important;
+        font-weight: 900 !important;
+        box-shadow: 0 18px 55px rgba(0,0,0,.45) !important;
+        z-index: 99999999 !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function whitePopup(text) {
+    ensureStyle();
+
+    var box = document.getElementById(TOAST_ID);
+    if (!box) {
+      box = document.createElement("div");
+      box.id = TOAST_ID;
+      document.body.appendChild(box);
+    }
+
+    box.textContent = String(text || "");
+    box.classList.add("show");
+
+    clearTimeout(box._bnsTimer);
+    box._bnsTimer = setTimeout(function () {
+      box.classList.remove("show");
+    }, 4200);
+  }
+
+  function patchMessages() {
+    if (!window.__bnsWhiteAlertPatched) {
+      window.__bnsWhiteAlertPatched = true;
+      window.alert = function (text) {
+        whitePopup(text);
+      };
+    }
+
+    try {
+      if (typeof toastMsg === "function" && !toastMsg.__bnsWhiteWrapped) {
+        var oldToastMsg = toastMsg;
+        var wrappedToast = function (text) {
+          try { oldToastMsg(text); } catch (e) {}
+          whitePopup(text);
+        };
+        wrappedToast.__bnsWhiteWrapped = true;
+        toastMsg = wrappedToast;
+        window.toastMsg = wrappedToast;
+      }
+    } catch (e) {}
+
+    try {
+      if (typeof toast === "function" && !toast.__bnsWhiteWrapped) {
+        var oldToast = toast;
+        var wrapped = function (text) {
+          try { oldToast(text); } catch (e) {}
+          whitePopup(text);
+        };
+        wrapped.__bnsWhiteWrapped = true;
+        toast = wrapped;
+        window.toast = wrapped;
+      }
+    } catch (e) {}
+  }
+
+  function findThemeSelect() {
+    return document.getElementById("themeSelect") ||
+      qsa("select").find(function (select) {
+        return /blauw|donker|neon|rood|groen|oranje/i.test(select.textContent || "");
+      });
+  }
+
+  function normalizeTheme(value) {
+    return String(value || "").trim();
+  }
+
+  function saveTheme(theme) {
+    theme = normalizeTheme(theme);
+    if (!theme) return;
+
+    THEME_KEYS.forEach(function (key) {
+      try { localStorage.setItem(key, theme); } catch (e) {}
+    });
+
+    try {
+      var s = getState();
+      if (s) {
+        s.settings = s.settings || {};
+        s.settings.theme = theme;
+        s.theme = theme;
+        saveState();
+      }
+    } catch (e) {}
+  }
+
+  function loadTheme() {
+    var s = getState();
+    var fromState = "";
+
+    try {
+      fromState = (s && s.settings && s.settings.theme) || (s && s.theme) || "";
+    } catch (e) {}
+
+    if (fromState) return fromState;
+
+    for (var i = 0; i < THEME_KEYS.length; i++) {
+      try {
+        var value = localStorage.getItem(THEME_KEYS[i]);
+        if (value) return value;
+      } catch (e) {}
+    }
+
+    return "";
+  }
+
+  function applyTheme(theme) {
+    theme = normalizeTheme(theme);
+    if (!theme) return;
+
+    var body = document.body;
+    var html = document.documentElement;
+
+    [body, html].forEach(function (el) {
+      if (!el) return;
+      Array.prototype.slice.call(el.classList).forEach(function (cls) {
+        if (/^theme-/i.test(cls)) el.classList.remove(cls);
+      });
+      el.classList.add("theme-" + theme);
+      el.dataset.theme = theme;
+    });
+
+    var select = findThemeSelect();
+    if (select && select.value !== theme) {
+      select.value = theme;
+    }
+  }
+
+  function patchThemeSelect() {
+    var select = findThemeSelect();
+    if (!select) return;
+
+    if (select.dataset.bnsThemeExtra !== "1") {
+      select.dataset.bnsThemeExtra = "1";
+
+      select.addEventListener("change", function () {
+        var theme = select.value;
+        saveTheme(theme);
+        applyTheme(theme);
+      });
+    }
+  }
+
+  function restoreTheme() {
+    var theme = loadTheme();
+    if (theme) {
+      applyTheme(theme);
+      saveTheme(theme);
+    }
+  }
+
+  function install() {
+    ensureStyle();
+    patchMessages();
+    patchThemeSelect();
+    restoreTheme();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(install, 300);
+    });
+  } else {
+    setTimeout(install, 300);
+  }
+
+  setTimeout(install, 1000);
+  setTimeout(install, 2500);
+  setInterval(install, 3000);
+})();
+
