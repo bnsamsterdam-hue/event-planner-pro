@@ -1,203 +1,178 @@
-/* =========================================================
-   BNS FIREBASE SYNC V1
-   Los bestand voor hoofdapp/admin.
-   app.js blijft met rust.
-   Zet data uit localStorage naar Firebase en haalt Firebase terug.
-   ========================================================= */
+/* BNS FIREBASE AUTO SYNC V2 */
 (function(){
-  "use strict";
+"use strict";
+if(window.__bnsFirebaseAutoSyncV2)return; window.__bnsFirebaseAutoSyncV2=true;
 
-  const STORAGE_KEYS = [
-    "event-planner-pro-v87",
-    "event-planner-pro-v8",
-    "event-planner-pro",
-    "bns_event_planner"
-  ];
+const STORAGE_KEYS=["event-planner-pro-v87","event-planner-pro-v8","event-planner-pro","bns_event_planner"];
+const COLLECTIONS=["users","orders","materials","customers","locations","alerts","settings"];
+const AUTO_KEY="bns_firebase_auto_sync_on";
+let tools=null, uploading=false, downloading=false, started=false, timer=null, lastJson="";
 
-  const COLLECTIONS = ["users", "orders", "materials", "customers", "locations", "alerts", "settings"];
-  const SYNC_STATE_KEY = "bns_firebase_sync_enabled";
-
-  function toast(text){
-    try{
-      if(typeof toastMsg === "function"){ toastMsg(text); return; }
-    }catch(e){}
-    console.log("[BNS Firebase]", text);
+function status(t){
+  let e=document.getElementById("bnsFirebaseStatus");
+  if(!e){
+    e=document.createElement("div");
+    e.id="bnsFirebaseStatus";
+    e.style.cssText="position:fixed;right:10px;bottom:10px;z-index:99999;background:#fff;color:#111;border:2px solid #0ea5e9;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900;box-shadow:0 8px 24px rgba(15,23,42,.22);opacity:.85;pointer-events:none";
+    document.body.appendChild(e);
   }
-
-  function loadLocalState(){
-    for(const key of STORAGE_KEYS){
-      try{
-        const raw = localStorage.getItem(key);
-        if(raw){
-          const parsed = JSON.parse(raw);
-          if(parsed && typeof parsed === "object") return parsed;
+  e.textContent=t;
+}
+function toast(t){try{if(typeof toastMsg==="function"){toastMsg(t);return}}catch(e){} console.log("[BNS Firebase]",t)}
+function loadLocal(){
+  for(const k of STORAGE_KEYS){
+    try{const r=localStorage.getItem(k); if(r){const p=JSON.parse(r); if(p&&typeof p==="object")return p}}catch(e){}
+  }
+  try{if(window.state&&typeof window.state==="object")return window.state}catch(e){}
+  return null;
+}
+function saveLocal(s){
+  if(!s)return;
+  try{localStorage.setItem(STORAGE_KEYS[0],JSON.stringify(s))}catch(e){}
+  try{window.state=s}catch(e){}
+}
+function arr(s,k){s[k]=Array.isArray(s[k])?s[k]:[]}
+function id(x,p){if(!x.id)x.id=p+"_"+Math.random().toString(36).slice(2,10);return x}
+function norm(s){
+  s=s||{}; ["users","orders","materials","customers","locations","alerts"].forEach(k=>arr(s,k)); s.settings=s.settings||{};
+  s.users.forEach(x=>id(x,"u")); s.orders.forEach(x=>id(x,"o")); s.materials.forEach(x=>id(x,"m")); s.customers.forEach(x=>id(x,"c")); s.locations.forEach(x=>id(x,"l")); s.alerts.forEach(x=>id(x,"a"));
+  return s;
+}
+function json(){try{return JSON.stringify(loadLocal()||{})}catch(e){return""}}
+async function fb(){
+  if(tools)return tools;
+  if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){status("Firebase config ontbreekt");return null}
+  const appMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
+  const fsMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
+  const app=appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+  const db=fsMod.getFirestore(app);
+  tools={fsMod,db};
+  return tools;
+}
+async function remoteDoc(col,docid){
+  const t=await fb(); if(!t||!docid)return null;
+  const s=await t.fsMod.getDoc(t.fsMod.doc(t.db,col,String(docid)));
+  return s.exists()?s.data():null;
+}
+function keep(local,remote,k){
+  if(!remote)return;
+  if((local[k]===undefined||local[k]===null||local[k]==="")&&remote[k]!==undefined&&remote[k]!==null&&remote[k]!=="")local[k]=remote[k];
+}
+function preserveOrder(local,remote){
+  ["driverId","bezorgerId","userId","driverName","driver","bezorger"].forEach(k=>keep(local,remote,k));
+  return local;
+}
+async function upload(reason){
+  if(uploading||downloading)return;
+  const t=await fb(); if(!t)return;
+  const s=norm(loadLocal()); if(!s)return;
+  uploading=true; status("Firebase opslaan...");
+  try{
+    for(const col of COLLECTIONS){
+      if(col==="settings"){
+        await t.fsMod.setDoc(t.fsMod.doc(t.db,"settings","main"),s.settings||{},{merge:true});
+        continue;
+      }
+      const rows=Array.isArray(s[col])?s[col]:[];
+      for(const row of rows){
+        id(row,col.slice(0,1));
+        if(col==="orders"){
+          const rem=await remoteDoc("orders",row.id);
+          preserveOrder(row,rem);
         }
-      }catch(e){}
+        row.updatedAt=row.updatedAt||new Date().toISOString();
+        await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row,{merge:true});
+      }
     }
-    return null;
-  }
-
-  function saveLocalState(state){
-    if(!state) return;
-    try{
-      localStorage.setItem(STORAGE_KEYS[0], JSON.stringify(state));
-      window.state = state;
-    }catch(e){}
-  }
-
-  function ensureId(item, prefix){
-    if(!item.id) item.id = prefix + "_" + Math.random().toString(36).slice(2,10);
-    return item;
-  }
-
-  function normalizeState(state){
-    state = state || {};
-    state.users = Array.isArray(state.users) ? state.users : [];
-    state.orders = Array.isArray(state.orders) ? state.orders : [];
-    state.materials = Array.isArray(state.materials) ? state.materials : [];
-    state.customers = Array.isArray(state.customers) ? state.customers : [];
-    state.locations = Array.isArray(state.locations) ? state.locations : [];
-    state.alerts = Array.isArray(state.alerts) ? state.alerts : [];
-    state.settings = state.settings || {};
-    state.users.forEach(x=>ensureId(x,"u"));
-    state.orders.forEach(x=>ensureId(x,"o"));
-    state.materials.forEach(x=>ensureId(x,"m"));
-    state.customers.forEach(x=>ensureId(x,"c"));
-    state.locations.forEach(x=>ensureId(x,"l"));
-    state.alerts.forEach(x=>ensureId(x,"a"));
-    return state;
-  }
-
-  async function loadFirebaseTools(){
-    if(!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === "VUL_HIER_IN"){
-      toast("Firebase config ontbreekt nog");
-      return null;
+    localStorage.setItem(AUTO_KEY,"1");
+    saveLocal(s);
+    lastJson=json();
+    status("Firebase opgeslagen");
+  }catch(e){console.error(e);status("Firebase upload fout")}
+  finally{uploading=false}
+}
+async function download(){
+  if(uploading||downloading)return;
+  const t=await fb(); if(!t)return;
+  downloading=true; status("Firebase laden...");
+  try{
+    const s=norm(loadLocal()||{});
+    for(const col of COLLECTIONS){
+      if(col==="settings"){
+        const snap=await t.fsMod.getDoc(t.fsMod.doc(t.db,"settings","main"));
+        if(snap.exists())s.settings=snap.data()||{};
+        continue;
+      }
+      const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
+      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
     }
-
-    const appMod = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
-    const fsMod = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
-
-    const app = appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
-    const db = fsMod.getFirestore(app);
-
-    return {appMod, fsMod, db};
-  }
-
-  async function uploadLocalToFirebase(){
-    const tools = await loadFirebaseTools();
-    if(!tools) return;
-
-    const {fsMod, db} = tools;
-    const state = normalizeState(loadLocalState());
-
-    if(!state){
-      toast("Geen lokale data gevonden om te uploaden");
+    saveLocal(s); lastJson=json(); status("Firebase geladen");
+    try{if(typeof renderOrders==="function")renderOrders(); if(typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA"); if(typeof adminRender==="function")adminRender()}catch(e){}
+  }catch(e){console.error(e);status("Firebase download fout")}
+  finally{downloading=false}
+}
+function schedule(reason){
+  if(!started||downloading)return;
+  clearTimeout(timer);
+  timer=setTimeout(()=>{const j=json(); if(j&&j!==lastJson)upload(reason||"auto")},1800);
+}
+function patchStorage(){
+  if(localStorage.__bnsFbAutoV2)return;
+  localStorage.__bnsFbAutoV2="1";
+  const old=localStorage.setItem.bind(localStorage);
+  localStorage.setItem=function(k,v){const r=old(k,v); if(STORAGE_KEYS.includes(k))schedule("localStorage"); return r};
+}
+function patchSave(){
+  try{
+    if(typeof window.save==="function"&&!window.save.__bnsFbAutoV2){
+      const old=window.save;
+      window.save=function(){const r=old.apply(this,arguments); schedule("save"); return r};
+      window.save.__bnsFbAutoV2=true;
+    }
+  }catch(e){}
+}
+function addTools(){
+  const p=new URLSearchParams(location.search);
+  if(p.get("fbtools")!=="1")return;
+  if(document.getElementById("bnsFirebaseTools"))return;
+  const b=document.createElement("div");
+  b.id="bnsFirebaseTools";
+  b.style.cssText="position:fixed;right:12px;top:80px;z-index:99999;display:flex;gap:6px;flex-wrap:wrap;max-width:360px";
+  b.innerHTML='<button id="bnsFbUpload" style="background:#16a34a;color:white;border:0;border-radius:10px;padding:10px;font-weight:900">Upload Firebase</button><button id="bnsFbDownload" style="background:#0ea5e9;color:white;border:0;border-radius:10px;padding:10px;font-weight:900">Download Firebase</button>';
+  document.body.appendChild(b);
+  document.getElementById("bnsFbUpload").onclick=()=>upload("manual");
+  document.getElementById("bnsFbDownload").onclick=download;
+}
+async function live(){
+  const t=await fb(); if(!t)return;
+  COLLECTIONS.forEach(col=>{
+    if(col==="settings"){
+      t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"),snap=>{
+        if(uploading)return;
+        const s=norm(loadLocal()||{}); if(snap.exists())s.settings=snap.data()||{};
+        downloading=true; saveLocal(s); downloading=false; lastJson=json();
+      });
       return;
     }
-
-    for(const collectionName of COLLECTIONS){
-      if(collectionName === "settings"){
-        await fsMod.setDoc(fsMod.doc(db, "settings", "main"), state.settings || {}, {merge:true});
-        continue;
-      }
-
-      const rows = Array.isArray(state[collectionName]) ? state[collectionName] : [];
-
-      for(const row of rows){
-        ensureId(row, collectionName.slice(0,1));
-        row.updatedAt = row.updatedAt || new Date().toISOString();
-        await fsMod.setDoc(fsMod.doc(db, collectionName, String(row.id)), row, {merge:true});
-      }
-    }
-
-    localStorage.setItem(SYNC_STATE_KEY, "1");
-    saveLocalState(state);
-    toast("Firebase upload klaar");
-  }
-
-  async function downloadFirebaseToLocal(){
-    const tools = await loadFirebaseTools();
-    if(!tools) return;
-
-    const {fsMod, db} = tools;
-    const state = normalizeState(loadLocalState() || {});
-
-    for(const collectionName of COLLECTIONS){
-      if(collectionName === "settings"){
-        const snap = await fsMod.getDoc(fsMod.doc(db, "settings", "main"));
-        if(snap.exists()) state.settings = snap.data() || {};
-        continue;
-      }
-
-      const snap = await fsMod.getDocs(fsMod.collection(db, collectionName));
-      state[collectionName] = snap.docs.map(d => ({id:d.id, ...d.data()}));
-    }
-
-    saveLocalState(state);
-    localStorage.setItem(SYNC_STATE_KEY, "1");
-
-    try{
-      if(typeof renderOrders === "function") renderOrders();
-      if(typeof renderMaterials === "function") renderMaterials(window.currentCat || "EXTRA");
-      if(typeof adminRender === "function") adminRender();
-    }catch(e){}
-
-    toast("Firebase data geladen");
-  }
-
-  async function startRealtimeSync(){
-    const tools = await loadFirebaseTools();
-    if(!tools) return;
-
-    const {fsMod, db} = tools;
-
-    COLLECTIONS.forEach(collectionName => {
-      if(collectionName === "settings"){
-        fsMod.onSnapshot(fsMod.doc(db, "settings", "main"), snap => {
-          const state = normalizeState(loadLocalState() || {});
-          if(snap.exists()) state.settings = snap.data() || {};
-          saveLocalState(state);
-        });
-        return;
-      }
-
-      fsMod.onSnapshot(fsMod.collection(db, collectionName), snap => {
-        const state = normalizeState(loadLocalState() || {});
-        state[collectionName] = snap.docs.map(d => ({id:d.id, ...d.data()}));
-        saveLocalState(state);
-      });
+    t.fsMod.onSnapshot(t.fsMod.collection(t.db,col),snap=>{
+      if(uploading)return;
+      const s=norm(loadLocal()||{});
+      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      downloading=true; saveLocal(s); downloading=false; lastJson=json();
+      try{if(col==="orders"&&typeof renderOrders==="function")renderOrders(); if(col==="materials"&&typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA"); if(col==="users"&&typeof adminRender==="function")adminRender()}catch(e){}
     });
-
-    toast("Firebase live sync actief");
-  }
-
-  function addButtons(){
-    if(document.getElementById("bnsFirebaseTools")) return;
-
-    const box = document.createElement("div");
-    box.id = "bnsFirebaseTools";
-    box.style.cssText = "position:fixed;right:12px;top:70px;z-index:99999;display:flex;gap:6px;flex-wrap:wrap;max-width:360px;";
-    box.innerHTML = `
-      <button type="button" id="bnsFbUpload" style="background:#16a34a;color:white;border:0;border-radius:10px;padding:10px;font-weight:900;">Upload naar Firebase</button>
-      <button type="button" id="bnsFbDownload" style="background:#0ea5e9;color:white;border:0;border-radius:10px;padding:10px;font-weight:900;">Download Firebase</button>
-      <button type="button" id="bnsFbLive" style="background:#334155;color:white;border:0;border-radius:10px;padding:10px;font-weight:900;">Live sync</button>
-    `;
-    document.body.appendChild(box);
-
-    document.getElementById("bnsFbUpload").onclick = uploadLocalToFirebase;
-    document.getElementById("bnsFbDownload").onclick = downloadFirebaseToLocal;
-    document.getElementById("bnsFbLive").onclick = startRealtimeSync;
-  }
-
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", () => setTimeout(addButtons, 800));
-  }else{
-    setTimeout(addButtons, 800);
-  }
-
-  window.BNSFirebaseSync = {
-    uploadLocalToFirebase,
-    downloadFirebaseToLocal,
-    startRealtimeSync
-  };
+  });
+  localStorage.setItem(AUTO_KEY,"1");
+  status("Firebase live actief");
+}
+async function start(){
+  if(started)return; started=true;
+  patchStorage(); patchSave(); addTools(); lastJson=json();
+  const t=await fb(); if(!t)return;
+  await live();
+  status("Firebase automatisch actief");
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(start,1000)); else setTimeout(start,1000);
+setInterval(patchSave,3000);
+window.BNSFirebaseSync={uploadLocalToFirebase:upload,downloadFirebaseToLocal:download,startRealtimeSync:live};
 })();

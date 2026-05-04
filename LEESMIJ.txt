@@ -1,0 +1,1 @@
+Vervang in de hoofdmap alleen firebase-sync.js. Grote knoppen zijn weg; gebruik ?fbtools=1 om ze tijdelijk te tonen. Auto sync bewaart gekoppelde bezorger bij wijzigingen.
