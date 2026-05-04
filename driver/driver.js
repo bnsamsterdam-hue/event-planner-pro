@@ -1,324 +1,47 @@
-/* BNS Driver Portal V1 - losse map, hoofdapp blijft veilig */
-(function(){
-  "use strict";
 
-  const STORAGE_KEYS = [
-    "event-planner-pro-v87",
-    "event-planner-pro-v8",
-    "event-planner-pro",
-    "bns_event_planner"
-  ];
-  const SESSION_KEY = "bns_driver_user_id";
+const FIREBASE_VERSION="10.12.5";
+const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],materials:[],customers:[],locations:[],alerts:[],settings:{}}};
+const $=id=>document.getElementById(id);
+function clean(v){return String(v||"").trim()}
+function lower(v){return clean(v).toLowerCase()}
+function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function toast(t){const e=$("toast");if(!e){alert(t);return}e.textContent=String(t||"");e.classList.add("show");clearTimeout(e._timer);e._timer=setTimeout(()=>e.classList.remove("show"),3500)}
+function setStatus(t){const e=$("status");if(e)e.textContent=t}
+function hasRight(k){return !!(BNS.user&&BNS.user.rights&&BNS.user.rights[k])}
+function statusOf(o){return lower(o&&o.status)}
+function isCancelled(o){return["geannuleerd","geannuleerde","annulering","cancelled","canceled"].includes(statusOf(o))}
+function isDone(o){return["uitgevoerd","afgerond","voltooid","done","klaar"].includes(statusOf(o))}
+function isDeleted(o){return["verwijderd","gewist","deleted","trash"].includes(statusOf(o))}
+function orderStart(o){return clean(o.start||o.dateStart||o.startDate||o.date||"")}
+function orderEnd(o){return clean(o.end||o.dateEnd||o.endDate||orderStart(o))}
+function dateTime(v){const d=new Date(clean(v).slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?0:d.getTime()}
+function todayTime(){const d=new Date();d.setHours(0,0,0,0);return d.getTime()}
+function niceDate(v){v=clean(v).slice(0,10);const p=v.split("-");return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:v}
+function addressOf(o){const p=[];const add=v=>{v=clean(v);if(v&&!p.includes(v))p.push(v)};[o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,o.address,o.street,o.zip,o.city].forEach(add);if(o.location&&typeof o.location==="object")[o.location.name,o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add);return p.join(", ")}
+function customerName(o){return clean(o.customerName||(o.customer&&o.customer.name)||"")}
+function customerPhone(o){return clean(o.customerPhone||o.phone||(o.customer&&o.customer.phone)||"")}
+function driverName(o){return clean(o.driverName||o.driver||o.bezorger||"")}
+function materialText(o){const m=o.materials||o.mats||[];return Array.isArray(m)?m.map(x=>typeof x==="string"?x:(x.code||x.name||"")).filter(Boolean).join(", "):""}
+function routeUrl(type,a){const q=encodeURIComponent(a||"");return type==="waze"?`https://waze.com/ul?q=${q}&navigate=yes`:`https://www.google.com/maps/search/?api=1&query=${q}`}
+async function initFirebase(){if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){setStatus("Firebase config ontbreekt of is niet ingevuld.");toast("Firebase config ontbreekt");throw new Error("Firebase config ontbreekt")}const appMod=await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`);const fsMod=await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);BNS.firebase=fsMod;BNS.app=appMod.initializeApp(window.BNS_FIREBASE_CONFIG);BNS.db=fsMod.getFirestore(BNS.app);setStatus("Firebase verbonden")}
+async function loadCollection(n){const s=await BNS.firebase.getDocs(BNS.firebase.collection(BNS.db,n));return s.docs.map(d=>({id:d.id,...d.data()}))}
+async function loadAll(){setStatus("Data laden...");BNS.state.users=await loadCollection("users");BNS.state.orders=await loadCollection("orders");BNS.state.materials=await loadCollection("materials");BNS.state.customers=await loadCollection("customers");BNS.state.locations=await loadCollection("locations");BNS.state.alerts=await loadCollection("alerts");setStatus("Data geladen")}
+async function updateOrder(o){if(!o||!o.id)return;o.updatedAt=new Date().toISOString();await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"orders",String(o.id)),o,{merge:true})}
+async function addAlert(a){const id=a.id||("a_"+Math.random().toString(36).slice(2,10));a.id=id;await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"alerts",id),a,{merge:true})}
+function populateUsers(f){const users=(BNS.state.users||[]).filter(f);$("loginName").innerHTML=users.length?users.map(u=>`<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.role||"Medewerker")})</option>`).join(""):`<option value="">Geen gebruikers gevonden</option>`}
+function loginWithFilter(f,key,after){const id=$("loginName").value,pin=clean($("loginPin").value);const found=(BNS.state.users||[]).find(u=>String(u.id)===String(id)&&String(u.pin||"")===pin);if(!found){toast("Naam of PIN klopt niet");return}if(!f(found)){toast("Geen rechten voor deze portal");return}BNS.user=found;sessionStorage.setItem(key,found.id);$("loginPin").value="";after()}
+function restoreSession(f,key,after){const id=sessionStorage.getItem(key);if(!id)return;const found=(BNS.state.users||[]).find(u=>String(u.id)===String(id));if(found&&f(found)){BNS.user=found;after()}}
 
-  const $ = (id) => document.getElementById(id);
 
-  let state = loadState();
-  let user = null;
-
-  function toast(text){
-    const el = $("toast");
-    el.textContent = String(text || "");
-    el.classList.add("show");
-    clearTimeout(el._timer);
-    el._timer = setTimeout(()=>el.classList.remove("show"), 3500);
-  }
-
-  function loadState(){
-    for(const key of STORAGE_KEYS){
-      try{
-        const raw = localStorage.getItem(key);
-        if(raw){
-          const parsed = JSON.parse(raw);
-          if(parsed && Array.isArray(parsed.users)) return parsed;
-        }
-      }catch(e){}
-    }
-    return {users:[], orders:[], alerts:[]};
-  }
-
-  function saveState(){
-    try{
-      localStorage.setItem(STORAGE_KEYS[0], JSON.stringify(state));
-    }catch(e){}
-  }
-
-  function clean(v){ return String(v || "").trim(); }
-  function lower(v){ return clean(v).toLowerCase(); }
-  function esc(v){
-    return String(v ?? "")
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;");
-  }
-
-  function hasRight(key){
-    return !!(user && user.rights && user.rights[key]);
-  }
-
-  function userAllowed(u){
-    const role = lower(u.role);
-    return role === "bezorger" || role === "planner" || !!(u.rights && (u.rights.gps || u.rights.agenda || u.rights.resolve));
-  }
-
-  function populateUsers(){
-    const select = $("loginName");
-    const users = (state.users || []).filter(userAllowed);
-    select.innerHTML = users.map(u=>`<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.role || "Medewerker")})</option>`).join("");
-    if(!users.length){
-      select.innerHTML = `<option value="">Geen medewerkers gevonden</option>`;
-    }
-  }
-
-  function login(){
-    const id = $("loginName").value;
-    const pin = clean($("loginPin").value);
-    const found = (state.users || []).find(u => String(u.id) === String(id) && String(u.pin || "") === pin);
-
-    if(!found){
-      toast("Naam of PIN klopt niet");
-      return;
-    }
-
-    if(!userAllowed(found)){
-      toast("Deze gebruiker heeft geen mobiele rechten");
-      return;
-    }
-
-    user = found;
-    sessionStorage.setItem(SESSION_KEY, found.id);
-    $("loginPin").value = "";
-    showApp();
-  }
-
-  function logout(){
-    sessionStorage.removeItem(SESSION_KEY);
-    user = null;
-    $("appBox").classList.add("hidden");
-    $("loginBox").classList.remove("hidden");
-  }
-
-  function restoreSession(){
-    const id = sessionStorage.getItem(SESSION_KEY);
-    if(!id) return;
-    const found = (state.users || []).find(u => String(u.id) === String(id));
-    if(found && userAllowed(found)){
-      user = found;
-      showApp();
-    }
-  }
-
-  function statusOf(order){ return lower(order.status); }
-  function isCancelled(order){ return ["geannuleerd","geannuleerde","annulering","cancelled","canceled"].includes(statusOf(order)); }
-  function isDone(order){ return ["uitgevoerd","afgerond","voltooid","done","klaar"].includes(statusOf(order)); }
-  function isDeleted(order){ return ["verwijderd","gewist","deleted","trash"].includes(statusOf(order)); }
-
-  function orderStart(order){ return clean(order.start || order.dateStart || order.startDate || order.date || ""); }
-  function orderEnd(order){ return clean(order.end || order.dateEnd || order.endDate || orderStart(order)); }
-  function dateTime(v){
-    const d = new Date(clean(v).slice(0,10) + "T00:00:00");
-    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
-  }
-  function todayTime(){
-    const d = new Date();
-    d.setHours(0,0,0,0);
-    return d.getTime();
-  }
-  function niceDate(v){
-    v = clean(v).slice(0,10);
-    const p = v.split("-");
-    return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : v;
-  }
-
-  function assignedToUser(order){
-    const userId = String(user.id || "");
-    const userName = lower(user.name || "");
-    const driverId = String(order.driverId || order.bezorgerId || order.userId || "");
-    const driverName = lower(order.driverName || order.driver || order.bezorger || "");
-
-    if(driverId && userId && driverId === userId) return true;
-    if(driverName && userName && driverName === userName) return true;
-
-    // Planner mag alles zien als hij opdracht-recht heeft.
-    if(lower(user.role) === "planner" && hasRight("orders")) return true;
-
-    return false;
-  }
-
-  function visibleOrder(order){
-    if(isCancelled(order) || isDone(order) || isDeleted(order)) return false;
-    if(dateTime(orderEnd(order)) < todayTime()) return false;
-    return assignedToUser(order);
-  }
-
-  function addressOf(order){
-    const parts = [];
-    function add(v){
-      v = clean(v);
-      if(v && !parts.includes(v)) parts.push(v);
-    }
-    add(order.locationName);
-    add(order.locationAddress);
-    add(order.locationStreet);
-    add(order.locationZip);
-    add(order.locationCity);
-    add(order.address);
-    add(order.street);
-    add(order.zip);
-    add(order.city);
-    if(order.location && typeof order.location === "object"){
-      add(order.location.name);
-      add(order.location.address);
-      add(order.location.street);
-      add(order.location.zip);
-      add(order.location.city);
-    }
-    return parts.join(", ");
-  }
-
-  function customerName(order){
-    return clean(order.customerName || (order.customer && order.customer.name) || "");
-  }
-
-  function customerPhone(order){
-    return clean(order.customerPhone || order.phone || (order.customer && order.customer.phone) || "");
-  }
-
-  function materialText(order){
-    const mats = order.materials || order.mats || [];
-    if(!Array.isArray(mats)) return "";
-    return mats.map(m => typeof m === "string" ? m : (m.code || m.name || "")).filter(Boolean).join(", ");
-  }
-
-  function routeUrl(type, address){
-    const q = encodeURIComponent(address || "");
-    if(type === "waze") return `https://waze.com/ul?q=${q}&navigate=yes`;
-    return `https://www.google.com/maps/search/?api=1&query=${q}`;
-  }
-
-  function getOrders(){
-    return (state.orders || [])
-      .filter(visibleOrder)
-      .sort((a,b)=>dateTime(orderStart(a)) - dateTime(orderStart(b)));
-  }
-
-  function card(order){
-    const addr = addressOf(order);
-    const phone = customerPhone(order);
-    const start = orderStart(order);
-    const end = orderEnd(order);
-    const dateLine = start && end && start !== end ? `${niceDate(start)} t/m ${niceDate(end)}` : niceDate(start || end);
-
-    return `
-      <article class="card order" data-id="${esc(order.id)}">
-        <div class="order-title">${esc(order.number || "")} - ${esc(order.title || "Zonder titel")}</div>
-        <div class="rights">
-          <span class="badge">${esc(order.status || "Open")}</span>
-          ${hasRight("agenda") ? `<span class="badge">Agenda</span>` : ""}
-          ${hasRight("gps") ? `<span class="badge">Route</span>` : ""}
-        </div>
-        <div class="meta">
-          <div>📅 <strong>${esc(dateLine)}</strong></div>
-          <div>👤 ${esc(customerName(order) || "Klant onbekend")}</div>
-          <div>📍 ${esc(addr || "Adres onbekend")}</div>
-          <div>📦 ${esc(materialText(order) || "Geen materialen")}</div>
-        </div>
-        <div class="row">
-          ${hasRight("gps") ? `<a class="btn btn-green" href="${esc(routeUrl("waze", addr))}" target="_blank" rel="noopener">Waze</a>` : ""}
-          ${hasRight("gps") ? `<a class="btn btn-dark" href="${esc(routeUrl("maps", addr))}" target="_blank" rel="noopener">Maps</a>` : ""}
-          ${phone ? `<a class="btn" href="tel:${esc(phone)}">Bel klant</a>` : `<button type="button" class="btn">Geen tel.</button>`}
-          <button type="button" class="btn btn-orange" data-report="${esc(order.id)}">Melding</button>
-          ${hasRight("agenda") ? `<button type="button" class="btn btn-dark" data-agenda="${esc(order.id)}">Agenda info</button>` : ""}
-          ${hasRight("resolve") ? `<button type="button" class="btn btn-full btn-green" data-done="${esc(order.id)}">Afmelden / uitgevoerd</button>` : ""}
-        </div>
-      </article>
-    `;
-  }
-
-  function showApp(){
-    $("loginBox").classList.add("hidden");
-    $("appBox").classList.remove("hidden");
-    render();
-  }
-
-  function render(){
-    state = loadState();
-    if(user){
-      const fresh = (state.users || []).find(u => String(u.id) === String(user.id));
-      if(fresh) user = fresh;
-    }
-
-    const orders = getOrders();
-    $("orders").innerHTML = orders.length ? orders.map(card).join("") : `<div class="empty">Geen opdrachten voor deze gebruiker.</div>`;
-    bindActions();
-  }
-
-  function findOrder(id){
-    return (state.orders || []).find(o => String(o.id) === String(id));
-  }
-
-  function bindActions(){
-    document.querySelectorAll("[data-done]").forEach(btn=>{
-      btn.onclick = () => {
-        const order = findOrder(btn.dataset.done);
-        if(!order) return;
-        if(!confirm("Opdracht afmelden als uitgevoerd?")) return;
-        order.status = "Uitgevoerd";
-        order.doneAt = new Date().toISOString();
-        order.doneBy = user.name || "";
-        saveState();
-        toast("Opdracht afgemeld");
-        render();
-      };
-    });
-
-    document.querySelectorAll("[data-report]").forEach(btn=>{
-      btn.onclick = () => {
-        const order = findOrder(btn.dataset.report);
-        if(!order) return;
-        const text = prompt("Melding voor planning:", "");
-        if(!text) return;
-        state.alerts = Array.isArray(state.alerts) ? state.alerts : [];
-        state.alerts.push({
-          id:"a_" + Math.random().toString(36).slice(2,10),
-          orderId: order.id || "",
-          orderNumber: order.number || "",
-          title:"Mobiele melding",
-          text,
-          resolved:false,
-          createdAt:new Date().toISOString(),
-          from:user.name || ""
-        });
-        saveState();
-        toast("Melding verstuurd");
-      };
-    });
-
-    document.querySelectorAll("[data-agenda]").forEach(btn=>{
-      btn.onclick = () => {
-        const order = findOrder(btn.dataset.agenda);
-        if(!order) return;
-        toast(`Agenda: ${niceDate(orderStart(order))} ${order.startTime || ""} - ${order.endTime || ""}`);
-      };
-    });
-  }
-
-  function bind(){
-    $("loginBtn").onclick = login;
-    $("loginPin").addEventListener("keydown", e => {
-      if(e.key === "Enter") login();
-    });
-    $("logoutBtn").onclick = logout;
-    $("refreshBtn").onclick = render;
-    $("searchBox").oninput = () => {
-      const q = lower($("searchBox").value);
-      document.querySelectorAll(".order").forEach(el=>{
-        el.style.display = !q || lower(el.innerText).includes(q) ? "" : "none";
-      });
-    };
-  }
-
-  populateUsers();
-  bind();
-  restoreSession();
-})();
+const SESSION_KEY="bns_driver_firebase_user_id";
+function userAllowed(u){const r=lower(u.role);return r==="bezorger"||r==="planner"||r==="admin"||!!(u.rights&&(u.rights.gps||u.rights.agenda||u.rights.resolve||u.rights.orders))}
+function assignedToUser(o){const uid=String(BNS.user.id||""),un=lower(BNS.user.name||""),did=String(o.driverId||o.bezorgerId||o.userId||""),dn=lower(o.driverName||o.driver||o.bezorger||"");if(did&&uid&&did===uid)return true;if(dn&&un&&dn===un)return true;if((lower(BNS.user.role)==="planner"||lower(BNS.user.role)==="admin")&&hasRight("orders"))return true;return false}
+function visibleOrder(o){if(isCancelled(o)||isDone(o)||isDeleted(o))return false;if(dateTime(orderEnd(o))<todayTime())return false;return assignedToUser(o)}
+function getOrders(){return(BNS.state.orders||[]).filter(visibleOrder).sort((a,b)=>dateTime(orderStart(a))-dateTime(orderStart(b)))}
+function orderCard(o){const a=addressOf(o),p=customerPhone(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);return `<article class="card order" data-id="${esc(o.id)}"><div class="order-title">${esc(o.number||"")} - ${esc(o.title||"Zonder titel")}</div><div class="rights"><span class="badge">${esc(o.status||"Open")}</span>${hasRight("agenda")?`<span class="badge">Agenda</span>`:""}${hasRight("gps")?`<span class="badge">Route</span>`:""}</div><div class="meta"><div>📅 <strong>${esc(dl)}</strong></div><div>👤 ${esc(customerName(o)||"Klant onbekend")}</div><div>📍 ${esc(a||"Adres onbekend")}</div><div>📦 ${esc(materialText(o)||"Geen materialen")}</div></div><div class="row">${hasRight("gps")?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}${hasRight("gps")?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Maps</a>`:""}${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:`<button type="button" class="btn">Geen tel.</button>`}<button type="button" class="btn btn-orange" data-report="${esc(o.id)}">Melding</button>${hasRight("agenda")?`<button type="button" class="btn btn-dark" data-agenda="${esc(o.id)}">Agenda info</button>`:""}${hasRight("resolve")?`<button type="button" class="btn btn-full btn-green" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}</div></article>`}
+function showApp(){$("loginBox").classList.add("hidden");$("appBox").classList.remove("hidden");$("who").textContent=BNS.user?`${BNS.user.name} - ${BNS.user.role||"Medewerker"}`:"";render()}
+function render(){const rows=getOrders();$("orders").innerHTML=rows.length?rows.map(orderCard).join(""):`<div class="empty">Geen opdrachten voor deze gebruiker.</div>`;bindActions()}
+function findOrder(id){return(BNS.state.orders||[]).find(o=>String(o.id)===String(id))}
+function bindActions(){document.querySelectorAll("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!confirm("Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadAll();render()}});document.querySelectorAll("[data-report]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.report);if(!o)return;const text=prompt("Melding voor planning:","");if(!text)return;await addAlert({orderId:o.id||"",orderNumber:o.number||"",title:"Mobiele melding",text,resolved:false,createdAt:new Date().toISOString(),from:BNS.user.name||""});toast("Melding verstuurd")}});document.querySelectorAll("[data-agenda]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.agenda);if(!o)return;toast(`Agenda: ${niceDate(orderStart(o))} ${o.startTime||""} - ${o.endTime||""}`)}})}
+async function boot(){try{await initFirebase();await loadAll();populateUsers(userAllowed);$("loginBtn").onclick=()=>loginWithFilter(userAllowed,SESSION_KEY,showApp);$("loginPin").addEventListener("keydown",e=>{if(e.key==="Enter")loginWithFilter(userAllowed,SESSION_KEY,showApp)});$("logoutBtn").onclick=()=>{sessionStorage.removeItem(SESSION_KEY);location.reload()};$("refreshBtn").onclick=async()=>{await loadAll();render();toast("Verversd")};$("searchBox").oninput=()=>{const q=lower($("searchBox").value);document.querySelectorAll(".order").forEach(el=>{el.style.display=!q||lower(el.innerText).includes(q)?"":"none"})};restoreSession(userAllowed,SESSION_KEY,showApp)}catch(e){console.error(e);setStatus("Fout: "+e.message)}}
+boot();
