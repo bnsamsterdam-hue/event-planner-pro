@@ -1,0 +1,20 @@
+BNS Firebase koppeling V1
+
+Upload:
+1. firebase-config.js naar de hoofdmap van GitHub.
+2. firebase-sync.js naar de hoofdmap van GitHub.
+3. Vervang de bestanden in driver/ door de bestanden uit driver/.
+4. Vervang de bestanden in planner/ door de bestanden uit planner/.
+
+Daarna:
+- Vul firebase-config.js met jouw Firebase Web App config.
+- Voeg in hoofd index.html onderaan toe:
+  <script src="firebase-config.js"></script>
+  <script src="firebase-sync.js"></script>
+
+Open daarna hoofdapp als admin:
+- Klik 'Upload naar Firebase' om lokale admin-data naar Firebase te zetten.
+- Daarna kunnen driver/ en planner/ inloggen met naam + PIN uit admin.
+
+Let op:
+Firebase Firestore regels moeten tijdelijk test toestaan of straks beveiligd worden.
