@@ -1,0 +1,9 @@
+{
+  "name": "BNS Bezorger",
+  "short_name": "BNS Bezorger",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3f6fb",
+  "theme_color": "#0756b7",
+  "icons": []
+}
