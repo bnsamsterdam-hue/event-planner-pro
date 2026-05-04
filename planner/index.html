@@ -1,1 +1,46 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BNS Planner Mobiel</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="planner.css">
+</head>
+<body>
+  <header class="top">
+    <h1>BNS Planner</h1>
+    <small>Mobiele planner-weergave</small>
+  </header>
 
+  <main class="wrap">
+    <section id="loginBox" class="card">
+      <h2>Inloggen</h2>
+      <div class="login-grid">
+        <label>Naam</label>
+        <select id="loginName"></select>
+
+        <label>PIN</label>
+        <input id="loginPin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN">
+
+        <button id="loginBtn" type="button">Inloggen</button>
+      </div>
+    </section>
+
+    <section id="appBox" class="hidden">
+      <div class="toolbar">
+        <input id="searchBox" class="search" placeholder="Zoek opdracht / klant / adres / bezorger">
+        <button id="refreshBtn" type="button">Verversen</button>
+        <button id="logoutBtn" class="btn-dark" type="button">Uitloggen</button>
+      </div>
+      <div id="orders"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="planner.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+  </script>
+</body>
+</html>
