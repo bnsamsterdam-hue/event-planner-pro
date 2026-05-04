@@ -139,14 +139,15 @@
         return;
       }
 
-      const registration = await navigator.serviceWorker.register("../firebase-messaging-sw.js", {
-        scope: "../"
+      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js")
+   
       });
+const token = await msg.getToken(messaging, {
+  vapidKey: window.BNS_PUSH_VAPID_KEY,
+  serviceWorkerRegistration: registration
+});
 
-      const token = await msg.getToken(messaging, {
-        vapidKey: window.BNS_PUSH_VAPID_KEY,
-        serviceWorkerRegistration: registration
-      });
+console.log("PUSH TOKEN:", token);
 
       if (!token) {
         toast("Geen push-token gekregen.");
