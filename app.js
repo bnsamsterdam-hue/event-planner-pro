@@ -7743,3 +7743,574 @@ setInterval(install,1500);
   setTimeout(install,1200);setTimeout(install,2500);setInterval(install,3000)
 })();
 
+
+
+/* =========================================================
+   BNS MOBIELE BEZORGER V1
+   - Zelfde website, geen aparte app nodig.
+   - Bezorger krijgt telefoonweergave.
+   - Opdrachten, adres, Waze, Google Maps, bellen, melding, afmelden.
+   - Via URL ook te testen: ?driver=1
+   ========================================================= */
+(function bnsMobileDriverV1() {
+  "use strict";
+
+  if (window.__bnsMobileDriverV1) return;
+  window.__bnsMobileDriverV1 = true;
+
+  var STYLE_ID = "bns-mobile-driver-style";
+  var APP_ID = "bnsMobileDriverApp";
+
+  function qs(sel, root) {
+    return (root || document).querySelector(sel);
+  }
+
+  function qsa(sel, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
+
+  function getState() {
+    try {
+      if (typeof state !== "undefined" && state) return state;
+    } catch (e) {}
+
+    try {
+      return window.state || null;
+    } catch (e) {}
+
+    return null;
+  }
+
+  function saveState() {
+    try {
+      if (typeof save === "function") {
+        save();
+        return;
+      }
+    } catch (e) {}
+
+    try {
+      var s = getState();
+      if (s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    } catch (e) {}
+  }
+
+  function msg(text) {
+    try {
+      if (typeof toastMsg === "function") {
+        toastMsg(text);
+        return;
+      }
+    } catch (e) {}
+
+    alert(text);
+  }
+
+  function clean(value) {
+    return String(value || "").trim();
+  }
+
+  function lower(value) {
+    return clean(value).toLowerCase();
+  }
+
+  function esc(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function orderStart(order) {
+    return clean(order.start || order.dateStart || order.startDate || order.date || "");
+  }
+
+  function orderEnd(order) {
+    return clean(order.end || order.dateEnd || order.endDate || orderStart(order));
+  }
+
+  function dateTime(value) {
+    var d = new Date(clean(value).slice(0, 10) + "T00:00:00");
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+
+  function niceDate(value) {
+    value = clean(value).slice(0, 10);
+    var p = value.split("-");
+    if (p.length === 3) return p[2] + "-" + p[1] + "-" + p[0];
+    return value;
+  }
+
+  function statusOf(order) {
+    return lower(order.status);
+  }
+
+  function isVisibleForDriver(order) {
+    var s = statusOf(order);
+
+    if (s === "geannuleerd" || s === "geannuleerde" || s === "verwijderd" || s === "uitgevoerd" || s === "done") {
+      return false;
+    }
+
+    return true;
+  }
+
+  function currentUser() {
+    try {
+      if (typeof user !== "undefined" && user) return user;
+    } catch (e) {}
+
+    try {
+      if (window.user) return window.user;
+    } catch (e) {}
+
+    try {
+      if (typeof currentUser !== "undefined" && currentUser) return currentUser;
+    } catch (e) {}
+
+    return null;
+  }
+
+  function isDriverMode() {
+    var params = new URLSearchParams(location.search);
+
+    if (params.get("driver") === "1" || params.get("bezorger") === "1") return true;
+
+    var u = currentUser();
+    if (u && lower(u.role) === "bezorger") return true;
+
+    return window.innerWidth <= 760 && !!u && lower(u.role) === "bezorger";
+  }
+
+  function orderDriverName(order) {
+    return clean(
+      order.driverName ||
+      order.driver ||
+      order.bezorger ||
+      (order.driverUser && order.driverUser.name) ||
+      ""
+    );
+  }
+
+  function belongsToCurrentDriver(order) {
+    var u = currentUser();
+
+    if (!u) return true;
+
+    var driver = lower(orderDriverName(order));
+    var name = lower(u.name || "");
+    var id = clean(u.id || "");
+
+    if (!driver && !order.driverId && !order.bezorgerId) return true;
+
+    if (driver && name && driver === name) return true;
+    if (order.driverId && id && String(order.driverId) === String(id)) return true;
+    if (order.bezorgerId && id && String(order.bezorgerId) === String(id)) return true;
+
+    return false;
+  }
+
+  function addressOf(order) {
+    var parts = [];
+
+    [
+      order.locationName,
+      order.locationAddress,
+      order.locationStreet,
+      order.locationZip,
+      order.locationCity,
+      order.address,
+      order.street,
+      order.zip,
+      order.city
+    ].forEach(function (part) {
+      if (clean(part) && !parts.includes(clean(part))) parts.push(clean(part));
+    });
+
+    if (order.location && typeof order.location === "object") {
+      [
+        order.location.name,
+        order.location.address,
+        order.location.street,
+        order.location.zip,
+        order.location.city
+      ].forEach(function (part) {
+        if (clean(part) && !parts.includes(clean(part))) parts.push(clean(part));
+      });
+    }
+
+    return parts.join(", ");
+  }
+
+  function customerPhone(order) {
+    return clean(
+      order.customerPhone ||
+      order.phone ||
+      (order.customer && order.customer.phone) ||
+      ""
+    );
+  }
+
+  function customerName(order) {
+    return clean(
+      order.customerName ||
+      (order.customer && order.customer.name) ||
+      ""
+    );
+  }
+
+  function materialText(order) {
+    var mats = order.materials || order.mats || [];
+
+    if (!Array.isArray(mats)) return "";
+
+    return mats.map(function (m) {
+      if (typeof m === "string") return m;
+      return m.code || m.name || "";
+    }).filter(Boolean).join(", ");
+  }
+
+  function routeUrl(type, address) {
+    var q = encodeURIComponent(address || "");
+
+    if (type === "waze") {
+      return "https://waze.com/ul?q=" + q + "&navigate=yes";
+    }
+
+    return "https://www.google.com/maps/search/?api=1&query=" + q;
+  }
+
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      @media (max-width: 760px) {
+        body.bns-driver-mode {
+          background: #f3f6fb !important;
+          margin: 0 !important;
+          overflow-x: hidden !important;
+        }
+
+        body.bns-driver-mode > *:not(#${APP_ID}):not(#toast):not(.toast):not(script):not(style) {
+          display: none !important;
+        }
+      }
+
+      #${APP_ID} {
+        display: none;
+      }
+
+      body.bns-driver-mode #${APP_ID} {
+        display: block !important;
+        min-height: 100vh;
+        background: #f3f6fb;
+        color: #172033;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      }
+
+      .bns-mobile-head {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        padding: 16px;
+        background: linear-gradient(135deg, #0756b7, #0ea5e9);
+        color: #fff;
+        box-shadow: 0 8px 24px rgba(15,23,42,.22);
+      }
+
+      .bns-mobile-head h1 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.1;
+      }
+
+      .bns-mobile-head small {
+        display: block;
+        margin-top: 4px;
+        opacity: .9;
+        font-weight: 800;
+      }
+
+      .bns-mobile-tools {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 12px 16px;
+      }
+
+      .bns-mobile-tools button,
+      .bns-mobile-tools input {
+        width: 100%;
+        border: 0;
+        border-radius: 14px;
+        padding: 12px;
+        font-size: 16px;
+        font-weight: 900;
+      }
+
+      .bns-mobile-tools input {
+        grid-column: 1 / -1;
+        background: #fff;
+        color: #172033;
+        box-shadow: inset 0 0 0 1px #dbe3ef;
+      }
+
+      .bns-mobile-list {
+        padding: 0 12px 90px;
+      }
+
+      .bns-mobile-card {
+        background: #fff;
+        border-radius: 22px;
+        margin: 12px 0;
+        padding: 16px;
+        box-shadow: 0 8px 24px rgba(15,23,42,.10);
+        border: 1px solid #dbe3ef;
+      }
+
+      .bns-mobile-title {
+        font-size: 21px;
+        font-weight: 950;
+        margin-bottom: 8px;
+      }
+
+      .bns-mobile-meta {
+        display: grid;
+        gap: 4px;
+        font-size: 15px;
+        font-weight: 750;
+        color: #334155;
+        margin-bottom: 12px;
+      }
+
+      .bns-mobile-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .bns-mobile-actions a,
+      .bns-mobile-actions button {
+        text-align: center;
+        text-decoration: none;
+        border: 0;
+        border-radius: 14px;
+        padding: 13px 10px;
+        font-size: 15px;
+        font-weight: 950;
+        color: #fff;
+      }
+
+      .bns-waze { background: #16a34a; }
+      .bns-maps { background: #334155; }
+      .bns-call { background: #0ea5e9; }
+      .bns-report { background: #f97316; }
+      .bns-done { background: #2563eb; grid-column: 1 / -1; }
+      .bns-empty {
+        margin: 28px 16px;
+        background: #fff;
+        border-radius: 20px;
+        padding: 22px;
+        font-weight: 900;
+        text-align: center;
+        color: #334155;
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function sortedOrders() {
+    var s = getState();
+
+    if (!s || !Array.isArray(s.orders)) return [];
+
+    return s.orders
+      .filter(isVisibleForDriver)
+      .filter(belongsToCurrentDriver)
+      .sort(function (a, b) {
+        return dateTime(orderStart(a)) - dateTime(orderStart(b));
+      });
+  }
+
+  function card(order) {
+    var address = addressOf(order);
+    var phone = customerPhone(order);
+    var start = orderStart(order);
+    var end = orderEnd(order);
+    var dateLine = start && end && start !== end ? niceDate(start) + " t/m " + niceDate(end) : niceDate(start || end);
+    var id = esc(order.id || "");
+    var title = esc(order.title || "Zonder titel");
+    var number = esc(order.number || "");
+
+    return `
+      <div class="bns-mobile-card" data-order-id="${id}">
+        <div class="bns-mobile-title">${number} - ${title}</div>
+        <div class="bns-mobile-meta">
+          <div>📅 ${esc(dateLine)}</div>
+          <div>👤 ${esc(customerName(order) || "Klant onbekend")}</div>
+          <div>📍 ${esc(address || "Adres onbekend")}</div>
+          <div>📦 ${esc(materialText(order) || "Geen materialen")}</div>
+          <div>📌 Status: ${esc(order.status || "")}</div>
+        </div>
+        <div class="bns-mobile-actions">
+          <a class="bns-waze" href="${esc(routeUrl("waze", address))}" target="_blank" rel="noopener">Waze</a>
+          <a class="bns-maps" href="${esc(routeUrl("maps", address))}" target="_blank" rel="noopener">Maps</a>
+          ${phone ? `<a class="bns-call" href="tel:${esc(phone)}">Bel klant</a>` : `<button class="bns-call" type="button">Geen tel.</button>`}
+          <button class="bns-report" type="button" data-report="${id}">Melding</button>
+          <button class="bns-done" type="button" data-done="${id}">Afmelden / uitgevoerd</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function ensureApp() {
+    var app = document.getElementById(APP_ID);
+
+    if (!app) {
+      app = document.createElement("div");
+      app.id = APP_ID;
+      document.body.appendChild(app);
+    }
+
+    return app;
+  }
+
+  function render() {
+    if (!isDriverMode()) {
+      document.body.classList.remove("bns-driver-mode");
+      return;
+    }
+
+    ensureStyle();
+    document.body.classList.add("bns-driver-mode");
+
+    var app = ensureApp();
+    var orders = sortedOrders();
+    var u = currentUser();
+    var name = u && u.name ? u.name : "Bezorger";
+
+    app.innerHTML = `
+      <div class="bns-mobile-head">
+        <h1>Bezorger planning</h1>
+        <small>${esc(name)} - ${esc(todayISO())}</small>
+      </div>
+
+      <div class="bns-mobile-tools">
+        <input id="bnsDriverSearch" placeholder="Zoek opdracht / klant / adres">
+        <button type="button" id="bnsDriverRefresh">Verversen</button>
+        <button type="button" id="bnsDriverDesktop">Normale versie</button>
+      </div>
+
+      <div class="bns-mobile-list" id="bnsDriverList">
+        ${orders.length ? orders.map(card).join("") : `<div class="bns-empty">Geen opdrachten voor deze bezorger.</div>`}
+      </div>
+    `;
+
+    bindMobile(app);
+  }
+
+  function findOrderById(id) {
+    var s = getState();
+
+    if (!s || !Array.isArray(s.orders)) return null;
+
+    return s.orders.find(function (order) {
+      return String(order.id || "") === String(id);
+    }) || null;
+  }
+
+  function bindMobile(app) {
+    var refresh = document.getElementById("bnsDriverRefresh");
+    if (refresh) refresh.onclick = render;
+
+    var desktop = document.getElementById("bnsDriverDesktop");
+    if (desktop) {
+      desktop.onclick = function () {
+        var url = new URL(location.href);
+        url.searchParams.delete("driver");
+        url.searchParams.delete("bezorger");
+        location.href = url.toString();
+      };
+    }
+
+    var search = document.getElementById("bnsDriverSearch");
+    if (search) {
+      search.oninput = function () {
+        var q = lower(search.value);
+        qsa(".bns-mobile-card", app).forEach(function (el) {
+          el.style.display = !q || lower(el.innerText).includes(q) ? "" : "none";
+        });
+      };
+    }
+
+    qsa("[data-done]", app).forEach(function (btn) {
+      btn.onclick = function () {
+        var order = findOrderById(btn.dataset.done);
+        if (!order) return;
+
+        if (!confirm("Opdracht afmelden als uitgevoerd?")) return;
+
+        order.status = "Uitgevoerd";
+        order.doneAt = new Date().toISOString();
+        saveState();
+        msg("Opdracht afgemeld als uitgevoerd");
+        render();
+      };
+    });
+
+    qsa("[data-report]", app).forEach(function (btn) {
+      btn.onclick = function () {
+        var order = findOrderById(btn.dataset.report);
+        if (!order) return;
+
+        var text = prompt("Melding voor planning:", "");
+        if (!text) return;
+
+        var s = getState();
+        if (!s) return;
+
+        s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+        s.alerts.push({
+          id: "a_" + Math.random().toString(36).slice(2, 10),
+          orderId: order.id || "",
+          orderNumber: order.number || "",
+          title: "Bezorger melding",
+          text: text,
+          resolved: false,
+          createdAt: new Date().toISOString(),
+          from: (currentUser() && currentUser().name) || "Bezorger"
+        });
+
+        saveState();
+        msg("Melding verstuurd");
+      };
+    });
+  }
+
+  function install() {
+    ensureStyle();
+    render();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(install, 500);
+    });
+  } else {
+    setTimeout(install, 500);
+  }
+
+  setTimeout(install, 1500);
+  setInterval(function () {
+    if (isDriverMode()) render();
+  }, 30000);
+})();
+

@@ -1,0 +1,9 @@
+{
+  "name": "Event Planner PRO Bezorger",
+  "short_name": "BNS Bezorger",
+  "start_url": "./?driver=1",
+  "display": "standalone",
+  "background_color": "#f3f6fb",
+  "theme_color": "#0756b7",
+  "icons": []
+}
