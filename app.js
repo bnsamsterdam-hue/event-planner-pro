@@ -6804,6 +6804,397 @@ setInterval(install,1500);
 
 
 /* =========================================================
+   BNS V12.9 EXTRA FIX - OPDRACHTEN KNOPPEN EN UITGEVOERDE JAAR-MAPPEN
+   - "Inzien opdrachten" wordt "Toekomstige opdrachten"
+   - Actieve knop krijgt ook hier blauwe/neon rand
+   - Uitgevoerde opdrachten: nieuwste boven, oudste onder
+   - Uitgevoerde opdrachten krijgen jaartal-mappen met Terug en Wis map-knop
+   ========================================================= */
+(function bnsV129OrdersTabsAndDoneFoldersFix() {
+  "use strict";
+
+  var STYLE_ID = "bns-v129-orders-tabs-style";
+  var selectedDoneYear = null;
+
+  if (window.__bnsV129OrdersTabsAndDoneFoldersFix) return;
+  window.__bnsV129OrdersTabsAndDoneFoldersFix = true;
+
+  function qs(sel, root) {
+    return (root || document).querySelector(sel);
+  }
+
+  function qsa(sel, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
+
+  function getState() {
+    try {
+      if (typeof state !== "undefined" && state) return state;
+    } catch (e) {}
+    try {
+      return window.state || null;
+    } catch (e) {}
+    return null;
+  }
+
+  function doSave() {
+    try {
+      if (typeof save === "function") {
+        save();
+        return;
+      }
+    } catch (e) {}
+
+    try {
+      var s = getState();
+      if (s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    } catch (e) {}
+  }
+
+  function toast(text) {
+    try {
+      if (typeof toastMsg === "function") {
+        toastMsg(text);
+        return;
+      }
+    } catch (e) {}
+
+    alert(text);
+  }
+
+  function orderDate(order) {
+    return String(order.end || order.start || order.date || "").slice(0, 10);
+  }
+
+  function orderYear(order) {
+    var d = orderDate(order);
+    var match = d.match(/^(\d{4})/);
+    return match ? match[1] : "Geen jaar";
+  }
+
+  function orderTime(order) {
+    var d = new Date(orderDate(order) + "T00:00:00");
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+
+  function statusOf(order) {
+    return String(order.status || "").toLowerCase();
+  }
+
+  function isDoneOrder(order) {
+    var st = statusOf(order);
+    return st === "uitgevoerd" || st === "done" || st === "afgerond";
+  }
+
+  function isCancelledOrder(order) {
+    var st = statusOf(order);
+    return st === "geannuleerd" || st === "cancelled" || st === "canceled";
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function niceDate(dateText) {
+    if (!dateText) return "";
+    var p = String(dateText).split("-");
+    if (p.length === 3) return p[2] + "-" + p[1] + "-" + p[0];
+    return dateText;
+  }
+
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      .bns-tab-active,
+      button.bns-tab-active {
+        outline: 3px solid var(--blue, #0ea5e9) !important;
+        box-shadow: 0 0 0 4px rgba(14,165,233,.25), 0 0 18px rgba(14,165,233,.45) !important;
+        border-color: var(--blue, #0ea5e9) !important;
+      }
+
+      .bns-year-folders {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 14px 0;
+      }
+
+      .bns-year-folder {
+        padding: 12px 18px !important;
+        border-radius: 14px !important;
+        font-weight: 900 !important;
+      }
+
+      .bns-done-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 14px 0;
+      }
+
+      .bns-done-title {
+        font-size: 22px;
+        font-weight: 900;
+        margin: 16px 0 8px;
+      }
+
+      .bns-order-card {
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: center;
+        padding: 14px;
+        border-radius: 18px;
+        background: var(--panel, #fff);
+        color: var(--text, #172033);
+        border: 1px solid var(--border, #dbe3ef);
+        margin-bottom: 10px;
+      }
+
+      .bns-order-date {
+        background: #111827;
+        color: #fff;
+        border-radius: 14px;
+        padding: 12px;
+        text-align: center;
+        font-weight: 900;
+      }
+
+      .bns-order-main b {
+        font-size: 18px;
+      }
+
+      .bns-order-main small {
+        display: block;
+        color: var(--muted, #64748b);
+        font-weight: 700;
+        margin-top: 3px;
+      }
+
+      .bns-danger {
+        background: #dc2626 !important;
+        color: #fff !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function renameInzienButton() {
+    qsa("button").forEach(function (button) {
+      var txt = (button.textContent || "").trim();
+      if (/^inzien\s*opdrachten$/i.test(txt)) {
+        button.textContent = "Toekomstige opdrachten";
+        button.dataset.bnsFutureButton = "1";
+      }
+    });
+  }
+
+  function patchActiveButtonBorder() {
+    qsa("button").forEach(function (button) {
+      if (button.dataset.bnsActiveBorderBound === "1") return;
+      button.dataset.bnsActiveBorderBound = "1";
+
+      button.addEventListener("click", function () {
+        var txt = (button.textContent || "").toLowerCase();
+
+        if (
+          txt.includes("toekomstige opdrachten") ||
+          txt.includes("inzien opdrachten") ||
+          txt.includes("actieve opdrachten") ||
+          txt.includes("uitgevoerde opdrachten") ||
+          txt.includes("geannuleerde opdrachten") ||
+          txt.includes("schade")
+        ) {
+          qsa("button").forEach(function (b) {
+            b.classList.remove("bns-tab-active");
+          });
+          button.classList.add("bns-tab-active");
+        }
+      }, true);
+    });
+  }
+
+  function findOrdersList() {
+    return (
+      document.getElementById("ordersList") ||
+      document.getElementById("orderList") ||
+      qs("#orders .list") ||
+      qs("#orders")
+    );
+  }
+
+  function orderCard(order) {
+    var start = order.start || "";
+    var end = order.end || "";
+    var dateLine = start && end && start !== end ? niceDate(start) + " t/m " + niceDate(end) : niceDate(start || end);
+    var materials = Array.isArray(order.materials) ? order.materials.map(function (m) {
+      return typeof m === "string" ? m : (m.code || "");
+    }).filter(Boolean).join(", ") : "";
+
+    return `
+      <div class="bns-order-card" data-order-id="${escapeHtml(order.id || "")}">
+        <div class="bns-order-date">${escapeHtml(niceDate(orderDate(order)))}</div>
+        <div class="bns-order-main">
+          <b>${escapeHtml(order.number || "")} - ${escapeHtml(order.title || "Zonder titel")}</b>
+          <small>Datum: ${escapeHtml(dateLine)}</small>
+          <small>Klant: ${escapeHtml((order.customer && order.customer.name) || order.customerName || "")}</small>
+          <small>Locatie: ${escapeHtml((order.location && order.location.name) || order.locationName || "")}</small>
+          <small>Materialen: ${escapeHtml(materials)}</small>
+        </div>
+        <div>
+          <button type="button" onclick="editOrder('${escapeHtml(order.id || "")}')">Wijzigen</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDoneFolders() {
+    var s = getState();
+    var list = findOrdersList();
+
+    if (!s || !Array.isArray(s.orders) || !list) return false;
+
+    var done = s.orders
+      .filter(isDoneOrder)
+      .sort(function (a, b) {
+        return orderTime(b) - orderTime(a);
+      });
+
+    var years = Array.from(new Set(done.map(orderYear))).sort(function (a, b) {
+      return String(b).localeCompare(String(a));
+    });
+
+    if (!selectedDoneYear) {
+      list.innerHTML = `
+        <div class="bns-done-title">Uitgevoerde opdrachten per jaar</div>
+        <div class="bns-year-folders">
+          ${years.map(function (year) {
+            var count = done.filter(function (order) {
+              return orderYear(order) === year;
+            }).length;
+
+            return `
+              <button type="button" class="bns-year-folder" data-bns-year="${escapeHtml(year)}">
+                📁 ${escapeHtml(year)} (${count})
+              </button>
+            `;
+          }).join("")}
+        </div>
+      `;
+
+      qsa("[data-bns-year]", list).forEach(function (button) {
+        button.onclick = function () {
+          selectedDoneYear = button.dataset.bnsYear;
+          renderDoneFolders();
+        };
+      });
+
+      return true;
+    }
+
+    var rows = done.filter(function (order) {
+      return orderYear(order) === selectedDoneYear;
+    });
+
+    list.innerHTML = `
+      <div class="bns-done-title">Uitgevoerde opdrachten ${escapeHtml(selectedDoneYear)}</div>
+      <div class="bns-done-toolbar">
+        <button type="button" id="bnsBackDoneYears">Terug naar jaren</button>
+        <button type="button" id="bnsDeleteDoneYear" class="bns-danger">Wis map ${escapeHtml(selectedDoneYear)}</button>
+      </div>
+      ${rows.map(orderCard).join("")}
+    `;
+
+    var back = document.getElementById("bnsBackDoneYears");
+    if (back) {
+      back.onclick = function () {
+        selectedDoneYear = null;
+        renderDoneFolders();
+      };
+    }
+
+    var del = document.getElementById("bnsDeleteDoneYear");
+    if (del) {
+      del.onclick = function () {
+        if (!confirm("Alle uitgevoerde opdrachten uit " + selectedDoneYear + " verwijderen?")) return;
+
+        s.orders = s.orders.filter(function (order) {
+          return !(isDoneOrder(order) && orderYear(order) === selectedDoneYear);
+        });
+
+        try {
+          if (typeof save === "function") save();
+        } catch (e) {}
+
+        selectedDoneYear = null;
+        renderDoneFolders();
+        try {
+          if (typeof toastMsg === "function") toastMsg("Map verwijderd");
+        } catch (e) {}
+      };
+    }
+
+    return true;
+  }
+
+  function patchDoneButton() {
+    qsa("button").forEach(function (button) {
+      if (button.dataset.bnsDoneFolderBound === "1") return;
+
+      var txt = (button.textContent || "").toLowerCase();
+      if (!txt.includes("uitgevoerde opdrachten")) return;
+
+      button.dataset.bnsDoneFolderBound = "1";
+      button.addEventListener("click", function () {
+        selectedDoneYear = null;
+        setTimeout(renderDoneFolders, 120);
+        setTimeout(renderDoneFolders, 500);
+      });
+    });
+  }
+
+  function patchFutureButton() {
+    qsa("button").forEach(function (button) {
+      if (button.dataset.bnsFutureButton !== "1") return;
+      if (button.dataset.bnsFutureClick === "1") return;
+
+      button.dataset.bnsFutureClick = "1";
+      button.addEventListener("click", function () {
+        selectedDoneYear = null;
+      });
+    });
+  }
+
+  function install() {
+    ensureStyle();
+    renameInzienButton();
+    patchActiveButtonBorder();
+    patchDoneButton();
+    patchFutureButton();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(install, 400);
+    });
+  } else {
+    setTimeout(install, 400);
+  }
+
+  setTimeout(install, 1200);
+  setInterval(install, 2000);
+})();
+
+
+
+/* =========================================================
    BNS V12.9 HARD FIX - EIGEN WITTE POPUP MELDING
    Oude zwarte melding wordt niet meer gebruikt/zichtbaar.
    Alle alert/toast meldingen komen in deze witte popup.
@@ -7286,479 +7677,5 @@ setInterval(install,1500);
 
   setTimeout(install, 800);
   setTimeout(install, 2000);
-})();
-
-
-
-/* =========================================================
-   BNS V12.9 FIX - JUISTE OPDRACHT SORTERING + UITGEVOERDE MAPPEN
-   - Actieve opdrachten: oudste boven, nieuwste onder.
-   - Uitgevoerde opdrachten: nieuwste boven, oudste onder.
-   - Geannuleerde opdrachten: nieuwste boven, oudste onder.
-   - Toekomstige opdrachten: nieuwste boven, oudste onder.
-   - Uitgevoerde opdrachten per jaar-map, niet meer leeg door status-verschillen.
-   ========================================================= */
-(function bnsV129CorrectOrderSortingAndDoneFolders() {
-  "use strict";
-
-  var STYLE_ID = "bns-v129-correct-order-sorting-style";
-  var selectedDoneYear = null;
-  var currentOrderView = "active";
-
-  if (window.__bnsV129CorrectOrderSortingAndDoneFolders) return;
-  window.__bnsV129CorrectOrderSortingAndDoneFolders = true;
-
-  function qs(sel, root) {
-    return (root || document).querySelector(sel);
-  }
-
-  function qsa(sel, root) {
-    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
-  }
-
-  function getState() {
-    try {
-      if (typeof state !== "undefined" && state) return state;
-    } catch (e) {}
-
-    try {
-      return window.state || null;
-    } catch (e) {}
-
-    return null;
-  }
-
-  function saveState() {
-    try {
-      if (typeof save === "function") save();
-    } catch (e) {}
-  }
-
-  function norm(value) {
-    return String(value || "").trim().toLowerCase();
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function orderDateValue(order) {
-    return String(
-      order.end ||
-      order.dateEnd ||
-      order.endDate ||
-      order.start ||
-      order.dateStart ||
-      order.startDate ||
-      order.date ||
-      ""
-    ).slice(0, 10);
-  }
-
-  function orderTime(order) {
-    var value = orderDateValue(order);
-    var d = new Date(value + "T00:00:00");
-    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
-  }
-
-  function orderYear(order) {
-    var value = orderDateValue(order);
-    var match = String(value).match(/^(\d{4})/);
-    return match ? match[1] : "Geen jaar";
-  }
-
-  function niceDate(value) {
-    value = String(value || "").slice(0, 10);
-    var p = value.split("-");
-    if (p.length === 3) return p[2] + "-" + p[1] + "-" + p[0];
-    return value;
-  }
-
-  function status(order) {
-    return norm(order.status);
-  }
-
-  function isDone(order) {
-    var st = status(order);
-    return (
-      st === "uitgevoerd" ||
-      st === "done" ||
-      st === "afgerond" ||
-      st === "voltooid" ||
-      st === "klaar"
-    );
-  }
-
-  function isCancelled(order) {
-    var st = status(order);
-    return (
-      st === "geannuleerd" ||
-      st === "geannuleerde" ||
-      st === "cancelled" ||
-      st === "canceled" ||
-      st === "annulering"
-    );
-  }
-
-  function isFuture(order) {
-    var t = orderTime(order);
-    if (!t) return false;
-
-    var today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return t >= today.getTime() && !isDone(order) && !isCancelled(order);
-  }
-
-  function isActive(order) {
-    return !isDone(order) && !isCancelled(order);
-  }
-
-  function getFilteredOrders(view) {
-    var s = getState();
-    if (!s || !Array.isArray(s.orders)) return [];
-
-    if (view === "done") {
-      return s.orders.filter(isDone).sort(function (a, b) {
-        return orderTime(b) - orderTime(a);
-      });
-    }
-
-    if (view === "cancelled") {
-      return s.orders.filter(isCancelled).sort(function (a, b) {
-        return orderTime(b) - orderTime(a);
-      });
-    }
-
-    if (view === "future") {
-      return s.orders.filter(isFuture).sort(function (a, b) {
-        return orderTime(b) - orderTime(a);
-      });
-    }
-
-    /* Actief: oudste boven, nieuwste onder */
-    return s.orders.filter(isActive).sort(function (a, b) {
-      return orderTime(a) - orderTime(b);
-    });
-  }
-
-  function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) return;
-
-    var style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
-      .bns-tab-active,
-      button.bns-tab-active {
-        outline: 3px solid var(--blue, #0ea5e9) !important;
-        box-shadow: 0 0 0 4px rgba(14,165,233,.25), 0 0 18px rgba(14,165,233,.45) !important;
-        border-color: var(--blue, #0ea5e9) !important;
-      }
-
-      .bns-year-folders {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin: 14px 0;
-      }
-
-      .bns-year-folder {
-        padding: 12px 18px !important;
-        border-radius: 14px !important;
-        font-weight: 900 !important;
-      }
-
-      .bns-done-toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin: 14px 0;
-      }
-
-      .bns-done-title {
-        font-size: 22px;
-        font-weight: 900;
-        margin: 16px 0 8px;
-      }
-
-      .bns-order-card {
-        display: grid;
-        grid-template-columns: 118px minmax(0, 1fr) auto;
-        gap: 14px;
-        align-items: center;
-        padding: 14px;
-        border-radius: 18px;
-        background: var(--panel, #fff);
-        color: var(--text, #172033);
-        border: 1px solid var(--border, #dbe3ef);
-        margin-bottom: 10px;
-      }
-
-      .bns-order-date {
-        background: #111827;
-        color: #fff;
-        border-radius: 14px;
-        padding: 12px;
-        text-align: center;
-        font-weight: 900;
-      }
-
-      .bns-order-main b {
-        font-size: 18px;
-      }
-
-      .bns-order-main small {
-        display: block;
-        color: var(--muted, #64748b);
-        font-weight: 700;
-        margin-top: 3px;
-      }
-
-      .bns-danger {
-        background: #dc2626 !important;
-        color: #fff !important;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function findOrdersList() {
-    return (
-      document.getElementById("ordersList") ||
-      document.getElementById("orderList") ||
-      document.getElementById("ordersListV11") ||
-      qs("#orders .list") ||
-      qs("#orders")
-    );
-  }
-
-  function materialCodes(order) {
-    var mats = order.materials || order.mats || [];
-
-    if (!Array.isArray(mats)) return "";
-
-    return mats.map(function (m) {
-      if (typeof m === "string") return m;
-      return m.code || m.name || "";
-    }).filter(Boolean).join(", ");
-  }
-
-  function card(order) {
-    var start = order.start || order.dateStart || order.startDate || "";
-    var end = order.end || order.dateEnd || order.endDate || "";
-    var dateLine = start && end && start !== end ? niceDate(start) + " t/m " + niceDate(end) : niceDate(start || end);
-    var id = escapeHtml(order.id || "");
-
-    return `
-      <div class="bns-order-card" data-order-id="${id}">
-        <div class="bns-order-date">${escapeHtml(niceDate(orderDateValue(order)))}</div>
-        <div class="bns-order-main">
-          <b>${escapeHtml(order.number || "")} - ${escapeHtml(order.title || "Zonder titel")}</b>
-          <small>Datum: ${escapeHtml(dateLine)}</small>
-          <small>Klant: ${escapeHtml((order.customer && order.customer.name) || order.customerName || "")}</small>
-          <small>Locatie: ${escapeHtml((order.location && order.location.name) || order.locationName || "")}</small>
-          <small>Materialen: ${escapeHtml(materialCodes(order))}</small>
-        </div>
-        <div>
-          <button type="button" onclick="editOrder('${id}')">Wijzigen</button>
-        </div>
-      </div>
-    `;
-  }
-
-  function renderNormalView(view) {
-    var list = findOrdersList();
-    if (!list) return false;
-
-    if (view === "done") return renderDoneFolders();
-
-    var rows = getFilteredOrders(view);
-
-    list.innerHTML = rows.map(card).join("");
-
-    if (!rows.length) {
-      list.innerHTML = "<p>Geen opdrachten gevonden.</p>";
-    }
-
-    return true;
-  }
-
-  function renderDoneFolders() {
-    var list = findOrdersList();
-    if (!list) return false;
-
-    var rows = getFilteredOrders("done");
-
-    if (!rows.length) {
-      list.innerHTML = "<p>Geen uitgevoerde opdrachten gevonden.</p>";
-      return true;
-    }
-
-    var years = Array.from(new Set(rows.map(orderYear))).sort(function (a, b) {
-      return String(b).localeCompare(String(a));
-    });
-
-    if (!selectedDoneYear) {
-      list.innerHTML = `
-        <div class="bns-done-title">Uitgevoerde opdrachten per jaar</div>
-        <div class="bns-year-folders">
-          ${years.map(function (year) {
-            var count = rows.filter(function (order) {
-              return orderYear(order) === year;
-            }).length;
-
-            return `
-              <button type="button" class="bns-year-folder" data-bns-year="${escapeHtml(year)}">
-                📁 ${escapeHtml(year)} (${count})
-              </button>
-            `;
-          }).join("")}
-        </div>
-      `;
-
-      qsa("[data-bns-year]", list).forEach(function (button) {
-        button.onclick = function () {
-          selectedDoneYear = button.dataset.bnsYear;
-          renderDoneFolders();
-        };
-      });
-
-      return true;
-    }
-
-    var selectedRows = rows.filter(function (order) {
-      return orderYear(order) === selectedDoneYear;
-    });
-
-    list.innerHTML = `
-      <div class="bns-done-title">Uitgevoerde opdrachten ${escapeHtml(selectedDoneYear)}</div>
-      <div class="bns-done-toolbar">
-        <button type="button" id="bnsBackDoneYears">Terug naar jaren</button>
-        <button type="button" id="bnsDeleteDoneYear" class="bns-danger">Wis map ${escapeHtml(selectedDoneYear)}</button>
-      </div>
-      ${selectedRows.map(card).join("")}
-    `;
-
-    var back = document.getElementById("bnsBackDoneYears");
-    if (back) {
-      back.onclick = function () {
-        selectedDoneYear = null;
-        renderDoneFolders();
-      };
-    }
-
-    var del = document.getElementById("bnsDeleteDoneYear");
-    if (del) {
-      del.onclick = function () {
-        if (!confirm("Alle uitgevoerde opdrachten uit " + selectedDoneYear + " verwijderen?")) return;
-
-        var s = getState();
-        if (!s || !Array.isArray(s.orders)) return;
-
-        s.orders = s.orders.filter(function (order) {
-          return !(isDone(order) && orderYear(order) === selectedDoneYear);
-        });
-
-        saveState();
-        selectedDoneYear = null;
-        renderDoneFolders();
-      };
-    }
-
-    return true;
-  }
-
-  function detectViewFromButton(button) {
-    var txt = norm(button.textContent);
-
-    if (txt.includes("uitgevoerde")) return "done";
-    if (txt.includes("geannuleerde")) return "cancelled";
-    if (txt.includes("toekomstige") || txt.includes("inzien")) return "future";
-    if (txt.includes("actieve")) return "active";
-
-    return "";
-  }
-
-  function renameFutureButton() {
-    qsa("button").forEach(function (button) {
-      if (/^inzien\s*opdrachten$/i.test((button.textContent || "").trim())) {
-        button.textContent = "Toekomstige opdrachten";
-      }
-    });
-  }
-
-  function bindButtons() {
-    qsa("button").forEach(function (button) {
-      var view = detectViewFromButton(button);
-      if (!view) return;
-
-      if (button.dataset.bnsCorrectSortBound === "1") return;
-      button.dataset.bnsCorrectSortBound = "1";
-
-      button.addEventListener("click", function () {
-        currentOrderView = view;
-        selectedDoneYear = null;
-
-        qsa("button").forEach(function (b) {
-          b.classList.remove("bns-tab-active");
-        });
-
-        button.classList.add("bns-tab-active");
-
-        setTimeout(function () {
-          renderNormalView(view);
-        }, 120);
-
-        setTimeout(function () {
-          renderNormalView(view);
-        }, 500);
-      });
-    });
-  }
-
-  function patchOriginalRenderOrders() {
-    try {
-      if (typeof renderOrders === "function" && !renderOrders.__bnsCorrectSort) {
-        var oldRenderOrders = renderOrders;
-
-        var wrapped = function () {
-          var result = oldRenderOrders.apply(this, arguments);
-
-          setTimeout(function () {
-            renderNormalView(currentOrderView);
-          }, 80);
-
-          return result;
-        };
-
-        wrapped.__bnsCorrectSort = true;
-        renderOrders = wrapped;
-        window.renderOrders = wrapped;
-      }
-    } catch (e) {}
-  }
-
-  function install() {
-    ensureStyle();
-    renameFutureButton();
-    bindButtons();
-    patchOriginalRenderOrders();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-      setTimeout(install, 300);
-    });
-  } else {
-    setTimeout(install, 300);
-  }
-
-  setTimeout(install, 1000);
-  setTimeout(install, 2500);
-  setInterval(install, 3000);
 })();
 
