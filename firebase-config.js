@@ -6,10 +6,10 @@
    ========================================================= */
 
 window.BNS_FIREBASE_CONFIG = {
-  apiKey: "VUL_HIER_IN",
-  authDomain: "VUL_HIER_IN.firebaseapp.com",
-  projectId: "VUL_HIER_IN",
-  storageBucket: "VUL_HIER_IN.appspot.com",
-  messagingSenderId: "VUL_HIER_IN",
-  appId: "VUL_HIER_IN"
+  apiKey: "AIzaSyCqA0WMgFfn887og0ceRaVDooNnEEa0SEI",
+  authDomain: "event-planner-pro-bbcdc.firebaseapp.com",
+  projectId: "event-planner-pro-bbcdc",
+  storageBucket: "event-planner-pro-bbcdc.firebasestorage.app",
+  messagingSenderId: "343572783519",
+  appId: "1:343572783519:web:2c82d09f8901141c1f1daa"
 };
