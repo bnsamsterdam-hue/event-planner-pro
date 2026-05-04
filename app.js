@@ -6119,3 +6119,125 @@ setInterval(install,1500);
     addRoutenetButtons();
   },1500);
 })();
+
+/* =========================================================
+   BNS V12.7 - leesbare meldingen + strikt gescheiden materiaalrubrieken
+   - Meldingen pop-up krijgt automatisch contrasterende tekstkleur bij alle thema's.
+   - Materiaal zoeken in Admin houdt rubrieken strikt gescheiden: TW is alleen TW, TO alleen TO, EXTRA alleen EXTRA.
+   ========================================================= */
+(function bnsV127ReadableAlertsStrictMaterials(){
+  'use strict';
+  var STYLE_ID='bns-v127-readable-strict-style';
+  var CAT_LIST=['TW','TO','KW','KA','SL','EXTRA'];
+
+  function $(id){return document.getElementById(id);}
+  function appState(){try{if(typeof state!=='undefined'&&state)return state;}catch(e){} return window.state||{materials:[]};}
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function norm(v){return String(v||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');}
+  function catKey(v){var k=norm(v); return k||'EXTRA';}
+  function statusClass(st){var s=String(st||'free').toLowerCase(); if(s==='reserved'||s==='gereserveerd')return 'reserved'; if(s==='defect')return 'defect'; if(s==='inactive'||s==='niet actief'||s==='niet beschikbaar')return 'inactive'; return 'free';}
+  function statusText(st){var s=statusClass(st); return s==='reserved'?'Gereserveerd':s==='defect'?'Defect':s==='inactive'?'Niet actief':'Vrij';}
+  function catColor(cat){
+    try{ if(typeof window.BNS_V12_PRO_setRubriekColor==='function'){} }catch(e){}
+    var defaults={TW:'#1683d8',TO:'#f97316',KW:'#22c55e',KA:'#a855f7',SL:'#eab308',EXTRA:'#334155'};
+    try{var m=JSON.parse(localStorage.getItem('bns_rubriek_kleuren_v12_pro')||'{}'); return m[catKey(cat)]||defaults[catKey(cat)]||defaults.EXTRA;}catch(e){return defaults[catKey(cat)]||defaults.EXTRA;}
+  }
+  function rowStyle(cat){return '--cat-color:'+catColor(cat)+';border-left:8px solid '+catColor(cat)+';';}
+
+  function ensureCss(){
+    if($(STYLE_ID)) return;
+    var st=document.createElement('style'); st.id=STYLE_ID;
+    st.textContent=''+
+      '#bnsAlertModal .bns-a12-card,#bnsMaterialModal .bns-a12-card,.bns-a12-card,.bns-alert-card,.bns-modal-card{background:var(--panel,#ffffff)!important;color:var(--text,#111827)!important;border:1px solid var(--border,#dbe3ef)!important}'+
+      '#bnsAlertModal .bns-a12-card *:not(button),#bnsMaterialModal .bns-a12-card *:not(button),.bns-a12-card *:not(button){color:inherit!important}'+
+      '#bnsAlertModal .bns-a12-item,#bnsMaterialModal .bns-a12-item,.bns-a12-item{background:rgba(148,163,184,.16)!important;border-color:rgba(148,163,184,.45)!important}'+
+      '#adminMatList .bns-v127-admin-material{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0;padding:11px 12px;border-radius:14px;background:var(--panel,#fff);color:var(--text,#111827);border:1px solid var(--border,#dbe3ef)}'+
+      '#adminMatList .bns-v127-admin-material b{font-weight:900}.bns-v127-cat-label{display:inline-block;border-radius:999px;background:var(--cat-color,#334155);color:#fff;padding:4px 9px;margin-right:8px;font-weight:900}.bns-v127-pill{border-radius:999px;padding:6px 10px;font-weight:900;background:#dcfce7;color:#166534}.bns-v127-pill.reserved{background:#fee2e2;color:#991b1b}.bns-v127-pill.defect{background:#fef3c7;color:#92400e}.bns-v127-pill.inactive{background:#cbd5e1;color:#334155}';
+    document.head.appendChild(st);
+  }
+
+  function parseRgb(str){
+    var m=String(str||'').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if(!m) return null;
+    return [Number(m[1]),Number(m[2]),Number(m[3])];
+  }
+  function luminance(rgb){
+    if(!rgb) return 255;
+    return (0.2126*rgb[0])+(0.7152*rgb[1])+(0.0722*rgb[2]);
+  }
+  function fixModalContrast(){
+    var cards=document.querySelectorAll('#bnsAlertModal .bns-a12-card,#bnsMaterialModal .bns-a12-card,.bns-a12-card,.bns-alert-card,.bns-modal-card');
+    cards.forEach(function(card){
+      var bg=parseRgb(getComputedStyle(card).backgroundColor);
+      var dark=luminance(bg)<135;
+      card.style.color=dark?'#ffffff':'#111827';
+      card.style.borderColor=dark?'rgba(255,255,255,.35)':'rgba(15,23,42,.18)';
+      card.querySelectorAll('*:not(button)').forEach(function(el){el.style.color='inherit';});
+    });
+  }
+
+  function queryParts(q){
+    var raw=String(q||'').trim();
+    var tokens=raw.split(/\s+/).map(norm).filter(Boolean);
+    var catTokens=tokens.filter(function(t){return CAT_LIST.indexOf(t)>=0;});
+    var rest=tokens.filter(function(t){return CAT_LIST.indexOf(t)<0;});
+    return {raw:raw.toLowerCase(),cats:catTokens,rest:rest};
+  }
+  function strictMaterialFilter(m,q){
+    var p=queryParts(q);
+    var mcat=catKey(m.cat);
+    if(p.cats.length && p.cats.indexOf(mcat)<0) return false;
+    if(!p.raw || (p.cats.length && !p.rest.length)) return true;
+    var hay=[m.code,m.name,m.price,m.notes,m.status].join(' ').toLowerCase();
+    var rest=p.rest.length?p.rest.join(' ').toLowerCase():p.raw;
+    return hay.indexOf(rest)>=0;
+  }
+
+  function renderAdminMaterialsStrict(){
+    var box=$('adminMatList'); if(!box) return;
+    var q=(($('adminMatSearch')||{}).value||'').trim();
+    var materials=(appState().materials||[]).filter(function(m){return strictMaterialFilter(m,q);}).slice(0,500);
+    if(!q){ box.innerHTML='<small>Typ bijvoorbeeld TW, TO, KW, KA, SL, EXTRA of een materiaalnaam/code.</small>'; return; }
+    box.innerHTML=materials.map(function(m){
+      var sc=statusClass(m.status);
+      return '<div class="bns-v127-admin-material '+sc+'" data-admin-material-id="'+esc(m.id)+'" style="'+rowStyle(m.cat)+'">'+
+        '<span><span class="bns-v127-cat-label" style="background:'+catColor(m.cat)+'">'+esc(catKey(m.cat))+'</span><b>'+esc(m.code)+'</b> '+esc(m.name)+'<br><small>'+esc(m.price||'')+'</small></span>'+
+        '<span><span class="bns-v127-pill '+sc+'">'+statusText(m.status)+'</span> <button type="button" class="bns-v127-edit">Wijzig</button></span></div>';
+    }).join('') || '<p>Geen materiaal in deze rubriek gevonden.</p>';
+    box.querySelectorAll('[data-admin-material-id]').forEach(function(row){
+      var btn=row.querySelector('.bns-v127-edit');
+      if(btn) btn.onclick=function(e){ if(e){e.preventDefault();e.stopPropagation();} if(typeof fillMat==='function') fillMat(row.getAttribute('data-admin-material-id')); };
+    });
+  }
+
+  function patchAdminSearch(){
+    var search=$('adminMatSearch');
+    if(search && !search.dataset.bnsV127Strict){
+      search.dataset.bnsV127Strict='1';
+      search.addEventListener('input',function(e){ setTimeout(renderAdminMaterialsStrict,0); },true);
+      search.addEventListener('keyup',function(e){ setTimeout(renderAdminMaterialsStrict,0); },true);
+    }
+    if(search && search.value) renderAdminMaterialsStrict();
+  }
+
+  function patchAdminRender(){
+    var old=window.adminRender || (typeof adminRender==='function'?adminRender:null);
+    if(old && !old.__bnsV127Strict){
+      var wrapped=function(){ var r=old.apply(this,arguments); setTimeout(renderAdminMaterialsStrict,0); return r; };
+      wrapped.__bnsV127Strict=true;
+      window.adminRender=wrapped; try{adminRender=wrapped;}catch(e){}
+    }
+  }
+
+  function install(){
+    ensureCss();
+    fixModalContrast();
+    patchAdminRender();
+    patchAdminSearch();
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
+  setTimeout(install,400);
+  setTimeout(install,1400);
+  setInterval(function(){fixModalContrast(); patchAdminSearch();},1000);
+})();
