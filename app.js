@@ -5897,3 +5897,225 @@ setInterval(install,1500);
   setTimeout(install, 800);
   setInterval(updateAlertButton, 1200);
 })();
+
+/* =========================================================
+   BNS V12.6 - opdrachten inzien/jaarmappen + stabiele meldingen + Routenet + PIN rechten
+   - Bezorger: Wijzig PIN verbergen, alleen Admin ziet dit.
+   - Naast Waze ook Routenet.
+   - Opdrachten: knop Inzien opdrachten met jaarmappen + toekomst, map wissen of 1 opdracht wissen.
+   - Systeemstatus-knop uitgeschakeld zodat hij geen valse meldingen meer aanmaakt.
+   - Systeemmeldingen teller stabiel: geen pingel 0/1/3, oude status-check meldingen worden opgeschoond.
+   ========================================================= */
+(function bnsV126OpdrachtenMeldingenRoutenet(){
+  "use strict";
+
+  var STYLE_ID = "bns-v126-style";
+  var ARCHIVE_MODE = false;
+  var LAST_ALERT_COUNT = null;
+
+  function $(id){ return document.getElementById(id); }
+  function qsa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+  function appState(){ try{ if(typeof state !== "undefined" && state) return state; }catch(e){} return window.state || {orders:[],alerts:[]}; }
+  function saveApp(){ try{ if(typeof save === "function"){ save(); return; } }catch(e){} try{ if(typeof saveState === "function"){ saveState(); return; } }catch(e){} }
+  function currentUser(){ try{ if(typeof user !== "undefined" && user) return user; }catch(e){} return window.user || null; }
+  function isAdmin(){ var u=currentUser(); return !!(u && String(u.role||"").toLowerCase()==="admin"); }
+  function parseDate(v){ var d=new Date(String(v||"").slice(0,10)+"T00:00:00"); return isNaN(d.getTime()) ? null : d; }
+  function today(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
+  function endDate(o){ return parseDate(o && (o.end || o.start)); }
+  function startDate(o){ return parseDate(o && (o.start || o.end)); }
+  function yearOf(o){ var d=endDate(o)||startDate(o); return d ? String(d.getFullYear()) : "Onbekend"; }
+  function niceDate(v){ try{ if(typeof nice === "function") return nice(v); }catch(e){} return String(v||""); }
+  function addr(o){ var l=o.location||{}, c=o.customer||{}; return [l.street,l.zip,l.city].filter(Boolean).join(" ") || [c.street,c.zip,c.city].filter(Boolean).join(" "); }
+
+  function css(){
+    if($(STYLE_ID)) return;
+    var st=document.createElement("style"); st.id=STYLE_ID;
+    st.textContent = ""+
+      ".bns-v126-archive-tools{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}.bns-v126-archive-tools button,.bns-v126-section-head button,.bns-v126-card-actions button{border:0;border-radius:10px;padding:9px 12px;font-weight:900;cursor:pointer}.bns-v126-inzien{background:#7c3aed!important;color:#fff!important}.bns-v126-section{border:2px solid #d8dee9;border-radius:18px;margin:12px 0;background:#fff;overflow:hidden}.bns-v126-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f1f5f9;padding:12px 14px;font-weight:900}.bns-v126-section-head .danger{background:#dc2626;color:#fff}.bns-v126-section-body{padding:10px}.bns-v126-order-card{display:grid;grid-template-columns:90px 1fr auto;gap:12px;align-items:start;border:1px solid #e5e7eb;border-radius:14px;margin:8px 0;padding:12px;background:#fff}.bns-v126-year-title{font-size:18px}.bns-v126-card-actions{display:flex;gap:7px;flex-wrap:wrap}.bns-v126-card-actions .edit{background:#2563eb;color:#fff}.bns-v126-card-actions .delete{background:#dc2626;color:#fff}.bns-routenet-btn{background:#0ea5e9!important;color:#fff!important;border:0!important;border-radius:10px!important;padding:8px 12px!important;font-weight:900!important;margin-left:6px!important}.bns-hidden-non-admin-pin{display:none!important}#alertsBtn,#alertsBtn.bns-a12-blink{animation:none!important;filter:none!important;transform:none!important}";
+    document.head.appendChild(st);
+  }
+
+  function cleanFalseAlerts(){
+    var s=appState(); s.alerts=s.alerts||[];
+    var before=s.alerts.length;
+    s.alerts=s.alerts.filter(function(a){
+      var txt=[a.title,a.note,a.message,a.text,a.source].join(" ").toLowerCase();
+      return !(txt.indexOf("systeem status gecontroleerd")>=0 || txt.indexOf("systeemmelding aangemaakt")>=0 || txt.indexOf("status gecontroleerd")>=0);
+    });
+    if(s.alerts.length!==before) saveApp();
+  }
+
+  function stableAlertCount(){
+    cleanFalseAlerts();
+    var s=appState(); s.alerts=s.alerts||[];
+    return s.alerts.filter(function(a){ return !a.resolved; }).length;
+  }
+
+  function updateAlertsStable(){
+    var n=stableAlertCount();
+    LAST_ALERT_COUNT=n;
+    qsa('#alertsBtn,[data-alerts],.alertsBtn').forEach(function(b){
+      b.textContent = n ? "🚨 Systeemmeldingen ("+n+")" : "Systeemmeldingen (0)";
+      b.classList.remove("bns-a12-blink");
+      b.style.animation="none"; b.style.filter="none"; b.style.transform="none";
+      if(!b.dataset.bnsV126Alert){
+        b.dataset.bnsV126Alert="1";
+        b.addEventListener("click",function(e){
+          if(e){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
+          if(typeof window.openAlertsV91 === "function") window.openAlertsV91();
+          else if(typeof window.openAlerts === "function") window.openAlerts();
+          else alert(n ? "Er zijn open systeemmeldingen." : "Geen open systeemmeldingen.");
+          setTimeout(updateAlertsStable,50);
+          return false;
+        },true);
+      }
+    });
+    try{ if($('statAlerts')) $('statAlerts').textContent=String(n); }catch(e){}
+  }
+
+  function disableSystemStatus(){
+    var btn=$('syncBtn');
+    if(!btn) return;
+    btn.textContent="Systeem stabiel";
+    btn.title="Deze knop maakte valse systeemmeldingen aan en is uitgeschakeld.";
+    btn.onclick=function(e){ if(e){e.preventDefault();e.stopPropagation();} cleanFalseAlerts(); updateAlertsStable(); try{ if(typeof toastMsg==='function') toastMsg('Systeem stabiel - geen actie nodig'); else if(typeof toast==='function') toast('Systeem stabiel - geen actie nodig'); }catch(x){} return false; };
+  }
+
+  function hidePinForNonAdmin(){
+    qsa('button,a,label,div,span').forEach(function(el){
+      var t=(el.textContent||"").trim();
+      if(/wijzig\s*pin/i.test(t)){
+        el.classList.toggle('bns-hidden-non-admin-pin', !isAdmin());
+      }
+    });
+  }
+
+  function addressFromCard(card){
+    var id=card.getAttribute('data-bns-order-id') || card.getAttribute('data-order-id');
+    var o=null;
+    if(id){ o=(appState().orders||[]).find(function(x){return String(x.id)===String(id);}); }
+    var a=o ? addr(o) : (card.textContent||'');
+    return a;
+  }
+
+  function addRoutenetButtons(){
+    qsa('.order-card,.bns-v126-order-card,[data-bns-order-id]').forEach(function(card){
+      if(card.querySelector('.bns-routenet-btn')) return;
+      var waze=qsa('button,a',card).filter(function(b){ return /waze/i.test(b.textContent||''); })[0];
+      if(!waze) return;
+      var b=document.createElement('button');
+      b.type='button'; b.className='bns-routenet-btn'; b.textContent='Routenet';
+      b.onclick=function(e){ if(e){e.preventDefault();e.stopPropagation();} var a=addressFromCard(card); window.open('https://routenet.nl/?q='+encodeURIComponent(a||''),'_blank'); return false; };
+      waze.insertAdjacentElement('afterend', b);
+    });
+  }
+
+  function cardArchive(o){
+    var d=endDate(o)||startDate(o);
+    var st=o.status||'';
+    return '<div class="bns-v126-order-card" data-bns-order-id="'+esc(o.id)+'">'+
+      '<div class="date-tile">'+esc(niceDate(o.start))+'</div>'+
+      '<div><b>'+esc(o.number||'')+' - '+esc(o.title||'')+'</b> <span class="status">'+esc(st)+'</span><br>'+
+      '<b>Datum:</b> '+esc(o.start||'')+(o.end&&o.end!==o.start?' t/m '+esc(o.end):'')+'<br>'+
+      '<b>Klant:</b> '+esc(o.customer&&o.customer.name||'')+'<br>'+
+      '<b>Locatie:</b> '+esc(addr(o))+'<br>'+
+      '<small>Materialen: '+esc((o.materials||[]).map(function(m){return m.code||m.name||'';}).join(', '))+'</small></div>'+
+      '<div class="bns-v126-card-actions"><button class="edit" type="button" onclick="editOrder(\''+esc(o.id)+'\')">Open</button><button class="delete" type="button" onclick="BNS_V126_DELETE_ORDER(\''+esc(o.id)+'\')">Wis opdracht</button></div>'+
+      '</div>';
+  }
+
+  function archiveBuckets(){
+    var s=appState(), now=today();
+    var buckets={"Toekomst":[]};
+    (s.orders||[]).forEach(function(o){
+      var d=endDate(o)||startDate(o);
+      var status=String(o.status||'').toLowerCase();
+      if(d && d>=now && status!=="geannuleerd" && status!=="uitgevoerd"){
+        buckets["Toekomst"].push(o);
+      } else if(status==="geannuleerd" || status==="uitgevoerd" || (d && d<now)){
+        var y=yearOf(o); if(!buckets[y]) buckets[y]=[]; buckets[y].push(o);
+      }
+    });
+    Object.keys(buckets).forEach(function(k){ buckets[k].sort(function(a,b){ return String(b.end||b.start||'').localeCompare(String(a.end||a.start||'')); }); });
+    return buckets;
+  }
+
+  window.BNS_V126_DELETE_ORDER=function(id){
+    var s=appState();
+    var o=(s.orders||[]).find(function(x){return String(x.id)===String(id);});
+    if(!o) return;
+    if(!confirm('Opdracht '+(o.number||'')+' echt wissen?')) return;
+    s.orders=(s.orders||[]).filter(function(x){return String(x.id)!==String(id);});
+    saveApp(); renderArchiveOrders(); try{ if(typeof renderDashboard==='function') renderDashboard(); }catch(e){}
+  };
+  window.BNS_V126_DELETE_BUCKET=function(bucket){
+    var buckets=archiveBuckets(); var list=buckets[bucket]||[];
+    if(!list.length) return;
+    if(!confirm('Hele map '+bucket+' wissen? Dit wist '+list.length+' opdrachten.')) return;
+    var ids={}; list.forEach(function(o){ ids[String(o.id)]=true; });
+    var s=appState(); s.orders=(s.orders||[]).filter(function(o){ return !ids[String(o.id)]; });
+    saveApp(); renderArchiveOrders(); try{ if(typeof renderDashboard==='function') renderDashboard(); }catch(e){}
+  };
+
+  function renderArchiveOrders(){
+    var list=$('ordersList'); if(!list) return;
+    ARCHIVE_MODE=true;
+    var buckets=archiveBuckets();
+    var keys=Object.keys(buckets).filter(function(k){return buckets[k].length;});
+    keys.sort(function(a,b){ if(a==='Toekomst') return -1; if(b==='Toekomst') return 1; return Number(b)-Number(a); });
+    var html='<div class="bns-v126-archive-tools"><button type="button" onclick="BNS_V126_CLOSE_ARCHIVE()">Terug naar normale opdrachten</button><button type="button" onclick="BNS_V126_REFRESH_ARCHIVE()">Ververs mappen</button></div>';
+    if(!keys.length) html+='<p>Geen opdrachten in mappen.</p>';
+    keys.forEach(function(k){
+      html+='<div class="bns-v126-section"><div class="bns-v126-section-head"><span class="bns-v126-year-title">📁 '+esc(k)+' ('+buckets[k].length+')</span><button type="button" class="danger" onclick="BNS_V126_DELETE_BUCKET(\''+esc(k)+'\')">Wis map</button></div><div class="bns-v126-section-body">'+buckets[k].map(cardArchive).join('')+'</div></div>';
+    });
+    list.innerHTML=html;
+  }
+  window.BNS_V126_REFRESH_ARCHIVE=renderArchiveOrders;
+  window.BNS_V126_CLOSE_ARCHIVE=function(){ ARCHIVE_MODE=false; try{ if(typeof renderOrdersFinal==='function') renderOrdersFinal(); else if(typeof renderOrders==='function') renderOrders(); }catch(e){} setTimeout(addRoutenetButtons,50); };
+
+  function addInzienButton(){
+    if($('bnsInzienOpdrachtenBtn')) return;
+    var anchor=$('cancelledOrders') || $('doneOrders') || $('activeOrders');
+    if(!anchor || !anchor.parentNode) return;
+    var b=document.createElement('button'); b.id='bnsInzienOpdrachtenBtn'; b.type='button'; b.className=anchor.className+' bns-v126-inzien'; b.textContent='Inzien opdrachten';
+    b.onclick=function(e){ if(e){e.preventDefault();e.stopPropagation();} renderArchiveOrders(); return false; };
+    anchor.insertAdjacentElement('afterend', b);
+  }
+
+  function wrapRenderOrders(){
+    var old=window.renderOrders || (typeof renderOrders==='function'?renderOrders:null);
+    if(old && !old.__bnsV126Archive){
+      var wrapped=function(){ if(ARCHIVE_MODE){ renderArchiveOrders(); return; } var r=old.apply(this,arguments); setTimeout(function(){ addRoutenetButtons(); addInzienButton(); },30); return r; };
+      wrapped.__bnsV126Archive=true;
+      window.renderOrders=wrapped; try{ renderOrders=wrapped; }catch(e){}
+    }
+  }
+
+  function install(){
+    css();
+    disableSystemStatus();
+    updateAlertsStable();
+    hidePinForNonAdmin();
+    addRoutenetButtons();
+    addInzienButton();
+    wrapRenderOrders();
+  }
+
+  var oldRenderAll=window.renderAll || (typeof renderAll==='function'?renderAll:null);
+  if(oldRenderAll && !oldRenderAll.__bnsV126All){
+    var all=function(){ var r=oldRenderAll.apply(this,arguments); setTimeout(install,0); return r; };
+    all.__bnsV126All=true;
+    window.renderAll=all; try{ renderAll=all; }catch(e){}
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
+  setTimeout(install,300);
+  setTimeout(install,1200);
+  setInterval(function(){
+    var n=stableAlertCount();
+    if(n!==LAST_ALERT_COUNT) updateAlertsStable();
+    hidePinForNonAdmin();
+    addRoutenetButtons();
+  },1500);
+})();
