@@ -67,7 +67,7 @@ function removeMat(mid){chosen=chosen.filter(m=>m.id!==mid);renderChosen();rende
 function newNo(){let y=new Date().getFullYear();let nums=state.orders.map(o=>String(o.number||'').match(new RegExp('^'+y+'-(\\d+)$'))).filter(Boolean).map(m=>+m[1]);orderNumber.value=y+'-'+String(nums.length?Math.max(...nums)+1:1).padStart(4,'0')}
 function saveCurrentOrder(){
   let o = {
-    id: editing || id(),
+    id: editing ? editing : id(),
     number: orderNumber.value,
     status: orderStatus.value,
     title: orderTitle.value || 'Zonder titel',
@@ -110,7 +110,7 @@ function saveCurrentOrder(){
   let i = state.orders.findIndex(x =>
     String(x.id) === String(o.id) ||
     String(x.number) === String(o.number)
-  );
+);
 
   if(i >= 0){
     state.orders[i] = Object.assign({}, state.orders[i], o);
