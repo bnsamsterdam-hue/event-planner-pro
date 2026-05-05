@@ -7680,382 +7680,921 @@ setInterval(install,1500);
 })();
 
 
-/* BNS SAFE PATCH - MEERDERE MEDEWERKERS BEWAREN */
+/* BNS SAFE FIX - GEANNULEERD TOEKOMST VERWIJDERD */
 (function(){
-"use strict";
-if(window.__bnsKeepMultipleStaffPatch)return; window.__bnsKeepMultipleStaffPatch=true;
+  "use strict";
+  if(window.__bnsMapsFixV2)return; window.__bnsMapsFixV2=true;
+  var view="", selectedYear=null, STYLE="bnsMapsFixV2Style";
 
-let beforeUsersSnapshot = [];
-
-function stateObj(){
-  try{ if(typeof state !== "undefined" && state) return state; }catch(e){}
-  return window.state || null;
-}
-function clean(v){ return String(v || "").trim(); }
-function lower(v){ return clean(v).toLowerCase(); }
-function makeId(){ return "u_" + Math.random().toString(36).slice(2,10); }
-
-function cloneUsers(){
-  const s = stateObj();
-  if(!s || !Array.isArray(s.users)) return [];
-  return s.users.map(u => ({...u}));
-}
-
-function isStaffSaveButton(btn){
-  const txt = lower(btn.textContent || "");
-  const box = btn.closest("section,div,form,fieldset") || document.body;
-  const ctx = lower(box.innerText || "");
-  if(!txt.includes("opslaan")) return false;
-  return ctx.includes("medewerker") || ctx.includes("personeel") || ctx.includes("gebruiker") || ctx.includes("planner") || ctx.includes("bezorger");
-}
-
-function mergeUsers(before, after){
-  const merged = [];
-
-  function addOrUpdate(u){
-    if(!u) return;
-    u = {...u};
-    if(!u.id) u.id = makeId();
-
-    const name = lower(u.name || u.naam || "");
-    const pin = clean(u.pin || "");
-
-    let existing = merged.find(x => clean(x.id) && clean(x.id) === clean(u.id));
-
-    if(!existing && name){
-      existing = merged.find(x => lower(x.name || x.naam || "") === name);
+  function qs(s,r){return (r||document).querySelector(s)}
+  function qsa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function st(){try{if(typeof state!=="undefined"&&state)return state}catch(e){} return window.state||null}
+  function saveIt(){try{if(typeof save==="function"){save();return}}catch(e){} try{var s=st(); if(s)localStorage.setItem("event-planner-pro-v87",JSON.stringify(s))}catch(e){}}
+  function n(v){return String(v||"").trim().toLowerCase()}
+  function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+  function stat(o){return n(o&&o.status)}
+  function done(o){var x=stat(o); return ["uitgevoerd","afgerond","voltooid","done","klaar"].includes(x)}
+  function cancel(o){var x=stat(o); return ["geannuleerd","geannuleerde","annulering","cancelled","canceled"].includes(x)}
+  function del(o){var x=stat(o); return ["verwijderd","gewist","deleted","trash"].includes(x)}
+  function dval(o){return String((o&&(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||o.startDate||o.date))||"").slice(0,10)}
+  function time(o){var d=new Date(dval(o)+"T00:00:00"); return isNaN(d.getTime())?0:d.getTime()}
+  function year(o){var m=dval(o).match(/^(\d{4})/); return m?m[1]:"Geen jaar"}
+  function nice(v){v=String(v||"").slice(0,10); var p=v.split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:v}
+  function future(o){var t=time(o), now=new Date(); now.setHours(0,0,0,0); return t>=now.getTime()&&!done(o)&&!cancel(o)&&!del(o)}
+  function newest(a,b){return time(b)-time(a)}
+  function listEl(){return document.getElementById("ordersList")||document.getElementById("orderList")||document.getElementById("ordersListV11")||qs("#orders .list")||qs("#orders")}
+  function msg(t){try{if(typeof toastMsg==="function"){toastMsg(t);return}}catch(e){} alert(t)}
+  function css(){
+    if(document.getElementById(STYLE))return;
+    var s=document.createElement("style"); s.id=STYLE;
+    s.textContent=".bns-tab-active,button.bns-tab-active{outline:3px solid var(--blue,#0ea5e9)!important;box-shadow:0 0 0 4px rgba(14,165,233,.25),0 0 18px rgba(14,165,233,.45)!important}.bns-title{font-size:24px;font-weight:900;margin:18px 0 12px}.bns-folders,.bns-toolbar{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.bns-card{display:grid;grid-template-columns:118px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px;border-radius:18px;background:var(--panel,#fff);color:var(--text,#172033);border:1px solid var(--border,#dbe3ef);margin-bottom:10px}.bns-date{background:#111827;color:#fff;border-radius:14px;padding:12px;text-align:center;font-weight:900}.bns-main b{font-size:18px}.bns-main small{display:block;color:var(--muted,#64748b);font-weight:700;margin-top:3px}.bns-danger{background:#dc2626!important;color:#fff!important}";
+    document.head.appendChild(s)
+  }
+  function mats(o){var a=o.materials||o.mats||[]; return Array.isArray(a)?a.map(function(m){return typeof m==="string"?m:(m.code||m.name||"")}).filter(Boolean).join(", "):""}
+  function card(o){
+    var id=esc(o.id||""), num=esc(o.number||""), start=o.start||o.dateStart||o.startDate||"", end=o.end||o.dateEnd||o.endDate||"", dl=start&&end&&start!==end?nice(start)+" t/m "+nice(end):nice(start||end);
+    return '<div class="bns-card" data-order-id="'+id+'" data-order-number="'+num+'"><div class="bns-date">'+esc(nice(dval(o)))+'</div><div class="bns-main"><b>'+num+' - '+esc(o.title||"Zonder titel")+'</b><small>Status: '+esc(o.status||"")+'</small><small>Datum: '+esc(dl)+'</small><small>Klant: '+esc((o.customer&&o.customer.name)||o.customerName||"")+'</small><small>Locatie: '+esc((o.location&&o.location.name)||o.locationName||"")+'</small><small>Materialen: '+esc(mats(o))+'</small></div><div><button type="button" onclick="editOrder(\''+id+'\')">Open</button> <button type="button" class="bns-danger bns-soft-delete" data-order-id="'+id+'" data-order-number="'+num+'">Wis</button></div></div>'
+  }
+  function rows(v){var s=st(); if(!s||!Array.isArray(s.orders))return []; if(v==="cancelled")return s.orders.filter(cancel).sort(newest); if(v==="future")return s.orders.filter(future).sort(newest); if(v==="deleted")return s.orders.filter(del).sort(newest); if(v==="done")return s.orders.filter(done).sort(newest); return []}
+  function renderYears(v,title){
+    var el=listEl(); if(!el)return false; var r=rows(v);
+    if(!r.length){el.innerHTML='<div class="bns-title">'+esc(title)+'</div><p>Geen opdrachten gevonden.</p>';return true}
+    var ys=Array.from(new Set(r.map(year))).sort(function(a,b){return String(b).localeCompare(String(a))});
+    if(!selectedYear){
+      el.innerHTML='<div class="bns-title">'+esc(title)+' per jaar</div><div class="bns-folders">'+ys.map(function(y){var c=r.filter(function(o){return year(o)===y}).length;return '<button type="button" data-bns-year="'+esc(y)+'">📁 '+esc(y)+' ('+c+')</button>'}).join("")+'</div>';
+      qsa("[data-bns-year]",el).forEach(function(b){b.onclick=function(){selectedYear=b.dataset.bnsYear;renderYears(v,title)}}); return true
     }
+    var rr=r.filter(function(o){return year(o)===selectedYear});
+    el.innerHTML='<div class="bns-title">'+esc(title)+' '+esc(selectedYear)+'</div><div class="bns-toolbar"><button type="button" id="bnsBackYears">Terug naar jaren</button>'+(v==="deleted"?'<button type="button" id="bnsEmptyDeleted" class="bns-danger">Verwijderde map leegmaken</button>':"")+'</div>'+rr.map(card).join("");
+    var back=document.getElementById("bnsBackYears"); if(back)back.onclick=function(){selectedYear=null;renderYears(v,title)};
+    var empty=document.getElementById("bnsEmptyDeleted"); if(empty)empty.onclick=function(){if(!confirm("Weet u zeker dat u deze verwijderde map definitief wilt leegmaken?"))return;var s=st();if(!s||!Array.isArray(s.orders))return;s.orders=s.orders.filter(function(o){return !(del(o)&&year(o)===selectedYear)});saveIt();selectedYear=null;renderYears(v,title)};
+    bindDelete(); return true
+  }
+  function renderFlat(v,title){var el=listEl(); if(!el)return false; var r=rows(v); el.innerHTML='<div class="bns-title">'+esc(title)+'</div>'+(r.length?r.map(card).join(""):"<p>Geen opdrachten gevonden.</p>"); bindDelete(); return true}
+  function render(v){view=v;if(v==="cancelled")return renderYears("cancelled","Geannuleerde opdrachten");if(v==="deleted")return renderYears("deleted","Verwijderde opdrachten");if(v==="future")return renderFlat("future","Toekomstige opdrachten");if(v==="done")return renderYears("done","Uitgevoerde opdrachten");return false}
+  function findOrder(btn){var s=st(); if(!s||!Array.isArray(s.orders))return null; var id=btn.dataset.orderId||(btn.closest("[data-order-id]")||{}).dataset?.orderId||"", num=btn.dataset.orderNumber||(btn.closest("[data-order-number]")||{}).dataset?.orderNumber||""; return (id&&s.orders.find(function(o){return String(o.id||"")===String(id)}))||(num&&s.orders.find(function(o){return String(o.number||"")===String(num)}))||null}
+  function softDelete(o){if(!o)return false;if(!confirm("Weet u zeker dat u deze opdracht wilt wissen? De opdracht gaat naar Verwijderde opdrachten."))return false;o._oldStatus=o.status||"";o.status="Verwijderd";o.deletedAt=new Date().toISOString();saveIt();msg("Opdracht verplaatst naar Verwijderde opdrachten");if(view)render(view);else try{if(typeof renderOrders==="function")renderOrders()}catch(e){} return true}
+  function bindDelete(){qsa("button").forEach(function(b){if(b.dataset.bnsSoftDeleteBound==="1")return;var t=n(b.textContent);if(t!=="wis"&&t!=="verwijder"&&!t.includes("wis opdracht")&&!t.includes("verwijder opdracht"))return;b.dataset.bnsSoftDeleteBound="1";b.addEventListener("click",function(e){var o=findOrder(b);if(!o){if(!confirm("Weet u zeker dat u wilt wissen?")){e.preventDefault();e.stopImmediatePropagation();return false}return true}e.preventDefault();e.stopImmediatePropagation();softDelete(o);return false},true)})}
+  function detect(b){var t=n(b.textContent);if(t.includes("geannuleerde"))return"cancelled";if(t.includes("toekomstige")||t.includes("inzien"))return"future";if(t.includes("uitgevoerde"))return"done";if(t.includes("verwijderde"))return"deleted";return""}
+  function addDeleted(){if(qsa("button").some(function(b){return n(b.textContent).includes("verwijderde opdrachten")}))return;var a=qsa("button").find(function(b){var t=n(b.textContent);return t.includes("geannuleerde opdrachten")||t.includes("toekomstige opdrachten")});if(!a)return;var b=document.createElement("button");b.type="button";b.textContent="Verwijderde opdrachten";a.insertAdjacentElement("afterend",b)}
+  function bindViews(){qsa("button").forEach(function(b){var v=detect(b);if(!v||b.dataset.bnsViewBound==="1")return;b.dataset.bnsViewBound="1";b.addEventListener("click",function(e){selectedYear=null;view=v;qsa("button").forEach(function(x){x.classList.remove("bns-tab-active")});b.classList.add("bns-tab-active");if(v==="cancelled"||v==="future"||v==="deleted"){e.preventDefault();e.stopImmediatePropagation();setTimeout(function(){render(v)},60);return false}if(v==="done")setTimeout(function(){render("done")},150)},true)})}
+  function install(){css();addDeleted();bindViews();bindDelete()}
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){setTimeout(install,300)});else setTimeout(install,300);
+  setTimeout(install,1200);setTimeout(install,2500);setInterval(install,3000)
+})();
 
-    if(!existing && name && pin){
-      existing = merged.find(x => lower(x.name || x.naam || "") === name && clean(x.pin || "") === pin);
-    }
 
-    if(existing){
-      Object.assign(existing, u);
-    }else{
-      merged.push(u);
-    }
+
+/* =========================================================
+   BNS MOBIELE BEZORGER V1
+   - Zelfde website, geen aparte app nodig.
+   - Bezorger krijgt telefoonweergave.
+   - Opdrachten, adres, Waze, Google Maps, bellen, melding, afmelden.
+   - Via URL ook te testen: ?driver=1
+   ========================================================= */
+(function bnsMobileDriverV1() {
+  "use strict";
+
+  if (window.__bnsMobileDriverV1) return;
+  window.__bnsMobileDriverV1 = true;
+
+  var STYLE_ID = "bns-mobile-driver-style";
+  var APP_ID = "bnsMobileDriverApp";
+
+  function qs(sel, root) {
+    return (root || document).querySelector(sel);
   }
 
-  before.forEach(addOrUpdate);
-  after.forEach(addOrUpdate);
-
-  return merged;
-}
-
-function saveState(){
-  try{
-    if(typeof save === "function"){
-      save();
-      return;
-    }
-  }catch(e){}
-  try{
-    const s = stateObj();
-    if(s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
-  }catch(e){}
-}
-
-function restoreUsersIfOverwritten(){
-  const s = stateObj();
-  if(!s || !Array.isArray(s.users)) return;
-  if(!beforeUsersSnapshot.length) return;
-
-  const after = s.users.map(u => ({...u}));
-
-  if(after.length < beforeUsersSnapshot.length || (beforeUsersSnapshot.length > 1 && after.length === 1)){
-    s.users = mergeUsers(beforeUsersSnapshot, after);
-    saveState();
-
-    try{
-      if(typeof adminRender === "function") adminRender();
-    }catch(e){}
+  function qsa(sel, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
   }
-}
 
-function bindStaffSaveButtons(){
-  Array.prototype.slice.call(document.querySelectorAll("button")).forEach(btn => {
-    if(btn.dataset.bnsKeepStaffBound === "1") return;
-    if(!isStaffSaveButton(btn)) return;
+  function getState() {
+    try {
+      if (typeof state !== "undefined" && state) return state;
+    } catch (e) {}
 
-    btn.dataset.bnsKeepStaffBound = "1";
+    try {
+      return window.state || null;
+    } catch (e) {}
 
-    btn.addEventListener("click", function(){
-      beforeUsersSnapshot = cloneUsers();
-      setTimeout(restoreUsersIfOverwritten, 150);
-      setTimeout(restoreUsersIfOverwritten, 600);
-      setTimeout(restoreUsersIfOverwritten, 1200);
-    }, true);
-  });
-}
+    return null;
+  }
 
-function patchLocalStorageSafety(){
-  if(localStorage.__bnsKeepStaffStoragePatch === "1") return;
-  localStorage.__bnsKeepStaffStoragePatch = "1";
+  function saveState() {
+    try {
+      if (typeof save === "function") {
+        save();
+        return;
+      }
+    } catch (e) {}
 
-  const oldSetItem = localStorage.setItem.bind(localStorage);
+    try {
+      var s = getState();
+      if (s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    } catch (e) {}
+  }
 
-  localStorage.setItem = function(key, value){
-    try{
-      if(
-        ["event-planner-pro-v87","event-planner-pro-v8","event-planner-pro","bns_event_planner"].includes(key) &&
-        beforeUsersSnapshot.length
-      ){
-        const parsed = JSON.parse(value);
-        if(parsed && Array.isArray(parsed.users) && parsed.users.length < beforeUsersSnapshot.length){
-          parsed.users = mergeUsers(beforeUsersSnapshot, parsed.users);
-          value = JSON.stringify(parsed);
+  function msg(text) {
+    try {
+      if (typeof toastMsg === "function") {
+        toastMsg(text);
+        return;
+      }
+    } catch (e) {}
+
+    alert(text);
+  }
+
+  function clean(value) {
+    return String(value || "").trim();
+  }
+
+  function lower(value) {
+    return clean(value).toLowerCase();
+  }
+
+  function esc(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function orderStart(order) {
+    return clean(order.start || order.dateStart || order.startDate || order.date || "");
+  }
+
+  function orderEnd(order) {
+    return clean(order.end || order.dateEnd || order.endDate || orderStart(order));
+  }
+
+  function dateTime(value) {
+    var d = new Date(clean(value).slice(0, 10) + "T00:00:00");
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+
+  function niceDate(value) {
+    value = clean(value).slice(0, 10);
+    var p = value.split("-");
+    if (p.length === 3) return p[2] + "-" + p[1] + "-" + p[0];
+    return value;
+  }
+
+  function statusOf(order) {
+    return lower(order.status);
+  }
+
+  function isVisibleForDriver(order) {
+    var s = statusOf(order);
+
+    if (s === "geannuleerd" || s === "geannuleerde" || s === "verwijderd" || s === "uitgevoerd" || s === "done") {
+      return false;
+    }
+
+    return true;
+  }
+
+  function currentUser() {
+    try {
+      if (typeof user !== "undefined" && user) return user;
+    } catch (e) {}
+
+    try {
+      if (window.user) return window.user;
+    } catch (e) {}
+
+    try {
+      if (typeof currentUser !== "undefined" && currentUser) return currentUser;
+    } catch (e) {}
+
+    return null;
+  }
+
+  function isDriverMode() {
+    var params = new URLSearchParams(location.search);
+
+    if (params.get("driver") === "1" || params.get("bezorger") === "1") return true;
+
+    var u = currentUser();
+    if (u && lower(u.role) === "bezorger") return true;
+
+    return window.innerWidth <= 760 && !!u && lower(u.role) === "bezorger";
+  }
+
+  function orderDriverName(order) {
+    return clean(
+      order.driverName ||
+      order.driver ||
+      order.bezorger ||
+      (order.driverUser && order.driverUser.name) ||
+      ""
+    );
+  }
+
+  function belongsToCurrentDriver(order) {
+    var u = currentUser();
+
+    if (!u) return true;
+
+    var driver = lower(orderDriverName(order));
+    var name = lower(u.name || "");
+    var id = clean(u.id || "");
+
+    if (!driver && !order.driverId && !order.bezorgerId) return true;
+
+    if (driver && name && driver === name) return true;
+    if (order.driverId && id && String(order.driverId) === String(id)) return true;
+    if (order.bezorgerId && id && String(order.bezorgerId) === String(id)) return true;
+
+    return false;
+  }
+
+  function addressOf(order) {
+    var parts = [];
+
+    [
+      order.locationName,
+      order.locationAddress,
+      order.locationStreet,
+      order.locationZip,
+      order.locationCity,
+      order.address,
+      order.street,
+      order.zip,
+      order.city
+    ].forEach(function (part) {
+      if (clean(part) && !parts.includes(clean(part))) parts.push(clean(part));
+    });
+
+    if (order.location && typeof order.location === "object") {
+      [
+        order.location.name,
+        order.location.address,
+        order.location.street,
+        order.location.zip,
+        order.location.city
+      ].forEach(function (part) {
+        if (clean(part) && !parts.includes(clean(part))) parts.push(clean(part));
+      });
+    }
+
+    return parts.join(", ");
+  }
+
+  function customerPhone(order) {
+    return clean(
+      order.customerPhone ||
+      order.phone ||
+      (order.customer && order.customer.phone) ||
+      ""
+    );
+  }
+
+  function customerName(order) {
+    return clean(
+      order.customerName ||
+      (order.customer && order.customer.name) ||
+      ""
+    );
+  }
+
+  function materialText(order) {
+    var mats = order.materials || order.mats || [];
+
+    if (!Array.isArray(mats)) return "";
+
+    return mats.map(function (m) {
+      if (typeof m === "string") return m;
+      return m.code || m.name || "";
+    }).filter(Boolean).join(", ");
+  }
+
+  function routeUrl(type, address) {
+    var q = encodeURIComponent(address || "");
+
+    if (type === "waze") {
+      return "https://waze.com/ul?q=" + q + "&navigate=yes";
+    }
+
+    return "https://www.google.com/maps/search/?api=1&query=" + q;
+  }
+
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      @media (max-width: 760px) {
+        body.bns-driver-mode {
+          background: #f3f6fb !important;
+          margin: 0 !important;
+          overflow-x: hidden !important;
+        }
+
+        body.bns-driver-mode > *:not(#${APP_ID}):not(#toast):not(.toast):not(script):not(style) {
+          display: none !important;
         }
       }
+
+      #${APP_ID} {
+        display: none;
+      }
+
+      body.bns-driver-mode #${APP_ID} {
+        display: block !important;
+        min-height: 100vh;
+        background: #f3f6fb;
+        color: #172033;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      }
+
+      .bns-mobile-head {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        padding: 16px;
+        background: linear-gradient(135deg, #0756b7, #0ea5e9);
+        color: #fff;
+        box-shadow: 0 8px 24px rgba(15,23,42,.22);
+      }
+
+      .bns-mobile-head h1 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.1;
+      }
+
+      .bns-mobile-head small {
+        display: block;
+        margin-top: 4px;
+        opacity: .9;
+        font-weight: 800;
+      }
+
+      .bns-mobile-tools {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 12px 16px;
+      }
+
+      .bns-mobile-tools button,
+      .bns-mobile-tools input {
+        width: 100%;
+        border: 0;
+        border-radius: 14px;
+        padding: 12px;
+        font-size: 16px;
+        font-weight: 900;
+      }
+
+      .bns-mobile-tools input {
+        grid-column: 1 / -1;
+        background: #fff;
+        color: #172033;
+        box-shadow: inset 0 0 0 1px #dbe3ef;
+      }
+
+      .bns-mobile-list {
+        padding: 0 12px 90px;
+      }
+
+      .bns-mobile-card {
+        background: #fff;
+        border-radius: 22px;
+        margin: 12px 0;
+        padding: 16px;
+        box-shadow: 0 8px 24px rgba(15,23,42,.10);
+        border: 1px solid #dbe3ef;
+      }
+
+      .bns-mobile-title {
+        font-size: 21px;
+        font-weight: 950;
+        margin-bottom: 8px;
+      }
+
+      .bns-mobile-meta {
+        display: grid;
+        gap: 4px;
+        font-size: 15px;
+        font-weight: 750;
+        color: #334155;
+        margin-bottom: 12px;
+      }
+
+      .bns-mobile-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .bns-mobile-actions a,
+      .bns-mobile-actions button {
+        text-align: center;
+        text-decoration: none;
+        border: 0;
+        border-radius: 14px;
+        padding: 13px 10px;
+        font-size: 15px;
+        font-weight: 950;
+        color: #fff;
+      }
+
+      .bns-waze { background: #16a34a; }
+      .bns-maps { background: #334155; }
+      .bns-call { background: #0ea5e9; }
+      .bns-report { background: #f97316; }
+      .bns-done { background: #2563eb; grid-column: 1 / -1; }
+      .bns-empty {
+        margin: 28px 16px;
+        background: #fff;
+        border-radius: 20px;
+        padding: 22px;
+        font-weight: 900;
+        text-align: center;
+        color: #334155;
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function sortedOrders() {
+    var s = getState();
+
+    if (!s || !Array.isArray(s.orders)) return [];
+
+    return s.orders
+      .filter(isVisibleForDriver)
+      .filter(belongsToCurrentDriver)
+      .sort(function (a, b) {
+        return dateTime(orderStart(a)) - dateTime(orderStart(b));
+      });
+  }
+
+  function card(order) {
+    var address = addressOf(order);
+    var phone = customerPhone(order);
+    var start = orderStart(order);
+    var end = orderEnd(order);
+    var dateLine = start && end && start !== end ? niceDate(start) + " t/m " + niceDate(end) : niceDate(start || end);
+    var id = esc(order.id || "");
+    var title = esc(order.title || "Zonder titel");
+    var number = esc(order.number || "");
+
+    return `
+      <div class="bns-mobile-card" data-order-id="${id}">
+        <div class="bns-mobile-title">${number} - ${title}</div>
+        <div class="bns-mobile-meta">
+          <div>📅 ${esc(dateLine)}</div>
+          <div>👤 ${esc(customerName(order) || "Klant onbekend")}</div>
+          <div>📍 ${esc(address || "Adres onbekend")}</div>
+          <div>📦 ${esc(materialText(order) || "Geen materialen")}</div>
+          <div>📌 Status: ${esc(order.status || "")}</div>
+        </div>
+        <div class="bns-mobile-actions">
+          <a class="bns-waze" href="${esc(routeUrl("waze", address))}" target="_blank" rel="noopener">Waze</a>
+          <a class="bns-maps" href="${esc(routeUrl("maps", address))}" target="_blank" rel="noopener">Maps</a>
+          ${phone ? `<a class="bns-call" href="tel:${esc(phone)}">Bel klant</a>` : `<button class="bns-call" type="button">Geen tel.</button>`}
+          <button class="bns-report" type="button" data-report="${id}">Melding</button>
+          <button class="bns-done" type="button" data-done="${id}">Afmelden / uitgevoerd</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function ensureApp() {
+    var app = document.getElementById(APP_ID);
+
+    if (!app) {
+      app = document.createElement("div");
+      app.id = APP_ID;
+      document.body.appendChild(app);
+    }
+
+    return app;
+  }
+
+  function render() {
+    if (!isDriverMode()) {
+      document.body.classList.remove("bns-driver-mode");
+      return;
+    }
+
+    ensureStyle();
+    document.body.classList.add("bns-driver-mode");
+
+    var app = ensureApp();
+    var orders = sortedOrders();
+    var u = currentUser();
+    var name = u && u.name ? u.name : "Bezorger";
+
+    app.innerHTML = `
+      <div class="bns-mobile-head">
+        <h1>Bezorger planning</h1>
+        <small>${esc(name)} - ${esc(todayISO())}</small>
+      </div>
+
+      <div class="bns-mobile-tools">
+        <input id="bnsDriverSearch" placeholder="Zoek opdracht / klant / adres">
+        <button type="button" id="bnsDriverRefresh">Verversen</button>
+        <button type="button" id="bnsDriverDesktop">Normale versie</button>
+      </div>
+
+      <div class="bns-mobile-list" id="bnsDriverList">
+        ${orders.length ? orders.map(card).join("") : `<div class="bns-empty">Geen opdrachten voor deze bezorger.</div>`}
+      </div>
+    `;
+
+    bindMobile(app);
+  }
+
+  function findOrderById(id) {
+    var s = getState();
+
+    if (!s || !Array.isArray(s.orders)) return null;
+
+    return s.orders.find(function (order) {
+      return String(order.id || "") === String(id);
+    }) || null;
+  }
+
+  function bindMobile(app) {
+    var refresh = document.getElementById("bnsDriverRefresh");
+    if (refresh) refresh.onclick = render;
+
+    var desktop = document.getElementById("bnsDriverDesktop");
+    if (desktop) {
+      desktop.onclick = function () {
+        var url = new URL(location.href);
+        url.searchParams.delete("driver");
+        url.searchParams.delete("bezorger");
+        location.href = url.toString();
+      };
+    }
+
+    var search = document.getElementById("bnsDriverSearch");
+    if (search) {
+      search.oninput = function () {
+        var q = lower(search.value);
+        qsa(".bns-mobile-card", app).forEach(function (el) {
+          el.style.display = !q || lower(el.innerText).includes(q) ? "" : "none";
+        });
+      };
+    }
+
+    qsa("[data-done]", app).forEach(function (btn) {
+      btn.onclick = function () {
+        var order = findOrderById(btn.dataset.done);
+        if (!order) return;
+
+        if (!confirm("Opdracht afmelden als uitgevoerd?")) return;
+
+        order.status = "Uitgevoerd";
+        order.doneAt = new Date().toISOString();
+        saveState();
+        msg("Opdracht afgemeld als uitgevoerd");
+        render();
+      };
+    });
+
+    qsa("[data-report]", app).forEach(function (btn) {
+      btn.onclick = function () {
+        var order = findOrderById(btn.dataset.report);
+        if (!order) return;
+
+        var text = prompt("Melding voor planning:", "");
+        if (!text) return;
+
+        var s = getState();
+        if (!s) return;
+
+        s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+        s.alerts.push({
+          id: "a_" + Math.random().toString(36).slice(2, 10),
+          orderId: order.id || "",
+          orderNumber: order.number || "",
+          title: "Bezorger melding",
+          text: text,
+          resolved: false,
+          createdAt: new Date().toISOString(),
+          from: (currentUser() && currentUser().name) || "Bezorger"
+        });
+
+        saveState();
+        msg("Melding verstuurd");
+      };
+    });
+  }
+
+  function install() {
+    ensureStyle();
+    render();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(install, 500);
+    });
+  } else {
+    setTimeout(install, 500);
+  }
+
+  setTimeout(install, 1500);
+  setInterval(function () {
+    if (isDriverMode()) render();
+  }, 30000);
+})();
+
+/* =========================================================
+   BNS FIREBASE HERSTEL PATCH - 2025 FILTER + OPSLAAN
+   Deze patch staat bewust onderaan app.js.
+   De bestaande planner-code blijft intact.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  var FIREBASE_VERSION_BNS = "10.12.5";
+  var MIN_ORDER_DATE_BNS = "2025-01-01";
+  var syncTimer = null;
+  var firebaseReady = false;
+  var lastWriteAt = 0;
+
+  window.BNS = window.BNS || {};
+  window.BNS.firebase = null;
+  window.BNS.db = null;
+  window.BNS.syncStatus = "start";
+  window.BNS.minOrderDate = MIN_ORDER_DATE_BNS;
+
+  function bnsLog(msg){
+    try{ console.log("[BNS Firebase]", msg); }catch(e){}
+  }
+
+  function bnsToast(msg){
+    try{
+      if(typeof toastMsg === "function") toastMsg(msg);
+      else if(typeof toast === "function") toast(msg);
+      else console.log(msg);
+    }catch(e){ console.log(msg); }
+  }
+
+  function asArray(v){
+    return Array.isArray(v) ? v : [];
+  }
+
+  function orderDate(o){
+    return String((o && (o.start || o.dateStart || o.startDate || o.date)) || "").slice(0,10);
+  }
+
+  function isOrderForFirebase(o){
+    var d = orderDate(o);
+    return d && d >= MIN_ORDER_DATE_BNS;
+  }
+
+  function getCurrentState(){
+    try{
+      if(typeof state === "object" && state) return state;
     }catch(e){}
 
-    return oldSetItem(key, value);
+    try{
+      var raw = localStorage.getItem("event-planner-pro-v87") ||
+                localStorage.getItem("eventPlannerProV91") ||
+                localStorage.getItem("eventPlannerPro") ||
+                localStorage.getItem("eventPlannerState") ||
+                localStorage.getItem("plannerState");
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){
+      return null;
+    }
+  }
+
+  function exposeState(){
+    var s = getCurrentState();
+    if(s) window.BNS.state = s;
+  }
+
+  function replaceArray(name, docs){
+    var s = getCurrentState();
+    if(!s) return;
+    s[name] = docs;
+    exposeState();
+  }
+
+  async function readCollection(name, options){
+    var fs = window.BNS.firebase;
+    var db = window.BNS.db;
+    var ref = fs.collection(db, name);
+
+    if(options && options.ordersFrom2025){
+      try{
+        ref = fs.query(ref, fs.where("start", ">=", MIN_ORDER_DATE_BNS));
+      }catch(e){
+        bnsLog("query filter niet gebruikt, fallback naar normale collectie");
+      }
+    }
+
+    var snap = await fs.getDocs(ref);
+    var rows = snap.docs.map(function(d){
+      return Object.assign({ id: d.id }, d.data());
+    });
+
+    if(options && options.ordersFrom2025){
+      rows = rows.filter(isOrderForFirebase);
+    }
+
+    return rows;
+  }
+
+  async function loadFirebaseIntoPlanner(){
+    if(!firebaseReady) return;
+
+    var s = getCurrentState();
+    if(!s) return;
+
+    var users = await readCollection("users");
+    var orders = await readCollection("orders", { ordersFrom2025:true });
+    var materials = await readCollection("materials");
+    var customers = await readCollection("customers");
+    var locations = await readCollection("locations");
+    var alerts = await readCollection("alerts");
+
+    if(users.length) s.users = users;
+    if(orders.length) s.orders = orders;
+    if(materials.length) s.materials = materials;
+    if(customers.length) s.customers = customers;
+    if(locations.length) s.locations = locations;
+    s.alerts = alerts;
+
+    try{
+      if(typeof save === "function") localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    }catch(e){}
+
+    exposeState();
+
+    try{ if(typeof renderAll === "function") renderAll(); }catch(e){}
+    try{ if(typeof renderOrders === "function") renderOrders(); }catch(e){}
+    try{ if(typeof renderDashboard === "function") renderDashboard(); }catch(e){}
+
+    window.BNS.syncStatus = "geladen";
+    bnsLog("Firebase data geladen vanaf " + MIN_ORDER_DATE_BNS);
+  }
+
+  async function batchSet(collectionName, rows){
+    if(!firebaseReady) return;
+
+    var fs = window.BNS.firebase;
+    var db = window.BNS.db;
+    rows = asArray(rows).filter(function(x){ return x && x.id; });
+
+    for(var i=0; i<rows.length; i+=450){
+      var batch = fs.writeBatch(db);
+      rows.slice(i, i+450).forEach(function(row){
+        var clean = Object.assign({}, row);
+        batch.set(fs.doc(db, collectionName, String(row.id)), clean, { merge:true });
+      });
+      await batch.commit();
+    }
+  }
+
+  async function writePlannerToFirebaseNow(){
+    if(!firebaseReady) return;
+
+    var s = getCurrentState();
+    if(!s) return;
+
+    lastWriteAt = Date.now();
+
+    var orders = asArray(s.orders).filter(isOrderForFirebase);
+
+    await batchSet("users", asArray(s.users));
+    await batchSet("materials", asArray(s.materials));
+    await batchSet("customers", asArray(s.customers));
+    await batchSet("locations", asArray(s.locations));
+    await batchSet("alerts", asArray(s.alerts));
+    await batchSet("orders", orders);
+
+    window.BNS.syncStatus = "opgeslagen";
+    bnsLog("Opgeslagen naar Firebase: " + orders.length + " orders vanaf " + MIN_ORDER_DATE_BNS);
+  }
+
+  function scheduleFirebaseWrite(){
+    if(!firebaseReady) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function(){
+      writePlannerToFirebaseNow().catch(function(e){
+        console.error("Firebase opslaan mislukt", e);
+        bnsToast("Firebase opslaan mislukt: " + (e && e.message ? e.message : e));
+      });
+    }, 600);
+  }
+
+  function patchSaveFunctions(){
+    exposeState();
+
+    try{
+      if(typeof save === "function" && !save.__bnsFirebasePatched){
+        var oldSave = save;
+        save = function(){
+          var result = oldSave.apply(this, arguments);
+          exposeState();
+          scheduleFirebaseWrite();
+          return result;
+        };
+        save.__bnsFirebasePatched = true;
+      }
+    }catch(e){
+      bnsLog("save patch niet mogelijk");
+    }
+
+    try{
+      if(typeof saveCurrentOrder === "function" && !saveCurrentOrder.__bnsFeedbackPatched){
+        var oldSaveOrder = saveCurrentOrder;
+        saveCurrentOrder = function(){
+          var result = oldSaveOrder.apply(this, arguments);
+          bnsToast("Opdracht opgeslagen");
+          exposeState();
+          scheduleFirebaseWrite();
+          return result;
+        };
+        saveCurrentOrder.__bnsFeedbackPatched = true;
+      }
+    }catch(e){
+      bnsLog("saveCurrentOrder patch niet mogelijk");
+    }
+  }
+
+  function startLiveAlerts(){
+    if(!firebaseReady) return;
+    var fs = window.BNS.firebase;
+    var db = window.BNS.db;
+
+    try{
+      fs.onSnapshot(fs.collection(db,"alerts"), function(snap){
+        var rows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+        replaceArray("alerts", rows);
+        try{ if(typeof renderAll === "function") renderAll(); }catch(e){}
+      });
+    }catch(e){
+      bnsLog("alerts live listener niet actief");
+    }
+  }
+
+  async function initFirebaseSyncBNS(){
+    patchSaveFunctions();
+
+    var cfg = window.BNS_FIREBASE_CONFIG;
+    if(!cfg || !cfg.apiKey || cfg.apiKey === "VUL_HIER_IN"){
+      window.BNS.syncStatus = "localStorage - Firebase config ontbreekt";
+      bnsLog("Geen firebase-config.js gevonden. Planner werkt lokaal.");
+      return;
+    }
+
+    try{
+      var appMod = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION_BNS + "/firebase-app.js");
+      var fsMod = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION_BNS + "/firebase-firestore.js");
+
+      var app = appMod.initializeApp(cfg);
+      var db = fsMod.getFirestore(app);
+
+      window.BNS.firebase = fsMod;
+      window.BNS.db = db;
+      firebaseReady = true;
+      window.BNS.syncStatus = "Firebase actief";
+
+      await loadFirebaseIntoPlanner();
+      startLiveAlerts();
+      patchSaveFunctions();
+
+      bnsToast("Firebase actief");
+    }catch(e){
+      firebaseReady = false;
+      window.BNS.syncStatus = "Firebase fout";
+      console.error("Firebase start fout", e);
+      bnsToast("Firebase fout: " + (e && e.message ? e.message : e));
+    }
+  }
+
+  window.BNS.saveNow = function(){
+    return writePlannerToFirebaseNow();
   };
-}
 
-function install(){
-  patchLocalStorageSafety();
-  bindStaffSaveButtons();
-}
+  window.BNS.reloadFromFirebase = function(){
+    return loadFirebaseIntoPlanner();
+  };
 
-if(document.readyState === "loading"){
-  document.addEventListener("DOMContentLoaded", () => setTimeout(install, 500));
-}else{
-  setTimeout(install, 500);
-}
-setTimeout(install, 1500);
-setInterval(install, 2500);
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", function(){
+      setTimeout(initFirebaseSyncBNS, 800);
+    });
+  }else{
+    setTimeout(initFirebaseSyncBNS, 800);
+  }
 })();
-
-
-/* BNS SAFE PATCH - BEZORGER MAPPEN ZICHTBAAR + OVERZICHT REGEL */
-(function(){
-"use strict";
-if(window.__bnsDriverMapVisiblePatch)return; window.__bnsDriverMapVisiblePatch=true;
-
-const PANEL_ID="bnsDriverFoldersPanel";
-const STYLE_ID="bnsDriverFoldersVisibleStyle";
-const GENERIC=["bezorger","chauffeur","planner","admin","administrator","gebruiker","medewerker","geen","niet gekoppeld","nog niet gekozen"];
-
-function qs(s,r){return (r||document).querySelector(s)}
-function qsa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
-function clean(v){return String(v||"").trim()}
-function lower(v){return clean(v).toLowerCase()}
-function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
-function isGeneric(n){return !clean(n)||GENERIC.includes(lower(n))}
-function st(){try{if(typeof state!=="undefined"&&state)return state}catch(e){} return window.state||null}
-function saveState(){try{if(typeof save==="function"){save();return}}catch(e){} try{const s=st(); if(s)localStorage.setItem("event-planner-pro-v87",JSON.stringify(s))}catch(e){}}
-
-function users(){
- const s=st(); if(!s||!Array.isArray(s.users))return [];
- return s.users
-   .map(u=>({id:clean(u.id||u.uid||u.userId||u.name||u.naam), name:clean(u.name||u.naam||u.label||u.title), raw:u}))
-   .filter(u=>u.name&&!isGeneric(u.name));
-}
-function driverName(o){
- const n=clean(o&&(o.driverName||o.bezorgerName||o.chauffeurName||o.driver||o.bezorger||o.chauffeur));
- return isGeneric(n)?"":n;
-}
-function driverId(o){return clean(o&&(o.driverId||o.bezorgerId||o.chauffeurId||o.userId))}
-function setDriver(o,d){
- if(!o||!d||!d.name)return;
- o.driverId=d.id||d.name; o.bezorgerId=d.id||d.name; o.chauffeurId=d.id||d.name;
- if(!o.userId)o.userId=d.id||d.name;
- o.driverName=d.name; o.bezorgerName=d.name; o.chauffeurName=d.name;
- o.driver=d.name; o.bezorger=d.name; o.chauffeur=d.name;
-}
-function dateVal(o){
- const d=clean(o.start||o.dateStart||o.startDate||o.date||o.begin||"");
- const m=d.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
- if(m)return new Date(+m[3],+m[2]-1,+m[1]).getTime();
- const t=Date.parse(d); return isNaN(t)?0:t;
-}
-function nrFromText(t){const m=String(t||"").match(/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/);return m?m[0].replace(/\s+/g,"-"):""}
-function findOrderByText(text){
- const s=st(); if(!s||!Array.isArray(s.orders))return null;
- const nr=nrFromText(text||"");
- if(nr)return s.orders.find(o=>String(o.number||"")===String(nr))||null;
- return null;
-}
-function cards(){
- return qsa(".order-card,.bns-order-card,.bns-safe-card,.card,li,tr").filter(el=>{
-   const t=lower(el.innerText||"");
-   return t&&(t.includes("datum")||t.includes("klant")||t.includes("materialen")||/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/.test(t));
- });
-}
-function findOrderByCard(card){return findOrderByText(card.innerText||"")}
-function css(){
- if(document.getElementById(STYLE_ID))return;
- const e=document.createElement("style"); e.id=STYLE_ID;
- e.textContent=`
- .bns-driver-line{display:block!important;margin-top:6px!important;font-weight:900!important;color:#172033!important}
- .bns-driver-line .bns-driver-name{color:#0756b7!important}
- #bnsOrderDriverSelect,.bns-driver-select-box{display:none!important}
- #${PANEL_ID}{margin:14px 0;padding:14px;border:1px solid #dbe3ef;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.08)}
- #${PANEL_ID} h2{margin:0 0 10px;font-size:24px}
- .bns-driver-folder{display:flex;align-items:center;justify-content:space-between;width:100%;margin:8px 0;padding:14px;border:0;border-radius:16px;background:#1463c7;color:#fff;font-weight:950;text-align:left;font-size:18px}
- .bns-driver-folder span{background:rgba(255,255,255,.2);border-radius:12px;padding:3px 10px}
- .bns-driver-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
- .bns-driver-actions button{border:0;border-radius:14px;padding:10px 14px;font-weight:900}
- .bns-driver-back{background:#0b63c7;color:white}
- .bns-driver-delete{background:#b91c1c;color:white}
- .bns-driver-route-card{margin:10px 0;padding:14px;border:1px solid #e5eaf2;border-radius:16px;background:#f8fafc}
- .bns-driver-route-card.old{opacity:.72;background:#fff}
- .bns-driver-route-card strong{font-size:18px}
- `;
- document.head.appendChild(e);
-}
-function addDriverLines(){
- const s=st(); if(!s||!Array.isArray(s.orders))return;
- cards().forEach(card=>{
-   const o=findOrderByCard(card); if(!o)return;
-   let line=qs(".bns-driver-line",card);
-   if(!line){line=document.createElement("small");line.className="bns-driver-line"; card.appendChild(line)}
-   line.innerHTML='🚚 Bezorger: <span class="bns-driver-name">'+esc(driverName(o)||"Niet gekoppeld")+'</span>';
- });
- addDriverLineToModal();
-}
-function addDriverLineToModal(){
- const modals=qsa(".modal-card,.modal,[role='dialog'],div").filter(el=>{
-   const t=lower(el.innerText||"");
-   return t.includes("overzicht bestelling") && /\b(?:20\d{2}[-\s]?)?\d{2,6}\b/.test(t);
- });
- modals.forEach(m=>{
-   const o=findOrderByText(m.innerText||""); if(!o)return;
-   let line=qs(".bns-driver-line",m);
-   if(!line){
-     line=document.createElement("div");
-     line.className="bns-driver-line";
-     const head=qsa("h1,h2,h3,strong",m)[0] || m.firstElementChild || m;
-     head.insertAdjacentElement("afterend", line);
-   }
-   line.innerHTML='🚚 Bezorger: <span class="bns-driver-name">'+esc(driverName(o)||"Niet gekoppeld")+'</span>';
- });
-}
-function currentOrder(){
- const s=st(); if(!s||!Array.isArray(s.orders))return null;
- try{if(typeof editing!=="undefined"&&editing){const o=s.orders.find(x=>String(x.id||"")===String(editing)); if(o)return o}}catch(e){}
- return findOrderByText(document.body.innerText||"");
-}
-function selectedExistingDriver(){
- const sels=qsa("select").filter(sel=>{
-   const box=sel.closest("section,div,fieldset,form")||document.body;
-   const txt=lower(box.innerText||"");
-   return txt.includes("bezorger")||txt.includes("chauffeur");
- });
- for(const sel of sels){
-   const val=clean(sel.value);
-   const text=clean(sel.options[sel.selectedIndex]?.text||"");
-   if(isGeneric(text)&&!val)continue;
-   const u=users().find(x=>String(x.id)===String(val))||users().find(x=>lower(x.name)===lower(text))||users().find(x=>lower(x.name)===lower(val));
-   if(u)return u;
-   if(text&&!isGeneric(text))return {id:val||text,name:text};
- }
- return null;
-}
-function bindDriverControls(){
- qsa("select").forEach(sel=>{
-   if(sel.dataset.bnsDriverVisible==="1")return;
-   const box=sel.closest("section,div,fieldset,form")||document.body;
-   const txt=lower(box.innerText||"");
-   if(!txt.includes("bezorger")&&!txt.includes("chauffeur"))return;
-   sel.dataset.bnsDriverVisible="1";
-   sel.addEventListener("change",()=>{
-     const o=currentOrder(); const d=selectedExistingDriver();
-     if(o&&d&&d.name){setDriver(o,d); saveState(); addDriverLines(); renderPanel(); try{if(typeof toast==="function")toast("Bezorger opgeslagen: "+d.name)}catch(e){}}
-   });
- });
- qsa("button").forEach(btn=>{
-   const txt=lower(btn.textContent||"");
-   if((txt.includes("bezorger")||txt.includes("toekomstige opdracht")) && btn.dataset.bnsDriverBtn!=="1"){
-     btn.dataset.bnsDriverBtn="1";
-     btn.addEventListener("click",()=>{setTimeout(()=>{bindDriverControls();renderPanel();addDriverLines();},250);setTimeout(()=>{bindDriverControls();renderPanel();addDriverLines();},900)},true);
-   }
- });
-}
-function beforeSave(){
- const s=st(); if(!s||!Array.isArray(s.orders))return [];
- return s.orders.map(o=>({id:o.id,number:o.number,driverId:o.driverId,bezorgerId:o.bezorgerId,chauffeurId:o.chauffeurId,userId:o.userId,driverName:o.driverName,bezorgerName:o.bezorgerName,chauffeurName:o.chauffeurName,driver:o.driver,bezorger:o.bezorger,chauffeur:o.chauffeur}));
-}
-function keepDriver(o,old){
- if(!o||!old)return;
- const oldName=driverName(old); const oldId=driverId(old);
- if(!driverId(o)&&oldId){o.driverId=old.driverId||old.bezorgerId||old.chauffeurId||old.userId||"";o.bezorgerId=o.driverId;o.chauffeurId=o.driverId;if(!o.userId)o.userId=o.driverId}
- if(!driverName(o)&&oldName){o.driverName=oldName;o.bezorgerName=oldName;o.chauffeurName=oldName;o.driver=oldName;o.bezorger=oldName;o.chauffeur=oldName}
-}
-function afterSave(before){
- const s=st(); if(!s||!Array.isArray(s.orders))return;
- const d=selectedExistingDriver();
- s.orders.forEach(o=>{
-   const old=before.find(x=>String(x.id||"")===String(o.id||""))||before.find(x=>String(x.number||"")===String(o.number||""));
-   if(d&&d.name)setDriver(o,d); else if(old)keepDriver(o,old);
- });
- saveState(); addDriverLines(); renderPanel();
-}
-function bindSave(){
- qsa("button").forEach(btn=>{
-   const txt=lower(btn.textContent||"");
-   if(!/direct opslaan|opdracht opslaan|opslaan/.test(txt)||btn.dataset.bnsDriverSaveVisible==="1")return;
-   btn.dataset.bnsDriverSaveVisible="1";
-   btn.addEventListener("click",()=>{const b=beforeSave(); setTimeout(()=>afterSave(b),200); setTimeout(()=>afterSave(b),900)},true);
- });
-}
-function ordersForUser(u){
- const s=st(); if(!s||!Array.isArray(s.orders))return [];
- return s.orders.filter(o=>{
-   const n=driverName(o), id=driverId(o);
-   return (u.id&&id&&String(u.id)===String(id)) || (u.name&&n&&lower(u.name)===lower(n));
- });
-}
-function orderHtml(o,old){
- const start=clean(o.start||o.dateStart||o.startDate||o.date||o.begin||"");
- const end=clean(o.end||o.dateEnd||o.endDate||"");
- return `<div class="bns-driver-route-card ${old?"old":""}">
- <strong>${esc(o.number||"")} - ${esc(o.title||o.name||"Opdracht")}</strong><br>
- Datum: ${esc(start)}${end?" t/m "+esc(end):""}<br>
- Klant: ${esc(o.customerName||o.customer||o.client||o.klant||"")}<br>
- Locatie: ${esc(o.locationName||o.location||o.address||o.adres||"")}
- </div>`;
-}
-function anchor(){
- const future=qsa("button").find(b=>lower(b.textContent||"").includes("toekomstige opdracht"));
- if(future)return future.closest("section,div")||future.parentElement||document.body;
- return document.body;
-}
-function renderPanel(name){
- const s=st(); if(!s||!Array.isArray(s.orders))return;
- let panel=document.getElementById(PANEL_ID);
- if(!panel){panel=document.createElement("div");panel.id=PANEL_ID;anchor().appendChild(panel)}
- const us=users();
- if(!name){
-   panel.innerHTML=`<h2>🚚 Bezorger routes</h2>`+(us.length?us.map(u=>{
-     const count=ordersForUser(u).length;
-     return `<button class="bns-driver-folder" data-driver="${esc(u.name)}">📁 ${esc(u.name)} <span>${count}</span></button>`;
-   }).join(""):"<p>Geen medewerkers gevonden. Maak ze aan in Admin.</p>");
-   qsa(".bns-driver-folder",panel).forEach(b=>b.onclick=()=>renderPanel(b.dataset.driver));
-   return;
- }
- const u=us.find(x=>lower(x.name)===lower(name));
- const list=u?ordersForUser(u).sort((a,b)=>dateVal(a)-dateVal(b)):[];
- const now=new Date(); now.setHours(0,0,0,0);
- const future=list.filter(o=>dateVal(o)>=now.getTime());
- const old=list.filter(o=>dateVal(o)<now.getTime()).sort((a,b)=>dateVal(b)-dateVal(a));
- panel.innerHTML=`<h2>📁 ${esc(name)}</h2>
- <div class="bns-driver-actions"><button class="bns-driver-back" id="bnsDriverBack">Terug</button><button class="bns-driver-delete" id="bnsDriverDeleteOld">Wis oude opdrachten</button></div>
- <h3>Komende opdrachten</h3>${future.length?future.map(o=>orderHtml(o,false)).join(""):"<p>Geen komende opdrachten.</p>"}
- <h3>Oude opdrachten</h3>${old.length?old.map(o=>orderHtml(o,true)).join(""):"<p>Geen oude opdrachten.</p>"}`;
- qs("#bnsDriverBack",panel).onclick=()=>renderPanel();
- qs("#bnsDriverDeleteOld",panel).onclick=()=>{
-   if(!confirm("Oude koppelingen van "+name+" wissen? De opdrachten blijven bestaan."))return;
-   old.forEach(o=>{o.driverId="";o.bezorgerId="";o.chauffeurId="";o.userId="";o.driverName="";o.bezorgerName="";o.chauffeurName="";o.driver="";o.bezorger="";o.chauffeur=""});
-   saveState();addDriverLines();renderPanel();
- };
-}
-function patchRender(){
- try{if(typeof renderOrders==="function"&&!renderOrders.__bnsDriverVisible){const old=renderOrders; const w=function(){const r=old.apply(this,arguments);setTimeout(addDriverLines,80);setTimeout(addDriverLines,400);return r};w.__bnsDriverVisible=true;renderOrders=w;window.renderOrders=w}}catch(e){}
-}
-function install(){css();bindDriverControls();bindSave();patchRender();renderPanel();addDriverLines();}
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(install,500));else setTimeout(install,500);
-setTimeout(install,1500);setInterval(install,2500);
-})();
-
