@@ -1,6 +1,6 @@
 const FIREBASE_VERSION = "10.12.5";
 
-const BNS = {
+window. BNS = {
   firebase: null,
   app: null,
   db: null,
