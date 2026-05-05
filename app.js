@@ -7860,3 +7860,151 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 setTimeout(install,1500); setInterval(install,2500);
 })();
 
+
+/* BNS SAFE PATCH - MEERDERE MEDEWERKERS BEWAREN */
+(function(){
+"use strict";
+if(window.__bnsKeepMultipleStaffPatch)return; window.__bnsKeepMultipleStaffPatch=true;
+
+let beforeUsersSnapshot = [];
+
+function stateObj(){
+  try{ if(typeof state !== "undefined" && state) return state; }catch(e){}
+  return window.state || null;
+}
+function clean(v){ return String(v || "").trim(); }
+function lower(v){ return clean(v).toLowerCase(); }
+function makeId(){ return "u_" + Math.random().toString(36).slice(2,10); }
+
+function cloneUsers(){
+  const s = stateObj();
+  if(!s || !Array.isArray(s.users)) return [];
+  return s.users.map(u => ({...u}));
+}
+
+function isStaffSaveButton(btn){
+  const txt = lower(btn.textContent || "");
+  const box = btn.closest("section,div,form,fieldset") || document.body;
+  const ctx = lower(box.innerText || "");
+  if(!txt.includes("opslaan")) return false;
+  return ctx.includes("medewerker") || ctx.includes("personeel") || ctx.includes("gebruiker") || ctx.includes("planner") || ctx.includes("bezorger");
+}
+
+function mergeUsers(before, after){
+  const merged = [];
+
+  function addOrUpdate(u){
+    if(!u) return;
+    u = {...u};
+    if(!u.id) u.id = makeId();
+
+    const name = lower(u.name || u.naam || "");
+    const pin = clean(u.pin || "");
+
+    let existing = merged.find(x => clean(x.id) && clean(x.id) === clean(u.id));
+
+    if(!existing && name){
+      existing = merged.find(x => lower(x.name || x.naam || "") === name);
+    }
+
+    if(!existing && name && pin){
+      existing = merged.find(x => lower(x.name || x.naam || "") === name && clean(x.pin || "") === pin);
+    }
+
+    if(existing){
+      Object.assign(existing, u);
+    }else{
+      merged.push(u);
+    }
+  }
+
+  before.forEach(addOrUpdate);
+  after.forEach(addOrUpdate);
+
+  return merged;
+}
+
+function saveState(){
+  try{
+    if(typeof save === "function"){
+      save();
+      return;
+    }
+  }catch(e){}
+  try{
+    const s = stateObj();
+    if(s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+  }catch(e){}
+}
+
+function restoreUsersIfOverwritten(){
+  const s = stateObj();
+  if(!s || !Array.isArray(s.users)) return;
+  if(!beforeUsersSnapshot.length) return;
+
+  const after = s.users.map(u => ({...u}));
+
+  if(after.length < beforeUsersSnapshot.length || (beforeUsersSnapshot.length > 1 && after.length === 1)){
+    s.users = mergeUsers(beforeUsersSnapshot, after);
+    saveState();
+
+    try{
+      if(typeof adminRender === "function") adminRender();
+    }catch(e){}
+  }
+}
+
+function bindStaffSaveButtons(){
+  Array.prototype.slice.call(document.querySelectorAll("button")).forEach(btn => {
+    if(btn.dataset.bnsKeepStaffBound === "1") return;
+    if(!isStaffSaveButton(btn)) return;
+
+    btn.dataset.bnsKeepStaffBound = "1";
+
+    btn.addEventListener("click", function(){
+      beforeUsersSnapshot = cloneUsers();
+      setTimeout(restoreUsersIfOverwritten, 150);
+      setTimeout(restoreUsersIfOverwritten, 600);
+      setTimeout(restoreUsersIfOverwritten, 1200);
+    }, true);
+  });
+}
+
+function patchLocalStorageSafety(){
+  if(localStorage.__bnsKeepStaffStoragePatch === "1") return;
+  localStorage.__bnsKeepStaffStoragePatch = "1";
+
+  const oldSetItem = localStorage.setItem.bind(localStorage);
+
+  localStorage.setItem = function(key, value){
+    try{
+      if(
+        ["event-planner-pro-v87","event-planner-pro-v8","event-planner-pro","bns_event_planner"].includes(key) &&
+        beforeUsersSnapshot.length
+      ){
+        const parsed = JSON.parse(value);
+        if(parsed && Array.isArray(parsed.users) && parsed.users.length < beforeUsersSnapshot.length){
+          parsed.users = mergeUsers(beforeUsersSnapshot, parsed.users);
+          value = JSON.stringify(parsed);
+        }
+      }
+    }catch(e){}
+
+    return oldSetItem(key, value);
+  };
+}
+
+function install(){
+  patchLocalStorageSafety();
+  bindStaffSaveButtons();
+}
+
+if(document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded", () => setTimeout(install, 500));
+}else{
+  setTimeout(install, 500);
+}
+setTimeout(install, 1500);
+setInterval(install, 2500);
+})();
+
