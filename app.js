@@ -8395,7 +8395,7 @@ setInterval(install,1500);
 
     if(options && options.ordersFrom2025){
       try{
-        ref = fs.query(ref, fs.where("start", ">=", MIN_ORDER_DATE_BNS));
+        ref = fs.query(ref, fs.where("startDate", ">=", "2025-01-01"));
       }catch(e){
         bnsLog("query filter niet gebruikt, fallback naar normale collectie");
       }
