@@ -7680,187 +7680,6 @@ setInterval(install,1500);
 })();
 
 
-/* BNS SAFE PATCH - BESTAANDE BEZORGER KNOP + ROUTE OVERZICHT */
-(function(){
-"use strict";
-if(window.__bnsExistingDriverRoutePatch)return; window.__bnsExistingDriverRoutePatch=true;
-
-const STYLE_ID="bns-existing-driver-route-style";
-const PANEL_ID="bnsDriverRoutePanel";
-
-function qs(s,r){return (r||document).querySelector(s)}
-function qsa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
-function clean(v){return String(v||"").trim()}
-function lower(v){return clean(v).toLowerCase()}
-function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
-function stateObj(){try{if(typeof state!=="undefined"&&state)return state}catch(e){} return window.state||null}
-function saveState(){try{if(typeof save==="function"){save();return}}catch(e){} try{const s=stateObj(); if(s)localStorage.setItem("event-planner-pro-v87",JSON.stringify(s))}catch(e){}}
-function driverName(o){return clean(o&&(o.driverName||o.bezorgerName||o.driver||o.bezorger))}
-function driverId(o){return clean(o&&(o.driverId||o.bezorgerId||o.userId))}
-function setDriver(o,d){if(!o||!d)return; o.driverId=d.id||""; o.bezorgerId=d.id||""; if(!o.userId)o.userId=d.id||""; o.driverName=d.name||""; o.bezorgerName=d.name||""; o.driver=d.name||""; o.bezorger=d.name||""}
-function keepDriver(newOrder, oldOrder){if(!newOrder||!oldOrder)return; if(!driverId(newOrder)&&driverId(oldOrder)){newOrder.driverId=oldOrder.driverId||oldOrder.bezorgerId||oldOrder.userId||"";newOrder.bezorgerId=oldOrder.bezorgerId||oldOrder.driverId||oldOrder.userId||"";if(!newOrder.userId)newOrder.userId=oldOrder.userId||oldOrder.driverId||oldOrder.bezorgerId||""} if(!driverName(newOrder)&&driverName(oldOrder)){newOrder.driverName=oldOrder.driverName||oldOrder.bezorgerName||oldOrder.driver||oldOrder.bezorger||"";newOrder.bezorgerName=oldOrder.bezorgerName||oldOrder.driverName||oldOrder.driver||oldOrder.bezorger||"";newOrder.driver=oldOrder.driver||oldOrder.driverName||oldOrder.bezorger||"";newOrder.bezorger=oldOrder.bezorger||oldOrder.driverName||oldOrder.driver||""}}
-function users(){const s=stateObj(); if(!s||!Array.isArray(s.users))return []; return s.users.filter(u=>{const r=lower(u.role);const rights=u.rights||{};return r==="bezorger"||r==="planner"||rights.route||rights.gps||rights.orders||rights.resolve||rights.agenda})}
-function orderNumberFromText(t){const m=String(t||"").match(/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/); return m?m[0].replace(/\s+/g,"-"):""}
-function findOrderByCard(card){const s=stateObj(); if(!s||!Array.isArray(s.orders)||!card)return null; const id=card.dataset.orderId||card.dataset.id||card.getAttribute("data-id")||""; if(id){const o=s.orders.find(x=>String(x.id||"")===String(id)); if(o)return o} const nr=orderNumberFromText(card.innerText||""); if(nr)return s.orders.find(x=>String(x.number||"")===String(nr))||null; return null}
-function cards(){return qsa(".order-card,.bns-order-card,.bns-safe-card,.card,li,tr").filter(el=>{const t=lower(el.innerText||"");return t&&(t.includes("datum")||t.includes("klant")||t.includes("materialen")||/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/.test(t))})}
-function dateVal(o){const d=clean(o.start||o.dateStart||o.startDate||o.date||o.begin||""); if(!d)return 0; const m=d.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/); if(m)return new Date(+m[3],+m[2]-1,+m[1]).getTime(); const t=Date.parse(d); return isNaN(t)?0:t}
-
-function css(){
- if(document.getElementById(STYLE_ID))return;
- const e=document.createElement("style"); e.id=STYLE_ID; e.textContent=`
- .bns-driver-line{display:block!important;margin-top:6px!important;font-weight:900!important;color:#172033!important}
- .bns-driver-line .bns-driver-name{color:#0756b7!important}
- #bnsOrderDriverSelect,.bns-driver-select-box{display:none!important}
- #${PANEL_ID}{margin:14px 0;padding:14px;border:1px solid #dbe3ef;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.08)}
- #${PANEL_ID} h2{margin:0 0 10px;font-size:24px}
- .bns-driver-folder{display:flex;align-items:center;justify-content:space-between;width:100%;margin:8px 0;padding:14px;border:0;border-radius:16px;background:#eef6ff;font-weight:950;text-align:left;font-size:18px}
- .bns-driver-folder span{opacity:.75}
- .bns-driver-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
- .bns-driver-actions button{border:0;border-radius:14px;padding:10px 14px;font-weight:900}
- .bns-driver-back{background:#0b63c7;color:white}
- .bns-driver-delete{background:#b91c1c;color:white}
- .bns-driver-route-card{margin:10px 0;padding:14px;border:1px solid #e5eaf2;border-radius:16px;background:#f8fafc}
- .bns-driver-route-card.old{opacity:.72;background:#fff}
- .bns-driver-route-card strong{font-size:18px}
- `;
- document.head.appendChild(e);
-}
-
-function addDriverLines(){
- const s=stateObj(); if(!s||!Array.isArray(s.orders))return;
- cards().forEach(card=>{
-   const o=findOrderByCard(card); if(!o)return;
-   let line=qs(".bns-driver-line",card);
-   if(!line){line=document.createElement("small");line.className="bns-driver-line"; card.appendChild(line)}
-   line.innerHTML='🚚 Bezorger: <span class="bns-driver-name">'+esc(driverName(o)||"Niet gekoppeld")+'</span>';
- });
-}
-
-function currentOrder(){
- const s=stateObj(); if(!s||!Array.isArray(s.orders))return null;
- try{if(typeof editing!=="undefined"&&editing){const o=s.orders.find(x=>String(x.id||"")===String(editing)); if(o)return o}}catch(e){}
- const nrInput=qs("#orderNumber")||qs("input[name='orderNumber']")||qsa("input").find(i=>/opdracht|nummer|order/i.test(i.placeholder||""));
- const nr=clean(nrInput&&nrInput.value);
- if(nr)return s.orders.find(o=>String(o.number||"")===String(nr))||null;
- return null;
-}
-
-function selectedExistingDriver(){
- const all=qsa("select");
- const candidates=all.filter(sel=>{
-   const box=sel.closest("section,div,fieldset,form")||document.body;
-   const txt=lower(box.innerText||"");
-   return txt.includes("bezorger")||txt.includes("chauffeur");
- });
- for(const sel of candidates){
-   const val=clean(sel.value);
-   const text=clean(sel.options[sel.selectedIndex]?.text||"");
-   if(!val && (!text || lower(text)==="geen" || lower(text).includes("niet")))continue;
-   const u=users().find(x=>String(x.id||"")===String(val))||users().find(x=>lower(x.name)===lower(text))||users().find(x=>lower(x.name)===lower(val));
-   return u?{id:u.id||val,name:u.name||text||val}:{id:val,name:text||val};
- }
- return null;
-}
-
-function bindExistingDriverControls(){
- qsa("select").forEach(sel=>{
-   if(sel.dataset.bnsDriverExisting==="1")return;
-   const box=sel.closest("section,div,fieldset,form")||document.body;
-   const txt=lower(box.innerText||"");
-   if(!txt.includes("bezorger")&&!txt.includes("chauffeur"))return;
-   sel.dataset.bnsDriverExisting="1";
-   sel.addEventListener("change",()=>{
-     const o=currentOrder(); const d=selectedExistingDriver();
-     if(o&&d&&d.name){setDriver(o,d); saveState(); addDriverLines(); renderDriverPanel(); try{if(typeof toast==="function")toast("Bezorger opgeslagen bij opdracht: "+d.name)}catch(e){}}
-   });
- });
- qsa("button").forEach(btn=>{
-   const txt=lower(btn.textContent||"");
-   if(!txt.includes("bezorger")||btn.dataset.bnsDriverTab==="1")return;
-   btn.dataset.bnsDriverTab="1";
-   btn.addEventListener("click",()=>{setTimeout(()=>{bindExistingDriverControls(); renderDriverPanel();},250);setTimeout(()=>{bindExistingDriverControls(); renderDriverPanel();},800)},true);
- });
-}
-
-function beforeSave(){const s=stateObj(); if(!s||!Array.isArray(s.orders))return []; return s.orders.map(o=>({id:o.id,number:o.number,driverId:o.driverId,bezorgerId:o.bezorgerId,userId:o.userId,driverName:o.driverName,bezorgerName:o.bezorgerName,driver:o.driver,bezorger:o.bezorger}))}
-function afterSave(before){
- const s=stateObj(); if(!s||!Array.isArray(s.orders))return;
- const d=selectedExistingDriver();
- s.orders.forEach(o=>{
-   const old=before.find(x=>String(x.id||"")===String(o.id||""))||before.find(x=>String(x.number||"")===String(o.number||""));
-   if(d&&d.name)setDriver(o,d); else if(old)keepDriver(o,old);
- });
- saveState(); addDriverLines(); renderDriverPanel();
-}
-
-function bindSaveButtons(){
- qsa("button").forEach(btn=>{
-  const txt=lower(btn.textContent||"");
-  if(!/direct opslaan|opdracht opslaan|opslaan/.test(txt)||btn.dataset.bnsDriverSave==="1")return;
-  btn.dataset.bnsDriverSave="1";
-  btn.addEventListener("click",()=>{const b=beforeSave(); setTimeout(()=>afterSave(b),200); setTimeout(()=>afterSave(b),900)},true);
- });
-}
-
-function orderHtml(o,old){
- const start=clean(o.start||o.dateStart||o.startDate||o.date||o.begin||"");
- const end=clean(o.end||o.dateEnd||o.endDate||"");
- return `<div class="bns-driver-route-card ${old?"old":""}">
-   <strong>${esc(o.number||"")} - ${esc(o.title||o.name||"Opdracht")}</strong><br>
-   Datum: ${esc(start)}${end?" t/m "+esc(end):""}<br>
-   Klant: ${esc(o.customerName||o.customer||o.client||o.klant||"")}<br>
-   Locatie: ${esc(o.locationName||o.location||o.address||o.adres||"")}
- </div>`;
-}
-
-function renderDriverPanel(name){
- const s=stateObj(); if(!s||!Array.isArray(s.orders))return;
- let panel=document.getElementById(PANEL_ID);
- const anchor=qsa("button").find(b=>lower(b.textContent||"").includes("bezorger"))?.closest("section,div") || document.body;
- if(!panel){panel=document.createElement("div");panel.id=PANEL_ID; anchor.appendChild(panel)}
- const allNames=Array.from(new Set(s.orders.map(driverName).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"nl"));
- if(!name){
-   panel.innerHTML=`<h2>🚚 Bezorger routes</h2>`+(allNames.length?allNames.map(n=>{
-     const count=s.orders.filter(o=>driverName(o)===n).length;
-     return `<button class="bns-driver-folder" data-driver="${esc(n)}">📁 ${esc(n)} <span>${count}</span></button>`;
-   }).join(""):"<p>Nog geen opdrachten gekoppeld aan bezorgers.</p>");
-   qsa(".bns-driver-folder",panel).forEach(b=>b.onclick=()=>renderDriverPanel(b.dataset.driver));
-   return;
- }
- const now=new Date(); now.setHours(0,0,0,0);
- const list=s.orders.filter(o=>driverName(o)===name).sort((a,b)=>dateVal(a)-dateVal(b));
- const future=list.filter(o=>dateVal(o)>=now.getTime());
- const old=list.filter(o=>dateVal(o)<now.getTime()).sort((a,b)=>dateVal(b)-dateVal(a));
- panel.innerHTML=`<h2>📁 ${esc(name)}</h2>
- <div class="bns-driver-actions">
-   <button class="bns-driver-back" id="bnsDriverBack">Terug</button>
-   <button class="bns-driver-delete" id="bnsDriverDeleteOld">Wis oude opdrachten van deze bezorger</button>
- </div>
- <h3>Komende opdrachten</h3>
- ${future.length?future.map(o=>orderHtml(o,false)).join(""):"<p>Geen komende opdrachten.</p>"}
- <h3>Oude opdrachten</h3>
- ${old.length?old.map(o=>orderHtml(o,true)).join(""):"<p>Geen oude opdrachten.</p>"}`;
- qs("#bnsDriverBack",panel).onclick=()=>renderDriverPanel();
- qs("#bnsDriverDeleteOld",panel).onclick=()=>{
-   if(!confirm("Weet je zeker dat je oude opdrachten van "+name+" uit dit bezorger-overzicht wilt wissen? De opdracht zelf blijft bestaan, alleen de bezorger-koppeling wordt leeggemaakt."))return;
-   old.forEach(o=>{o.driverId="";o.bezorgerId="";o.userId="";o.driverName="";o.bezorgerName="";o.driver="";o.bezorger=""});
-   saveState(); addDriverLines(); renderDriverPanel();
- };
-}
-
-function patchRender(){
- try{if(typeof renderOrders==="function"&&!renderOrders.__bnsDriverRoute){
-  const old=renderOrders; const w=function(){const r=old.apply(this,arguments); setTimeout(addDriverLines,80); setTimeout(addDriverLines,400); return r};
-  w.__bnsDriverRoute=true; renderOrders=w; window.renderOrders=w;
- }}catch(e){}
-}
-
-function install(){css();bindExistingDriverControls();bindSaveButtons();patchRender();addDriverLines();}
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(install,500)); else setTimeout(install,500);
-setTimeout(install,1500); setInterval(install,2500);
-})();
-
-
 /* BNS SAFE PATCH - MEERDERE MEDEWERKERS BEWAREN */
 (function(){
 "use strict";
@@ -8006,5 +7825,237 @@ if(document.readyState === "loading"){
 }
 setTimeout(install, 1500);
 setInterval(install, 2500);
+})();
+
+
+/* BNS SAFE PATCH - BEZORGER MAPPEN ZICHTBAAR + OVERZICHT REGEL */
+(function(){
+"use strict";
+if(window.__bnsDriverMapVisiblePatch)return; window.__bnsDriverMapVisiblePatch=true;
+
+const PANEL_ID="bnsDriverFoldersPanel";
+const STYLE_ID="bnsDriverFoldersVisibleStyle";
+const GENERIC=["bezorger","chauffeur","planner","admin","administrator","gebruiker","medewerker","geen","niet gekoppeld","nog niet gekozen"];
+
+function qs(s,r){return (r||document).querySelector(s)}
+function qsa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+function clean(v){return String(v||"").trim()}
+function lower(v){return clean(v).toLowerCase()}
+function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function isGeneric(n){return !clean(n)||GENERIC.includes(lower(n))}
+function st(){try{if(typeof state!=="undefined"&&state)return state}catch(e){} return window.state||null}
+function saveState(){try{if(typeof save==="function"){save();return}}catch(e){} try{const s=st(); if(s)localStorage.setItem("event-planner-pro-v87",JSON.stringify(s))}catch(e){}}
+
+function users(){
+ const s=st(); if(!s||!Array.isArray(s.users))return [];
+ return s.users
+   .map(u=>({id:clean(u.id||u.uid||u.userId||u.name||u.naam), name:clean(u.name||u.naam||u.label||u.title), raw:u}))
+   .filter(u=>u.name&&!isGeneric(u.name));
+}
+function driverName(o){
+ const n=clean(o&&(o.driverName||o.bezorgerName||o.chauffeurName||o.driver||o.bezorger||o.chauffeur));
+ return isGeneric(n)?"":n;
+}
+function driverId(o){return clean(o&&(o.driverId||o.bezorgerId||o.chauffeurId||o.userId))}
+function setDriver(o,d){
+ if(!o||!d||!d.name)return;
+ o.driverId=d.id||d.name; o.bezorgerId=d.id||d.name; o.chauffeurId=d.id||d.name;
+ if(!o.userId)o.userId=d.id||d.name;
+ o.driverName=d.name; o.bezorgerName=d.name; o.chauffeurName=d.name;
+ o.driver=d.name; o.bezorger=d.name; o.chauffeur=d.name;
+}
+function dateVal(o){
+ const d=clean(o.start||o.dateStart||o.startDate||o.date||o.begin||"");
+ const m=d.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+ if(m)return new Date(+m[3],+m[2]-1,+m[1]).getTime();
+ const t=Date.parse(d); return isNaN(t)?0:t;
+}
+function nrFromText(t){const m=String(t||"").match(/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/);return m?m[0].replace(/\s+/g,"-"):""}
+function findOrderByText(text){
+ const s=st(); if(!s||!Array.isArray(s.orders))return null;
+ const nr=nrFromText(text||"");
+ if(nr)return s.orders.find(o=>String(o.number||"")===String(nr))||null;
+ return null;
+}
+function cards(){
+ return qsa(".order-card,.bns-order-card,.bns-safe-card,.card,li,tr").filter(el=>{
+   const t=lower(el.innerText||"");
+   return t&&(t.includes("datum")||t.includes("klant")||t.includes("materialen")||/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/.test(t));
+ });
+}
+function findOrderByCard(card){return findOrderByText(card.innerText||"")}
+function css(){
+ if(document.getElementById(STYLE_ID))return;
+ const e=document.createElement("style"); e.id=STYLE_ID;
+ e.textContent=`
+ .bns-driver-line{display:block!important;margin-top:6px!important;font-weight:900!important;color:#172033!important}
+ .bns-driver-line .bns-driver-name{color:#0756b7!important}
+ #bnsOrderDriverSelect,.bns-driver-select-box{display:none!important}
+ #${PANEL_ID}{margin:14px 0;padding:14px;border:1px solid #dbe3ef;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.08)}
+ #${PANEL_ID} h2{margin:0 0 10px;font-size:24px}
+ .bns-driver-folder{display:flex;align-items:center;justify-content:space-between;width:100%;margin:8px 0;padding:14px;border:0;border-radius:16px;background:#1463c7;color:#fff;font-weight:950;text-align:left;font-size:18px}
+ .bns-driver-folder span{background:rgba(255,255,255,.2);border-radius:12px;padding:3px 10px}
+ .bns-driver-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+ .bns-driver-actions button{border:0;border-radius:14px;padding:10px 14px;font-weight:900}
+ .bns-driver-back{background:#0b63c7;color:white}
+ .bns-driver-delete{background:#b91c1c;color:white}
+ .bns-driver-route-card{margin:10px 0;padding:14px;border:1px solid #e5eaf2;border-radius:16px;background:#f8fafc}
+ .bns-driver-route-card.old{opacity:.72;background:#fff}
+ .bns-driver-route-card strong{font-size:18px}
+ `;
+ document.head.appendChild(e);
+}
+function addDriverLines(){
+ const s=st(); if(!s||!Array.isArray(s.orders))return;
+ cards().forEach(card=>{
+   const o=findOrderByCard(card); if(!o)return;
+   let line=qs(".bns-driver-line",card);
+   if(!line){line=document.createElement("small");line.className="bns-driver-line"; card.appendChild(line)}
+   line.innerHTML='🚚 Bezorger: <span class="bns-driver-name">'+esc(driverName(o)||"Niet gekoppeld")+'</span>';
+ });
+ addDriverLineToModal();
+}
+function addDriverLineToModal(){
+ const modals=qsa(".modal-card,.modal,[role='dialog'],div").filter(el=>{
+   const t=lower(el.innerText||"");
+   return t.includes("overzicht bestelling") && /\b(?:20\d{2}[-\s]?)?\d{2,6}\b/.test(t);
+ });
+ modals.forEach(m=>{
+   const o=findOrderByText(m.innerText||""); if(!o)return;
+   let line=qs(".bns-driver-line",m);
+   if(!line){
+     line=document.createElement("div");
+     line.className="bns-driver-line";
+     const head=qsa("h1,h2,h3,strong",m)[0] || m.firstElementChild || m;
+     head.insertAdjacentElement("afterend", line);
+   }
+   line.innerHTML='🚚 Bezorger: <span class="bns-driver-name">'+esc(driverName(o)||"Niet gekoppeld")+'</span>';
+ });
+}
+function currentOrder(){
+ const s=st(); if(!s||!Array.isArray(s.orders))return null;
+ try{if(typeof editing!=="undefined"&&editing){const o=s.orders.find(x=>String(x.id||"")===String(editing)); if(o)return o}}catch(e){}
+ return findOrderByText(document.body.innerText||"");
+}
+function selectedExistingDriver(){
+ const sels=qsa("select").filter(sel=>{
+   const box=sel.closest("section,div,fieldset,form")||document.body;
+   const txt=lower(box.innerText||"");
+   return txt.includes("bezorger")||txt.includes("chauffeur");
+ });
+ for(const sel of sels){
+   const val=clean(sel.value);
+   const text=clean(sel.options[sel.selectedIndex]?.text||"");
+   if(isGeneric(text)&&!val)continue;
+   const u=users().find(x=>String(x.id)===String(val))||users().find(x=>lower(x.name)===lower(text))||users().find(x=>lower(x.name)===lower(val));
+   if(u)return u;
+   if(text&&!isGeneric(text))return {id:val||text,name:text};
+ }
+ return null;
+}
+function bindDriverControls(){
+ qsa("select").forEach(sel=>{
+   if(sel.dataset.bnsDriverVisible==="1")return;
+   const box=sel.closest("section,div,fieldset,form")||document.body;
+   const txt=lower(box.innerText||"");
+   if(!txt.includes("bezorger")&&!txt.includes("chauffeur"))return;
+   sel.dataset.bnsDriverVisible="1";
+   sel.addEventListener("change",()=>{
+     const o=currentOrder(); const d=selectedExistingDriver();
+     if(o&&d&&d.name){setDriver(o,d); saveState(); addDriverLines(); renderPanel(); try{if(typeof toast==="function")toast("Bezorger opgeslagen: "+d.name)}catch(e){}}
+   });
+ });
+ qsa("button").forEach(btn=>{
+   const txt=lower(btn.textContent||"");
+   if((txt.includes("bezorger")||txt.includes("toekomstige opdracht")) && btn.dataset.bnsDriverBtn!=="1"){
+     btn.dataset.bnsDriverBtn="1";
+     btn.addEventListener("click",()=>{setTimeout(()=>{bindDriverControls();renderPanel();addDriverLines();},250);setTimeout(()=>{bindDriverControls();renderPanel();addDriverLines();},900)},true);
+   }
+ });
+}
+function beforeSave(){
+ const s=st(); if(!s||!Array.isArray(s.orders))return [];
+ return s.orders.map(o=>({id:o.id,number:o.number,driverId:o.driverId,bezorgerId:o.bezorgerId,chauffeurId:o.chauffeurId,userId:o.userId,driverName:o.driverName,bezorgerName:o.bezorgerName,chauffeurName:o.chauffeurName,driver:o.driver,bezorger:o.bezorger,chauffeur:o.chauffeur}));
+}
+function keepDriver(o,old){
+ if(!o||!old)return;
+ const oldName=driverName(old); const oldId=driverId(old);
+ if(!driverId(o)&&oldId){o.driverId=old.driverId||old.bezorgerId||old.chauffeurId||old.userId||"";o.bezorgerId=o.driverId;o.chauffeurId=o.driverId;if(!o.userId)o.userId=o.driverId}
+ if(!driverName(o)&&oldName){o.driverName=oldName;o.bezorgerName=oldName;o.chauffeurName=oldName;o.driver=oldName;o.bezorger=oldName;o.chauffeur=oldName}
+}
+function afterSave(before){
+ const s=st(); if(!s||!Array.isArray(s.orders))return;
+ const d=selectedExistingDriver();
+ s.orders.forEach(o=>{
+   const old=before.find(x=>String(x.id||"")===String(o.id||""))||before.find(x=>String(x.number||"")===String(o.number||""));
+   if(d&&d.name)setDriver(o,d); else if(old)keepDriver(o,old);
+ });
+ saveState(); addDriverLines(); renderPanel();
+}
+function bindSave(){
+ qsa("button").forEach(btn=>{
+   const txt=lower(btn.textContent||"");
+   if(!/direct opslaan|opdracht opslaan|opslaan/.test(txt)||btn.dataset.bnsDriverSaveVisible==="1")return;
+   btn.dataset.bnsDriverSaveVisible="1";
+   btn.addEventListener("click",()=>{const b=beforeSave(); setTimeout(()=>afterSave(b),200); setTimeout(()=>afterSave(b),900)},true);
+ });
+}
+function ordersForUser(u){
+ const s=st(); if(!s||!Array.isArray(s.orders))return [];
+ return s.orders.filter(o=>{
+   const n=driverName(o), id=driverId(o);
+   return (u.id&&id&&String(u.id)===String(id)) || (u.name&&n&&lower(u.name)===lower(n));
+ });
+}
+function orderHtml(o,old){
+ const start=clean(o.start||o.dateStart||o.startDate||o.date||o.begin||"");
+ const end=clean(o.end||o.dateEnd||o.endDate||"");
+ return `<div class="bns-driver-route-card ${old?"old":""}">
+ <strong>${esc(o.number||"")} - ${esc(o.title||o.name||"Opdracht")}</strong><br>
+ Datum: ${esc(start)}${end?" t/m "+esc(end):""}<br>
+ Klant: ${esc(o.customerName||o.customer||o.client||o.klant||"")}<br>
+ Locatie: ${esc(o.locationName||o.location||o.address||o.adres||"")}
+ </div>`;
+}
+function anchor(){
+ const future=qsa("button").find(b=>lower(b.textContent||"").includes("toekomstige opdracht"));
+ if(future)return future.closest("section,div")||future.parentElement||document.body;
+ return document.body;
+}
+function renderPanel(name){
+ const s=st(); if(!s||!Array.isArray(s.orders))return;
+ let panel=document.getElementById(PANEL_ID);
+ if(!panel){panel=document.createElement("div");panel.id=PANEL_ID;anchor().appendChild(panel)}
+ const us=users();
+ if(!name){
+   panel.innerHTML=`<h2>🚚 Bezorger routes</h2>`+(us.length?us.map(u=>{
+     const count=ordersForUser(u).length;
+     return `<button class="bns-driver-folder" data-driver="${esc(u.name)}">📁 ${esc(u.name)} <span>${count}</span></button>`;
+   }).join(""):"<p>Geen medewerkers gevonden. Maak ze aan in Admin.</p>");
+   qsa(".bns-driver-folder",panel).forEach(b=>b.onclick=()=>renderPanel(b.dataset.driver));
+   return;
+ }
+ const u=us.find(x=>lower(x.name)===lower(name));
+ const list=u?ordersForUser(u).sort((a,b)=>dateVal(a)-dateVal(b)):[];
+ const now=new Date(); now.setHours(0,0,0,0);
+ const future=list.filter(o=>dateVal(o)>=now.getTime());
+ const old=list.filter(o=>dateVal(o)<now.getTime()).sort((a,b)=>dateVal(b)-dateVal(a));
+ panel.innerHTML=`<h2>📁 ${esc(name)}</h2>
+ <div class="bns-driver-actions"><button class="bns-driver-back" id="bnsDriverBack">Terug</button><button class="bns-driver-delete" id="bnsDriverDeleteOld">Wis oude opdrachten</button></div>
+ <h3>Komende opdrachten</h3>${future.length?future.map(o=>orderHtml(o,false)).join(""):"<p>Geen komende opdrachten.</p>"}
+ <h3>Oude opdrachten</h3>${old.length?old.map(o=>orderHtml(o,true)).join(""):"<p>Geen oude opdrachten.</p>"}`;
+ qs("#bnsDriverBack",panel).onclick=()=>renderPanel();
+ qs("#bnsDriverDeleteOld",panel).onclick=()=>{
+   if(!confirm("Oude koppelingen van "+name+" wissen? De opdrachten blijven bestaan."))return;
+   old.forEach(o=>{o.driverId="";o.bezorgerId="";o.chauffeurId="";o.userId="";o.driverName="";o.bezorgerName="";o.chauffeurName="";o.driver="";o.bezorger="";o.chauffeur=""});
+   saveState();addDriverLines();renderPanel();
+ };
+}
+function patchRender(){
+ try{if(typeof renderOrders==="function"&&!renderOrders.__bnsDriverVisible){const old=renderOrders; const w=function(){const r=old.apply(this,arguments);setTimeout(addDriverLines,80);setTimeout(addDriverLines,400);return r};w.__bnsDriverVisible=true;renderOrders=w;window.renderOrders=w}}catch(e){}
+}
+function install(){css();bindDriverControls();bindSave();patchRender();renderPanel();addDriverLines();}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(install,500));else setTimeout(install,500);
+setTimeout(install,1500);setInterval(install,2500);
 })();
 
