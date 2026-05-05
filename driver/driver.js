@@ -108,9 +108,17 @@ function getOrders(){
 }
 function findOrder(id){return(BNS.state.orders||[]).find(o=>String(o.id)===String(id))}
 function otherCustomerOrders(o){
-  const name=lower(customerName(o));
-  if(!name)return[];
-  return(BNS.state.orders||[]).filter(x=>String(x.id)!==String(o.id)&&lower(customerName(x))===name&&!isDeleted(x));
+  const currentId = String(o.id || "");
+  const currentNumber = String(o.number || "");
+
+  return (BNS.state.orders || [])
+    .filter(x => String(x.id || "") !== currentId)
+    .filter(x => String(x.number || "") === currentNumber)
+    .filter(x => !isCancelled(x))
+    .filter(x => !isDone(x))
+    .filter(x => !isDeleted(x))
+    .filter(x => dateTime(orderEnd(x)) >= todayTime())
+    .sort((a,b) => dateTime(orderStart(a)) - dateTime(orderStart(b)));
 }
 function canRoute(){return hasAnyRight(["gps","route","waze"])||lower(BNS.user.role)==="admin"}
 function canAgenda(){return hasRight("agenda")||lower(BNS.user.role)==="admin"}
@@ -209,23 +217,34 @@ function showDetail(id){
 
 async function sendReport(order,type){
   let extra="";
+
   if(type==="Schade") extra=prompt("Omschrijving schade:", "");
   else if(type==="Storing") extra=prompt("Omschrijving storing:", "");
   else if(type==="Vermissing") extra=prompt("Wat mist er?", "");
   else if(type==="Offerte") extra=prompt("Waarvoor moet offerte gemaakt worden?", "");
   else extra=prompt("Melding voor planning:", "");
-  if(!extra)return;
+
+  if(!extra) return;
+
   await addAlert({
-    orderId:order.id||"",
-    orderNumber:order.number||"",
-    title:type,
-    text:extra,
-    resolved:false,
-    createdAt:new Date().toISOString(),
-    from:BNS.user.name||"",
-    userId:BNS.user.id||""
+    orderId: order.id || "",
+    orderNumber: order.number || "",
+    title: type,
+    text: extra,
+
+    // 🔴 BELANGRIJK: dit zorgt dat je kunt filteren
+    linkedOrder: order.id || "",
+    linkedOrderNumber: order.number || "",
+
+    resolved: false,
+    createdAt: new Date().toISOString(),
+
+    // alleen meldingen van deze bezorger
+    from: BNS.user.name || "",
+    userId: BNS.user.id || ""
   });
-  toast(`${type} verstuurd`);
+
+  toast(`${type} verstuurd voor opdracht ${order.number || ""}`);
 }
 
 function bindActions(){
