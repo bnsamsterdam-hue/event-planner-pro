@@ -356,6 +356,8 @@ function render(){
     ? rows.map(orderCard).join("")
     : `<div class="empty">Geen opdrachten.</div>`;
 
+  renderAlerts(); // 🔴 DEZE MOET ERIN
+
   bindActions();
 }
 
@@ -430,7 +432,31 @@ function bindActions(){
 /* =========================
    START
 ========================= */
+function renderAlerts(){
+  const list = (BNS.state.alerts || [])
+    .filter(a => !a.resolved)
+    .sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
 
+  const el = document.getElementById("alerts");
+ if(!el){
+  console.log("alerts element niet gevonden");
+  return;
+}
+
+  if(!list.length){
+    el.innerHTML = "<div class='empty'>Geen meldingen</div>";
+    return;
+  }
+
+  el.innerHTML = list.map(a => `
+    <div class="card">
+      <strong>${a.title || "Melding"}</strong><br>
+      Opdracht: ${a.orderNumber || "-"}<br>
+      ${a.text || ""}<br>
+      <small>${a.from || ""}</small>
+    </div>
+  `).join("");
+}
 async function boot(){
   try{
     await initFirebase();
