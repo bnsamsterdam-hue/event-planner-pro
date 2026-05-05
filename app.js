@@ -7680,38 +7680,182 @@ setInterval(install,1500);
 })();
 
 
-/* BNS SAFE PATCH - BEZORGER REGEL OP OPDRACHT */
+/* BNS SAFE PATCH - BESTAANDE BEZORGER KNOP + ROUTE OVERZICHT */
 (function(){
 "use strict";
-if(window.__bnsDriverLinePatch)return; window.__bnsDriverLinePatch=true;
-const STYLE="bns-driver-line-style";
+if(window.__bnsExistingDriverRoutePatch)return; window.__bnsExistingDriverRoutePatch=true;
+
+const STYLE_ID="bns-existing-driver-route-style";
+const PANEL_ID="bnsDriverRoutePanel";
 
 function qs(s,r){return (r||document).querySelector(s)}
 function qsa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
-function st(){try{if(typeof state!=="undefined"&&state)return state}catch(e){} return window.state||null}
-function saveIt(){try{if(typeof save==="function"){save();return}}catch(e){} try{const s=st(); if(s)localStorage.setItem("event-planner-pro-v87",JSON.stringify(s))}catch(e){}}
 function clean(v){return String(v||"").trim()}
 function lower(v){return clean(v).toLowerCase()}
 function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
-function driverName(o){return clean(o&& (o.driverName||o.bezorgerName||o.driver||o.bezorger))}
-function driverId(o){return clean(o&& (o.driverId||o.bezorgerId||o.userId))}
-function users(){const s=st(); if(!s||!Array.isArray(s.users))return []; return s.users.filter(u=>{const r=lower(u.role);const rights=u.rights||{};return r==="bezorger"||r==="planner"||rights.gps||rights.route||rights.orders||rights.resolve})}
-function css(){if(document.getElementById(STYLE))return;const e=document.createElement("style");e.id=STYLE;e.textContent=".bns-driver-line{display:block!important;margin-top:4px!important;font-weight:900!important;color:var(--text,#172033)!important}.bns-driver-line .bns-driver-name{color:#0756b7!important}.bns-driver-select-box{margin:10px 0!important;padding:12px!important;border:1px solid var(--border,#dbe3ef)!important;border-radius:16px!important;background:var(--panel,#fff)!important}.bns-driver-select-box label{display:block!important;font-weight:900!important;margin-bottom:6px!important}.bns-driver-select-box select{width:100%!important;padding:11px!important;border-radius:12px!important;border:1px solid var(--border,#dbe3ef)!important;font-weight:800!important}";document.head.appendChild(e)}
-function numberFromText(t){const m=String(t||"").match(/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/);return m?m[0].replace(/\s+/g,"-"):""}
-function findOrder(card){const s=st(); if(!s||!Array.isArray(s.orders)||!card)return null; const id=card.dataset.orderId||card.dataset.id||card.getAttribute("data-id")||""; if(id){const x=s.orders.find(o=>String(o.id||"")===String(id)); if(x)return x} const nr=numberFromText(card.innerText||""); if(nr)return s.orders.find(o=>String(o.number||"")===String(nr))||null; return null}
-function cards(){return qsa(".order-card,.bns-order-card,.bns-safe-card,.card,li,tr").filter(el=>{const t=lower(el.innerText||"");return t&&(t.includes("klant")||t.includes("datum")||t.includes("opdracht")||/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/.test(t))})}
-function addLines(){const s=st(); if(!s||!Array.isArray(s.orders))return; cards().forEach(c=>{const o=findOrder(c); if(!o)return; let line=qs(".bns-driver-line",c); if(!line){line=document.createElement("small");line.className="bns-driver-line"; const target=qs(".order-main,.bns-order-main,.bns-safe-main,.meta,.details",c)||c; target.appendChild(line)} line.innerHTML='🚚 Bezorger: <span class="bns-driver-name">'+esc(driverName(o)||"Niet gekoppeld")+"</span>"})}
-function currentOrder(){const s=st(); if(!s||!Array.isArray(s.orders))return null; try{if(typeof editing!=="undefined"&&editing){const x=s.orders.find(o=>String(o.id)===String(editing)); if(x)return x}}catch(e){} const inp=qs("#orderNumber")||qs("input[name='orderNumber']")||qsa("input").find(i=>/opdracht|nummer|order/i.test(i.placeholder||"")); const nr=clean(inp&&inp.value); if(nr)return s.orders.find(o=>String(o.number||"")===String(nr))||null; return null}
-function ensureSelect(){const us=users(); if(!us.length)return; const saveBtn=qs("#saveOrder")||qsa("button").find(b=>/direct opslaan|opdracht opslaan|opslaan/i.test(b.textContent||"")); if(!saveBtn)return; if(!qs("#bnsOrderDriverSelect")){const box=document.createElement("div");box.className="bns-driver-select-box";box.innerHTML='<label for="bnsOrderDriverSelect">Bezorger voor deze opdracht</label><select id="bnsOrderDriverSelect"><option value="">Geen bezorger gekoppeld</option></select>';saveBtn.insertAdjacentElement("beforebegin",box)} fillSelect()}
-function fillSelect(){const sel=qs("#bnsOrderDriverSelect"); if(!sel)return; const us=users(); const o=currentOrder(); const cid=o?driverId(o):"", cname=o?driverName(o):""; sel.innerHTML='<option value="">Geen bezorger gekoppeld</option>'+us.map(u=>'<option value="'+esc(u.id||u.name||"")+'">'+esc(u.name||u.id||"")+"</option>").join(""); if(cid&&qsa("option",sel).some(op=>String(op.value)===String(cid)))sel.value=cid; else if(cname){const m=qsa("option",sel).find(op=>lower(op.textContent)===lower(cname)); if(m)sel.value=m.value}}
-function selectedDriver(){const sel=qs("#bnsOrderDriverSelect")||qs("#orderDriver")||qs("#driverSelect")||qs("#bezorgerSelect"); if(!sel)return null; const val=clean(sel.value), text=clean(sel.options[sel.selectedIndex]?.text||""); if(!val&&!text)return null; const u=users().find(x=>String(x.id)===String(val))||users().find(x=>lower(x.name)===lower(text))||users().find(x=>lower(x.name)===lower(val)); return u?{id:u.id||val,name:u.name||text||val}:{id:val,name:text||val}}
-function apply(o,d){if(!o||!d||(!d.id&&!d.name))return; o.driverId=d.id||"";o.bezorgerId=d.id||"";o.userId=o.userId||d.id||"";o.driverName=d.name||"";o.bezorgerName=d.name||"";o.driver=d.name||"";o.bezorger=d.name||""}
-function before(){const s=st(); if(!s||!Array.isArray(s.orders))return []; return s.orders.map(o=>({id:o.id,number:o.number,driverId:o.driverId,bezorgerId:o.bezorgerId,userId:o.userId,driverName:o.driverName,bezorgerName:o.bezorgerName,driver:o.driver,bezorger:o.bezorger}))}
-function restore(bef){const s=st(); if(!s||!Array.isArray(s.orders))return; const chosen=selectedDriver(); s.orders.forEach(o=>{const old=bef.find(x=>String(x.id||"")===String(o.id||""))||bef.find(x=>String(x.number||"")===String(o.number||"")); if(chosen&&chosen.id){apply(o,chosen);return} if(old){if(!driverId(o)&&driverId(old)){o.driverId=old.driverId||old.bezorgerId||old.userId||"";o.bezorgerId=old.bezorgerId||old.driverId||old.userId||"";o.userId=o.userId||old.userId||old.driverId||old.bezorgerId||""} if(!driverName(o)&&driverName(old)){o.driverName=old.driverName||old.bezorgerName||old.driver||old.bezorger||"";o.bezorgerName=old.bezorgerName||old.driverName||old.driver||old.bezorger||"";o.driver=old.driver||old.driverName||old.bezorger||"";o.bezorger=old.bezorger||old.driverName||old.driver||""}}}); saveIt(); addLines()}
-function patchSave(){qsa("button").forEach(b=>{const t=lower(b.textContent||""); if(!/direct opslaan|opdracht opslaan|opslaan/.test(t)||b.dataset.bnsDriverSave)return; b.dataset.bnsDriverSave="1"; b.addEventListener("click",()=>{const bef=before(); setTimeout(()=>restore(bef),200); setTimeout(()=>restore(bef),800)},true)})}
-function patchRender(){try{if(typeof renderOrders==="function"&&!renderOrders.__bnsDriverLine){const old=renderOrders; const w=function(){const r=old.apply(this,arguments); setTimeout(addLines,80); setTimeout(addLines,400); return r}; w.__bnsDriverLine=true; renderOrders=w; window.renderOrders=w}}catch(e){}}
-function patchEdit(){qsa("button").forEach(b=>{const t=lower(b.textContent||""); if(!/wijzig|open|bewerken|edit/.test(t)||b.dataset.bnsDriverEdit)return; b.dataset.bnsDriverEdit="1"; b.addEventListener("click",()=>{setTimeout(fillSelect,250);setTimeout(fillSelect,800)},true)})}
-function install(){css();ensureSelect();patchSave();patchRender();patchEdit();fillSelect();addLines()}
+function stateObj(){try{if(typeof state!=="undefined"&&state)return state}catch(e){} return window.state||null}
+function saveState(){try{if(typeof save==="function"){save();return}}catch(e){} try{const s=stateObj(); if(s)localStorage.setItem("event-planner-pro-v87",JSON.stringify(s))}catch(e){}}
+function driverName(o){return clean(o&&(o.driverName||o.bezorgerName||o.driver||o.bezorger))}
+function driverId(o){return clean(o&&(o.driverId||o.bezorgerId||o.userId))}
+function setDriver(o,d){if(!o||!d)return; o.driverId=d.id||""; o.bezorgerId=d.id||""; if(!o.userId)o.userId=d.id||""; o.driverName=d.name||""; o.bezorgerName=d.name||""; o.driver=d.name||""; o.bezorger=d.name||""}
+function keepDriver(newOrder, oldOrder){if(!newOrder||!oldOrder)return; if(!driverId(newOrder)&&driverId(oldOrder)){newOrder.driverId=oldOrder.driverId||oldOrder.bezorgerId||oldOrder.userId||"";newOrder.bezorgerId=oldOrder.bezorgerId||oldOrder.driverId||oldOrder.userId||"";if(!newOrder.userId)newOrder.userId=oldOrder.userId||oldOrder.driverId||oldOrder.bezorgerId||""} if(!driverName(newOrder)&&driverName(oldOrder)){newOrder.driverName=oldOrder.driverName||oldOrder.bezorgerName||oldOrder.driver||oldOrder.bezorger||"";newOrder.bezorgerName=oldOrder.bezorgerName||oldOrder.driverName||oldOrder.driver||oldOrder.bezorger||"";newOrder.driver=oldOrder.driver||oldOrder.driverName||oldOrder.bezorger||"";newOrder.bezorger=oldOrder.bezorger||oldOrder.driverName||oldOrder.driver||""}}
+function users(){const s=stateObj(); if(!s||!Array.isArray(s.users))return []; return s.users.filter(u=>{const r=lower(u.role);const rights=u.rights||{};return r==="bezorger"||r==="planner"||rights.route||rights.gps||rights.orders||rights.resolve||rights.agenda})}
+function orderNumberFromText(t){const m=String(t||"").match(/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/); return m?m[0].replace(/\s+/g,"-"):""}
+function findOrderByCard(card){const s=stateObj(); if(!s||!Array.isArray(s.orders)||!card)return null; const id=card.dataset.orderId||card.dataset.id||card.getAttribute("data-id")||""; if(id){const o=s.orders.find(x=>String(x.id||"")===String(id)); if(o)return o} const nr=orderNumberFromText(card.innerText||""); if(nr)return s.orders.find(x=>String(x.number||"")===String(nr))||null; return null}
+function cards(){return qsa(".order-card,.bns-order-card,.bns-safe-card,.card,li,tr").filter(el=>{const t=lower(el.innerText||"");return t&&(t.includes("datum")||t.includes("klant")||t.includes("materialen")||/\b(?:20\d{2}[-\s]?)?\d{2,6}\b/.test(t))})}
+function dateVal(o){const d=clean(o.start||o.dateStart||o.startDate||o.date||o.begin||""); if(!d)return 0; const m=d.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/); if(m)return new Date(+m[3],+m[2]-1,+m[1]).getTime(); const t=Date.parse(d); return isNaN(t)?0:t}
+
+function css(){
+ if(document.getElementById(STYLE_ID))return;
+ const e=document.createElement("style"); e.id=STYLE_ID; e.textContent=`
+ .bns-driver-line{display:block!important;margin-top:6px!important;font-weight:900!important;color:#172033!important}
+ .bns-driver-line .bns-driver-name{color:#0756b7!important}
+ #bnsOrderDriverSelect,.bns-driver-select-box{display:none!important}
+ #${PANEL_ID}{margin:14px 0;padding:14px;border:1px solid #dbe3ef;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.08)}
+ #${PANEL_ID} h2{margin:0 0 10px;font-size:24px}
+ .bns-driver-folder{display:flex;align-items:center;justify-content:space-between;width:100%;margin:8px 0;padding:14px;border:0;border-radius:16px;background:#eef6ff;font-weight:950;text-align:left;font-size:18px}
+ .bns-driver-folder span{opacity:.75}
+ .bns-driver-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+ .bns-driver-actions button{border:0;border-radius:14px;padding:10px 14px;font-weight:900}
+ .bns-driver-back{background:#0b63c7;color:white}
+ .bns-driver-delete{background:#b91c1c;color:white}
+ .bns-driver-route-card{margin:10px 0;padding:14px;border:1px solid #e5eaf2;border-radius:16px;background:#f8fafc}
+ .bns-driver-route-card.old{opacity:.72;background:#fff}
+ .bns-driver-route-card strong{font-size:18px}
+ `;
+ document.head.appendChild(e);
+}
+
+function addDriverLines(){
+ const s=stateObj(); if(!s||!Array.isArray(s.orders))return;
+ cards().forEach(card=>{
+   const o=findOrderByCard(card); if(!o)return;
+   let line=qs(".bns-driver-line",card);
+   if(!line){line=document.createElement("small");line.className="bns-driver-line"; card.appendChild(line)}
+   line.innerHTML='🚚 Bezorger: <span class="bns-driver-name">'+esc(driverName(o)||"Niet gekoppeld")+'</span>';
+ });
+}
+
+function currentOrder(){
+ const s=stateObj(); if(!s||!Array.isArray(s.orders))return null;
+ try{if(typeof editing!=="undefined"&&editing){const o=s.orders.find(x=>String(x.id||"")===String(editing)); if(o)return o}}catch(e){}
+ const nrInput=qs("#orderNumber")||qs("input[name='orderNumber']")||qsa("input").find(i=>/opdracht|nummer|order/i.test(i.placeholder||""));
+ const nr=clean(nrInput&&nrInput.value);
+ if(nr)return s.orders.find(o=>String(o.number||"")===String(nr))||null;
+ return null;
+}
+
+function selectedExistingDriver(){
+ const all=qsa("select");
+ const candidates=all.filter(sel=>{
+   const box=sel.closest("section,div,fieldset,form")||document.body;
+   const txt=lower(box.innerText||"");
+   return txt.includes("bezorger")||txt.includes("chauffeur");
+ });
+ for(const sel of candidates){
+   const val=clean(sel.value);
+   const text=clean(sel.options[sel.selectedIndex]?.text||"");
+   if(!val && (!text || lower(text)==="geen" || lower(text).includes("niet")))continue;
+   const u=users().find(x=>String(x.id||"")===String(val))||users().find(x=>lower(x.name)===lower(text))||users().find(x=>lower(x.name)===lower(val));
+   return u?{id:u.id||val,name:u.name||text||val}:{id:val,name:text||val};
+ }
+ return null;
+}
+
+function bindExistingDriverControls(){
+ qsa("select").forEach(sel=>{
+   if(sel.dataset.bnsDriverExisting==="1")return;
+   const box=sel.closest("section,div,fieldset,form")||document.body;
+   const txt=lower(box.innerText||"");
+   if(!txt.includes("bezorger")&&!txt.includes("chauffeur"))return;
+   sel.dataset.bnsDriverExisting="1";
+   sel.addEventListener("change",()=>{
+     const o=currentOrder(); const d=selectedExistingDriver();
+     if(o&&d&&d.name){setDriver(o,d); saveState(); addDriverLines(); renderDriverPanel(); try{if(typeof toast==="function")toast("Bezorger opgeslagen bij opdracht: "+d.name)}catch(e){}}
+   });
+ });
+ qsa("button").forEach(btn=>{
+   const txt=lower(btn.textContent||"");
+   if(!txt.includes("bezorger")||btn.dataset.bnsDriverTab==="1")return;
+   btn.dataset.bnsDriverTab="1";
+   btn.addEventListener("click",()=>{setTimeout(()=>{bindExistingDriverControls(); renderDriverPanel();},250);setTimeout(()=>{bindExistingDriverControls(); renderDriverPanel();},800)},true);
+ });
+}
+
+function beforeSave(){const s=stateObj(); if(!s||!Array.isArray(s.orders))return []; return s.orders.map(o=>({id:o.id,number:o.number,driverId:o.driverId,bezorgerId:o.bezorgerId,userId:o.userId,driverName:o.driverName,bezorgerName:o.bezorgerName,driver:o.driver,bezorger:o.bezorger}))}
+function afterSave(before){
+ const s=stateObj(); if(!s||!Array.isArray(s.orders))return;
+ const d=selectedExistingDriver();
+ s.orders.forEach(o=>{
+   const old=before.find(x=>String(x.id||"")===String(o.id||""))||before.find(x=>String(x.number||"")===String(o.number||""));
+   if(d&&d.name)setDriver(o,d); else if(old)keepDriver(o,old);
+ });
+ saveState(); addDriverLines(); renderDriverPanel();
+}
+
+function bindSaveButtons(){
+ qsa("button").forEach(btn=>{
+  const txt=lower(btn.textContent||"");
+  if(!/direct opslaan|opdracht opslaan|opslaan/.test(txt)||btn.dataset.bnsDriverSave==="1")return;
+  btn.dataset.bnsDriverSave="1";
+  btn.addEventListener("click",()=>{const b=beforeSave(); setTimeout(()=>afterSave(b),200); setTimeout(()=>afterSave(b),900)},true);
+ });
+}
+
+function orderHtml(o,old){
+ const start=clean(o.start||o.dateStart||o.startDate||o.date||o.begin||"");
+ const end=clean(o.end||o.dateEnd||o.endDate||"");
+ return `<div class="bns-driver-route-card ${old?"old":""}">
+   <strong>${esc(o.number||"")} - ${esc(o.title||o.name||"Opdracht")}</strong><br>
+   Datum: ${esc(start)}${end?" t/m "+esc(end):""}<br>
+   Klant: ${esc(o.customerName||o.customer||o.client||o.klant||"")}<br>
+   Locatie: ${esc(o.locationName||o.location||o.address||o.adres||"")}
+ </div>`;
+}
+
+function renderDriverPanel(name){
+ const s=stateObj(); if(!s||!Array.isArray(s.orders))return;
+ let panel=document.getElementById(PANEL_ID);
+ const anchor=qsa("button").find(b=>lower(b.textContent||"").includes("bezorger"))?.closest("section,div") || document.body;
+ if(!panel){panel=document.createElement("div");panel.id=PANEL_ID; anchor.appendChild(panel)}
+ const allNames=Array.from(new Set(s.orders.map(driverName).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"nl"));
+ if(!name){
+   panel.innerHTML=`<h2>🚚 Bezorger routes</h2>`+(allNames.length?allNames.map(n=>{
+     const count=s.orders.filter(o=>driverName(o)===n).length;
+     return `<button class="bns-driver-folder" data-driver="${esc(n)}">📁 ${esc(n)} <span>${count}</span></button>`;
+   }).join(""):"<p>Nog geen opdrachten gekoppeld aan bezorgers.</p>");
+   qsa(".bns-driver-folder",panel).forEach(b=>b.onclick=()=>renderDriverPanel(b.dataset.driver));
+   return;
+ }
+ const now=new Date(); now.setHours(0,0,0,0);
+ const list=s.orders.filter(o=>driverName(o)===name).sort((a,b)=>dateVal(a)-dateVal(b));
+ const future=list.filter(o=>dateVal(o)>=now.getTime());
+ const old=list.filter(o=>dateVal(o)<now.getTime()).sort((a,b)=>dateVal(b)-dateVal(a));
+ panel.innerHTML=`<h2>📁 ${esc(name)}</h2>
+ <div class="bns-driver-actions">
+   <button class="bns-driver-back" id="bnsDriverBack">Terug</button>
+   <button class="bns-driver-delete" id="bnsDriverDeleteOld">Wis oude opdrachten van deze bezorger</button>
+ </div>
+ <h3>Komende opdrachten</h3>
+ ${future.length?future.map(o=>orderHtml(o,false)).join(""):"<p>Geen komende opdrachten.</p>"}
+ <h3>Oude opdrachten</h3>
+ ${old.length?old.map(o=>orderHtml(o,true)).join(""):"<p>Geen oude opdrachten.</p>"}`;
+ qs("#bnsDriverBack",panel).onclick=()=>renderDriverPanel();
+ qs("#bnsDriverDeleteOld",panel).onclick=()=>{
+   if(!confirm("Weet je zeker dat je oude opdrachten van "+name+" uit dit bezorger-overzicht wilt wissen? De opdracht zelf blijft bestaan, alleen de bezorger-koppeling wordt leeggemaakt."))return;
+   old.forEach(o=>{o.driverId="";o.bezorgerId="";o.userId="";o.driverName="";o.bezorgerName="";o.driver="";o.bezorger=""});
+   saveState(); addDriverLines(); renderDriverPanel();
+ };
+}
+
+function patchRender(){
+ try{if(typeof renderOrders==="function"&&!renderOrders.__bnsDriverRoute){
+  const old=renderOrders; const w=function(){const r=old.apply(this,arguments); setTimeout(addDriverLines,80); setTimeout(addDriverLines,400); return r};
+  w.__bnsDriverRoute=true; renderOrders=w; window.renderOrders=w;
+ }}catch(e){}
+}
+
+function install(){css();bindExistingDriverControls();bindSaveButtons();patchRender();addDriverLines();}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(install,500)); else setTimeout(install,500);
 setTimeout(install,1500); setInterval(install,2500);
 })();
