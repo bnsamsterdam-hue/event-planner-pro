@@ -86,6 +86,7 @@ function restoreSession(f,key,after){
 }
 
 const SESSION_KEY="bns_driver_firebase_user_id";
+let CURRENT_DETAIL_ID="";
 
 function userAllowed(u){
   const r=lower(u.role);
@@ -171,6 +172,7 @@ function render(){
 }
 
 function showOrders(){
+  CURRENT_DETAIL_ID="";
   $("detailView").classList.add("hidden");
   $("ordersView").classList.remove("hidden");
 }
@@ -207,6 +209,7 @@ function detailHtml(o){
 }
 
 function showDetail(id){
+  CURRENT_DETAIL_ID=String(id||"");
   const o=findOrder(id);
   if(!o)return;
   $("ordersView").classList.add("hidden");
@@ -271,7 +274,17 @@ async function boot(){
     $("loginBtn").onclick=()=>loginWithFilter(userAllowed,SESSION_KEY,showApp);
     $("loginPin").addEventListener("keydown",e=>{if(e.key==="Enter")loginWithFilter(userAllowed,SESSION_KEY,showApp)});
     $("logoutBtn").onclick=()=>{sessionStorage.removeItem(SESSION_KEY);location.reload()};
-    $("refreshBtn").onclick=async()=>{await loadOrdersOnly();render();toast("Verversd")};
+   $("refreshBtn").onclick=async()=>{
+  await loadOrdersOnly();
+
+  if(!$("detailView").classList.contains("hidden") && CURRENT_DETAIL_ID){
+    showDetail(CURRENT_DETAIL_ID);
+  }else{
+    render();
+  }
+
+  toast("Verversd");
+};
     $("clearSearchBtn").onclick=()=>{$("searchBox").value="";qsa(".order").forEach(el=>el.style.display="")};
     $("searchBox").oninput=()=>{const q=lower($("searchBox").value);qsa(".order").forEach(el=>{el.style.display=!q||lower(el.innerText).includes(q)?"":"none"})};
     restoreSession(userAllowed,SESSION_KEY,showApp);
