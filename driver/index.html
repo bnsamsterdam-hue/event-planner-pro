@@ -1,12 +1,69 @@
 <!doctype html>
-<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bezorger Tapwagen.nl</title><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="driver.css"></head>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>BNS Bezorger</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="driver.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>BNS Bezorger</h1>
+      <small id="who">Mobiele opdrachten</small>
+    </div>
+    <button id="logoutBtn" class="ghost hidden" type="button">Uitloggen</button>
+  </header>
 
-<script src="../firebase-config.js"></script>
-<script src="../firebase-sync.js"></script>
+  <main class="wrap">
+    <div id="status" class="statusbar">Starten...</div>
 
-<script src="../firebase-push-config.js"></script>
-<script src="../firebase-push-client.js"></script>
+    <section id="loginBox" class="card login-card">
+      <h2>Inloggen</h2>
+      <p class="help">Kies je naam en vul je PIN in.</p>
+      <div class="login-grid">
+        <label>Naam</label>
+        <select id="loginName"></select>
 
-<script src="driver.js"></script>
--->
-<body><header class="top"><h1>BNS Bezorger</h1><small id="who">Mobiele opdrachten via Firebase</small></header><main class="wrap"><div id="status" class="statusbar">Starten...</div><section id="loginBox" class="card"><h2>Inloggen</h2><div class="login-grid"><label>Naam</label><select id="loginName"></select><label>PIN</label><input id="loginPin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN"><button id="loginBtn" type="button">Inloggen</button></div></section><section id="appBox" class="hidden"><div class="toolbar"><input id="searchBox" class="search" placeholder="Zoek opdracht / klant / adres"><button id="refreshBtn" type="button">Verversen</button><button id="logoutBtn" class="btn-dark" type="button">Uitloggen</button></div><div id="orders"></div></section></main><div id="toast" class="toast"></div><script src="../firebase-config.js"></script><script src="driver.js"></script><script>if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');</script></body></html>
+        <label>PIN</label>
+        <input id="loginPin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN">
+
+        <button id="loginBtn" type="button" class="btn-full">Inloggen</button>
+      </div>
+    </section>
+
+    <section id="appBox" class="hidden">
+      <nav class="mobile-nav">
+        <button class="nav-btn active" type="button" data-view="orders">Opdrachten</button>
+        <button class="nav-btn" type="button" data-view="messages">Meldingen</button>
+        <button class="nav-btn" type="button" data-view="rights">Mijn rechten</button>
+      </nav>
+
+      <section id="ordersView">
+        <div class="toolbar">
+          <input id="searchBox" class="search" placeholder="Zoek opdracht / klant / adres">
+          <button id="refreshBtn" type="button">Verversen</button>
+          <button id="clearSearchBtn" class="btn-dark" type="button">Leeg</button>
+        </div>
+        <div id="orders"></div>
+      </section>
+
+      <section id="detailView" class="hidden"></section>
+      <section id="messagesView" class="hidden"></section>
+      <section id="rightsView" class="hidden"></section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="../firebase-config.js"></script>
+  <script src="../firebase-sync.js"></script>
+  <script src="../firebase-push-config.js"></script>
+  <script src="../firebase-push-client.js"></script>
+  <script src="driver.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+  </script>
+</body>
+</html>
