@@ -65,10 +65,71 @@ function addMat(mid){let m=state.materials.find(x=>x.id===mid); if(m&&!chosen.so
 function renderChosen(){chosenMaterials.innerHTML=chosen.map(m=>`<span class="chip">${m.code} ${m.name}<button onclick="removeMat('${m.id}')">x</button></span>`).join('')}
 function removeMat(mid){chosen=chosen.filter(m=>m.id!==mid);renderChosen();renderMaterials(currentCat);summaryRender();}
 function newNo(){let y=new Date().getFullYear();let nums=state.orders.map(o=>String(o.number||'').match(new RegExp('^'+y+'-(\\d+)$'))).filter(Boolean).map(m=>+m[1]);orderNumber.value=y+'-'+String(nums.length?Math.max(...nums)+1:1).padStart(4,'0')}
-function saveCurrentOrder(){let o={id:editing||id(),number:orderNumber.value,status:orderStatus.value,title:orderTitle.value||'Zonder titel',start:dateStart.value,end:dateEnd.value,brand:orderBrand.value,customer:{name:customerName.value,street:customerStreet.value,zip:customerZip.value,city:customerCity.value,phone:customerPhone.value,email:customerEmail.value},location:{name:locationName.value,street:locationStreet.value,zip:locationZip.value,city:locationCity.value,contact:locationContact.value,phone:locationPhone.value,show:showLocationOnDocs.checked},materials:chosen,driver:orderDriver.value,vehicle:orderVehicle.value,extra:orderExtra.value,pricing:calcTotals()};upsertCustomer(o.customer);upsertLocation(o.location);if(editing){let i=state.orders.findIndex(x=>x.id===editing);state.orders[i]=o}else state.orders.push(o);editing=null;save();clearOrder();renderAll();showPage('orders');}
+function saveCurrentOrder(){
+  let o = {
+    id: editing || id(),
+    number: orderNumber.value,
+    status: orderStatus.value,
+    title: orderTitle.value || 'Zonder titel',
+    start: dateStart.value,
+    end: dateEnd.value,
+    brand: orderBrand.value,
+
+    customer: {
+      name: customerName.value,
+      street: customerStreet.value,
+      zip: customerZip.value,
+      city: customerCity.value,
+      phone: customerPhone.value,
+      email: customerEmail.value
+    },
+
+    location: {
+      name: locationName.value,
+      street: locationStreet.value,
+      zip: locationZip.value,
+      city: locationCity.value,
+      contact: locationContact.value,
+      phone: locationPhone.value,
+      show: true
+    },
+
+    materials: structuredClone(chosen),
+
+    driver: orderDriver.value,
+    driverName: orderDriver.value,
+    bezorger: orderDriver.value,
+
+    vehicle: orderVehicle.value,
+    extra: orderExtra.value
+  };
+
+  upsertCustomer(o.customer);
+  upsertLocation(o.location);
+
+  let i = state.orders.findIndex(x =>
+    String(x.id) === String(o.id) ||
+    String(x.number) === String(o.number)
+  );
+
+  if(i >= 0){
+    state.orders[i] = Object.assign({}, state.orders[i], o);
+  }else{
+    state.orders.push(o);
+  }
+
+  editing = null;
+  save();
+
+  toastMsg('Opdracht opgeslagen');
+
+  clearOrder();
+  renderAll();
+  showPage('orders');
+}
 function upsertCustomer(c){if(!c.name)return;let e=state.customers.find(x=>(x.name||'').toLowerCase()===c.name.toLowerCase()&&(x.street||'')===c.street);e?Object.assign(e,c):state.customers.push({id:id(),...c})}
 function upsertLocation(l){if(!l.name&&!l.street)return;let e=state.locations.find(x=>(x.name||'').toLowerCase()===(l.name||'').toLowerCase()&&(x.street||'')===l.street);e?Object.assign(e,l):state.locations.push({id:id(),...l})}
-function clearOrder(){['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderVehicle','orderExtra'].forEach(i=>$(i).value='');chosen=[];renderChosen(); if($('priceExcl')) $('priceExcl').value='0.00'; if($('discountAmount')) $('discountAmount').value='0.00'; if($('vatPercent')) $('vatPercent').value='21'; if($('depositAmount')) $('depositAmount').value='0.00'; calcTotals(); newNo();summaryRender();}
+function clearOrder(){['orderDriver','orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderVehicle','orderExtra'].forEach(i=>$(i).value='');chosen=[];renderChosen(); if($('priceExcl')) $('priceExcl').value='0.00'; if($('discountAmount')) $('discountAmount').value='0.00'; if($('vatPercent')) $('vatPercent').value='21'; if($('depositAmount')) $('depositAmount').value='0.00'; calcTotals(); newNo();summaryRender();}
 function editOrder(oid){let o=state.orders.find(x=>x.id===oid); if(!o)return;showPage('newOrder');editing=oid;orderNumber.value=o.number||'';orderStatus.value=o.status||'Offerte';dateStart.value=o.start||'';dateEnd.value=o.end||'';orderTitle.value=o.title||'';orderBrand.value=o.brand||''; if(o.pricing){priceExcl.value=(o.pricing.excl||0).toFixed(2); discountAmount.value=(o.pricing.discount||0).toFixed(2); vatPercent.value=o.pricing.vatP||21; depositAmount.value=(o.pricing.deposit||0).toFixed(2); calcTotals();}Object.assign(customerName,{value:o.customer?.name||''});customerStreet.value=o.customer?.street||'';customerZip.value=o.customer?.zip||'';customerCity.value=o.customer?.city||'';customerPhone.value=o.customer?.phone||'';customerEmail.value=o.customer?.email||'';locationName.value=o.location?.name||'';locationStreet.value=o.location?.street||'';locationZip.value=o.location?.zip||'';locationCity.value=o.location?.city||'';locationContact.value=o.location?.contact||'';locationPhone.value=o.location?.phone||'';chosen=structuredClone(o.materials||[]);orderDriver.value=o.driver||'';orderVehicle.value=o.vehicle||'';orderExtra.value=o.extra||'';renderChosen();summaryRender();workTab('customerPanel')}
 function nice(d){if(!d)return '';let p=d.split('-');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:d}
 function sortedOrders(){return state.orders.slice().sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999'))}
