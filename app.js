@@ -66,15 +66,29 @@ function renderChosen(){chosenMaterials.innerHTML=chosen.map(m=>`<span class="ch
 function removeMat(mid){chosen=chosen.filter(m=>m.id!==mid);renderChosen();renderMaterials(currentCat);summaryRender();}
 function newNo(){let y=new Date().getFullYear();let nums=state.orders.map(o=>String(o.number||'').match(new RegExp('^'+y+'-(\\d+)$'))).filter(Boolean).map(m=>+m[1]);orderNumber.value=y+'-'+String(nums.length?Math.max(...nums)+1:1).padStart(4,'0')}
 function saveCurrentOrder(){
+  const currentId = editing || '';
+  const currentNumber = orderNumber.value || '';
+
+  let existingIndex = -1;
+  if(currentId){
+    existingIndex = state.orders.findIndex(x => String(x.id||'') === String(currentId));
+  }
+  if(existingIndex < 0 && currentNumber){
+    existingIndex = state.orders.findIndex(x => String(x.number||'') === String(currentNumber));
+  }
+
+  const existing = existingIndex >= 0 ? state.orders[existingIndex] : null;
+  const driverValue = orderDriver.value || '';
+  const totals = (typeof calcLineTotals === 'function') ? calcLineTotals() : calcTotals();
+
   let o = {
-    id: editing ? editing : id(),
-    number: orderNumber.value,
+    id: existing ? existing.id : (currentId || id()),
+    number: currentNumber,
     status: orderStatus.value,
     title: orderTitle.value || 'Zonder titel',
     start: dateStart.value,
-    end: dateEnd.value,
+    end: dateEnd.value || dateStart.value,
     brand: orderBrand.value,
-
     customer: {
       name: customerName.value,
       street: customerStreet.value,
@@ -83,7 +97,6 @@ function saveCurrentOrder(){
       phone: customerPhone.value,
       email: customerEmail.value
     },
-
     location: {
       name: locationName.value,
       street: locationStreet.value,
@@ -91,46 +104,40 @@ function saveCurrentOrder(){
       city: locationCity.value,
       contact: locationContact.value,
       phone: locationPhone.value,
-      show: true
+      show: showLocationOnDocs ? showLocationOnDocs.checked : true
     },
-
-    materials: structuredClone(chosen),
-
-    driver: orderDriver.value,
-    driverName: orderDriver.value,
-    bezorger: orderDriver.value,
-
+    materials: structuredClone(chosen || []),
+    driver: driverValue,
+    driverName: driverValue,
+    bezorger: driverValue,
     vehicle: orderVehicle.value,
-    extra: orderExtra.value
+    extra: orderExtra.value,
+    pricing: totals,
+    confirmationText: document.getElementById('confirmationText')?.value || (typeof makeConfirmationText === 'function' ? makeConfirmationText() : ''),
+    updatedAt: new Date().toISOString()
   };
 
   upsertCustomer(o.customer);
   upsertLocation(o.location);
 
-  let i = state.orders.findIndex(x =>
-    String(x.id) === String(o.id) ||
-    String(x.number) === String(o.number)
-);
-
-  if(i >= 0){
-    state.orders[i] = Object.assign({}, state.orders[i], o);
+  if(existingIndex >= 0){
+    state.orders[existingIndex] = Object.assign({}, existing, o);
   }else{
     state.orders.push(o);
   }
 
   editing = null;
   save();
-
+  try{ if(window.BNS && typeof window.BNS.syncOrder === 'function') window.BNS.syncOrder(o); }catch(e){}
   toastMsg('Opdracht opgeslagen');
-
   clearOrder();
   renderAll();
   showPage('orders');
 }
 function upsertCustomer(c){if(!c.name)return;let e=state.customers.find(x=>(x.name||'').toLowerCase()===c.name.toLowerCase()&&(x.street||'')===c.street);e?Object.assign(e,c):state.customers.push({id:id(),...c})}
 function upsertLocation(l){if(!l.name&&!l.street)return;let e=state.locations.find(x=>(x.name||'').toLowerCase()===(l.name||'').toLowerCase()&&(x.street||'')===l.street);e?Object.assign(e,l):state.locations.push({id:id(),...l})}
-function clearOrder(){['orderDriver','orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderVehicle','orderExtra'].forEach(i=>$(i).value='');chosen=[];renderChosen(); if($('priceExcl')) $('priceExcl').value='0.00'; if($('discountAmount')) $('discountAmount').value='0.00'; if($('vatPercent')) $('vatPercent').value='21'; if($('depositAmount')) $('depositAmount').value='0.00'; calcTotals(); newNo();summaryRender();}
-function editOrder(oid){let o=state.orders.find(x=>x.id===oid); if(!o)return;showPage('newOrder');editing=oid;orderNumber.value=o.number||'';orderStatus.value=o.status||'Offerte';dateStart.value=o.start||'';dateEnd.value=o.end||'';orderTitle.value=o.title||'';orderBrand.value=o.brand||''; if(o.pricing){priceExcl.value=(o.pricing.excl||0).toFixed(2); discountAmount.value=(o.pricing.discount||0).toFixed(2); vatPercent.value=o.pricing.vatP||21; depositAmount.value=(o.pricing.deposit||0).toFixed(2); calcTotals();}Object.assign(customerName,{value:o.customer?.name||''});customerStreet.value=o.customer?.street||'';customerZip.value=o.customer?.zip||'';customerCity.value=o.customer?.city||'';customerPhone.value=o.customer?.phone||'';customerEmail.value=o.customer?.email||'';locationName.value=o.location?.name||'';locationStreet.value=o.location?.street||'';locationZip.value=o.location?.zip||'';locationCity.value=o.location?.city||'';locationContact.value=o.location?.contact||'';locationPhone.value=o.location?.phone||'';chosen=structuredClone(o.materials||[]);orderDriver.value=o.driver||'';orderVehicle.value=o.vehicle||'';orderExtra.value=o.extra||'';renderChosen();summaryRender();workTab('customerPanel')}
+function clearOrder(){['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderDriver','orderVehicle','orderExtra'].forEach(i=>$(i).value='');chosen=[];renderChosen(); if($('priceExcl')) $('priceExcl').value='0.00'; if($('discountAmount')) $('discountAmount').value='0.00'; if($('vatPercent')) $('vatPercent').value='21'; if($('depositAmount')) $('depositAmount').value='0.00'; calcTotals(); newNo();summaryRender();}
+function editOrder(oid){let o=state.orders.find(x=>x.id===oid); if(!o)return;showPage('newOrder');editing=oid;orderNumber.value=o.number||'';orderStatus.value=o.status||'Offerte';dateStart.value=o.start||'';dateEnd.value=o.end||'';orderTitle.value=o.title||'';orderBrand.value=o.brand||''; if(o.pricing){priceExcl.value=(o.pricing.excl||0).toFixed(2); discountAmount.value=(o.pricing.discount||0).toFixed(2); vatPercent.value=o.pricing.vatP||21; depositAmount.value=(o.pricing.deposit||0).toFixed(2); calcTotals();}Object.assign(customerName,{value:o.customer?.name||''});customerStreet.value=o.customer?.street||'';customerZip.value=o.customer?.zip||'';customerCity.value=o.customer?.city||'';customerPhone.value=o.customer?.phone||'';customerEmail.value=o.customer?.email||'';locationName.value=o.location?.name||'';locationStreet.value=o.location?.street||'';locationZip.value=o.location?.zip||'';locationCity.value=o.location?.city||'';locationContact.value=o.location?.contact||'';locationPhone.value=o.location?.phone||'';chosen=structuredClone(o.materials||[]);orderDriver.value=o.driver||o.driverName||o.bezorger||'';orderVehicle.value=o.vehicle||'';orderExtra.value=o.extra||'';renderChosen();summaryRender();workTab('customerPanel')}
 function nice(d){if(!d)return '';let p=d.split('-');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:d}
 function sortedOrders(){return state.orders.slice().sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999'))}
 function renderOrders(){let q=ordersSearch.value.toLowerCase();let list=sortedOrders().filter(o=>mode==='cancelled'?o.status==='Geannuleerd':(mode==='done'?o.status==='Uitgevoerd':(o.status!=='Geannuleerd'&&o.status!=='Uitgevoerd'))).filter(o=>!q||JSON.stringify(o).toLowerCase().includes(q));ordersList.innerHTML=list.map(card).join('')||'<p>Niets gevonden</p>'}
@@ -262,6 +269,8 @@ setTimeout(()=>{
     window.location.href='mailto:?subject=Opdrachtbevestiging '+encodeURIComponent(orderNumber.value)+'&body='+body;
   };
 },0);
+
+/* BNS: oude saveCurrentOrder-wrapper verwijderd; opslaan gebeurt nu in de hoofd-functie. */
 
 function summaryRender(){
   const totals = calcLineTotals();
@@ -8362,287 +8371,139 @@ setInterval(install,1500);
   }, 30000);
 })();
 
-/* =========================================================
-   BNS FIREBASE HERSTEL PATCH - 2025 FILTER + OPSLAAN
-   Deze patch staat bewust onderaan app.js.
-   De bestaande planner-code blijft intact.
-   ========================================================= */
-(function(){
-  "use strict";
 
-  var FIREBASE_VERSION_BNS = "10.12.5";
-  var MIN_ORDER_DATE_BNS = "2025-01-01";
-  var syncTimer = null;
-  var firebaseReady = false;
-  var lastWriteAt = 0;
+/* =========================================================
+   BNS FIREBASE + OFFLINE-FIRST SYNC
+   - lokale opslag blijft altijd werken
+   - Firebase is aanvullend en blokkeert opslaan nooit
+   - orders worden vanaf 2025-01-01 gelezen om quota te beperken
+========================================================= */
+(function(){
+  const FIREBASE_VERSION = '10.12.5';
+  const MIN_ORDER_DATE_BNS = '2025-01-01';
+  const PENDING_KEY = 'bns_pending_firebase_orders_v1';
 
   window.BNS = window.BNS || {};
-  window.BNS.firebase = null;
-  window.BNS.db = null;
-  window.BNS.syncStatus = "start";
-  window.BNS.minOrderDate = MIN_ORDER_DATE_BNS;
+  window.BNS.firebaseReady = false;
+  window.BNS.syncStatus = 'Firebase niet gestart';
 
-  function bnsLog(msg){
-    try{ console.log("[BNS Firebase]", msg); }catch(e){}
-  }
-
-  function bnsToast(msg){
-    try{
-      if(typeof toastMsg === "function") toastMsg(msg);
-      else if(typeof toast === "function") toast(msg);
-      else console.log(msg);
-    }catch(e){ console.log(msg); }
-  }
-
-  function asArray(v){
-    return Array.isArray(v) ? v : [];
-  }
-
-  function orderDate(o){
-    return String((o && (o.start || o.dateStart || o.startDate || o.date)) || "").slice(0,10);
-  }
+  function log(){ try{ console.log.apply(console, ['[BNS Firebase]'].concat([].slice.call(arguments))); }catch(e){} }
+  function msg(t){ try{ toastMsg(t); }catch(e){ try{ console.log(t); }catch(_e){} } }
 
   function isOrderForFirebase(o){
-    var d = orderDate(o);
-    return d && d >= MIN_ORDER_DATE_BNS;
+    const d = String((o && (o.start || o.startDate || o.dateStart || o.date)) || '').slice(0,10);
+    return !!d && d >= MIN_ORDER_DATE_BNS;
   }
 
-  function getCurrentState(){
-    try{
-      if(typeof state === "object" && state) return state;
-    }catch(e){}
+  function pending(){
+    try{ return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); }
+    catch(e){ return []; }
+  }
+  function setPending(rows){
+    try{ localStorage.setItem(PENDING_KEY, JSON.stringify(rows || [])); }catch(e){}
+  }
+  function addPending(order){
+    if(!order || !order.id) return;
+    const rows = pending().filter(x => String(x.id) !== String(order.id));
+    rows.push(order);
+    setPending(rows);
+  }
 
+  async function initFirebaseBNS(){
+    if(window.BNS.firebaseReady) return true;
+    if(!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN'){
+      window.BNS.syncStatus = 'Firebase config ontbreekt';
+      log('Firebase config ontbreekt');
+      return false;
+    }
     try{
-      var raw = localStorage.getItem("event-planner-pro-v87") ||
-                localStorage.getItem("eventPlannerProV91") ||
-                localStorage.getItem("eventPlannerPro") ||
-                localStorage.getItem("eventPlannerState") ||
-                localStorage.getItem("plannerState");
-      return raw ? JSON.parse(raw) : null;
+      const appMod = await import('https://www.gstatic.com/firebasejs/'+FIREBASE_VERSION+'/firebase-app.js');
+      const fsMod = await import('https://www.gstatic.com/firebasejs/'+FIREBASE_VERSION+'/firebase-firestore.js');
+      window.BNS.app = appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+      window.BNS.fs = fsMod;
+      window.BNS.db = fsMod.getFirestore(window.BNS.app);
+      window.BNS.firebaseReady = true;
+      window.BNS.syncStatus = 'Firebase actief';
+      log('Firebase verbonden');
+      return true;
     }catch(e){
-      return null;
+      window.BNS.syncStatus = 'Firebase fout';
+      console.error('Firebase start fout', e);
+      return false;
     }
   }
 
-  function exposeState(){
-    var s = getCurrentState();
-    if(s) window.BNS.state = s;
-  }
-
-  function replaceArray(name, docs){
-    var s = getCurrentState();
-    if(!s) return;
-    s[name] = docs;
-    exposeState();
-  }
-
-  async function readCollection(name, options){
-    var fs = window.BNS.firebase;
-    var db = window.BNS.db;
-    var ref = fs.collection(db, name);
-
-    if(options && options.ordersFrom2025){
-      try{
-        ref = fs.query(ref, fs.where("startDate", ">=", "2025-01-01"));
-      }catch(e){
-        bnsLog("query filter niet gebruikt, fallback naar normale collectie");
-      }
+  async function readOrdersFromFirebase(){
+    const fs = window.BNS.fs;
+    let ref = fs.collection(window.BNS.db, 'orders');
+    try{
+      ref = fs.query(ref, fs.where('start', '>=', MIN_ORDER_DATE_BNS));
+    }catch(e){
+      log('query filter niet gebruikt');
     }
-
-    var snap = await fs.getDocs(ref);
-    var rows = snap.docs.map(function(d){
-      return Object.assign({ id: d.id }, d.data());
-    });
-
-    if(options && options.ordersFrom2025){
-      rows = rows.filter(isOrderForFirebase);
-    }
-
-    return rows;
+    const snap = await fs.getDocs(ref);
+    return snap.docs.map(d => Object.assign({id:d.id}, d.data())).filter(isOrderForFirebase);
   }
 
   async function loadFirebaseIntoPlanner(){
-    if(!firebaseReady) return;
-
-    var s = getCurrentState();
-    if(!s) return;
-
-    var users = await readCollection("users");
-    var orders = await readCollection("orders", { ordersFrom2025:true });
-    var materials = await readCollection("materials");
-    var customers = await readCollection("customers");
-    var locations = await readCollection("locations");
-    var alerts = await readCollection("alerts");
-
-    if(users.length) s.users = users;
-    if(orders.length) s.orders = orders;
-    if(materials.length) s.materials = materials;
-    if(customers.length) s.customers = customers;
-    if(locations.length) s.locations = locations;
-    s.alerts = alerts;
-
+    if(!(await initFirebaseBNS())) return;
     try{
-      if(typeof save === "function") localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
-    }catch(e){}
-
-    exposeState();
-
-    try{ if(typeof renderAll === "function") renderAll(); }catch(e){}
-    try{ if(typeof renderOrders === "function") renderOrders(); }catch(e){}
-    try{ if(typeof renderDashboard === "function") renderDashboard(); }catch(e){}
-
-    window.BNS.syncStatus = "geladen";
-    bnsLog("Firebase data geladen vanaf " + MIN_ORDER_DATE_BNS);
-  }
-
-  async function batchSet(collectionName, rows){
-    if(!firebaseReady) return;
-
-    var fs = window.BNS.firebase;
-    var db = window.BNS.db;
-    rows = asArray(rows).filter(function(x){ return x && x.id; });
-
-    for(var i=0; i<rows.length; i+=450){
-      var batch = fs.writeBatch(db);
-      rows.slice(i, i+450).forEach(function(row){
-        var clean = Object.assign({}, row);
-        batch.set(fs.doc(db, collectionName, String(row.id)), clean, { merge:true });
-      });
-      await batch.commit();
-    }
-  }
-
-  async function writePlannerToFirebaseNow(){
-    if(!firebaseReady) return;
-
-    var s = getCurrentState();
-    if(!s) return;
-
-    lastWriteAt = Date.now();
-
-    var orders = asArray(s.orders).filter(isOrderForFirebase);
-
-    await batchSet("users", asArray(s.users));
-    await batchSet("materials", asArray(s.materials));
-    await batchSet("customers", asArray(s.customers));
-    await batchSet("locations", asArray(s.locations));
-    await batchSet("alerts", asArray(s.alerts));
-    await batchSet("orders", orders);
-
-    window.BNS.syncStatus = "opgeslagen";
-    bnsLog("Opgeslagen naar Firebase: " + orders.length + " orders vanaf " + MIN_ORDER_DATE_BNS);
-  }
-
-  function scheduleFirebaseWrite(){
-    if(!firebaseReady) return;
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(function(){
-      writePlannerToFirebaseNow().catch(function(e){
-        console.error("Firebase opslaan mislukt", e);
-        bnsToast("Firebase opslaan mislukt: " + (e && e.message ? e.message : e));
-      });
-    }, 600);
-  }
-
-  function patchSaveFunctions(){
-    exposeState();
-
-    try{
-      if(typeof save === "function" && !save.__bnsFirebasePatched){
-        var oldSave = save;
-        save = function(){
-          var result = oldSave.apply(this, arguments);
-          exposeState();
-          scheduleFirebaseWrite();
-          return result;
-        };
-        save.__bnsFirebasePatched = true;
+      const rows = await readOrdersFromFirebase();
+      if(Array.isArray(rows) && rows.length){
+        const byId = new Map((state.orders || []).map(o => [String(o.id), o]));
+        rows.forEach(o => byId.set(String(o.id), Object.assign({}, byId.get(String(o.id)) || {}, o)));
+        state.orders = Array.from(byId.values());
+        save();
+        try{ renderAll(); }catch(e){}
       }
+      log('Firebase data geladen vanaf '+MIN_ORDER_DATE_BNS);
     }catch(e){
-      bnsLog("save patch niet mogelijk");
-    }
-
-    try{
-      if(typeof saveCurrentOrder === "function" && !saveCurrentOrder.__bnsFeedbackPatched){
-        var oldSaveOrder = saveCurrentOrder;
-        saveCurrentOrder = function(){
-          var result = oldSaveOrder.apply(this, arguments);
-          bnsToast("Opdracht opgeslagen");
-          exposeState();
-          scheduleFirebaseWrite();
-          return result;
-        };
-        saveCurrentOrder.__bnsFeedbackPatched = true;
-      }
-    }catch(e){
-      bnsLog("saveCurrentOrder patch niet mogelijk");
+      console.error('Firebase laden mislukt', e);
+      window.BNS.syncStatus = 'Firebase laden mislukt; lokaal blijft werken';
     }
   }
 
-  function startLiveAlerts(){
-    if(!firebaseReady) return;
-    var fs = window.BNS.firebase;
-    var db = window.BNS.db;
-
+  async function syncOrder(order){
+    if(!order || !order.id) return;
+    if(!isOrderForFirebase(order)) return;
+    addPending(order);
+    if(!(await initFirebaseBNS())) return;
+    const fs = window.BNS.fs;
     try{
-      fs.onSnapshot(fs.collection(db,"alerts"), function(snap){
-        var rows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
-        replaceArray("alerts", rows);
-        try{ if(typeof renderAll === "function") renderAll(); }catch(e){}
-      });
+      await fs.setDoc(fs.doc(window.BNS.db, 'orders', String(order.id)), order, {merge:true});
+      setPending(pending().filter(x => String(x.id) !== String(order.id)));
+      log('Opdracht naar Firebase opgeslagen', order.number || order.id);
     }catch(e){
-      bnsLog("alerts live listener niet actief");
+      console.error('Firebase opslaan mislukt; lokaal bewaard', e);
+      window.BNS.syncStatus = 'Lokaal opgeslagen, Firebase later synchroniseren';
     }
   }
 
-  async function initFirebaseSyncBNS(){
-    patchSaveFunctions();
-
-    var cfg = window.BNS_FIREBASE_CONFIG;
-    if(!cfg || !cfg.apiKey || cfg.apiKey === "VUL_HIER_IN"){
-      window.BNS.syncStatus = "localStorage - Firebase config ontbreekt";
-      bnsLog("Geen firebase-config.js gevonden. Planner werkt lokaal.");
-      return;
-    }
-
-    try{
-      var appMod = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION_BNS + "/firebase-app.js");
-      var fsMod = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION_BNS + "/firebase-firestore.js");
-
-      var app = appMod.initializeApp(cfg);
-      var db = fsMod.getFirestore(app);
-
-      window.BNS.firebase = fsMod;
-      window.BNS.db = db;
-      firebaseReady = true;
-      window.BNS.syncStatus = "Firebase actief";
-
-      await loadFirebaseIntoPlanner();
-      startLiveAlerts();
-      patchSaveFunctions();
-
-      bnsToast("Firebase actief");
-    }catch(e){
-      firebaseReady = false;
-      window.BNS.syncStatus = "Firebase fout";
-      console.error("Firebase start fout", e);
-      bnsToast("Firebase fout: " + (e && e.message ? e.message : e));
+  async function flushPending(){
+    if(!(await initFirebaseBNS())) return;
+    const rows = pending();
+    for(const o of rows){
+      await syncOrder(o);
     }
   }
 
-  window.BNS.saveNow = function(){
-    return writePlannerToFirebaseNow();
+  window.BNS.syncOrder = syncOrder;
+  window.BNS.reloadFromFirebase = loadFirebaseIntoPlanner;
+  window.BNS.flushPending = flushPending;
+
+  const oldSave = save;
+  save = function(){
+    oldSave();
+    window.BNS.lastLocalSave = new Date().toISOString();
   };
 
-  window.BNS.reloadFromFirebase = function(){
-    return loadFirebaseIntoPlanner();
-  };
-
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(initFirebaseSyncBNS, 800);
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){
+      setTimeout(loadFirebaseIntoPlanner, 800);
+      setTimeout(flushPending, 4000);
     });
   }else{
-    setTimeout(initFirebaseSyncBNS, 800);
+    setTimeout(loadFirebaseIntoPlanner, 800);
+    setTimeout(flushPending, 4000);
   }
 })();
