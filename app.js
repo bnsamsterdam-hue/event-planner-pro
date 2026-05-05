@@ -8598,3 +8598,201 @@ setInterval(install,1500);
     setTimeout(initFirebaseSyncBNS, 800);
   }
 })();
+/* =========================================================
+   BNS FIX - wijzigen opslaan + bezorger bewaren
+   Plak dit helemaal onderaan app.js
+========================================================= */
+(function(){
+  function E(id){
+    return document.getElementById(id);
+  }
+
+  function V(id){
+    const el = E(id);
+    return el ? String(el.value || "").trim() : "";
+  }
+
+  function setV(id,value){
+    const el = E(id);
+    if(el) el.value = value || "";
+  }
+
+  function getState(){
+    if(window.state) return window.state;
+    if(typeof state !== "undefined") return state;
+    return null;
+  }
+
+  function saveLocal(){
+    try{
+      if(typeof save === "function"){
+        save();
+        return;
+      }
+    }catch(e){}
+
+    const s = getState();
+    if(s){
+      localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    }
+  }
+
+  function makeId(){
+    return "ord_" + Date.now() + "_" + Math.random().toString(36).slice(2,8);
+  }
+
+  function findExistingOrder(s, number){
+    return (s.orders || []).find(o => String(o.number || "") === String(number || ""));
+  }
+
+  window.BNS_saveOrderFixed = function(){
+    const s = getState();
+    if(!s){
+      alert("Geen state gevonden");
+      return;
+    }
+
+    s.orders = s.orders || [];
+
+    const number = V("orderNumber");
+    if(!number){
+      alert("Geen opdrachtnummer");
+      return;
+    }
+
+    const existing = findExistingOrder(s, number);
+
+    const driverValue = V("orderDriver");
+
+    const order = {
+      id: existing ? existing.id : makeId(),
+      number: number,
+      title: V("orderTitle"),
+      start: V("dateStart"),
+      end: V("dateEnd") || V("dateStart"),
+      status: V("orderStatus") || "Offerte",
+      brand: V("orderBrand"),
+
+      customer: {
+        name: V("customerName"),
+        street: V("customerStreet"),
+        zip: V("customerZip"),
+        city: V("customerCity"),
+        phone: V("customerPhone"),
+        email: V("customerEmail")
+      },
+
+      location: {
+        name: V("locationName"),
+        street: V("locationStreet"),
+        zip: V("locationZip"),
+        city: V("locationCity"),
+        contact: V("locationContact"),
+        phone: V("locationPhone"),
+        show: true
+      },
+
+      materials: Array.isArray(window.chosen) ? structuredClone(window.chosen) :
+                 (typeof chosen !== "undefined" && Array.isArray(chosen) ? structuredClone(chosen) : []),
+
+      driver: driverValue,
+      driverName: driverValue,
+      bezorger: driverValue,
+
+      vehicle: V("orderVehicle"),
+      extra: V("orderExtra"),
+
+      updatedAt: new Date().toISOString()
+    };
+
+    if(existing){
+      Object.assign(existing, order);
+    }else{
+      s.orders.push(order);
+    }
+
+    saveLocal();
+
+    try{
+      if(typeof toast === "function") toast("Opdracht opgeslagen");
+      else if(typeof toastMsg === "function") toastMsg("Opdracht opgeslagen");
+      else alert("Opdracht opgeslagen");
+    }catch(e){
+      alert("Opdracht opgeslagen");
+    }
+
+    try{
+      if(typeof renderAll === "function") renderAll();
+      if(typeof renderOrders === "function") renderOrders();
+      if(typeof renderDashboard === "function") renderDashboard();
+    }catch(e){}
+
+    try{
+      if(typeof showPage === "function") showPage("orders");
+    }catch(e){}
+  };
+
+  window.BNS_clearNewOrderFixed = function(){
+    [
+      "orderTitle",
+      "dateStart",
+      "dateEnd",
+      "orderBrand",
+      "customerName",
+      "customerStreet",
+      "customerZip",
+      "customerCity",
+      "customerPhone",
+      "customerEmail",
+      "locationName",
+      "locationStreet",
+      "locationZip",
+      "locationCity",
+      "locationContact",
+      "locationPhone",
+      "orderDriver",
+      "orderVehicle",
+      "orderExtra"
+    ].forEach(id => setV(id,""));
+
+    try{
+      window.chosen = [];
+      chosen = [];
+    }catch(e){}
+
+    try{
+      if(typeof renderChosen === "function") renderChosen();
+      if(typeof newNo === "function") newNo();
+      if(typeof summaryRender === "function") summaryRender();
+    }catch(e){}
+  };
+
+  function patchButtons(){
+    const saveBtn = E("saveOrder");
+    if(saveBtn && saveBtn.dataset.bnsSaveFixed !== "1"){
+      saveBtn.dataset.bnsSaveFixed = "1";
+      saveBtn.addEventListener("click", function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        window.BNS_saveOrderFixed();
+      }, true);
+    }
+
+    const newBtn = E("newOrderBtn") || E("newOrder") || document.querySelector("[data-page='newOrder']");
+    if(newBtn && newBtn.dataset.bnsNewFixed !== "1"){
+      newBtn.dataset.bnsNewFixed = "1";
+      newBtn.addEventListener("click", function(){
+        setTimeout(window.BNS_clearNewOrderFixed, 100);
+      }, true);
+    }
+  }
+
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", patchButtons);
+  }else{
+    patchButtons();
+  }
+
+  setTimeout(patchButtons,500);
+  setTimeout(patchButtons,1500);
+})();
