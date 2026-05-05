@@ -22,6 +22,7 @@
     <section id="loginBox" class="card login-card">
       <h2>Inloggen</h2>
       <p class="help">Kies je naam en vul je PIN in.</p>
+
       <div class="login-grid">
         <label>Naam</label>
         <select id="loginName"></select>
@@ -34,31 +35,23 @@
     </section>
 
     <section id="appBox" class="hidden">
-      <nav class="mobile-nav">
-        <button class="nav-btn active" type="button" data-view="orders">Opdrachten</button>
-        <button class="nav-btn" type="button" data-view="messages">Meldingen</button>
-        <button class="nav-btn" type="button" data-view="rights">Mijn rechten</button>
-      </nav>
+      <div class="toolbar">
+        <input id="searchBox" class="search" placeholder="Zoek opdracht / klant / adres">
+        <button id="refreshBtn" type="button">Verversen</button>
+        <button id="clearSearchBtn" class="btn-dark" type="button">Leeg</button>
+      </div>
 
       <section id="ordersView">
-        <div class="toolbar">
-          <input id="searchBox" class="search" placeholder="Zoek opdracht / klant / adres">
-          <button id="refreshBtn" type="button">Verversen</button>
-          <button id="clearSearchBtn" class="btn-dark" type="button">Leeg</button>
-        </div>
         <div id="orders"></div>
       </section>
 
       <section id="detailView" class="hidden"></section>
-      <section id="messagesView" class="hidden"></section>
-      <section id="rightsView" class="hidden"></section>
     </section>
   </main>
 
   <div id="toast" class="toast"></div>
 
   <script src="../firebase-config.js"></script>
-  <script src="../firebase-sync.js"></script>
   <script src="../firebase-push-config.js"></script>
   <script src="../firebase-push-client.js"></script>
   <script src="driver.js"></script>

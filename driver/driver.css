@@ -1,4 +1,4 @@
-/* BNS Bezorger - moderne mobiele app */
+/* BNS Bezorger - snelle moderne werkende versie */
 :root{
   --bg:#eef4fb;
   --panel:#ffffff;
@@ -14,10 +14,9 @@
   --purple:#7c3aed;
 }
 *{box-sizing:border-box}
-html,body{min-height:100%}
 body{
   margin:0;
-  background:linear-gradient(180deg,#eaf4ff 0%,var(--bg) 38%,#f8fafc 100%);
+  background:linear-gradient(180deg,#eaf4ff 0%,var(--bg) 44%,#f8fafc 100%);
   color:var(--text);
   font-family:system-ui,-apple-system,Segoe UI,sans-serif;
 }
@@ -48,7 +47,7 @@ body{
   border:1px solid #bae6fd;
 }
 .card{
-  background:rgba(255,255,255,.96);
+  background:rgba(255,255,255,.97);
   border:1px solid var(--border);
   border-radius:26px;
   padding:16px;
@@ -95,36 +94,12 @@ button,.btn{
 .btn-purple{background:var(--purple)}
 .btn-full{width:100%}
 .hidden{display:none!important}
-.mobile-nav{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:8px;
-  position:sticky;
-  top:82px;
-  z-index:20;
-  padding:8px 0;
-  background:linear-gradient(180deg,rgba(238,244,251,.96),rgba(238,244,251,.80));
-  backdrop-filter:blur(8px);
-}
-.nav-btn{
-  background:#fff;
-  color:#17415f;
-  border:1px solid var(--border);
-  min-height:44px;
-  box-shadow:0 8px 20px rgba(15,23,42,.06);
-}
-.nav-btn.active{
-  background:linear-gradient(135deg,var(--blue),var(--sky));
-  color:#fff;
-  border-color:transparent;
-}
 .toolbar{
   display:grid;
-  grid-template-columns:1fr 100px 74px;
+  grid-template-columns:1fr 104px 74px;
   gap:8px;
-  margin:10px 0;
+  margin:10px 0 14px;
 }
-.search{grid-column:auto}
 .order-card{
   position:relative;
   overflow:hidden;
@@ -142,17 +117,11 @@ button,.btn{
   height:7px;
   background:linear-gradient(90deg,var(--blue),var(--sky),var(--green));
 }
-.order-head{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-  margin-bottom:10px;
-}
 .order-title{
   font-size:21px;
   line-height:1.12;
   font-weight:1000;
+  margin-top:5px;
 }
 .order-number{
   display:inline-block;
@@ -164,7 +133,7 @@ button,.btn{
   font-size:13px;
   font-weight:1000;
 }
-.badges{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}
 .badge{
   display:inline-flex;
   align-items:center;
@@ -219,7 +188,7 @@ button,.btn{
   margin:10px 0;
 }
 .back-btn{background:#111827}
-.detail-card h2{font-size:26px;margin:0 0 6px}
+.detail-card h2{font-size:25px;margin:0 0 6px}
 .section-title{
   margin:18px 0 8px;
   font-size:19px;
@@ -259,14 +228,11 @@ button,.btn{
 @media(max-width:760px){
   .wrap{padding:10px 10px 96px}
   .top h1{font-size:22px}
-  .toolbar{grid-template-columns:1fr 92px 66px}
+  .toolbar{grid-template-columns:1fr 94px 66px}
   .order-title{font-size:20px}
-  .action-grid{grid-template-columns:1fr 1fr}
 }
 @media(max-width:390px){
   .toolbar{grid-template-columns:1fr}
-  .search{grid-column:1}
-  .action-grid{grid-template-columns:1fr}
-  .action-grid .wide{grid-column:1}
-  .mobile-nav{grid-template-columns:1fr}
+  .action-grid,.report-grid{grid-template-columns:1fr}
+  .action-grid .wide,.report-grid .wide{grid-column:1}
 }
