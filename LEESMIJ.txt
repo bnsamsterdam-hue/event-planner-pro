@@ -1,19 +1,15 @@
-BNS production-ready update
+BNS Production Ready V14
 
-Plaatsen:
-1. Maak eerst een backup van je huidige app.js.
+Plaatsing:
+1. Maak eerst backup van je huidige app.js.
 2. Vervang alleen app.js in de hoofdmap.
 3. Laat firebase-config.js staan.
-4. Open de site en druk CTRL + F5.
+4. Open de site met CTRL + F5.
 
-In deze versie:
-- Opslaan/wijzigen blijft werken vanuit de schone basis.
-- Firebase-sync blijft aanwezig en leest beperkt vanaf 2025.
-- Materiaalstatus wordt direct bij openen berekend.
-- Gereserveerde materialen staan meteen op Gereserveerd.
-- Vrije materialen zijn niet meer groen ingevuld.
-- Gekozen materiaal wordt apart als Gekozen getoond.
-
-Let op:
-- Blijf niet met meerdere tabs tegelijk testen als Firebase quota net geraakt is.
-- Geen losse codeblokken meer onderaan plakken; gebruik steeds een nieuwe app.js build.
+Fixes in deze versie:
+- Materiaalstatus blijft direct goed zichtbaar.
+- Opslaan bij wijzigen mag ook als de begindatum in het verleden ligt.
+- Nieuwe opdracht en bestaande opdracht gebruiken dezelfde Opslaan-knop.
+- Lokaal opslaan gebeurt eerst; Firebase sync mag lokaal opslaan niet blokkeren.
+- Zwarte/lege melding vervangen door duidelijke witte melding onderaan.
+- Firebase blijft aanwezig.

@@ -8638,3 +8638,211 @@ setInterval(install,1500);
   setTimeout(refreshV13,1800);
   setInterval(function(){ if(byId('materialList')) renderMaterialsV13(getCat()); },5000);
 })();
+
+/* =========================================================
+   BNS V14 PRODUCTION READY HOTFIX
+   - Opslaan werkt ook bij wijzigen van bestaande opdrachten met oude startdatum
+   - Opslaan is lokaal-eerst; Firebase mag nooit lokaal opslaan blokkeren
+   - Save-knop wordt veilig opnieuw gekoppeld en omzeilt oude datum-blokkade
+   - Toast/melding altijd leesbaar, geen zwarte lege balk
+   ========================================================= */
+(function bnsV14ProductionSaveAndToastFix(){
+  "use strict";
+
+  function E(id){ return document.getElementById(id); }
+  function val(id){ var el=E(id); return el ? String(el.value||"").trim() : ""; }
+  function checked(id){ var el=E(id); return !!(el && el.checked); }
+  function cloneData(v){ try{return structuredClone(v||[]);}catch(e){try{return JSON.parse(JSON.stringify(v||[]));}catch(_){return [];}} }
+  function makeId(){ try{ if(typeof id==="function") return id(); }catch(e){} return "ord_"+Date.now()+"_"+Math.random().toString(36).slice(2,8); }
+  function getState(){ try{ if(typeof state!=="undefined") return state; }catch(e){} return window.state || null; }
+  function chosenList(){ try{ if(typeof chosen!=="undefined" && Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen) ? window.chosen : []; }
+  function editingId(){ try{ if(typeof editing!=="undefined" && editing) return String(editing); }catch(e){} return window.editing ? String(window.editing) : ""; }
+  function todayISO(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
+  function parseDate(s){ if(!s) return null; var d=new Date(String(s).slice(0,10)+"T00:00:00"); return isNaN(d.getTime()) ? null : d; }
+
+  function stableToast(text){
+    text = String(text || "").trim();
+    if(!text) return;
+    var t = E("bnsStableToastV14");
+    if(!t){
+      t = document.createElement("div");
+      t.id = "bnsStableToastV14";
+      document.body.appendChild(t);
+    }
+    t.textContent = text;
+    t.style.cssText = [
+      "position:fixed",
+      "left:50%",
+      "bottom:34px",
+      "transform:translateX(-50%)",
+      "z-index:2147483647",
+      "background:#ffffff",
+      "color:#111827",
+      "border:3px solid #111827",
+      "border-radius:18px",
+      "padding:16px 22px",
+      "font-size:18px",
+      "font-weight:900",
+      "line-height:1.25",
+      "max-width:min(720px,92vw)",
+      "text-align:center",
+      "box-shadow:0 20px 55px rgba(0,0,0,.35)",
+      "display:block",
+      "pointer-events:none"
+    ].join(";");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function(){ t.style.display="none"; }, 2800);
+  }
+
+  function installToast(){
+    try{ window.toastMsg = stableToast; }catch(e){}
+    try{ toastMsg = stableToast; }catch(e){}
+    var css = E("bns-v14-toast-style");
+    if(!css){
+      css = document.createElement("style");
+      css.id = "bns-v14-toast-style";
+      css.textContent = "#toast,.toast{color:#111827!important;background:#fff!important;border-color:#111827!important;}#bnsStableToastV14{color:#111827!important;background:#fff!important;}";
+      document.head.appendChild(css);
+    }
+  }
+
+  function endBeforeStart(){
+    var s=parseDate(val("dateStart"));
+    var e=parseDate(val("dateEnd") || val("dateStart"));
+    return !!(s && e && e < s);
+  }
+
+  function buildOrder(existing){
+    var currentEditing = editingId();
+    var driverValue = val("orderDriver");
+    var totals = null;
+    try{ totals = (typeof calcLineTotals === "function") ? calcLineTotals() : (typeof calcTotals === "function" ? calcTotals() : null); }catch(e){}
+    return {
+      id: existing && existing.id ? existing.id : (currentEditing || makeId()),
+      number: val("orderNumber"),
+      status: val("orderStatus") || "Offerte",
+      title: val("orderTitle") || "Zonder titel",
+      start: val("dateStart"),
+      end: val("dateEnd") || val("dateStart"),
+      brand: val("orderBrand"),
+      customer: {
+        name: val("customerName"),
+        street: val("customerStreet"),
+        zip: val("customerZip"),
+        city: val("customerCity"),
+        phone: val("customerPhone"),
+        email: val("customerEmail")
+      },
+      location: {
+        name: val("locationName"),
+        street: val("locationStreet"),
+        zip: val("locationZip"),
+        city: val("locationCity"),
+        contact: val("locationContact"),
+        phone: val("locationPhone"),
+        show: E("showLocationOnDocs") ? checked("showLocationOnDocs") : true
+      },
+      materials: cloneData(chosenList()),
+      driver: driverValue,
+      driverName: driverValue,
+      bezorger: driverValue,
+      vehicle: val("orderVehicle"),
+      extra: val("orderExtra"),
+      pricing: totals || (existing && existing.pricing) || null,
+      confirmationText: E("confirmationText") ? E("confirmationText").value : ((existing && existing.confirmationText) || ""),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  function findOrderIndex(s){
+    var currentEditing = editingId();
+    var nr = val("orderNumber");
+    if(currentEditing){
+      var byId = s.orders.findIndex(function(o){ return String(o.id||"") === String(currentEditing); });
+      if(byId >= 0) return byId;
+    }
+    if(nr){
+      return s.orders.findIndex(function(o){ return String(o.number||"") === String(nr); });
+    }
+    return -1;
+  }
+
+  function saveLocalState(s){
+    try{ if(typeof save === "function"){ save(); return; } }catch(e){}
+    try{ localStorage.setItem("event-planner-pro-v87", JSON.stringify(s)); }catch(e){}
+  }
+
+  function saveOrderV14(){
+    var s = getState();
+    if(!s){ stableToast("Kan opdracht niet opslaan: geen state gevonden"); return false; }
+    s.orders = Array.isArray(s.orders) ? s.orders : [];
+
+    if(!val("orderNumber")){
+      stableToast("Geen opdrachtnummer ingevuld");
+      return false;
+    }
+    if(endBeforeStart()){
+      stableToast("Einddatum kan niet voor begindatum liggen");
+      return false;
+    }
+
+    var idx = findOrderIndex(s);
+    var existing = idx >= 0 ? s.orders[idx] : null;
+    var order = buildOrder(existing);
+
+    try{ if(typeof upsertCustomer === "function") upsertCustomer(order.customer); }catch(e){}
+    try{ if(typeof upsertLocation === "function") upsertLocation(order.location); }catch(e){}
+
+    if(idx >= 0){
+      s.orders[idx] = Object.assign({}, existing, order);
+    }else{
+      s.orders.push(order);
+    }
+
+    try{ editing = null; }catch(e){}
+    try{ window.editing = null; }catch(e){}
+
+    saveLocalState(s);
+
+    try{
+      if(window.BNS && typeof window.BNS.syncOrder === "function"){
+        Promise.resolve(window.BNS.syncOrder(order)).catch(function(err){ console.warn("Firebase sync later opnieuw proberen", err); });
+      }
+    }catch(e){}
+
+    stableToast("Opdracht opgeslagen");
+
+    try{ if(typeof clearOrder === "function") clearOrder(); }catch(e){}
+    try{ if(typeof renderAll === "function") renderAll(); }catch(e){}
+    try{ if(typeof showPage === "function") showPage("orders"); }catch(e){}
+    return false;
+  }
+
+  function bindSaveButton(){
+    var btn = E("saveOrder");
+    if(!btn) return;
+
+    var fresh = btn.cloneNode(true);
+    fresh.dataset.bnsV129SavePatched = "1";
+    fresh.dataset.bnsV14SavePatched = "1";
+    fresh.onclick = function(ev){
+      if(ev){ ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation && ev.stopImmediatePropagation(); }
+      return saveOrderV14();
+    };
+    btn.parentNode.replaceChild(fresh, btn);
+  }
+
+  function install(){
+    installToast();
+    try{ window.saveCurrentOrder = saveOrderV14; }catch(e){}
+    try{ saveCurrentOrder = saveOrderV14; }catch(e){}
+    bindSaveButton();
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", install);
+  else install();
+
+  setTimeout(install, 600);
+  setTimeout(install, 1600);
+  setInterval(bindSaveButton, 2500);
+})();
