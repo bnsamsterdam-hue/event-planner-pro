@@ -1,0 +1,6 @@
+Vervang alleen app.js in de hoofdmap. Laat firebase-config.js staan. Daarna CTRL + F5.
+
+V15 bevat: autosave lokaal, veilige vertraagde Firebase sync, bezorger zichtbaar op opdrachtkaart en in Overzicht bestelling, dubbelklik bescherming op Opslaan.
+
+
+V16: Snelknop Omhoog toegevoegd voor lange Opdrachten-pagina.
