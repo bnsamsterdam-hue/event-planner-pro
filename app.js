@@ -4922,12 +4922,46 @@ setInterval(install,1500);
   };
   window.BNS_A12_ALERT_DELETE = function(id){
     var s = S();
-    var txt = prompt("Reden verwijderen:", "");
-    if (txt === null) return;
+   askDeleteReasonBNS(id);
+return;
     s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
     SAVE(); updateButton(); openAlerts();
   };
+function askDeleteReasonBNS(id){
 
+  var html =
+    '<div id="bnsDeleteReasonModal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;">'+
+      '<div style="background:#fff;width:min(92vw,520px);border-radius:18px;padding:20px;font-family:Arial;">'+
+        ''<h2 style="margin-top:0;">Tapwagen.nl systeemmelding</h2>'+
+        '<div style="margin-bottom:10px;">Reden verwijderen:</div>'+
+        '<textarea id="bnsDeleteReasonInput" style="width:100%;height:110px;padding:10px;border-radius:12px;border:1px solid #ccc;"></textarea>'+
+        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">'+
+          '<button onclick="document.getElementById(\'bnsDeleteReasonModal\').remove()" style="padding:10px 16px;border:none;border-radius:10px;background:#ddd;cursor:pointer;">Annuleren</button>'+
+          '<button onclick="confirmDeleteAlertBNS(\''+id+'\')" style="padding:10px 16px;border:none;border-radius:10px;background:#d33;color:#fff;cursor:pointer;">Verwijderen</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function confirmDeleteAlertBNS(id){
+
+  var txt = document.getElementById('bnsDeleteReasonInput').value || '';
+
+  var s = S();
+
+  s.alerts = (s.alerts || []).filter(function(x){
+    return String(x.id) !== String(id);
+  });
+
+  SAVE();
+  updateButton();
+  openAlerts();
+
+  var m = document.getElementById('bnsDeleteReasonModal');
+  if(m) m.remove();
+}
   window.alertFor = function(orderId, type){
     var s = S(); s.alerts = s.alerts || [];
     var o = findOrder(orderId) || {};
