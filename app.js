@@ -233,6 +233,7 @@ function makeConfirmationText(){
 Opdracht: ${orderNumber.value}
 Status: ${orderStatus.value}
 Titel: ${orderTitle.value || ''}
+Bezorger: ${orderDriver.value || '-'}
 
 Klant:
 ${customerName.value || ''}
