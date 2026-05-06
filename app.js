@@ -5990,7 +5990,10 @@ function bindAlertButton(){
       ".bns-v125-alert-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bns-v125-alert-actions button{color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:900}.bns-v125-alert-actions .green{background:#16a34a}.bns-v125-alert-actions .red{background:#dc2626}";
     document.head.appendChild(st);
   }
-  function install(){ css(); bindAlertButton(); addLogoutButton(); }
+ function install(){
+  css();
+  bindAlertButton();
+  addLogoutButton();
   var oldRender = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
   if (oldRender && !oldRender.__bnsV125StableAlertsLogout) {
     var wrapped = function(){ var r = oldRender.apply(this, arguments); setTimeout(install, 0); return r; };
