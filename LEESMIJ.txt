@@ -1,21 +1,19 @@
-BNS herstelbestand - schone basis + Firebase
+BNS production-ready update
 
 Plaatsen:
 1. Maak eerst een backup van je huidige app.js.
-2. Vervang daarna ALLEEN app.js in de hoofdmap door deze app.js.
-3. Laat firebase-config.js staan zoals hij nu staat.
-4. Geen andere bestanden verwijderen of vervangen.
-5. Open de site en druk CTRL + F5.
+2. Vervang alleen app.js in de hoofdmap.
+3. Laat firebase-config.js staan.
+4. Open de site en druk CTRL + F5.
 
-Wat is aangepast:
-- Opslaan van bestaande opdrachten overschrijft nu de bestaande opdracht.
-- Nieuwe opdracht blijft een nieuwe opdracht.
-- Bezorger wordt opgeslagen als driver, driverName en bezorger.
-- Nieuwe opdracht maakt het bezorger veld leeg.
-- De oude wrapper die alleen de laatste order aanpaste is verwijderd.
-- Eerst lokaal opslaan, daarna pas Firebase proberen.
-- Firebase mag opslaan niet meer blokkeren.
-- Firebase leest orders vanaf 2025-01-01 om quota te beperken.
+In deze versie:
+- Opslaan/wijzigen blijft werken vanuit de schone basis.
+- Firebase-sync blijft aanwezig en leest beperkt vanaf 2025.
+- Materiaalstatus wordt direct bij openen berekend.
+- Gereserveerde materialen staan meteen op Gereserveerd.
+- Vrije materialen zijn niet meer groen ingevuld.
+- Gekozen materiaal wordt apart als Gekozen getoond.
 
-Belangrijk:
-Als Firebase quota exceeded geeft, blijft lokaal opslaan gewoon werken. Later kan Firebase opnieuw synchroniseren.
+Let op:
+- Blijf niet met meerdere tabs tegelijk testen als Firebase quota net geraakt is.
+- Geen losse codeblokken meer onderaan plakken; gebruik steeds een nieuwe app.js build.
