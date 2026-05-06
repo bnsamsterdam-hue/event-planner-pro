@@ -4921,9 +4921,13 @@ window.BNS_A12_ALERT_DELETE = function(id){
   window.askDeleteReasonBNS(id);
   return;
 };
-window.askDeleteReasonBNS = function(id){
+ window.askDeleteReasonBNS = function(id){
 
-  var html =
+  var old = document.getElementById('bnsDeleteReasonModal');
+  if(old) old.remove();
+
+  var html = 
+
     '<div id="bnsDeleteReasonModal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;">'+
       '<div style="background:#fff;width:min(92vw,520px);border-radius:18px;padding:20px;font-family:Arial;">'+
         '<h2 style="margin-top:0;">Tapwagen.nl systeemmelding</h2>'+
