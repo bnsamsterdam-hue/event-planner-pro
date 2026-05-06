@@ -8849,385 +8849,169 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   BNS V21 PRODUCTION READY CLEAN SYNC
-   Basis: laatste aangeleverde app.js.
-   Doel:
-   - Firebase centraal voor meerdere computers.
-   - Alleen opdrachten vanaf 2025-01-01 naar Firebase.
-   - updatedAt bepaalt wie wint: nieuwste versie blijft.
-   - Lokale wijzigingen worden niet door oude Firebase-data gewist.
-   - Users/materials/customers/locations/alerts/settings syncen klein en veilig mee.
-   - In opdracht kiezen we alleen bezorger; rechten blijven uit Admin > Gebruikers.
-   - Bezorger zichtbaar in Opdrachten en in Overzicht bestelling.
+   BNS V20 PRODUCTION - Bezorgerrechten alleen uit Admin
+   - Rechtenblok wordt NIET meer in de opdracht/bezorger-tab getoond.
+   - Bij opdracht aanmaken/wijzigen kies je alleen de bezorger.
+   - Wat de bezorger mag doen komt uit Admin > Gebruikers.
+   - Bestaande gebruikersrechten blijven opgeslagen en blijven leidend.
    ========================================================= */
-(function bnsV21ProductionReadyCleanSync(){
-  'use strict';
-  if(window.__bnsV21ProductionReadyCleanSync) return;
-  window.__bnsV21ProductionReadyCleanSync = true;
+(function bnsV20DriverRightsAdminOnly(){
+  "use strict";
 
-  var FIREBASE_VERSION = '10.12.5';
-  var MIN_ORDER_DATE = '2025-01-01';
-  var PENDING_ORDERS_KEY = 'bns_v21_pending_orders';
-  var PENDING_CORE_KEY = 'bns_v21_pending_core';
-  var STYLE_ID = 'bns-v21-production-style';
-  var coreSyncTimer = null;
+  var PATCH_ID = "bnsV20DriverRightsAdminOnly";
+  var STYLE_ID = "bns-v20-driver-rights-style";
+  if (window[PATCH_ID]) return;
+  window[PATCH_ID] = true;
 
-  function E(id){ return document.getElementById(id); }
-  function qa(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function clean(v){ return String(v == null ? '' : v).trim(); }
-  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
-  function baseSave(){ try{ if(typeof save === 'function') return save(); }catch(e){} try{ var s=S(); if(s) localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); }catch(e){} }
-  function clone(v){ try{return structuredClone(v);}catch(e){return JSON.parse(JSON.stringify(v == null ? null : v));} }
-  function nowIso(){ return new Date().toISOString(); }
-  function dateOfOrder(o){ return clean(o && (o.start || o.dateStart || o.startDate || o.date || '')).slice(0,10); }
-  function isOrderForFirebase(o){ var d=dateOfOrder(o); return !!d && d >= MIN_ORDER_DATE; }
-  function time(v){ var t=Date.parse(clean(v)); return isNaN(t) ? 0 : t; }
-  function newer(a,b){ return time(a && a.updatedAt) >= time(b && b.updatedAt); }
-  function keyOf(o){ return clean(o && (o.id || o.number)); }
-  function driverName(o){ return clean(o && (o.driverName || o.driver || o.bezorger || (o.driverUser && o.driverUser.name) || '')); }
-  function msg(t){ try{ if(typeof toastMsg==='function') return toastMsg(t); }catch(e){} try{ console.log(t); }catch(e){} }
+  function qs(sel, root){ return (root || document).querySelector(sel); }
+  function qsa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function txt(el){ return String((el && el.textContent) || "").trim(); }
 
-  var bootSnapshot = null;
-  try { bootSnapshot = clone(S()); } catch(e) { bootSnapshot = null; }
+  function stateNow(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e){}
+    try { if (window.state) return window.state; } catch(e){}
+    return null;
+  }
+
+  function saveAny(){
+    try { if (typeof save === "function") save(); } catch(e){}
+    try {
+      var s = stateNow();
+      if (s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    } catch(e){}
+  }
+
+  function toast(text){
+    try { if (typeof toastMsg === "function") toastMsg(text); } catch(e){}
+  }
+
+  function containsOrderForm(el){
+    if (!el) return false;
+    if (el.querySelector && (el.querySelector("#orderNumber") || el.querySelector("#orderDriver"))) return true;
+    var t = txt(el).toLowerCase();
+    return /planner snelknoppen|overzicht maken|afdrukken|annuleren/.test(t) && /bezorger/.test(t);
+  }
+
+  function containsUserSave(el){
+    if (!el) return false;
+    var t = txt(el).toLowerCase();
+    return /opslaan gebruiker|gebruiker opslaan|gebruikers|pin/.test(t) && /admin|planner|bezorger|rechten/.test(t);
+  }
+
+  function removeMisplacedRightsBlocks(){
+    var selectors = [
+      "#bnsUserRightsBox",
+      "#bnsForceUserRightsBox",
+      ".bns-user-rights-box",
+      ".bns-force-user-rights-box",
+      "[id^='bnsRight_']"
+    ];
+
+    qsa(selectors.join(",")).forEach(function(node){
+      var box = node.id && node.id.indexOf("bnsRight_") === 0
+        ? node.closest(".bns-user-rights-box, #bnsUserRightsBox, #bnsForceUserRightsBox, .bns-force-user-rights-box, label, div")
+        : node;
+
+      if (!box || !box.parentNode) return;
+
+      var scope = box.closest(".workpanel, .panel, .card, section, main, div") || box.parentNode;
+
+      // In opdracht maken/wijzigen hoort dit rechtenblok nooit te staan.
+      if (containsOrderForm(scope) && !containsUserSave(scope)) {
+        box.remove();
+        return;
+      }
+
+      // Als het blok ergens los staat zonder gebruikers-opslaan context, ook weg.
+      if (!containsUserSave(scope)) {
+        var bigger = scope.parentElement && (scope.parentElement.closest(".panel, .card, section, main, div") || scope.parentElement);
+        if (!containsUserSave(bigger)) box.remove();
+      }
+    });
+  }
+
+  function ensureOrderDriverOnly(){
+    var driver = qs("#orderDriver");
+    if (!driver) return;
+
+    var panel = driver.closest(".workpanel, .panel, .card, section, div");
+    if (!panel) return;
+
+    // Verwijder alleen rechtenblokken in de opdracht-bezorger-tab, niet admin.
+    qsa("#bnsUserRightsBox,#bnsForceUserRightsBox,.bns-user-rights-box,.bns-force-user-rights-box", panel)
+      .forEach(function(el){ el.remove(); });
+
+    // Uitleg voor planner: hier alleen kiezen, rechten zitten in admin.
+    if (!qs("#bnsDriverAdminInfo", panel)) {
+      var note = document.createElement("div");
+      note.id = "bnsDriverAdminInfo";
+      note.className = "bns-driver-admin-info";
+      note.textContent = "Kies hier alleen de bezorger. Rechten en functies worden beheerd in Admin > Gebruikers.";
+      driver.insertAdjacentElement("afterend", note);
+    }
+  }
+
+  function normalizeUsers(){
+    var s = stateNow();
+    if (!s || !Array.isArray(s.users)) return;
+
+    s.users.forEach(function(u){
+      u.rights = u.rights || {};
+      var role = String(u.role || "").toLowerCase();
+
+      // Basisrechten per rol. Bestaande aangevinkte rechten blijven behouden.
+      if (role === "admin") {
+        ["prices","agenda","gps","resolve","materials","customers","locations","orders","invoice","admin"].forEach(function(k){ u.rights[k] = true; });
+      } else if (role === "planner") {
+        ["prices","agenda","resolve","materials","customers","locations","orders","invoice"].forEach(function(k){ if (u.rights[k] == null) u.rights[k] = true; });
+        if (u.rights.admin == null) u.rights.admin = false;
+      } else if (role === "bezorger") {
+        if (u.rights.gps == null) u.rights.gps = true;
+        if (u.rights.resolve == null) u.rights.resolve = true;
+        if (u.rights.prices == null) u.rights.prices = false;
+        if (u.rights.agenda == null) u.rights.agenda = false;
+        if (u.rights.materials == null) u.rights.materials = false;
+        if (u.rights.customers == null) u.rights.customers = false;
+        if (u.rights.locations == null) u.rights.locations = false;
+        if (u.rights.orders == null) u.rights.orders = false;
+        if (u.rights.invoice == null) u.rights.invoice = false;
+        if (u.rights.admin == null) u.rights.admin = false;
+      }
+    });
+  }
 
   function installCss(){
-    if(E(STYLE_ID)) return;
-    var st=document.createElement('style'); st.id=STYLE_ID;
-    st.textContent = ''+
-      '.bns-v21-driver-chip{display:inline-block;margin:4px 0 6px 0;background:#0f766e;color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:900;box-shadow:0 2px 8px rgba(15,118,110,.22)}'+
-      '.bns-v21-driver-chip:before{content:"🚚 ";}'+
-      '.bns-v21-driver-overview{display:inline-block;margin-top:6px;background:#0f766e;color:white;border-radius:999px;padding:5px 12px;font-weight:900}'+
-      '.bns-v21-sync-note{font-size:12px;font-weight:800;opacity:.78;margin-left:8px}';
-    document.head.appendChild(st);
+    if (qs("#" + STYLE_ID)) return;
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent =
+      ".bns-driver-admin-info{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:#eff6ff;color:#1e3a8a;font-weight:800;border:1px solid #bfdbfe}" +
+      "#orderDriver ~ #bnsUserRightsBox,#orderDriver ~ #bnsForceUserRightsBox{display:none!important}";
+    document.head.appendChild(style);
   }
 
-  async function initFirebase(){
-    window.BNS = window.BNS || {};
-    if(window.BNS.v21FirebaseReady && window.BNS.fs && window.BNS.db) return true;
-    if(!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN'){
-      window.BNS.syncStatus = 'Firebase config ontbreekt';
-      return false;
-    }
-    try{
-      var appMod = await import('https://www.gstatic.com/firebasejs/'+FIREBASE_VERSION+'/firebase-app.js');
-      var fsMod = await import('https://www.gstatic.com/firebasejs/'+FIREBASE_VERSION+'/firebase-firestore.js');
-      if(!window.BNS.app){ window.BNS.app = appMod.initializeApp(window.BNS_FIREBASE_CONFIG); }
-      window.BNS.fs = fsMod;
-      window.BNS.db = fsMod.getFirestore(window.BNS.app);
-      window.BNS.v21FirebaseReady = true;
-      window.BNS.firebaseReady = true;
-      window.BNS.syncStatus = 'Firebase actief';
-      return true;
-    }catch(e){
-      window.BNS.syncStatus = 'Firebase fout';
-      console.error('[BNS V21] Firebase start fout', e);
-      return false;
-    }
-  }
-
-  function pending(key){ try{return JSON.parse(localStorage.getItem(key)||'[]');}catch(e){return [];} }
-  function setPending(key, rows){ try{localStorage.setItem(key, JSON.stringify(rows||[]));}catch(e){} }
-  function addPendingOrder(order){
-    if(!order || !order.id || !isOrderForFirebase(order)) return;
-    var rows=pending(PENDING_ORDERS_KEY).filter(function(x){return String(x.id)!==String(order.id);});
-    rows.push(clone(order)); setPending(PENDING_ORDERS_KEY, rows);
-  }
-  function markCorePending(){ try{localStorage.setItem(PENDING_CORE_KEY, JSON.stringify({at:nowIso()}));}catch(e){} }
-  function clearCorePending(){ try{localStorage.removeItem(PENDING_CORE_KEY);}catch(e){} }
-
-  function mergeOrders(localOrders, fbOrders){
-    var map = new Map();
-    (localOrders||[]).forEach(function(o){ if(keyOf(o)) map.set(String(keyOf(o)), clone(o)); });
-    // Herstel lokale snapshot als oude Firebase hem net heeft overschreven.
-    if(bootSnapshot && Array.isArray(bootSnapshot.orders)){
-      bootSnapshot.orders.forEach(function(o){
-        if(!keyOf(o)) return;
-        var cur = map.get(String(keyOf(o)));
-        if(!cur || newer(o, cur)) map.set(String(keyOf(o)), clone(o));
-      });
-    }
-    (fbOrders||[]).forEach(function(fb){
-      if(!keyOf(fb)) return;
-      var k=String(keyOf(fb));
-      var loc=map.get(k);
-      if(!loc){ map.set(k, clone(fb)); return; }
-      if(newer(fb, loc)) map.set(k, Object.assign({}, loc, fb));
-      else if(isOrderForFirebase(loc)) addPendingOrder(loc);
-    });
-    return Array.from(map.values());
-  }
-
-  async function readOrdersFromFirebase(){
-    if(!(await initFirebase())) return [];
-    var fs=window.BNS.fs, ref=fs.collection(window.BNS.db,'orders');
-    try{ ref = fs.query(ref, fs.where('start','>=',MIN_ORDER_DATE)); }catch(e){}
-    var snap=await fs.getDocs(ref);
-    return snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(isOrderForFirebase);
-  }
-
-  async function loadOrdersFromFirebaseV21(){
-    if(!(await initFirebase())) return false;
-    var s=S(); if(!s) return false;
-    try{
-      var rows = await readOrdersFromFirebase();
-      s.orders = mergeOrders(s.orders || [], rows || []);
-      baseSave();
-      try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
-      setTimeout(enhanceUi,80);
-      window.BNS.syncStatus = 'Firebase geladen vanaf '+MIN_ORDER_DATE;
-      return true;
-    }catch(e){
-      console.error('[BNS V21] Firebase laden mislukt', e);
-      window.BNS.syncStatus = 'Firebase laden mislukt; lokaal blijft werken';
-      return false;
-    }
-  }
-
-  async function syncOrderV21(order){
-    if(!order || !order.id) return false;
-    if(!isOrderForFirebase(order)) return false;
-    if(!order.updatedAt) order.updatedAt = nowIso();
-    addPendingOrder(order);
-    if(!(await initFirebase())) return false;
-    var fs=window.BNS.fs;
-    try{
-      await fs.setDoc(fs.doc(window.BNS.db,'orders',String(order.id)), clone(order), {merge:true});
-      setPending(PENDING_ORDERS_KEY, pending(PENDING_ORDERS_KEY).filter(function(x){return String(x.id)!==String(order.id);}));
-      window.BNS.syncStatus = 'Opdracht opgeslagen in Firebase';
-      return true;
-    }catch(e){
-      console.error('[BNS V21] Firebase opdracht opslaan mislukt; lokaal bewaard', e);
-      window.BNS.syncStatus = 'Lokaal opgeslagen, Firebase later';
-      return false;
-    }
-  }
-
-  async function flushPendingOrdersV21(){
-    var rows=pending(PENDING_ORDERS_KEY);
-    for(var i=0;i<rows.length;i++) await syncOrderV21(rows[i]);
-  }
-
-  var coreCollections = ['users','materials','customers','locations','alerts'];
-  async function loadCoreFromFirebase(){
-    if(!(await initFirebase())) return;
-    var s=S(); if(!s) return;
-    var fs=window.BNS.fs;
-    try{
-      for(var c=0;c<coreCollections.length;c++){
-        var name=coreCollections[c];
-        var snap=await fs.getDocs(fs.collection(window.BNS.db,name));
-        var remote=snap.docs.map(function(d){return Object.assign({id:d.id}, d.data());});
-        if(!remote.length) continue;
-        var local=Array.isArray(s[name])?s[name]:[];
-        var map=new Map(local.map(function(x){return [String(x.id||x.name||Math.random()), clone(x)];}));
-        remote.forEach(function(r){
-          var k=String(r.id||r.name||''); if(!k) return;
-          var l=map.get(k);
-          if(!l || newer(r,l)) map.set(k,Object.assign({},l||{},r));
-        });
-        s[name]=Array.from(map.values());
-      }
-      try{
-        var setDoc=fs.setDoc, doc=fs.doc;
-        var setSnap=await fs.getDocs(fs.collection(window.BNS.db,'settings'));
-        setSnap.docs.forEach(function(d){ if(d.id==='main') s.settings=Object.assign({},s.settings||{},d.data()||{}); });
-      }catch(e){}
-      baseSave();
-      try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
-    }catch(e){ console.error('[BNS V21] core sync laden mislukt', e); }
-  }
-
-  async function syncCoreToFirebase(){
-    var s=S(); if(!s) return false;
-    if(!(await initFirebase())) return false;
-    var fs=window.BNS.fs;
-    try{
-      for(var c=0;c<coreCollections.length;c++){
-        var name=coreCollections[c], rows=Array.isArray(s[name])?s[name]:[];
-        for(var i=0;i<rows.length;i++){
-          var row=clone(rows[i]);
-          var id=clean(row.id || row.name || (name+'_'+i));
-          if(!id) continue;
-          row.id = id;
-          if(!row.updatedAt) row.updatedAt = nowIso();
-         // await fs.setDoc(fs.doc(window.BNS.db,name,String(id)), row, {merge:true});
-        }
-      }
-     // if(s.settings){ await fs.setDoc(fs.doc(window.BNS.db,'settings','main'), Object.assign({},s.settings,{updatedAt:nowIso()}), {merge:true}); }
-      clearCorePending();
-      return true;
-    }catch(e){ console.error('[BNS V21] core sync opslaan mislukt', e); markCorePending(); return false; }
-  }
-  function scheduleCoreSync(){ clearTimeout(coreSyncTimer); coreSyncTimer=setTimeout(syncCoreToFirebase, 2500); }
-
-  function patchSave(){
-    if(window.__bnsV21SavePatched) return; window.__bnsV21SavePatched=true;
-    var old = null;
-    try{ old = save; }catch(e){}
-    if(typeof old === 'function'){
-      var wrapped=function(){ var r=old.apply(this,arguments); markCorePending(); scheduleCoreSync(); return r; };
-      try{ save=wrapped; }catch(e){}
-      window.save=wrapped;
-    }
-  }
-
-  function selectedDriverValue(){ var d=E('orderDriver'); return d ? clean(d.value) : ''; }
-  function currentChosen(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} try{ if(Array.isArray(window.chosen)) return window.chosen; }catch(e){} return []; }
-  function findExistingOrder(currentId,currentNumber){
-    var s=S(); var orders=(s&&Array.isArray(s.orders))?s.orders:[];
-    var idx=-1;
-    if(currentId) idx=orders.findIndex(function(x){return String(x.id||'')===String(currentId);});
-    if(idx<0 && currentNumber) idx=orders.findIndex(function(x){return String(x.number||'')===String(currentNumber);});
-    return idx;
-  }
-  function patchSaveCurrentOrder(){
-    var fn = null; try{ fn = saveCurrentOrder; }catch(e){}
-    if(!fn || fn.__bnsV21SaveCurrentOrder) return;
-    var newFn = function(){
-      var s=S(); if(!s){ return fn.apply(this,arguments); }
-      s.orders = Array.isArray(s.orders) ? s.orders : [];
-      var currentId = ''; try{ currentId = clean(editing); }catch(e){}
-      var currentNumber = E('orderNumber') ? clean(E('orderNumber').value) : '';
-      var idx = findExistingOrder(currentId,currentNumber);
-      var existing = idx >= 0 ? s.orders[idx] : null;
-      var totals = null; try{ totals = (typeof calcLineTotals==='function') ? calcLineTotals() : (typeof calcTotals==='function'?calcTotals():null); }catch(e){}
-      var o = {
-        id: existing ? existing.id : (currentId || (typeof id==='function' ? id() : ('ord_'+Date.now()))),
-        number: currentNumber,
-        status: E('orderStatus') ? E('orderStatus').value : (existing&&existing.status)||'Offerte',
-        title: E('orderTitle') ? (E('orderTitle').value || 'Zonder titel') : (existing&&existing.title)||'Zonder titel',
-        start: E('dateStart') ? E('dateStart').value : (existing&&existing.start)||'',
-        end: E('dateEnd') ? (E('dateEnd').value || (E('dateStart')&&E('dateStart').value) || '') : (existing&&existing.end)||'',
-        brand: E('orderBrand') ? E('orderBrand').value : (existing&&existing.brand)||'',
-        customer: {
-          name: E('customerName') ? E('customerName').value : '', street: E('customerStreet') ? E('customerStreet').value : '', zip: E('customerZip') ? E('customerZip').value : '', city: E('customerCity') ? E('customerCity').value : '', phone: E('customerPhone') ? E('customerPhone').value : '', email: E('customerEmail') ? E('customerEmail').value : ''
-        },
-        location: {
-          name: E('locationName') ? E('locationName').value : '', street: E('locationStreet') ? E('locationStreet').value : '', zip: E('locationZip') ? E('locationZip').value : '', city: E('locationCity') ? E('locationCity').value : '', contact: E('locationContact') ? E('locationContact').value : '', phone: E('locationPhone') ? E('locationPhone').value : '', show: E('showLocationOnDocs') ? E('showLocationOnDocs').checked : true
-        },
-        materials: clone(currentChosen() || []),
-        driver: selectedDriverValue(),
-        driverName: selectedDriverValue(),
-        bezorger: selectedDriverValue(),
-        vehicle: E('orderVehicle') ? E('orderVehicle').value : '',
-        extra: E('orderExtra') ? E('orderExtra').value : '',
-        pricing: totals || (existing&&existing.pricing) || {},
-        confirmationText: E('confirmationText') ? (E('confirmationText').value || (typeof makeConfirmationText==='function' ? makeConfirmationText() : '')) : ((existing&&existing.confirmationText)||''),
-        updatedAt: nowIso()
-      };
-      try{ if(typeof upsertCustomer==='function') upsertCustomer(o.customer); }catch(e){}
-      try{ if(typeof upsertLocation==='function') upsertLocation(o.location); }catch(e){}
-      if(idx>=0) s.orders[idx]=Object.assign({}, existing, o); else s.orders.push(o);
-      try{ editing=null; }catch(e){}
-      baseSave();
-      syncOrderV21(o);
-      msg('Opdracht opgeslagen');
-      try{ if(typeof clearOrder==='function') clearOrder(); }catch(e){}
-      try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
-      try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
-      setTimeout(enhanceUi,80);
-      return false;
-    };
-    newFn.__bnsV21SaveCurrentOrder = true;
-    try{ saveCurrentOrder = newFn; }catch(e){}
-    window.saveCurrentOrder = newFn;
-  }
-
-  function hideOrderRightsBlocks(){
-    // In opdracht-tab hoeft alleen de bezorger gekozen te worden. Admin > Gebruikers blijft leidend.
-    qa('h1,h2,h3,h4,label,div,section').forEach(function(el){
-      var txt=clean(el.textContent||'');
-      if(txt.indexOf('Wat mag deze medewerker zien / doen?')<0) return;
-      var admin = el.closest && el.closest('#adminArea,.adminPane,#adminUsers');
-      if(admin) return;
-      var box = el.closest('section,.panel,.card,div');
-      if(box) box.style.display='none';
-    });
-  }
-
-  function findOrderByCard(card){
-    var s=S(); if(!s || !Array.isArray(s.orders)) return null;
-    var id = (card.getAttribute('data-bns-order-id') || card.getAttribute('data-order-id') || card.dataset.orderId || '').trim();
-    if(id){ var byId=s.orders.find(function(o){return String(o.id||'')===String(id);}); if(byId) return byId; }
-    var text = card.textContent || '';
-    return s.orders.find(function(o){ return o.number && text.indexOf(String(o.number))>=0; }) || null;
-  }
-  function enhanceOrderCards(){
+  function install(){
     installCss();
-    qa('.order-card,.bns-card,.bns-v126-order-card,[data-bns-order-id],[data-order-id]').forEach(function(card){
-      if(card.querySelector('.bns-v21-driver-chip')) return;
-      var o=findOrderByCard(card); var d=driverName(o);
-      if(!d) return;
-      var chip=document.createElement('div'); chip.className='bns-v21-driver-chip'; chip.textContent=d;
-      var title=card.querySelector('.order-title,.bns-main b,b,h3,h2') || card.firstElementChild;
-      if(title && title.parentNode) title.parentNode.insertBefore(chip, title.nextSibling); else card.insertBefore(chip, card.firstChild);
-    });
+    normalizeUsers();
+    removeMisplacedRightsBlocks();
+    ensureOrderDriverOnly();
   }
 
-  function money(v){ try{ if(typeof window.money==='function') return window.money(v); }catch(e){} var n=Number(v||0); return '€ '+n.toFixed(2).replace('.',','); }
-  function nice(v){ try{ if(typeof window.nice==='function') return window.nice(v); }catch(e){} var p=String(v||'').slice(0,10).split('-'); return p.length===3 ? (p[2]+'-'+p[1]+'-'+p[0]) : String(v||''); }
-  function orderHtmlV21(o){
-    var c=o.customer||{}, l=o.location||{}, mats=o.materials||[], d=driverName(o);
-    var total=o.pricing&&o.pricing.grand!=null?o.pricing.grand:o.amount, deposit=o.pricing&&o.pricing.deposit!=null?o.pricing.deposit:0;
-    var rows=mats.length?mats.map(function(m,i){return '<tr><td>'+esc(i+1)+'</td><td><b>'+esc(m.code||'')+'</b></td><td>'+esc(m.name||'')+'</td><td>'+esc(m.cat||'')+'</td><td>'+esc(m.status||'')+'</td><td>'+esc(m.price||'')+'</td></tr>';}).join(''):'<tr><td colspan="6">Geen materialen gekoppeld.</td></tr>';
-    return ''+
-      '<div class="bns-order-overview-head"><div><h2>Overzicht bestelling</h2><div><b>'+esc(o.number||'')+'</b> - '+esc(o.title||'')+'</div><div>Status: '+esc(o.status||'')+'</div>'+(d?'<div class="bns-v21-driver-overview">🚚 Bezorger: '+esc(d)+'</div>':'')+'</div><button type="button" class="bns-order-overview-close" onclick="BNS_V128_CLOSE_ORDER_OVERVIEW()">Terug</button></div>'+
-      '<div class="bns-order-overview-grid">'+
-      '<div class="bns-order-overview-box"><b>Klant</b><br>'+esc(c.name||'')+'<br>'+esc([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+esc(c.phone||'')+'<br>'+esc(c.email||'')+'</div>'+
-      '<div class="bns-order-overview-box"><b>Locatie</b><br>'+esc(l.name||'')+'<br>'+esc([l.street,l.zip,l.city].filter(Boolean).join(' '))+'<br>'+esc(l.phone||'')+'</div>'+
-      '</div><div class="bns-order-overview-box"><b>Datum</b><br>'+esc(nice(o.start))+(o.end&&o.end!==o.start?' t/m '+esc(nice(o.end)):'')+' '+esc(o.startTime||'')+' '+esc(o.endTime||'')+'</div>'+
-      '<h3>Materialen / artikelen</h3><table class="bns-order-overview-table"><thead><tr><th>#</th><th>Code</th><th>Naam</th><th>Rubriek</th><th>Status</th><th>Prijs</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-      '<div class="bns-order-overview-total">Totaal: '+money(total)+' &nbsp; | &nbsp; Borg: '+money(deposit)+'</div>'+(o.extra?'<h3>Bijzonderheden</h3><div class="bns-order-overview-extra">'+esc(o.extra)+'</div>':'');
-  }
-  function patchOrderOverview(){
-    window.BNS_V128_SHOW_ORDER_OVERVIEW=function(id){
-      installCss();
-      var s=S(); var o=s&&Array.isArray(s.orders)?s.orders.find(function(x){return String(x.id||'')===String(id)||String(x.number||'')===String(id);}):null;
-      if(!o){ alert('Opdracht niet gevonden'); return false; }
-      var old=E('bnsOrderOverviewModal'); if(old) old.remove();
-      var wrap=document.createElement('div'); wrap.id='bnsOrderOverviewModal'; wrap.className='bns-order-overview-backdrop';
-      wrap.innerHTML='<div class="bns-order-overview-card">'+orderHtmlV21(o)+'</div>';
-      wrap.addEventListener('click',function(e){ if(e.target===wrap) window.BNS_V128_CLOSE_ORDER_OVERVIEW(); });
-      document.body.appendChild(wrap); return false;
-    };
-    window.BNS_V128_CLOSE_ORDER_OVERVIEW=function(){ var m=E('bnsOrderOverviewModal'); if(m) m.remove(); };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 500); });
+  } else {
+    setTimeout(install, 200);
   }
 
-  function enhanceUi(){ installCss(); hideOrderRightsBlocks(); enhanceOrderCards(); patchOrderOverview(); }
+  setTimeout(install, 900);
+  setTimeout(install, 1800);
+  setInterval(install, 2000);
 
-  function patchRenderAll(){
-    if(window.__bnsV21RenderPatched) return; window.__bnsV21RenderPatched=true;
-    var oldAll=null, oldOrders=null;
-    try{ oldAll=renderAll; }catch(e){}
-    try{ oldOrders=renderOrders; }catch(e){}
-    if(typeof oldAll==='function'){
-      var all=function(){ var r=oldAll.apply(this,arguments); setTimeout(enhanceUi,30); return r; };
-      try{ renderAll=all; }catch(e){} window.renderAll=all;
-    }
-    if(typeof oldOrders==='function'){
-      var ro=function(){ var r=oldOrders.apply(this,arguments); setTimeout(enhanceUi,30); return r; };
-      try{ renderOrders=ro; }catch(e){} window.renderOrders=ro;
-    }
-  }
-
-  function exposeFirebase(){
-    window.BNS = window.BNS || {};
-    window.BNS.syncOrder = syncOrderV21;
-    window.BNS.reloadFromFirebase = loadOrdersFromFirebaseV21;
-    window.BNS.flushPending = flushPendingOrdersV21;
-    window.BNS.syncCore = syncCoreToFirebase;
-    window.BNS.loadCore = loadCoreFromFirebase;
-  }
-
-  function start(){
-    installCss(); exposeFirebase(); patchSave(); patchSaveCurrentOrder(); patchRenderAll(); patchOrderOverview(); enhanceUi();
-    setTimeout(loadCoreFromFirebase, 900);
-    setTimeout(loadOrdersFromFirebaseV21, 1400);
-    setTimeout(flushPendingOrdersV21, 4500);
-    setTimeout(function(){ if(localStorage.getItem(PENDING_CORE_KEY)) syncCoreToFirebase(); }, 5200);
-    setTimeout(enhanceUi, 1800);
-    setTimeout(enhanceUi, 3200);
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', start); else start();
+  window.BNS_driverRightsAdminOnly = function(){
+    normalizeUsers();
+    removeMisplacedRightsBlocks();
+    ensureOrderDriverOnly();
+    saveAny();
+    toast("Bezorgerrechten staan nu alleen in Admin.");
+  };
 })();
