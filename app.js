@@ -8847,308 +8847,171 @@ setInterval(install,1500);
   setInterval(bindSaveButton, 2500);
 })();
 
+
 /* =========================================================
-   BNS V15 PRODUCTION READY
-   - Autosave lokaal voor geopende bestaande opdracht
-   - Concept-opslag voor nieuwe opdracht zonder automatisch opdracht aan te maken
-   - Veilige, vertraagde Firebase sync zodat quota niet onnodig belast wordt
-   - Bezorger weer zichtbaar op opdrachtkaart en in overzicht bestelling
-   - Extra bescherming tegen dubbelklikken op Opslaan
+   BNS V20 PRODUCTION - Bezorgerrechten alleen uit Admin
+   - Rechtenblok wordt NIET meer in de opdracht/bezorger-tab getoond.
+   - Bij opdracht aanmaken/wijzigen kies je alleen de bezorger.
+   - Wat de bezorger mag doen komt uit Admin > Gebruikers.
+   - Bestaande gebruikersrechten blijven opgeslagen en blijven leidend.
    ========================================================= */
-(function bnsV15ProductionReady(){
-  'use strict';
-  if(window.__bnsV15ProductionReady) return;
-  window.__bnsV15ProductionReady = true;
+(function bnsV20DriverRightsAdminOnly(){
+  "use strict";
 
-  var FORM_IDS = [
-    'orderNumber','orderStatus','orderTitle','dateStart','dateEnd','orderBrand',
-    'customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail',
-    'locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone',
-    'orderDriver','orderVehicle','orderExtra','priceExcl','discountAmount','vatPercent','depositAmount','confirmationText'
-  ];
-  var DRAFT_KEY = 'bns_v15_new_order_draft';
-  var autosaveTimer = null;
-  var firebaseTimer = null;
-  var lastAutoSavedOrder = null;
+  var PATCH_ID = "bnsV20DriverRightsAdminOnly";
+  var STYLE_ID = "bns-v20-driver-rights-style";
+  if (window[PATCH_ID]) return;
+  window[PATCH_ID] = true;
 
-  function E(id){ return document.getElementById(id); }
-  function qsa(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function val(id){ var el=E(id); return el ? String(el.value||'').trim() : ''; }
-  function checked(id){ var el=E(id); return !!(el && el.checked); }
-  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || null; }
-  function editingId(){ try{ if(typeof editing!=='undefined' && editing) return String(editing); }catch(e){} return window.editing ? String(window.editing) : ''; }
-  function chosenList(){ try{ if(typeof chosen!=='undefined' && Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen) ? window.chosen : []; }
-  function clone(v){ try{return structuredClone(v||[]);}catch(e){try{return JSON.parse(JSON.stringify(v||[]));}catch(_){return [];}} }
-  function saveLocal(){ try{ if(typeof save==='function'){ save(); return true; } }catch(e){} try{ var s=stateObj(); if(s) localStorage.setItem('event-planner-pro-v87',JSON.stringify(s)); return true; }catch(e){ return false; } }
-  function toast(t){ try{ if(typeof toastMsg==='function'){ toastMsg(t); return; } }catch(e){} console.log('[BNS]',t); }
-  function totals(existing){ try{ if(typeof calcLineTotals==='function') return calcLineTotals(); }catch(e){} try{ if(typeof calcTotals==='function') return calcTotals(); }catch(e){} return existing && existing.pricing ? existing.pricing : null; }
-  function makeOrderFromForm(existing){
-    var driver = val('orderDriver');
-    return {
-      id: existing && existing.id ? existing.id : editingId(),
-      number: val('orderNumber'),
-      status: val('orderStatus') || 'Offerte',
-      title: val('orderTitle') || 'Zonder titel',
-      start: val('dateStart'),
-      end: val('dateEnd') || val('dateStart'),
-      brand: val('orderBrand'),
-      customer: { name: val('customerName'), street: val('customerStreet'), zip: val('customerZip'), city: val('customerCity'), phone: val('customerPhone'), email: val('customerEmail') },
-      location: { name: val('locationName'), street: val('locationStreet'), zip: val('locationZip'), city: val('locationCity'), contact: val('locationContact'), phone: val('locationPhone'), show: E('showLocationOnDocs') ? checked('showLocationOnDocs') : true },
-      materials: clone(chosenList()),
-      driver: driver,
-      driverName: driver,
-      bezorger: driver,
-      vehicle: val('orderVehicle'),
-      extra: val('orderExtra'),
-      pricing: totals(existing),
-      confirmationText: E('confirmationText') ? E('confirmationText').value : ((existing && existing.confirmationText) || ''),
-      updatedAt: new Date().toISOString()
-    };
+  function qs(sel, root){ return (root || document).querySelector(sel); }
+  function qsa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function txt(el){ return String((el && el.textContent) || "").trim(); }
+
+  function stateNow(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e){}
+    try { if (window.state) return window.state; } catch(e){}
+    return null;
   }
-  function findOrder(){
-    var s=stateObj(); if(!s || !Array.isArray(s.orders)) return {s:s,index:-1,order:null};
-    var eid=editingId(), nr=val('orderNumber');
-    var i=-1;
-    if(eid) i=s.orders.findIndex(function(o){ return String(o.id||'')===String(eid); });
-    if(i<0 && nr) i=s.orders.findIndex(function(o){ return String(o.number||'')===String(nr); });
-    return {s:s,index:i,order:i>=0?s.orders[i]:null};
+
+  function saveAny(){
+    try { if (typeof save === "function") save(); } catch(e){}
+    try {
+      var s = stateNow();
+      if (s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    } catch(e){}
   }
-  function saveDraftOnly(){
-    var draft={};
-    FORM_IDS.forEach(function(id){ var el=E(id); if(el) draft[id]=el.value||''; });
-    draft.materials=clone(chosenList());
-    draft.savedAt=new Date().toISOString();
-    try{ localStorage.setItem(DRAFT_KEY,JSON.stringify(draft)); }catch(e){}
+
+  function toast(text){
+    try { if (typeof toastMsg === "function") toastMsg(text); } catch(e){}
   }
-  function autosaveExistingOrder(){
-    var hit=findOrder();
-    if(!hit.s) return;
-    if(hit.index < 0){ saveDraftOnly(); return; }
-    var order=makeOrderFromForm(hit.order);
-    if(!order.id) return;
-    hit.s.orders[hit.index]=Object.assign({},hit.order,order);
-    lastAutoSavedOrder=hit.s.orders[hit.index];
-    saveLocal();
-    scheduleFirebaseSync(lastAutoSavedOrder);
-    markAutoStatus('Lokaal opgeslagen');
+
+  function containsOrderForm(el){
+    if (!el) return false;
+    if (el.querySelector && (el.querySelector("#orderNumber") || el.querySelector("#orderDriver"))) return true;
+    var t = txt(el).toLowerCase();
+    return /planner snelknoppen|overzicht maken|afdrukken|annuleren/.test(t) && /bezorger/.test(t);
   }
-  function scheduleAutosave(){
-    clearTimeout(autosaveTimer);
-    autosaveTimer=setTimeout(autosaveExistingOrder,1200);
+
+  function containsUserSave(el){
+    if (!el) return false;
+    var t = txt(el).toLowerCase();
+    return /opslaan gebruiker|gebruiker opslaan|gebruikers|pin/.test(t) && /admin|planner|bezorger|rechten/.test(t);
   }
-  function scheduleFirebaseSync(order){
-    if(!order || !order.id) return;
-    clearTimeout(firebaseTimer);
-    firebaseTimer=setTimeout(function(){
-      try{
-        if(navigator.onLine===false) return;
-        if(window.BNS && typeof window.BNS.syncOrder==='function'){
-          Promise.resolve(window.BNS.syncOrder(order)).catch(function(e){ console.warn('BNS V15 Firebase later opnieuw',e); });
-        }
-      }catch(e){}
-    },9000);
-  }
-  function markAutoStatus(text){
-    var el=E('bnsV15AutoSaveStatus');
-    if(!el){
-      el=document.createElement('div'); el.id='bnsV15AutoSaveStatus';
-      el.style.cssText='position:fixed;right:18px;bottom:18px;z-index:999998;background:#ecfeff;color:#155e75;border:2px solid #06b6d4;border-radius:14px;padding:8px 12px;font-weight:900;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.15);display:none';
-      document.body.appendChild(el);
-    }
-    el.textContent='✓ '+text;
-    el.style.display='block';
-    clearTimeout(el._t);
-    el._t=setTimeout(function(){ el.style.display='none'; },1600);
-  }
-  function bindAutosave(){
-    FORM_IDS.forEach(function(id){
-      var el=E(id); if(!el || el.dataset.bnsV15AutoSave==='1') return;
-      el.dataset.bnsV15AutoSave='1';
-      el.addEventListener('input',scheduleAutosave,true);
-      el.addEventListener('change',scheduleAutosave,true);
-    });
-  }
-  function driverOf(o){ return String((o&&(o.driverName||o.driver||o.bezorger||o.driverId||o.bezorgerId))||'').trim(); }
-  function orderByCard(card){
-    var s=stateObj(); if(!s || !Array.isArray(s.orders)) return null;
-    var id=card.getAttribute('data-order-id') || (card.dataset&&card.dataset.orderId) || '';
-    var num=card.getAttribute('data-order-number') || (card.dataset&&card.dataset.orderNumber) || '';
-    if(!num){ var txt=card.textContent||''; var m=txt.match(/\b(20\d{2}-\d{3,5})\b/); if(m) num=m[1]; }
-    return s.orders.find(function(o){ return (id && String(o.id)===String(id)) || (num && String(o.number)===String(num)); }) || null;
-  }
-  function addDriverBadges(){
-    qsa('.order-card,.bns-card').forEach(function(card){
-      if(card.dataset.bnsV15DriverDone==='1'){
-        var old=card.querySelector('.bns-v15-driver-badge');
-        var oo=orderByCard(card), dd=driverOf(oo);
-        if(old) old.style.display=dd?'inline-flex':'none';
-        if(old && dd) old.innerHTML='🚚 '+esc(dd);
+
+  function removeMisplacedRightsBlocks(){
+    var selectors = [
+      "#bnsUserRightsBox",
+      "#bnsForceUserRightsBox",
+      ".bns-user-rights-box",
+      ".bns-force-user-rights-box",
+      "[id^='bnsRight_']"
+    ];
+
+    qsa(selectors.join(",")).forEach(function(node){
+      var box = node.id && node.id.indexOf("bnsRight_") === 0
+        ? node.closest(".bns-user-rights-box, #bnsUserRightsBox, #bnsForceUserRightsBox, .bns-force-user-rights-box, label, div")
+        : node;
+
+      if (!box || !box.parentNode) return;
+
+      var scope = box.closest(".workpanel, .panel, .card, section, main, div") || box.parentNode;
+
+      // In opdracht maken/wijzigen hoort dit rechtenblok nooit te staan.
+      if (containsOrderForm(scope) && !containsUserSave(scope)) {
+        box.remove();
         return;
       }
-      var o=orderByCard(card); if(!o) return;
-      var d=driverOf(o); if(!d) return;
-      card.dataset.bnsV15DriverDone='1';
-      var badge=document.createElement('div');
-      badge.className='bns-v15-driver-badge';
-      badge.innerHTML='🚚 '+esc(d);
-      var title=card.querySelector('.order-title,.bns-main b,b') || card.firstElementChild;
-      if(title && title.parentNode) title.parentNode.insertBefore(badge,title.nextSibling);
-      else card.insertBefore(badge,card.firstChild);
+
+      // Als het blok ergens los staat zonder gebruikers-opslaan context, ook weg.
+      if (!containsUserSave(scope)) {
+        var bigger = scope.parentElement && (scope.parentElement.closest(".panel, .card, section, main, div") || scope.parentElement);
+        if (!containsUserSave(bigger)) box.remove();
+      }
     });
   }
-  function patchOverviewDriver(){
-    qsa('.bns-order-overview-card').forEach(function(modal){
-      if(modal.dataset.bnsV15DriverOverview==='1') return;
-      var txt=modal.textContent||''; var m=txt.match(/\b(20\d{2}-\d{3,5})\b/); if(!m) return;
-      var s=stateObj(); if(!s) return;
-      var o=(s.orders||[]).find(function(x){return String(x.number)===String(m[1]);});
-      var d=driverOf(o); if(!d) return;
-      modal.dataset.bnsV15DriverOverview='1';
-      var statusLine=null;
-      qsa('div',modal).some(function(div){ if(/Status\s*:/i.test(div.textContent||'')){ statusLine=div; return true; } return false; });
-      var line=document.createElement('div');
-      line.className='bns-v15-overview-driver';
-      line.innerHTML='<b>Bezorger:</b> '+esc(d);
-      if(statusLine && statusLine.parentNode) statusLine.parentNode.insertBefore(line,statusLine.nextSibling);
-      else modal.insertBefore(line,modal.firstChild);
+
+  function ensureOrderDriverOnly(){
+    var driver = qs("#orderDriver");
+    if (!driver) return;
+
+    var panel = driver.closest(".workpanel, .panel, .card, section, div");
+    if (!panel) return;
+
+    // Verwijder alleen rechtenblokken in de opdracht-bezorger-tab, niet admin.
+    qsa("#bnsUserRightsBox,#bnsForceUserRightsBox,.bns-user-rights-box,.bns-force-user-rights-box", panel)
+      .forEach(function(el){ el.remove(); });
+
+    // Uitleg voor planner: hier alleen kiezen, rechten zitten in admin.
+    if (!qs("#bnsDriverAdminInfo", panel)) {
+      var note = document.createElement("div");
+      note.id = "bnsDriverAdminInfo";
+      note.className = "bns-driver-admin-info";
+      note.textContent = "Kies hier alleen de bezorger. Rechten en functies worden beheerd in Admin > Gebruikers.";
+      driver.insertAdjacentElement("afterend", note);
+    }
+  }
+
+  function normalizeUsers(){
+    var s = stateNow();
+    if (!s || !Array.isArray(s.users)) return;
+
+    s.users.forEach(function(u){
+      u.rights = u.rights || {};
+      var role = String(u.role || "").toLowerCase();
+
+      // Basisrechten per rol. Bestaande aangevinkte rechten blijven behouden.
+      if (role === "admin") {
+        ["prices","agenda","gps","resolve","materials","customers","locations","orders","invoice","admin"].forEach(function(k){ u.rights[k] = true; });
+      } else if (role === "planner") {
+        ["prices","agenda","resolve","materials","customers","locations","orders","invoice"].forEach(function(k){ if (u.rights[k] == null) u.rights[k] = true; });
+        if (u.rights.admin == null) u.rights.admin = false;
+      } else if (role === "bezorger") {
+        if (u.rights.gps == null) u.rights.gps = true;
+        if (u.rights.resolve == null) u.rights.resolve = true;
+        if (u.rights.prices == null) u.rights.prices = false;
+        if (u.rights.agenda == null) u.rights.agenda = false;
+        if (u.rights.materials == null) u.rights.materials = false;
+        if (u.rights.customers == null) u.rights.customers = false;
+        if (u.rights.locations == null) u.rights.locations = false;
+        if (u.rights.orders == null) u.rights.orders = false;
+        if (u.rights.invoice == null) u.rights.invoice = false;
+        if (u.rights.admin == null) u.rights.admin = false;
+      }
     });
   }
-  function protectSaveButton(){
-    var btn=E('saveOrder'); if(!btn || btn.dataset.bnsV15ClickProtect==='1') return;
-    btn.dataset.bnsV15ClickProtect='1';
-    btn.addEventListener('click',function(){
-      if(btn.disabled) return;
-      btn.disabled=true;
-      setTimeout(function(){ btn.disabled=false; },1400);
-    },true);
-  }
+
   function installCss(){
-    if(E('bns-v15-production-style')) return;
-    var st=document.createElement('style'); st.id='bns-v15-production-style';
-    st.textContent=''+
-      '.bns-v15-driver-badge{display:inline-flex;align-items:center;gap:6px;margin:6px 0 4px 0;padding:4px 10px;border-radius:999px;background:#1d4ed8;color:#fff;font-weight:900;font-size:13px;box-shadow:0 4px 12px rgba(37,99,235,.25)}'+
-      '.bns-card .bns-v15-driver-badge{width:max-content}.order-card .bns-v15-driver-badge{width:max-content}'+
-      '.bns-v15-overview-driver{margin-top:4px;font-weight:900;color:#1d4ed8}'+
-      '#saveOrder:disabled{opacity:.65;cursor:wait!important}';
-    document.head.appendChild(st);
-  }
-  function tick(){ bindAutosave(); addDriverBadges(); patchOverviewDriver(); protectSaveButton(); }
-  function install(){ installCss(); tick();
-    try{ new MutationObserver(function(){ tick(); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
-    setInterval(tick,2200);
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
-})();
-
-
-/* =========================================================
-   BNS V16 - Snelknop omhoog voor lange opdrachtlijst
-   - Vaste knop rechtsonder
-   - Werkt met normale pagina-scroll en interne scrollpanelen
-========================================================= */
-(function(){
-  function bnsAddScrollTopButton(){
-    if(document.getElementById('bnsScrollTopBtn')) return;
-
-    var style = document.createElement('style');
-    style.id = 'bnsScrollTopStyle';
-    style.textContent = `
-      #bnsScrollTopBtn{
-        position:fixed;
-        right:18px;
-        bottom:18px;
-        z-index:999999;
-        border:0;
-        border-radius:999px;
-        padding:14px 18px;
-        font-size:18px;
-        font-weight:900;
-        color:#fff;
-        background:#0f62fe;
-        box-shadow:0 10px 28px rgba(0,0,0,.28);
-        cursor:pointer;
-        display:none;
-        align-items:center;
-        gap:8px;
-      }
-      #bnsScrollTopBtn.show{
-        display:flex;
-      }
-      #bnsScrollTopBtn:active{
-        transform:scale(.97);
-      }
-      @media(max-width:700px){
-        #bnsScrollTopBtn{
-          right:12px;
-          bottom:12px;
-          padding:13px 16px;
-          font-size:16px;
-        }
-      }
-    `;
+    if (qs("#" + STYLE_ID)) return;
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent =
+      ".bns-driver-admin-info{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:#eff6ff;color:#1e3a8a;font-weight:800;border:1px solid #bfdbfe}" +
+      "#orderDriver ~ #bnsUserRightsBox,#orderDriver ~ #bnsForceUserRightsBox{display:none!important}";
     document.head.appendChild(style);
-
-    var btn = document.createElement('button');
-    btn.id = 'bnsScrollTopBtn';
-    btn.type = 'button';
-    btn.innerHTML = '⬆ Omhoog';
-    document.body.appendChild(btn);
-
-    function findScrollablePanels(){
-      var panels = [];
-      document.querySelectorAll('body *').forEach(function(el){
-        try{
-          var cs = getComputedStyle(el);
-          var canScroll = /(auto|scroll)/.test(cs.overflowY || '');
-          if(canScroll && el.scrollHeight > el.clientHeight + 80){
-            panels.push(el);
-          }
-        }catch(e){}
-      });
-      return panels;
-    }
-
-    function currentScrollAmount(){
-      var doc = document.scrollingElement || document.documentElement;
-      var max = doc ? doc.scrollTop : 0;
-      findScrollablePanels().forEach(function(el){
-        if(el.scrollTop > max) max = el.scrollTop;
-      });
-      return max;
-    }
-
-    function toggle(){
-      if(currentScrollAmount() > 350) btn.classList.add('show');
-      else btn.classList.remove('show');
-    }
-
-    function goUp(){
-      try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ window.scrollTo(0,0); }
-
-      var doc = document.scrollingElement || document.documentElement;
-      if(doc){
-        try{ doc.scrollTo({top:0, behavior:'smooth'}); }catch(e){ doc.scrollTop = 0; }
-      }
-
-      findScrollablePanels().forEach(function(el){
-        try{ el.scrollTo({top:0, behavior:'smooth'}); }catch(e){ el.scrollTop = 0; }
-      });
-
-      setTimeout(toggle,350);
-    }
-
-    btn.addEventListener('click', goUp);
-
-    window.addEventListener('scroll', toggle, {passive:true});
-    document.addEventListener('scroll', toggle, true);
-    setInterval(toggle,1000);
-    toggle();
   }
 
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', bnsAddScrollTopButton);
-  }else{
-    bnsAddScrollTopButton();
+  function install(){
+    installCss();
+    normalizeUsers();
+    removeMisplacedRightsBlocks();
+    ensureOrderDriverOnly();
   }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 500); });
+  } else {
+    setTimeout(install, 200);
+  }
+
+  setTimeout(install, 900);
+  setTimeout(install, 1800);
+  setInterval(install, 2000);
+
+  window.BNS_driverRightsAdminOnly = function(){
+    normalizeUsers();
+    removeMisplacedRightsBlocks();
+    ensureOrderDriverOnly();
+    saveAny();
+    toast("Bezorgerrechten staan nu alleen in Admin.");
+  };
 })();
