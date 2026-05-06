@@ -4932,7 +4932,7 @@ function askDeleteReasonBNS(id){
   var html =
     '<div id="bnsDeleteReasonModal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;">'+
       '<div style="background:#fff;width:min(92vw,520px);border-radius:18px;padding:20px;font-family:Arial;">'+
-        ''<h2 style="margin-top:0;">Tapwagen.nl systeemmelding</h2>'+
+        '<h2 style="margin-top:0;">Tapwagen.nl systeemmelding</h2>'+
         '<div style="margin-bottom:10px;">Reden verwijderen:</div>'+
         '<textarea id="bnsDeleteReasonInput" style="width:100%;height:110px;padding:10px;border-radius:12px;border:1px solid #ccc;"></textarea>'+
         '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">'+
