@@ -1,5 +1,11 @@
 
 
+// ===== V22 BNS safe-save build =====
+// Gebouwd vanaf werkende V20.
+// V21 massale Firebase-sync staat uit.
+// Opslaan synchroniseert alleen de gewijzigde opdracht.
+const BNS_APP_VERSION = 'V22.0 safe-save';
+
 // ===== V9.1 safety fixes =====
 function safePrint(){ window.print(); }
 function safeMail(text, subject){
@@ -8464,27 +8470,31 @@ setInterval(install,1500);
   }
 
   async function syncOrder(order){
-    if(!order || !order.id) return;
-    if(!isOrderForFirebase(order)) return;
-    addPending(order);
-    if(!(await initFirebaseBNS())) return;
+    // V22: alleen deze ene opdracht opslaan. Geen volledige collecties, geen loops.
+    if(!order || !order.id) return false;
+    if(!isOrderForFirebase(order)) return false;
+    if(!(await initFirebaseBNS())) return false;
     const fs = window.BNS.fs;
     try{
-      await fs.setDoc(fs.doc(window.BNS.db, 'orders', String(order.id)), order, {merge:true});
-      setPending(pending().filter(x => String(x.id) !== String(order.id)));
-      log('Opdracht naar Firebase opgeslagen', order.number || order.id);
+      const clean = Object.assign({}, order);
+      const driverValue = clean.driver || clean.driverName || clean.bezorger || clean.bezorgerId || '';
+      clean.driver = driverValue;
+      clean.driverName = driverValue;
+      clean.bezorger = driverValue;
+      clean.updatedAt = new Date().toISOString();
+      await fs.setDoc(fs.doc(window.BNS.db, 'orders', String(clean.id)), clean, {merge:true});
+      log('V22 opdracht opgeslagen naar Firebase', clean.number || clean.id);
+      return true;
     }catch(e){
-      console.error('Firebase opslaan mislukt; lokaal bewaard', e);
-      window.BNS.syncStatus = 'Lokaal opgeslagen, Firebase later synchroniseren';
+      console.error('V22 Firebase opslaan mislukt; lokaal blijft bewaard', e);
+      window.BNS.syncStatus = 'Lokaal opgeslagen, Firebase opslaan mislukt';
+      return false;
     }
   }
 
   async function flushPending(){
-    if(!(await initFirebaseBNS())) return;
-    const rows = pending();
-    for(const o of rows){
-      await syncOrder(o);
-    }
+    // V22: pending bulk sync staat uit. Dit voorkomt duizenden writes.
+    return false;
   }
 
   window.BNS.syncOrder = syncOrder;
@@ -8499,12 +8509,16 @@ setInterval(install,1500);
 
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){
-      setTimeout(loadFirebaseIntoPlanner, 800);
-      setTimeout(flushPending, 4000);
+      // V22: automatische Firebase full-load uitgeschakeld om quota/read loops te voorkomen
+      // setTimeout(loadFirebaseIntoPlanner, 800);
+      // V22: automatische pending flush uitgeschakeld om write loops te voorkomen
+      // setTimeout(flushPending, 4000);
     });
   }else{
-    setTimeout(loadFirebaseIntoPlanner, 800);
-    setTimeout(flushPending, 4000);
+    // V22: automatische Firebase full-load uitgeschakeld om quota/read loops te voorkomen
+      // setTimeout(loadFirebaseIntoPlanner, 800);
+    // V22: automatische pending flush uitgeschakeld om write loops te voorkomen
+      // setTimeout(flushPending, 4000);
   }
 })();
 
@@ -9014,4 +9028,210 @@ setInterval(install,1500);
     saveAny();
     toast("Bezorgerrechten staan nu alleen in Admin.");
   };
+})();
+
+
+/* =========================================================
+   BNS V22 FINAL PATCH
+   - Bezorger linksboven op opdrachtbevestiging
+   - Firebase writes: alleen gewijzigde opdracht
+   - Geen automatische full sync / pending flush
+========================================================= */
+(function bnsV22FinalPatch(){
+  "use strict";
+  function E(id){ return document.getElementById(id); }
+  function val(id){ var el=E(id); return el ? String(el.value||"").trim() : ""; }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+  function notify(t){ try{ if(typeof toastMsg === "function") return toastMsg(t); }catch(e){} try{ if(typeof toast === "function") return toast(t); }catch(e){} console.log(t); }
+  function chosenMaterials(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return []; }
+
+  window.BNS = window.BNS || {};
+  window.BNS.version = "V22.0 safe-save";
+  window.BNS.flushPending = async function(){ return false; };
+
+  window.makeConfirmation = function(){
+    var driver = val("orderDriver") || "-";
+    var number = val("orderNumber");
+    var title = val("orderTitle") || "Zonder titel";
+    var start = val("dateStart");
+    var end = val("dateEnd") || start;
+    var mats = chosenMaterials();
+    var matRows = mats.length ? mats.map(function(m,i){
+      return '<tr><td>'+esc(i+1)+'</td><td>'+esc(m.code||'')+'</td><td>'+esc(m.name||'')+'</td><td>'+esc(m.cat||'')+'</td></tr>';
+    }).join('') : '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
+    var html='<!doctype html><html><head><meta charset="utf-8"><title>Opdrachtbevestiging '+esc(number)+'</title>'+ 
+      '<style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#e5e7eb;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:18mm;box-sizing:border-box}.topline{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #2563eb;padding-bottom:14px;margin-bottom:18px}.driverbox{font-size:20px;font-weight:900;color:#111827;border:3px solid #111827;border-radius:14px;padding:10px 14px;background:#fef3c7}.doctype{text-align:right;font-size:28px;font-weight:900;color:#2563eb}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:800}.value{font-size:14px;white-space:pre-wrap}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}th,td{padding:9px;border-bottom:1px solid #e5e7eb}.print{position:fixed;top:12px;left:12px;background:#2563eb;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:800}@media print{body{background:white}.page{margin:0}.print{display:none}}</style></head><body><button class="print" onclick="window.print()">Afdrukken</button><main class="page">'+
+      '<section class="topline"><div class="driverbox">Bezorger: '+esc(driver)+'</div><div class="doctype">Opdrachtbevestiging<br><span style="font-size:16px;color:#111827">Opdracht '+esc(number)+'</span></div></section>'+ 
+      '<section class="grid"><div class="card"><div class="label">Klant</div><div class="value"><b>'+esc(val('customerName'))+'</b><br>'+esc(val('customerStreet'))+'<br>'+esc(val('customerZip')+' '+val('customerCity'))+'<br>'+esc(val('customerPhone'))+'<br>'+esc(val('customerEmail'))+'</div></div>'+ 
+      '<div class="card"><div class="label">Locatie</div><div class="value"><b>'+esc(val('locationName'))+'</b><br>'+esc(val('locationStreet'))+'<br>'+esc(val('locationZip')+' '+val('locationCity'))+'<br>'+esc(val('locationContact'))+'<br>'+esc(val('locationPhone'))+'</div></div></section>'+ 
+      '<section class="card"><div class="label">Opdracht</div><div class="value"><b>'+esc(title)+'</b><br>Status: '+esc(val('orderStatus'))+'<br>Datum: '+esc(start)+(end&&end!==start?' tot '+esc(end):'')+'<br>Merk: '+esc(val('orderBrand'))+'<br>Voertuig: '+esc(val('orderVehicle'))+'</div></section>'+ 
+      '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Code</th><th>Artikel</th><th>Rubriek</th></tr></thead><tbody>'+matRows+'</tbody></table></section>'+ 
+      (val('orderExtra')?'<section class="card"><div class="label">Bijzonderheden</div><div class="value">'+esc(val('orderExtra'))+'</div></section>':'')+
+      '</main></body></html>';
+    var w=window.open('', '_blank');
+    if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  };
+
+  try{ notify('V22 actief: veilig opslaan + bezorger op opdrachtbevestiging'); }catch(e){}
+})();
+
+/* =========================================================
+   BNS V22.1 DRIVER PERSIST PATCH
+   - Bezorger blijft geselecteerd na render/refresh binnen opdrachtformulier
+   - Bezorger wordt per opdrachtnummer genormaliseerd: driver, driverName, bezorger
+   - Opdrachtbevestiging pakt bezorger uit formulier OF opgeslagen opdracht
+========================================================= */
+(function bnsV221DriverPersistPatch(){
+  "use strict";
+  function E(id){ return document.getElementById(id); }
+  function val(id){ var el=E(id); return el ? String(el.value || "").trim() : ""; }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+  function getState(){ try{ if(typeof state !== "undefined" && state) return state; }catch(e){} try{ return window.state || null; }catch(e){ return null; } }
+  function getEditing(){ try{ if(typeof editing !== "undefined") return editing; }catch(e){} try{ return window.editing || null; }catch(e){} return null; }
+  function saveAny(){ try{ if(typeof save === "function") save(); }catch(e){} }
+  function toast(t){ try{ if(typeof toastMsg === "function") return toastMsg(t); }catch(e){} try{ if(typeof toast === "function") return toast(t); }catch(e){} console.log(t); }
+  function normalizeDriver(order){
+    if(!order) return "";
+    var d = order.driver || order.driverName || order.bezorger || order.bezorgerNaam || "";
+    d = String(d || "").trim();
+    if(d){ order.driver = d; order.driverName = d; order.bezorger = d; }
+    return d;
+  }
+  function findCurrentOrder(){
+    var s = getState(); if(!s || !Array.isArray(s.orders)) return null;
+    var eid = getEditing();
+    var nr = val("orderNumber");
+    var o = null;
+    if(eid) o = s.orders.find(function(x){ return String(x.id||"") === String(eid); });
+    if(!o && nr) o = s.orders.find(function(x){ return String(x.number||"") === String(nr); });
+    return o || null;
+  }
+  function currentDriverValue(){
+    var fromForm = val("orderDriver");
+    if(fromForm) return fromForm;
+    var o = findCurrentOrder();
+    return normalizeDriver(o) || "";
+  }
+  function restoreDriverSelect(){
+    var sel = E("orderDriver"); if(!sel) return;
+    var keep = sel.getAttribute("data-bns-keep-driver") || currentDriverValue();
+    if(!keep) return;
+    var exists = false;
+    for(var i=0;i<sel.options.length;i++){
+      if(String(sel.options[i].value || sel.options[i].text).trim() === keep){ exists = true; break; }
+    }
+    if(!exists){
+      var opt = document.createElement("option");
+      opt.value = keep; opt.textContent = keep;
+      sel.appendChild(opt);
+    }
+    sel.value = keep;
+    sel.setAttribute("data-bns-keep-driver", keep);
+    try{ if(typeof summaryRender === "function") summaryRender(); }catch(e){}
+  }
+  function persistDriverOnly(){
+    var d = val("orderDriver");
+    var o = findCurrentOrder();
+    var sel = E("orderDriver");
+    if(sel && d) sel.setAttribute("data-bns-keep-driver", d);
+    if(!o || !d) return;
+    o.driver = d; o.driverName = d; o.bezorger = d; o.updatedAt = new Date().toISOString();
+    saveAny();
+    try{ if(window.BNS && typeof window.BNS.syncOrder === "function") window.BNS.syncOrder(o); }catch(e){}
+  }
+
+  try{
+    if(typeof renderAll === "function" && !renderAll.__bnsV221DriverWrapped){
+      var oldRenderAll = renderAll;
+      renderAll = function(){
+        var before = currentDriverValue();
+        var sel = E("orderDriver");
+        if(sel && before) sel.setAttribute("data-bns-keep-driver", before);
+        var r = oldRenderAll.apply(this, arguments);
+        setTimeout(restoreDriverSelect, 0);
+        setTimeout(restoreDriverSelect, 80);
+        return r;
+      };
+      renderAll.__bnsV221DriverWrapped = true;
+      try{ window.renderAll = renderAll; }catch(e){}
+    }
+  }catch(e){}
+
+  try{
+    if(typeof editOrder === "function" && !editOrder.__bnsV221DriverWrapped){
+      var oldEditOrder = editOrder;
+      editOrder = function(oid){
+        var r = oldEditOrder.apply(this, arguments);
+        var s = getState();
+        var o = s && Array.isArray(s.orders) ? s.orders.find(function(x){ return String(x.id||"") === String(oid); }) : null;
+        var d = normalizeDriver(o);
+        var sel = E("orderDriver");
+        if(sel && d) sel.setAttribute("data-bns-keep-driver", d);
+        setTimeout(restoreDriverSelect, 0);
+        setTimeout(restoreDriverSelect, 150);
+        setTimeout(restoreDriverSelect, 500);
+        return r;
+      };
+      editOrder.__bnsV221DriverWrapped = true;
+      try{ window.editOrder = editOrder; }catch(e){}
+    }
+  }catch(e){}
+
+  try{
+    var sel = E("orderDriver");
+    if(sel && !sel.__bnsV221Bound){
+      sel.addEventListener("change", persistDriverOnly);
+      sel.addEventListener("input", persistDriverOnly);
+      sel.__bnsV221Bound = true;
+    }
+  }catch(e){}
+
+  try{
+    window.makeConfirmation = function(){
+      restoreDriverSelect();
+      var o = findCurrentOrder() || {};
+      var driver = currentDriverValue() || "-";
+      var number = val("orderNumber") || o.number || "";
+      var title = val("orderTitle") || o.title || "Zonder titel";
+      var start = val("dateStart") || o.start || "";
+      var end = val("dateEnd") || o.end || start;
+      var mats = [];
+      try{ if(Array.isArray(chosen) && chosen.length) mats = chosen; }catch(e){}
+      if(!mats.length && Array.isArray(o.materials)) mats = o.materials;
+      var matRows = mats.length ? mats.map(function(m,i){
+        return '<tr><td>'+esc(i+1)+'</td><td>'+esc(m.code||'')+'</td><td>'+esc(m.name||'')+'</td><td>'+esc(m.cat||'')+'</td></tr>';
+      }).join('') : '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
+      function field(id, fallback){ var v=val(id); return v || fallback || ""; }
+      var html='<!doctype html><html><head><meta charset="utf-8"><title>Opdrachtbevestiging '+esc(number)+'</title>'+ 
+        '<style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#e5e7eb;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:18mm;box-sizing:border-box}.topline{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #2563eb;padding-bottom:14px;margin-bottom:18px}.driverbox{font-size:20px;font-weight:900;color:#111827;border:3px solid #111827;border-radius:14px;padding:10px 14px;background:#fef3c7}.doctype{text-align:right;font-size:28px;font-weight:900;color:#2563eb}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:800}.value{font-size:14px;white-space:pre-wrap}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}th,td{padding:9px;border-bottom:1px solid #e5e7eb}.print{position:fixed;top:12px;left:12px;background:#2563eb;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:800}@media print{body{background:white}.page{margin:0}.print{display:none}}</style></head><body><button class="print" onclick="window.print()">Afdrukken</button><main class="page">'+
+        '<section class="topline"><div class="driverbox">Bezorger: '+esc(driver)+'</div><div class="doctype">Opdrachtbevestiging<br><span style="font-size:16px;color:#111827">Opdracht '+esc(number)+'</span></div></section>'+ 
+        '<section class="grid"><div class="card"><div class="label">Klant</div><div class="value"><b>'+esc(field('customerName', o.customer && o.customer.name))+'</b><br>'+esc(field('customerStreet', o.customer && o.customer.street))+'<br>'+esc((field('customerZip', o.customer && o.customer.zip)+' '+field('customerCity', o.customer && o.customer.city)).trim())+'<br>'+esc(field('customerPhone', o.customer && o.customer.phone))+'<br>'+esc(field('customerEmail', o.customer && o.customer.email))+'</div></div>'+ 
+        '<div class="card"><div class="label">Locatie</div><div class="value"><b>'+esc(field('locationName', o.location && o.location.name))+'</b><br>'+esc(field('locationStreet', o.location && o.location.street))+'<br>'+esc((field('locationZip', o.location && o.location.zip)+' '+field('locationCity', o.location && o.location.city)).trim())+'<br>'+esc(field('locationContact', o.location && o.location.contact))+'<br>'+esc(field('locationPhone', o.location && o.location.phone))+'</div></div></section>'+ 
+        '<section class="card"><div class="label">Opdracht</div><div class="value"><b>'+esc(title)+'</b><br>Status: '+esc(field('orderStatus', o.status))+'<br>Datum: '+esc(start)+(end&&end!==start?' tot '+esc(end):'')+'<br>Merk: '+esc(field('orderBrand', o.brand))+'<br>Voertuig: '+esc(field('orderVehicle', o.vehicle))+'</div></section>'+ 
+        '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Code</th><th>Artikel</th><th>Rubriek</th></tr></thead><tbody>'+matRows+'</tbody></table></section>'+ 
+        ((field('orderExtra', o.extra))?'<section class="card"><div class="label">Bijzonderheden</div><div class="value">'+esc(field('orderExtra', o.extra))+'</div></section>':'')+
+        '</main></body></html>';
+      var w=window.open('', '_blank');
+      if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return; }
+      w.document.open(); w.document.write(html); w.document.close();
+    };
+  }catch(e){}
+
+  function install(){
+    try{ restoreDriverSelect(); }catch(e){}
+    try{
+      var sel = E("orderDriver");
+      if(sel && !sel.__bnsV221Bound){
+        sel.addEventListener("change", persistDriverOnly);
+        sel.addEventListener("input", persistDriverOnly);
+        sel.__bnsV221Bound = true;
+      }
+    }catch(e){}
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
+  setTimeout(install, 300);
+  setTimeout(install, 1000);
+  setInterval(install, 2500);
+  try{ toast('V22.1 actief: bezorger blijft per opdracht bewaard'); }catch(e){}
 })();
