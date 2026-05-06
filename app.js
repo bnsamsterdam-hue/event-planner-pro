@@ -9051,10 +9051,10 @@ setInterval(install,1500);
           if(!id) continue;
           row.id = id;
           if(!row.updatedAt) row.updatedAt = nowIso();
-          await fs.setDoc(fs.doc(window.BNS.db,name,String(id)), row, {merge:true});
+         // await fs.setDoc(fs.doc(window.BNS.db,name,String(id)), row, {merge:true});
         }
       }
-      if(s.settings){ await fs.setDoc(fs.doc(window.BNS.db,'settings','main'), Object.assign({},s.settings,{updatedAt:nowIso()}), {merge:true}); }
+     // if(s.settings){ await fs.setDoc(fs.doc(window.BNS.db,'settings','main'), Object.assign({},s.settings,{updatedAt:nowIso()}), {merge:true}); }
       clearCorePending();
       return true;
     }catch(e){ console.error('[BNS V21] core sync opslaan mislukt', e); markCorePending(); return false; }
