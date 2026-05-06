@@ -4920,14 +4920,14 @@ setInterval(install,1500);
     try { a.resolvedBy = (typeof user !== "undefined" && user && (user.name || user.role)) || ""; } catch(e) {}
     SAVE(); updateButton(); openAlerts();
   };
-  window.BNS_A12_ALERT_DELETE = function(id){
+ window.askDeleteReasonBNS(id);
     var s = S();
    askDeleteReasonBNS(id);
 return;
     s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
     SAVE(); updateButton(); openAlerts();
   };
-function askDeleteReasonBNS(id){
+window.askDeleteReasonBNS = function(id){
 
   var html =
     '<div id="bnsDeleteReasonModal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;">'+
@@ -5932,7 +5932,7 @@ function confirmDeleteAlertBNS(id){
     SAVE(); updateAlertButton(); openAlerts();
   };
 window.BNS_V125_DELETE_ALERT = function(id){
-  askDeleteReasonBNS(id);
+  window.askDeleteReasonBNS(id);
   return;
 }
 
