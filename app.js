@@ -1,11 +1,5 @@
 
 
-// ===== V22 BNS safe-save build =====
-// Gebouwd vanaf werkende V20.
-// V21 massale Firebase-sync staat uit.
-// Opslaan synchroniseert alleen de gewijzigde opdracht.
-const BNS_APP_VERSION = 'V22.0 safe-save';
-
 // ===== V9.1 safety fixes =====
 function safePrint(){ window.print(); }
 function safeMail(text, subject){
@@ -233,7 +227,6 @@ function makeConfirmationText(){
 Opdracht: ${orderNumber.value}
 Status: ${orderStatus.value}
 Titel: ${orderTitle.value || ''}
-Bezorger: ${orderDriver.value || '-'}
 
 Klant:
 ${customerName.value || ''}
@@ -338,7 +331,7 @@ function openAlertsV91(){
   let html = `
     <div style="position:fixed;top:20%;left:50%;transform:translateX(-50%);
     background:#fff;padding:20px;border-radius:14px;box-shadow:0 5px 20px rgba(0,0,0,0.35);
-    z-index:99999;min-width:360px;max-width:700px;">
+    z-index:9999;min-width:360px;max-width:700px;">
       <h3>🚨 Systeemmeldingen</h3>
   `;
 
@@ -353,7 +346,10 @@ function openAlertsV91(){
           Opdracht: ${o.number || ""} ${o.title || ""}<br>
           ${a.note || ""}<br>
           <small>${a.time || ""}</small><br><br>
-         
+          <button onclick="resolveAlert('${a.id}')"
+            style="background:#16a34a;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-weight:bold;">
+            Afmelden
+          </button>
         </div>
       `;
     }).join("");
@@ -462,7 +458,6 @@ Opdracht nr: ${orderNumber.value}
 Status: ${orderStatus.value}
 Titel: ${orderTitle.value || ''}
 Merk/biermerk: ${orderBrand.value || ''}
-Bezorger: ${orderDriver.value || '-'}
 
 KLANT
 -----
@@ -1549,7 +1544,7 @@ setTimeout(()=>{
     const s=appState(); const open=(s.alerts||[]).filter(a=>!a.resolved);
     const old=document.getElementById('bnsAlertModalV108'); if(old)old.remove();
     const modal=document.createElement('div'); modal.id='bnsAlertModalV108'; modal.className='bns-alert-modal';
-    modal.innerHTML=`<div class="bns-alert-card"><button class="bns-alert-close" onclick="document.getElementById('bnsAlertModalV108').remove()">Sluiten</button><h2>🚨 Systeemmeldingen</h2>${open.length?open.map(a=>`<div class="bns-alert-item"><div><b>${esc(clean(a.title||'Systeemmelding'))}</b><br><small>${esc(a.time||'')}</small><div>${esc(clean(a.note||a.message||''))}</div></div><div class="bns-alert-actions"><button class="danger" onclick="bnsDeleteAlertV108('${a.id}')">Wis storing</button></div></div>`).join(''):'<p>Geen open systeemmeldingen.</p>'}</div>`;
+    modal.innerHTML=`<div class="bns-alert-card"><button class="bns-alert-close" onclick="document.getElementById('bnsAlertModalV108').remove()">Sluiten</button><h2>🚨 Systeemmeldingen</h2>${open.length?open.map(a=>`<div class="bns-alert-item"><div><b>${esc(clean(a.title||'Systeemmelding'))}</b><br><small>${esc(a.time||'')}</small><div>${esc(clean(a.note||a.message||''))}</div></div><div class="bns-alert-actions"><button onclick="bnsResolveAlertV108('${a.id}')">Afmelden</button><button class="danger" onclick="bnsDeleteAlertV108('${a.id}')">Wis storing</button></div></div>`).join(''):'<p>Geen open systeemmeldingen.</p>'}</div>`;
     document.body.appendChild(modal);
   };
   window.bnsResolveAlertV108=function(id){const s=appState(); const a=(s.alerts||[]).find(x=>String(x.id)===String(id)); if(a)a.resolved=true; persist(); updateAlertButton(); const m=$('bnsAlertModalV108'); if(m)m.remove(); window.bnsOpenAlertsV108();};
@@ -1630,7 +1625,7 @@ setTimeout(()=>{
   }
   function scrubDOM(){if(!document.body)return; const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT); let n; while(n=w.nextNode()){if(/github|gitup|git\s*hub/i.test(n.nodeValue)) n.nodeValue=clean(n.nodeValue);} }
   function updateAlertButton(){const b=$('alertsBtn');if(!b)return;const open=(appState().alerts||[]).filter(a=>!a.resolved);b.textContent='🚨 Systeemmeldingen ('+open.length+')';b.classList.toggle('bns-alert-open',open.length>0);}
-  window.bnsOpenAlertsV109=function(){removeGithubEverywhere();scrubDOM();updateAlertButton();const s=appState();const open=(s.alerts||[]).filter(a=>!a.resolved);let old=$('bnsAlertModalV109');if(old)old.remove();const m=document.createElement('div');m.id='bnsAlertModalV109';m.innerHTML=`<div class="bns-alert-card"><button class="bns-alert-close" onclick="document.getElementById('bnsAlertModalV109').remove()">Sluiten</button><h2>🚨 Systeemmeldingen</h2>${open.length?open.map(a=>`<div class="bns-alert-item"><div><b>${esc(clean(a.title||'Systeemmelding'))}</b><br><small>${esc(a.time||'')}</small><div>${esc(clean(a.note||a.message||''))}</div></div><div class="bns-alert-actions"><button class="danger" onclick="bnsDeleteAlertV109('${esc(a.id)}')">Wis storing</button></div></div>`).join(''):'<p>Geen open systeemmeldingen.</p>'}</div>`;document.body.appendChild(m);};
+  window.bnsOpenAlertsV109=function(){removeGithubEverywhere();scrubDOM();updateAlertButton();const s=appState();const open=(s.alerts||[]).filter(a=>!a.resolved);let old=$('bnsAlertModalV109');if(old)old.remove();const m=document.createElement('div');m.id='bnsAlertModalV109';m.innerHTML=`<div class="bns-alert-card"><button class="bns-alert-close" onclick="document.getElementById('bnsAlertModalV109').remove()">Sluiten</button><h2>🚨 Systeemmeldingen</h2>${open.length?open.map(a=>`<div class="bns-alert-item"><div><b>${esc(clean(a.title||'Systeemmelding'))}</b><br><small>${esc(a.time||'')}</small><div>${esc(clean(a.note||a.message||''))}</div></div><div class="bns-alert-actions"><button onclick="bnsResolveAlertV109('${esc(a.id)}')">Afmelden</button><button class="danger" onclick="bnsDeleteAlertV109('${esc(a.id)}')">Wis storing</button></div></div>`).join(''):'<p>Geen open systeemmeldingen.</p>'}</div>`;document.body.appendChild(m);};
   window.bnsResolveAlertV109=function(id){const s=appState();const a=(s.alerts||[]).find(x=>String(x.id)===String(id));if(a)a.resolved=true;persist();updateAlertButton();$('bnsAlertModalV109')?.remove();window.bnsOpenAlertsV109();};
   window.bnsDeleteAlertV109=function(id){const s=appState();s.alerts=(s.alerts||[]).filter(x=>String(x.id)!==String(id));persist();updateAlertButton();$('bnsAlertModalV109')?.remove();window.bnsOpenAlertsV109();};
   function patchAlerts(){const b=$('alertsBtn');if(b)b.onclick=window.bnsOpenAlertsV109;const sync=$('syncBtn');if(sync&&!sync.dataset.bns109){sync.dataset.bns109='1';sync.addEventListener('click',()=>{removeGithubEverywhere();scrubDOM();updateAlertButton();},true)}}
@@ -1745,7 +1740,7 @@ setTimeout(()=>{
         let old=$('bnsAlertModalV11'); if(old) old.remove();
         const m=document.createElement('div'); m.id='bnsAlertModalV11';
         m.style.cssText='position:fixed;inset:0;z-index:99998;background:rgba(15,23,42,.55);display:grid;place-items:center;padding:20px';
-        m.innerHTML='<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:720px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.28)"><button style="float:right" onclick="document.getElementById(\'bnsAlertModalV11\').remove()">Sluiten</button><h2>🚨 Systeemmeldingen</h2>'+(open.length?open.map(a=>`<div style="border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc"><b>${esc(clean(a.title||'Systeemmelding'))}</b><br><small>${esc(a.time||'')}</small><div>${esc(clean(a.note||a.message||''))}</div><div style="display:flex;gap:8px;margin-top:10px"><button class="danger" onclick="bnsAlertDelV11('${esc(a.id)}')">Wis storing</button></div></div>`).join(''):'<p>Geen open systeemmeldingen.</p>')+'</div>';
+        m.innerHTML='<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:720px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.28)"><button style="float:right" onclick="document.getElementById(\'bnsAlertModalV11\').remove()">Sluiten</button><h2>🚨 Systeemmeldingen</h2>'+(open.length?open.map(a=>`<div style="border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc"><b>${esc(clean(a.title||'Systeemmelding'))}</b><br><small>${esc(a.time||'')}</small><div>${esc(clean(a.note||a.message||''))}</div><div style="display:flex;gap:8px;margin-top:10px"><button onclick="bnsAlertDoneV11('${esc(a.id)}')">Afmelden</button><button class="danger" onclick="bnsAlertDelV11('${esc(a.id)}')">Wis storing</button></div></div>`).join(''):'<p>Geen open systeemmeldingen.</p>')+'</div>';
         document.body.appendChild(m);
       };
     }
@@ -4917,49 +4912,14 @@ setInterval(install,1500);
     try { a.resolvedBy = (typeof user !== "undefined" && user && (user.name || user.role)) || ""; } catch(e) {}
     SAVE(); updateButton(); openAlerts();
   };
-window.BNS_A12_ALERT_DELETE = function(id){
-  window.askDeleteReasonBNS(id);
-  return;
-};
- window.askDeleteReasonBNS = function(id){
+  window.BNS_A12_ALERT_DELETE = function(id){
+    var s = S();
+    var txt = prompt("Reden verwijderen:", "");
+    if (txt === null) return;
+    s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
+    SAVE(); updateButton(); openAlerts();
+  };
 
-  var old = document.getElementById('bnsDeleteReasonModal');
-  if(old) old.remove();
-
-  var html = 
-
-    '<div id="bnsDeleteReasonModal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;">'+
-      '<div style="background:#fff;width:min(92vw,520px);border-radius:18px;padding:20px;font-family:Arial;">'+
-        '<h2 style="margin-top:0;">Tapwagen.nl systeemmelding</h2>'+
-        '<div style="margin-bottom:10px;">Reden verwijderen:</div>'+
-        '<textarea id="bnsDeleteReasonInput" style="width:100%;height:110px;padding:10px;border-radius:12px;border:1px solid #ccc;"></textarea>'+
-        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">'+
-          '<button onclick="document.getElementById(\'bnsDeleteReasonModal\').remove()" style="padding:10px 16px;border:none;border-radius:10px;background:#ddd;cursor:pointer;">Annuleren</button>'+
-          '<button onclick="confirmDeleteAlertBNS(\''+id+'\')" style="padding:10px 16px;border:none;border-radius:10px;background:#d33;color:#fff;cursor:pointer;">Verwijderen</button>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-
-  document.body.insertAdjacentHTML('beforeend', html);
-}
-
-function confirmDeleteAlertBNS(id){
-
-  var txt = document.getElementById('bnsDeleteReasonInput').value || '';
-
-  var s = S();
-
-  s.alerts = (s.alerts || []).filter(function(x){
-    return String(x.id) !== String(id);
-  });
-
-  SAVE();
-  updateButton();
-  openAlerts();
-
-  var m = document.getElementById('bnsDeleteReasonModal');
-  if(m) m.remove();
-}
   window.alertFor = function(orderId, type){
     var s = S(); s.alerts = s.alerts || [];
     var o = findOrder(orderId) || {};
@@ -5817,7 +5777,7 @@ function confirmDeleteAlertBNS(id){
           esc(a.note||'')+'<br><small>'+esc(a.time||'')+'</small>'+
           '<div class="bns-alert-actions">'+
           '<button class="bns-alert-resolve" type="button" data-resolve="'+esc(a.id)+'">Afmelden</button>'+
-'<button class="bns-alert-delete" type="button" data-delete="'+esc(a.id)+'">Verwijderen</button>'+
+          '<button class="bns-alert-delete" type="button" data-delete="'+esc(a.id)+'">Verwijderen</button>'+
           '</div></div>';
       }).join('');
     }
@@ -5904,21 +5864,13 @@ function confirmDeleteAlertBNS(id){
       if (o && o.customer) html += '<div><b>Klant:</b> '+esc(o.customer.name || '')+'</div>';
       var note = a.note || a.message || a.text || '';
       if (note) html += '<p>'+esc(note)+'</p>';
-html += '<div class="bns-v125-alert-actions">';
-
-html += '<button type="button" class="green" onclick="BNS_V125_RESOLVE_ALERT(\'' + esc(a.id) + '\')">Afmelden</button>';
-
-html += '<button type="button" class="red" onclick="BNS_V125_DELETE_ALERT(\'' + esc(a.id) + '\')">Verwijderen</button>';
-
-html += '</div></div>';
-
-html += '</div>';
-
-modal.innerHTML = html;
-document.body.appendChild(modal);
-});
-
-function updateAlertButton(){
+      html += '<div class="bns-v125-alert-actions"><button type="button" class="green" onclick="BNS_V125_RESOLVE_ALERT(\''+esc(a.id)+'\')">Afmelden</button><button type="button" class="red" onclick="BNS_V125_DELETE_ALERT(\''+esc(a.id)+'\')">Verwijderen</button></div></div>';
+    });
+    html += '</div>';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+  }
+  function updateAlertButton(){
     var b = byId("alertsBtn"); if (!b) return;
     var open = (S().alerts || []).filter(function(a){ return !a.resolved; });
     b.textContent = "🚨 Systeemmeldingen (" + open.length + ")";
@@ -5937,12 +5889,13 @@ function updateAlertButton(){
     try { a.resolvedBy = (window.user && (window.user.name || window.user.role)) || (typeof user !== "undefined" && user && (user.name || user.role)) || ""; } catch(e) {}
     SAVE(); updateAlertButton(); openAlerts();
   };
-window.BNS_V125_DELETE_ALERT = function(id){
-  window.askDeleteReasonBNS(id);
-  return;
-};
-
-function bindAlertButton(){
+  window.BNS_V125_DELETE_ALERT = function(id){
+    var txt = prompt("Reden verwijderen:", "");
+    if (txt === null) return;
+    var s = S(); s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
+    SAVE(); updateAlertButton(); openAlerts();
+  };
+  function bindAlertButton(){
     var b = byId("alertsBtn"); if (!b) return;
     if (b.dataset.bnsV125Stable !== "1") {
       b.dataset.bnsV125Stable = "1";
@@ -5990,10 +5943,7 @@ function bindAlertButton(){
       ".bns-v125-alert-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bns-v125-alert-actions button{color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:900}.bns-v125-alert-actions .green{background:#16a34a}.bns-v125-alert-actions .red{background:#dc2626}";
     document.head.appendChild(st);
   }
- function install(){
-  css();
-  bindAlertButton();
-  addLogoutButton();
+  function install(){ css(); bindAlertButton(); addLogoutButton(); }
   var oldRender = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
   if (oldRender && !oldRender.__bnsV125StableAlertsLogout) {
     var wrapped = function(){ var r = oldRender.apply(this, arguments); setTimeout(install, 0); return r; };
@@ -6404,7 +6354,6 @@ function bindAlertButton(){
       return '<tr><td>'+esc(i+1)+'</td><td><b>'+esc(m.code||'')+'</b></td><td>'+esc(m.name||'')+'</td><td>'+esc(m.cat||'')+'</td><td>'+esc(m.status||'')+'</td><td>'+esc(m.price||'')+'</td></tr>';
     }).join(''):'<tr><td colspan="6">Geen materialen gekoppeld.</td></tr>';
     return ''+
-     '<div><b>Bezorger:</b> '+esc(o.driver||'-')+'</div>'+  
       '<div class="bns-order-overview-head"><div><h2>Overzicht bestelling</h2><div><b>'+esc(o.number||'')+'</b> - '+esc(o.title||'')+'</div><div>Status: '+esc(o.status||'')+'</div></div><button type="button" class="bns-order-overview-close" onclick="BNS_V128_CLOSE_ORDER_OVERVIEW()">Terug</button></div>'+
       '<div class="bns-order-overview-grid">'+
         '<div class="bns-order-overview-box"><b>Klant</b><br>'+esc(c.name||'')+'<br>'+esc([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+esc(c.phone||'')+'<br>'+esc(c.email||'')+'</div>'+
@@ -8515,31 +8464,27 @@ function bindAlertButton(){
   }
 
   async function syncOrder(order){
-    // V22: alleen deze ene opdracht opslaan. Geen volledige collecties, geen loops.
-    if(!order || !order.id) return false;
-    if(!isOrderForFirebase(order)) return false;
-    if(!(await initFirebaseBNS())) return false;
+    if(!order || !order.id) return;
+    if(!isOrderForFirebase(order)) return;
+    addPending(order);
+    if(!(await initFirebaseBNS())) return;
     const fs = window.BNS.fs;
     try{
-      const clean = Object.assign({}, order);
-      const driverValue = clean.driver || clean.driverName || clean.bezorger || clean.bezorgerId || '';
-      clean.driver = driverValue;
-      clean.driverName = driverValue;
-      clean.bezorger = driverValue;
-      clean.updatedAt = new Date().toISOString();
-      await fs.setDoc(fs.doc(window.BNS.db, 'orders', String(clean.id)), clean, {merge:true});
-      log('V22 opdracht opgeslagen naar Firebase', clean.number || clean.id);
-      return true;
+      await fs.setDoc(fs.doc(window.BNS.db, 'orders', String(order.id)), order, {merge:true});
+      setPending(pending().filter(x => String(x.id) !== String(order.id)));
+      log('Opdracht naar Firebase opgeslagen', order.number || order.id);
     }catch(e){
-      console.error('V22 Firebase opslaan mislukt; lokaal blijft bewaard', e);
-      window.BNS.syncStatus = 'Lokaal opgeslagen, Firebase opslaan mislukt';
-      return false;
+      console.error('Firebase opslaan mislukt; lokaal bewaard', e);
+      window.BNS.syncStatus = 'Lokaal opgeslagen, Firebase later synchroniseren';
     }
   }
 
   async function flushPending(){
-    // V22: pending bulk sync staat uit. Dit voorkomt duizenden writes.
-    return false;
+    if(!(await initFirebaseBNS())) return;
+    const rows = pending();
+    for(const o of rows){
+      await syncOrder(o);
+    }
   }
 
   window.BNS.syncOrder = syncOrder;
@@ -8554,16 +8499,12 @@ function bindAlertButton(){
 
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){
-      // V22: automatische Firebase full-load uitgeschakeld om quota/read loops te voorkomen
-      // setTimeout(loadFirebaseIntoPlanner, 800);
-      // V22: automatische pending flush uitgeschakeld om write loops te voorkomen
-      // setTimeout(flushPending, 4000);
+      setTimeout(loadFirebaseIntoPlanner, 800);
+      setTimeout(flushPending, 4000);
     });
   }else{
-    // V22: automatische Firebase full-load uitgeschakeld om quota/read loops te voorkomen
-      // setTimeout(loadFirebaseIntoPlanner, 800);
-    // V22: automatische pending flush uitgeschakeld om write loops te voorkomen
-      // setTimeout(flushPending, 4000);
+    setTimeout(loadFirebaseIntoPlanner, 800);
+    setTimeout(flushPending, 4000);
   }
 })();
 
@@ -9073,210 +9014,4 @@ function bindAlertButton(){
     saveAny();
     toast("Bezorgerrechten staan nu alleen in Admin.");
   };
-})();
-
-
-/* =========================================================
-   BNS V22 FINAL PATCH
-   - Bezorger linksboven op opdrachtbevestiging
-   - Firebase writes: alleen gewijzigde opdracht
-   - Geen automatische full sync / pending flush
-========================================================= */
-(function bnsV22FinalPatch(){
-  "use strict";
-  function E(id){ return document.getElementById(id); }
-  function val(id){ var el=E(id); return el ? String(el.value||"").trim() : ""; }
-  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
-  function notify(t){ try{ if(typeof toastMsg === "function") return toastMsg(t); }catch(e){} try{ if(typeof toast === "function") return toast(t); }catch(e){} console.log(t); }
-  function chosenMaterials(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return []; }
-
-  window.BNS = window.BNS || {};
-  window.BNS.version = "V22.0 safe-save";
-  window.BNS.flushPending = async function(){ return false; };
-
-  window.makeConfirmation = function(){
-    var driver = val("orderDriver") || "-";
-    var number = val("orderNumber");
-    var title = val("orderTitle") || "Zonder titel";
-    var start = val("dateStart");
-    var end = val("dateEnd") || start;
-    var mats = chosenMaterials();
-    var matRows = mats.length ? mats.map(function(m,i){
-      return '<tr><td>'+esc(i+1)+'</td><td>'+esc(m.code||'')+'</td><td>'+esc(m.name||'')+'</td><td>'+esc(m.cat||'')+'</td></tr>';
-    }).join('') : '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
-    var html='<!doctype html><html><head><meta charset="utf-8"><title>Opdrachtbevestiging '+esc(number)+'</title>'+ 
-      '<style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#e5e7eb;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:18mm;box-sizing:border-box}.topline{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #2563eb;padding-bottom:14px;margin-bottom:18px}.driverbox{font-size:20px;font-weight:900;color:#111827;border:3px solid #111827;border-radius:14px;padding:10px 14px;background:#fef3c7}.doctype{text-align:right;font-size:28px;font-weight:900;color:#2563eb}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:800}.value{font-size:14px;white-space:pre-wrap}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}th,td{padding:9px;border-bottom:1px solid #e5e7eb}.print{position:fixed;top:12px;left:12px;background:#2563eb;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:800}@media print{body{background:white}.page{margin:0}.print{display:none}}</style></head><body><button class="print" onclick="window.print()">Afdrukken</button><main class="page">'+
-      '<section class="topline"><div class="driverbox">Bezorger: '+esc(driver)+'</div><div class="doctype">Opdrachtbevestiging<br><span style="font-size:16px;color:#111827">Opdracht '+esc(number)+'</span></div></section>'+ 
-      '<section class="grid"><div class="card"><div class="label">Klant</div><div class="value"><b>'+esc(val('customerName'))+'</b><br>'+esc(val('customerStreet'))+'<br>'+esc(val('customerZip')+' '+val('customerCity'))+'<br>'+esc(val('customerPhone'))+'<br>'+esc(val('customerEmail'))+'</div></div>'+ 
-      '<div class="card"><div class="label">Locatie</div><div class="value"><b>'+esc(val('locationName'))+'</b><br>'+esc(val('locationStreet'))+'<br>'+esc(val('locationZip')+' '+val('locationCity'))+'<br>'+esc(val('locationContact'))+'<br>'+esc(val('locationPhone'))+'</div></div></section>'+ 
-      '<section class="card"><div class="label">Opdracht</div><div class="value"><b>'+esc(title)+'</b><br>Status: '+esc(val('orderStatus'))+'<br>Datum: '+esc(start)+(end&&end!==start?' tot '+esc(end):'')+'<br>Merk: '+esc(val('orderBrand'))+'<br>Voertuig: '+esc(val('orderVehicle'))+'</div></section>'+ 
-      '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Code</th><th>Artikel</th><th>Rubriek</th></tr></thead><tbody>'+matRows+'</tbody></table></section>'+ 
-      (val('orderExtra')?'<section class="card"><div class="label">Bijzonderheden</div><div class="value">'+esc(val('orderExtra'))+'</div></section>':'')+
-      '</main></body></html>';
-    var w=window.open('', '_blank');
-    if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return; }
-    w.document.open(); w.document.write(html); w.document.close();
-  };
-
-  try{ notify('V22 actief: veilig opslaan + bezorger op opdrachtbevestiging'); }catch(e){}
-})();
-
-/* =========================================================
-   BNS V22.1 DRIVER PERSIST PATCH
-   - Bezorger blijft geselecteerd na render/refresh binnen opdrachtformulier
-   - Bezorger wordt per opdrachtnummer genormaliseerd: driver, driverName, bezorger
-   - Opdrachtbevestiging pakt bezorger uit formulier OF opgeslagen opdracht
-========================================================= */
-(function bnsV221DriverPersistPatch(){
-  "use strict";
-  function E(id){ return document.getElementById(id); }
-  function val(id){ var el=E(id); return el ? String(el.value || "").trim() : ""; }
-  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
-  function getState(){ try{ if(typeof state !== "undefined" && state) return state; }catch(e){} try{ return window.state || null; }catch(e){ return null; } }
-  function getEditing(){ try{ if(typeof editing !== "undefined") return editing; }catch(e){} try{ return window.editing || null; }catch(e){} return null; }
-  function saveAny(){ try{ if(typeof save === "function") save(); }catch(e){} }
-  function toast(t){ try{ if(typeof toastMsg === "function") return toastMsg(t); }catch(e){} try{ if(typeof toast === "function") return toast(t); }catch(e){} console.log(t); }
-  function normalizeDriver(order){
-    if(!order) return "";
-    var d = order.driver || order.driverName || order.bezorger || order.bezorgerNaam || "";
-    d = String(d || "").trim();
-    if(d){ order.driver = d; order.driverName = d; order.bezorger = d; }
-    return d;
-  }
-  function findCurrentOrder(){
-    var s = getState(); if(!s || !Array.isArray(s.orders)) return null;
-    var eid = getEditing();
-    var nr = val("orderNumber");
-    var o = null;
-    if(eid) o = s.orders.find(function(x){ return String(x.id||"") === String(eid); });
-    if(!o && nr) o = s.orders.find(function(x){ return String(x.number||"") === String(nr); });
-    return o || null;
-  }
-  function currentDriverValue(){
-    var fromForm = val("orderDriver");
-    if(fromForm) return fromForm;
-    var o = findCurrentOrder();
-    return normalizeDriver(o) || "";
-  }
-  function restoreDriverSelect(){
-    var sel = E("orderDriver"); if(!sel) return;
-    var keep = sel.getAttribute("data-bns-keep-driver") || currentDriverValue();
-    if(!keep) return;
-    var exists = false;
-    for(var i=0;i<sel.options.length;i++){
-      if(String(sel.options[i].value || sel.options[i].text).trim() === keep){ exists = true; break; }
-    }
-    if(!exists){
-      var opt = document.createElement("option");
-      opt.value = keep; opt.textContent = keep;
-      sel.appendChild(opt);
-    }
-    sel.value = keep;
-    sel.setAttribute("data-bns-keep-driver", keep);
-    try{ if(typeof summaryRender === "function") summaryRender(); }catch(e){}
-  }
-  function persistDriverOnly(){
-    var d = val("orderDriver");
-    var o = findCurrentOrder();
-    var sel = E("orderDriver");
-    if(sel && d) sel.setAttribute("data-bns-keep-driver", d);
-    if(!o || !d) return;
-    o.driver = d; o.driverName = d; o.bezorger = d; o.updatedAt = new Date().toISOString();
-    saveAny();
-    try{ if(window.BNS && typeof window.BNS.syncOrder === "function") window.BNS.syncOrder(o); }catch(e){}
-  }
-
-  try{
-    if(typeof renderAll === "function" && !renderAll.__bnsV221DriverWrapped){
-      var oldRenderAll = renderAll;
-      renderAll = function(){
-        var before = currentDriverValue();
-        var sel = E("orderDriver");
-        if(sel && before) sel.setAttribute("data-bns-keep-driver", before);
-        var r = oldRenderAll.apply(this, arguments);
-        setTimeout(restoreDriverSelect, 0);
-        setTimeout(restoreDriverSelect, 80);
-        return r;
-      };
-      renderAll.__bnsV221DriverWrapped = true;
-      try{ window.renderAll = renderAll; }catch(e){}
-    }
-  }catch(e){}
-
-  try{
-    if(typeof editOrder === "function" && !editOrder.__bnsV221DriverWrapped){
-      var oldEditOrder = editOrder;
-      editOrder = function(oid){
-        var r = oldEditOrder.apply(this, arguments);
-        var s = getState();
-        var o = s && Array.isArray(s.orders) ? s.orders.find(function(x){ return String(x.id||"") === String(oid); }) : null;
-        var d = normalizeDriver(o);
-        var sel = E("orderDriver");
-        if(sel && d) sel.setAttribute("data-bns-keep-driver", d);
-        setTimeout(restoreDriverSelect, 0);
-        setTimeout(restoreDriverSelect, 150);
-        setTimeout(restoreDriverSelect, 500);
-        return r;
-      };
-      editOrder.__bnsV221DriverWrapped = true;
-      try{ window.editOrder = editOrder; }catch(e){}
-    }
-  }catch(e){}
-
-  try{
-    var sel = E("orderDriver");
-    if(sel && !sel.__bnsV221Bound){
-      sel.addEventListener("change", persistDriverOnly);
-      sel.addEventListener("input", persistDriverOnly);
-      sel.__bnsV221Bound = true;
-    }
-  }catch(e){}
-
-  try{
-    window.makeConfirmation = function(){
-      restoreDriverSelect();
-      var o = findCurrentOrder() || {};
-      var driver = currentDriverValue() || "-";
-      var number = val("orderNumber") || o.number || "";
-      var title = val("orderTitle") || o.title || "Zonder titel";
-      var start = val("dateStart") || o.start || "";
-      var end = val("dateEnd") || o.end || start;
-      var mats = [];
-      try{ if(Array.isArray(chosen) && chosen.length) mats = chosen; }catch(e){}
-      if(!mats.length && Array.isArray(o.materials)) mats = o.materials;
-      var matRows = mats.length ? mats.map(function(m,i){
-        return '<tr><td>'+esc(i+1)+'</td><td>'+esc(m.code||'')+'</td><td>'+esc(m.name||'')+'</td><td>'+esc(m.cat||'')+'</td></tr>';
-      }).join('') : '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
-      function field(id, fallback){ var v=val(id); return v || fallback || ""; }
-      var html='<!doctype html><html><head><meta charset="utf-8"><title>Opdrachtbevestiging '+esc(number)+'</title>'+ 
-        '<style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#e5e7eb;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:18mm;box-sizing:border-box}.topline{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #2563eb;padding-bottom:14px;margin-bottom:18px}.driverbox{font-size:20px;font-weight:900;color:#111827;border:3px solid #111827;border-radius:14px;padding:10px 14px;background:#fef3c7}.doctype{text-align:right;font-size:28px;font-weight:900;color:#2563eb}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:800}.value{font-size:14px;white-space:pre-wrap}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}th,td{padding:9px;border-bottom:1px solid #e5e7eb}.print{position:fixed;top:12px;left:12px;background:#2563eb;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:800}@media print{body{background:white}.page{margin:0}.print{display:none}}</style></head><body><button class="print" onclick="window.print()">Afdrukken</button><main class="page">'+
-        '<section class="topline"><div class="driverbox">Bezorger: '+esc(driver)+'</div><div class="doctype">Opdrachtbevestiging<br><span style="font-size:16px;color:#111827">Opdracht '+esc(number)+'</span></div></section>'+ 
-        '<section class="grid"><div class="card"><div class="label">Klant</div><div class="value"><b>'+esc(field('customerName', o.customer && o.customer.name))+'</b><br>'+esc(field('customerStreet', o.customer && o.customer.street))+'<br>'+esc((field('customerZip', o.customer && o.customer.zip)+' '+field('customerCity', o.customer && o.customer.city)).trim())+'<br>'+esc(field('customerPhone', o.customer && o.customer.phone))+'<br>'+esc(field('customerEmail', o.customer && o.customer.email))+'</div></div>'+ 
-        '<div class="card"><div class="label">Locatie</div><div class="value"><b>'+esc(field('locationName', o.location && o.location.name))+'</b><br>'+esc(field('locationStreet', o.location && o.location.street))+'<br>'+esc((field('locationZip', o.location && o.location.zip)+' '+field('locationCity', o.location && o.location.city)).trim())+'<br>'+esc(field('locationContact', o.location && o.location.contact))+'<br>'+esc(field('locationPhone', o.location && o.location.phone))+'</div></div></section>'+ 
-        '<section class="card"><div class="label">Opdracht</div><div class="value"><b>'+esc(title)+'</b><br>Status: '+esc(field('orderStatus', o.status))+'<br>Datum: '+esc(start)+(end&&end!==start?' tot '+esc(end):'')+'<br>Merk: '+esc(field('orderBrand', o.brand))+'<br>Voertuig: '+esc(field('orderVehicle', o.vehicle))+'</div></section>'+ 
-        '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Code</th><th>Artikel</th><th>Rubriek</th></tr></thead><tbody>'+matRows+'</tbody></table></section>'+ 
-        ((field('orderExtra', o.extra))?'<section class="card"><div class="label">Bijzonderheden</div><div class="value">'+esc(field('orderExtra', o.extra))+'</div></section>':'')+
-        '</main></body></html>';
-      var w=window.open('', '_blank');
-      if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return; }
-      w.document.open(); w.document.write(html); w.document.close();
-    };
-  }catch(e){}
-
-  function install(){
-    try{ restoreDriverSelect(); }catch(e){}
-    try{
-      var sel = E("orderDriver");
-      if(sel && !sel.__bnsV221Bound){
-        sel.addEventListener("change", persistDriverOnly);
-        sel.addEventListener("input", persistDriverOnly);
-        sel.__bnsV221Bound = true;
-      }
-    }catch(e){}
-  }
-  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
-  setTimeout(install, 300);
-  setTimeout(install, 1000);
-  setInterval(install, 2500);
-  try{ toast('V22.1 actief: bezorger blijft per opdracht bewaard'); }catch(e){}
 })();
