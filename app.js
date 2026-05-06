@@ -465,6 +465,7 @@ Opdracht nr: ${orderNumber.value}
 Status: ${orderStatus.value}
 Titel: ${orderTitle.value || ''}
 Merk/biermerk: ${orderBrand.value || ''}
+Bezorger: ${orderDriver.value || '-'}
 
 KLANT
 -----
