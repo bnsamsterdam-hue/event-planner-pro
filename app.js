@@ -338,7 +338,7 @@ function openAlertsV91(){
   let html = `
     <div style="position:fixed;top:20%;left:50%;transform:translateX(-50%);
     background:#fff;padding:20px;border-radius:14px;box-shadow:0 5px 20px rgba(0,0,0,0.35);
-    z-index:9999;min-width:360px;max-width:700px;">
+    z-index:99999;min-width:360px;max-width:700px;">
       <h3>🚨 Systeemmeldingen</h3>
   `;
 
@@ -353,10 +353,7 @@ function openAlertsV91(){
           Opdracht: ${o.number || ""} ${o.title || ""}<br>
           ${a.note || ""}<br>
           <small>${a.time || ""}</small><br><br>
-          <button onclick="resolveAlert('${a.id}')"
-            style="background:#16a34a;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-weight:bold;">
-            Afmelden
-          </button>
+         
         </div>
       `;
     }).join("");
