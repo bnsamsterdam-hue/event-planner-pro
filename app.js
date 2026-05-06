@@ -5816,7 +5816,8 @@ function confirmDeleteAlertBNS(id){
           'Opdracht: '+esc(o.number||'')+' '+esc(o.title||'')+'<br>'+
           esc(a.note||'')+'<br><small>'+esc(a.time||'')+'</small>'+
           '<div class="bns-alert-actions">'+
-          '<button class="bns-alert-delete" type="button" data-delete="'+esc(a.id)+'">Verwijderen</button>'+
+          '<button class="bns-alert-resolve" type="button" data-resolve="'+esc(a.id)+'">Afmelden</button>'+
+'<button class="bns-alert-delete" type="button" data-delete="'+esc(a.id)+'">Verwijderen</button>'+
           '</div></div>';
       }).join('');
     }
