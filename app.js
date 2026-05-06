@@ -5931,17 +5931,12 @@ function confirmDeleteAlertBNS(id){
     try { a.resolvedBy = (window.user && (window.user.name || window.user.role)) || (typeof user !== "undefined" && user && (user.name || user.role)) || ""; } catch(e) {}
     SAVE(); updateAlertButton(); openAlerts();
   };
- window.BNS_V125_DELETE_ALERT = function(id){
+window.BNS_V125_DELETE_ALERT = function(id){
   askDeleteReasonBNS(id);
   return;
-
-  var s = S();
- 
 }
-    var s = S(); s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
-    SAVE(); updateAlertButton(); openAlerts();
-  };
-  function bindAlertButton(){
+
+function bindAlertButton(){
     var b = byId("alertsBtn"); if (!b) return;
     if (b.dataset.bnsV125Stable !== "1") {
       b.dataset.bnsV125Stable = "1";
