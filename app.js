@@ -58,23 +58,187 @@ function bindOrder(){
  ordersSearch.oninput=renderOrders; activeOrders.onclick=()=>{mode='active';renderOrders();}; doneOrders.onclick=()=>{mode='done';renderOrders();}; cancelledOrders.onclick=()=>{mode='cancelled';renderOrders();};
  ['customerName','customerStreet','customerZip','customerCity','locationName','locationStreet','locationZip','locationCity','locationContact','orderDriver','orderVehicle','orderTitle','orderBrand','orderStatus','priceExcl','discountAmount','vatPercent','depositAmount'].forEach(i=>$(i)?.addEventListener('input',summaryRender));
 }
-function workTab(idv){document.querySelectorAll('.workpanel').forEach(x=>x.classList.add('hidden'));$(idv).classList.remove('hidden');document.querySelectorAll('.worktab').forEach(x=>x.classList.toggle('active',x.dataset.tab===idv)); if(idv==='materialPanel'){renderCats();renderMaterials(currentCat)} summaryRender();}
-function summaryRender(){summary.innerHTML=[['Klant',customerName.value||'Nog niet gekozen'],['Locatie',[locationName.value,locationCity.value].filter(Boolean).join(' - ')||'Nog niet gekozen'],['Materialen',chosen.length?chosen.map(m=>m.code).join(', '):'Nog niets'],['Bezorger',orderDriver.value||'Nog niet gekozen'],['Status',orderStatus.value],['Totaal',$('grandTotal')?.value||'€ 0,00']].map(i=>`<div class="summary-card"><b>${i[0]}</b>${i[1]}</div>`).join('');}
-function renderCustomers(){let q=customerSearch.value.toLowerCase().trim(); if(q.length<2){customerResults.innerHTML='<small>Typ minimaal 2 letters.</small>';return}let list=state.customers.filter(c=>{let n=(c.name||'').trim();return n&&!/^klant\s*\d+$/i.test(n)&&![c.name,c.street,c.zip,c.city,c.phone,c.email].join(' ').toLowerCase().includes('offerte')&&[c.name,c.street,c.zip,c.city,c.phone,c.email].join(' ').toLowerCase().includes(q)}).slice(0,30);customerResults.innerHTML=list.map(c=>`<div class="pick" onclick="pickCustomer('${c.id}')"><b>${c.name}</b><br>${[c.street,c.zip,c.city].filter(Boolean).join(' ')}</div>`).join('')||'<small>Geen klant gevonden</small>';}
-function pickCustomer(cid){let c=state.customers.find(x=>x.id===cid); if(!c)return; customerName.value=c.name||'';customerStreet.value=c.street||'';customerZip.value=c.zip||'';customerCity.value=c.city||'';customerPhone.value=c.phone||'';customerEmail.value=c.email||'';customerBox.classList.add('hidden');summaryRender();}
-function renderLocations(){let q=locationSearch.value.toLowerCase().trim(); if(q.length<2){locationResults.innerHTML='<small>Typ minimaal 2 letters.</small>';return}let list=state.locations.filter(l=>[l.name,l.street,l.zip,l.city,l.phone,l.contact].join(' ').toLowerCase().includes(q)).slice(0,30);locationResults.innerHTML=list.map(l=>`<div class="pick" onclick="pickLocation('${l.id}')"><b>${l.name||''}</b><br>${[l.street,l.zip,l.city].filter(Boolean).join(' ')}</div>`).join('')||'<small>Geen locatie gevonden</small>';}
-function pickLocation(lid){let l=state.locations.find(x=>x.id===lid); if(!l)return; locationName.value=l.name||'';locationStreet.value=l.street||'';locationZip.value=l.zip||'';locationCity.value=l.city||'';locationContact.value=l.contact||'';locationPhone.value=l.phone||'';locationBox.classList.add('hidden');summaryRender();}
-function cats(){return [...new Set(state.materials.map(m=>(m.cat||'EXTRA').toUpperCase()))].sort()}
-function renderCats(){let cs=cats(); if(!cs.includes(currentCat))currentCat=cs[0]||'TW'; materialCats.innerHTML=cs.map(c=>`<button class="${c===currentCat?'active':''}" onclick="currentCat='${c}';renderCats();renderMaterials('${c}')">${c}</button>`).join('')}
-function renderMaterials(cat){let q=materialSearch.value.toLowerCase();let rows=state.materials.filter(m=>(m.cat||'').toUpperCase()===cat.toUpperCase()).filter(m=>!q||JSON.stringify(m).toLowerCase().includes(q));materialList.innerHTML=rows.map(m=>{let sel=chosen.some(x=>x.id===m.id);return `<div class="material-row ${sel?'selected':''}" onclick="addMat('${m.id}')"><div class="catbar cat-${m.cat}"></div><div><b>${m.code}</b> ${m.name}<br><small>${m.price||''}</small></div><div><span class="badge ${sel?'now':''}">${sel?'Nu toegevoegd':'Vrij'}</span></div></div>`}).join('')||'<p>Geen materiaal</p>';}
-function addMat(mid){let m=state.materials.find(x=>x.id===mid); if(m&&!chosen.some(x=>x.id===mid))chosen.push(structuredClone(m));renderChosen();renderMaterials(currentCat);summaryRender();}
-function renderChosen(){chosenMaterials.innerHTML=chosen.map(m=>`<span class="chip">${m.code} ${m.name}<button onclick="removeMat('${m.id}')">x</button></span>`).join('')}
-function removeMat(mid){chosen=chosen.filter(m=>m.id!==mid);renderChosen();renderMaterials(currentCat);summaryRender();}
-function newNo(){let y=new Date().getFullYear();let nums=state.orders.map(o=>String(o.number||'').match(new RegExp('^'+y+'-(\\d+)$'))).filter(Boolean).map(m=>+m[1]);orderNumber.value=y+'-'+String(nums.length?Math.max(...nums)+1:1).padStart(4,'0')}
+function workTab(idv){
+  document.querySelectorAll('.workpanel').forEach(x => x.classList.add('hidden'));
+  $(idv).classList.remove('hidden');
+
+  document.querySelectorAll('.worktab').forEach(x =>
+    x.classList.toggle('active', x.dataset.tab === idv)
+  );
+
+  if (idv === 'materialPanel') {
+    renderCats();
+    renderMaterials(currentCat);
+  }
+
+  summaryRender();
+}
+
+function summaryRender(){
+  summary.innerHTML = [
+    ['Klant', customerName.value || 'Nog niet gekozen'],
+    ['Locatie', [locationName.value, locationCity.value].filter(Boolean).join(' - ') || 'Nog niet gekozen'],
+    ['Materialen', chosen.length ? chosen.map(m => m.code).join(', ') : 'Nog niets'],
+    ['Bezorger', orderDriver.value || 'Nog niet gekozen'],
+    ['Status', orderStatus.value],
+    ['Totaal', $('grandTotal')?.value || '€ 0,00']
+  ].map(i =>
+    `<div class="summary-card"><b>${i[0]}</b>${i[1]}</div>`
+  ).join('');
+}
+
+function renderCustomers(){
+  let q = customerSearch.value.toLowerCase().trim();
+
+  if (q.length < 2) {
+    customerResults.innerHTML = '<small>Typ minimaal 2 letters.</small>';
+    return;
+  }
+
+  let list = state.customers.filter(c => {
+    let n = (c.name || '').trim();
+
+    return n &&
+      !/^klant\s*\d+$/i.test(n) &&
+      ![c.name, c.street, c.zip, c.city, c.phone, c.email].join(' ').toLowerCase().includes('offerte') &&
+      [c.name, c.street, c.zip, c.city, c.phone, c.email].join(' ').toLowerCase().includes(q);
+  }).slice(0, 30);
+
+  customerResults.innerHTML = list.map(c =>
+    `<div class="pick" onclick="pickCustomer('${c.id}')">
+      <b>${c.name}</b><br>
+      ${[c.street, c.zip, c.city].filter(Boolean).join(' ')}
+    </div>`
+  ).join('') || '<small>Geen klant gevonden</small>';
+}
+
+function pickCustomer(cid){
+  let c = state.customers.find(x => x.id === cid);
+  if (!c) return;
+
+  customerName.value = c.name || '';
+  customerStreet.value = c.street || '';
+  customerZip.value = c.zip || '';
+  customerCity.value = c.city || '';
+  customerPhone.value = c.phone || '';
+  customerEmail.value = c.email || '';
+
+  customerBox.classList.add('hidden');
+  summaryRender();
+}
+
+function renderLocations(){
+  let q = locationSearch.value.toLowerCase().trim();
+
+  if (q.length < 2) {
+    locationResults.innerHTML = '<small>Typ minimaal 2 letters.</small>';
+    return;
+  }
+
+  let list = state.locations.filter(l =>
+    [l.name, l.street, l.zip, l.city, l.phone, l.contact]
+      .join(' ')
+      .toLowerCase()
+      .includes(q)
+  ).slice(0, 30);
+
+  locationResults.innerHTML = list.map(l =>
+    `<div class="pick" onclick="pickLocation('${l.id}')">
+      <b>${l.name || ''}</b><br>
+      ${[l.street, l.zip, l.city].filter(Boolean).join(' ')}
+    </div>`
+  ).join('') || '<small>Geen locatie gevonden</small>';
+}
+
+function pickLocation(lid){
+  let l = state.locations.find(x => x.id === lid);
+  if (!l) return;
+
+  locationName.value = l.name || '';
+  locationStreet.value = l.street || '';
+  locationZip.value = l.zip || '';
+  locationCity.value = l.city || '';
+  locationContact.value = l.contact || '';
+  locationPhone.value = l.phone || '';
+
+  locationBox.classList.add('hidden');
+  summaryRender();
+}
+
+function cats(){
+  return [...new Set(state.materials.map(m => (m.cat || 'EXTRA').toUpperCase()))].sort();
+}
+
+function renderCats(){
+  let cs = cats();
+
+  if (!cs.includes(currentCat)) {
+    currentCat = cs[0] || 'TW';
+  }
+
+  materialCats.innerHTML = cs.map(c =>
+    `<button class="${c === currentCat ? 'active' : ''}" onclick="currentCat='${c}';renderCats();renderMaterials('${c}')">${c}</button>`
+  ).join('');
+}
+
+function renderMaterials(cat){
+  let q = materialSearch.value.toLowerCase();
+
+  let rows = state.materials
+    .filter(m => (m.cat || '').toUpperCase() === cat.toUpperCase())
+    .filter(m => !q || JSON.stringify(m).toLowerCase().includes(q));
+
+  materialList.innerHTML = rows.map(m => {
+    let sel = chosen.some(x => x.id === m.id);
+
+    return `<div class="material-row ${sel ? 'selected' : ''}" onclick="addMat('${m.id}')">
+      <div class="catbar cat-${m.cat}"></div>
+      <div><b>${m.code}</b> ${m.name}<br><small>${m.price || ''}</small></div>
+      <div><span class="badge ${sel ? 'now' : ''}">${sel ? 'Nu toegevoegd' : 'Vrij'}</span></div>
+    </div>`;
+  }).join('') || '<p>Geen materiaal</p>';
+}
+
+function addMat(mid){
+  let m = state.materials.find(x => x.id === mid);
+
+  if (m && !chosen.some(x => x.id === mid)) {
+    chosen.push(structuredClone(m));
+  }
+
+  renderChosen();
+  renderMaterials(currentCat);
+  summaryRender();
+}
+
+function renderChosen(){
+  chosenMaterials.innerHTML = chosen.map(m =>
+    `<span class="chip">${m.code} ${m.name}<button onclick="removeMat('${m.id}')">x</button></span>`
+  ).join('');
+}
+
+function removeMat(mid){
+  chosen = chosen.filter(m => m.id !== mid);
+
+  renderChosen();
+  renderMaterials(currentCat);
+  summaryRender();
+}
+
+function newNo(){
+  let y = new Date().getFullYear();
+
+  let nums = state.orders
+    .map(o => String(o.number || '').match(new RegExp('^' + y + '-(\\d+)$')))
+    .filter(Boolean)
+    .map(m => +m[1]);
+
+  orderNumber.value = y + '-' + String(nums.length ? Math.max(...nums) + 1 : 1).padStart(4, '0');
+}
+
 function saveCurrentOrder(){
   const currentId = editing || '';
   const currentNumber = orderNumber.value || '';
-
   let existingIndex = -1;
   if(currentId){
     existingIndex = state.orders.findIndex(x => String(x.id||'') === String(currentId));
@@ -462,6 +626,7 @@ OPDRACHTBEVESTIGING
 
 Opdracht nr: ${orderNumber.value}
 Status: ${orderStatus.value}
+Bezorger: ${orderDriver.value || 'Nog niet gekozen'}
 Titel: ${orderTitle.value || ''}
 Merk/biermerk: ${orderBrand.value || ''}
 
