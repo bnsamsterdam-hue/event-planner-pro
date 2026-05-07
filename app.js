@@ -9273,9 +9273,7 @@ setInterval(updateAlertButton, 1200);
       }
     }catch(e){}
   }
-  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
-  setTimeout(install, 300);
-  setTimeout(install, 1000);
-  setInterval(install, 2500);
-  try{ toast('V22.1 actief: bezorger blijft per opdracht bewaard'); }catch(e){}
+ if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
+setTimeout(install, 800);
+setInterval(updateAlertButton, 1200);
 })();
