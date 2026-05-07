@@ -5880,9 +5880,6 @@ html += '<button type="button" class="red" onclick="BNS_V125_DELETE_ALERT(\'' + 
 html += '</div></div>';
 });
 
-html += '</div>';
-modal.innerHTML = html;
-document.body.appendChild(modal);
     html += '</div>';
     modal.innerHTML = html;
     document.body.appendChild(modal);
