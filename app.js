@@ -10144,8 +10144,10 @@ window.BNS_V125_DELETE_ALERT = function(id){
     });
   }
 
-  setInterval(patchOverviewDriver, 500);
-  document.addEventListener("click", function(){
+setInterval(patchOverviewDriver, 500);
+
+document.addEventListener("click", function(){
     setTimeout(patchOverviewDriver, 300);
-  });
+});
+
 })();
