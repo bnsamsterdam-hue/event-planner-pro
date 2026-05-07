@@ -9300,7 +9300,6 @@ if (document.readyState === "loading") {
 }
 
 setTimeout(install, 800);
-setInterval(updateAlertButton, 1200
+setInterval(updateAlertButton, 1200); 
            
-}
 })();
