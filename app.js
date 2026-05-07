@@ -9233,6 +9233,7 @@ setInterval(updateAlertButton, 1200);
 
 try{
   window.makeConfirmation = function(){
+
     restoreDriverSelect();
 
     var o = findCurrentOrder() || {};
@@ -9243,9 +9244,152 @@ try{
     var end = val("dateEnd") || o.end || start;
 
     var mats = [];
+
     try{
-      if (Array.isArray(chosen) && chosen.length) mats = chosen;
+      if (Array.isArray(chosen) && chosen.length){
+        mats = chosen;
+      }
     }catch(e){}
+
+    if (!mats.length && Array.isArray(o.materials)){
+      mats = o.materials;
+    }
+
+    var matRows = mats.length
+      ? mats.map(function(m,i){
+          return '<tr>'
+            + '<td>'+esc(i+1)+'</td>'
+            + '<td>'+esc(m.code || "")+'</td>'
+            + '<td>'+esc(m.name || "")+'</td>'
+            + '<td>'+esc(m.cat || "")+'</td>'
+            + '</tr>';
+        }).join('')
+      : '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
+
+    function field(id, fallback){
+      var v = val(id);
+      return v || fallback || "";
+    }
+
+    var html =
+      '<!doctype html>' +
+      '<html>' +
+      '<head>' +
+      '<meta charset="utf-8">' +
+      '<title>Opdrachtbevestiging '+esc(number)+'</title>' +
+
+      '<style>' +
+      '@page{size:A4;margin:14mm;}' +
+      'body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#e5e7eb;color:#111827;}' +
+      '.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:18mm;box-sizing:border-box;}' +
+      '.topline{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #2563eb;padding-bottom:14px;margin-bottom:18px;}' +
+      '.driverbox{font-size:20px;font-weight:900;color:#111827;border:3px solid #111827;border-radius:14px;padding:10px 14px;background:#dcfce7;}' +
+      '.doctype{text-align:right;font-size:28px;font-weight:900;color:#2563eb;}' +
+      '.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}' +
+      '.card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0;}' +
+      '.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:800;}' +
+      '.value{font-size:14px;white-space:pre-wrap;}' +
+      'table{width:100%;border-collapse:collapse;}' +
+      'th{background:#2563eb;color:#fff;text-align:left;}' +
+      'th,td{padding:9px;border-bottom:1px solid #e5e7eb;}' +
+      '.print{position:fixed;top:12px;left:12px;background:#2563eb;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:800;}' +
+      '@media print{body{background:white;}.page{margin:0;}.print{display:none;}}' +
+      '</style>' +
+
+      '</head>' +
+      '<body>' +
+
+      '<button class="print" onclick="window.print()">Afdrukken</button>' +
+
+      '<main class="page">' +
+
+      '<section class="topline">' +
+      '<div class="driverbox">Bezorger: '+esc(driver)+'</div>' +
+      '<div class="doctype">Opdrachtbevestiging<br>' +
+      '<span style="font-size:16px;color:#111827">Opdracht '+esc(number)+'</span>' +
+      '</div>' +
+      '</section>' +
+
+      '<section class="grid">' +
+
+      '<div class="card">' +
+      '<div class="label">Klant</div>' +
+      '<div class="value">' +
+      '<b>'+esc(field("customerName", o.customer && o.customer.name))+'</b><br>' +
+      esc(field("customerStreet", o.customer && o.customer.street))+'<br>' +
+      esc((field("customerZip", o.customer && o.customer.zip)+' '+field("customerCity", o.customer && o.customer.city)).trim())+'<br>' +
+      esc(field("customerPhone", o.customer && o.customer.phone))+'<br>' +
+      esc(field("customerEmail", o.customer && o.customer.email)) +
+      '</div>' +
+      '</div>' +
+
+      '<div class="card">' +
+      '<div class="label">Locatie</div>' +
+      '<div class="value">' +
+      '<b>'+esc(field("locationName", o.location && o.location.name))+'</b><br>' +
+      esc(field("locationStreet", o.location && o.location.street))+'<br>' +
+      esc((field("locationZip", o.location && o.location.zip)+' '+field("locationCity", o.location && o.location.city)).trim())+'<br>' +
+      esc(field("locationContact", o.location && o.location.contact))+'<br>' +
+      esc(field("locationPhone", o.location && o.location.phone)) +
+      '</div>' +
+      '</div>' +
+
+      '</section>' +
+
+      '<section class="card">' +
+      '<div class="label">Opdracht</div>' +
+      '<div class="value">' +
+      '<b>'+esc(title)+'</b><br>' +
+      'Status: '+esc(field("orderStatus", o.status))+'<br>' +
+      'Datum: '+esc(start)+(end && end !== start ? ' tot '+esc(end) : '')+'<br>' +
+      'Merk: '+esc(field("orderBrand", o.brand))+'<br>' +
+      'Voertuig: '+esc(field("orderVehicle", o.vehicle)) +
+      '</div>' +
+      '</section>' +
+
+      '<section class="card">' +
+      '<div class="label">Materialen</div>' +
+      '<table>' +
+      '<thead>' +
+      '<tr>' +
+      '<th>#</th>' +
+      '<th>Code</th>' +
+      '<th>Artikel</th>' +
+      '<th>Rubriek</th>' +
+      '</tr>' +
+      '</thead>' +
+      '<tbody>' +
+      matRows +
+      '</tbody>' +
+      '</table>' +
+      '</section>' +
+
+      (
+        field("orderExtra", o.extra)
+          ? '<section class="card">' +
+            '<div class="label">Bijzonderheden</div>' +
+            '<div class="value">'+esc(field("orderExtra", o.extra))+'</div>' +
+            '</section>'
+          : ''
+      ) +
+
+      '</main>' +
+      '</body>' +
+      '</html>';
+
+    var w = window.open('', '_blank');
+
+    if (!w){
+      alert('Pop-up geblokkeerd. Sta pop-ups toe.');
+      return;
+    }
+
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  };
+
+}catch(e){}
 
     if (!mats.length && Array.isArray(o.materials)) mats = o.materials;
 
