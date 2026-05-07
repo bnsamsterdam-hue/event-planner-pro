@@ -9271,9 +9271,15 @@ setInterval(updateAlertButton, 1200);
         sel.addEventListener("input", persistDriverOnly);
         sel.__bnsV221Bound = true;
       }
-    }catch(e){}
-  }
- if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
+  }catch(e){}
+}
+
+if (document.readyState === "loading")
+  document.addEventListener("DOMContentLoaded", install);
+else
+  install();
+
 setTimeout(install, 800);
 setInterval(updateAlertButton, 1200);
+
 })();
