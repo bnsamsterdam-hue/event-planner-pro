@@ -1359,7 +1359,7 @@ setTimeout(()=>{
   }
   function forceReadable(){ document.body.classList.add('bns-readable-v106','bns-readable-v105'); }
   function patchTitleBar(){
-    const oh=document.querySelector('#newOrder .order-head'); if(oh) oh.classList.add('bns-title-large-v106','bns-date-reset-v105');
+    const oh=document.querySelector('#newOrder .order-head'); if(oh) oh.classList.add('bns-date-reset-v105');
     const title=$('orderTitle'); if(title){ title.placeholder='Titel / opdrachtnaam duidelijk invullen'; title.title='Grote opdracht titel - hier zoek je de opdracht later makkelijk op'; }
   }
   function patchSystemButtons(){
@@ -1539,12 +1539,24 @@ setTimeout(()=>{
     nodes.forEach(n=>{const x=clean(n.nodeValue); if(x!==n.nodeValue)n.nodeValue=x;});
     const t=document.querySelector('title'); if(t)t.textContent=clean(t.textContent);
   }
-  function updateAlertButton(){
-    const btn=$('alertsBtn'); if(!btn)return;
-    const open=(appState().alerts||[]).filter(a=>!a.resolved);
-    btn.textContent='🚨 Systeemmeldingen ('+open.length+')';
-    btn.classList.toggle('bns-alert-active',open.length>0);
-  }
+  .bns-alert-active{
+  background:#dc2626!important;
+  color:#fff!important;
+  animation:bnsAlertFlash .75s infinite!important;
+  box-shadow:0 0 0 4px rgba(220,38,38,.25)!important;
+}
+
+.bns-alert-stable{
+  background:#2563eb!important;
+  color:#fff!important;
+  animation:none!important;
+}
+
+@keyframes bnsAlertFlash{
+  0%{background:#dc2626;transform:scale(1);}
+  50%{background:#ff0000;transform:scale(1.06);}
+  100%{background:#dc2626;transform:scale(1);}
+}
   window.bnsOpenAlertsV108=function(){
     removeGithubEverywhere(); scrubDOM(); updateAlertButton();
     const s=appState(); const open=(s.alerts||[]).filter(a=>!a.resolved);
