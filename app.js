@@ -5974,29 +5974,36 @@ window.BNS_V125_DELETE_ALERT = function(id){
     };
     if (adminBtn && adminBtn.parentNode) adminBtn.insertAdjacentElement("afterend", btn); else side.appendChild(btn);
   }
-  function css(){
-    if (byId(STYLE_ID)) return;
-    var st = document.createElement("style"); st.id = STYLE_ID;
-    st.textContent = "#materialList .badge.defect,#materialList .mat-status-badge.mat-defect,#materialList .mat-status-badge.status-defect,#materialList .v111-pill.v111-defect,#materialList .v112-pill.v112-defect,.mat-status-badge.mat-defect,.mat-status-badge.status-defect{animation:none!important;filter:none!important}"+
-      "#alertsBtn,#alertsBtn.bns-a12-blink{animation:none!important;filter:none!important;transform:none!important}"+
-      ".bns-v125-alert-modal{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;padding:18px}"+
-      ".bns-v125-alert-card{background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:780px;width:100%;max-height:84vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32)}"+
-      ".bns-v125-close{float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-weight:900}"+
-      ".bns-v125-alert-item{border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc}"+
-".bns-v125-alert-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bns-v125-alert-actions button{color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:900}.bns-v125-alert-actions .green{background:#16a34a}.bns-v125-alert-actions .red{background:#dc2626}"+
-".bns-alert-active{background:#dc2626!important;color:#fff!important;animation:bnsAlertFlash .75s infinite!important;box-shadow:0 0 0 4px rgba(220,38,38,.25)!important;}"+
-".bns-alert-stable{background:#16a34a!important;color:#fff!important;animation:none!important;}"+
-"@keyframes bnsAlertFlash{0%{background:#dc2626;transform:scale(1);}50%{background:#ff0000;transform:scale(1.06);}100%{background:#dc2626;transform:scale(1);}}";
-  var oldRender = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-  if (oldRender && !oldRender.__bnsV125StableAlertsLogout) {
-    var wrapped = function(){ var r = oldRender.apply(this, arguments); setTimeout(install, 0); return r; };
-    wrapped.__bnsV125StableAlertsLogout = true;
-    window.renderAll = wrapped; try { renderAll = wrapped; } catch(e) {}
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
-  setTimeout(install, 800);
-  setInterval(updateAlertButton, 1200);
-})();
+function css(){
+  if (byId(STYLE_ID)) return;
+  var st = document.createElement("style");
+  st.id = STYLE_ID;
+  st.textContent =
+    "#alertsBtn,#alertsBtn.bns-a12-blink{animation:none!important;filter:none!important;transform:none!important}" +
+    ".bns-v125-alert-modal{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;padding:18px}" +
+    ".bns-v125-alert-card{background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:780px;width:100%;max-height:84vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32)}" +
+    ".bns-v125-close{float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-weight:900}" +
+    ".bns-v125-alert-item{border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc}" +
+    ".bns-v125-alert-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}" +
+    ".bns-v125-alert-actions button{color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:900}" +
+    ".bns-v125-alert-actions .green{background:#16a34a}" +
+    ".bns-v125-alert-actions .red{background:#dc2626}" +
+    ".bns-alert-active{background:#dc2626!important;color:#fff!important;animation:bnsAlertFlash .75s infinite!important;box-shadow:0 0 0 4px rgba(220,38,38,.25)!important}" +
+    ".bns-alert-stable{background:#16a34a!important;color:#fff!important;animation:none!important}" +
+    "@keyframes bnsAlertFlash{0%{background:#dc2626;transform:scale(1)}50%{background:#ff0000;transform:scale(1.06)}100%{background:#dc2626;transform:scale(1)}}";
+  document.head.appendChild(st);
+}
+
+function install(){ css(); bindAlertButton(); addLogoutButton(); }
+var oldRender = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+if (oldRender && !oldRender.__bnsV125StableAlertsLogout) {
+  var wrapped = function(){ var r = oldRender.apply(this, arguments); setTimeout(install, 0); return r; };
+  wrapped.__bnsV125StableAlertsLogout = true;
+  window.renderAll = wrapped; try { renderAll = wrapped; } catch(e) {}
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
+setTimeout(install, 800);
+setInterval(updateAlertButton, 1200);
 
 /* =========================================================
    BNS V12.6 - opdrachten inzien/jaarmappen + stabiele meldingen + Routenet + PIN rechten
