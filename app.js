@@ -5891,24 +5891,58 @@ html += '</div></div>';
     b.classList.remove("bns-a12-blink");
     b.style.animation = "none";
   }
-  window.BNS_V125_RESOLVE_ALERT = function(id){
-    var s = S(); s.alerts = s.alerts || [];
-    var a = s.alerts.find(function(x){ return String(x.id) === String(id); });
-    if (!a) return;
-    var txt = prompt("Tapwagen.nl afmelding / oplossing:", a.resolveText || "");
-    if (txt === null) return;
+function tapwagenAsk(title, label, value, onOk){
+  var old = document.getElementById("tapwagenReasonModal");
+  if (old) old.remove();
+
+  var wrap = document.createElement("div");
+  wrap.id = "tapwagenReasonModal";
+  wrap.style = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999999;display:flex;align-items:center;justify-content:center;";
+
+  wrap.innerHTML =
+    '<div style="background:#fff;width:min(92vw,520px);border-radius:18px;padding:22px;font-family:Arial;box-shadow:0 20px 70px rgba(0,0,0,.35);">' +
+    '<h2 style="margin-top:0;">' + title + '</h2>' +
+    '<div style="margin-bottom:10px;">' + label + '</div>' +
+    '<textarea id="tapwagenReasonInput" style="width:100%;height:120px;padding:10px;border-radius:12px;border:1px solid #ccc;">' + (value || '') + '</textarea>' +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">' +
+    '<button type="button" onclick="document.getElementById(\'tapwagenReasonModal\').remove()" style="padding:10px 16px;border:0;border-radius:10px;background:#ddd;">Annuleren</button>' +
+    '<button type="button" id="tapwagenReasonOk" style="padding:10px 16px;border:0;border-radius:10px;background:#e33;color:#fff;font-weight:700;">OK</button>' +
+    '</div></div>';
+
+  document.body.appendChild(wrap);
+
+  document.getElementById("tapwagenReasonOk").onclick = function(){
+    var txt = document.getElementById("tapwagenReasonInput").value || "";
+    wrap.remove();
+    onOk(txt);
+  };
+
+  setTimeout(function(){
+    document.getElementById("tapwagenReasonInput").focus();
+  }, 50);
+}
+
+window.BNS_V125_RESOLVE_ALERT = function(id){
+  var s = S(); s.alerts = s.alerts || [];
+  var a = s.alerts.find(function(x){ return String(x.id) === String(id); });
+  if (!a) return;
+
+  tapwagenAsk("Tapwagen.nl systeemmelding", "Afmelding / oplossing:", a.resolveText || "", function(txt){
     a.resolved = true;
     a.resolveText = txt;
     a.resolvedAt = new Date().toLocaleString();
-    try { a.resolvedBy = (window.user && (window.user.name || window.user.role)) || (typeof user !== "undefined" && user && (user.name || user.role)) || ""; } catch(e) {}
+    try { a.resolvedBy = (window.user && (window.user.name || window.user.role)) || ""; } catch(e) {}
     SAVE(); updateAlertButton(); openAlerts();
-  };
-  window.BNS_V125_DELETE_ALERT = function(id){
-  var txt = prompt("Tapwagen.nl reden van verwijderen:", "");
-    if (txt === null) return;
-    var s = S(); s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
+  });
+};
+
+window.BNS_V125_DELETE_ALERT = function(id){
+  tapwagenAsk("Tapwagen.nl systeemmelding", "Reden verwijderen:", "", function(txt){
+    var s = S(); s.alerts = s.alerts || [];
+    s.alerts = s.alerts.filter(function(x){ return String(x.id) !== String(id); });
     SAVE(); updateAlertButton(); openAlerts();
-  };
+  });
+};
   function bindAlertButton(){
     var b = byId("alertsBtn"); if (!b) return;
     if (b.dataset.bnsV125Stable !== "1") {
