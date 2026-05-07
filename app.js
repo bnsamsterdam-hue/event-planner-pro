@@ -10083,7 +10083,7 @@ window.BNS_V125_DELETE_ALERT = function(id){
 
   setTimeout(install, 300);
   setTimeout(install, 1000);
-  setInterval(install, 1200            
+  setInterval(install, 1200);            
 })();
 
 (function(){
