@@ -1539,24 +1539,7 @@ setTimeout(()=>{
     nodes.forEach(n=>{const x=clean(n.nodeValue); if(x!==n.nodeValue)n.nodeValue=x;});
     const t=document.querySelector('title'); if(t)t.textContent=clean(t.textContent);
   }
-  .bns-alert-active{
-  background:#dc2626!important;
-  color:#fff!important;
-  animation:bnsAlertFlash .75s infinite!important;
-  box-shadow:0 0 0 4px rgba(220,38,38,.25)!important;
-}
-
-.bns-alert-stable{
-  background:#2563eb!important;
-  color:#fff!important;
-  animation:none!important;
-}
-
-@keyframes bnsAlertFlash{
-  0%{background:#dc2626;transform:scale(1);}
-  50%{background:#ff0000;transform:scale(1.06);}
-  100%{background:#dc2626;transform:scale(1);}
-}
+ 
   window.bnsOpenAlertsV108=function(){
     removeGithubEverywhere(); scrubDOM(); updateAlertButton();
     const s=appState(); const open=(s.alerts||[]).filter(a=>!a.resolved);
@@ -6000,10 +5983,10 @@ window.BNS_V125_DELETE_ALERT = function(id){
       ".bns-v125-alert-card{background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:780px;width:100%;max-height:84vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32)}"+
       ".bns-v125-close{float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-weight:900}"+
       ".bns-v125-alert-item{border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc}"+
-      ".bns-v125-alert-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bns-v125-alert-actions button{color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:900}.bns-v125-alert-actions .green{background:#16a34a}.bns-v125-alert-actions .red{background:#dc2626}";
-    document.head.appendChild(st);
-  }
-  function install(){ css(); bindAlertButton(); addLogoutButton(); }
+     ".bns-v125-alert-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bns-v125-alert-actions button{color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:900}.bns-v125-alert-actions .green{background:#16a34a}.bns-v125-alert-actions .red{background:#dc2626}"+
+".bns-alert-active{background:#dc2626!important;color:#fff!important;animation:bnsAlertFlash .75s infinite!important;box-shadow:0 0 0 4px rgba(220,38,38,.25)!important;}"+
+".bns-alert-stable{background:#16a34a!important;color:#fff!important;animation:none!important;}"+
+"@keyframes bnsAlertFlash{0%{background:#dc2626;transform:scale(1);}50%{background:#ff0000;transform:scale(1.06);}100%{background:#dc2626;transform:scale(1);}}";
   var oldRender = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
   if (oldRender && !oldRender.__bnsV125StableAlertsLogout) {
     var wrapped = function(){ var r = oldRender.apply(this, arguments); setTimeout(install, 0); return r; };
