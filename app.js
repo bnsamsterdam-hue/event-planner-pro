@@ -9468,8 +9468,7 @@ try{
     w.document.open();
     w.document.write(html);
     w.document.close();
-  };
-} catch(e){}
+  }
 
 function install(){
   try{ restoreDriverSelect(); }catch(e){}
