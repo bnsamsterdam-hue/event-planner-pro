@@ -9469,7 +9469,7 @@ try{
     w.document.write(html);
     w.document.close();
   }
-}catch(e){}
+} catch(e){}
 
 function install(){
   try{ restoreDriverSelect(); }catch(e){}
