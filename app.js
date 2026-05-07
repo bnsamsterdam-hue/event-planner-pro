@@ -3521,53 +3521,604 @@ setTimeout(()=>{
    - Copy opdracht staat naast Extra en kopieert huidige schermgegevens.
    ========================================================= */
 (function(){
-"use strict";
-const STYLE_ID="bns_simpel_stabiel_style", MODAL_ID="bns_simpel_stabiel_modal";
-function E(id){return document.getElementById(id)}
-function A(s,r){return Array.from((r||document).querySelectorAll(s))}
-function ST(){try{return state}catch(e){return null}}
-function ORD(){const s=ST();return s&&Array.isArray(s.orders)?s.orders:[]}
-function MAT(){const s=ST();return s&&Array.isArray(s.materials)?s.materials:[]}
-function CH(){try{return Array.isArray(chosen)?chosen:[]}catch(e){return[]}}
-function ED(){try{return editing||null}catch(e){return null}}
-function SETED(v){try{editing=v}catch(e){}}
-function CC(){try{return currentCat||"TW"}catch(e){return"TW"}}
-function SAVE(){try{if(typeof save==="function")save()}catch(e){}}
-function TOAST(t){try{if(typeof toastMsg==="function")toastMsg(t);else if(typeof toast==="function")toast(t)}catch(e){}}
-function CL(v){try{return typeof structuredClone==="function"?structuredClone(v):JSON.parse(JSON.stringify(v))}catch(e){return Object.assign({},v)}}
-function H(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function V(id){return E(id)?.value||""}
-function SV(id,v){const x=E(id);if(x)x.value=v||""}
-function NICE(v){try{if(typeof nice==="function")return nice(v)}catch(e){}return v||""}
-function mat(mid){return MAT().find(m=>String(m.id)===String(mid))}
-function midFromRow(row){if(!row)return"";if(row.dataset.materialId)return row.dataset.materialId;if(row.dataset.bnsMaterialId)return row.dataset.bnsMaterialId;let m=(row.getAttribute("onclick")||"").match(/addMat\(['"]([^'"]+)['"]\)/);return m?m[1]:""}
-function stOf(m){let s=String(m?.status||"free").trim().toLowerCase();if(s==="reserved"||s==="gereserveerd")return"reserved";if(s==="damage"||s==="schade")return"damage";if(s==="missing"||s==="vermissing"||s==="vermist")return"missing";if(s==="defect"||s==="storing")return"defect";if(s==="inactive"||s==="niet actief"||s==="niet beschikbaar")return"inactive";return"free"}
-function label(s){return s==="reserved"?"Gereserveerd":s==="damage"?"Schade":s==="missing"?"Vermissing":s==="defect"?"Defect / storing":s==="inactive"?"Niet beschikbaar":"Vrij"}
-function cls(s){return s==="reserved"?"reserved":(s==="damage"||s==="missing"||s==="defect")?"defect":s==="inactive"?"inactive":"free"}
-function active(o){return o&&o.status!=="Geannuleerd"&&o.status!=="Uitgevoerd"}
-function reserv(mid){for(const o of ORD()){if(!active(o))continue;if(ED()&&String(o.id)===String(ED()))continue;if((o.materials||[]).some(m=>String(m.id)===String(mid)))return o}return null}
-function block(mid){const m=mat(mid);if(!m)return{blocked:true,status:"missing"};const s=stOf(m);if(s==="reserved")return{blocked:true,status:"reserved",material:m,order:reserv(mid)};if(s==="damage"||s==="missing"||s==="defect"||s==="inactive")return{blocked:true,status:s,material:m};return{blocked:false,status:"free",material:m}}
-function addStable(mid){const b=block(mid);if(b.blocked){popup(mid);return}const m=b.material;if(!m)return;if(!CH().some(x=>String(x.id)===String(mid))){let c=CL(m);c.status="reserved";CH().push(c)}try{renderChosen()}catch(e){}try{renderMaterials(CC())}catch(e){}try{summaryRender()}catch(e){}setTimeout(patchRows,0)}
-function intercept(e){const row=e.target.closest&&e.target.closest(".material-row");const list=E("materialList");if(!row||!list||!list.contains(row))return;const mid=midFromRow(row);if(!mid)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();addStable(mid);return false}
-function popup(mid){const b=block(mid),m=b.material||mat(mid);if(!m)return;let body=`<h3>${H(m.code||"")} ${H(m.name||"")}</h3>`;if(b.status==="reserved"){const o=b.order;body+=o?`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br><b>Klant:</b> ${H(o.customer?.name||"Onbekend")}<br><b>Opdracht:</b> ${H(o.number||"")} - ${H(o.title||"")}<br><b>Datum:</b> ${H(NICE(o.start))} tot datum ${H(NICE(o.end))}</div>`:`<div class="bns-box reserved"><b>Status:</b> Gereserveerd<br>Geen opdracht gevonden.</div>`}else{body+=`<div class="bns-box defect"><b>Status:</b> ${H(label(b.status))}<br><b>Omschrijving:</b> ${H(m.issueText||m.notes||"")}</div><div class="actions bns-actions"><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button><button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button></div>`}openModal("Materiaal status",body)}
-function openModal(t,b){let m=E(MODAL_ID);if(!m){m=document.createElement("div");m.id=MODAL_ID;m.className="bns-modal hidden";m.innerHTML='<div class="bns-modal-card"><h2 id="bnsStabielTitle"></h2><div id="bnsStabielBody"></div><div class="actions"><button onclick="BNS_STABIEL_close()">Sluiten</button></div></div>';document.body.appendChild(m)}E("bnsStabielTitle").textContent=t||"Info";E("bnsStabielBody").innerHTML=b||"";m.classList.remove("hidden")}
-function closeModal(){const m=E(MODAL_ID);if(m)m.classList.add("hidden")}
-function freeMat(mid){const m=mat(mid);if(!m)return;m.status="free";m.issueText="";m.usable=true;SAVE();closeModal();try{renderAll()}catch(e){}try{renderMaterials(CC())}catch(e){}setTimeout(patchRows,0)}
-function mark(mid,status){const m=mat(mid);if(!m)return;if(status==="free"){m.status="free";m.issueText="";m.usable=true}else{const txt=prompt("Omschrijving / reden:",m.issueText||"");if(txt===null)return;m.status=status;m.issueText=txt||label(status);m.usable=false}SAVE();closeModal();try{renderAll()}catch(e){}try{renderMaterials(CC())}catch(e){}setTimeout(patchRows,0)}
-function forceAdd(mid){const m=mat(mid);if(!m)return;if(!CH().some(x=>String(x.id)===String(mid))){let c=CL(m);c.status="reserved";CH().push(c)}closeModal();try{renderChosen()}catch(e){}try{summaryRender()}catch(e){}setTimeout(patchRows,0)}
-function openOrder(oid){closeModal();if(typeof editOrder==="function")editOrder(oid)}
-function nextNo(){let y=new Date().getFullYear();let nums=ORD().map(o=>String(o.number||"").match(new RegExp("^"+y+"-(\\d+)$"))).filter(Boolean).map(m=>Number(m[1]));return y+"-"+String(nums.length?Math.max(...nums)+1:1).padStart(4,"0")}
-function copyTop(){SETED(null);SV("orderNumber",nextNo());SV("orderStatus","Offerte");SV("dateStart","");SV("dateEnd","");TOAST("Copy gemaakt. Klant/locatie/materialen blijven staan. Vul nieuwe datum in en sla op.")}
-function installCopy(){let btn=E("bnsCopyOrderTop");if(!btn){btn=document.createElement("button");btn.id="bnsCopyOrderTop";btn.type="button";btn.textContent="Copy opdracht";btn.className="worktab bns-copy-top";btn.onclick=e=>{e.preventDefault();copyTop()}}let extra=A("button").find(b=>(b.textContent||"").trim().toLowerCase()==="extra");if(extra&&btn.previousElementSibling!==extra)extra.insertAdjacentElement("afterend",btn);else if(!btn.parentElement)(document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn)}
-function patchRows(){A("#materialList .material-row").forEach(row=>{const mid=midFromRow(row),m=mat(mid);if(!m)return;const b=block(mid);const selected=CH().some(x=>String(x.id)===String(mid));let visual=selected?"now":(b.blocked?cls(b.status):"free");let lab=selected?"Nu toegevoegd":(b.blocked?label(b.status):"Vrij");let small=m.price||"";if(!selected&&b.blocked)small=b.status==="reserved"?"Klik voor klant/datum":"Klik voor status";row.classList.remove("free","reserved","defect","inactive","now");row.classList.add(visual);row.removeAttribute("onclick");let badge=row.querySelector(".badge");if(badge){badge.textContent=lab;badge.className="badge "+visual}let sm=row.querySelector("small");if(sm)sm.textContent=small})}
-function patchAdd(){window.addMat=addStable;try{addMat=addStable}catch(e){}}
-function css(){if(E(STYLE_ID))return;let style=document.createElement("style");style.id=STYLE_ID;style.textContent=`#bnsCopyOrderTop{background:#0f766e!important;color:#fff!important;font-weight:900!important;border:2px solid #99f6e4!important}#materialList .material-row,#materialList .material-row.free,#materialList .material-row.reserved,#materialList .material-row.defect,#materialList .material-row.inactive,#materialList .material-row.now{background:var(--panel,#fff)!important;color:var(--text,#172033)!important}#materialList .badge.free{background:#dcfce7!important;color:#166534!important}#materialList .badge.reserved{background:#fee2e2!important;color:#991b1b!important}#materialList .badge.defect{background:#fee2e2!important;color:#991b1b!important;animation:bnsBlink .45s infinite alternate!important}#materialList .badge.inactive{background:#e2e8f0!important;color:#334155!important}#materialList .badge.now{background:#dbeafe!important;color:#1e40af!important}@keyframes bnsBlink{from{opacity:.45}to{opacity:1}}.bns-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.6);display:grid;place-items:center;padding:20px}.bns-modal.hidden{display:none!important}.bns-modal-card{width:min(760px,96vw);max-height:90vh;overflow:auto;background:var(--panel,#fff);color:var(--text,#172033);border-radius:22px;padding:22px;box-shadow:0 20px 60px rgba(15,23,42,.35)}.bns-box{border:1px solid var(--border,#dbe3ef);border-radius:16px;padding:14px;margin:12px 0;background:rgba(148,163,184,.12);line-height:1.5}.bns-box.reserved,.bns-box.defect{border-color:#ef4444;background:rgba(239,68,68,.1)}.bns-actions{display:flex;flex-wrap:wrap;gap:10px}.bns-actions button{font-size:16px!important;padding:12px 16px!important;border-radius:14px!important;font-weight:900!important}`;document.head.appendChild(style)}
-function patchRenderAll(){if(window.__bnsStabielRenderAll)return;window.__bnsStabielRenderAll=true;let old=window.renderAll||(typeof renderAll!=="undefined"?renderAll:null);if(typeof old==="function"){let wrapped=function(){old();setTimeout(afterRender,0)};window.renderAll=wrapped;try{renderAll=wrapped}catch(e){}}}
-function afterRender(){installCopy();patchRows()}
-function install(){css();installCopy();patchAdd();patchRenderAll();let list=E("materialList");if(list&&!list.dataset.bnsStabielClick){list.dataset.bnsStabielClick="1";list.addEventListener("click",intercept,true)}let search=E("materialSearch");if(search&&!search.dataset.bnsStabielSearch){search.dataset.bnsStabielSearch="1";search.addEventListener("input",()=>setTimeout(patchRows,0))}afterRender()}
-window.BNS_STABIEL_close=closeModal;window.BNS_STABIEL_freeMaterial=freeMat;window.BNS_STABIEL_markStatus=mark;window.BNS_STABIEL_forceAdd=forceAdd;window.BNS_STABIEL_openOrder=openOrder;
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(install,800));else setTimeout(install,800);
-setInterval(install,1500);
+  "use strict";
+
+  // =========================
+  // 1. Basis instellingen
+  // =========================
+  const STYLE_ID = "bns_simpel_stabiel_style";
+  const MODAL_ID = "bns_simpel_stabiel_modal";
+
+  function E(id){ return document.getElementById(id); }
+  function A(s,r){ return Array.from((r || document).querySelectorAll(s)); }
+
+  function ST(){ try { return state; } catch(e){ return null; } }
+  function ORD(){ const s = ST(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function MAT(){ const s = ST(); return s && Array.isArray(s.materials) ? s.materials : []; }
+  function CH(){ try { return Array.isArray(chosen) ? chosen : []; } catch(e){ return []; } }
+  function ED(){ try { return editing || null; } catch(e){ return null; } }
+  function SETED(v){ try { editing = v; } catch(e){} }
+  function CC(){ try { return currentCat || "TW"; } catch(e){ return "TW"; } }
+
+  function SAVE(){ try { if (typeof save === "function") save(); } catch(e){} }
+
+  function TOAST(t){
+    try {
+      if (typeof toastMsg === "function") toastMsg(t);
+      else if (typeof toast === "function") toast(t);
+    } catch(e){}
+  }
+
+  function CL(v){
+    try {
+      return typeof structuredClone === "function"
+        ? structuredClone(v)
+        : JSON.parse(JSON.stringify(v));
+    } catch(e){
+      return Object.assign({}, v);
+    }
+  }
+
+  function H(v){
+    return String(v ?? "").replace(/[&<>"']/g, c => ({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      '"':"&quot;",
+      "'":"&#39;"
+    }[c]));
+  }
+
+  function V(id){ return E(id)?.value || ""; }
+  function SV(id,v){ const x = E(id); if (x) x.value = v || ""; }
+
+  function NICE(v){
+    try { if (typeof nice === "function") return nice(v); } catch(e){}
+    return v || "";
+  }
+
+  function bezorgerNaam(o){
+    return o?.driver || o?.orderDriver || o?.driverName || o?.bezorger || V("orderDriver") || "Niet gekozen";
+  }
+
+  // =========================
+  // 2. Materiaal helpers
+  // =========================
+  function mat(mid){
+    return MAT().find(m => String(m.id) === String(mid));
+  }
+
+  function midFromRow(row){
+    if (!row) return "";
+    if (row.dataset.materialId) return row.dataset.materialId;
+    if (row.dataset.bnsMaterialId) return row.dataset.bnsMaterialId;
+
+    let m = (row.getAttribute("onclick") || "").match(/addMat\(['"]([^'"]+)['"]\)/);
+    return m ? m[1] : "";
+  }
+
+  function stOf(m){
+    let s = String(m?.status || "free").trim().toLowerCase();
+
+    if (s === "reserved" || s === "gereserveerd") return "reserved";
+    if (s === "damage" || s === "schade") return "damage";
+    if (s === "missing" || s === "vermissing" || s === "vermist") return "missing";
+    if (s === "defect" || s === "storing") return "defect";
+    if (s === "inactive" || s === "niet actief" || s === "niet beschikbaar") return "inactive";
+
+    return "free";
+  }
+
+  function label(s){
+    return s === "reserved" ? "Gereserveerd" :
+      s === "damage" ? "Schade" :
+      s === "missing" ? "Vermissing" :
+      s === "defect" ? "Defect / storing" :
+      s === "inactive" ? "Niet beschikbaar" :
+      "Vrij";
+  }
+
+  function cls(s){
+    return s === "reserved" ? "reserved" :
+      (s === "damage" || s === "missing" || s === "defect") ? "defect" :
+      s === "inactive" ? "inactive" :
+      "free";
+  }
+
+  function active(o){
+    return o && o.status !== "Geannuleerd" && o.status !== "Uitgevoerd";
+  }
+
+  function reserv(mid){
+    for (const o of ORD()) {
+      if (!active(o)) continue;
+      if (ED() && String(o.id) === String(ED())) continue;
+
+      if ((o.materials || []).some(m => String(m.id) === String(mid))) {
+        return o;
+      }
+    }
+    return null;
+  }
+
+  function block(mid){
+    const m = mat(mid);
+
+    if (!m) return { blocked:true, status:"missing" };
+
+    const s = stOf(m);
+
+    if (s === "reserved") {
+      return { blocked:true, status:"reserved", material:m, order:reserv(mid) };
+    }
+
+    if (s === "damage" || s === "missing" || s === "defect" || s === "inactive") {
+      return { blocked:true, status:s, material:m };
+    }
+
+    return { blocked:false, status:"free", material:m };
+  }
+
+  // =========================
+  // 3. Materiaal toevoegen
+  // =========================
+  function addStable(mid){
+    const b = block(mid);
+
+    if (b.blocked) {
+      popup(mid);
+      return;
+    }
+
+    const m = b.material;
+    if (!m) return;
+
+    if (!CH().some(x => String(x.id) === String(mid))) {
+      let c = CL(m);
+      c.status = "reserved";
+      CH().push(c);
+    }
+
+    try { renderChosen(); } catch(e){}
+    try { renderMaterials(CC()); } catch(e){}
+    try { summaryRender(); } catch(e){}
+
+    setTimeout(patchRows, 0);
+  }
+
+  function intercept(e){
+    const row = e.target.closest && e.target.closest(".material-row");
+    const list = E("materialList");
+
+    if (!row || !list || !list.contains(row)) return;
+
+    const mid = midFromRow(row);
+    if (!mid) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    addStable(mid);
+    return false;
+  }
+
+  // =========================
+  // 4. Popup materiaal status
+  // =========================
+  function popup(mid){
+    const b = block(mid);
+    const m = b.material || mat(mid);
+
+    if (!m) return;
+
+    let body = `<h3>${H(m.code || "")} ${H(m.name || "")}</h3>`;
+
+    if (b.status === "reserved") {
+      const o = b.order;
+
+      body += o
+        ? `<div class="bns-box reserved">
+            <b>Status:</b> Gereserveerd<br>
+            <b>Bezorger:</b> ${H(bezorgerNaam(o))}<br>
+            <b>Klant:</b> ${H(o.customer?.name || "Onbekend")}<br>
+            <b>Opdracht:</b> ${H(o.number || "")} - ${H(o.title || "")}<br>
+            <b>Datum:</b> ${H(NICE(o.start))} tot datum ${H(NICE(o.end))}
+          </div>`
+        : `<div class="bns-box reserved">
+            <b>Status:</b> Gereserveerd<br>
+            <b>Bezorger:</b> ${H(V("orderDriver") || "Niet gekozen")}<br>
+            Geen opdracht gevonden.
+          </div>`;
+    } else {
+      body += `<div class="bns-box defect">
+          <b>Status:</b> ${H(label(b.status))}<br>
+          <b>Omschrijving:</b> ${H(m.issueText || m.notes || "")}
+        </div>
+        <div class="actions bns-actions">
+          <button onclick="BNS_STABIEL_markStatus('${H(m.id)}','free')">Vrij / gerepareerd</button>
+          <button onclick="BNS_STABIEL_markStatus('${H(m.id)}','damage')">Schade</button>
+          <button onclick="BNS_STABIEL_markStatus('${H(m.id)}','missing')">Vermissing</button>
+          <button onclick="BNS_STABIEL_markStatus('${H(m.id)}','defect')">Defect</button>
+        </div>`;
+    }
+
+    openModal("Materiaal status", body);
+  }
+
+  function openModal(t,b){
+    let m = E(MODAL_ID);
+
+    if (!m) {
+      m = document.createElement("div");
+      m.id = MODAL_ID;
+      m.className = "bns-modal hidden";
+      m.innerHTML =
+        '<div class="bns-modal-card">' +
+          '<h2 id="bnsStabielTitle"></h2>' +
+          '<div id="bnsStabielBody"></div>' +
+          '<div class="actions"><button onclick="BNS_STABIEL_close()">Sluiten</button></div>' +
+        '</div>';
+
+      document.body.appendChild(m);
+    }
+
+    E("bnsStabielTitle").textContent = t || "Info";
+    E("bnsStabielBody").innerHTML = b || "";
+    m.classList.remove("hidden");
+  }
+
+  function closeModal(){
+    const m = E(MODAL_ID);
+    if (m) m.classList.add("hidden");
+  }
+
+  // =========================
+  // 5. Status aanpassen
+  // =========================
+  function freeMat(mid){
+    const m = mat(mid);
+    if (!m) return;
+
+    m.status = "free";
+    m.issueText = "";
+    m.usable = true;
+
+    SAVE();
+    closeModal();
+
+    try { renderAll(); } catch(e){}
+    try { renderMaterials(CC()); } catch(e){}
+
+    setTimeout(patchRows, 0);
+  }
+
+  function mark(mid,status){
+    const m = mat(mid);
+    if (!m) return;
+
+    if (status === "free") {
+      m.status = "free";
+      m.issueText = "";
+      m.usable = true;
+    } else {
+      const txt = prompt("Omschrijving / reden:", m.issueText || "");
+      if (txt === null) return;
+
+      m.status = status;
+      m.issueText = txt || label(status);
+      m.usable = false;
+    }
+
+    SAVE();
+    closeModal();
+
+    try { renderAll(); } catch(e){}
+    try { renderMaterials(CC()); } catch(e){}
+
+    setTimeout(patchRows, 0);
+  }
+
+  function forceAdd(mid){
+    const m = mat(mid);
+    if (!m) return;
+
+    if (!CH().some(x => String(x.id) === String(mid))) {
+      let c = CL(m);
+      c.status = "reserved";
+      CH().push(c);
+    }
+
+    closeModal();
+
+    try { renderChosen(); } catch(e){}
+    try { summaryRender(); } catch(e){}
+
+    setTimeout(patchRows, 0);
+  }
+
+  function openOrder(oid){
+    closeModal();
+    if (typeof editOrder === "function") editOrder(oid);
+  }
+
+  // =========================
+  // 6. Copy opdracht knop
+  // =========================
+  function nextNo(){
+    let y = new Date().getFullYear();
+
+    let nums = ORD()
+      .map(o => String(o.number || "").match(new RegExp("^" + y + "-(\\d+)$")))
+      .filter(Boolean)
+      .map(m => Number(m[1]));
+
+    return y + "-" + String(nums.length ? Math.max(...nums) + 1 : 1).padStart(4, "0");
+  }
+
+  function copyTop(){
+    SETED(null);
+
+    SV("orderNumber", nextNo());
+    SV("orderStatus", "Offerte");
+    SV("dateStart", "");
+    SV("dateEnd", "");
+
+    TOAST("Copy gemaakt. Klant/locatie/materialen blijven staan. Vul nieuwe datum in en sla op.");
+  }
+
+  function installCopy(){
+    let btn = E("bnsCopyOrderTop");
+
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.id = "bnsCopyOrderTop";
+      btn.type = "button";
+      btn.textContent = "Copy opdracht";
+      btn.className = "worktab bns-copy-top";
+      btn.onclick = e => {
+        e.preventDefault();
+        copyTop();
+      };
+    }
+
+    let extra = A("button").find(b => (b.textContent || "").trim().toLowerCase() === "extra");
+
+    if (extra && btn.previousElementSibling !== extra) {
+      extra.insertAdjacentElement("afterend", btn);
+    } else if (!btn.parentElement) {
+      (document.querySelector(".tabs") || E("newOrder") || document.body).appendChild(btn);
+    }
+  }
+
+  // =========================
+  // 7. Materiaalregels kleuren
+  // =========================
+  function patchRows(){
+    A("#materialList .material-row").forEach(row => {
+      const mid = midFromRow(row);
+      const m = mat(mid);
+
+      if (!m) return;
+
+      const b = block(mid);
+      const selected = CH().some(x => String(x.id) === String(mid));
+
+      let visual = selected ? "now" : (b.blocked ? cls(b.status) : "free");
+      let lab = selected ? "Nu toegevoegd" : (b.blocked ? label(b.status) : "Vrij");
+      let small = m.price || "";
+
+      if (!selected && b.blocked) {
+        small = b.status === "reserved" ? "Klik voor klant/datum" : "Klik voor status";
+      }
+
+      row.classList.remove("free", "reserved", "defect", "inactive", "now");
+      row.classList.add(visual);
+      row.removeAttribute("onclick");
+
+      let badge = row.querySelector(".badge");
+      if (badge) {
+        badge.textContent = lab;
+        badge.className = "badge " + visual;
+      }
+
+      let sm = row.querySelector("small");
+      if (sm) sm.textContent = small;
+    });
+  }
+
+  function patchAdd(){
+    window.addMat = addStable;
+    try { addMat = addStable; } catch(e){}
+  }
+
+  // =========================
+  // 8. CSS
+  // =========================
+  function css(){
+    if (E(STYLE_ID)) return;
+
+    let style = document.createElement("style");
+    style.id = STYLE_ID;
+
+    style.textContent = `
+      #bnsCopyOrderTop{
+        background:#0f766e!important;
+        color:#fff!important;
+        font-weight:900!important;
+        border:2px solid #99f6e4!important;
+      }
+
+      #materialList .material-row,
+      #materialList .material-row.free,
+      #materialList .material-row.reserved,
+      #materialList .material-row.defect,
+      #materialList .material-row.inactive,
+      #materialList .material-row.now{
+        background:var(--panel,#fff)!important;
+        color:var(--text,#172033)!important;
+      }
+
+      #materialList .badge.free{
+        background:#dcfce7!important;
+        color:#166534!important;
+      }
+
+      #materialList .badge.reserved{
+        background:#fee2e2!important;
+        color:#991b1b!important;
+      }
+
+      #materialList .badge.defect{
+        background:#fee2e2!important;
+        color:#991b1b!important;
+        animation:bnsBlink .45s infinite alternate!important;
+      }
+
+      #materialList .badge.inactive{
+        background:#e2e8f0!important;
+        color:#334155!important;
+      }
+
+      #materialList .badge.now{
+        background:#dbeafe!important;
+        color:#1e40af!important;
+      }
+
+      @keyframes bnsBlink{
+        from{opacity:.45}
+        to{opacity:1}
+      }
+
+      .bns-modal{
+        position:fixed;
+        inset:0;
+        z-index:999999;
+        background:rgba(15,23,42,.6);
+        display:grid;
+        place-items:center;
+        padding:20px;
+      }
+
+      .bns-modal.hidden{
+        display:none!important;
+      }
+
+      .bns-modal-card{
+        width:min(760px,96vw);
+        max-height:90vh;
+        overflow:auto;
+        background:var(--panel,#fff);
+        color:var(--text,#172033);
+        border-radius:22px;
+        padding:22px;
+        box-shadow:0 20px 60px rgba(15,23,42,.35);
+      }
+
+      .bns-box{
+        border:1px solid var(--border,#dbe3ef);
+        border-radius:16px;
+        padding:14px;
+        margin:12px 0;
+        background:rgba(148,163,184,.12);
+        line-height:1.5;
+      }
+
+      .bns-box.reserved,
+      .bns-box.defect{
+        border-color:#ef4444;
+        background:rgba(239,68,68,.1);
+      }
+
+      .bns-actions{
+        display:flex;
+        flex-wrap:wrap;
+        gap:10px;
+      }
+
+      .bns-actions button{
+        font-size:16px!important;
+        padding:12px 16px!important;
+        border-radius:14px!important;
+        font-weight:900!important;
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  // =========================
+  // 9. Render koppeling
+  // =========================
+  function patchRenderAll(){
+    if (window.__bnsStabielRenderAll) return;
+
+    window.__bnsStabielRenderAll = true;
+
+    let old = window.renderAll || (typeof renderAll !== "undefined" ? renderAll : null);
+
+    if (typeof old === "function") {
+      let wrapped = function(){
+        old();
+        setTimeout(afterRender, 0);
+      };
+
+      window.renderAll = wrapped;
+
+      try { renderAll = wrapped; } catch(e){}
+    }
+  }
+
+  function afterRender(){
+    installCopy();
+    patchRows();
+  }
+
+  // =========================
+  // 10. Installatie
+  // =========================
+  function install(){
+    css();
+    installCopy();
+    patchAdd();
+    patchRenderAll();
+
+    let list = E("materialList");
+
+    if (list && !list.dataset.bnsStabielClick) {
+      list.dataset.bnsStabielClick = "1";
+      list.addEventListener("click", intercept, true);
+    }
+
+    let search = E("materialSearch");
+
+    if (search && !search.dataset.bnsStabielSearch) {
+      search.dataset.bnsStabielSearch = "1";
+      search.addEventListener("input", () => setTimeout(patchRows, 0));
+    }
+
+    afterRender();
+  }
+
+  // =========================
+  // 11. Globale functies
+  // =========================
+  window.BNS_STABIEL_close = closeModal;
+  window.BNS_STABIEL_freeMaterial = freeMat;
+  window.BNS_STABIEL_markStatus = mark;
+  window.BNS_STABIEL_forceAdd = forceAdd;
+  window.BNS_STABIEL_openOrder = openOrder;
+
+  // =========================
+  // 12. Start
+  // =========================
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(install, 800));
+  } else {
+    setTimeout(install, 800);
+  }
+
+  setInterval(install, 1500);
 })();
 
 
