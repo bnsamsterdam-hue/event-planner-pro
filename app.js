@@ -5869,9 +5869,20 @@ setInterval(install,1500);
       if (o) html += '<div><b>Opdracht:</b> '+esc(o.number || '')+' - '+esc(o.title || '')+'</div>';
       if (o && o.customer) html += '<div><b>Klant:</b> '+esc(o.customer.name || '')+'</div>';
       var note = a.note || a.message || a.text || '';
-      if (note) html += '<p>'+esc(note)+'</p>';
-      html += '<div class="bns-v125-alert-actions"><button type="button" class="green" onclick="BNS_V125_RESOLVE_ALERT(\''+esc(a.id)+'\')">Afmelden</button><button type="button" class="red" onclick="BNS_V125_DELETE_ALERT(\''+esc(a.id)+'\')">Verwijderen</button></div></div>';
-    });
+ if (note) html += '<p>'+esc(note)+'</p>';
+
+html += '<div class="bns-v125-alert-actions">';
+
+html += '<button type="button" class="green" onclick="BNS_V125_RESOLVE_ALERT(\'' + esc(a.id) + '\')">Afmelden</button>';
+
+html += '<button type="button" class="red" onclick="BNS_V125_DELETE_ALERT(\'' + esc(a.id) + '\')">Verwijderen</button>';
+
+html += '</div></div>';
+});
+
+html += '</div>';
+modal.innerHTML = html;
+document.body.appendChild(modal);
     html += '</div>';
     modal.innerHTML = html;
     document.body.appendChild(modal);
@@ -5887,7 +5898,7 @@ setInterval(install,1500);
     var s = S(); s.alerts = s.alerts || [];
     var a = s.alerts.find(function(x){ return String(x.id) === String(id); });
     if (!a) return;
-    var txt = prompt("Afmelding / oplossing:", a.resolveText || "");
+    var txt = prompt("Tapwagen.nl afmelding / oplossing:", a.resolveText || "");
     if (txt === null) return;
     a.resolved = true;
     a.resolveText = txt;
@@ -5896,7 +5907,7 @@ setInterval(install,1500);
     SAVE(); updateAlertButton(); openAlerts();
   };
   window.BNS_V125_DELETE_ALERT = function(id){
-    var txt = prompt("Reden verwijderen:", "");
+  var txt = prompt("Tapwagen.nl reden van verwijderen:", "");
     if (txt === null) return;
     var s = S(); s.alerts = (s.alerts || []).filter(function(x){ return String(x.id) !== String(id); });
     SAVE(); updateAlertButton(); openAlerts();
