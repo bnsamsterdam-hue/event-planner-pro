@@ -10083,6 +10083,69 @@ window.BNS_V125_DELETE_ALERT = function(id){
 
   setTimeout(install, 300);
   setTimeout(install, 1000);
-  setInterval(install, 1200);
+  setInterval(install, 1200            
 })();
 
+(function(){
+  "use strict";
+
+  function esc(v){
+    return String(v || "");
+  }
+
+  function findOrderByOverviewText(text){
+    try{
+      var s = window.state || state;
+      var orders = s && Array.isArray(s.orders) ? s.orders : [];
+      var match = String(text || "").match(/(\d{4}-\d+)/);
+      if(!match) return null;
+      return orders.find(function(o){
+        return String(o.number || "") === match[1];
+      }) || null;
+    }catch(e){
+      return null;
+    }
+  }
+
+  function getDriver(o){
+    return esc(
+      (o && (o.driver || o.orderDriver || o.driverName || o.bezorger)) ||
+      (document.getElementById("orderDriver") && document.getElementById("orderDriver").value) ||
+      "Nog niet gekozen"
+    );
+  }
+
+  function patchOverviewDriver(){
+    var boxes = Array.from(document.querySelectorAll("div,section,main"))
+      .filter(function(el){
+        return el.innerText &&
+          el.innerText.includes("Overzicht bestelling") &&
+          el.innerText.includes("Status:");
+      });
+
+    boxes.forEach(function(box){
+      if(box.querySelector(".bns-overview-driver")) return;
+
+      var order = findOrderByOverviewText(box.innerText);
+      var driver = getDriver(order);
+
+      var statusLine = Array.from(box.querySelectorAll("*")).find(function(el){
+        return el.children.length === 0 &&
+          el.innerText &&
+          el.innerText.trim().startsWith("Status:");
+      });
+
+      if(statusLine){
+        var div = document.createElement("div");
+        div.className = "bns-overview-driver";
+        div.innerHTML = "<b>Bezorger:</b> " + driver;
+        statusLine.insertAdjacentElement("afterend", div);
+      }
+    });
+  }
+
+  setInterval(patchOverviewDriver, 500);
+  document.addEventListener("click", function(){
+    setTimeout(patchOverviewDriver, 300);
+  });
+})();
