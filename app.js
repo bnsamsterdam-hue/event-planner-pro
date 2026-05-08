@@ -9351,3 +9351,288 @@ setInterval(install,1500);
   setTimeout(install, 1200);
   setInterval(install, 2000);
 })();
+
+/* =========================================================
+   BNS FIX 16 - overzicht bezorger + rubriekkleuren + klant adreszoeken + transport admin
+   Alleen aanvullende patch. Bestaande functies blijven staan.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  var STYLE_ID = "bns_fix16_style";
+  var TRANSPORT_KEY = "bns_transport_options_v2";
+
+  function $(id){ return document.getElementById(id); }
+  function qa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function txt(el){ return (el && (el.innerText || el.textContent) || "").trim(); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function val(id){ var e=$(id); return e ? (e.value || "") : ""; }
+  function setVal(id,v){ var e=$(id); if(e) e.value = v || ""; }
+  function appState(){ try{ return window.state || state; }catch(e){ return null; } }
+  function saveStateAny(){ try{ if(typeof save === "function") save(); }catch(e){} try{ if(typeof saveState === "function") saveState(); }catch(e){} }
+  function money(v){ var n = Number(String(v || "0").replace(",",".")); if(!isFinite(n)) n = 0; return "€ " + n.toFixed(2).replace(".",","); }
+
+  function matList(){ var s=appState(); return s && Array.isArray(s.materials) ? s.materials : []; }
+  function orderList(){ var s=appState(); return s && Array.isArray(s.orders) ? s.orders : []; }
+
+  function catKey(v){ return String(v || "EXTRA").trim().toUpperCase(); }
+  function catColor(cat){
+    cat = catKey(cat);
+    if(cat.indexOf("TW") === 0) return "#dc2626";      // tapwagens rood
+    if(cat.indexOf("KW") === 0) return "#16a34a";      // koelwagens groen
+    if(cat.indexOf("TO") === 0) return "#2563eb";      // toilet blauw
+    if(cat.indexOf("TR") === 0) return "#2563eb";      // transport/terug blauw
+    if(cat.indexOf("EXTRA") === 0) return "#0ea5e9";
+    return "#64748b";
+  }
+  function materialByCodeOrName(code, name){
+    code = String(code || "").trim().toLowerCase();
+    name = String(name || "").trim().toLowerCase();
+    return matList().find(function(m){ return String(m.code || "").trim().toLowerCase() === code; }) ||
+           matList().find(function(m){ return code && String(m.code || "").toLowerCase().indexOf(code) >= 0; }) ||
+           matList().find(function(m){ return name && String(m.name || "").trim().toLowerCase() === name; }) || null;
+  }
+
+  function orderByNumberFromText(text){
+    var m = String(text || "").match(/(20\d{2}-\d+)/);
+    if(!m) return null;
+    return orderList().find(function(o){ return String(o.number || "") === m[1]; }) || null;
+  }
+  function driverOfOrder(o){
+    return (o && (o.driver || o.orderDriver || o.driverName || o.bezorger || o.deliveryDriver)) || val("orderDriver") || "Nog niet gekozen";
+  }
+
+  function ensureCss(){
+    if($(STYLE_ID)) return;
+    var st = document.createElement("style");
+    st.id = STYLE_ID;
+    st.textContent = "\n"+
+      ".bns-fix16-driver{font-size:16px;margin:2px 0 10px 0;color:#172033;font-weight:700}\n"+
+      ".bns-fix16-driver b{font-weight:900}\n"+
+      ".bns-cat-pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 10px;color:#fff!important;font-weight:900!important;line-height:1.1}\n"+
+      ".bns-cat-text{font-weight:900!important}\n"+
+      ".bns-fix16-address-box,.bns-fix16-transport-admin{border:1px solid #dbe3ef;border-radius:16px;padding:12px;margin:10px 0;background:rgba(255,255,255,.75);display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n"+
+      ".bns-fix16-address-box b,.bns-fix16-transport-admin b{width:100%;font-size:15px}\n"+
+      ".bns-fix16-address-box input,.bns-fix16-transport-admin input,.bns-fix16-transport-admin select{padding:10px;border:1px solid #cbd5e1;border-radius:10px;min-width:170px}\n"+
+      ".bns-fix16-address-box button,.bns-fix16-transport-admin button{border:0;border-radius:12px;padding:10px 14px;font-weight:900;background:#2563eb;color:#fff}\n"+
+      ".bns-fix16-transport-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e5e7eb;width:100%}\n"+
+      ".bns-fix16-hide-duplicate{display:none!important}\n"+
+      "#alertsBtn,.bns-alert-active,.bns-a12-blink,.badge.defect{animation:none!important;filter:none!important;transform:none!important}\n";
+    document.head.appendChild(st);
+  }
+
+  /* 1) Klant: extra adres zoeken op vrije tekst + dubbele oude postcodebox verbergen */
+  function customerPanel(){ return $("customerPanel") || qa(".workpanel").find(function(p){ return /klant/i.test(txt(p).slice(0,120)); }); }
+  function locationPanel(){ return $("locationPanel") || qa(".workpanel").find(function(p){ return /locatie/i.test(txt(p).slice(0,120)); }); }
+
+  function hideDuplicatePostcodeInCustomer(){
+    var p = customerPanel(); if(!p) return;
+    var boxes = qa(".bns-v15-postcode-box,#bnsPostcodeBox", p);
+    boxes.forEach(function(b, i){
+      if(b.id === "bnsV15CustomerPostcodeBox") return;
+      if(i > 0 || /locatie/i.test(txt(b))) b.classList.add("bns-fix16-hide-duplicate");
+    });
+  }
+
+  async function pdokAddressSearch(q){
+    var url = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=" + encodeURIComponent(q) + "&rows=1";
+    var res = await fetch(url);
+    var data = await res.json();
+    var doc = data && data.response && data.response.docs && data.response.docs[0];
+    return doc || null;
+  }
+
+  function fillCustomerAddress(doc){
+    if(!doc) return;
+    var straat = doc.straatnaam || doc.weergavenaam || "";
+    if(doc.huisnummer) straat = (doc.straatnaam || "") + " " + doc.huisnummer;
+    setVal("customerStreet", straat);
+    setVal("customerZip", doc.postcode || "");
+    setVal("customerCity", doc.woonplaatsnaam || doc.gemeentenaam || "");
+    try{ if(typeof summaryRender === "function") summaryRender(); }catch(e){}
+  }
+
+  function searchCustomerLocal(q){
+    q = String(q || "").toLowerCase();
+    var s = appState();
+    var list = s && Array.isArray(s.customers) ? s.customers : [];
+    return list.find(function(c){
+      return [c.name,c.street,c.zip,c.city,c.phone,c.email].join(" ").toLowerCase().indexOf(q) >= 0;
+    });
+  }
+
+  function installCustomerAddressSearch(){
+    var p = customerPanel(); if(!p || $("bnsFix16CustomerAddressBox")) return;
+    var box = document.createElement("div");
+    box.id = "bnsFix16CustomerAddressBox";
+    box.className = "bns-fix16-address-box";
+    box.innerHTML = '<b>Adres zoeken klant</b><input id="bnsFix16CustomerAddressInput" placeholder="Straat, plaats of klantnaam"><button type="button" id="bnsFix16CustomerAddressBtn">Adres zoeken</button><span id="bnsFix16CustomerAddressStatus"></span>';
+    var anchor = $("bnsV15CustomerPostcodeBox") || qa("input", p)[0] || p.firstElementChild;
+    if(anchor && anchor.parentElement) anchor.parentElement.insertBefore(box, anchor.nextSibling); else p.prepend(box);
+    $("bnsFix16CustomerAddressBtn").onclick = async function(){
+      var q = val("bnsFix16CustomerAddressInput").trim();
+      var status = $("bnsFix16CustomerAddressStatus");
+      if(!q){ if(status) status.textContent = "Vul adres of klantnaam in."; return; }
+      if(status) status.textContent = "Zoekt...";
+      var local = searchCustomerLocal(q);
+      if(local){
+        setVal("customerName", local.name || ""); setVal("customerStreet", local.street || ""); setVal("customerZip", local.zip || ""); setVal("customerCity", local.city || ""); setVal("customerPhone", local.phone || ""); setVal("customerEmail", local.email || "");
+        if(status) status.textContent = "Klant/adres ingevuld.";
+        try{ if(typeof summaryRender === "function") summaryRender(); }catch(e){}
+        return;
+      }
+      try{
+        var doc = await pdokAddressSearch(q);
+        if(!doc){ if(status) status.textContent = "Geen adres gevonden."; return; }
+        fillCustomerAddress(doc);
+        if(status) status.textContent = "Adres ingevuld.";
+      }catch(e){ if(status) status.textContent = "Adres zoeken niet gelukt."; }
+    };
+  }
+
+  /* 2) Overzicht bestelling: bezorger tonen + rubriekkleuren in materiaaloverzicht */
+  function overviewRoots(){
+    return qa("body *").filter(function(el){
+      var t = txt(el);
+      return t.indexOf("Overzicht bestelling") >= 0 && t.indexOf("Materialen") >= 0 && t.length < 8000;
+    }).filter(function(el){
+      return !qa("*", el).some(function(ch){ return txt(ch).indexOf("Overzicht bestelling") >= 0 && txt(ch).indexOf("Materialen") >= 0 && txt(ch).length < txt(el).length; });
+    });
+  }
+
+  function insertDriver(root){
+    if(!root || root.querySelector(".bns-fix16-driver")) return;
+    var o = orderByNumberFromText(txt(root));
+    var driver = driverOfOrder(o);
+    var statusNode = qa("*", root).find(function(el){
+      var t = txt(el);
+      return t.indexOf("Status:") === 0 || /^Status\s*:/i.test(t);
+    });
+    var div = document.createElement("div");
+    div.className = "bns-fix16-driver";
+    div.innerHTML = "<b>Bezorger:</b> " + esc(driver);
+    if(statusNode && statusNode.parentNode){ statusNode.insertAdjacentElement("afterend", div); return; }
+    var h = qa("h1,h2,h3", root).find(function(el){ return /Overzicht bestelling/i.test(txt(el)); });
+    if(h) h.insertAdjacentElement("afterend", div); else root.insertBefore(div, root.firstChild);
+  }
+
+  function colorOverviewRows(root){
+    qa("tr", root).forEach(function(tr){
+      var cells = qa("td,th", tr);
+      if(cells.length < 3) return;
+      var code = txt(cells[1] || cells[0]);
+      var name = txt(cells[2] || cells[1]);
+      var rubCell = cells.find(function(c){ var t=catKey(txt(c)); return t === "TW" || t === "KW" || t === "TO" || t === "EXTRA" || t === "TR" || /^TW\d*/.test(t) || /^KW\d*/.test(t); });
+      var m = materialByCodeOrName(code, name);
+      var cat = (m && m.cat) || (rubCell ? txt(rubCell) : "");
+      if(!cat) return;
+      var color = catColor(cat);
+      var codeCell = cells[1] || cells[0];
+      if(codeCell && !codeCell.querySelector(".bns-cat-pill")){
+        codeCell.innerHTML = '<span class="bns-cat-pill" style="background:'+color+'">'+esc(txt(codeCell))+'</span>';
+      }
+      if(rubCell && !rubCell.querySelector(".bns-cat-pill")){
+        rubCell.innerHTML = '<span class="bns-cat-pill" style="background:'+color+'">'+esc(txt(rubCell))+'</span>';
+      }
+    });
+
+    // kleine materiaalchips op ordercards ook kleur geven
+    qa("span,button,div", root).forEach(function(el){
+      var t = txt(el);
+      if(!t || t.length > 20 || el.querySelector(".bns-cat-pill")) return;
+      var c = catKey(t);
+      if(/^TW\d*$/.test(c) || /^KW\d*$/.test(c) || /^TO\d*$/.test(c) || c === "EXTRA" || c === "TR"){
+        el.style.background = catColor(c);
+        el.style.color = "#fff";
+        el.style.fontWeight = "900";
+      }
+    });
+  }
+
+  function patchOverview(){
+    overviewRoots().forEach(function(root){ insertDriver(root); colorOverviewRows(root); });
+  }
+
+  /* 3) Transport admin: altijd zichtbaar maken in admin/materiaal scherm */
+  function readTransports(){ try{ return JSON.parse(localStorage.getItem(TRANSPORT_KEY) || localStorage.getItem("bns_transport_options_v15") || "[]"); }catch(e){ return []; } }
+  function writeTransports(list){ localStorage.setItem(TRANSPORT_KEY, JSON.stringify(list || [])); localStorage.setItem("bns_transport_options_v15", JSON.stringify(list || [])); }
+
+  function adminRoot(){
+    return $("adminArea") || $("adminPanel") || $("adminPage") || qa("body *").find(function(el){
+      var t = txt(el); return t.indexOf("Nieuw materiaal") >= 0 && t.indexOf("Opslaan materiaal") >= 0 && t.length < 6000;
+    });
+  }
+
+  function renderTransportAdmin(){
+    var listBox = $("bnsFix16TransportList"); if(!listBox) return;
+    var list = readTransports();
+    listBox.innerHTML = list.length ? list.map(function(x){
+      return '<div class="bns-fix16-transport-row"><span><b>'+esc(x.name)+'</b> '+money(x.price)+'</span><button type="button" data-bns-del-tr="'+esc(x.id)+'">Verwijder</button></div>';
+    }).join("") : '<small>Nog geen transport opties aangemaakt.</small>';
+    qa("[data-bns-del-tr]", listBox).forEach(function(btn){
+      btn.onclick = function(){ writeTransports(readTransports().filter(function(x){ return String(x.id) !== String(btn.getAttribute("data-bns-del-tr")); })); renderTransportAdmin(); refreshVehicleTransportSelect(); };
+    });
+  }
+
+  function installTransportAdmin(){
+    var root = adminRoot(); if(!root || $("bnsFix16TransportAdmin")) return;
+    var box = document.createElement("div");
+    box.id = "bnsFix16TransportAdmin";
+    box.className = "bns-fix16-transport-admin";
+    box.innerHTML = '<b>Transport / voertuig opties aanmaken</b><input id="bnsFix16TransportName" placeholder="Naam transport/voertuig"><input id="bnsFix16TransportPrice" type="number" step="0.01" placeholder="Prijs"><button type="button" id="bnsFix16TransportSave">Transport opslaan</button><div id="bnsFix16TransportList"></div>';
+    root.appendChild(box);
+    $("bnsFix16TransportSave").onclick = function(){
+      var name = val("bnsFix16TransportName").trim();
+      if(!name){ alert("Vul transport/voertuig naam in."); return; }
+      var list = readTransports();
+      list.push({ id:"tr_"+Date.now(), name:name, price:Number(val("bnsFix16TransportPrice") || 0) });
+      writeTransports(list);
+      setVal("bnsFix16TransportName", ""); setVal("bnsFix16TransportPrice", "");
+      renderTransportAdmin(); refreshVehicleTransportSelect();
+      try{ if(typeof toastMsg === "function") toastMsg("Transport opgeslagen"); }catch(e){}
+    };
+    renderTransportAdmin();
+  }
+
+  function refreshVehicleTransportSelect(){
+    var sel = $("bnsFix16VehicleTransportSelect"); if(!sel) return;
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">Kies transport/voertuig</option>' + readTransports().map(function(x){ return '<option value="'+esc(x.id)+'">'+esc(x.name)+' - '+money(x.price)+'</option>'; }).join("");
+    sel.value = cur;
+  }
+
+  function installVehicleTransportSelect(){
+    var vehicle = $("orderVehicle"); if(!vehicle || $("bnsFix16VehicleTransportBox")) return;
+    var box = document.createElement("div");
+    box.id = "bnsFix16VehicleTransportBox";
+    box.className = "bns-fix16-transport-admin";
+    box.innerHTML = '<b>Transport / voertuig</b><select id="bnsFix16VehicleTransportSelect"></select><input id="bnsFix16VehicleTransportFree" placeholder="Vrije tekst"><input id="bnsFix16VehicleTransportPrice" type="number" step="0.01" placeholder="Prijs">';
+    vehicle.parentElement.insertAdjacentElement("afterend", box);
+    refreshVehicleTransportSelect();
+    $("bnsFix16VehicleTransportSelect").onchange = function(){
+      var found = readTransports().find(function(x){ return x.id === val("bnsFix16VehicleTransportSelect"); });
+      if(found){ setVal("orderVehicle", found.name); setVal("bnsFix16VehicleTransportFree", found.name); setVal("bnsFix16VehicleTransportPrice", found.price || 0); }
+      try{ if(typeof summaryRender === "function") summaryRender(); }catch(e){}
+    };
+    $("bnsFix16VehicleTransportFree").addEventListener("input", function(){ setVal("orderVehicle", val("bnsFix16VehicleTransportFree")); }, true);
+  }
+
+  function noBlink(){
+    qa(".bns-a12-blink,.bns-alert-active,.badge.defect,#alertsBtn").forEach(function(el){ el.style.animation="none"; el.style.filter="none"; el.style.transform="none"; });
+  }
+
+  function install(){
+    ensureCss();
+    hideDuplicatePostcodeInCustomer();
+    installCustomerAddressSearch();
+    patchOverview();
+    installTransportAdmin();
+    installVehicleTransportSelect();
+    noBlink();
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 800); }); else setTimeout(install, 300);
+  document.addEventListener("click", function(){ setTimeout(install, 250); }, true);
+  document.addEventListener("input", function(){ setTimeout(patchOverview, 250); }, true);
+  setInterval(install, 1200);
+})();
