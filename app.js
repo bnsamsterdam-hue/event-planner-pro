@@ -10555,3 +10555,183 @@ document.addEventListener("click", function(){
   setTimeout(run, 1800);
   window.BNS_V23_CLEANUP = {run: run, catColor: catColor};
 })();
+
+/* =========================================================
+   BNS V24 CLEAN FIX
+   - Klant-opdrachtbevestiging: geen Bezorger/Voertuig, wel prijzen
+   - Rubriek kleuren opnieuw geforceerd op opdrachten/overzicht
+   - Admin: dubbele V23 transport-aanmaak blok verwijderen
+========================================================= */
+(function bnsV24CleanFix(){
+  "use strict";
+
+  function E(id){ return document.getElementById(id); }
+  function qa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function txt(el){ return String(el && (el.innerText || el.textContent) || "").trim(); }
+  function norm(v){ return String(v == null ? "" : v).trim(); }
+  function esc(v){ return norm(v).replace(/[&<>\"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+  function val(id){ var el=E(id); return el ? norm(el.value) : ""; }
+  function st(){ try{ if(typeof state !== "undefined" && state) return state; }catch(e){} return window.state || {orders:[],materials:[],settings:{}}; }
+  function orderList(){ var s=st(); return Array.isArray(s.orders) ? s.orders : []; }
+  function materialList(){ var s=st(); return Array.isArray(s.materials) ? s.materials : []; }
+  function chosenList(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return []; }
+  function editingId(){ try{ return typeof editing !== "undefined" ? editing : window.editing; }catch(e){ return window.editing; } }
+
+  var DEFAULT_COLORS = { TW:"#dc2626", TO:"#f97316", KW:"#16a34a", KA:"#a855f7", TR:"#2563eb", EXTRA:"#2563eb" };
+  function catKey(c){ return norm(c || "EXTRA").toUpperCase(); }
+  function catColors(){
+    var s=st(); s.settings=s.settings||{};
+    var maps=[s.settings.catColors, s.settings.categoryColors];
+    try{ maps.push(JSON.parse(localStorage.getItem("bnsCatColors")||"{}")); }catch(e){}
+    try{ maps.push(JSON.parse(localStorage.getItem("bnsCatColorsV12")||"{}")); }catch(e){}
+    try{ maps.push(JSON.parse(localStorage.getItem("bnsCatColorsV23")||"{}")); }catch(e){}
+    var out={}; Object.keys(DEFAULT_COLORS).forEach(function(k){ out[k]=DEFAULT_COLORS[k]; });
+    maps.forEach(function(m){ if(!m) return; Object.keys(m).forEach(function(k){ if(m[k]) out[catKey(k)] = m[k]; }); });
+    return out;
+  }
+  function catColor(c){ return catColors()[catKey(c)] || DEFAULT_COLORS.EXTRA; }
+  function matByCode(code){
+    var key = catKey(code);
+    return materialList().find(function(m){ return catKey(m.code) === key; }) || null;
+  }
+  function matByText(t){
+    var up = catKey(t);
+    var mats = materialList().slice().sort(function(a,b){ return norm(b.code).length - norm(a.code).length; });
+    return mats.find(function(m){ var c=catKey(m.code); return c && (up===c || up.indexOf(c)>=0); }) || null;
+  }
+  function currentOrder(){
+    var id = editingId();
+    var nr = val("orderNumber");
+    var orders = orderList();
+    return orders.find(function(o){ return id && String(o.id) === String(id); }) ||
+           orders.find(function(o){ return nr && String(o.number) === String(nr); }) || null;
+  }
+  function field(id, fallback){ var v=val(id); return v || norm(fallback); }
+  function orderMats(o){
+    var ch=chosenList();
+    if(ch.length) return ch;
+    return o && Array.isArray(o.materials) ? o.materials : [];
+  }
+  function euro(v){
+    v = norm(v);
+    if(!v) return "";
+    if(/^€/.test(v)) return v;
+    if(/oude prijs/i.test(v)) return v.replace(/oude prijs:\s*/i, "oude prijs: ");
+    return "€ " + v;
+  }
+  function matPrice(m){
+    return norm(m && (m.linePrice || m.priceEach || m.price || m.amount || ""));
+  }
+  function totalsBlock(){
+    var rows=[];
+    var excl=val("priceExcl"), disc=val("discountAmount"), vat=val("vatPercent"), dep=val("depositAmount");
+    if(excl) rows.push(["Bedrag excl.", euro(excl)]);
+    if(disc) rows.push(["Korting", euro(disc)]);
+    if(vat) rows.push(["BTW", vat + "%"]);
+    if(dep) rows.push(["Borg", euro(dep)]);
+    if(!rows.length) return "";
+    return '<section class="totals"><table>'+rows.map(function(r){return '<tr><td>'+esc(r[0])+'</td><td>'+esc(r[1])+'</td></tr>';}).join('')+'</table></section>';
+  }
+
+  function makeCustomerConfirmation(){
+    var o=currentOrder() || {};
+    var mats=orderMats(o);
+    var number = field("orderNumber", o.number);
+    var title = field("orderTitle", o.title || "Zonder titel");
+    var start = field("dateStart", o.start);
+    var end = field("dateEnd", o.end || start);
+    var status = field("orderStatus", o.status);
+    var brand = field("orderBrand", o.brand);
+    var rows = mats.length ? mats.map(function(m,i){
+      var code = norm(m.code || "");
+      var cat = norm(m.cat || "EXTRA");
+      return '<tr style="--cat:'+esc(catColor(cat))+'"><td>'+(i+1)+'</td><td><span class="catdot"></span>'+esc(code)+'</td><td>'+esc(m.name||"")+'</td><td>'+esc(cat)+'</td><td>'+esc(euro(matPrice(m)))+'</td></tr>';
+    }).join('') : '<tr><td colspan="5">Geen materialen gekozen</td></tr>';
+    var extra = field("orderExtra", o.extra);
+    var html='<!doctype html><html><head><meta charset="utf-8"><title>Opdrachtbevestiging '+esc(number)+'</title>'+ 
+      '<style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#e5e7eb;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:18mm;box-sizing:border-box}.topline{display:flex;justify-content:flex-end;align-items:flex-start;border-bottom:4px solid #2563eb;padding-bottom:14px;margin-bottom:18px}.doctype{text-align:right;font-size:28px;font-weight:900;color:#2563eb}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0;background:rgba(255,255,255,.96)}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:800}.value{font-size:14px;white-space:pre-wrap}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}th,td{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.catdot{display:inline-block;width:12px;height:12px;border-radius:99px;background:var(--cat);margin-right:8px;vertical-align:middle}.totals{display:flex;justify-content:flex-end;margin:12px 0}.totals table{width:260px}.print{position:fixed;top:12px;left:12px;background:#2563eb;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:800}@media print{body{background:white}.page{margin:0}.print{display:none}}</style></head><body><button class="print" onclick="window.print()">Afdrukken</button><main class="page">'+
+      '<section class="topline"><div class="doctype">Opdrachtbevestiging<br><span style="font-size:16px;color:#111827">Opdracht '+esc(number)+'</span></div></section>'+ 
+      '<section class="grid"><div class="card"><div class="label">Klant</div><div class="value"><b>'+esc(field('customerName', o.customer&&o.customer.name))+'</b><br>'+esc(field('customerStreet', o.customer&&o.customer.street))+'<br>'+esc((field('customerZip', o.customer&&o.customer.zip)+' '+field('customerCity', o.customer&&o.customer.city)).trim())+'<br>'+esc(field('customerPhone', o.customer&&o.customer.phone))+'<br>'+esc(field('customerEmail', o.customer&&o.customer.email))+'</div></div>'+ 
+      '<div class="card"><div class="label">Locatie</div><div class="value"><b>'+esc(field('locationName', o.location&&o.location.name))+'</b><br>'+esc(field('locationStreet', o.location&&o.location.street))+'<br>'+esc((field('locationZip', o.location&&o.location.zip)+' '+field('locationCity', o.location&&o.location.city)).trim())+'<br>'+esc(field('locationContact', o.location&&o.location.contact))+'<br>'+esc(field('locationPhone', o.location&&o.location.phone))+'</div></div></section>'+ 
+      '<section class="card"><div class="label">Opdracht</div><div class="value"><b>'+esc(title)+'</b><br>Status: '+esc(status)+'<br>Datum: '+esc(start)+(end&&end!==start?' tot '+esc(end):'')+'<br>Merk: '+esc(brand)+'</div></section>'+ 
+      '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Code</th><th>Artikel</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+rows+'</tbody></table></section>'+
+      totalsBlock()+
+      (extra?'<section class="card"><div class="label">Bijzonderheden</div><div class="value">'+esc(extra)+'</div></section>':'')+
+      '</main></body></html>';
+    var w=window.open('', '_blank');
+    if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  }
+
+  function installConfirmationOverride(){
+    window.makeConfirmation = makeCustomerConfirmation;
+    try{ makeConfirmation = makeCustomerConfirmation; }catch(e){}
+  }
+
+  function ensureStyle(){
+    if(E('bns-v24-clean-style')) return;
+    var s=document.createElement('style');
+    s.id='bns-v24-clean-style';
+    s.textContent =
+      '#alertsBtn,.order-card,.order-card *,.badge,.status,.material-row,.summary-card{animation:none!important;transition:none!important;filter:none!important;transform:none!important}'+
+      '#alertsBtn.bns-v24-ok{background:#16a34a!important;color:#fff!important}#alertsBtn.bns-v24-warn{background:#dc2626!important;color:#fff!important}'+
+      '.bns-v23-cat-chip,.bns-v24-cat-chip{border-color:var(--bns-cat-color)!important;background:color-mix(in srgb,var(--bns-cat-color) 14%,white)!important;color:#172033!important}'+
+      '.bns-v23-cat-chip:before,.bns-v24-cat-chip:before{background:var(--bns-cat-color)!important}'+
+      '.bns-v24-row-color{border-left:7px solid var(--bns-cat-color)!important;background:color-mix(in srgb,var(--bns-cat-color) 8%,transparent)!important}'+
+      '.bns-v23-admin-transport{display:none!important}';
+    document.head.appendChild(s);
+  }
+
+  function syncAlerts(){
+    var btn=E('alertsBtn'); if(!btn) return;
+    var alerts=(st().alerts||[]).filter(function(a){return !a.resolved;});
+    btn.classList.remove('bns-v23-ok','bns-v23-warn','bns-status-ok','bns-status-warn','bns-a12-blink','bns-alert-active','bns-v24-ok','bns-v24-warn');
+    btn.style.animation='none'; btn.style.filter='none'; btn.style.transform='none';
+    if(alerts.length){ btn.textContent='Systeemmeldingen ('+alerts.length+')'; btn.classList.add('bns-v24-warn'); }
+    else { btn.textContent='Systeem stabiel'; btn.classList.add('bns-v24-ok'); }
+  }
+
+  function recolorChips(){
+    qa('.bns-v23-cat-chip,.bns-v24-cat-chip,.chip,.badge,.material-chip,.mat-chip,.order-card span').forEach(function(el){
+      var t=txt(el); if(!t || t.length>60) return;
+      var m=matByText(t); if(!m) return;
+      el.classList.add('bns-v24-cat-chip');
+      el.style.setProperty('--bns-cat-color', catColor(m.cat));
+      el.dataset.bnsV23Colored='';
+    });
+    qa('table tr').forEach(function(row){
+      var m=matByText(txt(row)); if(!m) return;
+      row.classList.add('bns-v24-row-color');
+      row.style.setProperty('--bns-cat-color', catColor(m.cat));
+    });
+  }
+
+  function cleanAdminTransport(){
+    qa('.bns-v23-admin-transport').forEach(function(el){ el.remove(); });
+  }
+
+  function run(){
+    ensureStyle();
+    installConfirmationOverride();
+    syncAlerts();
+    recolorChips();
+    cleanAdminTransport();
+  }
+
+  ['renderAll','renderOrders','renderDashboard','adminRender','showPage','workTab','openOverview'].forEach(function(name){
+    try{
+      var fn=window[name] || (typeof globalThis[name]==='function' ? globalThis[name] : null);
+      if(typeof fn!=='function' || fn.__bnsV24) return;
+      var wrapped=function(){ var r=fn.apply(this, arguments); setTimeout(run, 0); setTimeout(run, 150); return r; };
+      wrapped.__bnsV24=true;
+      window[name]=wrapped;
+      try{ eval(name+' = window["'+name+'"];'); }catch(e){}
+    }catch(e){}
+  });
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run,200); });
+  else setTimeout(run,50);
+  setTimeout(run,600);
+  setTimeout(run,1500);
+  setInterval(run,2500);
+})();
