@@ -10315,3 +10315,161 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,250);}); else setTimeout(install,150);
   setTimeout(install,800); setTimeout(install,1800); setInterval(function(){cleanOld(); oneDeleteOrder();},4000);
 })();
+
+/* ==========================================================
+   BNS V57 - Laatste kleine fixes op v56
+   - kleurvakje + favoriete kleuren opslaan
+   - 1 verwijder-opdracht knop terug
+   - onderbalk blijft netjes volledig zichtbaar
+   Geen planning/datum wijzigingen.
+========================================================== */
+(function(){
+  'use strict';
+  var BASE_COLORS = ['#dc2626','#f97316','#eab308','#16a34a','#0ea5e9','#4f46e5','#64748b','#111827'];
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v); }
+  function N(v){ return T(v).toLowerCase().trim(); }
+  function cat(v){ return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4) || 'EXTRA'; }
+  function hex(v){
+    v=T(v).trim();
+    if(/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
+    return '#0ea5e9';
+  }
+  function colorMap(){ try{ var o=JSON.parse(localStorage.getItem('bnsCatColors')||'{}'); return o&&typeof o==='object'?o:{}; }catch(e){return{};} }
+  function setCatColor(c,h){ var o=colorMap(); o[cat(c)]=hex(h); try{ localStorage.setItem('bnsCatColors',JSON.stringify(o)); }catch(e){} }
+  function favs(){ try{ var a=JSON.parse(localStorage.getItem('bnsV57FavColors')||'[]'); return Array.isArray(a)?a.map(hex):[]; }catch(e){return[];} }
+  function saveFav(h){
+    h=hex(h);
+    var a=favs().filter(function(x){return x!==h;});
+    a.unshift(h);
+    a=a.slice(0,16);
+    try{ localStorage.setItem('bnsV57FavColors',JSON.stringify(a)); }catch(e){}
+  }
+  function currentColor(){
+    var c = cat((E('bnsV56Cat')||{}).value || 'EXTRA');
+    return colorMap()[c] || '#0ea5e9';
+  }
+  function refreshDots(){
+    var dots=E('bnsV56Dots');
+    if(!dots) return;
+    var all=[];
+    BASE_COLORS.concat(favs()).forEach(function(c){ c=hex(c); if(all.indexOf(c)<0) all.push(c); });
+    dots.innerHTML=all.map(function(c){return '<button type="button" class="bns-v56-dot" data-color="'+c+'" style="background:'+c+'" title="'+c+'"></button>';}).join('');
+  }
+  function updateColorUI(){
+    var c=cat((E('bnsV56Cat')||{}).value || 'EXTRA');
+    var h=currentColor();
+    var prev=E('bnsV56ColorPreview');
+    if(prev) prev.style.background=h;
+    var txt=E('bnsV56ColorText');
+    if(txt) txt.textContent=c+' '+h;
+    var inp=E('bnsV57ColorInput');
+    if(inp) inp.value=h;
+    A('#bnsV56Dots .bns-v56-dot').forEach(function(d){ d.classList.toggle('active',hex(d.getAttribute('data-color'))===hex(h)); });
+  }
+  function enhanceColors(){
+    var line=E('bnsV56ColorLine'), dots=E('bnsV56Dots');
+    if(!line||!dots) return;
+    if(!E('bnsV57ColorInput')){
+      var wrap=document.createElement('span');
+      wrap.id='bnsV57ColorTools';
+      wrap.innerHTML='<input id="bnsV57ColorInput" type="color" title="Kies eigen kleur"><button type="button" id="bnsV57SaveFav">Favoriet opslaan</button>';
+      line.insertBefore(wrap,dots);
+      E('bnsV57ColorInput').addEventListener('input',function(){
+        setCatColor((E('bnsV56Cat')||{}).value||'EXTRA', this.value);
+        updateColorUI();
+        try{ if(typeof window.renderCats==='function') window.renderCats(); if(typeof window.renderMaterials==='function') window.renderMaterials(); }catch(e){}
+      },true);
+      E('bnsV57ColorInput').addEventListener('change',function(){
+        setCatColor((E('bnsV56Cat')||{}).value||'EXTRA', this.value);
+        saveFav(this.value);
+        refreshDots();
+        updateColorUI();
+        try{ if(typeof window.renderCats==='function') window.renderCats(); if(typeof window.renderMaterials==='function') window.renderMaterials(); }catch(e){}
+      },true);
+      E('bnsV57SaveFav').onclick=function(ev){
+        if(ev){ev.preventDefault();ev.stopPropagation();}
+        var h=(E('bnsV57ColorInput')||{}).value || currentColor();
+        setCatColor((E('bnsV56Cat')||{}).value||'EXTRA', h);
+        saveFav(h);
+        refreshDots();
+        updateColorUI();
+        try{ if(typeof window.renderCats==='function') window.renderCats(); if(typeof window.renderMaterials==='function') window.renderMaterials(); }catch(e){}
+        return false;
+      };
+    }
+    if(!dots.dataset.bnsV57Bound){
+      dots.dataset.bnsV57Bound='1';
+      dots.addEventListener('click',function(ev){
+        var d=ev.target.closest&&ev.target.closest('.bns-v56-dot');
+        if(!d) return;
+        var h=d.getAttribute('data-color');
+        setCatColor((E('bnsV56Cat')||{}).value||'EXTRA',h);
+        updateColorUI();
+      },true);
+    }
+    refreshDots();
+    updateColorUI();
+  }
+  function editingId(){ try{ if(typeof editing!=='undefined' && editing) return String(editing); }catch(e){} try{ if(window.editing) return String(window.editing); }catch(e){} return ''; }
+  function stateObj(){ try{ if(window.state && Array.isArray(window.state.orders)) return window.state; }catch(e){} try{ if(state && Array.isArray(state.orders)) return state; }catch(e){} return null; }
+  function saveApp(){ try{ if(typeof window.save==='function') window.save(); else if(typeof save==='function') save(); }catch(e){} try{ if(typeof window.saveApp==='function') window.saveApp(); }catch(e){} }
+  function toast(t){ try{ if(typeof window.toastMsg==='function') window.toastMsg(t); else if(typeof window.toast==='function') window.toast(t); }catch(e){} }
+  function deleteCurrentOrder(){
+    if(!confirm('Weet je zeker dat je deze opdracht wilt verwijderen?')) return false;
+    var id=editingId();
+    var s=stateObj();
+    if(id && s){
+      var o=(s.orders||[]).find(function(x){return T(x.id)===id;});
+      if(o){ o._oldStatus=o.status||''; o.status='Verwijderd'; o.deletedAt=new Date().toISOString(); saveApp(); }
+    } else {
+      try{ if(typeof clearOrder==='function') clearOrder(); }catch(e){}
+    }
+    try{ editing=null; window.editing=null; }catch(e){}
+    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    toast('Opdracht verwijderd');
+    try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
+    return false;
+  }
+  function ensureDeleteButton(){
+    var old=A('button').filter(function(b){return N(b.textContent)==='verwijder opdracht' && b.id!=='bnsV57DeleteOrderBtn';});
+    old.forEach(function(b){ b.style.display='none'; });
+    var saveBtn=A('button').find(function(b){return N(b.textContent)==='opslaan';});
+    var cancelBtn=A('button').find(function(b){return N(b.textContent)==='annuleren';});
+    if(!saveBtn && !cancelBtn) return;
+    var parent=(saveBtn||cancelBtn).parentElement;
+    if(!parent) return;
+    parent.id='bnsV57OrderActions';
+    var btn=E('bnsV57DeleteOrderBtn');
+    if(!btn){
+      btn=document.createElement('button');
+      btn.id='bnsV57DeleteOrderBtn';
+      btn.type='button';
+      btn.className='danger';
+      btn.textContent='Verwijder opdracht';
+      btn.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} return deleteCurrentOrder(); };
+      if(cancelBtn) parent.insertBefore(btn,cancelBtn); else parent.appendChild(btn);
+    }
+  }
+  function installStyle(){
+    if(E('bnsV57Style')) return;
+    var s=document.createElement('style'); s.id='bnsV57Style';
+    s.textContent='\
+      #bnsV57ColorTools{display:inline-flex!important;align-items:center!important;gap:8px!important;margin-left:6px!important}\
+      #bnsV57ColorInput{width:48px!important;height:36px!important;padding:2px!important;border:2px solid #334155!important;border-radius:10px!important;background:#fff!important;cursor:pointer!important}\
+      #bnsV57SaveFav{height:36px!important;border:0!important;border-radius:10px!important;background:#334155!important;color:white!important;font-weight:900!important;padding:0 10px!important;cursor:pointer!important}\
+      #bnsV56Dots{display:inline-flex!important;flex-wrap:wrap!important;gap:8px!important;align-items:center!important}\
+      #bnsV56Dots .bns-v56-dot.active{outline:4px solid rgba(15,23,42,.45)!important;outline-offset:2px!important}\
+      #bnsV57OrderActions{position:sticky!important;bottom:0!important;z-index:9999!important;width:100%!important;max-width:100%!important;display:flex!important;flex-wrap:wrap!important;gap:10px!important;align-items:center!important;background:rgba(245,247,251,.94)!important;border-top:1px solid #dbe3ef!important;padding:10px 8px!important;box-sizing:border-box!important;backdrop-filter:blur(6px)!important}\
+      #bnsV57DeleteOrderBtn{background:#dc2626!important;color:#fff!important;border:0!important;border-radius:12px!important;padding:12px 16px!important;font-weight:900!important;cursor:pointer!important}\
+      #materialList{padding-bottom:120px!important}\
+    ';
+    document.head.appendChild(s);
+  }
+  function install(){ installStyle(); enhanceColors(); ensureDeleteButton(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,150);
+  setTimeout(install,900);
+  setTimeout(install,1800);
+  setInterval(install,2500);
+})();
