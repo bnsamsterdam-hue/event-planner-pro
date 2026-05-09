@@ -9247,3 +9247,60 @@ setInterval(install,1500);
     renderMaterials: renderMaterialsV45
   };
 })();
+
+/* =========================================================
+   BNS V46 - POPUP BRONFIX
+   - De materiaallijst was goed, maar oude klik/popup-logica gaf nog
+     oude reserveringen zonder datumfilter.
+   - Deze laag vangt de klik bovenaan document-capture af en gebruikt
+     alleen BNS V45 datumplanning als bron.
+   ========================================================= */
+(function bnsV46PopupBronFix(){
+  "use strict";
+  if (window.__bnsV46PopupBronFix) return;
+  window.__bnsV46PopupBronFix = true;
+
+  function E(id){ return document.getElementById(id); }
+
+  function handleMaterialClick(ev){
+    var row = ev.target && ev.target.closest ? ev.target.closest("#materialList [data-material-id]") : null;
+    if (!row) return;
+    var mid = row.getAttribute("data-material-id");
+    if (!mid) return;
+
+    // Stop alle oudere material-click handlers voordat ze hun oude popup openen.
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+
+    try {
+      if (typeof window.addMat === "function") {
+        window.addMat(mid);
+      }
+    } catch(e) {
+      console.error("BNS V46 materiaal klik fout", e);
+    }
+    return false;
+  }
+
+  // Document capture loopt vóór listeners op #materialList.
+  document.addEventListener("click", handleMaterialClick, true);
+
+  // Popup met oude id's verbergen als die per ongeluk nog open blijven staan.
+  function hideOldModals(){
+    ["bnsA12Modal","bns_simpel_stabiel_modal","bnsStabielModal"].forEach(function(id){
+      var m = E(id);
+      if (m) m.classList.add("hidden");
+    });
+  }
+
+  var oldAdd = window.addMat;
+  setInterval(function(){
+    // Als een oude patch addMat terugzet, zet hem weer terug naar V45 versie.
+    if (window.BNS_V45_PLANNING_DEBUG && window.addMat !== oldAdd && typeof oldAdd === "function") {
+      window.addMat = oldAdd;
+      try { addMat = oldAdd; } catch(e) {}
+    }
+    hideOldModals();
+  }, 1500);
+})();
