@@ -9583,3 +9583,159 @@ setInterval(install,1500);
     preventPasswordPopup();
   }, 2500);
 })();
+
+/* =========================================================
+   BNS V49 - ADMIN RUBRIEK/ZOEK/OMHOOG FIX
+   Basis: V48. Wijzigt alleen:
+   - nieuwe admin rubrieken/materialen direct vindbaar in Materialen
+   - zoekveld zoekt over alle rubrieken als er tekst staat
+   - rubriek kleur-knoppen geven direct zichtbaar gekozen kleur
+   - admin velden compacter: rubriek, product nr, product/zoeknaam, product omschrijving
+   - Omhoog-knop op alle pagina's
+   - Copy opdracht blijft weg uit Materialen
+   ========================================================= */
+(function bnsV49AdminSearchColorUp(){
+  "use strict";
+  if (window.__bnsV49AdminSearchColorUp) return;
+  window.__bnsV49AdminSearchColorUp = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function S(){ try { if (typeof state !== "undefined" && state) return state; } catch(e){} return window.state || {materials:[],settings:{}}; }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c];}); }
+  function norm(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
+  function catKey(v){ return String(v || "EXTRA").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,4) || "EXTRA"; }
+  function saveAny(){ try { if (typeof save === "function") save(); } catch(e){} }
+  function chosenList(){ try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e){} return window.chosen || []; }
+
+  var COLOR_DEFAULTS = {TW:"#dc2626",TO:"#f97316",KW:"#22c55e",KA:"#a855f7",BT:"#2563eb",HN:"#7c3aed",EXTRA:"#334155"};
+  function colorsObj(){
+    var s=S(); s.settings=s.settings||{}; s.settings.categoryColors=s.settings.categoryColors||{};
+    try { var local=JSON.parse(localStorage.getItem("bnsCatColors")||"{}"); Object.keys(local).forEach(function(k){ if(!s.settings.categoryColors[k]) s.settings.categoryColors[k]=local[k]; }); } catch(e){}
+    return s.settings.categoryColors;
+  }
+  function catColor(cat){ var k=catKey(cat); return colorsObj()[k] || COLOR_DEFAULTS[k] || COLOR_DEFAULTS.EXTRA; }
+  function setCatColor(cat, color){
+    var k=catKey(cat); if(!k || !color) return;
+    colorsObj()[k]=color;
+    try { localStorage.setItem("bnsCatColors", JSON.stringify(colorsObj())); } catch(e){}
+    try { localStorage.setItem("bns_rubriek_kleuren_v12_pro", JSON.stringify(colorsObj())); } catch(e){}
+    updateColorPreview(color);
+    saveAny();
+  }
+  function updateColorPreview(color){
+    var inp=E("adminMatColor");
+    if (inp) { try { inp.value = rgbToHex(color) || color; } catch(e){} inp.style.background = color; inp.style.borderColor = color; }
+    A("#adminMaterialsPane input[type=color], .adminPane input[type=color]").forEach(function(x){ try{x.value=rgbToHex(color)||color;}catch(e){} x.style.background=color; });
+    A(".bns-v49-color-preview").forEach(function(x){ x.style.background=color; x.textContent=""; });
+  }
+  function rgbToHex(c){
+    c=String(c||"").trim(); if(/^#[0-9a-f]{6}$/i.test(c)) return c;
+    var m=c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i); if(!m) return c;
+    return "#"+[m[1],m[2],m[3]].map(function(n){return ("0"+(+n).toString(16)).slice(-2);}).join("");
+  }
+  function materialText(m){ return [m.cat,m.rubriek,m.category,m.code,m.productNr,m.product,m.searchName,m.type,m.name,m.description,m.beschrijving,m.notes,m.note,m.notities,m.price].join(" ").toLowerCase(); }
+  function codeFromFields(m){ return String(m.code || ((m.cat||"") + (m.productNr||"")) || "").trim(); }
+  function productLine(m){ return String(m.product || m.searchName || m.type || "").trim(); }
+  function descLine(m){ return String(m.name || m.description || m.beschrijving || "").trim(); }
+  function cleanPrice(p){ p=String(p||"").trim(); if(!p || /^oude prijs:\s*€?\s*0([,.]00)?$/i.test(p)) return ""; return p; }
+  function sameMat(a,b){ if(!a||!b) return false; if(a.id&&b.id) return String(a.id)===String(b.id); return codeFromFields(a).toLowerCase()===codeFromFields(b).toLowerCase() && catKey(a.cat||a.rubriek)===catKey(b.cat||b.rubriek); }
+  function statusFor(m){
+    var raw=norm(m&&m.status);
+    if(raw==="inactive"||raw.indexOf("niet actief")>=0||raw.indexOf("niet beschikbaar")>=0) return {key:"inactive",label:"Niet actief"};
+    if(raw==="defect"||raw==="damage"||raw.indexOf("schade")>=0||raw.indexOf("vermist")>=0) return {key:"defect",label:"Defect"};
+    if(chosenList().some(function(x){return sameMat(x,m);})){ return {key:"chosen",label:"Gekozen"}; }
+    try { if(window.BNS_V45_PLANNING_DEBUG && window.BNS_V45_PLANNING_DEBUG.reservationForMaterial && window.BNS_V45_PLANNING_DEBUG.reservationForMaterial(m)) return {key:"reserved",label:"Gereserveerd"}; } catch(e){}
+    return {key:"free",label:"Vrij"};
+  }
+
+  function installStyle(){
+    if(E("bns-v49-style")) return;
+    var st=document.createElement("style"); st.id="bns-v49-style";
+    st.textContent = [
+      "#bnsCopyOrderTop,#materialCats button.bns-hide-copy,#materialPanel button.bns-hide-copy{display:none!important}",
+      "#materialCats{display:flex!important;flex-wrap:wrap!important;align-items:flex-start!important;gap:10px!important;margin:10px 0!important;min-height:54px!important}",
+      "#materialCats button{position:relative!important;min-width:64px!important;height:54px!important;margin:0!important;animation:none!important;transition:none!important;transform:none!important}",
+      "#materialCats button:after{content:'';position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--cat-color,#334155);border-radius:0 0 12px 12px}",
+      "#materialList{min-height:220px!important;overflow-anchor:none!important}",
+      "#materialList .bns-v49-row{display:grid!important;grid-template-columns:10px minmax(0,1fr) auto!important;gap:14px!important;align-items:center!important;margin:9px 0!important;padding:13px 14px!important;border:1px solid var(--border,#dbe3ef)!important;border-radius:18px!important;background:var(--panel,#fff)!important;color:var(--text,#172033)!important;cursor:pointer!important;box-shadow:none!important;animation:none!important;transition:none!important;transform:none!important;min-height:78px!important}",
+      "#materialList .bns-v49-bar{width:8px!important;height:50px!important;border-radius:999px!important;background:var(--cat-color,#334155)!important}",
+      "#materialList .bns-v49-title{font-weight:1000!important;font-size:18px!important;line-height:1.18!important;white-space:normal!important}",
+      "#materialList .bns-v49-desc{font-weight:700!important;font-size:14px!important;color:var(--muted,#64748b)!important;line-height:1.2!important}",
+      "#materialList .bns-v49-price{font-size:12px!important;color:var(--muted,#64748b)!important;font-weight:700!important}",
+      ".bns-v49-pill{display:inline-flex!important;align-items:center!important;gap:8px!important;padding:8px 12px!important;border-radius:999px!important;font-weight:1000!important;white-space:nowrap!important;animation:none!important;transition:none!important}",
+      ".bns-v49-pill:before{content:'';width:11px;height:11px;border-radius:999px;background:#22c55e;display:inline-block}",
+      ".bns-v49-pill.free{background:#dcfce7!important;color:#166534!important}.bns-v49-pill.free:before{background:#22c55e!important}",
+      ".bns-v49-pill.reserved{background:#fee2e2!important;color:#991b1b!important}.bns-v49-pill.reserved:before{background:#dc2626!important}",
+      ".bns-v49-pill.chosen{background:#bbf7d0!important;color:#14532d!important}.bns-v49-pill.chosen:before{background:#16a34a!important}",
+      ".bns-v49-pill.defect{background:#fee2e2!important;color:#991b1b!important}.bns-v49-pill.defect:before{background:#dc2626!important}",
+      ".bns-v49-pill.inactive{background:#e2e8f0!important;color:#334155!important}.bns-v49-pill.inactive:before{background:#64748b!important}",
+      "#adminMatCat{max-width:88px!important;width:88px!important;text-transform:uppercase!important}",
+      "#adminMatCode{max-width:120px!important;width:120px!important}",
+      "#adminMatProduct{max-width:260px!important;width:260px!important;display:inline-block!important;margin:6px 8px!important}",
+      "#adminMatName{max-width:520px!important;width:calc(100% - 20px)!important;display:inline-block!important}",
+      ".bns-v49-admin-label{display:block;margin:6px 0 2px;font-size:12px;font-weight:900;color:#475569}",
+      ".bns-v49-admin-help{font-size:12px;font-weight:800;color:#64748b;margin:5px 0 8px}",
+      ".bns-color-dot,.bns-v48-dot{cursor:pointer!important;border:3px solid transparent!important;box-shadow:0 4px 10px rgba(0,0,0,.12)!important}",
+      ".bns-color-dot.active,.bns-v48-dot.active{outline:3px solid #111827!important;outline-offset:2px!important}",
+      "#adminMatColor,.bns-v49-color-preview{display:inline-block!important;width:48px!important;height:30px!important;border:2px solid #111827!important;border-radius:6px!important;vertical-align:middle!important;margin-left:10px!important}",
+      "#bnsOmhoogBtn{position:fixed;right:20px;bottom:20px;z-index:99998;background:#111827;color:#fff;border:0;border-radius:18px;padding:14px 18px;font-weight:1000;box-shadow:0 12px 30px rgba(0,0,0,.28);cursor:pointer}",
+      "#alertsBtn,#syncBtn,.mat-status-badge,.badge,.bns-v45-pill,.bns-v49-pill{animation:none!important;transition:none!important;filter:none!important;transform:none!important}"
+    ].join("\n"); document.head.appendChild(st);
+  }
+
+  function allCats(){ var cats=(S().materials||[]).map(function(m){return catKey(m.cat||m.rubriek||m.category);}).filter(Boolean); cats=Array.from(new Set(cats)); cats.sort(); return cats.length?cats:["TW","TO","KW","EXTRA"]; }
+  function currentCat(){ try { return catKey(window.currentCat || currentCat); } catch(e) { return catKey(window.currentCat || "TW"); } }
+  function setCurrentCat(c){ c=catKey(c); window.currentCat=c; try{ currentCat=c; }catch(e){} return c; }
+  function renderCatsV49(){
+    var box=E("materialCats"); if(!box) return;
+    var cats=allCats(); var active=currentCat(); if(cats.indexOf(active)<0) active=setCurrentCat(cats[0]);
+    box.innerHTML=cats.map(function(c){return '<button type="button" '+(c===active?'class="active"':'')+' data-bns-v49-cat="'+esc(c)+'" style="--cat-color:'+catColor(c)+'">'+esc(c)+'</button>';}).join('');
+    A('[data-bns-v49-cat]',box).forEach(function(b){ b.onclick=function(ev){ev.preventDefault(); setCurrentCat(b.getAttribute('data-bns-v49-cat')); renderCatsV49(); renderMaterialsV49();}; });
+  }
+  function renderMaterialsV49(){
+    var box=E("materialList"); if(!box) return;
+    var q=norm((E("materialSearch")||{}).value); var cat=currentCat(); var mats=(S().materials||[]);
+    var rows=mats.filter(function(m){ return q ? materialText(m).indexOf(q)>=0 : catKey(m.cat||m.rubriek||m.category)===cat; }).slice(0,500);
+    box.innerHTML=rows.length?rows.map(function(m){
+      var st=statusFor(m); var c=catKey(m.cat||m.rubriek||m.category); var code=codeFromFields(m); var prod=productLine(m); var desc=descLine(m); var title=(code||c)+(prod?' '+prod:'');
+      var sub=desc && desc.toLowerCase()!==prod.toLowerCase()?desc:""; var pr=cleanPrice(m.price);
+      return '<div class="bns-v49-row" data-material-id="'+esc(m.id)+'" style="--cat-color:'+catColor(c)+'">'+
+        '<span class="bns-v49-bar"></span><span><div class="bns-v49-title">'+esc(title)+'</div>'+(sub?'<div class="bns-v49-desc">'+esc(sub)+'</div>':'')+(pr?'<div class="bns-v49-price">'+esc(pr)+'</div>':'')+'</span><span class="bns-v49-pill '+esc(st.key)+'">'+esc(st.label)+'</span></div>';
+    }).join(''):'<p class="bns-empty">Geen materiaal gevonden.</p>';
+  }
+  function bindMaterialClicks(){
+    var box=E("materialList"); if(box && !box.dataset.bnsV49Click){ box.dataset.bnsV49Click="1"; box.addEventListener("click",function(ev){ var row=ev.target.closest&&ev.target.closest('[data-material-id]'); if(!row||!box.contains(row))return; ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation(); try{ window.addMat(row.getAttribute('data-material-id')); }catch(e){} setTimeout(renderMaterialsV49,60); return false; },true); }
+    var search=E("materialSearch"); if(search && !search.dataset.bnsV49Search){ search.dataset.bnsV49Search="1"; search.addEventListener("input",function(){ renderMaterialsV49(); }); }
+  }
+
+  function relabelAdmin(){
+    var cat=E("adminMatCat"), nr=E("adminMatCode"), name=E("adminMatName"), price=E("adminMatPrice"), status=E("adminMatStatus"); if(!cat||!nr||!name) return;
+    cat.maxLength=4; cat.placeholder="TW"; nr.placeholder="Product nr"; name.placeholder="Product omschrijving"; if(price)price.placeholder="Prijs / vrije tekst"; if(status)status.title="Wel of niet inzetbaar";
+    var product=E("adminMatProduct"); if(!product){ product=document.createElement("input"); product.id="adminMatProduct"; nr.insertAdjacentElement("afterend",product); }
+    product.placeholder="Product / zoeknaam";
+    addLabel(cat,"Rubriek"); addLabel(nr,"Product nr"); addLabel(product,"Product / zoeknaam"); addLabel(name,"Product omschrijving");
+    var help=E("bnsV49AdminHelp"); if(!help){ help=document.createElement("div"); help.id="bnsV49AdminHelp"; help.className="bns-v49-admin-help"; help.textContent="Zoeken bij nieuwe opdracht gebruikt: rubriek + product nr + product/zoeknaam + product omschrijving."; product.insertAdjacentElement("afterend",help); }
+    syncColorPreview();
+  }
+  function addLabel(el,txt){ if(!el||el.previousElementSibling&&el.previousElementSibling.classList&&el.previousElementSibling.classList.contains('bns-v49-admin-label')) return; var l=document.createElement('label'); l.className='bns-v49-admin-label'; l.textContent=txt; el.parentNode.insertBefore(l,el); }
+  function syncColorPreview(){ var cat=E("adminMatCat"); if(!cat)return; var col=catColor(cat.value); updateColorPreview(col); A(".bns-color-dot,.bns-v48-dot").forEach(function(d){ var dc=d.dataset.color||d.getAttribute('data-color')||d.style.backgroundColor||d.style.getPropertyValue('--dot'); d.classList.toggle('active', rgbToHex(dc).toLowerCase()===rgbToHex(col).toLowerCase()); }); }
+  function bindColor(){
+    if(!document.documentElement.dataset.bnsV49Color){ document.documentElement.dataset.bnsV49Color="1"; ["pointerdown","mousedown","touchstart"].forEach(function(evt){ document.addEventListener(evt,function(ev){ var dot=ev.target.closest&&ev.target.closest('.bns-color-dot,.bns-v48-dot'); if(!dot)return; var cat=E('adminMatCat'); if(!cat)return; var col=dot.dataset.color||dot.getAttribute('data-color')||dot.style.backgroundColor||dot.style.getPropertyValue('--dot'); if(!col)return; setCatColor(cat.value||'EXTRA',col); setTimeout(function(){syncColorPreview(); renderCatsV49(); renderMaterialsV49();},30); },true); }); }
+    var cat=E("adminMatCat"); if(cat&&!cat.dataset.bnsV49Cat){cat.dataset.bnsV49Cat="1"; cat.addEventListener("input",syncColorPreview); cat.addEventListener("change",syncColorPreview);}
+  }
+  function afterAdminSaveWatcher(){
+    var saved=E("adminMaterialSaved"); if(saved&&!saved.dataset.bnsV49Watch){ saved.dataset.bnsV49Watch="1"; new MutationObserver(function(){ var cat=E('adminMatCat'); if(cat)setCurrentCat(cat.value); setTimeout(function(){renderCatsV49(); renderMaterialsV49(); window.scrollTo({top:0,behavior:'smooth'});},100); }).observe(saved,{childList:true,characterData:true,subtree:true}); }
+  }
+  function addUpButton(){ if(E("bnsOmhoogBtn")) return; var b=document.createElement("button"); b.id="bnsOmhoogBtn"; b.type="button"; b.textContent="Omhoog"; b.onclick=function(){ window.scrollTo({top:0,behavior:"smooth"}); A('.page,.workpanel,.adminPane,.modal,.bns-order-overview-card').forEach(function(x){ try{x.scrollTop=0;}catch(e){} }); }; document.body.appendChild(b); }
+  function removeCopy(){ A("#materialCats button,#materialPanel button,#materialCats .worktab,#materialPanel .worktab").forEach(function(b){ if(String(b.textContent||'').trim().toLowerCase()==='copy opdracht'){ b.classList.add('bns-hide-copy'); b.style.display='none'; } }); }
+  function patchAdminSearchRender(){
+    var old=window.adminRender || (typeof adminRender==='function'?adminRender:null); if(window.__bnsV49AdminRender)return; window.__bnsV49AdminRender=true;
+    window.adminRender=function(){ if(old){try{old();}catch(e){}} var list=E('adminMatList'), search=E('adminMatSearch'); if(list&&search&&search.value){ var q=norm(search.value); var rows=(S().materials||[]).filter(function(m){return materialText(m).indexOf(q)>=0;}).slice(0,100); list.innerHTML=rows.map(function(m){var c=catKey(m.cat||m.rubriek||m.category); return '<div class="admin-row" style="border-left:8px solid '+catColor(c)+'"><span><b>'+esc(codeFromFields(m))+'</b> '+esc(productLine(m))+' '+esc(descLine(m))+' ('+esc(c)+')</span><button onclick="fillMat(\''+esc(m.id)+'\')">Wijzig</button></div>';}).join('')||'<small>Geen materiaal gevonden</small>'; } relabelAdmin(); syncColorPreview(); afterAdminSaveWatcher(); };
+    try{adminRender=window.adminRender;}catch(e){}
+  }
+  function install(){ installStyle(); relabelAdmin(); bindColor(); patchAdminSearchRender(); removeCopy(); addUpButton(); renderCatsV49(); renderMaterialsV49(); bindMaterialClicks(); afterAdminSaveWatcher(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,100);
+  setTimeout(install,700); setTimeout(install,1600);
+  setInterval(function(){ removeCopy(); addUpButton(); },2500);
+})();
