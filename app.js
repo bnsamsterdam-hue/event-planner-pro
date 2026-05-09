@@ -872,297 +872,508 @@ setTimeout(()=>{
   applyGlobalStyleV93();
 },0);
 
-
-
-// ===== BNS V39 CLEAN STABIEL: materiaal zoeken + harde datumplanning + rustige status =====
+// ===== BNS V10.1 gerichte patch: datum, admin factuur/offerte, layout/kleur, extra knoppen =====
 (function(){
-  'use strict';
-  function E(id){ return document.getElementById(id); }
-  function S(){ try{return state;}catch(e){return null;} }
-  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function norm(v){ return String(v||'').trim().toLowerCase(); }
-  function key(v){ return String(v||'EXTRA').trim().toUpperCase(); }
-  function getChosen(){ try{return Array.isArray(chosen)?chosen:[];}catch(e){return [];} }
-  function getEditing(){ try{return editing||null;}catch(e){return null;} }
-  function saveState(){ try{ if(typeof save==='function') save(); }catch(e){} }
+  function onReady(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+  function byId(id){ return document.getElementById(id); }
+  function getState(){ return window.state || (typeof state !== 'undefined' ? state : null); }
+  function saveState(){ try{ if(typeof save === 'function') save(); }catch(e){} }
+  function toast(t){ try{ if(typeof toastMsg === 'function') toastMsg(t); else alert(t); }catch(e){ alert(t); } }
+  function isoToday(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+  function addDays(v,n){ let d=v?new Date(v+'T00:00:00'):new Date(); if(isNaN(d)) d=new Date(); d.setDate(d.getDate()+Number(n||0)); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
 
-  function parseDate(v){
-    v=String(v||'').trim();
-    if(!v) return null;
-    var m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if(m) return new Date(+m[1], +m[2]-1, +m[3]).getTime();
-    m=v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
-    if(m) return new Date(+m[3], +m[2]-1, +m[1]).getTime();
-    var d=new Date(v);
-    return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
+  function ensureV10State(){
+    const s=getState(); if(!s) return;
+    s.settings = s.settings || {};
+    s.settings.invoice = s.settings.invoice || {
+      companyName:'Event Planner PRO',
+      title:'Opdrachtbevestiging / Offerte',
+      intro:'Hierbij ontvangt u de bevestiging/offerte voor uw opdracht.',
+      footer:'Prijzen zijn exclusief/ inclusief zoals vermeld. Schade, vermissing en schoonmaakkosten kunnen achteraf worden doorberekend.',
+      logo:'',
+      accent:'#2563eb',
+      layout:'classic'
+    };
+    s.settings.theme = s.settings.theme || 'blue';
+    s.settings.layout = s.settings.layout || 'normal';
   }
-  function plusDay(t){ return t==null?null:t+86400000; }
-  function rangeFromFields(){
-    var st=parseDate((E('dateStart')||{}).value);
-    var en=parseDate((E('dateEnd')||{}).value);
-    if(st==null && en!=null) st=en;
-    if(en==null && st!=null) en=st;
-    if(st==null || en==null) return null;
-    if(en<st){ var x=st; st=en; en=x; }
-    return {start:st, end:plusDay(en)}; // ingevoerde einddatum telt mee voor opdracht zelf
-  }
-  function rangeFromOrder(o){
-    var st=parseDate(o && (o.start || o.dateStart));
-    var en=parseDate(o && (o.end || o.dateEnd || o.start || o.dateStart));
-    if(st==null && en!=null) st=en;
-    if(en==null && st!=null) en=st;
-    if(st==null || en==null) return null;
-    if(en<st){ var x=st; st=en; en=x; }
-    // BELANGRIJK: einddatum is vrij voor nieuwe klant.
-    // Daarom is bestaande reservering actief van begin t/m dag VOOR einddatum.
-    // Voorbeeld: bestaande 07-05 t/m 10-05 blokkeert 07,08,09; op 10-05 weer vrij.
-    return {start:st, end:en};
-  }
-  function overlaps(a,b){ return !!(a && b && a.start < b.end && a.end > b.start); }
-  function blockingStatus(o){
-    var st=norm(o && o.status);
-    if(!st || st==='offerte' || st==='geannuleerd' || st==='annuleren' || st==='uitgevoerd') return false;
-    if(st.indexOf('optie 14')!==-1) return !optionExpired(o);
-    return st==='bevestigd' || st==='opdrachtbevestiging' || st==='opdracht bevestiging' || st==='confirmed';
-  }
-  function optionExpired(o){
-    var st=norm(o && o.status);
-    if(st.indexOf('optie 14')===-1) return false;
-    var base=parseDate(o.optionCreatedAt || o.savedAt || o.createdAt || o.updatedAt || o.time || o.start);
-    if(base==null) return false;
-    var today=new Date(); today=new Date(today.getFullYear(),today.getMonth(),today.getDate()).getTime();
-    return today >= base + 14*86400000;
-  }
-  function sameMaterial(a,b){
-    if(!a || !b) return false;
-    if(a.id && b.id && String(a.id)===String(b.id)) return true;
-    if(a.oldId && b.oldId && String(a.oldId)===String(b.oldId)) return true;
-    var ac=key(a.cat), bc=key(b.cat), ak=key(a.code), bk=key(b.code), an=key(a.name), bn=key(b.name);
-    return !!(ac && bc && ak && bk && an && bn && ac===bc && ak===bk && an===bn);
-  }
-  function reservationFor(mat){
-    var s=S(); if(!s || !Array.isArray(s.orders)) return null;
-    var want=rangeFromFields();
-    if(!want) return null;
-    var edit=getEditing();
-    for(var i=0;i<s.orders.length;i++){
-      var o=s.orders[i];
-      if(edit && String(o.id||'')===String(edit)) continue;
-      if(!blockingStatus(o)) continue;
-      var have=rangeFromOrder(o);
-      if(!overlaps(want, have)) continue;
-      var arr=Array.isArray(o.materials)?o.materials:[];
-      for(var j=0;j<arr.length;j++) if(sameMaterial(mat, arr[j])) return o;
+
+  function bindSimpleDateV10(){
+    ['endPlus3'].forEach(id=>{ const el=byId(id); if(el) el.style.display='none'; });
+    function bindOne(btnId,inputId,days){
+      const b=byId(btnId), i=byId(inputId); if(!b||!i) return;
+      b.textContent = days<0 ? '-' : '+';
+      b.title = days<0 ? '1 dag terug' : '1 dag vooruit';
+      b.onclick = function(){
+        i.value = addDays(i.value || isoToday(), days);
+        const ds=byId('dateStart'), de=byId('dateEnd');
+        if(ds && de){
+          if(!ds.value) ds.value=isoToday();
+          if(!de.value) de.value=ds.value;
+          if(de.value < ds.value) de.value = ds.value;
+        }
+        try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+      };
     }
-    return null;
-  }
-  function materialStatus(mat){
-    var st=norm(mat && mat.status);
-    if(st==='inactive' || st==='niet actief' || st==='niet beschikbaar') return {kind:'inactive', label:'Niet actief'};
-    if(st==='defect' || st==='damage' || st==='schade' || st==='missing' || st==='vermissing') return {kind:'defect', label:'Defect'};
-    var r=reservationFor(mat);
-    if(r) return {kind:'reserved', label:'Gereserveerd', order:r};
-    return {kind:'free', label:'Vrij'};
-  }
-  function searchText(m){
-    return [m.cat,m.code,m.name,m.description,m.desc,m.notes,m.price,m.oldId,m.id].join(' ').toLowerCase();
-  }
-  function matTitle(m){ return [m.code,m.name].filter(Boolean).join(' '); }
-  function catColor(cat){
-    var s=S(); var k=key(cat);
-    var c=s && s.settings && s.settings.categoryColors && s.settings.categoryColors[k];
-    var defaults={TW:'#dc2626',TO:'#f97316',KW:'#2563eb',KA:'#7c3aed',EXTRA:'#2563eb'};
-    return c || defaults[k] || '#2563eb';
-  }
-  function ensureCss(){
-    if(E('bns_v39_css')) return;
-    var style=document.createElement('style'); style.id='bns_v39_css';
-    style.textContent='*{animation:none!important}#alertsBtn,#alertsBtn *,#syncBtn,#syncBtn *{animation:none!important;filter:none!important;transform:none!important;box-shadow:none!important}.bns-v39-row{display:grid!important;grid-template-columns:10px minmax(0,1fr) auto!important;gap:12px!important;align-items:center!important;padding:12px!important;margin:10px 0!important;border:1px solid #dbe3ef!important;border-radius:16px!important;background:#fff!important;color:#111827!important;cursor:pointer!important}.bns-v39-row.free{background:#dcfce7!important;border-color:#86efac!important}.bns-v39-row.reserved,.bns-v39-row.defect{background:#fee2e2!important;border-color:#fecaca!important}.bns-v39-row.inactive{background:#e5e7eb!important;border-color:#cbd5e1!important}.bns-v39-row.chosen{background:#dcfce7!important;border-color:#22c55e!important}.bns-v39-bar{width:9px;height:46px;border-radius:9px;background:var(--cat,#2563eb)!important}.bns-v39-title{min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important}.bns-v39-title b{font-size:18px}.bns-v39-title small{display:block;color:#64748b;font-weight:700}.bns-v39-pill{display:inline-flex!important;align-items:center!important;gap:7px!important;border-radius:999px!important;padding:7px 13px!important;background:#fff!important;font-weight:900!important;white-space:nowrap!important}.bns-v39-pill i{width:11px;height:11px;border-radius:50%;display:inline-block}.bns-v39-pill.free i{background:#22c55e}.bns-v39-pill.reserved i,.bns-v39-pill.defect i{background:#dc2626}.bns-v39-pill.inactive i{background:#64748b}.bns-v39-pill.chosen{background:#16a34a!important;color:#fff!important}.bns-v39-pill.chosen i{background:#fff}.bns-v39-color-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 12px}.bns-v39-color-dot{width:34px;height:34px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #94a3b8;cursor:pointer}.bns-v39-color-dot.active{box-shadow:0 0 0 4px #111827}.bns-v39-modal{position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.55);display:none;place-items:center;padding:20px}.bns-v39-modal.show{display:grid}.bns-v39-card{background:#fff;color:#111827;border-radius:20px;padding:24px;max-width:760px;width:min(94vw,760px);box-shadow:0 20px 70px rgba(0,0,0,.35)}.bns-v39-info{border:1px solid #dbe3ef;border-radius:14px;padding:14px;background:#f8fafc;line-height:1.45}.bns-system-ok{background:#16a34a!important;color:#fff!important}.bns-system-bad{background:#dc2626!important;color:#fff!important}';
-    document.head.appendChild(style);
-  }
-  function showReserved(mat, order){
-    var modal=E('bns_v39_modal');
-    if(!modal){
-      modal=document.createElement('div'); modal.id='bns_v39_modal'; modal.className='bns-v39-modal';
-      modal.innerHTML='<div class="bns-v39-card"><h2>Materiaal status</h2><div id="bns_v39_body"></div><p><button type="button" onclick="document.getElementById(\'bns_v39_modal\').classList.remove(\'show\')">Sluiten</button></p></div>';
-      document.body.appendChild(modal);
-    }
-    var body=E('bns_v39_body');
-    var klant=(order.customer&&order.customer.name)||order.customerName||'Onbekend';
-    body.innerHTML='<div class="bns-v39-info"><b>'+esc(matTitle(mat))+'</b><br><br><b>Status:</b> Gereserveerd<br><b>Klant:</b> '+esc(klant)+'<br><b>Opdracht:</b> '+esc((order.number||'')+' - '+(order.title||''))+'<br><b>Datum:</b> '+esc(order.start||'')+' tot datum '+esc(order.end||order.start||'')+'</div>';
-    modal.classList.add('show');
-  }
-  function renderMaterialsV39(cat){
-    ensureCss();
-    var list=E('materialList'); if(!list) return;
-    var s=S(); if(!s) return;
-    cat=key(cat || (typeof currentCat!=='undefined' ? currentCat : 'TW'));
-    try{ currentCat=cat; }catch(e){}
-    var q=norm((E('materialSearch')||{}).value);
-    var rows=(s.materials||[]).filter(function(m){
-      var inCat=key(m.cat)===cat;
-      var hit=!q || searchText(m).indexOf(q)!==-1;
-      return q ? hit : inCat;
-    }).sort(function(a,b){ return key(a.code).localeCompare(key(b.code),'nl'); }).slice(0,200);
-    list.innerHTML=rows.map(function(m){
-      var chosenNow=getChosen().some(function(x){return sameMaterial(x,m);});
-      var st=chosenNow ? {kind:'chosen',label:'Gekozen'} : materialStatus(m);
-      var price=m.price||'';
-      return '<div class="material-row bns-v39-row '+st.kind+'" data-mid="'+esc(m.id)+'" style="--cat:'+esc(catColor(m.cat))+'">'+
-        '<div class="bns-v39-bar"></div>'+
-        '<div class="bns-v39-title"><b>'+esc(m.code||'')+'</b> '+esc(m.name||'')+'<small>'+esc(price)+'</small></div>'+
-        '<div><span class="badge bns-v39-pill '+st.kind+'"><i></i>'+esc(st.label)+'</span></div>'+
-        '</div>';
-    }).join('') || '<p>Geen materiaal gevonden.</p>';
-    list.querySelectorAll('.bns-v39-row').forEach(function(row){
-      row.onclick=function(ev){
-        ev.preventDefault(); ev.stopPropagation();
-        var m=(S().materials||[]).find(function(x){return String(x.id)===String(row.dataset.mid);});
-        if(!m) return;
-        var chosenNow=getChosen().some(function(x){return sameMaterial(x,m);});
-        if(chosenNow){ removeMatV39(m.id); return; }
-        var st=materialStatus(m);
-        if(st.kind==='reserved'){ showReserved(m,st.order); return; }
-        if(st.kind==='defect' || st.kind==='inactive'){ return; }
-        addMatV39(m.id);
+    bindOne('startMinus','dateStart',-1);
+    bindOne('startPlus','dateStart',1);
+    bindOne('endMinus','dateEnd',-1);
+    bindOne('endPlus','dateEnd',1);
+    document.querySelectorAll('.date-step[data-target]').forEach(b=>{
+      b.onclick=function(){
+        const i=byId(b.dataset.target); if(!i) return;
+        i.value=addDays(i.value || isoToday(), Number(b.dataset.days||0));
+        const ds=byId('dateStart'), de=byId('dateEnd');
+        if(ds&&de&&de.value<ds.value) de.value=ds.value;
       };
     });
   }
-  function addMatV39(mid){
+
+  function injectLayoutSelectorsV10(){
+    const top=document.querySelector('.top'); if(!top) return;
+    let box=byId('globalLayoutTools');
+    if(!box){
+      box=document.createElement('div'); box.id='globalLayoutTools'; box.className='global-layout-tools';
+      box.innerHTML=`
+        <select id="globalThemeSelect" title="Thema">
+          <option value="blue">Blauw</option><option value="dark">Donker</option><option value="green">Groen</option><option value="orange">Oranje</option><option value="light">Licht</option><option value="purple">Paars</option><option value="red">Rood</option><option value="neon">Neon</option><option value="glass">Glas</option>
+        </select>
+        <select id="globalLayoutSelect" title="Layout">
+          <option value="normal">Normaal</option><option value="compact">Compact</option><option value="wide">Breed</option><option value="cards">Cards</option><option value="planning">Planning</option><option value="large">Grote knoppen</option>
+        </select>`;
+      top.appendChild(box);
+    } else {
+      const theme=byId('globalThemeSelect');
+      if(theme && !theme.querySelector('option[value="purple"]')) theme.insertAdjacentHTML('beforeend','<option value="purple">Paars</option><option value="red">Rood</option><option value="neon">Neon</option><option value="glass">Glas</option>');
+      const layout=byId('globalLayoutSelect');
+      if(layout && !layout.querySelector('option[value="large"]')) layout.insertAdjacentHTML('beforeend','<option value="large">Grote knoppen</option>');
+    }
+    const s=getState();
+    const theme=byId('globalThemeSelect'), layout=byId('globalLayoutSelect');
+    if(theme){ theme.value=s?.settings?.theme||'blue'; theme.onchange=()=>{ensureV10State(); getState().settings.theme=theme.value; saveState(); applyStyleV10();}; }
+    if(layout){ layout.value=s?.settings?.layout||'normal'; layout.onchange=()=>{ensureV10State(); getState().settings.layout=layout.value; saveState(); applyStyleV10();}; }
+  }
+
+  function applyStyleV10(){
+    const s=getState(); if(!s) return;
+    document.body.classList.remove('theme-dark','theme-green','theme-orange','theme-light','theme-purple','theme-red','theme-neon','theme-glass','layout-compact','layout-wide','layout-cards','layout-planning','layout-large');
+    const t=s.settings?.theme||'blue'; if(t!=='blue') document.body.classList.add('theme-'+t);
+    const l=s.settings?.layout||'normal'; if(l!=='normal') document.body.classList.add('layout-'+l);
+  }
+
+  function injectInvoiceAdminV10(){
+    ensureV10State();
+    const tabs=document.querySelector('.admin-tabs') || document.querySelector('.tabs.admin-tabs');
+    const area=byId('adminArea'); if(!area) return;
+    if(tabs && !document.querySelector('[data-admin="adminInvoice"]')){
+      const btn=document.createElement('button'); btn.className='adminTab'; btn.dataset.admin='adminInvoice'; btn.textContent='Factuur / offerte'; tabs.appendChild(btn);
+    }
+    if(!byId('adminInvoice')){
+      const pane=document.createElement('div'); pane.id='adminInvoice'; pane.className='adminPane panel hidden';
+      pane.innerHTML=`
+        <h3>Factuur / offerte layout</h3>
+        <p class="muted">Stel hier je logo, vaste tekst en kleuren in. Dit wordt opgeslagen in de browser.</p>
+        <div class="grid">
+          <label>Bedrijfsnaam<input id="invoiceCompanyName" placeholder="Bedrijfsnaam"></label>
+          <label>Titel document<input id="invoiceDocTitle" placeholder="Offerte / Opdrachtbevestiging / Factuur"></label>
+          <label>Accentkleur<input id="invoiceAccentColor" type="color"></label>
+          <label>Layout<select id="invoiceLayoutMode"><option value="classic">Klassiek</option><option value="modern">Modern</option><option value="compact">Compact</option><option value="letterhead">Briefpapier</option></select></label>
+          <label>Logo uploaden<input id="invoiceLogoUpload" type="file" accept="image/*"></label>
+          <div><img id="invoiceLogoPreview" style="max-width:220px;max-height:90px;object-fit:contain;background:#fff;border:1px solid #ddd;border-radius:12px;padding:8px" alt="Logo preview"></div>
+        </div>
+        <label>Vrije tekst bovenaan<textarea id="invoiceIntroText" placeholder="Tekst bovenaan offerte/opdrachtbevestiging"></textarea></label>
+        <label>Vrije tekst onderaan / voorwaarden<textarea id="invoiceFooterText" placeholder="Voorwaarden, betaling, borg, schade, schoonmaak enz."></textarea></label>
+        <div class="actions"><button id="saveInvoiceLayoutV10" type="button">Opslaan layout</button><button id="clearInvoiceLogoV10" class="grey" type="button">Logo verwijderen</button><button id="previewInvoiceLayoutV10" type="button">Voorbeeld maken</button></div>
+        <div id="invoiceAdminPreview" class="invoice-preview hidden"></div>`;
+      area.appendChild(pane);
+    }
+    document.querySelectorAll('.adminTab').forEach(b=>{
+      b.addEventListener('click',()=>{
+        document.querySelectorAll('.adminTab').forEach(x=>x.classList.remove('active'));
+        document.querySelectorAll('.adminPane').forEach(x=>x.classList.add('hidden'));
+        b.classList.add('active'); const pane=byId(b.dataset.admin); if(pane) pane.classList.remove('hidden');
+      });
+    });
+    loadInvoiceAdminV10(); bindInvoiceAdminV10();
+  }
+
+  function loadInvoiceAdminV10(){
+    const s=getState(); if(!s?.settings?.invoice) return;
+    const inv=s.settings.invoice;
+    const pairs={invoiceCompanyName:inv.companyName,invoiceDocTitle:inv.title,invoiceAccentColor:inv.accent||'#2563eb',invoiceLayoutMode:inv.layout||'classic',invoiceIntroText:inv.intro,invoiceFooterText:inv.footer};
+    Object.entries(pairs).forEach(([id,v])=>{const el=byId(id); if(el) el.value=v||'';});
+    const img=byId('invoiceLogoPreview'); if(img){ if(inv.logo){img.src=inv.logo; img.style.display='block';} else {img.removeAttribute('src'); img.style.display='none';} }
+  }
+  function bindInvoiceAdminV10(){
+    const up=byId('invoiceLogoUpload'); if(up) up.onchange=e=>{
+      const f=e.target.files && e.target.files[0]; if(!f) return;
+      const r=new FileReader(); r.onload=()=>{ensureV10State(); getState().settings.invoice.logo=r.result; saveState(); loadInvoiceAdminV10(); toast('Logo opgeslagen');}; r.readAsDataURL(f);
+    };
+    const saveBtn=byId('saveInvoiceLayoutV10'); if(saveBtn) saveBtn.onclick=saveInvoiceAdminV10;
+    const clear=byId('clearInvoiceLogoV10'); if(clear) clear.onclick=()=>{ensureV10State(); getState().settings.invoice.logo=''; saveState(); loadInvoiceAdminV10(); toast('Logo verwijderd');};
+    const preview=byId('previewInvoiceLayoutV10'); if(preview) preview.onclick=()=>{saveInvoiceAdminV10(false); renderInvoicePreviewV10();};
+  }
+  function saveInvoiceAdminV10(show=true){
+    ensureV10State(); const inv=getState().settings.invoice;
+    inv.companyName=byId('invoiceCompanyName')?.value || 'Event Planner PRO';
+    inv.title=byId('invoiceDocTitle')?.value || 'Opdrachtbevestiging / Offerte';
+    inv.accent=byId('invoiceAccentColor')?.value || '#2563eb';
+    inv.layout=byId('invoiceLayoutMode')?.value || 'classic';
+    inv.intro=byId('invoiceIntroText')?.value || '';
+    inv.footer=byId('invoiceFooterText')?.value || '';
+    saveState(); if(show) toast('Factuur/offerte layout opgeslagen');
+  }
+  function renderInvoicePreviewV10(){
+    const p=byId('invoiceAdminPreview'); const inv=getState()?.settings?.invoice; if(!p||!inv) return;
+    p.classList.remove('hidden');
+    p.innerHTML=`<div class="invoice-top" style="border-color:${inv.accent||'#2563eb'}">${inv.logo?`<img class="invoice-logo" src="${inv.logo}">`:''}<div><h2>${inv.title||'Opdrachtbevestiging'}</h2><b>${inv.companyName||''}</b></div></div><div class="free-text">${(inv.intro||'Vrije tekst bovenaan').replace(/</g,'&lt;')}</div><p><b>Voorbeeld materialen en totaal komen hier bij een echte opdracht.</b></p><div class="free-text">${(inv.footer||'Vrije tekst onderaan').replace(/</g,'&lt;')}</div>`;
+  }
+
+  function enhanceConfirmationTextV10(){
+    if(typeof makeConfirmationText !== 'function') return;
+    const old=makeConfirmationText;
+    window.makeConfirmationText = makeConfirmationText = function(){
+      ensureV10State(); const inv=getState()?.settings?.invoice || {};
+      return `${inv.title||'OPDRACHTBEVESTIGING'}\n${inv.companyName||''}\n\n${inv.intro||''}\n\n${old()}\n\n${inv.footer||''}`;
+    };
+  }
+
+  function bindExtraButtonsV10(){
+    const sync=byId('syncBtn') || byId('systeemBtn');
+    if(sync) sync.onclick=()=>toast('Systeem actief - gegevens staan lokaal opgeslagen');
+    const mailBtns=document.querySelectorAll('#mailOverviewBtn, #mailConfirmBtn');
+    mailBtns.forEach(btn=>btn.addEventListener('click',()=>toast('Mailprogramma wordt geopend')));
+  }
+
+  onReady(()=>{
+    setTimeout(()=>{
+      ensureV10State();
+      injectLayoutSelectorsV10();
+      injectInvoiceAdminV10();
+      bindSimpleDateV10();
+      enhanceConfirmationTextV10();
+      bindExtraButtonsV10();
+      applyStyleV10();
+    },50);
+  });
+})();
+
+
+
+/* ============================================================
+   BNS V40 CLEAN PLANNING FIX
+   - geen extra intervals, geen flikkerende renders
+   - zoeken op rubriek + type/naam/code + beschrijving/naam + notities
+   - harde datumplanning: alleen overlap blokkeert, einddatum is vrij
+   ============================================================ */
+(function bnsV40CleanPlanning(){
+  "use strict";
+  if (window.__bnsV40CleanPlanning) return;
+  window.__bnsV40CleanPlanning = true;
+
+  function E(id){ return document.getElementById(id); }
+  function S(){ try { return state; } catch(e){ return null; } }
+  function txt(v){ return String(v == null ? "" : v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function cat(v){ return txt(v || "EXTRA").toUpperCase(); }
+  function esc(v){ return txt(v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+  function saveNow(){ try { if (typeof save === "function") save(); } catch(e){} }
+  function chosenList(){ try { return Array.isArray(chosen) ? chosen : []; } catch(e){ return []; } }
+  function editId(){ try { return editing || ""; } catch(e){ return ""; } }
+
+  function parseDate(v){
+    v = txt(v);
+    if (!v) return null;
+    var m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return new Date(+m[1], +m[2]-1, +m[3]).getTime();
+    m = v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+    if (m) return new Date(+m[3], +m[2]-1, +m[1]).getTime();
+    var d = new Date(v);
+    return isNaN(d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  }
+  function oneDay(){ return 86400000; }
+
+  function selectedRange(){
+    var a = parseDate(E("dateStart") && E("dateStart").value);
+    var b = parseDate(E("dateEnd") && E("dateEnd").value);
+    if (a == null && b != null) a = b;
+    if (b == null && a != null) b = a;
+    if (a == null || b == null) return null;
+    if (b < a) { var t = a; a = b; b = t; }
+    // einddatum is terugkomdag/vrij: actief is [begin, eind)
+    return { start:a, end:b };
+  }
+  function orderRange(o){
+    var a = parseDate(o && (o.start || o.dateStart || o.begin));
+    var b = parseDate(o && (o.end || o.dateEnd || o.einde || o.start || o.dateStart));
+    if (a == null && b != null) a = b;
+    if (b == null && a != null) b = a;
+    if (a == null || b == null) return null;
+    if (b < a) { var t = a; a = b; b = t; }
+    return { start:a, end:b };
+  }
+  function hasOverlap(a,b){ return !!(a && b && a.start < b.end && a.end > b.start); }
+
+  function option14Expired(o){
+    var st = low(o && o.status);
+    if (st.indexOf("optie 14") < 0) return false;
+    var base = parseDate(o.optionCreatedAt || o.savedAt || o.createdAt || o.updatedAt || o.time || o.start || o.dateStart);
+    if (base == null) return false;
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return today >= base + 14 * oneDay();
+  }
+  function blocks(o){
+    var st = low(o && o.status);
+    if (!st || st === "offerte" || st === "geannuleerd" || st === "annuleren" || st === "uitgevoerd") return false;
+    if (st.indexOf("optie 14") >= 0) return !option14Expired(o);
+    return st === "bevestigd" || st === "opdrachtbevestiging" || st === "opdracht bevestiging";
+  }
+  function matKey(m){
+    if (!m) return "";
+    if (m.materialId) return "id:" + m.materialId;
+    if (m.id) return "id:" + m.id;
+    if (m.oldId) return "old:" + m.oldId;
+    return "txt:" + [cat(m.cat || m.rubriek), cat(m.code || m.searchName), cat(m.name || m.description)].join("|");
+  }
+  function sameMat(a,b){
+    if (!a || !b) return false;
+    if (a.id && b.id && String(a.id) === String(b.id)) return true;
+    if (a.materialId && (String(a.materialId) === String(b.id) || String(a.materialId) === String(b.materialId))) return true;
+    if (b.materialId && (String(b.materialId) === String(a.id) || String(b.materialId) === String(a.materialId))) return true;
+    if (a.oldId && b.oldId && String(a.oldId) === String(b.oldId)) return true;
+    return cat(a.cat || a.rubriek) === cat(b.cat || b.rubriek) &&
+           cat(a.code || a.searchName) === cat(b.code || b.searchName) &&
+           cat(a.name || a.description) === cat(b.name || b.description);
+  }
+  function reservationFor(m){
+    var s = S();
+    var want = selectedRange();
+    if (!s || !Array.isArray(s.orders) || !want) return null;
+    var eid = editId();
+    for (var i=0;i<s.orders.length;i++){
+      var o = s.orders[i];
+      if (eid && String(o.id || "") === String(eid)) continue;
+      if (!blocks(o)) continue;
+      if (!hasOverlap(want, orderRange(o))) continue;
+      var arr = Array.isArray(o.materials) ? o.materials : [];
+      for (var j=0;j<arr.length;j++){
+        if (sameMat(m, arr[j])) return o;
+      }
+    }
+    return null;
+  }
+  function statusOf(m){
+    var s = low(m && m.status);
+    if (s === "inactive" || s === "niet actief" || s === "niet beschikbaar") return {key:"inactive", label:"Niet actief"};
+    if (s === "defect" || s === "schade" || s === "damage" || s === "missing" || s === "vermissing" || s === "vermist") return {key:"defect", label:"Defect"};
+    var o = reservationFor(m);
+    if (o) return {key:"reserved", label:"Gereserveerd", order:o};
+    return {key:"free", label:"Vrij"};
+  }
+  function hay(m){
+    return [m.cat,m.rubriek,m.code,m.searchName,m.type,m.name,m.description,m.desc,m.notes,m.price,m.id,m.oldId].join(" ").toLowerCase();
+  }
+  function catColor(c){
+    var s=S(); var k=cat(c);
+    var cc = s && s.settings && s.settings.categoryColors && s.settings.categoryColors[k];
+    var def = {TW:"#dc2626", TO:"#f97316", KW:"#2563eb", KA:"#7c3aed", EXTRA:"#2563eb"};
+    return cc || def[k] || "#2563eb";
+  }
+  function css(){
+    if (E("bns_v40_css")) return;
+    var st = document.createElement("style");
+    st.id = "bns_v40_css";
+    st.textContent = [
+      "#alertsBtn,#alertsBtn *,#syncBtn,#syncBtn *{animation:none!important;filter:none!important;transform:none!important;box-shadow:none!important}",
+      ".bns-v40-ok{background:#16a34a!important;color:#fff!important}",
+      ".bns-v40-bad{background:#dc2626!important;color:#fff!important}",
+      "#materialList .material-row{animation:none!important;transition:none!important}",
+      "#materialList .material-row.bns-v40-free{background:#dcfce7!important;border-color:#86efac!important}",
+      "#materialList .material-row.bns-v40-reserved,#materialList .material-row.bns-v40-defect{background:#fee2e2!important;border-color:#fecaca!important}",
+      "#materialList .material-row.bns-v40-inactive{background:#e5e7eb!important;border-color:#cbd5e1!important}",
+      "#materialList .material-row.bns-v40-selected{background:#dcfce7!important;border-color:#22c55e!important}",
+      "#materialList .badge{animation:none!important}",
+      "#materialList .badge:before{content:'';display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;background:#64748b}",
+      "#materialList .badge.free:before,#materialList .badge.now:before{background:#22c55e}",
+      "#materialList .badge.reserved:before,#materialList .badge.defect:before{background:#dc2626}",
+      "#materialList .badge.inactive:before{background:#64748b}",
+      ".bns-v40-modal{position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.55);display:none;place-items:center;padding:20px}",
+      ".bns-v40-modal.show{display:grid}",
+      ".bns-v40-card{width:min(760px,94vw);background:#fff;color:#111827;border-radius:20px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.35)}",
+      ".bns-v40-info{border:1px solid #dbe3ef;border-radius:14px;padding:14px;background:#f8fafc;line-height:1.45}",
+      ".bns-v40-colors{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 12px}",
+      ".bns-v40-dot{width:32px;height:32px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #94a3b8;cursor:pointer}",
+      ".bns-v40-dot.active{box-shadow:0 0 0 4px #111827}"
+    ].join("\n");
+    document.head.appendChild(st);
+  }
+  function showReservation(m,o){
+    var modal = E("bns_v40_modal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "bns_v40_modal";
+      modal.className = "bns-v40-modal";
+      modal.innerHTML = '<div class="bns-v40-card"><h2>Materiaal status</h2><div id="bns_v40_body"></div><p><button type="button" onclick="document.getElementById(\'bns_v40_modal\').classList.remove(\'show\')">Sluiten</button></p></div>';
+      document.body.appendChild(modal);
+    }
+    var klant = (o.customer && o.customer.name) || o.customerName || "Onbekend";
+    E("bns_v40_body").innerHTML = '<div class="bns-v40-info"><b>'+esc([m.code,m.name].filter(Boolean).join(" "))+'</b><br><br><b>Status:</b> Gereserveerd<br><b>Klant:</b> '+esc(klant)+'<br><b>Opdracht:</b> '+esc((o.number||"") + " - " + (o.title||""))+'<br><b>Datum:</b> '+esc(o.start || o.dateStart || "")+' tot datum '+esc(o.end || o.dateEnd || o.start || o.dateStart || "")+'</div>';
+    modal.classList.add("show");
+  }
+  function renderCatsV40(){
+    var s=S(), box=E("materialCats"); if(!s||!box) return;
+    var cs = Array.from(new Set((s.materials||[]).map(function(m){return cat(m.cat || m.rubriek);}))).sort();
+    if (!cs.length) cs = ["TW","TO","KW","EXTRA"];
+    if (cs.indexOf(cat(typeof currentCat !== "undefined" ? currentCat : "")) < 0) try{ currentCat = cs[0]; }catch(e){}
+    box.innerHTML = cs.map(function(c){return '<button type="button" data-cat="'+esc(c)+'" class="'+(cat(currentCat)===c?'active':'')+'" style="border-bottom:5px solid '+esc(catColor(c))+'">'+esc(c)+'</button>';}).join("");
+    Array.prototype.forEach.call(box.querySelectorAll("button[data-cat]"), function(b){
+      b.onclick = function(e){ e.preventDefault(); try{ currentCat = b.dataset.cat; }catch(x){} renderCatsV40(); renderMaterialsV40(b.dataset.cat); };
+    });
+  }
+  function renderMaterialsV40(c){
+    css();
+    var s=S(), box=E("materialList"); if(!s||!box) return;
+    c = cat(c || (typeof currentCat !== "undefined" ? currentCat : "TW"));
+    try{ currentCat = c; }catch(e){}
+    var q = low(E("materialSearch") && E("materialSearch").value);
+    var rows = (s.materials||[]).filter(function(m){
+      return q ? hay(m).indexOf(q) >= 0 : cat(m.cat || m.rubriek) === c;
+    }).slice(0,200);
+    box.innerHTML = rows.map(function(m){
+      var selected = chosenList().some(function(x){return sameMat(x,m);});
+      var st = selected ? {key:"selected",label:"Gekozen"} : statusOf(m);
+      var rowClass = selected ? "bns-v40-selected selected" : "bns-v40-" + st.key;
+      var badgeClass = selected ? "now" : st.key;
+      return '<div class="material-row '+rowClass+'" data-mid="'+esc(m.id)+'" style="border-left:9px solid '+esc(catColor(m.cat || m.rubriek))+'">'+
+        '<div><b>'+esc(m.code || m.searchName || "")+'</b> '+esc(m.name || m.description || "")+'<br><small>'+esc(m.price || "")+'</small></div>'+
+        '<div><span class="badge '+badgeClass+'">'+esc(st.label)+'</span></div>'+
+        '</div>';
+    }).join("") || '<p>Geen materiaal gevonden.</p>';
+    Array.prototype.forEach.call(box.querySelectorAll(".material-row[data-mid]"), function(row){
+      row.onclick = function(e){
+        e.preventDefault(); e.stopPropagation();
+        var m = (S().materials||[]).find(function(x){return String(x.id)===String(row.dataset.mid);});
+        if (!m) return false;
+        var selected = chosenList().some(function(x){return sameMat(x,m);});
+        if (selected) { removeMatV40(m.id); return false; }
+        var st = statusOf(m);
+        if (st.key === "reserved") { showReservation(m, st.order); return false; }
+        if (st.key === "defect" || st.key === "inactive") return false;
+        addMatV40(m.id); return false;
+      };
+    });
+  }
+  function addMatV40(mid){
     var s=S(); var m=s && (s.materials||[]).find(function(x){return String(x.id)===String(mid);});
-    if(!m) return;
-    var st=materialStatus(m);
-    if(st.kind==='reserved'){ showReserved(m,st.order); return; }
-    if(st.kind==='defect' || st.kind==='inactive') return;
-    if(!getChosen().some(function(x){return sameMaterial(x,m);})) getChosen().push(typeof structuredClone==='function'?structuredClone(m):JSON.parse(JSON.stringify(m)));
+    if(!m) return false;
+    var st=statusOf(m);
+    if(st.key==="reserved"){ showReservation(m,st.order); return false; }
+    if(st.key==="defect" || st.key==="inactive") return false;
+    if(!chosenList().some(function(x){return sameMat(x,m);})){
+      var cp; try{ cp = structuredClone(m); }catch(e){ cp = JSON.parse(JSON.stringify(m)); }
+      cp.materialId = m.id;
+      cp.cat = cat(m.cat || m.rubriek);
+      cp.rubriek = cp.cat;
+      cp.status = "reserved";
+      chosenList().push(cp);
+    }
     try{ renderChosen(); }catch(e){}
-    renderMaterialsV39(typeof currentCat!=='undefined'?currentCat:key(m.cat));
+    renderMaterialsV40(typeof currentCat !== "undefined" ? currentCat : cat(m.cat));
+    try{ summaryRender(); }catch(e){}
+    return false;
+  }
+  function removeMatV40(mid){
+    try{ chosen = chosenList().filter(function(m){return String(m.id)!==String(mid) && String(m.materialId)!==String(mid);}); }catch(e){}
+    try{ renderChosen(); }catch(e){}
+    renderMaterialsV40(typeof currentCat !== "undefined" ? currentCat : "TW");
     try{ summaryRender(); }catch(e){}
   }
-  function removeMatV39(mid){
-    try{ chosen=getChosen().filter(function(m){return String(m.id)!==String(mid);}); }catch(e){}
-    try{ renderChosen(); }catch(e){}
-    renderMaterialsV39(typeof currentCat!=='undefined'?currentCat:'TW');
-    try{ summaryRender(); }catch(e){}
-  }
-  function renderCatsV39(){
-    var box=E('materialCats'); var s=S(); if(!box||!s) return;
-    var cats=Array.from(new Set((s.materials||[]).map(function(m){return key(m.cat);}))).sort();
-    if(!cats.length) cats=['TW','TO','KW','EXTRA'];
-    if(cats.indexOf(key(typeof currentCat!=='undefined'?currentCat:''))<0) try{currentCat=cats[0];}catch(e){}
-    box.innerHTML=cats.map(function(c){return '<button type="button" class="'+(key(currentCat)===c?'active':'')+'" data-cat="'+esc(c)+'" style="border-bottom:5px solid '+esc(catColor(c))+'">'+esc(c)+'</button>';}).join('');
-    box.querySelectorAll('button[data-cat]').forEach(function(b){b.onclick=function(){currentCat=b.dataset.cat;renderCatsV39();renderMaterialsV39(currentCat);};});
-  }
-  function cleanStatusOptions(){
-    var sel=E('orderStatus'); if(!sel) return;
-    var opts=['Offerte','Optie 14 dagen','Bevestigd','Geannuleerd'];
-    var cur=sel.value;
-    var n=norm(cur);
-    if(n==='opdrachtbevestiging'||n==='opdracht bevestiging') cur='Bevestigd';
-    if(n==='geannuleerd') cur='Geannuleerd';
-    if(n.indexOf('optie 14')!==-1) cur='Optie 14 dagen';
-    if(opts.indexOf(cur)<0) cur='Offerte';
-    sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o)+'">'+esc(o)+'</option>';}).join('');
+  function cleanStatus(){
+    var sel=E("orderStatus"); if(!sel) return;
+    var cur=txt(sel.value); var n=low(cur);
+    if(n==="opdrachtbevestiging" || n==="opdracht bevestiging") cur="Bevestigd";
+    if(n.indexOf("optie 14")>=0) cur="Optie 14 dagen";
+    if(n==="geannuleerd") cur="Geannuleerd";
+    var opts=["Offerte","Optie 14 dagen","Bevestigd","Geannuleerd"];
+    if(opts.indexOf(cur)<0) cur="Offerte";
+    sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o)+'">'+esc(o)+'</option>';}).join("");
     sel.value=cur;
   }
-  function patchSaveOrder(){
-    if(window.__bns_v39_save_patched) return; window.__bns_v39_save_patched=true;
-    var old=typeof saveCurrentOrder==='function'?saveCurrentOrder:null;
-    if(!old) return;
-    saveCurrentOrder=function(){
-      cleanStatusOptions();
-      var before=String((E('orderStatus')||{}).value||'');
-      old();
-      try{
-        var s=S(); var num=(E('orderNumber')||{}).value;
-        var o=(s.orders||[]).find(function(x){return String(x.number||'')===String(num||'') || (getEditing() && String(x.id)===String(getEditing()));});
-        if(o){
-          o.status=before;
-          o.updatedAt=new Date().toISOString().slice(0,10);
-          if(norm(before).indexOf('optie 14')!==-1 && !o.optionCreatedAt) o.optionCreatedAt=o.updatedAt;
-          saveState();
-        }
-      }catch(e){}
-      setTimeout(function(){renderMaterialsV39(typeof currentCat!=='undefined'?currentCat:'TW');},50);
-    };
-    try{ if(E('saveOrder')) E('saveOrder').onclick=saveCurrentOrder; }catch(e){}
+  function quietSystem(){
+    var s=S(); var open=s && Array.isArray(s.alerts) ? s.alerts.filter(function(a){return !a.resolved;}) : [];
+    var b=E("alertsBtn"); if(b){ b.textContent="🚨 Systeemmeldingen ("+open.length+")"; b.classList.remove("bns-v40-ok","bns-v40-bad"); b.classList.add(open.length?"bns-v40-bad":"bns-v40-ok"); }
+    var y=E("syncBtn"); if(y){ y.textContent=open.length?"Systeem melding":"Systeem stabiel"; y.classList.remove("bns-v40-ok","bns-v40-bad"); y.classList.add(open.length?"bns-v40-bad":"bns-v40-ok"); }
   }
   function patchAdmin(){
-    var code=E('adminMatCode'), name=E('adminMatName'), cat=E('adminMatCat');
-    if(code) code.placeholder='Type / naam materiaal';
-    if(name) name.placeholder='Beschrijving materiaal';
-    if(cat) cat.placeholder='Rubriek bv TW / TO / KW';
-    injectColorDots();
-    var oldFill=typeof fillMat==='function'?fillMat:null;
-    if(oldFill && !window.__bns_v39_fill_patched){
-      window.__bns_v39_fill_patched=true;
-      fillMat=function(mid){ oldFill(mid); setTimeout(syncColorDots,20); };
-    }
-    if(!window.__bns_v39_admin_render){
-      window.__bns_v39_admin_render=true;
-      adminRender=function(){
-        var s=S();
-        var q=norm((E('adminMatSearch')||{}).value);
-        if(E('adminMatList')){
-          E('adminMatList').innerHTML=q?(s.materials||[]).filter(function(m){return searchText(m).indexOf(q)!==-1;}).slice(0,120).map(function(m){
-            var st=materialStatus(m);
-            return '<div class="admin-row" style="border-left:8px solid '+esc(catColor(m.cat))+'"><span><b>'+esc(m.code||'')+'</b> '+esc(m.name||'')+' <small>('+esc(m.cat||'')+')</small><br><small>'+esc(m.notes||m.description||'')+'</small></span><span><button onclick="fillMat(\''+esc(m.id)+'\')">Wijzig</button><button class="delete" onclick="fillMat(\''+esc(m.id)+'\'); if(window.deleteMatAdminV92) deleteMatAdminV92();">Verwijder</button></span></div>';
-          }).join(''):'<small>Zoek op rubriek, type/naam of beschrijving.</small>';
-        }
-        // klanten/locaties basis behouden
-        try{
-          var cq=norm((E('adminCustomerSearch')||{}).value);
-          if(E('adminCustomerList')) E('adminCustomerList').innerHTML=cq.length>1?(s.customers||[]).filter(function(c){return JSON.stringify(c).toLowerCase().indexOf(cq)!==-1;}).slice(0,40).map(function(c){return '<div class="admin-row"><span>'+esc(c.name||'')+'<br><small>'+esc([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</small></span></div>';}).join(''):'<small>Zoek klant</small>';
-          var lq=norm((E('adminLocationSearch')||{}).value);
-          if(E('adminLocationList')) E('adminLocationList').innerHTML=lq.length>1?(s.locations||[]).filter(function(l){return JSON.stringify(l).toLowerCase().indexOf(lq)!==-1;}).slice(0,40).map(function(l){return '<div class="admin-row"><span>'+esc(l.name||l.street||'')+'<br><small>'+esc([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</small></span></div>';}).join(''):'<small>Zoek locatie</small>';
-        }catch(e){}
+    var code=E("adminMatCode"), name=E("adminMatName"), rub=E("adminMatCat");
+    if(code) code.placeholder="Type / naam materiaal";
+    if(name) name.placeholder="Beschrijving materiaal";
+    if(rub) rub.placeholder="Rubriek bv TW / TO / KW";
+    var saveBtn=E("adminSaveMat");
+    if(saveBtn && !saveBtn.dataset.bnsV40Save){
+      saveBtn.dataset.bnsV40Save="1";
+      saveBtn.onclick=function(e){
+        e.preventDefault();
+        var s=S(); if(!s) return false;
+        var c=cat(E("adminMatCat") && E("adminMatCat").value);
+        var co=txt(E("adminMatCode") && E("adminMatCode").value);
+        var na=txt(E("adminMatName") && E("adminMatName").value);
+        if(!co || !na){ alert("Vul type/naam materiaal en beschrijving in."); return false; }
+        var existing=(s.materials||[]).find(function(m){return String(m.id)===String(window.__bnsV40EditMat||"");});
+        if(!existing) existing=(s.materials||[]).find(function(m){return cat(m.cat||m.rubriek)===c && low(m.code||m.searchName)===low(co);});
+        if(!existing){ existing={id:(typeof id==='function'?id():('mat_'+Date.now()))}; s.materials.push(existing); }
+        existing.cat=c; existing.rubriek=c; existing.code=co; existing.searchName=co; existing.name=na; existing.description=na;
+        existing.price=txt(E("adminMatPrice") && E("adminMatPrice").value);
+        existing.status=txt(E("adminMatStatus") && E("adminMatStatus").value) || "free";
+        saveNow(); window.__bnsV40EditMat=existing.id;
+        adminRenderV40(); renderCatsV40(); renderMaterialsV40(c);
+        try{ toastMsg("Materiaal opgeslagen"); }catch(x){}
+        return false;
       };
     }
-    var oldSave=typeof saveMatAdminV92==='function'?saveMatAdminV92:null;
-    if(oldSave && !window.__bns_v39_save_mat){
-      window.__bns_v39_save_mat=true;
-      saveMatAdminV92=function(){ oldSave(); var c=E('adminMatCat'); var active=document.querySelector('#bns_v39_colors .active'); if(c&&active){setCatColor(c.value,active.dataset.color); saveState();} setTimeout(function(){adminRender(); renderCatsV39(); renderMaterialsV39(typeof currentCat!=='undefined'?currentCat:'TW');},60); };
-      if(E('adminSaveMat')) E('adminSaveMat').onclick=saveMatAdminV92;
-    }
   }
-  function setCatColor(cat,color){
+  function adminRenderV40(){
     var s=S(); if(!s) return;
-    s.settings=s.settings||{}; s.settings.categoryColors=s.settings.categoryColors||{};
-    s.settings.categoryColors[key(cat)]=color;
+    var q=low(E("adminMatSearch") && E("adminMatSearch").value);
+    var box=E("adminMatList");
+    if(box){
+      box.innerHTML=q?(s.materials||[]).filter(function(m){return hay(m).indexOf(q)>=0;}).slice(0,100).map(function(m){
+        return '<div class="admin-row" style="border-left:8px solid '+esc(catColor(m.cat||m.rubriek))+'"><span><b>'+esc(m.code||m.searchName||"")+'</b> '+esc(m.name||m.description||"")+' <small>('+esc(m.cat||m.rubriek||"")+')</small><br><small>'+esc(m.notes||"")+'</small></span><button type="button" onclick="fillMat(\''+esc(m.id)+'\')">Wijzig</button></div>';
+      }).join(""):'<small>Zoek materiaal op rubriek, type/naam of beschrijving.</small>';
+    }
+    try{
+      var cq=low(E("adminCustomerSearch")&&E("adminCustomerSearch").value);
+      if(E("adminCustomerList")) E("adminCustomerList").innerHTML=cq.length>1?(s.customers||[]).filter(function(c){return JSON.stringify(c).toLowerCase().indexOf(cq)>=0;}).slice(0,30).map(function(c){return '<div class="admin-row"><span>'+esc(c.name||"")+'<br>'+esc([c.street,c.city].filter(Boolean).join(" "))+'</span></div>';}).join(""):'<small>Zoek klant</small>';
+      var lq=low(E("adminLocationSearch")&&E("adminLocationSearch").value);
+      if(E("adminLocationList")) E("adminLocationList").innerHTML=lq.length>1?(s.locations||[]).filter(function(l){return JSON.stringify(l).toLowerCase().indexOf(lq)>=0;}).slice(0,30).map(function(l){return '<div class="admin-row"><span>'+esc(l.name||l.street||"")+'<br>'+esc([l.street,l.city].filter(Boolean).join(" "))+'</span></div>';}).join(""):'<small>Zoek locatie</small>';
+    }catch(e){}
   }
-  function injectColorDots(){
-    if(E('bns_v39_colors')){ syncColorDots(); return; }
-    var cat=E('adminMatCat'); if(!cat) return;
-    var row=document.createElement('div'); row.id='bns_v39_colors'; row.className='bns-v39-color-row';
-    row.innerHTML='<b>Rubriek kleur:</b>'+['#dc2626','#f97316','#f59e0b','#16a34a','#2563eb','#7c3aed','#64748b','#111827'].map(function(c){return '<button type="button" class="bns-v39-color-dot" data-color="'+c+'" style="background:'+c+'"></button>';}).join('');
-    cat.insertAdjacentElement('afterend',row);
-    row.addEventListener('click',function(e){var b=e.target.closest('.bns-v39-color-dot'); if(!b)return; setCatColor((E('adminMatCat')||{}).value||'EXTRA',b.dataset.color); syncColorDots(); saveState(); renderCatsV39(); renderMaterialsV39(typeof currentCat!=='undefined'?currentCat:'TW');});
-    cat.addEventListener('input',syncColorDots);
-    syncColorDots();
-  }
-  function syncColorDots(){
-    var row=E('bns_v39_colors'), cat=E('adminMatCat'); if(!row||!cat)return;
-    var col=catColor(cat.value);
-    row.querySelectorAll('.bns-v39-color-dot').forEach(function(b){b.classList.toggle('active',b.dataset.color.toLowerCase()===col.toLowerCase());});
-  }
-  function quietSystem(){
-    var s=S(); var open=s && Array.isArray(s.alerts)?s.alerts.filter(function(a){return !a.resolved;}):[];
-    var btn=E('alertsBtn'); if(btn){btn.textContent='🚨 Systeemmeldingen ('+open.length+')'; btn.classList.remove('bns-system-ok','bns-system-bad'); btn.classList.add(open.length?'bns-system-bad':'bns-system-ok');}
-    var sync=E('syncBtn'); if(sync){sync.textContent=open.length?'Systeem melding':'Systeem stabiel'; sync.classList.remove('bns-system-ok','bns-system-bad'); sync.classList.add(open.length?'bns-system-bad':'bns-system-ok');}
+  function patchFill(){
+    var oldFill = typeof fillMat === "function" ? fillMat : null;
+    fillMat = window.fillMat = function(mid){
+      var m=(S().materials||[]).find(function(x){return String(x.id)===String(mid);}); if(!m) return;
+      window.__bnsV40EditMat=m.id;
+      if(E("adminMatCat")) E("adminMatCat").value=m.cat||m.rubriek||"";
+      if(E("adminMatCode")) E("adminMatCode").value=m.code||m.searchName||"";
+      if(E("adminMatName")) E("adminMatName").value=m.name||m.description||"";
+      if(E("adminMatPrice")) E("adminMatPrice").value=m.price||"";
+      if(E("adminMatStatus")) E("adminMatStatus").value=m.status||"free";
+    };
   }
   function patchRenderAll(){
-    if(window.__bns_v39_render_all) return; window.__bns_v39_render_all=true;
-    var old=typeof renderAll==='function'?renderAll:null;
-    renderAll=function(){ if(old) old(); cleanStatusOptions(); quietSystem(); };
+    var old = typeof renderAll === "function" ? renderAll : null;
+    renderAll = window.renderAll = function(){ if(old) old(); cleanStatus(); quietSystem(); };
   }
   function install(){
-    ensureCss(); cleanStatusOptions(); patchSaveOrder(); patchAdmin(); patchRenderAll(); quietSystem();
-    window.renderCats=renderCatsV39; window.renderMaterials=renderMaterialsV39; window.addMat=addMatV39;
-    try{ renderCats=renderCatsV39; renderMaterials=renderMaterialsV39; addMat=addMatV39; }catch(e){}
-    var ms=E('materialSearch'); if(ms && !ms.dataset.bnsV39){ ms.dataset.bnsV39='1'; ms.addEventListener('input',function(){renderMaterialsV39(typeof currentCat!=='undefined'?currentCat:'TW');}); }
-    ['dateStart','dateEnd','orderStatus'].forEach(function(id){ var el=E(id); if(el && !el.dataset.bnsV39){ el.dataset.bnsV39='1'; el.addEventListener('change',function(){cleanStatusOptions(); renderMaterialsV39(typeof currentCat!=='undefined'?currentCat:'TW');}); el.addEventListener('input',function(){renderMaterialsV39(typeof currentCat!=='undefined'?currentCat:'TW');}); }});
-    try{ renderCatsV39(); renderMaterialsV39(typeof currentCat!=='undefined'?currentCat:'TW'); }catch(e){}
-    try{ adminRender(); }catch(e){}
+    css(); cleanStatus(); quietSystem(); patchAdmin(); patchFill(); patchRenderAll();
+    window.renderCats=renderCatsV40; window.renderMaterials=renderMaterialsV40; window.addMat=addMatV40;
+    try{ renderCats=renderCatsV40; renderMaterials=renderMaterialsV40; addMat=addMatV40; adminRender=adminRenderV40; }catch(e){}
+    var ms=E("materialSearch"); if(ms && !ms.dataset.bnsV40){ ms.dataset.bnsV40="1"; ms.addEventListener("input",function(){renderMaterialsV40(typeof currentCat!=="undefined"?currentCat:"TW");}); }
+    ["dateStart","dateEnd","orderStatus"].forEach(function(id){ var el=E(id); if(el && !el.dataset.bnsV40){ el.dataset.bnsV40="1"; el.addEventListener("input",function(){cleanStatus();renderMaterialsV40(typeof currentCat!=="undefined"?currentCat:"TW");}); el.addEventListener("change",function(){cleanStatus();renderMaterialsV40(typeof currentCat!=="undefined"?currentCat:"TW");}); }});
+    var as=E("adminMatSearch"); if(as && !as.dataset.bnsV40){ as.dataset.bnsV40="1"; as.addEventListener("input",adminRenderV40); }
+    try{ renderCatsV40(); renderMaterialsV40(typeof currentCat!=="undefined"?currentCat:"TW"); }catch(e){}
+    try{ adminRenderV40(); }catch(e){}
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,50);}); else setTimeout(install,50);
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded",function(){setTimeout(install,100);}); else setTimeout(install,100);
 })();
