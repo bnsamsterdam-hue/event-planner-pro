@@ -10136,3 +10136,252 @@ setInterval(install,1500);
   setTimeout(install, 900);
   setTimeout(install, 1800);
 })();
+
+/* ============================================================
+   BNS V51 - laatste afwerking op basis van V50
+   - duidelijke kleurselectie
+   - zoekvelden zonder scroll-sprong
+   - zoekveld leeg bij rubriek wisselen
+   - verwijder opdracht knop met bevestiging
+   ============================================================ */
+(function(){
+  "use strict";
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function txt(v){ return String(v == null ? "" : v); }
+  function low(v){ return txt(v).trim().toLowerCase(); }
+  function esc(v){
+    return txt(v).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function appState(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e){}
+    try { if (window.state) return window.state; } catch(e){}
+    return { orders: [], materials: [] };
+  }
+  function saveState(){
+    try { if (typeof save === "function") { save(); return; } } catch(e){}
+    try { if (typeof saveApp === "function") { saveApp(); return; } } catch(e){}
+    try { if (typeof saveNow === "function") { saveNow(); return; } } catch(e){}
+    try { localStorage.setItem("eventPlannerProV91", JSON.stringify(appState())); } catch(e){}
+  }
+  function toast(t){
+    try { if (typeof toastMsg === "function") { toastMsg(t); return; } } catch(e){}
+    try { if (typeof toast === "function") { toast(t); return; } } catch(e){}
+    console.log(t);
+  }
+
+  function injectStyle(){
+    if (E("bnsV51Style")) return;
+    var s = document.createElement("style");
+    s.id = "bnsV51Style";
+    s.textContent = [
+      "#bnsV50ColorPreview,.bns-v50-preview{display:inline-block!important;width:46px!important;height:28px!important;border-radius:8px!important;border:3px solid #334155!important;vertical-align:middle!important;margin:0 10px!important;box-shadow:0 2px 8px rgba(15,23,42,.18)!important}",
+      ".bns-v50-dot,.bns-color-dot{width:34px!important;height:34px!important;border-radius:999px!important;border:2px solid rgba(255,255,255,.85)!important;box-shadow:0 2px 8px rgba(15,23,42,.25)!important;margin:4px!important;cursor:pointer!important;display:inline-block!important}",
+      ".bns-v50-dot.active,.bns-color-dot.active{outline:4px solid #111827!important;outline-offset:2px!important;transform:scale(1.08)!important}",
+      "#adminMatCat{max-width:96px!important;text-transform:uppercase!important}",
+      "#adminMatCode{max-width:120px!important}",
+      "#adminMatProduct{max-width:230px!important}",
+      "#adminMatName{min-width:260px!important}",
+      "#adminMatSearch,#materialSearch{scroll-margin:0!important}",
+      "#bnsV51DeleteOrder{background:#dc2626!important;color:#fff!important;border:0!important;border-radius:14px!important;padding:12px 18px!important;font-weight:900!important;cursor:pointer!important;margin:6px!important}",
+      ".bns-v51-nojump{overflow-anchor:none!important}",
+      "#bnsOmhoogBtn{position:fixed!important;right:18px!important;bottom:18px!important;z-index:999999!important;background:#111827!important;color:#fff!important;border:0!important;border-radius:16px!important;padding:12px 16px!important;font-weight:900!important;box-shadow:0 10px 25px rgba(0,0,0,.25)!important;cursor:pointer!important}",
+      ".bns-hide-copy{display:none!important}"
+    ].join("\n");
+    document.head.appendChild(s);
+  }
+
+  function visibleScrollRoots(){
+    return [window].concat(A(".page,.workpanel,.adminPane,.modal,.bns-modal,.content,main,section")).filter(function(x){
+      try { return x === window || x.scrollHeight > x.clientHeight; } catch(e){ return false; }
+    });
+  }
+  function snapshotScroll(){
+    return visibleScrollRoots().map(function(x){
+      try { return { el: x, top: x === window ? window.scrollY : x.scrollTop, left: x === window ? window.scrollX : x.scrollLeft }; } catch(e){ return null; }
+    }).filter(Boolean);
+  }
+  function restoreScroll(snap){
+    snap.forEach(function(p){
+      try {
+        if (p.el === window) window.scrollTo(p.left, p.top);
+        else { p.el.scrollTop = p.top; p.el.scrollLeft = p.left; }
+      } catch(e){}
+    });
+  }
+  function noJumpHandler(ev){
+    var t = ev.target;
+    if (!t || !/^(adminMatSearch|materialSearch)$/i.test(t.id || "")) return;
+    var snap = snapshotScroll();
+    document.body.classList.add("bns-v51-nojump");
+    setTimeout(function(){ restoreScroll(snap); }, 0);
+    setTimeout(function(){ restoreScroll(snap); }, 60);
+    setTimeout(function(){ document.body.classList.remove("bns-v51-nojump"); }, 140);
+  }
+  function bindNoJump(){
+    document.addEventListener("focusin", noJumpHandler, true);
+    document.addEventListener("input", noJumpHandler, true);
+    document.addEventListener("click", function(ev){
+      var b = ev.target && ev.target.closest && ev.target.closest("#materialCats button,#materialPanel button");
+      if (!b) return;
+      var text = low(b.textContent || "");
+      if (text === "copy opdracht") return;
+      var ms = E("materialSearch");
+      if (ms && ms.value) {
+        ms.value = "";
+        try { ms.dispatchEvent(new Event("input", { bubbles: true })); } catch(e){}
+      }
+    }, true);
+  }
+
+  function rgbToHex(v){
+    v = txt(v).trim();
+    if (!v) return "";
+    if (v.charAt(0) === "#") return v.toLowerCase();
+    var m = v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (!m) return v.toLowerCase();
+    return "#" + [m[1],m[2],m[3]].map(function(n){ n = Number(n).toString(16); return n.length === 1 ? "0" + n : n; }).join("");
+  }
+  function currentColor(){
+    var p = E("bnsV50ColorPreview");
+    if (p && p.style.background) return rgbToHex(p.style.background);
+    var active = A(".bns-v50-dot.active,.bns-color-dot.active")[0];
+    if (active) return rgbToHex(active.getAttribute("data-color") || active.style.backgroundColor || active.style.background);
+    return "";
+  }
+  function setPreviewColor(color){
+    color = rgbToHex(color || "");
+    if (!color) return;
+    A("#bnsV50ColorPreview,.bns-v50-preview,#adminMatCatColor").forEach(function(x){
+      try {
+        if (x.tagName === "INPUT") x.value = color;
+        x.style.background = color;
+        x.style.backgroundColor = color;
+      } catch(e){}
+    });
+    A(".bns-v50-dot,.bns-color-dot").forEach(function(d){
+      var dc = rgbToHex(d.getAttribute("data-color") || d.style.backgroundColor || d.style.background);
+      d.classList.toggle("active", dc === color);
+    });
+  }
+  function catKey(v){ return txt(v || "EXTRA").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4) || "EXTRA"; }
+  function setCatColorLocal(cat, color){
+    var s = appState();
+    s.categoryColors = s.categoryColors || {};
+    s.catColors = s.catColors || {};
+    s.rubriekKleuren = s.rubriekKleuren || {};
+    cat = catKey(cat);
+    color = rgbToHex(color || "");
+    if (!color) return;
+    s.categoryColors[cat] = color;
+    s.catColors[cat] = color;
+    s.rubriekKleuren[cat] = color;
+    saveState();
+    setPreviewColor(color);
+  }
+  function bindColors(){
+    document.addEventListener("click", function(ev){
+      var dot = ev.target && ev.target.closest && ev.target.closest(".bns-v50-dot,.bns-color-dot");
+      if (!dot) return;
+      var color = dot.getAttribute("data-color") || dot.style.backgroundColor || dot.style.background;
+      var cat = E("adminMatCat") ? E("adminMatCat").value : "EXTRA";
+      setCatColorLocal(cat, color);
+      ev.preventDefault();
+      ev.stopPropagation();
+    }, true);
+    var cat = E("adminMatCat");
+    if (cat && !cat.dataset.bnsV51Cat) {
+      cat.dataset.bnsV51Cat = "1";
+      cat.addEventListener("input", function(){ cat.value = catKey(cat.value); }, true);
+    }
+    setTimeout(function(){ setPreviewColor(currentColor()); }, 200);
+  }
+
+  function getEditingId(){
+    try { if (typeof editing !== "undefined" && editing) return editing; } catch(e){}
+    try { if (window.editing) return window.editing; } catch(e){}
+    return "";
+  }
+  function getOrderNumber(){
+    var n = E("orderNumber");
+    return n ? txt(n.value).trim() : "";
+  }
+  function findCurrentOrder(){
+    var s = appState();
+    var id = getEditingId();
+    if (id) {
+      var byId = (s.orders || []).find(function(o){ return txt(o.id) === txt(id); });
+      if (byId) return byId;
+    }
+    var num = getOrderNumber();
+    if (num) return (s.orders || []).find(function(o){ return txt(o.number) === num; }) || null;
+    return null;
+  }
+  function softDeleteCurrentOrder(){
+    if (!confirm("Weet je zeker dat je deze opdracht wilt verwijderen?")) return false;
+    var s = appState();
+    var o = findCurrentOrder();
+    if (o) {
+      o._oldStatus = o.status || o._oldStatus || "";
+      o.status = "Verwijderd";
+      o.deletedAt = new Date().toISOString();
+      saveState();
+      toast("Opdracht verwijderd");
+    } else {
+      toast("Nieuwe opdracht leeggemaakt");
+    }
+    try { if (typeof clearOrder === "function") clearOrder(); } catch(e){}
+    try { if (typeof renderOrders === "function") renderOrders(); } catch(e){}
+    try { if (typeof renderDashboard === "function") renderDashboard(); } catch(e){}
+    try { if (typeof renderAll === "function") renderAll(); } catch(e){}
+    try { if (typeof showPage === "function") showPage("orders"); } catch(e){}
+    return false;
+  }
+  function addDeleteOrderButton(){
+    var existing = E("bnsV51DeleteOrder");
+    if (!existing) {
+      var b = document.createElement("button");
+      b.id = "bnsV51DeleteOrder";
+      b.type = "button";
+      b.textContent = "Verwijder opdracht";
+      var saveBtn = E("saveOrder") || A("button").find(function(x){ return low(x.textContent).indexOf("opslaan") >= 0; });
+      if (saveBtn && saveBtn.parentNode) saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
+      else document.body.appendChild(b);
+      existing = b;
+    }
+    existing.onclick = function(ev){
+      if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+      return softDeleteCurrentOrder();
+    };
+  }
+
+  function addUpButton(){
+    if (E("bnsOmhoogBtn")) return;
+    var b = document.createElement("button");
+    b.id = "bnsOmhoogBtn";
+    b.type = "button";
+    b.textContent = "Omhoog";
+    b.onclick = function(){
+      try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch(e){ window.scrollTo(0,0); }
+      A(".page,.workpanel,.adminPane,.modal,.bns-modal,main,section").forEach(function(x){ try { x.scrollTop = 0; } catch(e){} });
+    };
+    document.body.appendChild(b);
+  }
+
+  function install(){
+    injectStyle();
+    bindColors();
+    addDeleteOrderButton();
+    addUpButton();
+  }
+
+  bindNoJump();
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 250); });
+  else setTimeout(install, 100);
+  setTimeout(install, 900);
+  setTimeout(install, 1800);
+  setInterval(function(){ addDeleteOrderButton(); bindColors(); }, 2500);
+})();
