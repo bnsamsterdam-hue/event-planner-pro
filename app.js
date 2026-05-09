@@ -5493,7 +5493,7 @@ setInterval(install,1500);
       (inv.intro?'<section class="card free">'+esc(inv.intro)+'</section>':'')+
       '<section class="grid"><div class="card"><div class="label">Klant</div><div class="value"><b>'+esc(o.customer.name)+'</b><br>'+esc(o.customer.street)+'<br>'+esc(o.customer.zip+' '+o.customer.city)+'<br>'+esc(o.customer.phone)+'<br>'+esc(o.customer.email)+'</div></div>'+
       '<div class="card"><div class="label">Locatie</div><div class="value"><b>'+esc(o.location.name)+'</b><br>'+esc(o.location.street)+'<br>'+esc(o.location.zip+' '+o.location.city)+'<br>'+esc(o.location.contact)+'<br>'+esc(o.location.phone)+'</div></div></section>'+
-      '<section class="card"><div class="label">Opdracht</div><div class="value"><b>'+esc(o.title)+'</b><br>Status: '+esc(o.status)+'<br>Datum: '+esc(o.start)+(o.end && o.end!==o.start ? ' tot datum '+esc(o.end) : '')+'<br>Merk: '+esc(o.brand)+'<br>Bezorger: '+esc(o.driver)+'<br>Voertuig: '+esc(o.vehicle)+'</div></section>'+
+      '<section class="card"><div class="label">Opdracht</div><div class="value"><b>'+esc(o.title)+'</b><br>Status: '+esc(o.status)+'<br>Datum: '+esc(o.start)+(o.end && o.end!==o.start ? ' tot datum '+esc(o.end) : '')+'<br>Merk: '+esc(o.brand)+'</div></section>'+
       '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Artikel</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRows()+'</tbody></table></section>'+
       totalsHtml()+
       (o.extra?'<section class="card"><div class="label">Bijzonderheden</div><div class="free">'+esc(o.extra)+'</div></section>':'')+
@@ -10582,4 +10582,95 @@ setInterval(install,1500);
   function install(){ensureStyle();ensureAdminActions();ensureFavDelete();ensureOrderDelete();}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,150);
   setTimeout(install,800); setTimeout(install,1800); setInterval(install,2500);
+})();
+
+/* ==========================================================
+   BNS V60 FIX - Rubriek kleuren op materiaal-bolletjes in opdrachten
+   Basis: v59. Alleen visuele kleurtoepassing op order/material chips.
+   Geen wijzigingen aan planning, datum, Firebase of opslag.
+========================================================== */
+(function(){
+  'use strict';
+  function E(id){return document.getElementById(id);}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v).trim();}
+  function key(v){return T(v).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8)||'EXTRA';}
+  var DEFAULTS={TW:'#dc2626',TO:'#f97316',KW:'#0ea5e9',EXTRA:'#0ea5e9',BT:'#334155',HN:'#7c3aed',TEST:'#22c55e'};
+  function stateObj(){
+    try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){}
+    try{ if(typeof state!=='undefined' && state && Array.isArray(state.materials)) return state; }catch(e){}
+    return {materials:[]};
+  }
+  function colorMap(){
+    var out={};
+    Object.keys(DEFAULTS).forEach(function(k){out[k]=DEFAULTS[k];});
+    try{var ls=JSON.parse(localStorage.getItem('bnsCatColors')||'{}'); if(ls&&typeof ls==='object') Object.keys(ls).forEach(function(k){out[key(k)]=ls[k];});}catch(e){}
+    try{var s=stateObj(); var st=s.settings||{}; var m=st.categoryColors||st.catColors||{}; Object.keys(m||{}).forEach(function(k){out[key(k)]=m[k];});}catch(e){}
+    return out;
+  }
+  function catColor(cat){var m=colorMap(); return m[key(cat)] || '#0ea5e9';}
+  function materialByCode(code){
+    var c=key(code); var mats=stateObj().materials||[];
+    return mats.find(function(m){return key(m.code)===c;}) || mats.find(function(m){return c.indexOf(key(m.cat))===0;}) || null;
+  }
+  function colorForCode(code){
+    var m=materialByCode(code);
+    var cat=m ? (m.cat||m.rubriek||m.category) : (T(code).match(/^[A-Za-z]+/)||['EXTRA'])[0];
+    return catColor(cat);
+  }
+  function codeFromChip(chip){
+    var txt=T(chip.textContent).replace(/\s+/g,' ');
+    var m=txt.match(/\b[A-Z]{1,6}\d{0,4}\b/i);
+    return m ? m[0] : txt.split(' ')[0];
+  }
+  function ensureStyle(){
+    if(E('bnsV60OrderChipStyle')) return;
+    var s=document.createElement('style'); s.id='bnsV60OrderChipStyle';
+    s.textContent='\
+      .order-card .material-code-chip,.material-code-chip{--bns-chip-color:#0ea5e9!important;}\
+      .order-card .material-code-chip .bns-cat-dot,.material-code-chip .bns-cat-dot,.order-card .bns-v60-chip-dot{background:var(--bns-chip-color,#0ea5e9)!important;border-color:var(--bns-chip-color,#0ea5e9)!important;}\
+      .order-card .material-code-chip{border-color:rgba(15,23,42,.08)!important;}\
+    ';
+    document.head.appendChild(s);
+  }
+  function applyOrderChipColors(){
+    ensureStyle();
+    A('.order-card .material-code-chip, .material-code-chip').forEach(function(chip){
+      var code=codeFromChip(chip); if(!code) return;
+      var col=colorForCode(code);
+      chip.style.setProperty('--bns-chip-color',col);
+      chip.style.setProperty('--cat-color',col);
+      var dot=chip.querySelector('.bns-cat-dot,.bns-v60-chip-dot');
+      if(!dot){
+        dot=document.createElement('span');
+        dot.className='bns-v60-chip-dot';
+        dot.style.cssText='display:inline-block;width:13px;height:13px;border-radius:999px;margin-right:7px;vertical-align:-1px;background:'+col+';';
+        chip.insertBefore(dot,chip.firstChild);
+      }
+      dot.style.background=col;
+      dot.style.borderColor=col;
+    });
+    // Fallback: oude orderregels hebben soms losse blauwe bolletjes zonder chip-class.
+    A('.order-card').forEach(function(card){
+      var matsLine=A('div,span',card).find(function(el){return /^Materialen:/i.test(T(el.textContent));});
+      if(!matsLine) return;
+      A('span',matsLine).forEach(function(sp){
+        var code=codeFromChip(sp); if(!code) return;
+        var col=colorForCode(code);
+        sp.style.setProperty('--bns-chip-color',col);
+        var d=sp.querySelector('.bns-cat-dot,.bns-v60-chip-dot');
+        if(d){d.style.background=col; d.style.borderColor=col;}
+      });
+    });
+  }
+  function wrapRender(){
+    if(window.__bnsV60OrderColorWrapped) return;
+    window.__bnsV60OrderColorWrapped=true;
+    ['renderOrders','renderAll','renderDashboard'].forEach(function(name){
+      try{var old=window[name]; if(typeof old==='function'&&!old.__bnsV60){var fn=function(){var r=old.apply(this,arguments); setTimeout(applyOrderChipColors,0); return r;}; fn.__bnsV60=true; window[name]=fn;}}catch(e){}
+    });
+  }
+  function install(){wrapRender();applyOrderChipColors();}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,120);
+  setTimeout(install,700); setTimeout(install,1600); setInterval(applyOrderChipColors,1500);
 })();
