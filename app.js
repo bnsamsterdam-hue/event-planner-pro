@@ -10674,3 +10674,175 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,120);
   setTimeout(install,700); setTimeout(install,1600); setInterval(applyOrderChipColors,1500);
 })();
+
+/* ==========================================================
+   BNS V61 - Alleen admin zoeken/rubriekfilter + overzicht bezorger
+   Basis: v60 goed. Geen wijzigingen aan planning/datum of order-chip design.
+   - Admin Materialen krijgt rubriekknoppen zoals Materialen kiezen.
+   - Admin lijst filtert exact op gekozen rubriek; zoekveld zoekt binnen die rubriek.
+   - Bezorger terug in Overzicht bestelling, maar niet in klantdocument/offerte.
+========================================================== */
+(function(){
+  'use strict';
+  var editId='';
+  var COLORS=['#dc2626','#f97316','#eab308','#16a34a','#0ea5e9','#4f46e5','#64748b','#111827'];
+  function E(id){return document.getElementById(id);} 
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v);} 
+  function N(v){return T(v).toLowerCase().trim();}
+  function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function cat(v){return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4)||'EXTRA';}
+  function S(){try{if(window.state&&Array.isArray(window.state.materials))return window.state;}catch(e){} try{if(state&&Array.isArray(state.materials))return state;}catch(e){} return {materials:[],orders:[]};}
+  function saveApp(){try{if(typeof window.save==='function')window.save();else if(typeof save==='function')save();}catch(e){} try{if(typeof window.saveApp==='function')window.saveApp();}catch(e){}}
+  function toast(t){try{if(typeof window.toastMsg==='function')window.toastMsg(t);else if(typeof window.toast==='function')window.toast(t);}catch(e){}}
+  function hex(v){v=T(v).trim();return /^#[0-9a-f]{6}$/i.test(v)?v.toLowerCase():'#0ea5e9';}
+  function colors(){try{var c=JSON.parse(localStorage.getItem('bnsCatColors')||'{}');return c&&typeof c==='object'?c:{};}catch(e){return{};}}
+  function color(c){return colors()[cat(c)]||'#0ea5e9';}
+  function setColor(c,h){var all=colors();all[cat(c)]=hex(h);try{localStorage.setItem('bnsCatColors',JSON.stringify(all));}catch(e){}}
+  function nr(m){var c=cat(m.cat||m.rubriek||m.category);var n=T(m.productNr||m.nr||'').trim();if(n)return n.replace(new RegExp('^'+c,'i'),'');return T(m.code||'').replace(new RegExp('^'+c,'i'),'');}
+  function product(m){return T(m.product||m.searchName||m.type||'').trim();}
+  function desc(m){return T(m.description||m.beschrijving||m.name||'').trim();}
+  function codeLine(m){var c=cat(m.cat||m.rubriek||m.category),n=nr(m),co=T(m.code||'').trim();return co||(n?c+n:c);}
+  function searchText(m){return [m.cat,m.rubriek,m.category,m.code,m.productNr,m.nr,m.product,m.searchName,m.type,m.name,m.description,m.beschrijving,m.notes,m.price].map(T).join(' ').toLowerCase();}
+  function currentAdminCat(){return cat(localStorage.getItem('bnsV61AdminCat')||localStorage.getItem('bnsV56Cat')||'TW');}
+  function setAdminCat(c){c=cat(c);localStorage.setItem('bnsV61AdminCat',c);localStorage.setItem('bnsV56Cat',c);if(E('bnsV56Cat'))E('bnsV56Cat').value=c;try{window.currentCat=c;}catch(e){} }
+  function cats(){var seen={};(S().materials||[]).forEach(function(m){var c=cat(m.cat||m.rubriek||m.category);if(c)seen[c]=1;});var arr=Object.keys(seen);var pref=['TW','TO','KW','EXTRA','BT','HN'];arr.sort(function(a,b){var ia=pref.indexOf(a),ib=pref.indexOf(b);if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);return a.localeCompare(b);});return arr;}
+
+  function ensureStyle(){
+    if(E('bnsV61Style'))return;
+    var s=document.createElement('style');s.id='bnsV61Style';
+    s.textContent='\
+      #bnsV61AdminCatBar{display:flex!important;flex-wrap:wrap!important;gap:9px!important;align-items:center!important;margin:10px 0 12px!important;padding:8px!important;background:rgba(241,245,249,.8)!important;border:1px solid #dbe3ef!important;border-radius:16px!important;}\
+      #bnsV61AdminCatBar .bns-v61-cat{position:relative!important;border:0!important;border-radius:13px!important;min-width:58px!important;height:46px!important;padding:0 14px 6px!important;background:#334155!important;color:#fff!important;font-weight:1000!important;box-shadow:0 4px 10px rgba(15,23,42,.12)!important;cursor:pointer!important;}\
+      #bnsV61AdminCatBar .bns-v61-cat:after{content:"";position:absolute;left:9px;right:9px;bottom:5px;height:5px;border-radius:999px;background:var(--cat-color,#0ea5e9)!important;}\
+      #bnsV61AdminCatBar .bns-v61-cat.active{background:#0f172a!important;outline:3px solid rgba(37,99,235,.28)!important;}\
+      #bnsV61AdminHint{font-size:13px!important;font-weight:800!important;color:#475569!important;margin-left:4px!important;}\
+      #bnsV56AdminList{max-height:360px!important;overflow-y:auto!important;overflow-x:hidden!important;}\
+      #bnsV56AdminSearch{scroll-margin-top:0!important;}\
+      #adminPin,input[type=password]{autocomplete:off!important;}\
+    ';
+    document.head.appendChild(s);
+  }
+
+  function updateAdminColor(){
+    var c=cat((E('bnsV56Cat')||{}).value||currentAdminCat()),col=color(c);
+    var prev=E('bnsV56ColorPreview'); if(prev)prev.style.background=col;
+    var txt=E('bnsV56ColorText'); if(txt)txt.textContent=c+' '+col;
+    A('#bnsV56Dots .bns-v56-dot').forEach(function(d){d.classList.toggle('active',hex(d.getAttribute('data-color'))===hex(col));});
+  }
+
+  function ensureAdminCatButtons(){
+    var card=E('bnsV56AdminCard'); if(!card)return;
+    var search=E('bnsV56AdminSearch'); if(!search)return;
+    var bar=E('bnsV61AdminCatBar');
+    if(!bar){bar=document.createElement('div');bar.id='bnsV61AdminCatBar';search.parentNode.insertBefore(bar,search);}
+    var cur=currentAdminCat();
+    bar.innerHTML=cats().map(function(c){return '<button type="button" class="bns-v61-cat '+(c===cur?'active':'')+'" data-cat="'+H(c)+'" style="--cat-color:'+color(c)+'">'+H(c)+'</button>';}).join('')+'<span id="bnsV61AdminHint">Klik rubriek, zoek daarna alleen binnen die rubriek.</span>';
+    A('.bns-v61-cat',bar).forEach(function(b){b.onclick=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}setAdminCat(b.getAttribute('data-cat'));if(search)search.value='';renderAdminListV61();try{if(typeof window.renderCats==='function')window.renderCats();}catch(e){}return false;};});
+  }
+
+  function fillForm(m){
+    if(!m)return;
+    editId=T(m.id);
+    if(E('bnsV56Cat'))E('bnsV56Cat').value=cat(m.cat||m.rubriek||m.category);
+    if(E('bnsV56Nr'))E('bnsV56Nr').value=nr(m);
+    if(E('bnsV56Product'))E('bnsV56Product').value=product(m);
+    if(E('bnsV56Desc'))E('bnsV56Desc').value=desc(m);
+    if(E('bnsV56Price'))E('bnsV56Price').value=T(m.price||'');
+    if(E('bnsV56Status'))E('bnsV56Status').value=T(m.status||'free');
+    setAdminCat(m.cat||m.rubriek||m.category||'EXTRA');
+    updateAdminColor();
+    try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){}
+  }
+
+  function saveMaterialV61(){
+    var s=S(); s.materials=Array.isArray(s.materials)?s.materials:[];
+    var c=cat((E('bnsV56Cat')||{}).value||currentAdminCat());
+    var n=T((E('bnsV56Nr')||{}).value).trim().toUpperCase().replace(/\s+/g,'');
+    var p=T((E('bnsV56Product')||{}).value).trim();
+    var d=T((E('bnsV56Desc')||{}).value).trim();
+    var pr=T((E('bnsV56Price')||{}).value).trim();
+    var st=(E('bnsV56Status')||{}).value||'free';
+    var full=n?(n.indexOf(c)===0?n:c+n):c;
+    var m=editId?s.materials.find(function(x){return T(x.id)===editId;}):null;
+    if(!m)m=s.materials.find(function(x){return cat(x.cat||x.rubriek||x.category)===c && T(x.code||'').toUpperCase()===full.toUpperCase();});
+    if(!m){m={id:'mat_'+Date.now()};s.materials.push(m);}
+    Object.assign(m,{cat:c,rubriek:c,category:c,code:full,productNr:n,product:p,searchName:p,type:p,name:d,description:d,beschrijving:d,price:pr,status:st});
+    editId=T(m.id); setAdminCat(c); saveApp(); renderAdminListV61(); updateAdminColor();
+    try{if(typeof window.renderCats==='function')window.renderCats();if(typeof window.renderMaterials==='function')window.renderMaterials();}catch(e){}
+    toast('Materiaal opgeslagen');
+    return false;
+  }
+
+  function deleteMaterialV61(){
+    if(!editId){toast('Kies eerst een materiaal');return false;}
+    if(!confirm('Weet je zeker dat je dit materiaal wilt verwijderen?'))return false;
+    var s=S(); s.materials=(s.materials||[]).filter(function(m){return T(m.id)!==editId;}); editId=''; saveApp(); renderAdminListV61();
+    try{if(typeof window.renderCats==='function')window.renderCats();if(typeof window.renderMaterials==='function')window.renderMaterials();}catch(e){}
+    toast('Materiaal verwijderd'); return false;
+  }
+
+  function clearFormV61(){
+    editId='';
+    ['bnsV56Nr','bnsV56Product','bnsV56Desc','bnsV56Price'].forEach(function(id){var e=E(id);if(e)e.value='';});
+    if(E('bnsV56Cat'))E('bnsV56Cat').value=currentAdminCat();
+    if(E('bnsV56Status'))E('bnsV56Status').value='free';
+    updateAdminColor(); return false;
+  }
+
+  function renderAdminListV61(){
+    ensureStyle(); ensureAdminCatButtons();
+    var list=E('bnsV56AdminList'); if(!list)return;
+    var c=currentAdminCat(); var q=N((E('bnsV56AdminSearch')||{}).value);
+    var rows=(S().materials||[]).filter(function(m){return cat(m.cat||m.rubriek||m.category)===c;});
+    if(q)rows=rows.filter(function(m){return searchText(m).indexOf(q)>=0;});
+    rows=rows.slice(0,250);
+    list.innerHTML=rows.length?rows.map(function(m){var cc=cat(m.cat||m.rubriek||m.category);return '<div class="bns-v56-admin-row" style="--cat-color:'+color(cc)+'"><div class="bar"></div><div><b>'+H(codeLine(m))+'</b> '+H(product(m))+'<br><small>'+H(desc(m))+' | rubriek '+H(cc)+'</small></div><button type="button" data-v61-edit="'+H(m.id)+'">Wijzig</button></div>';}).join(''):'<small>Geen materiaal gevonden in rubriek '+H(c)+'.</small>';
+    A('[data-v61-edit]',list).forEach(function(b){b.onclick=function(){var m=(S().materials||[]).find(function(x){return T(x.id)===T(b.getAttribute('data-v61-edit'));});if(m)fillForm(m);};});
+  }
+
+  function bindAdmin(){
+    ensureStyle(); ensureAdminCatButtons(); renderAdminListV61();
+    var search=E('bnsV56AdminSearch'); if(search&&!search.dataset.bnsV61){search.dataset.bnsV61='1';search.autocomplete='off';search.addEventListener('input',function(ev){if(ev)ev.stopPropagation();var sy=window.scrollY;renderAdminListV61();setTimeout(function(){window.scrollTo(window.scrollX,sy);},0);},true);search.addEventListener('focus',function(){var sy=window.scrollY;setTimeout(function(){window.scrollTo(window.scrollX,sy);},0);},true);}
+    var catInp=E('bnsV56Cat'); if(catInp&&!catInp.dataset.bnsV61){catInp.dataset.bnsV61='1';catInp.addEventListener('input',function(){this.value=cat(this.value);setAdminCat(this.value);updateAdminColor();renderAdminListV61();},true);}
+    var save=E('bnsV56Save'); if(save)save.onclick=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}return saveMaterialV61();};
+    var del=E('bnsV56Delete'); if(del)del.onclick=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}return deleteMaterialV61();};
+    var clear=E('bnsV56Clear'); if(clear)clear.onclick=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}return clearFormV61();};
+    var dots=E('bnsV56Dots'); if(dots&&!dots.dataset.bnsV61){dots.dataset.bnsV61='1';dots.addEventListener('click',function(ev){var d=ev.target.closest&&ev.target.closest('.bns-v56-dot');if(!d)return;setColor(currentAdminCat(),d.getAttribute('data-color'));updateAdminColor();renderAdminListV61();try{if(typeof window.renderCats==='function')window.renderCats();if(typeof window.renderMaterials==='function')window.renderMaterials();}catch(e){}},true);}
+  }
+
+  function reducePasswordPopup(){
+    A('input').forEach(function(i){try{i.setAttribute('autocomplete','off');i.setAttribute('autocorrect','off');i.setAttribute('autocapitalize','off');i.setAttribute('spellcheck','false');}catch(e){}});
+    var pin=E('adminPin'); if(pin){pin.type='text';pin.name='bns_admin_pin_'+Date.now();pin.setAttribute('autocomplete','off');pin.setAttribute('inputmode','numeric');}
+    A('form').forEach(function(f){try{f.setAttribute('autocomplete','off');}catch(e){}});
+  }
+
+  function esc(v){return H(v);} 
+  function parseDate(v){var s=T(v);var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return new Date(+m[1],+m[2]-1,+m[3]);m=s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);if(m)return new Date(+m[3],+m[2]-1,+m[1]);return null;}
+  function nice(v){try{if(typeof window.nice==='function')return window.nice(v);}catch(e){}var d=parseDate(v);return d?String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear():T(v);}
+  function money(v){try{if(typeof window.money==='function')return window.money(v||0);}catch(e){}return '€ '+Number(v||0).toFixed(2).replace('.',',');}
+  function driverName(o){return T(o.driverName||o.driver||o.bezorger||(o.driverUser&&o.driverUser.name)||'');}
+  function overviewHtml(o){
+    var c=o.customer||{},l=o.location||{},mats=o.materials||[],total=o.pricing&&o.pricing.grand!=null?o.pricing.grand:o.amount,deposit=o.pricing&&o.pricing.deposit!=null?o.pricing.deposit:0;
+    var driver=driverName(o);
+    var rows=mats.length?mats.map(function(m,i){return '<tr><td>'+esc(i+1)+'</td><td><b>'+esc(m.code||'')+'</b></td><td>'+esc(m.name||m.description||'')+'</td><td>'+esc(m.cat||m.rubriek||'')+'</td><td>'+esc(m.status||'')+'</td><td>'+esc(m.price||'')+'</td></tr>';}).join(''):'<tr><td colspan="6">Geen materialen gekoppeld.</td></tr>';
+    return '<div class="bns-order-overview-head"><div><h2>Overzicht bestelling</h2><div><b>'+esc(o.number||'')+'</b> - '+esc(o.title||'')+'</div><div>Status: '+esc(o.status||'')+'</div></div><button type="button" class="bns-order-overview-close" onclick="BNS_V128_CLOSE_ORDER_OVERVIEW()">Terug</button></div>'+
+      '<div class="bns-order-overview-grid"><div class="bns-order-overview-box"><b>Klant</b><br>'+esc(c.name||'')+'<br>'+esc([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+esc(c.phone||'')+'<br>'+esc(c.email||'')+'</div><div class="bns-order-overview-box"><b>Locatie</b><br>'+esc(l.name||'')+'<br>'+esc([l.street,l.zip,l.city].filter(Boolean).join(' '))+'<br>'+esc(l.phone||'')+'</div></div>'+
+      '<div class="bns-order-overview-box"><b>Datum</b><br>'+esc(nice(o.start))+(o.end&&o.end!==o.start?' t/m '+esc(nice(o.end)):'')+' '+esc(o.startTime||'')+' '+esc(o.endTime||'')+(driver?'<br><b>Bezorger</b><br>'+esc(driver):'')+'</div>'+
+      '<h3>Materialen / artikelen</h3><table class="bns-order-overview-table"><thead><tr><th>#</th><th>Code</th><th>Naam</th><th>Rubriek</th><th>Status</th><th>Prijs</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '<div class="bns-order-overview-total">Totaal: '+money(total)+' &nbsp; | &nbsp; Borg: '+money(deposit)+'</div>'+(o.extra?'<h3>Bijzonderheden</h3><div class="bns-order-overview-extra">'+esc(o.extra)+'</div>':'');
+  }
+  function ensureOverviewOverride(){
+    if(window.__bnsV61Overview) return; window.__bnsV61Overview=true;
+    window.BNS_V128_SHOW_ORDER_OVERVIEW=function(id){
+      var s=S(),o=(s.orders||[]).find(function(x){return T(x.id)===T(id);}); if(!o){alert('Opdracht niet gevonden');return false;}
+      var old=E('bnsOrderOverviewModal'); if(old)old.remove();
+      var wrap=document.createElement('div');wrap.id='bnsOrderOverviewModal';wrap.className='bns-order-overview-backdrop';wrap.innerHTML='<div class="bns-order-overview-card">'+overviewHtml(o)+'</div>';document.body.appendChild(wrap);return false;
+    };
+    window.BNS_V128_CLOSE_ORDER_OVERVIEW=function(){var m=E('bnsOrderOverviewModal'); if(m)m.remove();};
+  }
+
+  function install(){ensureStyle();bindAdmin();reducePasswordPopup();ensureOverviewOverride();}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);});else setTimeout(install,150);
+  setTimeout(install,800);setTimeout(install,1800);setInterval(function(){bindAdmin();reducePasswordPopup();},2500);
+})();
