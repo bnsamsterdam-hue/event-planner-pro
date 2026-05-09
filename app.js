@@ -10884,3 +10884,275 @@ document.addEventListener("click", function(){
   setTimeout(install, 1600);
   setInterval(function(){ patchGlobals(); syncSystemStatus(); }, 2500);
 })();
+
+/* ============================================================
+   BNS V34 - materiaal zoeken + harde reservering datumlogica
+   Doel: alleen deze onderdelen corrigeren, geen layout slopen.
+   ============================================================ */
+(function(){
+  "use strict";
+  var PATCH_ID = "bns-v34-hard-reservation-search";
+  if (window[PATCH_ID]) return;
+  window[PATCH_ID] = true;
+
+  function E(id){ return document.getElementById(id); }
+  function txt(v){ return String(v == null ? "" : v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function esc(v){ return txt(v).replace(/[&<>\"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c];}); }
+  function norm(v){ return low(v).normalize ? low(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'') : low(v); }
+  function appState(){
+    try { if (window.state && Array.isArray(window.state.materials)) return window.state; } catch(e){}
+    var keys = ['eventPlannerProV91','eventPlannerPro','plannerState'];
+    for (var i=0;i<keys.length;i++){
+      try { var raw=localStorage.getItem(keys[i]); if(raw){ var p=JSON.parse(raw); if(p && Array.isArray(p.materials)) return p; } } catch(e){}
+    }
+    return {orders:[],materials:[]};
+  }
+  function saveState(){
+    try { if (typeof save === 'function') { save(); return; } } catch(e){}
+    try { localStorage.setItem('eventPlannerProV91', JSON.stringify(window.state || appState())); } catch(e){}
+  }
+  function materials(){ return (appState().materials || []); }
+  function orders(){ return (appState().orders || []); }
+  function chosenArr(){ try { return Array.isArray(window.chosen) ? window.chosen : (Array.isArray(chosen) ? chosen : []); } catch(e){ return []; } }
+  function editingId(){ try { return window.editing || editing || null; } catch(e){ return null; } }
+  function currentCat(){ try { return window.currentCat || currentCat || 'TW'; } catch(e){ return 'TW'; } }
+  function setCurrentCat(c){ try { window.currentCat = c; currentCat = c; } catch(e){ window.currentCat = c; } }
+
+  function catOf(m){ return txt(m && (m.cat || m.category || m.rubriek || m.group || 'EXTRA')).toUpperCase(); }
+  function idOf(m){ return txt(m && (m.id || m.materialId || m.code || m.name)); }
+  function matById(id){ id=txt(id); return materials().find(function(m){ return idOf(m)===id || txt(m.oldId)===id || txt(m.code)===id; }); }
+  function materialHaystack(m){
+    return norm([m.cat,m.category,m.rubriek,m.code,m.name,m.title,m.description,m.notes,m.price,m.oldId,m.id].join(' '));
+  }
+
+  function parseDate(v){
+    v = txt(v);
+    if (!v) return null;
+    var m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+    m = v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+    if (m) return new Date(Number(m[3]), Number(m[2])-1, Number(m[1]));
+    var d = new Date(v);
+    return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  function dateVal(id){ var el=E(id); return parseDate(el && el.value); }
+  function orderStart(o){ return parseDate(o && (o.start || o.dateStart || o.begin || o.from)); }
+  function orderEnd(o){ return parseDate(o && (o.end || o.dateEnd || o.einde || o.to || o.start || o.dateStart)); }
+  function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); return x; }
+  function today(){ var d=new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function overlapsWanted(aStart,aEnd,bStart,bEnd){
+    if (!aStart || !bStart) return false;
+    aEnd = aEnd || aStart;
+    bEnd = bEnd || bStart;
+    // Einddatum is vrij: periodes zijn [begin, eind). Zelfde eind/begin overlapt dus NIET.
+    return aStart < bEnd && bStart < aEnd;
+  }
+  function statusBlocks(o){
+    var s = low(o && o.status);
+    if (!s || s === 'offerte' || s === 'geannuleerd' || s === 'uitgevoerd') return false;
+    return s.indexOf('bevest') >= 0 || s.indexOf('opdracht') >= 0 || s.indexOf('optie 14') >= 0 || s === 'optie';
+  }
+  function materialInOrder(o, mid){
+    mid = txt(mid);
+    return Array.isArray(o && o.materials) && o.materials.some(function(m){
+      return txt(m.id) === mid || txt(m.materialId) === mid || txt(m.code) === mid || txt(m.oldId) === mid;
+    });
+  }
+  function selectedOrderRange(){
+    var s = dateVal('dateStart') || today();
+    var e = dateVal('dateEnd') || s;
+    // als start en eind dezelfde dag zijn, dan 1 dag blokkeren
+    if (+e === +s) e = addDays(e,1);
+    return {start:s, end:e};
+  }
+  function reservationFor(mid){
+    var range = selectedOrderRange();
+    var edit = txt(editingId());
+    for (var i=0;i<orders().length;i++){
+      var o = orders()[i];
+      if (!statusBlocks(o)) continue;
+      if (edit && txt(o.id) === edit) continue;
+      if (!materialInOrder(o, mid)) continue;
+      var os = orderStart(o), oe = orderEnd(o) || os;
+      if (!os) continue;
+      if (+oe === +os) oe = addDays(oe,1);
+      // Verlopen reserveringen blokkeren nooit meer.
+      if (oe <= today()) continue;
+      if (overlapsWanted(range.start, range.end, os, oe)) return o;
+    }
+    return null;
+  }
+  function fixedStatus(m){
+    var raw = low(m && m.status);
+    if (raw === 'defect' || raw === 'damage' || raw === 'schade' || raw === 'missing' || raw === 'vermist' || raw === 'vermissing') return {key:'defect', label:'Defect', order:null};
+    if (raw === 'inactive' || raw === 'niet actief' || raw === 'niet beschikbaar') return {key:'inactive', label:'Niet actief', order:null};
+    var o = reservationFor(idOf(m));
+    if (o) return {key:'reserved', label:'Gereserveerd', order:o};
+    return {key:'free', label:'Vrij', order:null};
+  }
+  function statusHtml(info, selected){
+    if (selected) return '<span class="bns-v34-status bns-v34-selected"><span></span>Gekozen</span>';
+    return '<span class="bns-v34-status bns-v34-'+info.key+'"><span></span>'+esc(info.label)+'</span>';
+  }
+  function rowHtml(m){
+    var sel = chosenArr().some(function(x){ return txt(x.id)===idOf(m) || txt(x.code)===txt(m.code); });
+    var info = fixedStatus(m);
+    var cls = sel ? 'selected' : info.key;
+    return '<div class="material-row bns-v34-row '+cls+'" data-bns-mid="'+esc(idOf(m))+'">'+
+      '<div class="bns-v34-catbar"></div>'+
+      '<div class="bns-v34-main"><b>'+esc(m.code || '')+'</b> <span>'+esc(m.name || '')+'</span><br><small>'+esc(m.price || '')+'</small></div>'+
+      '<div>'+statusHtml(info, sel)+'</div>'+
+      '</div>';
+  }
+  function renderMaterialsV34(cat){
+    var list = E('materialList');
+    if (!list) return;
+    cat = txt(cat || currentCat() || 'TW').toUpperCase();
+    setCurrentCat(cat);
+    var q = norm((E('materialSearch') || {}).value || '');
+    var rows = materials().filter(function(m){
+      var sameCat = cat === 'ALL' || catOf(m) === cat;
+      var match = !q || materialHaystack(m).indexOf(q) >= 0;
+      return sameCat && match;
+    });
+    list.innerHTML = rows.map(rowHtml).join('') || '<p>Geen materiaal gevonden.</p>';
+    bindMaterialRows();
+  }
+  function popupFor(mid){
+    var m = matById(mid); if (!m) return;
+    var info = fixedStatus(m);
+    var body = '<div class="bns-v34-pop"><b>'+esc(m.code||'')+'</b> '+esc(m.name||'')+'<br><br><b>Status:</b> '+esc(info.label);
+    if (info.order){
+      var o=info.order;
+      var cust = (o.customer && o.customer.name) || o.customerName || o.client || 'Onbekend';
+      body += '<br><b>Klant:</b> '+esc(cust)+
+              '<br><b>Opdracht:</b> '+esc((o.number||'')+' - '+(o.title||''))+
+              '<br><b>Datum:</b> '+esc(o.start||o.dateStart||'')+' tot datum '+esc(o.end||o.dateEnd||'');
+    }
+    body += '</div>';
+    var modal = E('bns_v34_modal');
+    if(!modal){
+      modal=document.createElement('div'); modal.id='bns_v34_modal'; modal.innerHTML='<div class="bns-v34-card"><h2>Materiaal status</h2><div id="bns_v34_body"></div><button type="button" id="bns_v34_close">Sluiten</button></div>'; document.body.appendChild(modal);
+      E('bns_v34_close').onclick=function(){ modal.classList.remove('show'); };
+    }
+    E('bns_v34_body').innerHTML=body;
+    modal.classList.add('show');
+  }
+  function addMatV34(mid){
+    var m = matById(mid); if(!m) return;
+    var info = fixedStatus(m);
+    if (info.key === 'reserved' || info.key === 'defect' || info.key === 'inactive') { popupFor(mid); return; }
+    var arr = chosenArr();
+    if(!arr.some(function(x){ return txt(x.id)===idOf(m); })){
+      var copy; try { copy = structuredClone(m); } catch(e){ copy = JSON.parse(JSON.stringify(m)); }
+      copy.status = 'reserved'; arr.push(copy);
+    }
+    try { if(typeof renderChosen==='function') renderChosen(); } catch(e){}
+    try { if(typeof summaryRender==='function') summaryRender(); } catch(e){}
+    renderMaterialsV34(currentCat());
+  }
+  function bindMaterialRows(){
+    var list=E('materialList'); if(!list || list.dataset.bnsV34Click) return;
+    list.dataset.bnsV34Click='1';
+    list.addEventListener('click', function(ev){
+      var row = ev.target.closest && ev.target.closest('.material-row');
+      if(!row || !list.contains(row)) return;
+      var mid = row.getAttribute('data-bns-mid') || row.dataset.materialId || row.dataset.bnsMaterialId;
+      if(!mid) return;
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      addMatV34(mid);
+      return false;
+    }, true);
+  }
+
+  function fixStatusSelect(){
+    var el=E('orderStatus'); if(!el) return;
+    var opts=['Offerte','Optie 14 dagen','Bevestigd','Geannuleerd'];
+    var cur=txt(el.value);
+    if(opts.indexOf(cur)<0){
+      var lc=low(cur);
+      cur = lc.indexOf('optie')>=0 ? 'Optie 14 dagen' : (lc.indexOf('annul')>=0 ? 'Geannuleerd' : (lc.indexOf('bevest')>=0 || lc.indexOf('opdracht')>=0 ? 'Bevestigd' : 'Offerte'));
+    }
+    el.innerHTML=opts.map(function(o){ return '<option value="'+esc(o)+'">'+esc(o)+'</option>'; }).join('');
+    el.value=cur;
+  }
+
+  function orderAgeDays(o){
+    var d=parseDate(o && (o.optionSavedAt || o.updatedAt || o.createdAt || o.savedAt));
+    if(!d) return 0;
+    return Math.floor((today()-d)/86400000);
+  }
+  function applyOption14Rules(){
+    var changed=false, reminders=[];
+    orders().forEach(function(o){
+      if(low(o.status).indexOf('optie 14')<0) return;
+      if(!o.optionSavedAt){ o.optionSavedAt=(o.updatedAt||new Date().toISOString()).slice(0,10); changed=true; }
+      var age=orderAgeDays(o), left=14-age;
+      o.optionDaysLeft = Math.max(0,left);
+      if(age>=14){ o.status='Geannuleerd'; o.optionAutoReleasedAt=new Date().toISOString().slice(0,10); changed=true; }
+      else if(age>=13){ reminders.push(o); }
+    });
+    if(changed) saveState();
+    return reminders;
+  }
+
+  function patchDeleteButton(){
+    var panel = E('orderPanel') || E('customerPanel') || document.querySelector('.workpanel:not(.hidden)');
+    if(!panel || E('bnsV34DeleteOrder')) return;
+    var btn=document.createElement('button'); btn.id='bnsV34DeleteOrder'; btn.type='button'; btn.className='danger'; btn.textContent='Verwijder opdracht';
+    btn.onclick=function(){
+      var id=editingId(); var nr=txt((E('orderNumber')||{}).value);
+      if(!id && !nr){ alert('Geen opdracht geselecteerd om te verwijderen.'); return; }
+      if(!confirm('Weet je zeker dat je deze opdracht wilt verwijderen?')) return;
+      var s=appState();
+      s.orders=(s.orders||[]).filter(function(o){ return !(txt(o.id)===txt(id) || txt(o.number)===nr); });
+      try { window.state=s; } catch(e){}
+      saveState();
+      try { if(typeof clearOrder==='function') clearOrder(); } catch(e){}
+      try { if(typeof renderOrders==='function') renderOrders(); } catch(e){}
+      alert('Opdracht verwijderd.');
+    };
+    var anchor = Array.from(document.querySelectorAll('button')).find(function(b){ return /annuleren/i.test(b.textContent||''); });
+    if(anchor && anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor.nextSibling); else panel.appendChild(btn);
+  }
+
+  function syncSystemStatus(){
+    var s=appState(); var open=(s.alerts||[]).filter(function(a){ return !a.resolved; }).length;
+    document.querySelectorAll('button,.btn').forEach(function(btn){
+      var t=low(btn.textContent);
+      if(t.indexOf('systeem')>=0 || t.indexOf('storing')>=0){
+        btn.classList.remove('bns-v34-ok','bns-v34-warn');
+        btn.classList.add(open ? 'bns-v34-warn' : 'bns-v34-ok');
+        btn.style.animation='none'; btn.style.filter='none'; btn.style.transform='none';
+        if(t.indexOf('systeemmeldingen')>=0 || t.indexOf('geen storingen')>=0){ btn.textContent = open ? 'Systeemmeldingen ('+open+')' : 'Geen storingen gemeld'; }
+      }
+    });
+  }
+
+  function ensureCss(){
+    if(E('bns_v34_css')) return;
+    var st=document.createElement('style'); st.id='bns_v34_css';
+    st.textContent='*{animation-duration:0s!important} .bns-v34-row{display:grid!important;grid-template-columns:10px 1fr auto!important;gap:12px!important;align-items:center!important;cursor:pointer!important}.bns-v34-catbar{width:9px;height:42px;border-radius:9px;background:var(--bns-cat-color,#2563eb)!important}.bns-v34-row.free{background:#dcfce7!important}.bns-v34-row.reserved{background:#fee2e2!important}.bns-v34-row.defect{background:#fee2e2!important}.bns-v34-row.inactive{background:#e5e7eb!important}.bns-v34-row.selected{background:#dcfce7!important}.bns-v34-status{display:inline-flex!important;align-items:center!important;gap:7px!important;border-radius:999px!important;padding:7px 12px!important;font-weight:900!important}.bns-v34-status span{width:11px;height:11px;border-radius:50%;display:inline-block}.bns-v34-free{background:#dcfce7!important;color:#166534!important}.bns-v34-free span{background:#22c55e!important}.bns-v34-reserved{background:#fee2e2!important;color:#991b1b!important}.bns-v34-reserved span{background:#dc2626!important}.bns-v34-defect{background:#fee2e2!important;color:#991b1b!important}.bns-v34-defect span{background:#dc2626!important}.bns-v34-inactive{background:#e5e7eb!important;color:#374151!important}.bns-v34-inactive span{background:#64748b!important}.bns-v34-selected{background:#16a34a!important;color:white!important}.bns-v34-selected span{background:#374151!important}#bns_v34_modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999999;display:none;place-items:center}#bns_v34_modal.show{display:grid!important}.bns-v34-card{background:white;color:#111827;border-radius:18px;padding:22px;max-width:760px;width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.35)}.bns-v34-card button{margin-top:16px}.bns-v34-ok{background:#16a34a!important;color:#fff!important;animation:none!important}.bns-v34-warn{background:#dc2626!important;color:#fff!important;animation:none!important}';
+    document.head.appendChild(st);
+  }
+
+  function patchGlobals(){
+    window.renderMaterials = renderMaterialsV34; try { renderMaterials = renderMaterialsV34; } catch(e){}
+    window.addMat = addMatV34; try { addMat = addMatV34; } catch(e){}
+    window.BNS_V34_statusOfMaterial = fixedStatus;
+  }
+  function bindInputs(){
+    ['dateStart','dateEnd','materialSearch','orderStatus'].forEach(function(id){
+      var el=E(id); if(el && !el.dataset.bnsV34){ el.dataset.bnsV34='1'; ['input','change'].forEach(function(ev){ el.addEventListener(ev,function(){ setTimeout(function(){ renderMaterialsV34(currentCat()); syncSystemStatus(); },0); }); }); }
+    });
+  }
+  function install(){
+    ensureCss(); patchGlobals(); fixStatusSelect(); bindInputs(); patchDeleteButton(); applyOption14Rules(); syncSystemStatus();
+    if(E('materialList')) renderMaterialsV34(currentCat());
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,100); }); else setTimeout(install,80);
+  setTimeout(install,600); setTimeout(install,1400);
+  setInterval(function(){ patchGlobals(); syncSystemStatus(); },3000);
+})();
