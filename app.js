@@ -10473,3 +10473,113 @@ setInterval(install,1500);
   setTimeout(install,1800);
   setInterval(install,2500);
 })();
+
+/* ==========================================================
+   BNS V58 - Kleine laatste knoppen/favoriet fixes op v57
+   - Admin materiaal actieknoppen altijd zichtbaar bij wijzigen
+   - Favoriete kleur wissen
+   - Verwijder opdracht knop terug bij nieuwe/wijzig opdracht
+   Geen planning/datum wijzigingen.
+========================================================== */
+(function(){
+  'use strict';
+  function E(id){return document.getElementById(id);}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v);}
+  function N(v){return T(v).toLowerCase().trim();}
+  function visible(el){try{var r=el.getBoundingClientRect();return !!(r.width||r.height);}catch(e){return false;}}
+  function hex(v){v=T(v).trim(); return /^#[0-9a-f]{6}$/i.test(v)?v.toLowerCase():'';}
+  function click(id){var b=E(id); if(b){try{b.click();}catch(e){}}}
+
+  function ensureStyle(){
+    if(E('bnsV58Style')) return;
+    var s=document.createElement('style'); s.id='bnsV58Style';
+    s.textContent='\
+      #bnsV58AdminActions{position:sticky!important;top:0!important;z-index:99999!important;display:flex!important;gap:10px!important;flex-wrap:wrap!important;align-items:center!important;background:rgba(255,255,255,.96)!important;border:1px solid #dbe3ef!important;border-radius:14px!important;padding:10px!important;margin:10px 0!important;box-shadow:0 6px 18px rgba(15,23,42,.08)!important}\
+      #bnsV58AdminActions button,#bnsV58DeleteOrderBtn,#bnsV58DelFav{border:0!important;border-radius:12px!important;padding:11px 15px!important;font-weight:900!important;cursor:pointer!important}\
+      #bnsV58AdminSave{background:#16a34a!important;color:#fff!important}\
+      #bnsV58AdminDelete,#bnsV58DeleteOrderBtn{background:#dc2626!important;color:#fff!important}\
+      #bnsV58AdminClear,#bnsV58AdminCancel{background:#334155!important;color:#fff!important}\
+      #bnsV58DelFav{background:#64748b!important;color:#fff!important;height:36px!important;padding:0 10px!important}\
+      #bnsV58OrderActions{position:sticky!important;bottom:0!important;z-index:100000!important;width:100%!important;display:flex!important;gap:10px!important;flex-wrap:wrap!important;align-items:center!important;background:rgba(245,247,251,.96)!important;border-top:1px solid #dbe3ef!important;padding:10px!important;box-sizing:border-box!important;backdrop-filter:blur(6px)!important}\
+      #bnsV57DeleteOrderBtn{display:none!important}\
+    ';
+    document.head.appendChild(s);
+  }
+
+  function ensureAdminActions(){
+    var card=E('bnsV56AdminCard');
+    if(!card) return;
+    var grid=E('bnsV56AdminGrid') || card.firstElementChild;
+    var bar=E('bnsV58AdminActions');
+    if(!bar){
+      bar=document.createElement('div'); bar.id='bnsV58AdminActions';
+      bar.innerHTML='<button type="button" id="bnsV58AdminSave">Opslaan materiaal</button><button type="button" id="bnsV58AdminDelete">Wis materiaal</button><button type="button" id="bnsV58AdminClear">Nieuw/leeg</button><button type="button" id="bnsV58AdminCancel">Annuleren</button>';
+      if(grid && grid.parentNode) grid.parentNode.insertBefore(bar, grid.nextSibling); else card.insertBefore(bar, card.firstChild);
+    }
+    E('bnsV58AdminSave').onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} click('bnsV56Save'); return false; };
+    E('bnsV58AdminDelete').onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} click('bnsV56Delete'); return false; };
+    E('bnsV58AdminClear').onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} click('bnsV56Clear'); return false; };
+    E('bnsV58AdminCancel').onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} click('bnsV56Clear'); try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){} return false; };
+  }
+
+  function ensureFavDelete(){
+    var tools=E('bnsV57ColorTools');
+    if(!tools || E('bnsV58DelFav')) return;
+    var btn=document.createElement('button'); btn.type='button'; btn.id='bnsV58DelFav'; btn.textContent='Favoriet wissen';
+    tools.appendChild(btn);
+    btn.onclick=function(ev){
+      if(ev){ev.preventDefault();ev.stopPropagation();}
+      var inp=E('bnsV57ColorInput'); var h=hex(inp&&inp.value);
+      if(!h) return false;
+      var a=[]; try{a=JSON.parse(localStorage.getItem('bnsV57FavColors')||'[]'); if(!Array.isArray(a)) a=[];}catch(e){a=[];}
+      a=a.map(hex).filter(function(x){return x && x!==h;});
+      try{localStorage.setItem('bnsV57FavColors',JSON.stringify(a));}catch(e){}
+      A('#bnsV56Dots .bns-v56-dot').forEach(function(d){ if(hex(d.getAttribute('data-color'))===h) d.remove(); });
+      setTimeout(function(){try{ if(typeof window.renderCats==='function') window.renderCats(); if(typeof window.renderMaterials==='function') window.renderMaterials(); }catch(e){}},50);
+      return false;
+    };
+  }
+
+  function stateObj(){try{if(window.state&&Array.isArray(window.state.orders))return window.state;}catch(e){} try{if(state&&Array.isArray(state.orders))return state;}catch(e){} return null;}
+  function editingId(){try{if(typeof editing!=='undefined'&&editing)return String(editing);}catch(e){} try{if(window.editing)return String(window.editing);}catch(e){} return '';}
+  function saveApp(){try{if(typeof window.save==='function')window.save();else if(typeof save==='function')save();}catch(e){} try{if(typeof window.saveApp==='function')window.saveApp();}catch(e){}}
+  function toast(t){try{if(typeof window.toastMsg==='function')window.toastMsg(t);else if(typeof window.toast==='function')window.toast(t);}catch(e){}}
+  function deleteOrder(){
+    if(!confirm('Weet je zeker dat je deze opdracht wilt verwijderen?')) return false;
+    var id=editingId(); var s=stateObj();
+    if(id&&s){ var o=(s.orders||[]).find(function(x){return T(x.id)===id;}); if(o){o._oldStatus=o.status||'';o.status='Verwijderd';o.deletedAt=new Date().toISOString();saveApp();} }
+    try{editing=null;window.editing=null;}catch(e){}
+    try{if(typeof renderAll==='function')renderAll();}catch(e){}
+    toast('Opdracht verwijderd');
+    try{if(typeof showPage==='function')showPage('orders');}catch(e){}
+    return false;
+  }
+
+  function ensureOrderDelete(){
+    // Zoek de actieknoppen van nieuwe/wijzig opdracht, maar NIET de admin-materiaal knoppen.
+    var candidates=A('button').filter(function(b){return visible(b) && ['opslaan','annuleren','afdrukken','overzicht maken'].indexOf(N(b.textContent))>=0;});
+    var parent=null;
+    candidates.some(function(b){
+      var p=b.parentElement; if(!p) return false;
+      var txt=N(p.textContent);
+      if(txt.indexOf('opslaan materiaal')>=0 || txt.indexOf('verwijder gekozen materiaal')>=0 || txt.indexOf('nieuw/leeg')>=0) return false;
+      var names=A('button',p).map(function(x){return N(x.textContent);}).join('|');
+      if(names.indexOf('opslaan')>=0 && names.indexOf('annuleren')>=0){parent=p; return true;}
+      return false;
+    });
+    if(!parent) return;
+    parent.id='bnsV58OrderActions';
+    A('button',parent).forEach(function(b){ if(N(b.textContent)==='verwijder opdracht' && b.id!=='bnsV58DeleteOrderBtn') b.style.display='none'; });
+    var btn=E('bnsV58DeleteOrderBtn');
+    if(!btn){btn=document.createElement('button');btn.id='bnsV58DeleteOrderBtn';btn.type='button';btn.textContent='Verwijder opdracht';btn.onclick=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();} return deleteOrder();};}
+    if(btn.parentElement!==parent){
+      var cancel=A('button',parent).find(function(b){return N(b.textContent)==='annuleren';});
+      if(cancel) parent.insertBefore(btn,cancel); else parent.appendChild(btn);
+    }
+  }
+
+  function install(){ensureStyle();ensureAdminActions();ensureFavDelete();ensureOrderDelete();}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,150);
+  setTimeout(install,800); setTimeout(install,1800); setInterval(install,2500);
+})();
