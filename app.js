@@ -10846,3 +10846,316 @@ setInterval(install,1500);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);});else setTimeout(install,150);
   setTimeout(install,800);setTimeout(install,1800);setInterval(function(){bindAdmin();reducePasswordPopup();},2500);
 })();
+
+/* =========================================================
+   BNS V62 - Bezorger meldingen dashboard
+   - Vernieuwt alleen het beheer/dashboard rond bezorger meldingen.
+   - Bestaande planning, materialen, datumlogica en klantdocumenten blijven ongemoeid.
+   ========================================================= */
+(function(){
+  "use strict";
+
+  var STYLE_ID = "bns-v62-driver-alert-dashboard-style";
+  var DEFAULT_TYPES = [
+    {id:"storing", name:"Storing", color:"#dc2626", driver:true, text:true, photo:false, signature:false, admin:true},
+    {id:"schade", name:"Schade", color:"#ea580c", driver:true, text:true, photo:true, signature:false, admin:true},
+    {id:"vermissing", name:"Vermissing", color:"#7c3aed", driver:true, text:true, photo:false, signature:false, admin:true},
+    {id:"foto_voor", name:"Foto voor levering", color:"#2563eb", driver:true, text:false, photo:true, signature:false, admin:false},
+    {id:"foto_na", name:"Foto na levering", color:"#16a34a", driver:true, text:false, photo:true, signature:false, admin:false},
+    {id:"handtekening", name:"Handtekening klant", color:"#0f766e", driver:true, text:false, photo:false, signature:true, admin:false}
+  ];
+
+  function $(id){ return document.getElementById(id); }
+  function qa(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function lower(v){ return String(v || "").toLowerCase(); }
+
+  function appState(){
+    try { if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state; } catch(e) {}
+    try { if (window.state && Array.isArray(window.state.orders)) return window.state; } catch(e) {}
+    return {orders:[], users:[], alerts:[], driverReportTypes:[]};
+  }
+
+  function saveState(){
+    try { if (typeof save === "function") save(); else if (typeof saveBns === "function") saveBns(); }
+    catch(e) {}
+  }
+
+  function ensureTypes(){
+    var s = appState();
+    if (!Array.isArray(s.driverReportTypes) || !s.driverReportTypes.length) {
+      s.driverReportTypes = DEFAULT_TYPES.map(function(x){ return Object.assign({}, x); });
+      saveState();
+    }
+    return s.driverReportTypes;
+  }
+
+  function activeOrders(){
+    return (appState().orders || []).filter(function(o){
+      var st = lower(o.status);
+      return st.indexOf("geannuleerd") === -1 && st.indexOf("uitgevoerd") === -1 && st.indexOf("verwijderd") === -1;
+    });
+  }
+
+  function openAlerts(){
+    return (appState().alerts || []).filter(function(a){ return !a.resolved; });
+  }
+
+  function isDriverAlert(a){
+    var t = lower([a.type, a.title, a.note, a.message, a.text].join(" "));
+    return t.indexOf("storing") >= 0 || t.indexOf("schade") >= 0 || t.indexOf("vermissing") >= 0 || t.indexOf("vermist") >= 0 || t.indexOf("bezorger") >= 0 || a.from;
+  }
+
+  function driverAlerts(){
+    return openAlerts().filter(isDriverAlert);
+  }
+
+  function niceDate(v){
+    try { if (typeof nice === "function") return nice(v); } catch(e) {}
+    return v || "";
+  }
+
+  function materialLine(o){
+    return (o.materials || []).map(function(m){ return m.code || m.product || m.name || ""; }).filter(Boolean).join(", ");
+  }
+
+  function orderTitle(o){
+    return [o.number || "", o.title || "Zonder titel"].filter(Boolean).join(" - ");
+  }
+
+  function findOrder(id){
+    return (appState().orders || []).find(function(o){ return String(o.id || "") === String(id || ""); });
+  }
+
+  function alertLabel(a){
+    var txt = lower([a.type, a.title, a.note, a.message, a.text].join(" "));
+    if (txt.indexOf("schade") >= 0) return "Schade";
+    if (txt.indexOf("vermissing") >= 0 || txt.indexOf("vermist") >= 0) return "Vermissing";
+    if (txt.indexOf("storing") >= 0) return "Storing";
+    return a.type || a.title || "Melding";
+  }
+
+  function installStyle(){
+    if ($(STYLE_ID)) return;
+    var css = document.createElement("style");
+    css.id = STYLE_ID;
+    css.textContent = `
+      .bns-driver-admin-dashboard{display:grid;gap:16px;margin:8px 0 24px}
+      .bns-driver-hero{background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;border-radius:22px;padding:20px;box-shadow:0 14px 34px rgba(15,23,42,.22)}
+      .bns-driver-hero h2{margin:0 0 6px;font-size:26px;letter-spacing:-.02em;color:#fff!important}
+      .bns-driver-hero p{margin:0;color:#cbd5e1;font-size:14px}
+      .bns-driver-stats{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:12px}
+      .bns-driver-stat{border:1px solid var(--border,#dbe3ef);background:var(--panel,#fff);border-radius:18px;padding:15px;box-shadow:0 8px 22px rgba(15,23,42,.07)}
+      .bns-driver-stat b{display:block;font-size:28px;line-height:1;color:var(--text,#172033)}
+      .bns-driver-stat span{font-size:12px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+      .bns-driver-section{border:1px solid var(--border,#dbe3ef);background:var(--panel,#fff);color:var(--text,#172033);border-radius:22px;padding:16px;box-shadow:0 8px 22px rgba(15,23,42,.07)}
+      .bns-driver-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+      .bns-driver-section-head h3{margin:0;font-size:19px;color:var(--text,#172033)!important}
+      .bns-driver-actions{display:flex;flex-wrap:wrap;gap:8px}.bns-driver-actions button{border:0;border-radius:12px;padding:9px 12px;font-weight:900;cursor:pointer}
+      .bns-type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+      .bns-type-card{border:1px solid var(--border,#dbe3ef);border-left:8px solid var(--type-color,#2563eb);border-radius:18px;padding:13px;background:rgba(148,163,184,.08)}
+      .bns-type-card-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.bns-type-card-title b{font-size:16px}.bns-type-pill{border-radius:999px;padding:4px 9px;background:#e2e8f0;color:#334155;font-size:12px;font-weight:900}
+      .bns-type-options{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:13px}.bns-type-options label{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.55);border:1px solid rgba(148,163,184,.35);border-radius:11px;padding:7px}
+      .bns-type-edit{display:grid;grid-template-columns:1fr 74px;gap:8px;margin-top:10px}.bns-type-edit input{height:36px;border:1px solid var(--border,#dbe3ef);border-radius:11px;padding:0 9px;background:var(--panel,#fff);color:var(--text,#172033)}
+      .bns-alert-dashboard-list{display:grid;gap:10px}.bns-alert-row-v62{display:grid;grid-template-columns:72px 1fr auto;gap:12px;align-items:center;border:1px solid var(--border,#dbe3ef);border-radius:18px;padding:12px;background:rgba(148,163,184,.08)}
+      .bns-alert-icon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;color:#fff;font-size:23px;font-weight:900;background:#dc2626}.bns-alert-row-v62 small{color:#64748b}.bns-alert-buttons{display:flex;flex-wrap:wrap;gap:8px}.bns-alert-buttons button{border:0;border-radius:12px;padding:9px 12px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff}.bns-alert-buttons .danger{background:#dc2626!important}
+      .bns-driver-order-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}.bns-driver-order{border:1px solid var(--border,#dbe3ef);border-radius:18px;padding:13px;background:rgba(148,163,184,.08)}.bns-driver-order b{font-size:16px}.bns-driver-order small{display:block;color:#64748b;margin:5px 0 9px}.bns-driver-order .bns-driver-actions button{background:#2563eb;color:#fff}.bns-driver-order .bns-driver-actions button[data-kind=Schade]{background:#ea580c}.bns-driver-order .bns-driver-actions button[data-kind=Vermissing]{background:#7c3aed}.bns-driver-order .bns-driver-actions button[data-kind=Storing]{background:#dc2626}
+      @media(max-width:800px){.bns-driver-stats{grid-template-columns:1fr 1fr}.bns-alert-row-v62{grid-template-columns:1fr}.bns-alert-icon{width:44px;height:44px}.bns-type-options{grid-template-columns:1fr}}
+    `;
+    document.head.appendChild(css);
+  }
+
+  function updateType(id, key, value){
+    var types = ensureTypes();
+    var item = types.find(function(t){ return String(t.id) === String(id); });
+    if (!item) return;
+    item[key] = value;
+    saveState();
+    renderDriverDashboard();
+  }
+
+  function deleteType(id){
+    if (!confirm("Deze meldingsrubriek verwijderen?")) return;
+    var s = appState();
+    s.driverReportTypes = ensureTypes().filter(function(t){ return String(t.id) !== String(id); });
+    saveState();
+    renderDriverDashboard();
+  }
+
+  function addType(){
+    var name = prompt("Naam nieuwe meldingsrubriek:", "");
+    if (!name) return;
+    var s = appState();
+    var id = "type_" + Date.now();
+    s.driverReportTypes = ensureTypes();
+    s.driverReportTypes.push({id:id, name:name, color:"#2563eb", driver:true, text:true, photo:false, signature:false, admin:true});
+    saveState();
+    renderDriverDashboard();
+  }
+
+  function makeAlert(orderId, type){
+    var o = findOrder(orderId);
+    if (!o) return;
+    var note = prompt(type + " melding:", "");
+    if (note === null) return;
+    var s = appState();
+    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+    s.alerts.push({
+      id:"a_" + Date.now() + "_" + Math.random().toString(36).slice(2,6),
+      orderId:o.id || "",
+      orderNumber:o.number || "",
+      type:type,
+      title:type + (o.number ? " - " + o.number : ""),
+      note:note || type + " gemeld",
+      text:note || type + " gemeld",
+      resolved:false,
+      createdAt:new Date().toISOString(),
+      time:new Date().toLocaleString(),
+      from:(typeof currentUser === "function" && currentUser() && currentUser().name) || "Planner/Admin"
+    });
+    saveState();
+    refreshAlertButton();
+    renderDriverDashboard();
+  }
+
+  function resolveAlert(id){
+    var a = (appState().alerts || []).find(function(x){ return String(x.id) === String(id); });
+    if (!a) return;
+    var note = prompt("Afhandeling / oplossing:", a.resolveText || "");
+    if (note === null) return;
+    a.resolved = true;
+    a.resolvedAt = new Date().toLocaleString();
+    a.resolveText = note;
+    saveState();
+    refreshAlertButton();
+    renderDriverDashboard();
+  }
+
+  function deleteAlert(id){
+    if (!confirm("Deze melding wissen?")) return;
+    var s = appState();
+    s.alerts = (s.alerts || []).filter(function(a){ return String(a.id) !== String(id); });
+    saveState();
+    refreshAlertButton();
+    renderDriverDashboard();
+  }
+
+  function refreshAlertButton(){
+    var b = $("alertsBtn");
+    if (!b) return;
+    var n = openAlerts().length;
+    b.textContent = n ? "🚨 Systeemmeldingen (" + n + ")" : "Systeemmeldingen (0)";
+    b.classList.toggle("bns-alert-open", n > 0);
+  }
+
+  function typeCard(t){
+    return '<div class="bns-type-card" style="--type-color:'+esc(t.color || '#2563eb')+'">' +
+      '<div class="bns-type-card-title"><b>'+esc(t.name || 'Melding')+'</b><span class="bns-type-pill">'+(t.driver ? 'Bezorger' : 'Verborgen')+'</span></div>' +
+      '<div class="bns-type-options">' +
+        '<label><input type="checkbox" data-type-toggle="'+esc(t.id)+'" data-key="driver" '+(t.driver?'checked':'')+'> Zichtbaar</label>' +
+        '<label><input type="checkbox" data-type-toggle="'+esc(t.id)+'" data-key="admin" '+(t.admin?'checked':'')+'> Naar admin</label>' +
+        '<label><input type="checkbox" data-type-toggle="'+esc(t.id)+'" data-key="photo" '+(t.photo?'checked':'')+'> Foto verplicht</label>' +
+        '<label><input type="checkbox" data-type-toggle="'+esc(t.id)+'" data-key="text" '+(t.text?'checked':'')+'> Tekst verplicht</label>' +
+        '<label><input type="checkbox" data-type-toggle="'+esc(t.id)+'" data-key="signature" '+(t.signature?'checked':'')+'> Handtekening</label>' +
+      '</div>' +
+      '<div class="bns-type-edit"><input data-type-name="'+esc(t.id)+'" value="'+esc(t.name || '')+'"><input type="color" data-type-color="'+esc(t.id)+'" value="'+esc(t.color || '#2563eb')+'"></div>' +
+      '<div class="bns-driver-actions" style="margin-top:10px"><button type="button" data-type-save="'+esc(t.id)+'">Opslaan</button><button type="button" data-type-delete="'+esc(t.id)+'" style="background:#fee2e2;color:#991b1b">Wissen</button></div>' +
+    '</div>';
+  }
+
+  function alertCard(a){
+    var o = findOrder(a.orderId);
+    var label = alertLabel(a);
+    var icon = label === "Schade" ? "⚠️" : label === "Vermissing" ? "❓" : label === "Storing" ? "🔧" : "🚨";
+    var color = label === "Schade" ? "#ea580c" : label === "Vermissing" ? "#7c3aed" : label === "Storing" ? "#dc2626" : "#2563eb";
+    return '<div class="bns-alert-row-v62">' +
+      '<div class="bns-alert-icon" style="background:'+color+'">'+icon+'</div>' +
+      '<div><b>'+esc(label)+'</b><br>' +
+        '<small>'+esc(a.time || a.createdAt || '')+'</small>' +
+        '<div><b>Opdracht:</b> '+esc(o ? orderTitle(o) : (a.orderNumber || 'Onbekend'))+'</div>' +
+        '<div><b>Klant:</b> '+esc(o && o.customer && o.customer.name || '')+'</div>' +
+        '<div>'+esc(a.note || a.message || a.text || '')+'</div>' +
+      '</div>' +
+      '<div class="bns-alert-buttons"><button type="button" data-alert-resolve="'+esc(a.id)+'">Afhandelen</button><button type="button" class="danger" data-alert-delete="'+esc(a.id)+'">Wissen</button></div>' +
+    '</div>';
+  }
+
+  function orderCard(o){
+    return '<div class="bns-driver-order">' +
+      '<b>'+esc(orderTitle(o))+'</b>' +
+      '<small>📅 '+esc(niceDate(o.start))+(o.end && o.end !== o.start ? ' t/m '+esc(niceDate(o.end)) : '')+'<br>👤 '+esc(o.customer && o.customer.name || '')+'<br>📦 '+esc(materialLine(o))+'</small>' +
+      '<div class="bns-driver-actions"><button type="button" data-quick-alert="'+esc(o.id)+'" data-kind="Storing">Storing</button><button type="button" data-quick-alert="'+esc(o.id)+'" data-kind="Schade">Schade</button><button type="button" data-quick-alert="'+esc(o.id)+'" data-kind="Vermissing">Vermissing</button></div>' +
+    '</div>';
+  }
+
+  function renderDriverDashboard(){
+    installStyle();
+    ensureTypes();
+    var box = $("driverList");
+    if (!box) return;
+    var alerts = driverAlerts();
+    var types = ensureTypes();
+    var orders = activeOrders().slice(0, 24);
+    var drivers = (appState().users || []).filter(function(u){ return u.role === "Bezorger"; });
+
+    box.innerHTML = '<div class="bns-driver-admin-dashboard">' +
+      '<div class="bns-driver-hero"><h2>Bezorger meldingen dashboard</h2><p>Beheer wat de bestuurder mag melden, bekijk open schade/storing/vermissing en handel meldingen direct af.</p></div>' +
+      '<div class="bns-driver-stats">' +
+        '<div class="bns-driver-stat"><b>'+alerts.length+'</b><span>Open meldingen</span></div>' +
+        '<div class="bns-driver-stat"><b>'+orders.length+'</b><span>Actieve opdrachten</span></div>' +
+        '<div class="bns-driver-stat"><b>'+drivers.length+'</b><span>Bezorgers</span></div>' +
+        '<div class="bns-driver-stat"><b>'+types.filter(function(t){return t.driver;}).length+'</b><span>Bestuurder knoppen</span></div>' +
+      '</div>' +
+      '<div class="bns-driver-section"><div class="bns-driver-section-head"><h3>Meldingsrubrieken bestuurder</h3><div class="bns-driver-actions"><button type="button" id="bnsAddDriverType">Nieuwe rubriek</button></div></div><div class="bns-type-grid">'+types.map(typeCard).join('')+'</div></div>' +
+      '<div class="bns-driver-section"><div class="bns-driver-section-head"><h3>Open meldingen</h3><small>'+alerts.length+' open</small></div><div class="bns-alert-dashboard-list">'+(alerts.length ? alerts.map(alertCard).join('') : '<p>Geen open bezorger meldingen.</p>')+'</div></div>' +
+      '<div class="bns-driver-section"><div class="bns-driver-section-head"><h3>Snelle melding op actieve opdracht</h3><small>Voor testen/planner</small></div><div class="bns-driver-order-grid">'+(orders.length ? orders.map(orderCard).join('') : '<p>Geen actieve opdrachten.</p>')+'</div></div>' +
+    '</div>';
+    bindDashboard(box);
+  }
+
+  function bindDashboard(root){
+    var add = $("bnsAddDriverType");
+    if (add) add.onclick = addType;
+    qa("[data-type-toggle]", root).forEach(function(inp){
+      inp.onchange = function(){ updateType(inp.getAttribute("data-type-toggle"), inp.getAttribute("data-key"), !!inp.checked); };
+    });
+    qa("[data-type-save]", root).forEach(function(btn){
+      btn.onclick = function(){
+        var id = btn.getAttribute("data-type-save");
+        var name = root.querySelector('[data-type-name="'+CSS.escape(id)+'"]');
+        var color = root.querySelector('[data-type-color="'+CSS.escape(id)+'"]');
+        var t = ensureTypes().find(function(x){ return String(x.id) === String(id); });
+        if (!t) return;
+        if (name) t.name = name.value || t.name;
+        if (color) t.color = color.value || t.color;
+        saveState();
+        renderDriverDashboard();
+      };
+    });
+    qa("[data-type-delete]", root).forEach(function(btn){ btn.onclick = function(){ deleteType(btn.getAttribute("data-type-delete")); }; });
+    qa("[data-alert-resolve]", root).forEach(function(btn){ btn.onclick = function(){ resolveAlert(btn.getAttribute("data-alert-resolve")); }; });
+    qa("[data-alert-delete]", root).forEach(function(btn){ btn.onclick = function(){ deleteAlert(btn.getAttribute("data-alert-delete")); }; });
+    qa("[data-quick-alert]", root).forEach(function(btn){ btn.onclick = function(){ makeAlert(btn.getAttribute("data-quick-alert"), btn.getAttribute("data-kind") || "Melding"); }; });
+  }
+
+  function hookRenderDriver(){
+    window.renderDriver = renderDriverDashboard;
+    try { renderDriver = renderDriverDashboard; } catch(e) {}
+  }
+
+  window.BNS_V62_renderDriverDashboard = renderDriverDashboard;
+  window.BNS_V62_addDriverAlert = makeAlert;
+
+  function install(){
+    installStyle();
+    ensureTypes();
+    hookRenderDriver();
+    refreshAlertButton();
+    renderDriverDashboard();
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 400); });
+  else setTimeout(install, 400);
+
+  setTimeout(install, 1500);
+})();
