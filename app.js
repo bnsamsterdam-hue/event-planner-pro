@@ -1059,6 +1059,353 @@ setTimeout(()=>{
 })();
 
 /* ============================================================
+   BNS V37 HARD FIX - oude materiaalhandlers volledig uitschakelen
+   ============================================================ */
+(function bnsV37HardMaterialFix() {
+  "use strict";
+  if (window.__bnsV37HardMaterialFix) return;
+  window.__bnsV37HardMaterialFix = true;
+
+  function E(id) { return document.getElementById(id); }
+  function A(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function t(v) { return String(v == null ? "" : v).trim(); }
+  function l(v) { return t(v).toLowerCase(); }
+  function n(v) {
+    var s = l(v);
+    return s.normalize ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : s;
+  }
+  function h(v) {
+    return t(v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function S() {
+    try { if (typeof state !== "undefined" && state) return state; } catch (e) {}
+    return window.state || { materials: [], orders: [] };
+  }
+  function save() {
+    try { if (typeof window.save === "function") { window.save(); return; } } catch (e) {}
+    try { localStorage.setItem("event-planner-pro-v87", JSON.stringify(S())); } catch (e) {}
+  }
+  function mats() {
+    var s = S();
+    s.materials = Array.isArray(s.materials) ? s.materials : [];
+    return s.materials;
+  }
+  function orders() {
+    var s = S();
+    s.orders = Array.isArray(s.orders) ? s.orders : [];
+    return s.orders;
+  }
+  function cat(v) {
+    return t(v || "EXTRA").toUpperCase().replace(/[^A-Z0-9]/g, "") || "EXTRA";
+  }
+  function mid(m) { return t(m && (m.id || m.materialId || m.uid)); }
+  function mcat(m) { return cat(m && (m.cat || m.rubriek || m.category || m.group)); }
+  function mcode(m) { return t(m && (m.code || m.searchName || m.zoeknaam || m.type || m.title)); }
+  function mname(m) { return t(m && (m.name || m.description || m.beschrijving || m.notes || m.title)); }
+  function normMat(m) {
+    if (!m) return m;
+    if (!m.id) m.id = "mat_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+    m.cat = mcat(m);
+    m.rubriek = m.cat;
+    if (!m.code && (m.searchName || m.zoeknaam || m.type)) m.code = t(m.searchName || m.zoeknaam || m.type);
+    if (!m.name && (m.description || m.beschrijving)) m.name = t(m.description || m.beschrijving);
+    m.code = t(m.code);
+    m.searchName = m.code;
+    m.type = m.code;
+    m.name = t(m.name);
+    m.description = m.name;
+    m.beschrijving = m.name;
+    m.status = t(m.status || "free") || "free";
+    return m;
+  }
+  function normalizeAll() {
+    var changed = false;
+    mats().forEach(function (m) {
+      var before = JSON.stringify([m.id, m.cat, m.rubriek, m.code, m.searchName, m.type, m.name, m.description, m.beschrijving]);
+      normMat(m);
+      var after = JSON.stringify([m.id, m.cat, m.rubriek, m.code, m.searchName, m.type, m.name, m.description, m.beschrijving]);
+      if (before !== after) changed = true;
+    });
+    if (changed) save();
+  }
+  function dateObj(y, mo, d) {
+    var x = new Date(Number(y), Number(mo) - 1, Number(d));
+    x.setHours(0, 0, 0, 0);
+    return isNaN(x.getTime()) ? null : x;
+  }
+  function parseDate(v) {
+    v = t(v).slice(0, 10);
+    if (!v) return null;
+    var m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) return dateObj(m[1], m[2], m[3]);
+    m = v.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    if (m) return dateObj(m[3], m[2], m[1]);
+    m = v.match(/^(\d{1,2})-(\d{1,2})-(\d{2})$/);
+    if (m) return dateObj(2000 + Number(m[3]), m[2], m[1]);
+    m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return dateObj(m[3], m[2], m[1]);
+    m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+    if (m) return dateObj(2000 + Number(m[3]), m[2], m[1]);
+    return null;
+  }
+  function today() {
+    var d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  function addDay(d) {
+    var x = new Date(d.getTime());
+    x.setDate(x.getDate() + 1);
+    return x;
+  }
+  function inputDate(id) {
+    var el = E(id);
+    if (!el) return null;
+    if (el.valueAsDate) {
+      var vd = new Date(el.valueAsDate.getTime());
+      vd.setHours(0, 0, 0, 0);
+      return vd;
+    }
+    return parseDate(el.value || el.getAttribute("value") || "");
+  }
+  function formRange() {
+    var s = inputDate("dateStart");
+    var e = inputDate("dateEnd");
+    if (!s && !e) return { start: null, end: null };
+    if (s && !e) e = s;
+    if (e && !s) s = e;
+    if (s > e) { var tmp = s; s = e; e = tmp; }
+    return { start: s, end: addDay(e) };
+  }
+  function orderRange(o) {
+    var s = parseDate(o && (o.start || o.dateStart || o.startDate || o.begin || o.date));
+    var e = parseDate(o && (o.end || o.dateEnd || o.endDate || o.einde || o.start || o.dateStart || o.startDate || o.begin || o.date));
+    if (!s && !e) return { start: null, end: null };
+    if (s && !e) e = s;
+    if (e && !s) s = e;
+    if (s > e) { var tmp = s; s = e; e = tmp; }
+    return { start: s, end: addDay(e) };
+  }
+  function overlaps(a, b) {
+    if (!a.start || !a.end || !b.start || !b.end) return false;
+    return a.start < b.end && b.start < a.end;
+  }
+  function blocks(o) {
+    var st = l(o && (o.status || o.orderStatus));
+    if (!st) return false;
+    if (st.indexOf("offerte") >= 0 || st.indexOf("concept") >= 0) return false;
+    if (st.indexOf("geannuleerd") >= 0 || st.indexOf("cancel") >= 0) return false;
+    if (st.indexOf("uitgevoerd") >= 0 || st.indexOf("afgerond") >= 0 || st.indexOf("done") >= 0) return false;
+    if (st.indexOf("verwijderd") >= 0 || st.indexOf("gewist") >= 0) return false;
+    return st.indexOf("bevest") >= 0 || st.indexOf("opdracht") >= 0 || st.indexOf("optie") >= 0 || st.indexOf("gereserveerd") >= 0;
+  }
+  function editId() {
+    try { if (typeof editing !== "undefined" && editing) return t(editing); } catch (e) {}
+    return t(window.editing);
+  }
+  function same(a, b) {
+    if (!a || !b) return false;
+    var aid = t(a.materialId || a.id || a.uid);
+    var bid = mid(b);
+    if (aid && bid) return aid === bid;
+    var ac = t(a.code || a.searchName || a.zoeknaam || a.type);
+    var bc = mcode(b);
+    var an = t(a.name || a.description || a.beschrijving);
+    var bn = mname(b);
+    return !!(ac && bc && ac.toUpperCase() === bc.toUpperCase() && (!an || !bn || an.toUpperCase() === bn.toUpperCase()));
+  }
+  function chosenList() {
+    try { if (Array.isArray(chosen)) return chosen; } catch (e) {}
+    return Array.isArray(window.chosen) ? window.chosen : [];
+  }
+  function orderHas(o, m) {
+    return Array.isArray(o && o.materials) && o.materials.some(function (x) { return same(x, m); });
+  }
+  function reservationFor(m) {
+    var wanted = formRange();
+    if (!wanted.start || !wanted.end) return null;
+    var editingNow = editId();
+    for (var i = 0; i < orders().length; i += 1) {
+      var o = orders()[i];
+      if (editingNow && t(o.id) === editingNow) continue;
+      if (!blocks(o)) continue;
+      if (!orderHas(o, m)) continue;
+      var r = orderRange(o);
+      if (r.end && r.end <= today()) continue;
+      if (overlaps(wanted, r)) return o;
+    }
+    return null;
+  }
+  function isChosen(m) {
+    return chosenList().some(function (x) { return same(x, m); });
+  }
+  function statusFor(m) {
+    m = normMat(m);
+    if (isChosen(m)) return { key: "chosen", label: "Gekozen" };
+    var st = l(m.status);
+    if (st.indexOf("defect") >= 0 || st.indexOf("schade") >= 0 || st.indexOf("storing") >= 0) return { key: "defect", label: "Niet inzetbaar" };
+    if (st.indexOf("inactive") >= 0 || st.indexOf("niet actief") >= 0 || st.indexOf("niet beschikbaar") >= 0) return { key: "inactive", label: "Niet inzetbaar" };
+    var o = reservationFor(m);
+    return o ? { key: "reserved", label: "Bezet", order: o } : { key: "free", label: "Vrij" };
+  }
+  function activeCat() {
+    var c = t(window.currentCat);
+    if (c && !/^function\b/i.test(c)) return cat(c);
+    var a = document.querySelector(".bns-cat-tab.active,[data-cat].active,.cat.active,.rubriek.active,.worktab.active[data-cat]");
+    return cat(a && (a.dataset.cat || a.textContent) || "TW");
+  }
+  function hay(m) {
+    return n([mcat(m), mcode(m), mname(m), m.description, m.beschrijving, m.notes, m.price, m.oldId, mid(m)].join(" "));
+  }
+  function byKey(k) {
+    k = t(k);
+    return mats().map(normMat).find(function (m) {
+      return mid(m) === k || t(m.oldId) === k || mcode(m).toUpperCase() === k.toUpperCase();
+    }) || null;
+  }
+  function nice(v) {
+    v = t(v).slice(0, 10);
+    var p = v.split("-");
+    return p.length === 3 ? p[2] + "-" + p[1] + "-" + p[0] : v;
+  }
+  function customer(o) {
+    return t((o.customer && o.customer.name) || o.customerName || o.client || "Onbekend");
+  }
+  function row(m) {
+    var st = statusFor(m);
+    var sub = st.key === "reserved" ? "Klik voor klant/opdracht" : (m.notes || m.description || "");
+    return "<div class='bns-v37-row " + h(st.key) + "' data-v37-mid='" + h(mid(m)) + "'>" +
+      "<div class='bns-v37-bar'></div><div class='bns-v37-main'><b>" + h(mcode(m)) + "</b> <span>" + h(mname(m)) + "</span><br><small>" + h(mcat(m) + (sub ? " - " + sub : "")) + "</small></div>" +
+      "<span class='bns-v37-pill " + h(st.key) + "'><i></i>" + h(st.label) + "</span></div>";
+  }
+  function render(catValue) {
+    var box = E("materialList");
+    if (!box) return;
+    normalizeAll();
+    if (!box.dataset.v37Clean) {
+      var clone = box.cloneNode(false);
+      clone.id = box.id;
+      clone.className = box.className;
+      clone.dataset.v37Clean = "1";
+      box.parentNode.replaceChild(clone, box);
+      box = clone;
+    }
+    var q = n(E("materialSearch") && E("materialSearch").value || "");
+    var c = cat(catValue || activeCat());
+    window.currentCat = c;
+    try { currentCat = c; } catch (e) {}
+    var rows = mats().map(normMat).filter(function (m) {
+      if (q) return hay(m).indexOf(q) >= 0;
+      return mcat(m) === c;
+    });
+    box.innerHTML = rows.map(row).join("") || "<p>Geen materiaal gevonden.</p>";
+    box.onclick = function (ev) {
+      var r = ev.target.closest && ev.target.closest("[data-v37-mid]");
+      if (!r) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      addMat(r.getAttribute("data-v37-mid"));
+      return false;
+    };
+  }
+  function showStatus(m) {
+    var st = statusFor(m);
+    var html = "<b>" + h(mcode(m)) + "</b> " + h(mname(m)) + "<br><br><b>Status:</b> " + h(st.label);
+    if (st.order) {
+      var o = st.order;
+      html += "<br><b>Klant:</b> " + h(customer(o)) +
+        "<br><b>Opdracht:</b> " + h([o.number || "", o.title || ""].filter(Boolean).join(" - ")) +
+        "<br><b>Datum:</b> " + h(nice(o.start || o.dateStart || "")) + " tot " + h(nice(o.end || o.dateEnd || o.start || o.dateStart || ""));
+    }
+    var modal = E("bns_v37_modal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "bns_v37_modal";
+      modal.innerHTML = "<div class='bns-v37-card'><h2>Materiaal status</h2><div id='bns_v37_body'></div><button type='button' id='bns_v37_close'>Sluiten</button></div>";
+      document.body.appendChild(modal);
+      E("bns_v37_close").onclick = function () { modal.classList.remove("show"); };
+    }
+    E("bns_v37_body").innerHTML = html;
+    modal.classList.add("show");
+  }
+  function addMat(k) {
+    var m = byKey(k);
+    if (!m) return false;
+    var st = statusFor(m);
+    if (st.key !== "free") { showStatus(m); return false; }
+    var list = chosenList();
+    if (!list.some(function (x) { return same(x, m); })) {
+      var copy;
+      try { copy = structuredClone(m); } catch (e) { copy = JSON.parse(JSON.stringify(m)); }
+      copy.id = mid(m);
+      copy.materialId = mid(m);
+      copy.cat = mcat(m);
+      copy.rubriek = copy.cat;
+      copy.code = mcode(m);
+      copy.searchName = copy.code;
+      copy.type = copy.code;
+      copy.name = mname(m);
+      copy.description = copy.name;
+      copy.beschrijving = copy.name;
+      copy.status = "reserved";
+      list.push(copy);
+    }
+    try { if (typeof renderChosen === "function") renderChosen(); } catch (e) {}
+    try { if (typeof summaryRender === "function") summaryRender(); } catch (e) {}
+    render(activeCat());
+    return false;
+  }
+  function fixAdmin() {
+    var code = E("adminMatCode"), name = E("adminMatName"), rub = E("adminMatCat");
+    if (rub) rub.placeholder = "Rubriek, bv TW of TO";
+    if (code) code.placeholder = "Type / naam materiaal, bv Jumbo";
+    if (name) name.placeholder = "Beschrijving materiaal";
+  }
+  function bindSearchAndDates() {
+    ["materialSearch", "dateStart", "dateEnd", "orderStatus"].forEach(function (id) {
+      var el = E(id);
+      if (!el || el.dataset.v37Bound) return;
+      el.dataset.v37Bound = "1";
+      el.addEventListener("input", function () { render(activeCat()); });
+      el.addEventListener("change", function () { render(activeCat()); });
+    });
+  }
+  function css() {
+    if (E("bns_v37_css")) return;
+    var s = document.createElement("style");
+    s.id = "bns_v37_css";
+    s.textContent = "*,*:before,*:after{animation:none!important;transition:none!important}#alertsBtn,#alertsBtn *,#systemStatusBtn,.bns-status-warn,.bns-alert-active,.bns-a12-blink{animation:none!important;filter:none!important;transform:none!important;box-shadow:none!important}.bns-v37-row{display:grid!important;grid-template-columns:10px minmax(0,1fr) auto!important;gap:12px!important;align-items:center!important;margin:10px 0!important;padding:14px!important;border:1px solid #dbe3ef!important;border-radius:14px!important;background:#fff!important;color:#172033!important;cursor:pointer!important}.bns-v37-bar{width:9px;height:44px;border-radius:9px;background:#2563eb!important}.bns-v37-row.free,.bns-v37-row.chosen{background:#dcfce7!important;border-color:#86efac!important}.bns-v37-row.reserved,.bns-v37-row.defect{background:#fee2e2!important;border-color:#fecaca!important}.bns-v37-row.inactive{background:#e5e7eb!important;border-color:#cbd5e1!important}.bns-v37-main{min-width:0!important}.bns-v37-main b,.bns-v37-main span,.bns-v37-main small{overflow-wrap:anywhere!important}.bns-v37-pill{display:inline-flex!important;align-items:center!important;gap:7px!important;border-radius:999px!important;padding:7px 12px!important;font-weight:900!important;white-space:nowrap!important;background:#fff!important}.bns-v37-pill i{width:11px;height:11px;border-radius:50%;display:inline-block;background:#22c55e!important}.bns-v37-pill.reserved i,.bns-v37-pill.defect i{background:#dc2626!important}.bns-v37-pill.inactive i{background:#64748b!important}.bns-v37-pill.chosen{background:#16a34a!important;color:#fff!important}.bns-v37-pill.chosen i{background:#fff!important}#bns_v37_modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2147483647;display:none;place-items:center}#bns_v37_modal.show{display:grid!important}.bns-v37-card{background:#fff;color:#111827;border-radius:16px;padding:22px;max-width:760px;width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.35)}";
+    document.head.appendChild(s);
+  }
+  function globals() {
+    window.BNS_V37_renderMaterials = render;
+    window.BNS_V37_addMat = addMat;
+    window.renderMaterials = render;
+    window.addMat = addMat;
+    try { renderMaterials = render; addMat = addMat; } catch (e) {}
+  }
+  function install(draw) {
+    css();
+    fixAdmin();
+    bindSearchAndDates();
+    globals();
+    var btn = E("alertsBtn") || E("systemStatusBtn");
+    if (btn) { btn.style.animation = "none"; btn.style.filter = "none"; btn.style.transform = "none"; }
+    if (draw && E("materialList")) render(activeCat());
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () { setTimeout(function () { install(true); }, 200); });
+  } else {
+    setTimeout(function () { install(true); }, 200);
+  }
+  setTimeout(function () { install(true); }, 1200);
+  setTimeout(function () { install(true); }, 2600);
+  setInterval(function () { install(false); }, 4000);
+})();
+
+/* ============================================================
    BNS V36 STABIEL - rustig beeld, zoeken op type/naam en datum goed
    ============================================================ */
 (function bnsV36StablePlanner() {
@@ -11859,4 +12206,45 @@ document.addEventListener("click", function(){
   setTimeout(function () { applyQuietLayer(true); }, 1400);
   setTimeout(function () { applyQuietLayer(true); }, 2800);
   setInterval(function () { applyQuietLayer(false); }, 4000);
+})();
+
+/* BNS V37 FINAL HOOK - V37 blijft de enige materiaalzoek/reservering-handler. */
+(function bnsV37FinalHook() {
+  "use strict";
+  if (window.__bnsV37FinalHook) return;
+  window.__bnsV37FinalHook = true;
+
+  function activeCat() {
+    var c = String(window.currentCat || "").trim();
+    if (c && !/^function\b/i.test(c)) return c;
+    var a = document.querySelector(".bns-cat-tab.active,[data-cat].active,.cat.active,.rubriek.active,.worktab.active[data-cat]");
+    return (a && (a.dataset.cat || a.textContent)) || "TW";
+  }
+
+  function applyV37(draw) {
+    if (typeof window.BNS_V37_renderMaterials === "function") {
+      window.renderMaterials = window.BNS_V37_renderMaterials;
+      try { renderMaterials = window.BNS_V37_renderMaterials; } catch (e) {}
+      if (draw && document.getElementById("materialList")) window.BNS_V37_renderMaterials(activeCat());
+    }
+    if (typeof window.BNS_V37_addMat === "function") {
+      window.addMat = window.BNS_V37_addMat;
+      try { addMat = window.BNS_V37_addMat; } catch (e) {}
+    }
+    var btn = document.getElementById("alertsBtn") || document.getElementById("systemStatusBtn");
+    if (btn) {
+      btn.style.animation = "none";
+      btn.style.filter = "none";
+      btn.style.transform = "none";
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () { setTimeout(function () { applyV37(true); }, 650); });
+  } else {
+    setTimeout(function () { applyV37(true); }, 650);
+  }
+  setTimeout(function () { applyV37(true); }, 1800);
+  setTimeout(function () { applyV37(true); }, 3400);
+  setInterval(function () { applyV37(false); }, 4500);
 })();
