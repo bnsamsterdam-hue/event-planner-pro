@@ -11161,25 +11161,28 @@ setInterval(install,1500);
 })();
 
 /* =========================================================
-   BNS V66 - VEILIGE PATCH OP V62 BASIS
-   - Alleen materiaal opslag vastzetten met de werkende V64 laag.
-   - Admin PIN veld blijft leeg en gemaskeerd.
-   - Geen layout/planning/datum wijzigingen.
+   BNS V64 - MATERIAAL OPSLAG STABIEL / GEEN TERUGSPRINGEN
+   Probleem: oude scripts/Firebase/render kunnen na enkele seconden
+   oudere materiaaltekst opnieuw tonen. Deze laag maakt materiaal
+   lokaal leidend, bewaart wijzigingen apart en schrijft ook naar
+   Firebase collection 'materials' wanneer Firebase beschikbaar is.
+   Raakt opdrachten/planning niet aan.
    ========================================================= */
-(function bnsV66StableMaterialSaveOnV62(){
+(function bnsV64StableMaterialSave(){
   "use strict";
-  if (window.__bnsV66StableMaterialSaveOnV62) return;
-  window.__bnsV66StableMaterialSaveOnV62 = true;
+  if (window.__bnsV64StableMaterialSave) return;
+  window.__bnsV64StableMaterialSave = true;
 
   var OVERRIDE_KEY = "bns_material_overrides_v64";
   var LAST_SAVE_KEY = "bns_material_last_save_v64";
   var lastSavedId = "";
 
   function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
   function T(v){ return String(v == null ? "" : v).trim(); }
   function upper(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g, ""); }
   function stateObj(){ try { if (typeof state !== "undefined" && state) return state; } catch(e){} return window.state || null; }
-  function notify(t){ try { if (typeof toastMsg === "function") return toastMsg(t); } catch(e){} try { console.log(t); } catch(e){} }
+  function toast(t){ try { if (typeof toastMsg === "function") return toastMsg(t); } catch(e){} try { if (typeof toast === "function") return toast(t); } catch(e){} }
   function localSave(){ try { if (typeof save === "function") return save(); } catch(e){} try { var s=stateObj(); if(s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s)); } catch(e){} }
 
   function readOverrides(){
@@ -11243,6 +11246,8 @@ setInterval(install,1500);
     if (nr) code = nr.indexOf(cat) === 0 ? nr : cat + nr;
     else code = upper(getVal(["adminMatCode"])) || cat;
 
+    // Oude admin had alleen code + naam. Nieuwe admin heeft product + omschrijving.
+    // Zoeknaam blijft altijd apart bewaard, zodat hij niet terug kan vallen naar alleen code.
     var name = desc || product || code;
     return {
       cat: cat,
@@ -11295,10 +11300,10 @@ setInterval(install,1500);
   function saveStableMaterial(ev){
     if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
     var s = stateObj();
-    if (!s) { notify("Geen state gevonden"); return false; }
+    if (!s) { toast("Geen state gevonden"); return false; }
     s.materials = Array.isArray(s.materials) ? s.materials : [];
     var data = formData();
-    if (!data.cat || !data.code) { notify("Vul rubriek en product nr/zoeknaam in"); return false; }
+    if (!data.cat || !data.code) { toast("Vul rubriek en product nr/zoeknaam in"); return false; }
     var m = findMaterial(s, data);
     if (!m) { m = { id: "mat_" + Date.now() + "_" + Math.random().toString(36).slice(2,8) }; s.materials.push(m); }
     Object.assign(m, data);
@@ -11318,14 +11323,14 @@ setInterval(install,1500);
     try { if (typeof window.renderCats === "function") window.renderCats(); } catch(e){}
     try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || m.cat); } catch(e){}
     try { if (typeof window.renderMaterials === "function") window.renderMaterials(window.currentCat || m.cat); } catch(e){}
-    notify("Materiaal opgeslagen en vastgezet");
+    toast("Materiaal opgeslagen en vastgezet");
     return false;
   }
 
   function deleteStableMaterial(ev){
     if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
     var sid = selectedId();
-    if (!sid) { notify("Kies eerst materiaal"); return false; }
+    if (!sid) { toast("Kies eerst materiaal"); return false; }
     if (!confirm("Weet je zeker dat je dit materiaal wilt wissen?")) return false;
     var s = stateObj();
     if (s && Array.isArray(s.materials)) s.materials = s.materials.filter(function(m){ return T(m.id) !== sid; });
@@ -11336,41 +11341,39 @@ setInterval(install,1500);
     try { if (typeof adminRender === "function") adminRender(); } catch(e){}
     try { if (typeof renderCats === "function") renderCats(); } catch(e){}
     try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || "TW"); } catch(e){}
-    notify("Materiaal verwijderd");
+    toast("Materiaal verwijderd");
     return false;
   }
 
   function bindButtons(){
     ["adminSaveMat","bnsV56Save"].forEach(function(id){
-      var b = E(id); if (!b || b.dataset.bnsV66Save === "1") return;
-      b.dataset.bnsV66Save = "1";
+      var b = E(id); if (!b || b.dataset.bnsV64Save === "1") return;
+      b.dataset.bnsV64Save = "1";
       b.type = "button";
       b.addEventListener("click", saveStableMaterial, true);
       b.onclick = saveStableMaterial;
     });
     ["adminDeleteMat","bnsV56Delete"].forEach(function(id){
-      var b = E(id); if (!b || b.dataset.bnsV66Delete === "1") return;
-      b.dataset.bnsV66Delete = "1";
+      var b = E(id); if (!b || b.dataset.bnsV64Delete === "1") return;
+      b.dataset.bnsV64Delete = "1";
       b.type = "button";
       b.addEventListener("click", deleteStableMaterial, true);
     });
-    if (!document.documentElement.dataset.bnsV66MaterialClick) {
-      document.documentElement.dataset.bnsV66MaterialClick = "1";
-      document.addEventListener("click", function(e){
-        var btn = e.target && e.target.closest && e.target.closest("[data-v61-edit],[data-v56-edit],[data-material-id],[onclick*='fillMat']");
-        if (!btn) return;
-        var id = btn.getAttribute("data-v61-edit") || btn.getAttribute("data-v56-edit") || btn.getAttribute("data-material-id") || "";
-        if (id) { lastSavedId = id; window.__bnsSelectedMaterialId = id; window.bnsSelectedMaterialId = id; }
-      }, true);
-    }
+    // Onthoud gekozen materiaal-id bij wijzigen-knoppen/lijsten.
+    document.addEventListener("click", function(e){
+      var btn = e.target && e.target.closest && e.target.closest("[data-v61-edit],[data-v56-edit],[data-material-id],[onclick*='fillMat']");
+      if (!btn) return;
+      var id = btn.getAttribute("data-v61-edit") || btn.getAttribute("data-v56-edit") || btn.getAttribute("data-material-id") || "";
+      if (id) { lastSavedId = id; window.__bnsSelectedMaterialId = id; window.bnsSelectedMaterialId = id; }
+    }, true);
   }
 
   function patchSave(){
     try {
-      if (typeof save === "function" && !save.__bnsV66) {
+      if (typeof save === "function" && !save.__bnsV64) {
         var old = save;
         var wrapped = function(){ applyOverrides(); return old.apply(this, arguments); };
-        wrapped.__bnsV66 = true;
+        wrapped.__bnsV64 = true;
         save = wrapped;
         window.save = wrapped;
       }
@@ -11379,9 +11382,9 @@ setInterval(install,1500);
   function patchRender(name){
     try {
       var fn = window[name] || (typeof globalThis[name] === "function" ? globalThis[name] : null);
-      if (typeof fn !== "function" || fn.__bnsV66) return;
+      if (typeof fn !== "function" || fn.__bnsV64) return;
       var wrapped = function(){ applyOverrides(); return fn.apply(this, arguments); };
-      wrapped.__bnsV66 = true;
+      wrapped.__bnsV64 = true;
       window[name] = wrapped;
       try { globalThis[name] = wrapped; } catch(e){}
     } catch(e){}
@@ -11396,8 +11399,8 @@ setInterval(install,1500);
     patchRender("renderMaterials");
   }
 
-  window.BNS_saveMaterialStableV66 = saveStableMaterial;
-  window.BNS_applyMaterialOverridesV66 = applyOverrides;
+  window.BNS_saveMaterialStableV64 = saveStableMaterial;
+  window.BNS_applyMaterialOverridesV64 = applyOverrides;
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(run, 100); });
   else setTimeout(run, 100);
