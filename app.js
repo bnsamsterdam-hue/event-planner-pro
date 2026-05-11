@@ -11297,133 +11297,172 @@ setInterval(install,1500);
 })();
 
 /* =========================================================
-   BNS V73 - Alleen laatste materiaal-sync + PIN veld
-   - Basis blijft V72/V62
-   - Admin materiaal opslaan schrijft ook direct naar materiaal-kiezen
-   - Artikelkleur wordt op het materiaal zelf opgeslagen
-   - Admin PIN veld blijft leeg en password
+   BNS V73 - Documenten / Facturen module
+   - Alleen documenten/factuur uitbreiding.
+   - Materiaal, datum, reservering en admin-materiaal blijven ongemoeid.
    ========================================================= */
-(function bnsV73MaterialAdminToPlannerFinal(){
-  "use strict";
-  if (window.__bnsV73MaterialAdminToPlannerFinal) return;
-  window.__bnsV73MaterialAdminToPlannerFinal = true;
+(function(){
+  'use strict';
+  var STYLE_ID='bns-v73-doc-factuur-style';
+  var PANEL_ID='documentsPanel';
 
-  var OVERRIDE_KEY = "bns_material_overrides_v72";
+  function E(id){return document.getElementById(id);}
+  function A(sel,root){return Array.from((root||document).querySelectorAll(sel));}
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function val(id){var el=E(id);return el?String(el.value||'').trim():'';}
+  function setVal(id,v){var el=E(id);if(el)el.value=v||'';}
+  function S(){try{if(typeof state!=='undefined'&&state)return state;}catch(e){}try{return window.state||null;}catch(e){return null;}}
+  function saveAny(){try{if(typeof save==='function')save();}catch(e){}try{if(typeof saveState==='function')saveState();}catch(e){}}
+  function toast(t){try{if(typeof toastMsg==='function')return toastMsg(t);}catch(e){}try{if(typeof toast==='function')return toast(t);}catch(e){} console.log(t);}
+  function euro(n){n=Number(n||0);return '€ '+n.toFixed(2).replace('.',',');}
+  function num(v){if(typeof v==='number')return v;var s=String(v||'').replace(/[^0-9,.-]/g,'').replace(',','.');var n=parseFloat(s);return isNaN(n)?0:n;}
+  function chosenList(){try{if(Array.isArray(chosen))return chosen;}catch(e){}try{if(Array.isArray(window.chosen))return window.chosen;}catch(e){}return [];}
+  function orderNumber(){return val('orderNumber');}
+  function currentSavedOrder(){var s=S();var nr=orderNumber();if(!s||!nr)return null;return (s.orders||[]).find(function(o){return String(o.number||'')===String(nr);})||null;}
 
-  function E(id){ return document.getElementById(id); }
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function catKey(v){ return T(v || "EXTRA").toUpperCase().replace(/[^A-Z0-9]/g,"") || "EXTRA"; }
-  function nrKey(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g,""); }
-  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c];}); }
-  function normColor(v){
-    v=T(v); if(/^#[0-9a-f]{6}$/i.test(v)) return v;
-    var m=v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-    if(m) return "#"+[m[1],m[2],m[3]].map(function(n){var h=(parseInt(n,10)||0).toString(16);return h.length<2?"0"+h:h;}).join("");
-    return "";
+  function currentDocMeta(){
+    var o=currentSavedOrder();
+    var inv=o&&o.invoice?o.invoice:{};
+    return {
+      invoiceNumber: val('bnsInvoiceNumber') || inv.invoiceNumber || '',
+      invoiceType: val('bnsInvoiceType') || inv.invoiceType || 'Factuur',
+      paymentType: val('bnsPaymentType') || inv.paymentType || 'Op rekening'
+    };
   }
-  function S(){ try{ if(typeof state!=="undefined" && state) return state; }catch(e){} return window.state || (window.state={materials:[],orders:[]}); }
-  function mats(){ var s=S(); s.materials=Array.isArray(s.materials)?s.materials:[]; return s.materials; }
-  function orders(){ var s=S(); s.orders=Array.isArray(s.orders)?s.orders:[]; return s.orders; }
-  function makeCode(cat,nr){ cat=catKey(cat); nr=nrKey(nr); return nr ? (nr.indexOf(cat)===0?nr:cat+nr) : cat; }
-  function readMap(){ try{return JSON.parse(localStorage.getItem(OVERRIDE_KEY)||"{}");}catch(e){return{};} }
-  function writeMap(m){ try{localStorage.setItem(OVERRIDE_KEY,JSON.stringify(m||{}));}catch(e){} }
-  function putOverride(m){ if(!m||!m.id)return; var map=readMap(); map[String(m.id)]=Object.assign({},map[String(m.id)]||{},m,{_savedAt:Date.now()}); writeMap(map); }
-  function applyOverrides(){ var list=mats(), map=readMap(); Object.keys(map).forEach(function(id){ var ov=map[id]; if(!ov||!ov.id)return; var m=list.find(function(x){return String(x.id)===String(ov.id);}); if(!m){list.push(Object.assign({},ov));return;} Object.assign(m,ov); }); }
-  function productName(m){ return T(m&&(m.product||m.searchName||m.zoeknaam||m.type||m.name||m.description||m.beschrijving)); }
-  function productDesc(m){ return T(m&&(m.description||m.beschrijving||m.notes||"")); }
-  function searchText(m){ return [m&&m.cat,m&&m.rubriek,m&&m.category,m&&m.code,m&&m.productNr,m&&m.nr,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.name,m&&m.description,m&&m.beschrijving,m&&m.notes,m&&m.price].join(" ").toLowerCase(); }
-  function selectedColor(cat){
-    var p=E("bnsV56ColorPreview")||E("adminMatColorPreview");
-    var c=normColor(p && (p.style.backgroundColor || p.style.background));
-    var active=document.querySelector("#bnsV56Dots .bns-v56-dot.active,.bns-color-dot.active,.bns-v48-dot.active");
-    return normColor(active && (active.dataset.color||active.getAttribute("data-color")||active.style.backgroundColor)) || c || catColor(cat);
+  function setDocMeta(meta){
+    setVal('bnsInvoiceNumber',meta&&meta.invoiceNumber||'');
+    setVal('bnsInvoiceType',meta&&meta.invoiceType||'Factuur');
+    setVal('bnsPaymentType',meta&&meta.paymentType||'Op rekening');
   }
-  function catColor(cat){
-    var k=catKey(cat), def={TW:"#dc2626",TO:"#f97316",KW:"#22c55e",KA:"#a855f7",SL:"#eab308",EXTRA:"#334155",BT:"#0ea5e9",HN:"#7c3aed",TEST:"#22c55e"};
-    try{ var s=S(); var c=s.settings&&s.settings.categoryColors&&s.settings.categoryColors[k]; if(normColor(c)) return normColor(c); }catch(e){}
-    try{ var b=JSON.parse(localStorage.getItem("bns_rubriek_kleuren_v12_pro")||"{}"); if(normColor(b[k])) return normColor(b[k]); }catch(e){}
-    try{ var a=JSON.parse(localStorage.getItem("bnsCatColors")||"{}"); if(normColor(a[k])) return normColor(a[k]); }catch(e){}
-    return def[k]||def.EXTRA;
+  function nextInvoiceNumber(){
+    var s=S()||{orders:[]};var y=new Date().getFullYear();
+    var max=0;(s.orders||[]).forEach(function(o){var n=o&&o.invoice&&o.invoice.invoiceNumber||'';var m=String(n).match(new RegExp('^F'+y+'-(\\d+)$'));if(m)max=Math.max(max,parseInt(m[1],10)||0);});
+    return 'F'+y+'-'+String(max+1).padStart(4,'0');
   }
-  function materialColor(m){ return normColor(m && m.color) || catColor(m && (m.cat||m.rubriek||m.category)); }
-  function chosenList(){ try{ if(typeof chosen!=="undefined" && Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
-  function sameMaterial(a,b){ if(!a||!b)return false; if(a.id&&b.id&&String(a.id)===String(b.id))return true; return catKey(a.cat||a.rubriek||a.category)===catKey(b.cat||b.rubriek||b.category) && nrKey(a.code||a.productNr||a.nr)===nrKey(b.code||b.productNr||b.nr); }
-  function parseDate(v){ var s=T(v),m=s.match(/^(\d{4})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/); if(m)return mk(+m[1],+m[2],+m[3]); m=s.match(/^(\d{1,2})[-\.\/](\d{1,2})[-\.\/](\d{4})/); if(m)return mk(+m[3],+m[2],+m[1]); var d=new Date(s); return isNaN(d.getTime())?null:mk(d.getFullYear(),d.getMonth()+1,d.getDate()); }
-  function mk(y,m,d){ var x=new Date(y,m-1,d); if(x.getFullYear()!==y||x.getMonth()!==m-1||x.getDate()!==d)return null; x.setHours(0,0,0,0); return x; }
-  function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); x.setHours(0,0,0,0); return x; }
-  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e)s=e; if(!s)return null; if(!e||e.getTime()<=s.getTime())e=addDays(s,1); return {start:s,end:e}; }
-  function wantedPeriod(){ return period((E("dateStart")||{}).value,(E("dateEnd")||{}).value); }
-  function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
-  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<b.end.getTime()&&b.start.getTime()<a.end.getTime()); }
-  function blocksOrder(o){ var s=T(o&&o.status).toLowerCase(); if(!s)return false; if(/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd/.test(s))return false; if(s.indexOf("offerte")>=0)return false; return /bevestigd|opdracht|optie 14|optie14/.test(s); }
-  function editingId(){ try{ if(typeof editing!=="undefined"&&editing) return String(editing); }catch(e){} return window.editing?String(window.editing):""; }
-  function reservationFor(m){ var w=wantedPeriod(); if(!w)return null; var edit=editingId(); for(var i=0;i<orders().length;i++){ var o=orders()[i]; if(!o||!blocksOrder(o))continue; if(edit&&String(o.id||"")===edit)continue; var ml=Array.isArray(o.materials)?o.materials:[]; if(!ml.some(function(x){return sameMaterial(x,m);} ))continue; var op=orderPeriod(o); if(overlaps(w,op))return {order:o,period:op,wanted:w}; } return null; }
-  function matStatus(m){ var raw=T(m&&m.status).toLowerCase(); if(chosenList().some(function(x){return sameMaterial(x,m);} ))return {key:"chosen",label:"Toegevoegd",blocked:false}; if(/inactive|niet actief|niet beschikbaar|defect|damage|schade|missing|vermist|vermissing/.test(raw))return {key:"defect",label:"Niet inzetbaar",blocked:true}; var r=reservationFor(m); if(r)return {key:"reserved",label:"Gereserveerd",blocked:true,reservation:r}; return {key:"free",label:"Vrij",blocked:false}; }
-  function currentCat(){ return catKey(window.currentCat || localStorage.getItem("bnsV56Cat") || "TW"); }
-
-  function forceRenderMaterials(cat){
-    var box=E("materialList"); if(!box)return;
-    applyOverrides(); var active=catKey(cat||currentCat()); window.currentCat=active; try{currentCat=active;}catch(e){}
-    var q=T((E("materialSearch")||{}).value).toLowerCase();
-    var rows=mats().filter(function(m){return catKey(m.cat||m.rubriek||m.category)===active;}).filter(function(m){return !q||searchText(m).indexOf(q)>=0;}).slice(0,500);
-    box.innerHTML=rows.length?rows.map(function(m){ var st=matStatus(m), col=materialColor(m), p=productName(m), d=productDesc(m), price=m.price||"oude prijs: € 0"; return '<div class="bns-v72-row '+esc(st.key)+'" data-material-id="'+esc(m.id)+'" style="--mat-color:'+esc(col)+'"><div class="bns-v72-bar"></div><div><div class="bns-v72-title"><b>'+esc(m.code||"")+'</b> '+esc(p)+'</div>'+(d&&d!==p?'<div class="bns-v72-desc">'+esc(d)+'</div>':'')+'<div class="bns-v72-price">'+esc(price)+'</div></div><span class="bns-v72-pill '+esc(st.key)+'">'+esc(st.label)+'</span></div>'; }).join(""):'<p class="bns-empty">Geen materiaal gevonden in rubriek '+esc(active)+'.</p>';
+  function ensureInvoiceNumber(){
+    var n=val('bnsInvoiceNumber');
+    if(!n){n=nextInvoiceNumber();setVal('bnsInvoiceNumber',n);persistMetaToOrder(false);}
+    return n;
+  }
+  function persistMetaToOrder(showMsg){
+    var s=S(); if(!s)return;
+    var nr=orderNumber(); if(!nr)return;
+    var o=(s.orders||[]).find(function(x){return String(x.number||'')===String(nr);});
+    if(!o)return;
+    o.invoice=o.invoice||{};
+    Object.assign(o.invoice,currentDocMeta());
+    o.updatedAt=new Date().toISOString();
+    saveAny();
+    if(showMsg)toast('Factuurgegevens opgeslagen');
   }
 
-  function selectedId(){
-    var ids=[window.__bnsSelectedMaterialId,window.bnsSelectedMaterialId,window.__bnsV48EditingMaterialId];
-    try{ if(typeof selectedMaterialId!=="undefined")ids.push(selectedMaterialId); }catch(e){}
-    try{ if(typeof editId!=="undefined")ids.push(editId); }catch(e){}
-    for(var i=0;i<ids.length;i++) if(T(ids[i])) return T(ids[i]);
-    return "";
+  function ensureStyle(){
+    if(E(STYLE_ID))return;
+    var st=document.createElement('style');st.id=STYLE_ID;
+    st.textContent=''+
+      '#'+PANEL_ID+' .bns-v73-docbox{border:1px solid var(--border,#dbe3ef);border-radius:18px;padding:16px;margin:12px 0;background:rgba(255,255,255,.78)}'+
+      '#'+PANEL_ID+' .bns-v73-grid{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin:10px 0 14px}'+
+      '#'+PANEL_ID+' .bns-v73-grid label{font-weight:800;font-size:13px}'+
+      '#'+PANEL_ID+' .bns-v73-grid input,#'+PANEL_ID+' .bns-v73-grid select{width:100%;margin-top:5px;padding:10px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}'+
+      '#'+PANEL_ID+' .bns-v73-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}'+
+      '#'+PANEL_ID+' .bns-v73-actions button{border:0;border-radius:13px;padding:12px 15px;font-weight:900;cursor:pointer;background:#2563eb;color:#fff;box-shadow:0 5px 13px rgba(15,23,42,.15)}'+
+      '#'+PANEL_ID+' .bns-v73-actions .green{background:#047857}#'+PANEL_ID+' .bns-v73-actions .dark{background:#0f172a}#'+PANEL_ID+' .bns-v73-actions .orange{background:#ea580c}#'+PANEL_ID+' .bns-v73-actions .grey{background:#475569}'+
+      '@media(max-width:850px){#'+PANEL_ID+' .bns-v73-grid{grid-template-columns:1fr}}';
+    document.head.appendChild(st);
   }
-  function saveLocal(){
-    try{localStorage.setItem("eventPlannerProState",JSON.stringify(S()));}catch(e){}
-    try{localStorage.setItem("plannerState",JSON.stringify(S()));}catch(e){}
-    try{localStorage.setItem("eventPlannerPro",JSON.stringify(S()));}catch(e){}
-    try{localStorage.setItem("eventPlannerProV91",JSON.stringify(S()));}catch(e){}
-    try{if(typeof save==="function")save();}catch(e){}
+
+  function ensureDocumentsBox(){
+    var panel=E(PANEL_ID)||E('bnsDocumentenPanel');
+    if(!panel)return;
+    ensureStyle();
+    if(!E('bnsV73InvoiceBox')){
+      var box=document.createElement('div');box.id='bnsV73InvoiceBox';box.className='bns-v73-docbox';
+      box.innerHTML='<h3>Facturen / documenten</h3>'+
+        '<div class="bns-v73-grid">'+
+        '<label>Factuur nr<input id="bnsInvoiceNumber" placeholder="Automatisch bv F2026-0001"></label>'+
+        '<label>Document type<select id="bnsInvoiceType"><option>Factuur</option><option>Contant</option><option>Op rekening</option><option>Creditnota</option></select></label>'+
+        '<label>Betaalwijze<select id="bnsPaymentType"><option>Op rekening</option><option>Contant</option><option>Creditnota</option></select></label>'+
+        '</div>'+
+        '<div class="bns-v73-actions">'+
+        '<button type="button" class="dark" id="bnsMakeInvoiceNr">Factuur nr maken</button>'+
+        '<button type="button" class="green" id="bnsSaveInvoiceMeta">Opslaan gegevens</button>'+
+        '<button type="button" id="bnsOpenInvoiceV73">Factuur maken</button>'+
+        '<button type="button" class="orange" id="bnsOpenConfirmV73">Opdrachtbevestiging</button>'+
+        '<button type="button" class="grey" id="bnsPrintDocV73">Printen</button>'+
+        '<button type="button" class="grey" id="bnsMailDocV73">Mailen</button>'+
+        '<button type="button" class="grey" id="bnsShareDocV73">Delen</button>'+
+        '<button type="button" class="green" id="bnsWhatsAppDocV73">WhatsApp</button>'+
+        '</div>'+
+        '<small>Documentvolgorde: klantgegevens, materialen, bijzonderheden, bedragen.</small>';
+      var grid=panel.querySelector('.bns-doc-grid');
+      if(grid)grid.insertAdjacentElement('beforebegin',box);else panel.appendChild(box);
+    }
+    fillMetaFromOrder();bindButtons();
   }
-  function saveFirebase(m){ try{ if(!m||!m.id||!window.BNS||!window.BNS.fs||!window.BNS.db)return; var fs=window.BNS.fs; fs.setDoc(fs.doc(window.BNS.db,"materials",String(m.id)),Object.assign({},m,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){}); }catch(e){} }
-  function saveMaterialFinal(ev){
-    if(ev){ev.preventDefault();ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}
-    var cat=catKey((E("bnsV56Cat")||E("adminMatCat")||{}).value||"TW");
-    var nr=nrKey((E("bnsV56Nr")||E("adminMatCode")||E("adminMatNr")||{}).value||"");
-    var prod=T((E("bnsV56Product")||E("adminMatProduct")||{}).value||"");
-    var desc=T((E("bnsV56Desc")||E("adminMatName")||{}).value||"");
-    var price=T((E("bnsV56Price")||E("adminMatPrice")||{}).value||"");
-    var status=T((E("bnsV56Status")||E("adminMatStatus")||{}).value||"free")||"free";
-    var code=makeCode(cat,nr);
-    var color=selectedColor(cat);
-    var list=mats();
-    var sid=selectedId();
-    var m=(sid&&list.find(function(x){return String(x.id)===sid;})) || list.find(function(x){return catKey(x.cat||x.rubriek||x.category)===cat && nrKey(x.code||x.productNr||x.nr)===nrKey(code);});
-    if(!m){m={id:"mat_"+Date.now()+"_"+Math.random().toString(36).slice(2,7)}; list.push(m);}
-    Object.assign(m,{cat:cat,rubriek:cat,category:cat,code:code,productNr:nr,nr:nr,product:prod||desc||code,searchName:prod||desc||code,zoeknaam:prod||desc||code,type:prod||desc||code,name:prod||desc||code,description:desc||prod||code,beschrijving:desc||prod||code,price:price,status:status,color:color});
-    window.__bnsSelectedMaterialId=String(m.id); window.bnsSelectedMaterialId=String(m.id); try{editId=String(m.id);}catch(e){}
-    // bewaar ook de rubriekkleur zoals admin hem verwacht
-    try{var s=S();s.settings=s.settings||{};s.settings.categoryColors=s.settings.categoryColors||{};s.settings.categoryColors[cat]=color;}catch(e){}
-    putOverride(m); saveLocal(); saveFirebase(m);
-    if(E("bnsV56AdminSearch")){}
-    forceRenderMaterials(cat);
-    try{ if(typeof window.renderCats==="function") window.renderCats(); }catch(e){}
-    try{ if(typeof renderAdminListV61==="function") renderAdminListV61(); }catch(e){}
-    try{ if(typeof renderAdminList==="function") renderAdminList(); }catch(e){}
-    try{ if(typeof toastMsg==="function") toastMsg("Materiaal opgeslagen"); else if(typeof showToast==="function") showToast("Materiaal opgeslagen"); }catch(e){}
-    return false;
+  function fillMetaFromOrder(){var o=currentSavedOrder();if(o&&o.invoice)setDocMeta(o.invoice);}
+  function bindButtons(){
+    var b;
+    b=E('bnsMakeInvoiceNr');if(b&&!b.dataset.v73){b.dataset.v73='1';b.onclick=function(){setVal('bnsInvoiceNumber',nextInvoiceNumber());persistMetaToOrder(true);};}
+    b=E('bnsSaveInvoiceMeta');if(b&&!b.dataset.v73){b.dataset.v73='1';b.onclick=function(){persistMetaToOrder(true);};}
+    b=E('bnsOpenInvoiceV73');if(b&&!b.dataset.v73){b.dataset.v73='1';b.onclick=function(){openDoc('Factuur');};}
+    b=E('bnsOpenConfirmV73');if(b&&!b.dataset.v73){b.dataset.v73='1';b.onclick=function(){openDoc('Opdrachtbevestiging / Offerte');};}
+    b=E('bnsPrintDocV73');if(b&&!b.dataset.v73){b.dataset.v73='1';b.onclick=function(){openDoc('Print');};}
+    b=E('bnsMailDocV73');if(b&&!b.dataset.v73){b.dataset.v73='1';b.onclick=function(){mailDoc();};}
+    b=E('bnsShareDocV73');if(b&&!b.dataset.v73){b.dataset.v73='1';b.onclick=function(){shareDoc();};}
+    b=E('bnsWhatsAppDocV73');if(b&&!b.dataset.v73){b.dataset.v73='1';b.onclick=function(){whatsappDoc();};}
+    ['bnsInvoiceNumber','bnsInvoiceType','bnsPaymentType'].forEach(function(id){var el=E(id);if(el&&!el.dataset.v73){el.dataset.v73='1';el.addEventListener('change',function(){persistMetaToOrder(false);});}});
   }
-  function bindSaves(){
-    ["bnsV56Save","adminSaveMat"].forEach(function(id){var b=E(id); if(!b||b.dataset.bnsV73Save==="1")return; var c=b.cloneNode(true); c.type="button"; c.dataset.bnsV73Save="1"; c.addEventListener("click",saveMaterialFinal,true); c.onclick=saveMaterialFinal; b.parentNode.replaceChild(c,b);});
-    window.renderMaterials=forceRenderMaterials; try{renderMaterials=forceRenderMaterials;}catch(e){}
+
+  function orderData(){
+    var o=currentSavedOrder()||{};
+    return {
+      number: val('orderNumber')||o.number||'', title: val('orderTitle')||o.title||'', status: val('orderStatus')||o.status||'', brand: val('orderBrand')||o.brand||'',
+      start: val('dateStart')||o.start||'', end: val('dateEnd')||o.end||'', extra: val('orderExtra')||o.extra||'',
+      customer:{name:val('customerName')||(o.customer&&o.customer.name)||'',street:val('customerStreet')||(o.customer&&o.customer.street)||'',zip:val('customerZip')||(o.customer&&o.customer.zip)||'',city:val('customerCity')||(o.customer&&o.customer.city)||'',phone:val('customerPhone')||(o.customer&&o.customer.phone)||'',email:val('customerEmail')||(o.customer&&o.customer.email)||''},
+      location:{name:val('locationName')||(o.location&&o.location.name)||'',street:val('locationStreet')||(o.location&&o.location.street)||'',zip:val('locationZip')||(o.location&&o.location.zip)||'',city:val('locationCity')||(o.location&&o.location.city)||''},
+      materials: chosenList().length?chosenList():(o.materials||[]), pricing: o.pricing||{}
+    };
   }
-  function pinFix(){
-    var p=E("adminPin") || Array.prototype.slice.call(document.querySelectorAll('input')).find(function(i){return /pin/i.test(i.placeholder||"") && /admin/i.test((document.body.textContent||"").slice(0,1000));});
-    if(!p)return;
-    try{p.type="password";}catch(e){}
-    p.setAttribute("autocomplete","new-password"); p.setAttribute("inputmode","numeric");
-    if(!p.dataset.bnsV73Cleared && document.activeElement!==p){p.value="";p.dataset.bnsV73Cleared="1";}
+  function totals(){
+    var p={};try{if(typeof calcLineTotals==='function')p=calcLineTotals();else if(typeof calcTotals==='function')p=calcTotals();}catch(e){}
+    var o=orderData();p=Object.assign({},o.pricing||{},p||{});
+    return {materials:p.materials||p.excl||0, discount:p.discount||0, vat:p.vat||0, vatP:p.vatP||21, deposit:p.deposit||0, grand:p.grand||p.incl||0};
   }
-  function install(){ bindSaves(); pinFix(); if(E("materialList")) forceRenderMaterials(currentCat()); }
-  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){setTimeout(install,500);}); else setTimeout(install,300);
-  setTimeout(install,1300); setTimeout(install,3000);
-  setInterval(function(){ bindSaves(); pinFix(); },2000);
+  function materialRows(){
+    var mats=orderData().materials||[];
+    if(!mats.length)return '<tr><td colspan="5">Geen materialen gekozen.</td></tr>';
+    return mats.map(function(m,i){var qty=m.qty||m.count||1;var price=m.linePrice!=null?m.linePrice:(m.priceAmount!=null?m.priceAmount:(m.price||''));return '<tr><td>'+esc(i+1)+'</td><td>'+esc(qty)+'</td><td><b>'+esc(m.code||'')+'</b></td><td>'+esc(m.name||m.description||'')+'</td><td>'+esc(m.cat||m.rubriek||'')+'</td><td>'+esc(price)+'</td></tr>';}).join('');
+  }
+  function plainText(){var o=orderData(),m=currentDocMeta(),t=totals();return [m.invoiceType+' '+m.invoiceNumber,'Opdracht '+o.number,o.title,'','Klant: '+o.customer.name,o.customer.street,[o.customer.zip,o.customer.city].filter(Boolean).join(' '),'','Datum: '+o.start+(o.end&&o.end!==o.start?' t/m '+o.end:''),'','Materialen:',(o.materials||[]).map(function(x){return '- '+(x.code||'')+' '+(x.name||'');}).join('\n'),'','Bijzonderheden:',o.extra||'','Bedragen:','Subtotaal '+euro(t.materials),'Btw '+euro(t.vat),'Borg '+euro(t.deposit),'Totaal '+euro(t.grand)].join('\n');}
+  function docHtml(type){
+    if(/factuur|contant|rekening|credit/i.test(type||''))ensureInvoiceNumber();
+    var o=orderData(),m=currentDocMeta(),t=totals(),title=type||m.invoiceType||'Document';
+    var accent='#2563eb';try{var inv=JSON.parse(localStorage.getItem('bnsInvoiceLayoutV123')||'{}');accent=inv.accent||accent;}catch(e){}
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>'+ 
+      '@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px;z-index:5}.actions button{border:0;border-radius:10px;padding:9px 12px;background:'+accent+';color:#fff;font-weight:800;cursor:pointer}.top{display:flex;justify-content:space-between;border-bottom:5px solid '+accent+';padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{font-size:14px;text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:'+accent+';color:white;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}'+
+      '</style></head><body><div class="actions"><button onclick="window.print()">Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="navigator.share?navigator.share({title:document.title,text:document.body.innerText}):alert(\'Delen wordt niet ondersteund\')">Delen</button><button onclick="location.href=\'https://wa.me/?text=\'+encodeURIComponent(document.body.innerText)">WhatsApp</button></div><main class="page">'+
+      '<section class="top"><div class="doctype">'+esc(title)+'</div><div class="meta"><b>Opdracht '+esc(o.number)+'</b><br>Factuur nr: <b>'+esc(m.invoiceNumber||'-')+'</b><br>Type: '+esc(m.invoiceType)+'<br>Betaling: '+esc(m.paymentType)+'</div></section>'+ 
+      '<div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+esc(o.customer.name)+'</b><br>'+esc(o.customer.street)+'<br>'+esc([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+esc(o.customer.phone)+'<br>'+esc(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+esc(o.location.name)+'</b><br>'+esc(o.location.street)+'<br>'+esc([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div>'+ 
+      '<section class="card"><div class="label">Opdracht</div><b>'+esc(o.title)+'</b><br>Status: '+esc(o.status)+'<br>Datum: '+esc(o.start)+(o.end&&o.end!==o.start?' t/m '+esc(o.end):'')+'<br>Merk: '+esc(o.brand)+'</section>'+ 
+      '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRows()+'</tbody></table></section>'+ 
+      '<section class="card"><div class="label">Bijzonderheden</div><div class="free">'+esc(o.extra||'')+'</div></section>'+ 
+      '<section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+esc(t.vatP||21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section>'+ 
+      '</main></body></html>';
+  }
+  function openDoc(type){persistMetaToOrder(false);var w=window.open('','_blank');if(!w){alert('Pop-up geblokkeerd. Sta pop-ups toe.');return;}w.document.open();w.document.write(docHtml(type));w.document.close();}
+  function mailDoc(){persistMetaToOrder(false);location.href='mailto:?subject='+encodeURIComponent((val('bnsInvoiceType')||'Document')+' '+(val('bnsInvoiceNumber')||orderNumber()))+'&body='+encodeURIComponent(plainText());}
+  function whatsappDoc(){persistMetaToOrder(false);location.href='https://wa.me/?text='+encodeURIComponent(plainText());}
+  function shareDoc(){persistMetaToOrder(false);var txt=plainText();if(navigator.share)navigator.share({title:'Document '+orderNumber(),text:txt});else alert(txt);}
+
+  var oldMakeInvoice=window.makeInvoice; window.makeInvoice=function(){openDoc(val('bnsInvoiceType')||'Factuur');};
+  var oldMakeConfirmation=window.makeConfirmation; window.makeConfirmation=function(){openDoc('Opdrachtbevestiging / Offerte');};
+
+  function wrapSaveEdit(){
+    if(typeof window.saveCurrentOrder==='function'&&!window.saveCurrentOrder.__bnsV73){var old=window.saveCurrentOrder;var nw=function(){var nr=orderNumber();var meta=currentDocMeta();var r=old.apply(this,arguments);setTimeout(function(){var s=S();var o=s&&nr?(s.orders||[]).find(function(x){return String(x.number||'')===String(nr);}):null;if(o){o.invoice=Object.assign({},o.invoice||{},meta);saveAny();}},80);return r;};nw.__bnsV73=true;window.saveCurrentOrder=nw;try{saveCurrentOrder=nw;}catch(e){}}
+    if(typeof window.editOrder==='function'&&!window.editOrder.__bnsV73){var olde=window.editOrder;var ne=function(id){var r=olde.apply(this,arguments);setTimeout(fillMetaFromOrder,100);return r;};ne.__bnsV73=true;window.editOrder=ne;try{editOrder=ne;}catch(e){}}
+    if(typeof window.clearOrder==='function'&&!window.clearOrder.__bnsV73){var oldc=window.clearOrder;var nc=function(){var r=oldc.apply(this,arguments);setTimeout(function(){setDocMeta({invoiceNumber:'',invoiceType:'Factuur',paymentType:'Op rekening'});},30);return r;};nc.__bnsV73=true;window.clearOrder=nc;try{clearOrder=nc;}catch(e){}}
+  }
+  function install(){ensureDocumentsBox();wrapSaveEdit();}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,700);});else setTimeout(install,500);
+  setTimeout(install,1500);setInterval(install,3000);
 })();
