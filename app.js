@@ -9134,10 +9134,8 @@ setInterval(install,1500);
         var remote = Object.assign({id:d.id}, d.data() || {});
         if (!remote || remote._deleted) return;
         var local = findMat(remote.id);
-        var hasRemoteTime = !!(remote._bnsMaterialUpdatedAt || remote.updatedAt);
         var rt = Date.parse(remote._bnsMaterialUpdatedAt || remote.updatedAt || "") || 0;
         var lt = local ? (Date.parse(local._bnsMaterialUpdatedAt || local.updatedAt || "") || 0) : 0;
-        if (local && !hasRemoteTime) return;
         if (!local || rt > lt) {
           applyToState(remote);
           changed = true;
