@@ -11161,95 +11161,133 @@ setInterval(install,1500);
 })();
 
 /* =========================================================
-   BNS V66 - VEILIGE PATCH OP V62 BASIS
-   - Alleen materiaal opslag vastzetten met de werkende V64 laag.
-   - Admin PIN veld blijft leeg en gemaskeerd.
-   - Geen layout/planning/datum wijzigingen.
+   BNS V67 - V62 BASIS: MATERIAAL OPSLAG STABIEL
+   Alleen materiaalbeheer:
+   - Opslaan blijft staan en wordt niet teruggezet door oude cache/render.
+   - Wissen vraagt bevestiging en blijft gewist.
+   - Geen wijzigingen aan planning, datumlogica, menu of layout.
    ========================================================= */
-(function bnsV66StableMaterialSaveOnV62(){
+(function bnsV67StableMaterialOnly(){
   "use strict";
-  if (window.__bnsV66StableMaterialSaveOnV62) return;
-  window.__bnsV66StableMaterialSaveOnV62 = true;
+  if (window.__bnsV67StableMaterialOnly) return;
+  window.__bnsV67StableMaterialOnly = true;
 
-  var OVERRIDE_KEY = "bns_material_overrides_v64";
-  var LAST_SAVE_KEY = "bns_material_last_save_v64";
-  var lastSavedId = "";
+  var MAIN_KEY = "event-planner-pro-v87";
+  var OVERRIDE_KEY = "bns_material_overrides_v67";
+  var DELETE_KEY = "bns_material_deleted_v67";
+  var STATE_KEYS = [
+    "event-planner-pro-v87",
+    "eventPlannerProV91",
+    "eventPlannerPro",
+    "eventPlannerState",
+    "eventPlannerProState",
+    "plannerState"
+  ];
+  var selectedId = "";
 
   function E(id){ return document.getElementById(id); }
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function upper(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g, ""); }
-  function stateObj(){ try { if (typeof state !== "undefined" && state) return state; } catch(e){} return window.state || null; }
-  function notify(t){ try { if (typeof toastMsg === "function") return toastMsg(t); } catch(e){} try { console.log(t); } catch(e){} }
-  function localSave(){ try { if (typeof save === "function") return save(); } catch(e){} try { var s=stateObj(); if(s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s)); } catch(e){} }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function txt(v){ return String(v == null ? "" : v).trim(); }
+  function upper(v){ return txt(v).toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+  function now(){ return Date.now(); }
+  function clone(o){ try { return JSON.parse(JSON.stringify(o)); } catch(e){ return Object.assign({}, o || {}); } }
+  function toast(t){ try { if (typeof toastMsg === "function") return toastMsg(t); } catch(e){} try { if (typeof toast === "function") return toast(t); } catch(e){} }
 
-  function readOverrides(){
-    try { return JSON.parse(localStorage.getItem(OVERRIDE_KEY) || "{}"); }
-    catch(e){ return {}; }
+  function S(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e){}
+    try { if (window.state && typeof window.state === "object") return window.state; } catch(e){}
+    try { return JSON.parse(localStorage.getItem(MAIN_KEY) || "{}"); } catch(e){}
+    return null;
   }
-  function writeOverrides(map){
-    try { localStorage.setItem(OVERRIDE_KEY, JSON.stringify(map || {})); } catch(e){}
+  function saveMain(s){
+    s = s || S();
+    if (!s) return;
+    try { localStorage.setItem(MAIN_KEY, JSON.stringify(s)); } catch(e){}
+    try { if (typeof state !== "undefined" && state) { state.materials = Array.isArray(s.materials) ? s.materials : (state.materials || []); } } catch(e){}
+    try { if (typeof save === "function") save(); } catch(e){}
   }
-  function putOverride(m){
-    if (!m || !m.id) return;
-    var map = readOverrides();
-    map[String(m.id)] = Object.assign({}, map[String(m.id)] || {}, m, { _v64SavedAt: Date.now() });
-    writeOverrides(map);
-    try { localStorage.setItem(LAST_SAVE_KEY, JSON.stringify(map[String(m.id)])); } catch(e){}
+  function readMap(key){ try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch(e){ return {}; } }
+  function writeMap(key, map){ try { localStorage.setItem(key, JSON.stringify(map || {})); } catch(e){} }
+  function deletedMap(){ return readMap(DELETE_KEY); }
+  function overrideMap(){ return readMap(OVERRIDE_KEY); }
+
+  function readKeyState(key){
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      return obj && Array.isArray(obj.materials) ? obj : null;
+    } catch(e){ return null; }
   }
-  function removeOverride(id){
-    var map = readOverrides();
-    delete map[String(id || "")];
-    writeOverrides(map);
+  function writeKeyState(key, obj){
+    try { if (obj && Array.isArray(obj.materials)) localStorage.setItem(key, JSON.stringify(obj)); } catch(e){}
+  }
+
+  function mergeIntoArray(arr, material){
+    arr = Array.isArray(arr) ? arr : [];
+    var id = txt(material && material.id);
+    if (!id) return arr;
+    var found = false;
+    for (var i=0;i<arr.length;i++){
+      if (txt(arr[i] && arr[i].id) === id){ arr[i] = Object.assign({}, arr[i] || {}, material); found = true; break; }
+    }
+    if (!found) arr.push(clone(material));
+    return arr;
+  }
+  function removeFromArray(arr, id){
+    id = txt(id);
+    return (Array.isArray(arr) ? arr : []).filter(function(m){ return txt(m && m.id) !== id; });
   }
 
   function getVal(ids){
     for (var i=0;i<ids.length;i++){
       var el = E(ids[i]);
-      if (el && T(el.value)) return T(el.value);
+      if (el && txt(el.value)) return txt(el.value);
     }
     return "";
   }
-  function selectedId(){
-    var ids = [window.__bnsSelectedMaterialId, window.bnsSelectedMaterialId, window.__bnsV48EditingMaterialId];
+  function getCurrentSelectedId(){
+    var ids = [selectedId, window.__bnsSelectedMaterialId, window.bnsSelectedMaterialId, window.__bnsV48EditingMaterialId, window.__bnsV56EditingMaterialId];
+    try { if (typeof bnsSelectedMaterialId !== "undefined") ids.push(bnsSelectedMaterialId); } catch(e){}
     try { if (typeof selectedMaterialId !== "undefined") ids.push(selectedMaterialId); } catch(e){}
-    try { if (typeof editId !== "undefined") ids.push(editId); } catch(e){}
-    for (var i=0;i<ids.length;i++) if (T(ids[i])) return T(ids[i]);
-    return lastSavedId || "";
-  }
-  function findMaterial(s, data){
-    s.materials = Array.isArray(s.materials) ? s.materials : [];
-    var sid = selectedId();
-    var m = sid ? s.materials.find(function(x){ return T(x.id) === sid; }) : null;
-    if (!m && data.id) m = s.materials.find(function(x){ return T(x.id) === T(data.id); });
-    if (!m && data.cat && data.code) {
-      m = s.materials.find(function(x){
-        return upper(x.cat || x.rubriek || x.category) === upper(data.cat) &&
-               upper(x.code || x.searchName || x.zoeknaam) === upper(data.code);
-      });
+    for (var i=0;i<ids.length;i++) if (txt(ids[i])) return txt(ids[i]);
+    var chosen = E("adminSelectedMat");
+    if (chosen) {
+      var mid = chosen.getAttribute("data-material-id") || chosen.dataset.materialId || "";
+      if (txt(mid)) return txt(mid);
     }
-    return m || null;
+    return "";
+  }
+  function rememberId(id){
+    id = txt(id); if (!id) return;
+    selectedId = id;
+    window.__bnsSelectedMaterialId = id;
+    window.bnsSelectedMaterialId = id;
+    try { if (typeof selectedMaterialId !== "undefined") selectedMaterialId = id; } catch(e){}
   }
 
-  function formData(){
+  function materialFormData(){
     var cat = upper(getVal(["bnsV56Cat","adminMatCat","materialCat","rubriekInput"])) || "EXTRA";
     var nr = upper(getVal(["bnsV56Nr","adminMatNr","productNr","productNumber"]));
-    var product = getVal(["bnsV56Product","adminMatCode","productSearchName","productName"]);
-    var desc = getVal(["bnsV56Desc","adminMatName","productDescription","materialDescription"]);
-    var price = getVal(["bnsV56Price","adminMatPrice"]);
-    var statusEl = E("bnsV56Status") || E("adminMatStatus");
-    var status = statusEl ? T(statusEl.value || "free") : "free";
+    var codeField = getVal(["adminMatCode","bnsV56Product","productSearchName","productName"]);
+    var nameField = getVal(["adminMatName","bnsV56Desc","productDescription","materialDescription"]);
+    var price = getVal(["adminMatPrice","bnsV56Price"]);
+    var statusEl = E("adminMatStatus") || E("bnsV56Status");
+    var status = statusEl ? txt(statusEl.value || "free") : "free";
 
-    var code = "";
+    var code = upper(codeField);
     if (nr) code = nr.indexOf(cat) === 0 ? nr : cat + nr;
-    else code = upper(getVal(["adminMatCode"])) || cat;
+    if (!code) code = cat + String(Date.now()).slice(-4);
 
+    var product = txt(codeField);
+    var desc = txt(nameField);
     var name = desc || product || code;
     return {
       cat: cat,
       rubriek: cat,
       category: cat,
       code: code,
-      productNr: nr,
+      productNr: nr || code.replace(new RegExp("^" + cat), ""),
       product: product,
       searchName: product,
       zoeknaam: product,
@@ -11262,188 +11300,191 @@ setInterval(install,1500);
     };
   }
 
-  function applyOverrides(){
-    var s = stateObj();
+  function findMaterial(s, data){
+    s.materials = Array.isArray(s.materials) ? s.materials : [];
+    var id = getCurrentSelectedId();
+    var m = id ? s.materials.find(function(x){ return txt(x && x.id) === id; }) : null;
+    if (!m && data && data.cat && data.code) {
+      m = s.materials.find(function(x){ return upper(x && (x.cat || x.rubriek || x.category)) === upper(data.cat) && upper(x && x.code) === upper(data.code); });
+    }
+    return m || null;
+  }
+
+  function putOverride(material){
+    if (!material || !material.id) return;
+    var map = overrideMap();
+    map[txt(material.id)] = Object.assign({}, map[txt(material.id)] || {}, clone(material), {_bnsSavedAt: now()});
+    writeMap(OVERRIDE_KEY, map);
+    var del = deletedMap();
+    delete del[txt(material.id)];
+    writeMap(DELETE_KEY, del);
+  }
+  function putDeleted(id){
+    id = txt(id); if (!id) return;
+    var del = deletedMap();
+    del[id] = now();
+    writeMap(DELETE_KEY, del);
+    var map = overrideMap();
+    delete map[id];
+    writeMap(OVERRIDE_KEY, map);
+  }
+
+  function applyStableMaterials(){
+    var s = S();
     if (!s || !Array.isArray(s.materials)) return false;
-    var map = readOverrides();
     var changed = false;
+    var del = deletedMap();
+    Object.keys(del).forEach(function(id){
+      var before = s.materials.length;
+      s.materials = removeFromArray(s.materials, id);
+      if (s.materials.length !== before) changed = true;
+    });
+    var map = overrideMap();
     Object.keys(map).forEach(function(id){
-      var ov = map[id];
-      if (!ov || !ov.id) return;
-      var m = s.materials.find(function(x){ return T(x.id) === T(ov.id); });
-      if (!m) { s.materials.push(Object.assign({}, ov)); changed = true; return; }
-      ["cat","rubriek","category","code","productNr","product","searchName","zoeknaam","type","name","description","beschrijving","price","status","notes","color"].forEach(function(k){
-        if (ov[k] !== undefined && m[k] !== ov[k]) { m[k] = ov[k]; changed = true; }
-      });
+      var m = map[id];
+      if (!m || !m.id || del[id]) return;
+      var before = JSON.stringify(s.materials.find(function(x){ return txt(x && x.id) === txt(m.id); }) || null);
+      s.materials = mergeIntoArray(s.materials, m);
+      var after = JSON.stringify(s.materials.find(function(x){ return txt(x && x.id) === txt(m.id); }) || null);
+      if (before !== after) changed = true;
     });
     return changed;
   }
 
-  async function syncMaterialFirebase(m){
-    try {
-      if (!m || !m.id || !window.BNS || !window.BNS.fs || !window.BNS.db) return false;
-      var fs = window.BNS.fs;
-      var clean = Object.assign({}, m, { updatedAt: new Date().toISOString() });
-      await fs.setDoc(fs.doc(window.BNS.db, "materials", String(clean.id)), clean, { merge:true });
-      return true;
-    } catch(e) {
-      console.warn("Materiaal Firebase sync later opnieuw proberen", e);
-      return false;
-    }
+  function writeStableToAllLocalStores(){
+    var s = S();
+    if (!s || !Array.isArray(s.materials)) return;
+    var del = deletedMap();
+    var map = overrideMap();
+    STATE_KEYS.forEach(function(key){
+      var obj = readKeyState(key);
+      if (!obj) return;
+      obj.materials = Array.isArray(obj.materials) ? obj.materials : [];
+      Object.keys(del).forEach(function(id){ obj.materials = removeFromArray(obj.materials, id); });
+      Object.keys(map).forEach(function(id){ if (map[id] && !del[id]) obj.materials = mergeIntoArray(obj.materials, map[id]); });
+      writeKeyState(key, obj);
+    });
   }
 
-  function saveStableMaterial(ev){
-    if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    var s = stateObj();
-    if (!s) { notify("Geen state gevonden"); return false; }
-    s.materials = Array.isArray(s.materials) ? s.materials : [];
-    var data = formData();
-    if (!data.cat || !data.code) { notify("Vul rubriek en product nr/zoeknaam in"); return false; }
-    var m = findMaterial(s, data);
-    if (!m) { m = { id: "mat_" + Date.now() + "_" + Math.random().toString(36).slice(2,8) }; s.materials.push(m); }
-    Object.assign(m, data);
-    lastSavedId = T(m.id);
-    window.__bnsSelectedMaterialId = lastSavedId;
-    window.bnsSelectedMaterialId = lastSavedId;
-    try { if (typeof selectedMaterialId !== "undefined") selectedMaterialId = lastSavedId; } catch(e){}
-    try { if (typeof editId !== "undefined") editId = lastSavedId; } catch(e){}
+  async function syncMaterialToFirebase(material, deleted){
+    try {
+      if (!window.BNS || !window.BNS.fs || !window.BNS.db) return;
+      var fs = window.BNS.fs;
+      if (deleted) {
+        if (fs.deleteDoc) await fs.deleteDoc(fs.doc(window.BNS.db, "materials", String(material)));
+        return;
+      }
+      if (material && material.id && fs.setDoc) {
+        await fs.setDoc(fs.doc(window.BNS.db, "materials", String(material.id)), Object.assign({}, material, {updatedAt:new Date().toISOString()}), {merge:true});
+      }
+    } catch(e){ console.warn("Materiaal Firebase sync later", e); }
+  }
 
-    putOverride(m);
-    applyOverrides();
-    localSave();
-    syncMaterialFirebase(m);
-
+  function rerenderMaterialOnly(cat){
     try { if (typeof adminRender === "function") adminRender(); } catch(e){}
+    try { if (typeof window.BNS_V12_PRO_renderAdminMaterials === "function") window.BNS_V12_PRO_renderAdminMaterials(); } catch(e){}
     try { if (typeof renderCats === "function") renderCats(); } catch(e){}
     try { if (typeof window.renderCats === "function") window.renderCats(); } catch(e){}
-    try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || m.cat); } catch(e){}
-    try { if (typeof window.renderMaterials === "function") window.renderMaterials(window.currentCat || m.cat); } catch(e){}
-    notify("Materiaal opgeslagen en vastgezet");
-    return false;
+    try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || cat || "TW"); } catch(e){}
+    try { if (typeof window.renderMaterials === "function") window.renderMaterials(window.currentCat || cat || "TW"); } catch(e){}
   }
 
-  function deleteStableMaterial(ev){
+  function saveMaterialStable(ev){
     if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    var sid = selectedId();
-    if (!sid) { notify("Kies eerst materiaal"); return false; }
-    if (!confirm("Weet je zeker dat je dit materiaal wilt wissen?")) return false;
-    var s = stateObj();
-    if (s && Array.isArray(s.materials)) s.materials = s.materials.filter(function(m){ return T(m.id) !== sid; });
-    removeOverride(sid);
-    lastSavedId = "";
-    try { window.__bnsSelectedMaterialId = ""; window.bnsSelectedMaterialId = ""; } catch(e){}
-    localSave();
-    try { if (typeof adminRender === "function") adminRender(); } catch(e){}
-    try { if (typeof renderCats === "function") renderCats(); } catch(e){}
-    try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || "TW"); } catch(e){}
-    notify("Materiaal verwijderd");
+    var s = S();
+    if (!s) return false;
+    s.materials = Array.isArray(s.materials) ? s.materials : [];
+    var data = materialFormData();
+    if (!data.cat || !data.code) { toast("Vul rubriek en product/code in"); return false; }
+    var m = findMaterial(s, data);
+    if (!m) { m = {id:"mat_" + Date.now() + "_" + Math.random().toString(36).slice(2,7)}; s.materials.push(m); }
+    Object.assign(m, data);
+    rememberId(m.id);
+    putOverride(m);
+    applyStableMaterials();
+    saveMain(s);
+    writeStableToAllLocalStores();
+    syncMaterialToFirebase(m, false);
+    rerenderMaterialOnly(m.cat);
+    toast("Materiaal opgeslagen");
     return false;
   }
 
-  function bindButtons(){
+  function deleteMaterialStable(ev){
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    var id = getCurrentSelectedId();
+    if (!id) { toast("Kies eerst materiaal"); return false; }
+    if (!confirm("Weet je zeker dat je dit materiaal wilt wissen?")) return false;
+    var s = S();
+    if (s && Array.isArray(s.materials)) s.materials = removeFromArray(s.materials, id);
+    putDeleted(id);
+    selectedId = "";
+    saveMain(s);
+    writeStableToAllLocalStores();
+    syncMaterialToFirebase(id, true);
+    rerenderMaterialOnly("TW");
+    toast("Materiaal verwijderd");
+    return false;
+  }
+
+  function bind(){
     ["adminSaveMat","bnsV56Save"].forEach(function(id){
-      var b = E(id); if (!b || b.dataset.bnsV66Save === "1") return;
-      b.dataset.bnsV66Save = "1";
+      var b = E(id); if (!b) return;
       b.type = "button";
-      b.addEventListener("click", saveStableMaterial, true);
-      b.onclick = saveStableMaterial;
+      b.onclick = saveMaterialStable;
+      if (b.dataset.bnsV67Save !== "1") { b.dataset.bnsV67Save = "1"; b.addEventListener("click", saveMaterialStable, true); }
     });
     ["adminDeleteMat","bnsV56Delete"].forEach(function(id){
-      var b = E(id); if (!b || b.dataset.bnsV66Delete === "1") return;
-      b.dataset.bnsV66Delete = "1";
+      var b = E(id); if (!b) return;
       b.type = "button";
-      b.addEventListener("click", deleteStableMaterial, true);
+      b.onclick = deleteMaterialStable;
+      if (b.dataset.bnsV67Delete !== "1") { b.dataset.bnsV67Delete = "1"; b.addEventListener("click", deleteMaterialStable, true); }
     });
-    if (!document.documentElement.dataset.bnsV66MaterialClick) {
-      document.documentElement.dataset.bnsV66MaterialClick = "1";
-      document.addEventListener("click", function(e){
-        var btn = e.target && e.target.closest && e.target.closest("[data-v61-edit],[data-v56-edit],[data-material-id],[onclick*='fillMat']");
-        if (!btn) return;
-        var id = btn.getAttribute("data-v61-edit") || btn.getAttribute("data-v56-edit") || btn.getAttribute("data-material-id") || "";
-        if (id) { lastSavedId = id; window.__bnsSelectedMaterialId = id; window.bnsSelectedMaterialId = id; }
-      }, true);
+    document.addEventListener("click", function(e){
+      var el = e.target && e.target.closest && e.target.closest("[data-admin-material-id],[data-material-id],[data-v61-edit],[data-v56-edit],[onclick*='fillMat']");
+      if (!el) return;
+      var id = el.getAttribute("data-admin-material-id") || el.getAttribute("data-material-id") || el.getAttribute("data-v61-edit") || el.getAttribute("data-v56-edit") || "";
+      if (id) rememberId(id);
+    }, true);
+    var oldFill = window.fillMat;
+    if (typeof oldFill === "function" && !oldFill.__bnsV67) {
+      var wrapped = function(id){ rememberId(id); return oldFill.apply(this, arguments); };
+      wrapped.__bnsV67 = true;
+      window.fillMat = wrapped;
+      try { fillMat = wrapped; } catch(e){}
     }
   }
 
-  function patchSave(){
-    try {
-      if (typeof save === "function" && !save.__bnsV66) {
-        var old = save;
-        var wrapped = function(){ applyOverrides(); return old.apply(this, arguments); };
-        wrapped.__bnsV66 = true;
-        save = wrapped;
-        window.save = wrapped;
-      }
-    } catch(e){}
-  }
-  function patchRender(name){
+  function patchFunction(name){
     try {
       var fn = window[name] || (typeof globalThis[name] === "function" ? globalThis[name] : null);
-      if (typeof fn !== "function" || fn.__bnsV66) return;
-      var wrapped = function(){ applyOverrides(); return fn.apply(this, arguments); };
-      wrapped.__bnsV66 = true;
+      if (typeof fn !== "function" || fn.__bnsV67) return;
+      var wrapped = function(){ var changed = applyStableMaterials(); if (changed) saveMain(S()); return fn.apply(this, arguments); };
+      wrapped.__bnsV67 = true;
       window[name] = wrapped;
       try { globalThis[name] = wrapped; } catch(e){}
     } catch(e){}
   }
 
   function run(){
-    patchSave();
-    applyOverrides();
-    bindButtons();
-    patchRender("renderAll");
-    patchRender("adminRender");
-    patchRender("renderMaterials");
+    applyStableMaterials();
+    writeStableToAllLocalStores();
+    bind();
+    patchFunction("renderAll");
+    patchFunction("adminRender");
+    patchFunction("renderMaterials");
   }
 
-  window.BNS_saveMaterialStableV66 = saveStableMaterial;
-  window.BNS_applyMaterialOverridesV66 = applyOverrides;
+  window.BNS_V67_saveMaterialStable = saveMaterialStable;
+  window.BNS_V67_applyMaterialStable = applyStableMaterials;
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(run, 100); });
   else setTimeout(run, 100);
   setTimeout(run, 800);
   setTimeout(run, 2000);
   setInterval(function(){
-    var changed = applyOverrides();
-    if (changed) {
-      try { localSave(); } catch(e){}
-      try { if (typeof adminRender === "function") adminRender(); } catch(e){}
-      try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || "TW"); } catch(e){}
-    }
-    bindButtons();
-  }, 5000);
-})();
-
-(function bnsV66AdminPinMask(){
-  "use strict";
-  if (window.__bnsV66AdminPinMask) return;
-  window.__bnsV66AdminPinMask = true;
-  function E(id){ return document.getElementById(id); }
-  function securePin(clearNow){
-    var pin = E("adminPin");
-    if (!pin) return;
-    try { pin.type = "password"; } catch(e){}
-    pin.name = "bns_admin_pin";
-    pin.setAttribute("autocomplete", "new-password");
-    pin.setAttribute("inputmode", "numeric");
-    pin.setAttribute("placeholder", "PIN");
-    if (clearNow && document.activeElement !== pin) pin.value = "";
-  }
-  function bind(){
-    securePin(false);
-    var pin = E("adminPin");
-    if (pin && !pin.dataset.bnsV66Pin) {
-      pin.dataset.bnsV66Pin = "1";
-      pin.addEventListener("focus", function(){ securePin(false); }, true);
-      pin.addEventListener("blur", function(){ securePin(false); }, true);
-    }
-    var btn = E("unlockAdmin");
-    if (btn && !btn.dataset.bnsV66Pin) {
-      btn.dataset.bnsV66Pin = "1";
-      btn.addEventListener("click", function(){ setTimeout(function(){ securePin(true); }, 250); }, true);
-    }
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(function(){ securePin(true); bind(); }, 300); });
-  else setTimeout(function(){ securePin(true); bind(); }, 150);
-  setInterval(bind, 1200);
+    var changed = applyStableMaterials();
+    if (changed) { saveMain(S()); writeStableToAllLocalStores(); rerenderMaterialOnly(window.currentCat || "TW"); }
+    bind();
+  }, 3000);
 })();
