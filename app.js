@@ -11297,138 +11297,6 @@ setInterval(install,1500);
 })();
 
 /* =========================================================
-   BNS V73 - Alleen laatste materiaal-sync + PIN veld
-   - Basis blijft V72/V62
-   - Admin materiaal opslaan schrijft ook direct naar materiaal-kiezen
-   - Artikelkleur wordt op het materiaal zelf opgeslagen
-   - Admin PIN veld blijft leeg en password
-   ========================================================= */
-(function bnsV73MaterialAdminToPlannerFinal(){
-  "use strict";
-  if (window.__bnsV73MaterialAdminToPlannerFinal) return;
-  window.__bnsV73MaterialAdminToPlannerFinal = true;
-
-  var OVERRIDE_KEY = "bns_material_overrides_v72";
-
-  function E(id){ return document.getElementById(id); }
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function catKey(v){ return T(v || "EXTRA").toUpperCase().replace(/[^A-Z0-9]/g,"") || "EXTRA"; }
-  function nrKey(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g,""); }
-  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c];}); }
-  function normColor(v){
-    v=T(v); if(/^#[0-9a-f]{6}$/i.test(v)) return v;
-    var m=v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-    if(m) return "#"+[m[1],m[2],m[3]].map(function(n){var h=(parseInt(n,10)||0).toString(16);return h.length<2?"0"+h:h;}).join("");
-    return "";
-  }
-  function S(){ try{ if(typeof state!=="undefined" && state) return state; }catch(e){} return window.state || (window.state={materials:[],orders:[]}); }
-  function mats(){ var s=S(); s.materials=Array.isArray(s.materials)?s.materials:[]; return s.materials; }
-  function orders(){ var s=S(); s.orders=Array.isArray(s.orders)?s.orders:[]; return s.orders; }
-  function makeCode(cat,nr){ cat=catKey(cat); nr=nrKey(nr); return nr ? (nr.indexOf(cat)===0?nr:cat+nr) : cat; }
-  function readMap(){ try{return JSON.parse(localStorage.getItem(OVERRIDE_KEY)||"{}");}catch(e){return{};} }
-  function writeMap(m){ try{localStorage.setItem(OVERRIDE_KEY,JSON.stringify(m||{}));}catch(e){} }
-  function putOverride(m){ if(!m||!m.id)return; var map=readMap(); map[String(m.id)]=Object.assign({},map[String(m.id)]||{},m,{_savedAt:Date.now()}); writeMap(map); }
-  function applyOverrides(){ var list=mats(), map=readMap(); Object.keys(map).forEach(function(id){ var ov=map[id]; if(!ov||!ov.id)return; var m=list.find(function(x){return String(x.id)===String(ov.id);}); if(!m){list.push(Object.assign({},ov));return;} Object.assign(m,ov); }); }
-  function productName(m){ return T(m&&(m.product||m.searchName||m.zoeknaam||m.type||m.name||m.description||m.beschrijving)); }
-  function productDesc(m){ return T(m&&(m.description||m.beschrijving||m.notes||"")); }
-  function searchText(m){ return [m&&m.cat,m&&m.rubriek,m&&m.category,m&&m.code,m&&m.productNr,m&&m.nr,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.name,m&&m.description,m&&m.beschrijving,m&&m.notes,m&&m.price].join(" ").toLowerCase(); }
-  function selectedColor(cat){
-    var p=E("bnsV56ColorPreview")||E("adminMatColorPreview");
-    var c=normColor(p && (p.style.backgroundColor || p.style.background));
-    var active=document.querySelector("#bnsV56Dots .bns-v56-dot.active,.bns-color-dot.active,.bns-v48-dot.active");
-    return normColor(active && (active.dataset.color||active.getAttribute("data-color")||active.style.backgroundColor)) || c || catColor(cat);
-  }
-  function catColor(cat){
-    var k=catKey(cat), def={TW:"#dc2626",TO:"#f97316",KW:"#22c55e",KA:"#a855f7",SL:"#eab308",EXTRA:"#334155",BT:"#0ea5e9",HN:"#7c3aed",TEST:"#22c55e"};
-    try{ var s=S(); var c=s.settings&&s.settings.categoryColors&&s.settings.categoryColors[k]; if(normColor(c)) return normColor(c); }catch(e){}
-    try{ var b=JSON.parse(localStorage.getItem("bns_rubriek_kleuren_v12_pro")||"{}"); if(normColor(b[k])) return normColor(b[k]); }catch(e){}
-    try{ var a=JSON.parse(localStorage.getItem("bnsCatColors")||"{}"); if(normColor(a[k])) return normColor(a[k]); }catch(e){}
-    return def[k]||def.EXTRA;
-  }
-  function materialColor(m){ return normColor(m && m.color) || catColor(m && (m.cat||m.rubriek||m.category)); }
-  function chosenList(){ try{ if(typeof chosen!=="undefined" && Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
-  function sameMaterial(a,b){ if(!a||!b)return false; if(a.id&&b.id&&String(a.id)===String(b.id))return true; return catKey(a.cat||a.rubriek||a.category)===catKey(b.cat||b.rubriek||b.category) && nrKey(a.code||a.productNr||a.nr)===nrKey(b.code||b.productNr||b.nr); }
-  function parseDate(v){ var s=T(v),m=s.match(/^(\d{4})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/); if(m)return mk(+m[1],+m[2],+m[3]); m=s.match(/^(\d{1,2})[-\.\/](\d{1,2})[-\.\/](\d{4})/); if(m)return mk(+m[3],+m[2],+m[1]); var d=new Date(s); return isNaN(d.getTime())?null:mk(d.getFullYear(),d.getMonth()+1,d.getDate()); }
-  function mk(y,m,d){ var x=new Date(y,m-1,d); if(x.getFullYear()!==y||x.getMonth()!==m-1||x.getDate()!==d)return null; x.setHours(0,0,0,0); return x; }
-  function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); x.setHours(0,0,0,0); return x; }
-  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e)s=e; if(!s)return null; if(!e||e.getTime()<=s.getTime())e=addDays(s,1); return {start:s,end:e}; }
-  function wantedPeriod(){ return period((E("dateStart")||{}).value,(E("dateEnd")||{}).value); }
-  function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
-  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<b.end.getTime()&&b.start.getTime()<a.end.getTime()); }
-  function blocksOrder(o){ var s=T(o&&o.status).toLowerCase(); if(!s)return false; if(/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd/.test(s))return false; if(s.indexOf("offerte")>=0)return false; return /bevestigd|opdracht|optie 14|optie14/.test(s); }
-  function editingId(){ try{ if(typeof editing!=="undefined"&&editing) return String(editing); }catch(e){} return window.editing?String(window.editing):""; }
-  function reservationFor(m){ var w=wantedPeriod(); if(!w)return null; var edit=editingId(); for(var i=0;i<orders().length;i++){ var o=orders()[i]; if(!o||!blocksOrder(o))continue; if(edit&&String(o.id||"")===edit)continue; var ml=Array.isArray(o.materials)?o.materials:[]; if(!ml.some(function(x){return sameMaterial(x,m);} ))continue; var op=orderPeriod(o); if(overlaps(w,op))return {order:o,period:op,wanted:w}; } return null; }
-  function matStatus(m){ var raw=T(m&&m.status).toLowerCase(); if(chosenList().some(function(x){return sameMaterial(x,m);} ))return {key:"chosen",label:"Toegevoegd",blocked:false}; if(/inactive|niet actief|niet beschikbaar|defect|damage|schade|missing|vermist|vermissing/.test(raw))return {key:"defect",label:"Niet inzetbaar",blocked:true}; var r=reservationFor(m); if(r)return {key:"reserved",label:"Gereserveerd",blocked:true,reservation:r}; return {key:"free",label:"Vrij",blocked:false}; }
-  function currentCat(){ return catKey(window.currentCat || localStorage.getItem("bnsV56Cat") || "TW"); }
-
-  function forceRenderMaterials(cat){
-    var box=E("materialList"); if(!box)return;
-    applyOverrides(); var active=catKey(cat||currentCat()); window.currentCat=active; try{currentCat=active;}catch(e){}
-    var q=T((E("materialSearch")||{}).value).toLowerCase();
-    var rows=mats().filter(function(m){return catKey(m.cat||m.rubriek||m.category)===active;}).filter(function(m){return !q||searchText(m).indexOf(q)>=0;}).slice(0,500);
-    box.innerHTML=rows.length?rows.map(function(m){ var st=matStatus(m), col=materialColor(m), p=productName(m), d=productDesc(m), price=m.price||"oude prijs: € 0"; return '<div class="bns-v72-row '+esc(st.key)+'" data-material-id="'+esc(m.id)+'" style="--mat-color:'+esc(col)+'"><div class="bns-v72-bar"></div><div><div class="bns-v72-title"><b>'+esc(m.code||"")+'</b> '+esc(p)+'</div>'+(d&&d!==p?'<div class="bns-v72-desc">'+esc(d)+'</div>':'')+'<div class="bns-v72-price">'+esc(price)+'</div></div><span class="bns-v72-pill '+esc(st.key)+'">'+esc(st.label)+'</span></div>'; }).join(""):'<p class="bns-empty">Geen materiaal gevonden in rubriek '+esc(active)+'.</p>';
-  }
-
-  function selectedId(){
-    var ids=[window.__bnsSelectedMaterialId,window.bnsSelectedMaterialId,window.__bnsV48EditingMaterialId];
-    try{ if(typeof selectedMaterialId!=="undefined")ids.push(selectedMaterialId); }catch(e){}
-    try{ if(typeof editId!=="undefined")ids.push(editId); }catch(e){}
-    for(var i=0;i<ids.length;i++) if(T(ids[i])) return T(ids[i]);
-    return "";
-  }
-  function saveLocal(){
-    try{localStorage.setItem("eventPlannerProState",JSON.stringify(S()));}catch(e){}
-    try{localStorage.setItem("plannerState",JSON.stringify(S()));}catch(e){}
-    try{localStorage.setItem("eventPlannerPro",JSON.stringify(S()));}catch(e){}
-    try{localStorage.setItem("eventPlannerProV91",JSON.stringify(S()));}catch(e){}
-    try{if(typeof save==="function")save();}catch(e){}
-  }
-  function saveFirebase(m){ try{ if(!m||!m.id||!window.BNS||!window.BNS.fs||!window.BNS.db)return; var fs=window.BNS.fs; fs.setDoc(fs.doc(window.BNS.db,"materials",String(m.id)),Object.assign({},m,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){}); }catch(e){} }
-  function saveMaterialFinal(ev){
-    if(ev){ev.preventDefault();ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}
-    var cat=catKey((E("bnsV56Cat")||E("adminMatCat")||{}).value||"TW");
-    var nr=nrKey((E("bnsV56Nr")||E("adminMatCode")||E("adminMatNr")||{}).value||"");
-    var prod=T((E("bnsV56Product")||E("adminMatProduct")||{}).value||"");
-    var desc=T((E("bnsV56Desc")||E("adminMatName")||{}).value||"");
-    var price=T((E("bnsV56Price")||E("adminMatPrice")||{}).value||"");
-    var status=T((E("bnsV56Status")||E("adminMatStatus")||{}).value||"free")||"free";
-    var code=makeCode(cat,nr);
-    var color=selectedColor(cat);
-    var list=mats();
-    var sid=selectedId();
-    var m=(sid&&list.find(function(x){return String(x.id)===sid;})) || list.find(function(x){return catKey(x.cat||x.rubriek||x.category)===cat && nrKey(x.code||x.productNr||x.nr)===nrKey(code);});
-    if(!m){m={id:"mat_"+Date.now()+"_"+Math.random().toString(36).slice(2,7)}; list.push(m);}
-    Object.assign(m,{cat:cat,rubriek:cat,category:cat,code:code,productNr:nr,nr:nr,product:prod||desc||code,searchName:prod||desc||code,zoeknaam:prod||desc||code,type:prod||desc||code,name:prod||desc||code,description:desc||prod||code,beschrijving:desc||prod||code,price:price,status:status,color:color});
-    window.__bnsSelectedMaterialId=String(m.id); window.bnsSelectedMaterialId=String(m.id); try{editId=String(m.id);}catch(e){}
-    // bewaar ook de rubriekkleur zoals admin hem verwacht
-    try{var s=S();s.settings=s.settings||{};s.settings.categoryColors=s.settings.categoryColors||{};s.settings.categoryColors[cat]=color;}catch(e){}
-    putOverride(m); saveLocal(); saveFirebase(m);
-    if(E("bnsV56AdminSearch")){}
-    forceRenderMaterials(cat);
-    try{ if(typeof window.renderCats==="function") window.renderCats(); }catch(e){}
-    try{ if(typeof renderAdminListV61==="function") renderAdminListV61(); }catch(e){}
-    try{ if(typeof renderAdminList==="function") renderAdminList(); }catch(e){}
-    try{ if(typeof toastMsg==="function") toastMsg("Materiaal opgeslagen"); else if(typeof showToast==="function") showToast("Materiaal opgeslagen"); }catch(e){}
-    return false;
-  }
-  function bindSaves(){
-    ["bnsV56Save","adminSaveMat"].forEach(function(id){var b=E(id); if(!b||b.dataset.bnsV73Save==="1")return; var c=b.cloneNode(true); c.type="button"; c.dataset.bnsV73Save="1"; c.addEventListener("click",saveMaterialFinal,true); c.onclick=saveMaterialFinal; b.parentNode.replaceChild(c,b);});
-    window.renderMaterials=forceRenderMaterials; try{renderMaterials=forceRenderMaterials;}catch(e){}
-  }
-  function pinFix(){
-    var p=E("adminPin") || Array.prototype.slice.call(document.querySelectorAll('input')).find(function(i){return /pin/i.test(i.placeholder||"") && /admin/i.test((document.body.textContent||"").slice(0,1000));});
-    if(!p)return;
-    try{p.type="password";}catch(e){}
-    p.setAttribute("autocomplete","new-password"); p.setAttribute("inputmode","numeric");
-    if(!p.dataset.bnsV73Cleared && document.activeElement!==p){p.value="";p.dataset.bnsV73Cleared="1";}
-  }
-  function install(){ bindSaves(); pinFix(); if(E("materialList")) forceRenderMaterials(currentCat()); }
-  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){setTimeout(install,500);}); else setTimeout(install,300);
-  setTimeout(install,1300); setTimeout(install,3000);
-  setInterval(function(){ bindSaves(); pinFix(); },2000);
-})();
-
-/* =========================================================
    BNS V73 - Documenten / Facturen module
    - Alleen documenten/factuur uitbreiding.
    - Materiaal, datum, reservering en admin-materiaal blijven ongemoeid.
@@ -11600,22 +11468,27 @@ setInterval(install,1500);
 })();
 
 /* =========================================================
-   BNS V74 - Admin personeel direct opslaan / wijzigen / verwijderen
-   Alleen Admin > Gebruikers / personeel.
-   - Naam en PIN worden direct in state + lokale opslag aangepast.
-   - Verwijderen werkt direct en ververst de lijst meteen.
-   - Oude dubbele gebruikerslijsten worden stilgelegd om traagheid/stale regels te voorkomen.
-   - Materiaal, opdrachten en facturen blijven ongemoeid.
+   BNS V75 - Admin materiaal + personeel direct zichtbaar
+   - Admin materiaal lijst direct opnieuw tekenen na opslaan/verwijderen.
+   - Materiaal, gebruikers en opdrachten ook via Firebase realtime volgen.
+   - Gebruiker verwijderen zet hem direct uit lokale lijst en uit Firebase.
+   - Geen factuur/document/layout wijzigingen.
    ========================================================= */
-(function bnsV74AdminPersoneelDirect(){
+(function bnsV75RealtimeAdminMaterialUsers(){
   "use strict";
-  if (window.__bnsV74AdminPersoneelDirect) return;
-  window.__bnsV74AdminPersoneelDirect = true;
+  if (window.__bnsV75RealtimeAdminMaterialUsers) return;
+  window.__bnsV75RealtimeAdminMaterialUsers = true;
 
-  var BOX_ID = "bnsForceUserRightsBox";
-  var LIST_ID = "bnsV74UserList";
-  var STYLE_ID = "bns-v74-admin-users-style";
+  var FIREBASE_VERSION = "10.12.5";
+  var MIN_ORDER_DATE = "2025-01-01";
+  var MATERIAL_OVERRIDE_KEY = "bns_material_overrides_v72";
+  var renderFlags = {};
+  var renderTimer = null;
+  var firebaseStartPromise = null;
+  var subscriptionsStarted = false;
   var selectedUserId = "";
+  var lastUsersHash = "";
+  var usersMetaLoaded = false;
 
   var RIGHTS = [
     ["prices", "Prijzen zien"],
@@ -11630,157 +11503,471 @@ setInterval(install,1500);
     ["admin", "Admin beheer"]
   ];
 
-  var DEFAULTS = {
-    Admin:   {prices:true, agenda:true, gps:true,  resolve:true, materials:true,  customers:true,  locations:true,  orders:true,  invoice:true,  admin:true},
-    Planner: {prices:true, agenda:true, gps:false, resolve:true, materials:true,  customers:true,  locations:true,  orders:true,  invoice:true,  admin:false},
-    Bezorger:{prices:false,agenda:false,gps:true,  resolve:true, materials:false, customers:false, locations:false, orders:false, invoice:false, admin:false}
+  var DEFAULT_RIGHTS = {
+    Admin: {prices:true, agenda:true, gps:true, resolve:true, materials:true, customers:true, locations:true, orders:true, invoice:true, admin:true},
+    Planner: {prices:true, agenda:true, gps:false, resolve:true, materials:true, customers:true, locations:true, orders:true, invoice:true, admin:false},
+    Bezorger: {prices:false, agenda:false, gps:true, resolve:true, materials:false, customers:false, locations:false, orders:false, invoice:false, admin:false}
   };
 
   function E(id){ return document.getElementById(id); }
   function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
   function T(v){ return String(v == null ? "" : v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
-  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
-  function visible(el){ return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length)); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function catKey(v){ return T(v || "EXTRA").toUpperCase().replace(/[^A-Z0-9]/g, "") || "EXTRA"; }
+  function nrKey(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+  function hash(v){ try { return JSON.stringify(v || null); } catch(e) { return String(Date.now()); } }
 
   function appState(){
     try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
-    try { if (window.state) return window.state; } catch(e) {}
+    try { if (window.state && typeof window.state === "object") return window.state; } catch(e) {}
     return null;
   }
 
+  function mats(){
+    var s = appState();
+    if (!s) return [];
+    s.materials = Array.isArray(s.materials) ? s.materials : [];
+    return s.materials;
+  }
+
+  function users(){
+    var s = appState();
+    if (!s) return [];
+    s.users = Array.isArray(s.users) ? s.users : [];
+    return s.users;
+  }
+
+  function orders(){
+    var s = appState();
+    if (!s) return [];
+    s.orders = Array.isArray(s.orders) ? s.orders : [];
+    return s.orders;
+  }
+
+  function saveLocal(){
+    var s = appState();
+    if (!s) return;
+    try { if (typeof save === "function") save(); } catch(e) {}
+    ["event-planner-pro-v87", "eventPlannerProState", "plannerState", "eventPlannerPro", "eventPlannerProV91"].forEach(function(key){
+      try { localStorage.setItem(key, JSON.stringify(s)); } catch(e) {}
+    });
+    try { window.dispatchEvent(new CustomEvent("bns-v75-state-updated", {detail:{at:Date.now()}})); } catch(e) {}
+  }
+
+  function makeId(prefix){
+    try { if (typeof id === "function") return id(); } catch(e) {}
+    return (prefix || "id") + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
   function toast(text){
+    text = T(text);
     try { if (typeof toastMsg === "function") return toastMsg(text); } catch(e) {}
-    try { if (typeof window.toastMsg === "function") return window.toastMsg(text); } catch(e) {}
+    try { if (typeof showToast === "function") return showToast(text); } catch(e) {}
     try { console.log(text); } catch(e) {}
   }
 
-  function makeId(){
-    try { if (typeof id === "function") return id(); } catch(e) {}
-    return "u_" + Date.now() + "_" + Math.random().toString(36).slice(2,8);
+  function queueRender(flags){
+    Object.assign(renderFlags, flags || {});
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(function(){
+      var f = renderFlags;
+      renderFlags = {};
+      if (f.materials) {
+        renderAdminMaterialsNow();
+        try { if (typeof window.renderCats === "function") window.renderCats(); } catch(e) {}
+        try { if (typeof window.renderMaterials === "function") window.renderMaterials(currentMaterialCat()); } catch(e) {}
+      }
+      if (f.users) updateDriverSelects();
+      if (f.orders || f.users) {
+        try { if (typeof renderAll === "function") renderAll(); } catch(e) {}
+      }
+      enforceCurrentUserStillAllowed();
+    }, 70);
   }
 
-  function persist(){
+  function normalizeColor(v){
+    v = T(v);
+    if (/^#[0-9a-f]{6}$/i.test(v)) return v;
+    var m = v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (m) return "#" + [m[1], m[2], m[3]].map(function(n){ var h = (parseInt(n, 10) || 0).toString(16); return h.length < 2 ? "0" + h : h; }).join("");
+    return "";
+  }
+
+  function readColorMap(key){
+    try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch(e) { return {}; }
+  }
+
+  function catColor(cat){
+    var key = catKey(cat);
+    var def = {TW:"#dc2626", TO:"#f97316", KW:"#334155", KA:"#a855f7", SL:"#eab308", EXTRA:"#334155", BT:"#0ea5e9", HN:"#7c3aed", TEST:"#22c55e"};
+    try {
+      var s = appState();
+      var c = s && s.settings && s.settings.categoryColors && s.settings.categoryColors[key];
+      if (normalizeColor(c)) return normalizeColor(c);
+    } catch(e) {}
+    var a = readColorMap("bnsCatColors");
+    if (normalizeColor(a[key])) return normalizeColor(a[key]);
+    var b = readColorMap("bns_rubriek_kleuren_v12_pro");
+    if (normalizeColor(b[key])) return normalizeColor(b[key]);
+    return def[key] || def.EXTRA;
+  }
+
+  function saveCatColor(cat, color){
+    cat = catKey(cat);
+    color = normalizeColor(color) || catColor(cat);
+    ["bnsCatColors", "bns_rubriek_kleuren_v12_pro"].forEach(function(key){
+      try { var map = readColorMap(key); map[cat] = color; localStorage.setItem(key, JSON.stringify(map)); } catch(e) {}
+    });
+    try {
+      var s = appState();
+      s.settings = s.settings || {};
+      s.settings.categoryColors = s.settings.categoryColors || {};
+      s.settings.categoryColors[cat] = color;
+    } catch(e) {}
+  }
+
+  function selectedColor(cat){
+    var active = document.querySelector("#bnsV56Dots .bns-v56-dot.active, .bns-color-dot.active, .bns-v48-dot.active");
+    var raw = active && (active.dataset.color || active.getAttribute("data-color") || active.style.backgroundColor || active.style.getPropertyValue("--dot"));
+    var preview = E("bnsV56ColorPreview") || E("adminMatColorPreview");
+    var p = preview && (preview.style.backgroundColor || preview.style.background);
+    var direct = E("adminMatColor") || E("bnsV56Color");
+    return normalizeColor(raw) || normalizeColor(p) || normalizeColor(direct && direct.value) || catColor(cat);
+  }
+
+  function materialProduct(m){ return T(m && (m.product || m.searchName || m.zoeknaam || m.type || m.name || m.description || m.beschrijving)); }
+  function materialDesc(m){ return T(m && (m.description || m.beschrijving || m.notes || m.name || "")); }
+  function materialNr(m){
+    var c = catKey(m && (m.cat || m.rubriek || m.category));
+    var n = nrKey(m && (m.productNr || m.nr || m.number));
+    if (n) return n.indexOf(c) === 0 ? (n.slice(c.length) || n) : n;
+    var co = nrKey(m && m.code);
+    return co.indexOf(c) === 0 ? (co.slice(c.length) || co) : co;
+  }
+  function materialCode(m){
+    var c = catKey(m && (m.cat || m.rubriek || m.category));
+    var co = nrKey(m && m.code);
+    if (co) return co;
+    var n = materialNr(m);
+    return n ? c + n : c;
+  }
+  function makeCode(cat, nr){ cat = catKey(cat); nr = nrKey(nr); return nr ? (nr.indexOf(cat) === 0 ? nr : cat + nr) : cat; }
+  function materialSearchText(m){ return [m && m.cat, m && m.rubriek, m && m.category, m && m.code, m && m.productNr, m && m.nr, m && m.product, m && m.searchName, m && m.zoeknaam, m && m.type, m && m.name, m && m.description, m && m.beschrijving, m && m.notes, m && m.price].map(T).join(" ").toLowerCase(); }
+
+  function currentMaterialCat(){
+    var raw = (E("bnsV56Cat") && E("bnsV56Cat").value) || localStorage.getItem("bnsV61AdminCat") || localStorage.getItem("bnsV56Cat") || window.currentCat || "TW";
+    var c = catKey(raw);
+    try { window.currentCat = c; } catch(e) {}
+    try { currentCat = c; } catch(e) {}
+    return c;
+  }
+
+  function setCurrentMaterialCat(cat){
+    cat = catKey(cat);
+    try { localStorage.setItem("bnsV61AdminCat", cat); localStorage.setItem("bnsV56Cat", cat); } catch(e) {}
+    if (E("bnsV56Cat")) E("bnsV56Cat").value = cat;
+    try { window.currentCat = cat; } catch(e) {}
+    try { currentCat = cat; } catch(e) {}
+  }
+
+  function renderAdminCatBar(){
+    var list = E("bnsV56AdminList");
+    var search = E("bnsV56AdminSearch");
+    if (!list || !search) return;
+    var seen = {};
+    mats().forEach(function(m){ seen[catKey(m.cat || m.rubriek || m.category)] = true; });
+    ["TW", "TO", "KW", "EXTRA"].forEach(function(c){ seen[c] = true; });
+    var cats = Object.keys(seen).sort(function(a, b){
+      var pref = ["TW", "TO", "KW", "EXTRA", "BT", "HN", "TEST"];
+      var ia = pref.indexOf(a), ib = pref.indexOf(b);
+      if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      return a.localeCompare(b);
+    });
+    var bar = E("bnsV61AdminCatBar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "bnsV61AdminCatBar";
+      search.parentNode.insertBefore(bar, search);
+    }
+    var active = currentMaterialCat();
+    bar.innerHTML = cats.map(function(c){ return '<button type="button" class="bns-v61-cat '+(c === active ? 'active' : '')+'" data-bns-v75-admin-cat="'+esc(c)+'" style="--cat-color:'+esc(catColor(c))+'">'+esc(c)+'</button>'; }).join("") + '<span id="bnsV61AdminHint">Klik rubriek, zoek daarna alleen binnen die rubriek.</span>';
+    A("[data-bns-v75-admin-cat]", bar).forEach(function(btn){
+      btn.onclick = function(ev){
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        setCurrentMaterialCat(btn.getAttribute("data-bns-v75-admin-cat"));
+        if (search) search.value = "";
+        renderAdminMaterialsNow();
+        try { if (typeof window.renderCats === "function") window.renderCats(); } catch(e) {}
+        try { if (typeof window.renderMaterials === "function") window.renderMaterials(currentMaterialCat()); } catch(e) {}
+        return false;
+      };
+    });
+  }
+
+  function fillAdminMaterial(m){
+    if (!m) return false;
+    var c = catKey(m.cat || m.rubriek || m.category);
+    setCurrentMaterialCat(c);
+    window.__bnsSelectedMaterialId = String(m.id || "");
+    window.bnsSelectedMaterialId = String(m.id || "");
+    try { editId = String(m.id || ""); } catch(e) {}
+    if (E("bnsV56Cat")) E("bnsV56Cat").value = c;
+    if (E("bnsV56Nr")) E("bnsV56Nr").value = materialNr(m);
+    if (E("bnsV56Product")) E("bnsV56Product").value = materialProduct(m);
+    if (E("bnsV56Desc")) E("bnsV56Desc").value = materialDesc(m);
+    if (E("bnsV56Price")) E("bnsV56Price").value = T(m.price || "");
+    if (E("bnsV56Status")) E("bnsV56Status").value = T(m.status || "free");
+    if (E("adminMatCat")) E("adminMatCat").value = c;
+    if (E("adminMatCode")) E("adminMatCode").value = materialNr(m);
+    if (E("adminMatProduct")) E("adminMatProduct").value = materialProduct(m);
+    if (E("adminMatName")) E("adminMatName").value = materialDesc(m);
+    if (E("adminMatPrice")) E("adminMatPrice").value = T(m.price || "");
+    if (E("adminMatStatus")) E("adminMatStatus").value = T(m.status || "free");
+    var preview = E("bnsV56ColorPreview");
+    if (preview) preview.style.background = normalizeColor(m.color) || catColor(c);
+    var txt = E("bnsV56ColorText");
+    if (txt) txt.textContent = c + " " + (normalizeColor(m.color) || catColor(c));
+    return false;
+  }
+
+  function renderAdminMaterialsNow(){
+    var list = E("bnsV56AdminList");
+    if (!list) return;
+    renderAdminCatBar();
+    var c = currentMaterialCat();
+    var q = L((E("bnsV56AdminSearch") || {}).value);
+    var rows = mats().filter(function(m){ return catKey(m.cat || m.rubriek || m.category) === c; });
+    if (q) rows = rows.filter(function(m){ return materialSearchText(m).indexOf(q) >= 0; });
+    rows = rows.slice(0, 300);
+    list.innerHTML = rows.length ? rows.map(function(m){
+      var cc = catKey(m.cat || m.rubriek || m.category);
+      return '<div class="bns-v56-admin-row" style="--cat-color:'+esc(normalizeColor(m.color) || catColor(cc))+'"><div class="bar"></div><div><b>'+esc(materialCode(m))+'</b> '+esc(materialProduct(m))+'<br><small>'+esc(materialDesc(m))+' | rubriek '+esc(cc)+'</small></div><button type="button" data-bns-v75-edit-material="'+esc(m.id)+'">Wijzig</button></div>';
+    }).join("") : '<small>Geen materiaal gevonden in rubriek '+esc(c)+'.</small>';
+    A("[data-bns-v75-edit-material]", list).forEach(function(btn){
+      btn.onclick = function(ev){
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        var m = mats().find(function(x){ return String(x.id) === String(btn.getAttribute("data-bns-v75-edit-material")); });
+        return fillAdminMaterial(m);
+      };
+    });
+  }
+
+  function selectedMaterialId(){
+    var ids = [window.__bnsSelectedMaterialId, window.bnsSelectedMaterialId, window.__bnsV48EditingMaterialId];
+    try { if (typeof editId !== "undefined") ids.push(editId); } catch(e) {}
+    for (var i = 0; i < ids.length; i++) if (T(ids[i])) return T(ids[i]);
+    return "";
+  }
+
+  function materialFormData(){
+    var cat = catKey((E("bnsV56Cat") || E("adminMatCat") || {}).value || currentMaterialCat());
+    var nr = nrKey((E("bnsV56Nr") || E("adminMatCode") || E("adminMatNr") || {}).value || "");
+    var product = T((E("bnsV56Product") || E("adminMatProduct") || {}).value || "");
+    var desc = T((E("bnsV56Desc") || E("adminMatName") || {}).value || "");
+    var price = T((E("bnsV56Price") || E("adminMatPrice") || {}).value || "");
+    var status = T((E("bnsV56Status") || E("adminMatStatus") || {}).value || "free") || "free";
+    var color = selectedColor(cat);
+    return {cat:cat, nr:nr, product:product, desc:desc, price:price, status:status, color:color, code:makeCode(cat, nr)};
+  }
+
+  function putMaterialOverride(m){
+    if (!m || !m.id) return;
+    try {
+      var map = JSON.parse(localStorage.getItem(MATERIAL_OVERRIDE_KEY) || "{}");
+      map[String(m.id)] = Object.assign({}, map[String(m.id)] || {}, m, {_savedAt:Date.now()});
+      localStorage.setItem(MATERIAL_OVERRIDE_KEY, JSON.stringify(map));
+    } catch(e) {}
+  }
+
+  function saveAdminMaterialFast(ev){
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
     var s = appState();
-    if (!s) return;
-    s.users = Array.isArray(s.users) ? s.users : [];
-    try { if (typeof save === "function") save(); } catch(e) {}
-    try { localStorage.setItem("event-planner-pro-v87", JSON.stringify(s)); } catch(e) {}
-    try { localStorage.setItem("eventPlannerProState", JSON.stringify(s)); } catch(e) {}
-    try { localStorage.setItem("plannerState", JSON.stringify(s)); } catch(e) {}
-    try { localStorage.setItem("eventPlannerPro", JSON.stringify(s)); } catch(e) {}
-    try { localStorage.setItem("eventPlannerProV91", JSON.stringify(s)); } catch(e) {}
+    if (!s) { toast("Kan materiaal niet opslaan"); return false; }
+    s.materials = Array.isArray(s.materials) ? s.materials : [];
+    var d = materialFormData();
+    if (!d.nr && !d.product && !d.desc) { toast("Vul productnummer of naam in."); return false; }
+
+    var sid = selectedMaterialId();
+    var m = sid ? s.materials.find(function(x){ return String(x.id) === String(sid); }) : null;
+    if (!m) {
+      m = s.materials.find(function(x){ return catKey(x.cat || x.rubriek || x.category) === d.cat && nrKey(x.code || x.productNr || x.nr) === nrKey(d.code); });
+    }
+    if (!m) {
+      m = {id:"mat_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7)};
+      s.materials.unshift(m);
+    }
+
+    Object.assign(m, {
+      cat:d.cat, rubriek:d.cat, category:d.cat,
+      code:d.code, productNr:d.nr, nr:d.nr,
+      product:d.product || d.desc || d.code,
+      searchName:d.product || d.desc || d.code,
+      zoeknaam:d.product || d.desc || d.code,
+      type:d.product || d.desc || d.code,
+      name:d.product || d.desc || d.code,
+      description:d.desc || d.product || d.code,
+      beschrijving:d.desc || d.product || d.code,
+      price:d.price,
+      status:d.status,
+      color:d.color,
+      updatedAt:new Date().toISOString()
+    });
+
+    window.__bnsSelectedMaterialId = String(m.id);
+    window.bnsSelectedMaterialId = String(m.id);
+    try { editId = String(m.id); } catch(e) {}
+    setCurrentMaterialCat(d.cat);
+    saveCatColor(d.cat, d.color);
+    putMaterialOverride(m);
+    saveLocal();
+    renderAdminMaterialsNow();
+    queueRender({materials:true});
+    syncMaterialToFirebase(m);
+    toast("Materiaal opgeslagen");
+    return false;
   }
 
-  function findSaveButton(){
-    var buttons = A("button").filter(function(btn){ return /opslaan gebruiker/i.test(btn.textContent || ""); });
-    if (!buttons.length) return null;
-    var active = buttons.find(function(btn){ return visible(btn) && (btn.closest("#adminUsers,[data-admin='adminUsers'],[data-admin='users'],.adminPane") || btn.closest("section,.panel,.card,div")); });
-    return active || buttons[0];
+  function deleteAdminMaterialFast(ev){
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    var sid = selectedMaterialId();
+    if (!sid) { toast("Kies eerst een materiaal"); return false; }
+    if (!confirm("Materiaal verwijderen?")) return false;
+    var s = appState();
+    if (!s || !Array.isArray(s.materials)) return false;
+    var before = s.materials.length;
+    s.materials = s.materials.filter(function(m){ return String(m.id) !== String(sid); });
+    if (s.materials.length === before) return false;
+    try { var map = JSON.parse(localStorage.getItem(MATERIAL_OVERRIDE_KEY) || "{}"); delete map[String(sid)]; localStorage.setItem(MATERIAL_OVERRIDE_KEY, JSON.stringify(map)); } catch(e) {}
+    window.__bnsSelectedMaterialId = "";
+    window.bnsSelectedMaterialId = "";
+    try { editId = ""; } catch(e) {}
+    saveLocal();
+    renderAdminMaterialsNow();
+    queueRender({materials:true});
+    deleteMaterialFromFirebase(sid);
+    toast("Materiaal verwijderd");
+    return false;
+  }
+
+  function bindMaterialAdmin(){
+    [["bnsV56Save", saveAdminMaterialFast], ["adminSaveMat", saveAdminMaterialFast], ["bnsV56Delete", deleteAdminMaterialFast], ["adminDeleteMat", deleteAdminMaterialFast]].forEach(function(pair){
+      var btn = E(pair[0]);
+      if (!btn || btn.dataset.bnsV75Bound === "1") return;
+      var fresh = btn.cloneNode(true);
+      fresh.type = "button";
+      fresh.dataset.bnsV75Bound = "1";
+      fresh.addEventListener("click", pair[1], true);
+      fresh.onclick = pair[1];
+      btn.parentNode.replaceChild(fresh, btn);
+    });
+    var search = E("bnsV56AdminSearch");
+    if (search && search.dataset.bnsV75Search !== "1") {
+      search.dataset.bnsV75Search = "1";
+      search.addEventListener("input", function(){ renderAdminMaterialsNow(); }, true);
+    }
+    var cat = E("bnsV56Cat");
+    if (cat && cat.dataset.bnsV75Cat !== "1") {
+      cat.dataset.bnsV75Cat = "1";
+      cat.addEventListener("input", function(){ setCurrentMaterialCat(cat.value); renderAdminMaterialsNow(); }, true);
+    }
+    renderAdminMaterialsNow();
+  }
+
+  function roleNorm(v){
+    if (/admin/i.test(v || "")) return "Admin";
+    if (/planner/i.test(v || "")) return "Planner";
+    return "Bezorger";
+  }
+
+  function defaultsFor(role){ return Object.assign({}, DEFAULT_RIGHTS[roleNorm(role)] || DEFAULT_RIGHTS.Bezorger); }
+
+  function visible(el){ return !!(el && el.offsetParent !== null); }
+  function textOf(el){ return L(el && el.textContent); }
+
+  function findUserSaveButton(){
+    var buttons = A("button");
+    return buttons.find(function(btn){ return visible(btn) && /opslaan\s+gebruiker|gebruiker\s+opslaan|opslaan\s+medewerker/i.test(btn.textContent || ""); }) || null;
   }
 
   function userPane(){
-    var btn = findSaveButton();
-    if (btn) {
-      var pane = btn.closest("#adminUsers,[data-admin='adminUsers'],[data-admin='users'],.adminPane,.panel,.card,section");
-      if (pane) return pane;
-    }
+    var btn = findUserSaveButton();
+    if (btn) return btn.closest("#adminUsers,[data-admin='adminUsers'],[data-admin='users'],.adminPane,.panel,.card,section,main,div") || document;
     return E("adminUsers") || document.querySelector("[data-admin='adminUsers'],[data-admin='users']") || document;
   }
 
   function fieldText(el){
     if (!el) return "";
-    var parts = [el.id, el.name, el.placeholder, el.getAttribute("aria-label"), el.getAttribute("data-field")];
-    try {
-      var lab = el.closest("label");
-      if (lab) parts.push(lab.textContent || "");
-    } catch(e) {}
-    try {
-      var p = el.parentElement;
-      if (p) parts.push(p.textContent || "");
-    } catch(e) {}
-    return L(parts.filter(Boolean).join(" "));
+    var arr = [el.id, el.name, el.placeholder, el.getAttribute("aria-label")];
+    try { var label = el.closest("label"); if (label) arr.push(label.textContent); } catch(e) {}
+    try { var prev = el.previousElementSibling; if (prev) arr.push(prev.textContent); } catch(e) {}
+    return L(arr.join(" "));
   }
 
   function textInputs(root){
-    return A("input", root).filter(function(inp){
-      var type = L(inp.type || "text");
-      if (["checkbox","radio","button","submit","reset","hidden","file","color","date","time","number"].indexOf(type) >= 0) return false;
-      var meta = fieldText(inp);
-      if (/zoek|search|materiaal|material|klant|customer|locatie|location|straat|street|postcode|zip|prijs|price|kleur|color|datum|date|factuur|invoice/.test(meta)) return false;
+    return A("input", root || userPane()).filter(function(i){
+      var type = L(i.type || "text");
+      if (["button", "submit", "checkbox", "radio", "color", "date", "hidden"].indexOf(type) >= 0) return false;
+      if (i.id && /^bnsV74Right_|^bnsForceRight_|^bnsRight_/i.test(i.id)) return false;
       return true;
     });
   }
 
   function findNameInput(root){
-    var known = ["adminUserName","userName","bnsUserName","employeeName","medewerkerNaam"];
-    for (var i=0;i<known.length;i++){ var el=E(known[i]); if(el) return el; }
+    var known = ["adminUserName", "userName", "bnsUserName", "employeeName", "medewerkerNaam"];
+    for (var i=0; i<known.length; i++) if (E(known[i])) return E(known[i]);
     var rows = textInputs(root);
-    return rows.find(function(inp){ var m=fieldText(inp); return /(naam|name|medewerker|gebruiker|bezorger)/.test(m) && !/pin|pincode|code/.test(m); }) || rows.find(function(inp){ return !/pin|pincode|code/.test(fieldText(inp)); }) || rows[0] || null;
+    return rows.find(function(inp){ var t = fieldText(inp); return /(naam|name|medewerker|gebruiker|bezorger)/.test(t) && !/pin|pincode|code/.test(t); }) || rows.find(function(inp){ return !/pin|pincode|code/.test(fieldText(inp)); }) || rows[0] || null;
   }
 
   function findPinInput(root){
-    var known = ["adminUserPin","userPin","bnsUserPin","employeePin","medewerkerPin"];
-    for (var i=0;i<known.length;i++){ var el=E(known[i]); if(el) return el; }
-    var rows = A("input", root).filter(function(inp){
-      var type = L(inp.type || "text");
-      if (["checkbox","radio","button","submit","reset","hidden","file","color","date","time"].indexOf(type) >= 0) return false;
-      return true;
-    });
+    var known = ["adminUserPin", "userPin", "bnsUserPin", "employeePin", "medewerkerPin"];
+    for (var i=0; i<known.length; i++) if (E(known[i])) return E(known[i]);
+    var rows = textInputs(root);
     return rows.find(function(inp){ return /pin|pincode/.test(fieldText(inp)); }) || rows.find(function(inp){ return L(inp.type) === "password"; }) || rows[1] || null;
   }
 
   function findRoleSelect(root){
-    var known = ["adminUserRole","userRole","bnsUserRole","employeeRole","medewerkerRol"];
-    for (var i=0;i<known.length;i++){ var el=E(known[i]); if(el) return el; }
-    return A("select", root).find(function(sel){ return /admin|planner|bezorger/i.test(sel.textContent || ""); }) || null;
+    var known = ["adminUserRole", "userRole", "bnsUserRole", "employeeRole", "medewerkerRol"];
+    for (var i=0; i<known.length; i++) if (E(known[i])) return E(known[i]);
+    return A("select", root || userPane()).find(function(sel){ return /admin|planner|bezorger/i.test(sel.textContent || ""); }) || null;
   }
 
-  function currentRole(){
+  function readRole(){
     var sel = findRoleSelect(userPane());
     var raw = sel ? T(sel.value || (sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].text) || "") : "";
-    if (/admin/i.test(raw)) return "Admin";
-    if (/planner/i.test(raw)) return "Planner";
-    return "Bezorger";
-  }
-
-  function defaultsFor(role){ return Object.assign({}, DEFAULTS[role] || DEFAULTS.Bezorger); }
-
-  function setSelected(id){
-    selectedUserId = id || "";
-    try { window.bnsSelectedUserId = selectedUserId; } catch(e) {}
-    try { window.selectedUserId = selectedUserId; } catch(e) {}
+    return roleNorm(raw);
   }
 
   function readRights(){
     var r = {};
     RIGHTS.forEach(function(pair){
-      var cb = E("bnsV74Right_" + pair[0]);
+      var cb = E("bnsV74Right_" + pair[0]) || E("bnsForceRight_" + pair[0]) || E("bnsRight_" + pair[0]);
       r[pair[0]] = !!(cb && cb.checked);
     });
     return r;
   }
 
-  function setRights(rights){
-    var src = rights || {};
+  function setRights(r){
+    var rights = r || {};
     RIGHTS.forEach(function(pair){
-      var cb = E("bnsV74Right_" + pair[0]);
-      if (cb) cb.checked = !!src[pair[0]];
+      var cb = E("bnsV74Right_" + pair[0]) || E("bnsForceRight_" + pair[0]) || E("bnsRight_" + pair[0]);
+      if (cb) cb.checked = !!rights[pair[0]];
     });
   }
 
-  function setForm(user){
+  function setUserForm(u){
     var root = userPane();
     var name = findNameInput(root);
     var pin = findPinInput(root);
     var role = findRoleSelect(root);
-    if (name) name.value = user ? (user.name || "") : "";
-    if (pin) pin.value = user ? (user.pin || "") : "";
-    if (role && user) role.value = user.role || "Bezorger";
-    setRights(user ? Object.assign(defaultsFor(user.role), user.rights || {}) : defaultsFor(currentRole()));
+    if (name) name.value = u ? (u.name || "") : "";
+    if (pin) pin.value = u ? (u.pin || "") : "";
+    if (role && u) role.value = u.role || "Bezorger";
+    setRights(u ? Object.assign(defaultsFor(u.role), u.rights || {}) : defaultsFor(readRole()));
   }
 
-  function formData(){
+  function userFormData(){
     var root = userPane();
     var name = findNameInput(root);
     var pin = findPinInput(root);
@@ -11788,177 +11975,1058 @@ setInterval(install,1500);
       var rows = textInputs(root);
       if (rows.length > 1) pin = rows[1];
     }
-    var role = findRoleSelect(root);
+    return {name:T(name && name.value), pin:T(pin && pin.value), role:readRole()};
+  }
+
+  function cleanUser(u){
     return {
-      name: T(name && name.value),
-      pin: T(pin && pin.value),
-      role: role ? (T(role.value || (role.options[role.selectedIndex] && role.options[role.selectedIndex].text)) || "Bezorger") : "Bezorger"
+      id:T(u.id) || makeId("u"),
+      name:T(u.name),
+      phone:T(u.phone),
+      pin:T(u.pin),
+      role:roleNorm(u.role),
+      rights:Object.assign({}, defaultsFor(u.role), u.rights || {}),
+      updatedAt:u.updatedAt || new Date().toISOString()
     };
   }
 
-  function normalizeRole(v){
-    if (/admin/i.test(v || "")) return "Admin";
-    if (/planner/i.test(v || "")) return "Planner";
-    return "Bezorger";
+  function renderUserListNow(){
+    var list = E("bnsV74UserList") || E("bnsForceUserList") || E("bnsUserList");
+    if (!list) return;
+    list.innerHTML = users().map(function(u){
+      var rights = u.rights || {};
+      var allowed = RIGHTS.filter(function(pair){ return !!rights[pair[0]]; }).map(function(pair){ return pair[1]; }).join(", ");
+      return '<div class="bns-v74-user-row" data-bns-v75-user="'+esc(u.id)+'"><span><b>'+esc(u.name || "")+'</b><small>'+esc(u.role || "")+' - PIN '+esc(u.pin || "")+'</small><small>'+esc(allowed || "Geen extra rechten")+'</small></span><button type="button" data-bns-v75-edit-user="'+esc(u.id)+'">Wijzig</button><button type="button" class="delete" data-bns-v75-delete-user="'+esc(u.id)+'">Verwijder</button></div>';
+    }).join("");
+    A("[data-bns-v75-edit-user]", list).forEach(function(btn){ btn.onclick = function(ev){ if (ev) { ev.preventDefault(); ev.stopPropagation(); } return editUserFast(btn.getAttribute("data-bns-v75-edit-user")); }; });
+    A("[data-bns-v75-delete-user]", list).forEach(function(btn){ btn.onclick = function(ev){ return deleteUserFast(btn.getAttribute("data-bns-v75-delete-user"), ev); }; });
   }
 
-  function saveUser(ev){
-    if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    var s = appState();
-    if (!s) { toast("Kan gebruikers niet opslaan"); return false; }
-    s.users = Array.isArray(s.users) ? s.users : [];
-    var d = formData();
-    d.role = normalizeRole(d.role);
-    if (!d.name || !d.pin) { alert("Vul naam en PIN in."); return false; }
-
-    var user = selectedUserId ? s.users.find(function(u){ return String(u.id) === String(selectedUserId); }) : null;
-    if (!user) user = s.users.find(function(u){ return String(u.pin) === String(d.pin); });
-    if (!user) {
-      user = { id: makeId(), name: d.name, pin: d.pin, role: d.role, phone: "", rights: {} };
-      s.users.push(user);
-    }
-
-    user.name = d.name;
-    user.pin = d.pin;
-    user.role = d.role;
-    user.rights = Object.assign({}, defaultsFor(d.role), user.rights || {}, readRights());
-    setSelected(user.id);
-
-    persist();
-    renderList();
-    updateDriverSelects();
-    toast("Gebruiker opgeslagen");
-    return false;
-  }
-
-  function editUser(id){
-    var s = appState();
-    if (!s || !Array.isArray(s.users)) return false;
-    var u = s.users.find(function(x){ return String(x.id) === String(id); });
+  function editUserFast(userId){
+    var u = users().find(function(x){ return String(x.id) === String(userId); });
     if (!u) return false;
-    setSelected(u.id);
-    setForm(u);
+    selectedUserId = String(u.id);
+    try { window.bnsSelectedUserId = selectedUserId; window.selectedUserId = selectedUserId; } catch(e) {}
+    setUserForm(u);
     toast("Gebruiker gekozen");
     return false;
   }
 
-  function deleteUser(id){
+  function saveUserFast(ev){
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    var s = appState();
+    if (!s) { toast("Kan gebruiker niet opslaan"); return false; }
+    s.users = Array.isArray(s.users) ? s.users : [];
+    var d = userFormData();
+    if (!d.name || !d.pin) { alert("Vul naam en PIN in."); return false; }
+
+    var u = selectedUserId ? s.users.find(function(x){ return String(x.id) === String(selectedUserId); }) : null;
+    if (!u) u = s.users.find(function(x){ return String(x.pin) === String(d.pin); });
+    if (!u) {
+      u = {id:makeId("u"), name:d.name, pin:d.pin, role:d.role, phone:"", rights:{}};
+      s.users.push(u);
+    }
+    u.name = d.name;
+    u.pin = d.pin;
+    u.role = d.role;
+    u.rights = Object.assign({}, defaultsFor(d.role), u.rights || {}, readRights());
+    u.updatedAt = new Date().toISOString();
+    selectedUserId = String(u.id);
+    try { window.bnsSelectedUserId = selectedUserId; window.selectedUserId = selectedUserId; } catch(e) {}
+    saveLocal();
+    renderUserListNow();
+    queueRender({users:true});
+    syncUsersToFirebase();
+    toast("Gebruiker opgeslagen");
+    return false;
+  }
+
+  function deleteUserFast(userId, ev){
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    userId = T(userId);
+    if (!userId) return false;
     var s = appState();
     if (!s || !Array.isArray(s.users)) return false;
-    var u = s.users.find(function(x){ return String(x.id) === String(id); });
+    var u = s.users.find(function(x){ return String(x.id) === String(userId); });
     if (!u) return false;
     if (L(u.role) === "admin") { alert("Admin gebruiker niet verwijderen."); return false; }
     if (!confirm("Gebruiker verwijderen?")) return false;
-    s.users = s.users.filter(function(x){ return String(x.id) !== String(id); });
-    if (String(selectedUserId) === String(id)) { setSelected(""); setForm(null); }
-    persist();
-    renderList();
-    updateDriverSelects();
+    s.users = s.users.filter(function(x){ return String(x.id) !== String(userId); });
+    if (String(selectedUserId) === String(userId)) {
+      selectedUserId = "";
+      setUserForm(null);
+    }
+    saveLocal();
+    renderUserListNow();
+    queueRender({users:true});
+    deleteUserFromFirebase(u);
+    syncUsersToFirebase();
     toast("Gebruiker verwijderd");
     return false;
   }
 
-  function updateDriverSelects(){
-    var s = appState();
-    if (!s || !Array.isArray(s.users)) return;
-    var html = '<option value="">Geen</option>' + s.users.filter(function(u){ return u.role === "Bezorger"; }).map(function(u){ return '<option>' + esc(u.name || "") + '</option>'; }).join("");
-    A("select#orderDriver, #orderDriver").forEach(function(sel){ try { sel.innerHTML = html; } catch(e) {} });
-    try { if (typeof renderAll === "function") renderAll(); } catch(e) {}
-  }
-
-  function ensureStyle(){
-    if (E(STYLE_ID)) return;
-    var st = document.createElement("style");
-    st.id = STYLE_ID;
-    st.textContent = ""+
-      "#bnsUserRightsBox{display:none!important}"+
-      "#"+BOX_ID+"{display:block!important;border:2px solid #2563eb!important;border-radius:18px!important;padding:16px!important;margin:14px 0!important;background:var(--panel,#fff)!important;color:var(--text,#172033)!important}"+
-      "#"+BOX_ID+" .bns-v74-title{font-size:20px!important;font-weight:900!important;margin-bottom:12px!important}"+
-      "#"+BOX_ID+" .bns-v74-grid{display:grid!important;grid-template-columns:repeat(2,minmax(220px,1fr))!important;gap:10px 14px!important}"+
-      "#"+BOX_ID+" label{display:flex!important;align-items:center!important;gap:10px!important;padding:10px 12px!important;border-radius:14px!important;background:rgba(148,163,184,.14)!important;font-weight:800!important}"+
-      "#"+BOX_ID+" input[type=checkbox]{width:22px!important;height:22px!important;min-width:22px!important}"+
-      "#"+LIST_ID+"{margin-top:16px!important;display:flex!important;flex-direction:column!important;gap:8px!important}"+
-      ".bns-v74-user-row{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto!important;gap:10px!important;align-items:center!important;padding:11px 12px!important;border:1px solid var(--border,#dbe3ef)!important;border-radius:14px!important;background:var(--panel,#fff)!important}"+
-      ".bns-v74-user-row small{display:block!important;color:var(--muted,#64748b)!important;font-weight:700!important}"+
-      ".bns-v74-user-row button{padding:8px 12px!important;border-radius:10px!important;font-weight:900!important}";
-    document.head.appendChild(st);
-  }
-
-  function silenceOldBoxes(){
-    var old = E("bnsUserRightsBox");
-    if (old) { old.style.display = "none"; old.innerHTML = ""; }
-    var oldList = E("bnsUserList");
-    if (oldList) oldList.remove();
-  }
-
-  function ensureBox(){
-    var btn = findSaveButton();
-    if (!btn) return null;
-    var box = E(BOX_ID);
-    if (!box) {
-      box = document.createElement("div");
-      box.id = BOX_ID;
-      btn.insertAdjacentElement("afterend", box);
-    }
-    if (box.dataset.bnsV74Ready !== "1") {
-      box.dataset.bnsV74Ready = "1";
-      box.innerHTML = '<div class="bns-v74-title">Personeel / gebruiker rechten</div>'+
-        '<div class="bns-v74-grid">'+RIGHTS.map(function(pair){ return '<label><input id="bnsV74Right_'+esc(pair[0])+'" type="checkbox"><span>'+esc(pair[1])+'</span></label>'; }).join("")+'</div>'+
-        '<div id="'+LIST_ID+'"></div>';
-      setRights(defaultsFor(currentRole()));
-    }
-    return box;
-  }
-
-  function renderList(){
-    var list = E(LIST_ID);
-    var s = appState();
-    if (!list || !s || !Array.isArray(s.users)) return;
-    list.innerHTML = s.users.map(function(u){
-      var rights = u.rights || {};
-      var allowed = RIGHTS.filter(function(pair){ return !!rights[pair[0]]; }).map(function(pair){ return pair[1]; }).join(", ");
-      return '<div class="bns-v74-user-row" data-bns-v74-user="'+esc(u.id)+'"><span><b>'+esc(u.name || "")+'</b><small>'+esc(u.role || "")+' - PIN '+esc(u.pin || "")+'</small><small>'+esc(allowed || "Geen extra rechten")+'</small></span><button type="button" data-bns-v74-edit="'+esc(u.id)+'">Wijzig</button><button type="button" class="delete" data-bns-v74-delete="'+esc(u.id)+'">Verwijder</button></div>';
-    }).join("");
-    A("[data-bns-v74-edit]", list).forEach(function(btn){ btn.onclick = function(ev){ if(ev){ev.preventDefault(); ev.stopPropagation();} return editUser(btn.getAttribute("data-bns-v74-edit")); }; });
-    A("[data-bns-v74-delete]", list).forEach(function(btn){ btn.onclick = function(ev){ if(ev){ev.preventDefault(); ev.stopPropagation();} return deleteUser(btn.getAttribute("data-bns-v74-delete")); }; });
-  }
-
-  function bind(){
-    var btn = findSaveButton();
-    if (btn && btn.dataset.bnsV74Save !== "1") {
-      btn.dataset.bnsV74Save = "1";
-      btn.dataset.bnsForceRightsSave = "1";
-      btn.type = "button";
-      btn.addEventListener("click", saveUser, true);
-      btn.onclick = saveUser;
+  function bindUsersAdmin(){
+    var btn = findUserSaveButton();
+    if (btn && btn.dataset.bnsV75UserSave !== "1") {
+      var fresh = btn.cloneNode(true);
+      fresh.type = "button";
+      fresh.dataset.bnsV75UserSave = "1";
+      fresh.dataset.bnsV74Save = "1";
+      fresh.dataset.bnsForceRightsSave = "1";
+      fresh.addEventListener("click", saveUserFast, true);
+      fresh.onclick = saveUserFast;
+      btn.parentNode.replaceChild(fresh, btn);
     }
     var role = findRoleSelect(userPane());
-    if (role && role.dataset.bnsV74Role !== "1") {
-      role.dataset.bnsV74Role = "1";
-      role.addEventListener("change", function(){ if (!selectedUserId) setRights(defaultsFor(currentRole())); }, true);
+    if (role && role.dataset.bnsV75Role !== "1") {
+      role.dataset.bnsV75Role = "1";
+      role.addEventListener("change", function(){ if (!selectedUserId) setRights(defaultsFor(readRole())); }, true);
     }
+    renderUserListNow();
+  }
+
+  function updateDriverSelects(){
+    var html = '<option value="">Geen</option>' + users().filter(function(u){ return roleNorm(u.role) === "Bezorger"; }).map(function(u){ return '<option>'+esc(u.name || "")+'</option>'; }).join("");
+    A("select#orderDriver, #orderDriver").forEach(function(sel){ try { sel.innerHTML = html; } catch(e) {} });
+  }
+
+  function currentUserObj(){
+    try { if (typeof user !== "undefined" && user) return user; } catch(e) {}
+    try { if (window.user) return window.user; } catch(e) {}
+    return null;
+  }
+
+  function logoutDeletedUser(){
+    try { user = null; } catch(e) {}
+    try { window.user = null; } catch(e) {}
+    try { pin = ""; } catch(e) {}
+    if (E("pinView")) E("pinView").textContent = "- - - -";
+    if (E("app")) E("app").classList.add("hidden");
+    if (E("login")) E("login").classList.remove("hidden");
+    toast("Gebruiker is verwijderd. Log opnieuw in.");
+  }
+
+  function enforceCurrentUserStillAllowed(){
+    var u = currentUserObj();
+    if (!u) return;
+    var list = users();
+    var exists = list.some(function(x){
+      if (u.id && x.id && String(x.id) === String(u.id)) return true;
+      return u.pin && x.pin && String(x.pin) === String(u.pin);
+    });
+    if (!exists) logoutDeletedUser();
+  }
+
+  async function initFirebase(){
+    if (window.BNS && window.BNS.fs && window.BNS.db) return window.BNS;
+    if (firebaseStartPromise) return firebaseStartPromise;
+    firebaseStartPromise = (async function(){
+      window.BNS = window.BNS || {};
+      if (!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === "VUL_HIER_IN") return null;
+      try {
+        var appMod = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION + "/firebase-app.js");
+        var fsMod = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION + "/firebase-firestore.js");
+        var apps = [];
+        try { apps = appMod.getApps ? appMod.getApps() : []; } catch(e) { apps = []; }
+        window.BNS.app = window.BNS.app || (apps.length ? apps[0] : appMod.initializeApp(window.BNS_FIREBASE_CONFIG));
+        window.BNS.fs = window.BNS.fs || fsMod;
+        window.BNS.db = window.BNS.db || fsMod.getFirestore(window.BNS.app);
+        window.BNS.firebaseReady = true;
+        return window.BNS;
+      } catch(e) {
+        try { console.warn("BNS V75 Firebase niet beschikbaar", e); } catch(_e) {}
+        return null;
+      }
+    })();
+    return firebaseStartPromise;
+  }
+
+  function syncMaterialToFirebase(m){
+    if (!m || !m.id) return;
+    initFirebase().then(function(bns){
+      if (!bns || !bns.fs || !bns.db) return;
+      var fs = bns.fs;
+      fs.setDoc(fs.doc(bns.db, "materials", String(m.id)), Object.assign({}, m, {updatedAt:new Date().toISOString()}), {merge:true}).catch(function(e){ try { console.warn("Materiaal Firebase later opnieuw", e); } catch(_e) {} });
+    });
+  }
+
+  function deleteMaterialFromFirebase(idValue){
+    initFirebase().then(function(bns){
+      if (!bns || !bns.fs || !bns.db || !idValue) return;
+      var fs = bns.fs;
+      fs.deleteDoc(fs.doc(bns.db, "materials", String(idValue))).catch(function(){});
+    });
+  }
+
+  function cleanUsersForFirebase(){
+    return users().map(cleanUser).filter(function(u){ return u.id && u.name && u.pin; });
+  }
+
+  function syncUsersToFirebase(){
+    usersMetaLoaded = true;
+    var rows = cleanUsersForFirebase();
+    var h = hash(rows.map(function(u){ return {id:u.id, name:u.name, pin:u.pin, role:u.role, rights:u.rights}; }));
+    if (h === lastUsersHash) return;
+    lastUsersHash = h;
+    initFirebase().then(function(bns){
+      if (!bns || !bns.fs || !bns.db) return;
+      var fs = bns.fs;
+      var now = new Date().toISOString();
+      Promise.all(rows.map(function(u){ return fs.setDoc(fs.doc(bns.db, "users", String(u.id)), Object.assign({}, u, {updatedAt:now}), {merge:true}); })).catch(function(){});
+      fs.setDoc(fs.doc(bns.db, "meta", "users"), {users:rows, updatedAt:now}, {merge:false}).catch(function(){});
+    });
+  }
+
+  function deleteUserFromFirebase(u){
+    if (!u || !u.id) return;
+    initFirebase().then(function(bns){
+      if (!bns || !bns.fs || !bns.db) return;
+      var fs = bns.fs;
+      var tombstone = {id:String(u.id), name:u.name || "", pin:u.pin || "", role:u.role || "", deletedAt:new Date().toISOString()};
+      fs.deleteDoc(fs.doc(bns.db, "users", String(u.id))).catch(function(){});
+      fs.setDoc(fs.doc(bns.db, "deletedUsers", String(u.id)), tombstone, {merge:true}).catch(function(){});
+    });
+  }
+
+  function applyUsersFromFirebase(rows, source){
+    if (source === "meta") usersMetaLoaded = true;
+    if (!Array.isArray(rows) || !rows.length) return;
+    var s = appState();
+    if (!s) return;
+    var clean = rows.map(cleanUser).filter(function(u){ return u.id && u.name && u.pin; });
+    if (!clean.length) return;
+    var h = hash(clean.map(function(u){ return {id:u.id, name:u.name, pin:u.pin, role:u.role, rights:u.rights}; }));
+    if (h === lastUsersHash) return;
+    lastUsersHash = h;
+    s.users = clean;
+    saveLocal();
+    renderUserListNow();
+    queueRender({users:true});
+  }
+
+  function applyMaterialFromFirebase(m, removed){
+    if (!m || !m.id) return;
+    var list = mats();
+    var idx = list.findIndex(function(x){ return String(x.id) === String(m.id); });
+    if (removed) {
+      if (idx >= 0) list.splice(idx, 1);
+    } else if (idx >= 0) {
+      Object.assign(list[idx], m);
+      putMaterialOverride(list[idx]);
+    } else {
+      list.push(m);
+      putMaterialOverride(m);
+    }
+    saveLocal();
+    queueRender({materials:true});
+  }
+
+  function applyOrderFromFirebase(o, removed){
+    if (!o || !o.id) return;
+    var list = orders();
+    var idx = list.findIndex(function(x){ return String(x.id) === String(o.id); });
+    if (removed) {
+      if (idx >= 0) list.splice(idx, 1);
+    } else if (idx >= 0) {
+      list[idx] = Object.assign({}, list[idx], o);
+    } else {
+      list.push(o);
+    }
+    saveLocal();
+    queueRender({orders:true});
+  }
+
+  async function fetchUsersFresh(timeoutMs){
+    var timer;
+    var timeout = new Promise(function(resolve){ timer = setTimeout(function(){ resolve(false); }, timeoutMs || 900); });
+    var load = initFirebase().then(async function(bns){
+      if (!bns || !bns.fs || !bns.db) return false;
+      var fs = bns.fs;
+      try {
+        var meta = await fs.getDoc(fs.doc(bns.db, "meta", "users"));
+        if (meta && meta.exists && meta.exists()) {
+          var data = meta.data() || {};
+          if (Array.isArray(data.users) && data.users.length) { applyUsersFromFirebase(data.users, "meta"); return true; }
+        }
+      } catch(e) {}
+      try {
+        var snap = await fs.getDocs(fs.collection(bns.db, "users"));
+        var rows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+        if (rows.length) { applyUsersFromFirebase(rows, "collection"); return true; }
+      } catch(e) {}
+      return false;
+    });
+    try { return await Promise.race([load, timeout]); } finally { clearTimeout(timer); }
+  }
+
+  function subscribeRealtime(){
+    if (subscriptionsStarted) return;
+    subscriptionsStarted = true;
+    initFirebase().then(function(bns){
+      if (!bns || !bns.fs || !bns.db || !bns.fs.onSnapshot) return;
+      var fs = bns.fs;
+      try {
+        fs.onSnapshot(fs.doc(bns.db, "meta", "users"), function(snap){
+          if (!snap || !snap.exists || !snap.exists()) return;
+          var data = snap.data() || {};
+          if (Array.isArray(data.users) && data.users.length) applyUsersFromFirebase(data.users, "meta");
+        });
+      } catch(e) {}
+      try {
+        fs.onSnapshot(fs.collection(bns.db, "users"), function(snap){
+          if (!snap || snap.empty) return;
+          var rows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+          if (!usersMetaLoaded && rows.length) applyUsersFromFirebase(rows, "collection");
+        });
+      } catch(e) {}
+      try {
+        fs.onSnapshot(fs.collection(bns.db, "materials"), function(snap){
+          if (!snap) return;
+          snap.docChanges().forEach(function(ch){
+            var m = Object.assign({id:ch.doc.id}, ch.doc.data());
+            applyMaterialFromFirebase(m, ch.type === "removed");
+          });
+        });
+      } catch(e) {}
+      try {
+        var q = fs.query(fs.collection(bns.db, "orders"), fs.where("start", ">=", MIN_ORDER_DATE));
+        fs.onSnapshot(q, function(snap){
+          if (!snap) return;
+          snap.docChanges().forEach(function(ch){
+            var o = Object.assign({id:ch.doc.id}, ch.doc.data());
+            applyOrderFromFirebase(o, ch.type === "removed");
+          });
+        });
+      } catch(e) {
+        try {
+          fs.onSnapshot(fs.collection(bns.db, "orders"), function(snap){
+            if (!snap) return;
+            snap.docChanges().forEach(function(ch){
+              var o = Object.assign({id:ch.doc.id}, ch.doc.data());
+              var d = T(o.start || o.dateStart || o.startDate || o.date).slice(0, 10);
+              if (d && d >= MIN_ORDER_DATE) applyOrderFromFirebase(o, ch.type === "removed");
+            });
+          });
+        } catch(_e) {}
+      }
+    });
+  }
+
+  function patchLogin(){
+    var old = null;
+    try { old = doLogin; } catch(e) {}
+    if (!old || old.__bnsV75Login) return;
+    var patched = function(){
+      var args = arguments;
+      fetchUsersFresh(700).then(function(){ old.apply(window, args); }).catch(function(){ old.apply(window, args); });
+      return false;
+    };
+    patched.__bnsV75Login = true;
+    try { doLogin = patched; } catch(e) {}
+    try { window.doLogin = patched; } catch(e) {}
+    var ok = E("pinOk");
+    if (ok) ok.onclick = patched;
   }
 
   function install(){
-    ensureStyle();
-    silenceOldBoxes();
-    if (!findSaveButton()) return;
-    ensureBox();
-    bind();
-    renderList();
+    bindMaterialAdmin();
+    bindUsersAdmin();
+    patchLogin();
+    subscribeRealtime();
   }
 
   document.addEventListener("click", function(ev){
     var t = ev.target;
     if (!t || !t.closest) return;
+    var oldDel = t.closest("[data-bns-v74-delete], .bns-force-delete, .bns-user-delete");
+    if (oldDel) {
+      var idValue = oldDel.getAttribute("data-bns-v74-delete") || oldDel.getAttribute("data-user-id") || oldDel.closest("[data-user-id],[data-bns-v74-user],[data-bns-v75-user]") && (oldDel.closest("[data-user-id],[data-bns-v74-user],[data-bns-v75-user]").getAttribute("data-user-id") || oldDel.closest("[data-user-id],[data-bns-v74-user],[data-bns-v75-user]").getAttribute("data-bns-v74-user") || oldDel.closest("[data-user-id],[data-bns-v74-user],[data-bns-v75-user]").getAttribute("data-bns-v75-user"));
+      if (idValue) return deleteUserFast(idValue, ev);
+    }
     if (t.closest(".adminTab,[data-admin],button")) setTimeout(install, 0);
   }, true);
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); });
-  else setTimeout(install, 100);
-  setTimeout(install, 800);
-  setTimeout(install, 1800);
-  setTimeout(install, 3500);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 350); });
+  } else {
+    setTimeout(install, 150);
+  }
+  setTimeout(install, 900);
+  setTimeout(install, 2200);
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden) setTimeout(install, 100); });
 
-  window.BNS_V74_adminPersoneelInstall = install;
+  window.BNS_V75_syncUsers = syncUsersToFirebase;
+  window.BNS_V75_fetchUsersFresh = fetchUsersFresh;
+  window.BNS_V75_renderAdminMaterials = renderAdminMaterialsNow;
+})();
+
+/* =========================================================
+   BNS V76 - telefoon per medewerker + eigen meldingen
+   Laat bestaande functies staan; deze patch wint alleen onderaan.
+   - Admin materiaal/personeel: direct lokaal opslaan + Firebase sync via V75.
+   - Personeel verwijderen/telefoon reset: direct door naar telefoon/Firebase.
+   - Bezorger/telefoon ziet alleen opdrachten die aan die bezorger zijn gekoppeld.
+   - PIN op telefoon wordt aan die telefoon gekoppeld; andere PINs op die telefoon blokkeren.
+   - Browser alerts worden eigen BNS meldingen; belangrijke bevestigingen/prompts zijn eigen modals.
+   - PIN velden gebruiken geen password manager/autocomplete.
+   ========================================================= */
+(function bnsV76SecurePhoneCustomPopups(){
+  "use strict";
+  if (window.__bnsV76SecurePhoneCustomPopups) return;
+  window.__bnsV76SecurePhoneCustomPopups = true;
+
+  var FIREBASE_VERSION = "10.12.5";
+  var DEVICE_KEY = "bns_device_id_v76";
+  var PHONE_USER_KEY = "bns_phone_user_id_v76";
+  var FIREBASE_FETCH_LOCK = 0;
+  var firebasePromise = null;
+  var observerStarted = false;
+  var syncingUsers = false;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function nowIso(){ return new Date().toISOString(); }
+
+  function S(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    try { if (window.state && typeof window.state === "object") return window.state; } catch(e) {}
+    return null;
+  }
+  function users(){ var s=S(); if(!s) return []; s.users = Array.isArray(s.users) ? s.users : []; return s.users; }
+  function orders(){ var s=S(); if(!s) return []; s.orders = Array.isArray(s.orders) ? s.orders : []; return s.orders; }
+  function saveLocal(){
+    var s=S(); if(!s) return;
+    try { if (typeof save === "function") save(); } catch(e) {}
+    ["event-planner-pro-v87", "eventPlannerProState", "plannerState", "eventPlannerPro", "eventPlannerProV91"].forEach(function(key){
+      try { localStorage.setItem(key, JSON.stringify(s)); } catch(e) {}
+    });
+  }
+  function toast(text){
+    text = T(text);
+    try { if (typeof toastMsg === "function") return toastMsg(text); } catch(e) {}
+    try { console.log(text); } catch(e) {}
+  }
+
+  function roleNorm(v){
+    if (/admin/i.test(v || "")) return "Admin";
+    if (/planner/i.test(v || "")) return "Planner";
+    return "Bezorger";
+  }
+  function isAdmin(u){ return roleNorm(u && u.role) === "Admin"; }
+  function isPlanner(u){ return roleNorm(u && u.role) === "Planner"; }
+  function isDriver(u){ return roleNorm(u && u.role) === "Bezorger"; }
+  function activeUser(u){ return !!(u && !u.deletedAt && u.active !== false && u.disabled !== true && u.removed !== true); }
+  function currentUserObj(){
+    try { if (typeof user !== "undefined" && user) return user; } catch(e) {}
+    try { if (window.user) return window.user; } catch(e) {}
+    return null;
+  }
+  try { window.currentUser = currentUserObj; } catch(e) {}
+
+  function deviceId(){
+    var v = "";
+    try { v = localStorage.getItem(DEVICE_KEY) || ""; } catch(e) { v = ""; }
+    if (!v) {
+      v = "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+      try { localStorage.setItem(DEVICE_KEY, v); } catch(e) {}
+    }
+    return v;
+  }
+  function deviceName(){
+    var ua = "";
+    try { ua = navigator.userAgent || ""; } catch(e) {}
+    return ua.slice(0, 120);
+  }
+  function lockedPhoneUserId(){ try { return localStorage.getItem(PHONE_USER_KEY) || ""; } catch(e){ return ""; } }
+  function setPhoneLock(userId){ try { if(userId) localStorage.setItem(PHONE_USER_KEY, String(userId)); else localStorage.removeItem(PHONE_USER_KEY); } catch(e) {} }
+
+  function ensureCss(){
+    if (E("bnsV76Style")) return;
+    var st = document.createElement("style");
+    st.id = "bnsV76Style";
+    st.textContent = "" +
+      ".bns-v76-backdrop{position:fixed!important;inset:0!important;z-index:2147483647!important;background:rgba(15,23,42,.55)!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:18px!important}" +
+      ".bns-v76-card{width:min(520px,96vw)!important;background:#fff!important;color:#172033!important;border-radius:22px!important;padding:22px!important;box-shadow:0 22px 70px rgba(15,23,42,.40)!important;border:1px solid #dbe3ef!important;font-family:system-ui,-apple-system,Segoe UI,sans-serif!important}" +
+      ".bns-v76-card h2{margin:0 0 10px!important;font-size:22px!important;color:#172033!important}" +
+      ".bns-v76-card p{margin:0 0 18px!important;font-size:16px!important;line-height:1.45!important;color:#334155!important;font-weight:750!important;white-space:pre-wrap!important}" +
+      ".bns-v76-card input{width:100%!important;border:1px solid #cbd5e1!important;border-radius:14px!important;padding:12px!important;font-size:16px!important;margin:0 0 16px!important;color:#172033!important;background:#fff!important}" +
+      ".bns-v76-actions{display:flex!important;gap:10px!important;justify-content:flex-end!important;flex-wrap:wrap!important}" +
+      ".bns-v76-actions button{border:0!important;border-radius:14px!important;padding:11px 15px!important;font-weight:950!important;cursor:pointer!important;background:#2563eb!important;color:#fff!important}" +
+      ".bns-v76-actions .cancel{background:#64748b!important}" +
+      ".bns-v76-actions .danger{background:#dc2626!important}" +
+      ".bns-v76-device{margin-left:8px!important;background:#0f766e!important;color:#fff!important;border:0!important;border-radius:12px!important;padding:8px 10px!important;font-weight:900!important}" +
+      ".bns-v76-lock-note{display:block!important;margin-top:3px!important;color:#0f766e!important;font-weight:800!important}" +
+      "body.bns-v76-driver-locked .nav:not([data-page='driver']){display:none!important}" +
+      "body.bns-v76-driver-locked #dashboard,body.bns-v76-driver-locked #orders,body.bns-v76-driver-locked #admin,body.bns-v76-driver-locked #newOrder{display:none!important}";
+    document.head.appendChild(st);
+  }
+
+  function showModal(opts){
+    ensureCss();
+    opts = opts || {};
+    var old = E("bnsV76Modal");
+    if (old) old.remove();
+    var wrap = document.createElement("div");
+    wrap.id = "bnsV76Modal";
+    wrap.className = "bns-v76-backdrop";
+    var isPrompt = opts.input === true;
+    wrap.innerHTML = '<div class="bns-v76-card" role="dialog" aria-modal="true">' +
+      '<h2>' + esc(opts.title || "Systeemmelding") + '</h2>' +
+      '<p>' + esc(opts.message || "") + '</p>' +
+      (isPrompt ? '<input id="bnsV76PromptInput" autocomplete="off" value="' + esc(opts.value || "") + '">' : '') +
+      '<div class="bns-v76-actions">' +
+        (opts.cancel ? '<button type="button" class="cancel" id="bnsV76Cancel">Annuleren</button>' : '') +
+        '<button type="button" class="' + (opts.danger ? 'danger' : '') + '" id="bnsV76Ok">' + esc(opts.okText || "OK") + '</button>' +
+      '</div></div>';
+    document.body.appendChild(wrap);
+    var inp = E("bnsV76PromptInput");
+    if (inp) setTimeout(function(){ inp.focus(); inp.select(); }, 30);
+    return new Promise(function(resolve){
+      function close(val){ try { wrap.remove(); } catch(e) {} resolve(val); }
+      E("bnsV76Ok").onclick = function(){ close(isPrompt ? T((E("bnsV76PromptInput") || {}).value) : true); };
+      var cancel = E("bnsV76Cancel");
+      if (cancel) cancel.onclick = function(){ close(isPrompt ? null : false); };
+      wrap.addEventListener("click", function(ev){ if(ev.target === wrap && opts.cancel) close(isPrompt ? null : false); });
+      wrap.addEventListener("keydown", function(ev){ if(ev.key === "Escape" && opts.cancel) close(isPrompt ? null : false); if(ev.key === "Enter" && !ev.shiftKey) close(isPrompt ? T((E("bnsV76PromptInput") || {}).value) : true); });
+    });
+  }
+  function bnsNotice(msg, title){ return showModal({title:title || "Systeemmelding", message:msg || "", okText:"OK"}); }
+  function bnsAsk(msg, title){ return showModal({title:title || "Bevestigen", message:msg || "", okText:"Ja", cancel:true, danger:true}); }
+  function bnsPrompt(msg, val, title){ return showModal({title:title || "Invoer", message:msg || "", input:true, value:val || "", okText:"Opslaan", cancel:true}); }
+  window.bnsNotice = bnsNotice;
+  window.bnsConfirm = bnsAsk;
+  window.bnsPrompt = bnsPrompt;
+  try { window.alert = function(msg){ bnsNotice(msg || "Systeemmelding"); }; } catch(e) {}
+
+  function patchPinInputs(){
+    A("input").forEach(function(inp){
+      var txt = L([inp.id, inp.name, inp.placeholder, inp.getAttribute("aria-label"), inp.type].join(" "));
+      if (/pin|pincode|adminpin|wachtwoord|password/.test(txt)) {
+        try { inp.type = "tel"; } catch(e) {}
+        inp.setAttribute("autocomplete", "off");
+        inp.setAttribute("autocorrect", "off");
+        inp.setAttribute("autocapitalize", "off");
+        inp.setAttribute("spellcheck", "false");
+        inp.setAttribute("inputmode", "numeric");
+        try { inp.removeAttribute("name"); } catch(e) {}
+      }
+    });
+    var ap = E("adminPin");
+    if (ap) { ap.value = ""; ap.placeholder = ap.placeholder || "Admin PIN"; }
+  }
+
+  async function initFirebase(){
+    if (window.BNS && window.BNS.fs && window.BNS.db) return window.BNS;
+    if (firebasePromise) return firebasePromise;
+    firebasePromise = (async function(){
+      window.BNS = window.BNS || {};
+      if (!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === "VUL_HIER_IN") return null;
+      try {
+        var appMod = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION + "/firebase-app.js");
+        var fsMod = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION + "/firebase-firestore.js");
+        var apps = [];
+        try { apps = appMod.getApps ? appMod.getApps() : []; } catch(e) { apps = []; }
+        window.BNS.app = window.BNS.app || (apps.length ? apps[0] : appMod.initializeApp(window.BNS_FIREBASE_CONFIG));
+        window.BNS.fs = window.BNS.fs || fsMod;
+        window.BNS.db = window.BNS.db || fsMod.getFirestore(window.BNS.app);
+        window.BNS.firebaseReady = true;
+        return window.BNS;
+      } catch(e) {
+        try { console.warn("BNS V76 Firebase niet beschikbaar", e); } catch(_e) {}
+        return null;
+      }
+    })();
+    return firebasePromise;
+  }
+
+  function cleanUser(u){
+    return {
+      id:T(u && u.id) || ("u_" + Date.now() + "_" + Math.random().toString(36).slice(2,8)),
+      name:T(u && u.name),
+      phone:T(u && u.phone),
+      pin:T(u && u.pin),
+      role:roleNorm(u && u.role),
+      rights:Object.assign({}, (u && u.rights) || {}),
+      deviceId:T(u && u.deviceId),
+      deviceName:T(u && u.deviceName),
+      deviceLockedAt:T(u && u.deviceLockedAt),
+      updatedAt:T(u && u.updatedAt) || nowIso()
+    };
+  }
+  function syncUsersSoon(){
+    if (syncingUsers) return;
+    syncingUsers = true;
+    setTimeout(function(){ syncingUsers = false; syncUsersNow(); }, 120);
+  }
+  function syncUsersNow(){
+    try { if (typeof window.BNS_V75_syncUsers === "function") window.BNS_V75_syncUsers(); } catch(e) {}
+    var rows = users().filter(activeUser).map(cleanUser).filter(function(u){ return u.id && u.name && u.pin; });
+    initFirebase().then(function(bns){
+      if (!bns || !bns.fs || !bns.db) return;
+      var fs = bns.fs, now = nowIso();
+      Promise.all(rows.map(function(u){ return fs.setDoc(fs.doc(bns.db, "users", String(u.id)), Object.assign({}, u, {updatedAt:now}), {merge:true}); })).catch(function(){});
+      fs.setDoc(fs.doc(bns.db, "meta", "users"), {users:rows, updatedAt:now}, {merge:false}).catch(function(){});
+    });
+  }
+  function deleteUserFirebase(u){
+    if (!u || !u.id) return;
+    initFirebase().then(function(bns){
+      if (!bns || !bns.fs || !bns.db) return;
+      var fs = bns.fs;
+      var tomb = {id:String(u.id), name:u.name || "", pin:u.pin || "", role:u.role || "", deletedAt:nowIso()};
+      try { fs.deleteDoc(fs.doc(bns.db, "users", String(u.id))).catch(function(){}); } catch(e) {}
+      try { fs.setDoc(fs.doc(bns.db, "deletedUsers", String(u.id)), tomb, {merge:true}).catch(function(){}); } catch(e) {}
+      syncUsersNow();
+    });
+  }
+
+  function applyFreshUsers(rows, replace){
+    if (!Array.isArray(rows)) return false;
+    var clean = rows.map(cleanUser).filter(function(u){ return u.id && u.name && u.pin; });
+    var s = S(); if(!s) return false;
+    if (replace) s.users = clean;
+    else {
+      var byId = {};
+      users().forEach(function(u){ if(u && u.id) byId[String(u.id)] = u; });
+      clean.forEach(function(u){ byId[String(u.id)] = Object.assign({}, byId[String(u.id)] || {}, u); });
+      s.users = Object.keys(byId).map(function(k){ return byId[k]; });
+    }
+    saveLocal();
+    updateDriverSelects();
+    patchUserRows();
+    return true;
+  }
+  async function fetchFreshUsers(timeoutMs){
+    if (Date.now() - FIREBASE_FETCH_LOCK < 750) return true;
+    FIREBASE_FETCH_LOCK = Date.now();
+    try { if (typeof window.BNS_V75_fetchUsersFresh === "function") await window.BNS_V75_fetchUsersFresh(timeoutMs || 900); } catch(e) {}
+    var timeout;
+    var timer = new Promise(function(resolve){ timeout = setTimeout(function(){ resolve(false); }, timeoutMs || 1100); });
+    var work = (async function(){
+      var bns = await initFirebase();
+      if (!bns || !bns.fs || !bns.db) return false;
+      var fs = bns.fs;
+      var changed = false;
+      try {
+        var meta = await fs.getDoc(fs.doc(bns.db, "meta", "users"));
+        if (meta && meta.exists && meta.exists()) {
+          var data = meta.data() || {};
+          if (Array.isArray(data.users)) changed = applyFreshUsers(data.users, true) || changed;
+        }
+      } catch(e) {}
+      if (!changed) {
+        try {
+          var snap = await fs.getDocs(fs.collection(bns.db, "users"));
+          var rows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+          if (rows.length) changed = applyFreshUsers(rows, true) || changed;
+        } catch(e) {}
+      }
+      try {
+        var delSnap = await fs.getDocs(fs.collection(bns.db, "deletedUsers"));
+        var deleted = {};
+        delSnap.docs.forEach(function(d){ var x = d.data() || {}; deleted[String(x.id || d.id)] = true; if(x.pin) deleted["pin:" + String(x.pin)] = true; });
+        var before = users().length;
+        var s = S();
+        s.users = users().filter(function(u){ return !deleted[String(u.id)] && !deleted["pin:" + String(u.pin)]; });
+        if (s.users.length !== before) { saveLocal(); changed = true; }
+      } catch(e) {}
+      return changed;
+    })();
+    try { return await Promise.race([work, timer]); } finally { clearTimeout(timeout); }
+  }
+
+  function failLogin(msg){
+    resetPin();
+    bnsNotice(msg || "Aanmelden mislukt", "Aanmelden");
+  }
+  function resetPin(){
+    try { pin = ""; } catch(e) {}
+    var pv = E("pinView");
+    if (pv) pv.textContent = "- - - -";
+  }
+  function typedPin(){
+    try { if (typeof pin !== "undefined") return T(pin); } catch(e) {}
+    return "";
+  }
+  function checkDeviceAllowed(u){
+    if (!u) return {ok:false, msg:"Gebruiker niet gevonden."};
+    if (isAdmin(u)) return {ok:true};
+    var dev = deviceId();
+    var lock = lockedPhoneUserId();
+    if (lock && String(lock) !== String(u.id)) {
+      var owner = users().find(function(x){ return String(x.id) === String(lock); });
+      return {ok:false, msg:"Deze telefoon is gekoppeld aan " + (owner && owner.name ? owner.name : "een andere medewerker") + ". Vraag de admin om telefoon reset."};
+    }
+    var allowed = Array.isArray(u.allowedDeviceIds) ? u.allowedDeviceIds.filter(Boolean).map(String) : [];
+    var bound = T(u.deviceId);
+    if (bound && bound !== dev && allowed.indexOf(dev) < 0) {
+      return {ok:false, msg:"Deze PIN is al gekoppeld aan een andere telefoon. Vraag de admin om telefoon reset."};
+    }
+    if (!bound && allowed.length && allowed.indexOf(dev) < 0) {
+      return {ok:false, msg:"Deze telefoon is niet toegestaan voor deze medewerker. Vraag de admin om telefoon reset."};
+    }
+    return {ok:true};
+  }
+  function bindDeviceToUser(u){
+    if (!u || isAdmin(u)) return;
+    var dev = deviceId();
+    var changed = false;
+    if (!u.deviceId) { u.deviceId = dev; changed = true; }
+    if (!u.deviceName) { u.deviceName = deviceName(); changed = true; }
+    if (!u.deviceLockedAt) { u.deviceLockedAt = nowIso(); changed = true; }
+    setPhoneLock(u.id);
+    if (changed) { u.updatedAt = nowIso(); saveLocal(); syncUsersSoon(); }
+  }
+  function logoutToLogin(msg){
+    try { user = null; } catch(e) {}
+    try { window.user = null; } catch(e) {}
+    resetPin();
+    try { if(E("app")) E("app").classList.add("hidden"); } catch(e) {}
+    try { if(E("login")) E("login").classList.remove("hidden"); } catch(e) {}
+    document.body.classList.remove("bns-v76-driver-locked");
+    if (msg) bnsNotice(msg, "Aanmelden");
+  }
+  async function secureLogin(ev){
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var p = typedPin();
+    if (!p) return false;
+    toast("Aanmelden controleren...");
+    await fetchFreshUsers(1150);
+    var u = users().find(function(x){ return activeUser(x) && String(x.pin) === String(p); });
+    if (!u) { failLogin("PIN niet gevonden of gebruiker is verwijderd."); return false; }
+    var device = checkDeviceAllowed(u);
+    if (!device.ok) { failLogin(device.msg); return false; }
+    bindDeviceToUser(u);
+    try { user = u; } catch(e) {}
+    try { window.user = u; } catch(e) {}
+    resetPin();
+    if (E("login")) E("login").classList.add("hidden");
+    if (E("app")) E("app").classList.remove("hidden");
+    A(".admin-only").forEach(function(x){ x.style.display = isAdmin(u) ? "" : "none"; });
+    secureMenus();
+    try { if (typeof showPage === "function") showPage(isDriver(u) ? "driver" : "dashboard"); } catch(e) {}
+    secureAfterRender();
+    return false;
+  }
+  function patchLogin(){
+    try { doLogin = secureLogin; } catch(e) {}
+    try { window.doLogin = secureLogin; } catch(e) {}
+    var ok = E("pinOk");
+    if (ok) ok.onclick = secureLogin;
+  }
+
+  function orderDriverText(o){ return T(o && (o.driverName || o.driver || o.bezorger || (o.driverUser && o.driverUser.name) || "")); }
+  function orderIsActive(o){ var st=L(o && o.status); return !!o && !/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd|done/.test(st); }
+  function assignedTo(u, o){
+    if (!u) return true;
+    if (isAdmin(u) || isPlanner(u)) return true;
+    if (!isDriver(u)) return true;
+    var id = T(u.id);
+    var name = L(u.name);
+    var driver = L(orderDriverText(o));
+    if (o && o.driverId && id && String(o.driverId) === String(id)) return true;
+    if (o && o.bezorgerId && id && String(o.bezorgerId) === String(id)) return true;
+    if (driver && name && driver === name) return true;
+    return false;
+  }
+  function dateValue(o){ return T(o && (o.start || o.dateStart || o.startDate || o.date || "9999-12-31")); }
+  function niceDate(v){
+    v = T(v).slice(0,10);
+    var p = v.split("-");
+    return p.length === 3 ? p[2] + "-" + p[1] + "-" + p[0] : v;
+  }
+  function driverRows(){
+    var u = currentUserObj();
+    return orders().filter(orderIsActive).filter(function(o){ return assignedTo(u, o); }).sort(function(a,b){ return dateValue(a).localeCompare(dateValue(b)); });
+  }
+  function renderDriverSecure(){
+    var box = E("driverList");
+    if (!box) return;
+    var rows = driverRows().slice(0, 80);
+    box.innerHTML = rows.map(function(o){
+      var mats = Array.isArray(o.materials) ? o.materials.map(function(m){ return m.code || m.name || ""; }).filter(Boolean).join(", ") : "";
+      var start = T(o.start || o.dateStart || o.startDate || o.date);
+      var end = T(o.end || o.dateEnd || o.endDate);
+      var range = niceDate(start) + (end && end !== start ? " t/m " + niceDate(end) : "");
+      return '<div class="order-card" data-bns-order-id="'+esc(o.id || '')+'"><div class="date-tile">'+esc(niceDate(start))+'</div><div><b>'+esc(o.number || '')+' - '+esc(o.title || '')+'</b><br><b>Datum:</b> '+esc(range)+'<br>'+esc(mats)+'</div><div class="actions"><button type="button" onclick="alertFor(\''+esc(o.id || '')+'\',\'Storing\')">Storing</button><button type="button" onclick="alertFor(\''+esc(o.id || '')+'\',\'Schade\')">Schade</button><button type="button" onclick="alertFor(\''+esc(o.id || '')+'\',\'Vermissing\')">Vermissing</button></div></div>';
+    }).join("") || "<p>Geen opdrachten voor deze bezorger.</p>";
+  }
+  function patchDriverRender(){
+    try { window.renderDriver = renderDriverSecure; } catch(e) {}
+    try { renderDriver = renderDriverSecure; } catch(e) {}
+  }
+  function filterMobileDriverCards(){
+    var app = E("bnsDriverApp");
+    if (!app) return;
+    var u = currentUserObj();
+    if (!isDriver(u)) return;
+    var list = E("bnsDriverList");
+    if (!list) return;
+    var kept = 0;
+    A("[data-order-id]", list).forEach(function(card){
+      var oid = card.getAttribute("data-order-id");
+      var o = orders().find(function(x){ return String(x.id || "") === String(oid || ""); });
+      if (!o || !assignedTo(u, o)) card.remove();
+      else kept++;
+    });
+    if (!kept && !list.querySelector(".bns-empty")) list.innerHTML = '<div class="bns-empty">Geen opdrachten voor deze bezorger.</div>';
+  }
+  function secureMenus(){
+    var u = currentUserObj();
+    if (isDriver(u)) {
+      document.body.classList.add("bns-v76-driver-locked");
+      A(".nav").forEach(function(n){ n.style.display = (n.dataset && n.dataset.page === "driver") ? "" : "none"; });
+    } else {
+      document.body.classList.remove("bns-v76-driver-locked");
+      A(".nav").forEach(function(n){ n.style.display = ""; });
+    }
+  }
+  function updateDriverSelects(){
+    var rows = users().filter(function(u){ return activeUser(u) && roleNorm(u.role) === "Bezorger"; });
+    var html = '<option value="">Geen</option>' + rows.map(function(u){ return '<option>' + esc(u.name || "") + '</option>'; }).join("");
+    A("#orderDriver").forEach(function(sel){ try { sel.innerHTML = html; } catch(e) {} });
+  }
+
+  function selectedMaterialId(){
+    var ids = [window.__bnsSelectedMaterialId, window.bnsSelectedMaterialId, window.__bnsV48EditingMaterialId];
+    try { if (typeof editId !== "undefined") ids.push(editId); } catch(e) {}
+    for (var i=0; i<ids.length; i++) if (T(ids[i])) return T(ids[i]);
+    return "";
+  }
+  function deleteSelectedMaterialSecure(){
+    var sid = selectedMaterialId();
+    if (!sid) { bnsNotice("Kies eerst een materiaal.", "Materiaal"); return; }
+    bnsAsk("Materiaal verwijderen?", "Materiaal verwijderen").then(function(ok){
+      if (!ok) return;
+      var s = S(); if(!s || !Array.isArray(s.materials)) return;
+      s.materials = s.materials.filter(function(m){ return String(m.id) !== String(sid); });
+      try { var map = JSON.parse(localStorage.getItem("bns_material_overrides_v72") || "{}"); delete map[String(sid)]; localStorage.setItem("bns_material_overrides_v72", JSON.stringify(map)); } catch(e) {}
+      window.__bnsSelectedMaterialId = ""; window.bnsSelectedMaterialId = "";
+      try { editId = ""; } catch(e) {}
+      saveLocal();
+      try { if (typeof window.BNS_V75_renderAdminMaterials === "function") window.BNS_V75_renderAdminMaterials(); } catch(e) {}
+      try { if (typeof window.renderMaterials === "function") window.renderMaterials(window.currentCat || "TW"); } catch(e) {}
+      try { if (window.BNS && window.BNS.fs && window.BNS.db) window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db, "materials", String(sid))).catch(function(){}); } catch(e) {}
+      toast("Materiaal verwijderd");
+    });
+  }
+  function userIdFromButton(btn){
+    if (!btn) return "";
+    var row = btn.closest("[data-bns-v75-user],[data-bns-v74-user],[data-user-id],.bns-force-user-row,.bns-user-row");
+    return T(btn.getAttribute("data-bns-v75-delete-user") || btn.getAttribute("data-bns-v74-delete") || btn.getAttribute("data-user-id") || (row && (row.getAttribute("data-bns-v75-user") || row.getAttribute("data-bns-v74-user") || row.getAttribute("data-user-id"))) || "");
+  }
+  function deleteUserSecure(userId){
+    userId = T(userId);
+    var s = S(); if(!s || !Array.isArray(s.users) || !userId) return;
+    var u = s.users.find(function(x){ return String(x.id) === String(userId); });
+    if (!u) return;
+    if (isAdmin(u)) { bnsNotice("Admin gebruiker niet verwijderen.", "Gebruiker"); return; }
+    bnsAsk("Gebruiker " + (u.name || "") + " verwijderen? Deze PIN werkt daarna ook niet meer op de telefoon.", "Gebruiker verwijderen").then(function(ok){
+      if (!ok) return;
+      s.users = s.users.filter(function(x){ return String(x.id) !== String(userId); });
+      if (String(lockedPhoneUserId()) === String(userId)) setPhoneLock("");
+      saveLocal();
+      updateDriverSelects();
+      patchUserRows();
+      try { if (typeof renderAll === "function") renderAll(); } catch(e) {}
+      deleteUserFirebase(u);
+      var cu = currentUserObj();
+      if (cu && String(cu.id) === String(userId)) logoutToLogin("Deze gebruiker is verwijderd.");
+      toast("Gebruiker verwijderd");
+    });
+  }
+  function resetUserDevice(userId){
+    var u = users().find(function(x){ return String(x.id) === String(userId); });
+    if (!u) return;
+    bnsAsk("Telefoonkoppeling resetten voor " + (u.name || "deze gebruiker") + "? Daarna kan deze medewerker opnieuw inloggen op de juiste telefoon.", "Telefoon reset").then(function(ok){
+      if (!ok) return;
+      delete u.deviceId;
+      delete u.deviceName;
+      delete u.deviceLockedAt;
+      u.allowedDeviceIds = [];
+      u.updatedAt = nowIso();
+      saveLocal();
+      syncUsersNow();
+      patchUserRows();
+      toast("Telefoon reset opgeslagen");
+    });
+  }
+  function patchUserRows(){
+    A("[data-bns-v75-user],[data-bns-v74-user],[data-user-id].bns-force-user-row,[data-user-id].bns-user-row,.bns-force-user-row,.bns-user-row").forEach(function(row){
+      var uid = T(row.getAttribute("data-bns-v75-user") || row.getAttribute("data-bns-v74-user") || row.getAttribute("data-user-id") || "");
+      if (!uid) return;
+      var u = users().find(function(x){ return String(x.id) === String(uid); });
+      if (!u) return;
+      if (!row.querySelector(".bns-v76-device")) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "bns-v76-device";
+        btn.textContent = "Telefoon reset";
+        btn.onclick = function(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); } resetUserDevice(uid); return false; };
+        row.appendChild(btn);
+      }
+      if (u.deviceId && !row.querySelector(".bns-v76-lock-note")) {
+        var note = document.createElement("small");
+        note.className = "bns-v76-lock-note";
+        note.textContent = "Telefoon gekoppeld";
+        var span = row.querySelector("span") || row;
+        span.appendChild(note);
+      }
+    });
+  }
+  function patchDoneAndReport(btn, kind){
+    var oid = T(btn.getAttribute(kind === "done" ? "data-done" : "data-report"));
+    var o = orders().find(function(x){ return String(x.id || "") === String(oid); });
+    if (!o) return;
+    if (kind === "done") {
+      bnsAsk("Opdracht afmelden als uitgevoerd?", "Opdracht afmelden").then(function(ok){
+        if (!ok) return;
+        o.status = "Uitgevoerd";
+        o.doneAt = nowIso();
+        saveLocal();
+        try { if (window.BNS && typeof window.BNS.syncOrder === "function") window.BNS.syncOrder(o); } catch(e) {}
+        secureAfterRender();
+        toast("Opdracht afgemeld als uitgevoerd");
+      });
+    } else {
+      bnsPrompt("Melding voor planning:", "", "Melding").then(function(text){
+        if (text == null || !T(text)) return;
+        var s = S(); if(!s) return;
+        s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+        s.alerts.push({id:"a_" + Math.random().toString(36).slice(2,10), orderId:o.id || "", orderNumber:o.number || "", title:"Bezorger melding", text:T(text), note:T(text), resolved:false, createdAt:nowIso(), time:new Date().toLocaleString(), from:(currentUserObj() && currentUserObj().name) || "Bezorger"});
+        saveLocal();
+        toast("Melding verstuurd");
+      });
+    }
+  }
+
+  function bindCriticalClicks(){
+    if (document.documentElement.dataset.bnsV76Clicks === "1") return;
+    document.documentElement.dataset.bnsV76Clicks = "1";
+    document.addEventListener("click", function(ev){
+      var t = ev.target;
+      if (!t || !t.closest) return;
+      var udel = t.closest("[data-bns-v75-delete-user],[data-bns-v74-delete],.bns-force-delete,.bns-user-delete");
+      if (udel) {
+        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+        deleteUserSecure(userIdFromButton(udel));
+        return false;
+      }
+      var mdel = t.closest("#adminDeleteMat,#bnsV56Delete");
+      if (mdel) {
+        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+        deleteSelectedMaterialSecure();
+        return false;
+      }
+      var done = t.closest("[data-done]");
+      if (done) {
+        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+        patchDoneAndReport(done, "done");
+        return false;
+      }
+      var rep = t.closest("[data-report]");
+      if (rep) {
+        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+        patchDoneAndReport(rep, "report");
+        return false;
+      }
+      if (t.closest(".adminTab,[data-admin],button")) setTimeout(function(){ patchPinInputs(); patchUserRows(); updateDriverSelects(); }, 40);
+    }, true);
+  }
+
+  function secureAfterRender(){
+    patchPinInputs();
+    secureMenus();
+    patchDriverRender();
+    try { renderDriverSecure(); } catch(e) {}
+    filterMobileDriverCards();
+    updateDriverSelects();
+    patchUserRows();
+    enforceCurrentUser();
+  }
+  function enforceCurrentUser(){
+    var u = currentUserObj();
+    if (!u) return;
+    var fresh = users().find(function(x){ return String(x.id) === String(u.id) || (x.pin && u.pin && String(x.pin) === String(u.pin)); });
+    if (!fresh || !activeUser(fresh)) { logoutToLogin("Deze gebruiker is verwijderd of uitgezet."); return; }
+    if (!isAdmin(fresh)) {
+      var chk = checkDeviceAllowed(fresh);
+      if (!chk.ok) logoutToLogin(chk.msg);
+    }
+  }
+  function patchRenderAll(){
+    var old = null;
+    try { old = window.renderAll || (typeof renderAll === "function" ? renderAll : null); } catch(e) { old = null; }
+    if (!old || old.__bnsV76Secure) return;
+    var wrapped = function(){
+      var r;
+      try { r = old.apply(this, arguments); } catch(e) {}
+      setTimeout(secureAfterRender, 0);
+      return r;
+    };
+    wrapped.__bnsV76Secure = true;
+    try { window.renderAll = wrapped; } catch(e) {}
+    try { renderAll = wrapped; } catch(e) {}
+  }
+  function startObserver(){
+    if (observerStarted || !window.MutationObserver) return;
+    observerStarted = true;
+    var obs = new MutationObserver(function(){
+      clearTimeout(startObserver._t);
+      startObserver._t = setTimeout(secureAfterRender, 90);
+    });
+    try { obs.observe(document.body, {childList:true, subtree:true}); } catch(e) {}
+  }
+  function subscribeUserRealtime(){
+    initFirebase().then(function(bns){
+      if (!bns || !bns.fs || !bns.db || !bns.fs.onSnapshot) return;
+      var fs = bns.fs;
+      try {
+        fs.onSnapshot(fs.doc(bns.db, "meta", "users"), function(snap){
+          if (!snap || !snap.exists || !snap.exists()) return;
+          var data = snap.data() || {};
+          if (Array.isArray(data.users)) { applyFreshUsers(data.users, true); enforceCurrentUser(); }
+        });
+      } catch(e) {}
+      try {
+        fs.onSnapshot(fs.collection(bns.db, "deletedUsers"), function(snap){
+          if (!snap) return;
+          var del = {};
+          snap.docs.forEach(function(d){ var x = d.data() || {}; del[String(x.id || d.id)] = true; if(x.pin) del["pin:" + String(x.pin)] = true; });
+          var s = S(); if(!s) return;
+          var before = users().length;
+          s.users = users().filter(function(u){ return !del[String(u.id)] && !del["pin:" + String(u.pin)]; });
+          if (s.users.length !== before) { saveLocal(); updateDriverSelects(); patchUserRows(); enforceCurrentUser(); }
+        });
+      } catch(e) {}
+    });
+  }
+
+  function install(){
+    ensureCss();
+    patchPinInputs();
+    patchLogin();
+    patchDriverRender();
+    patchRenderAll();
+    bindCriticalClicks();
+    secureAfterRender();
+    startObserver();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 300); setTimeout(function(){ fetchFreshUsers(1200); subscribeUserRealtime(); }, 900); });
+  } else {
+    setTimeout(install, 150);
+    setTimeout(function(){ fetchFreshUsers(1200); subscribeUserRealtime(); }, 900);
+  }
+  setTimeout(install, 1200);
+  setTimeout(install, 3000);
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden){ fetchFreshUsers(1000).then(secureAfterRender); } });
+
+  window.BNS_V76_fetchUsersFresh = fetchFreshUsers;
+  window.BNS_V76_syncUsers = syncUsersNow;
+  window.BNS_V76_resetDeviceForUser = resetUserDevice;
 })();
