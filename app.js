@@ -11295,3 +11295,135 @@ setInterval(install,1500);
   setTimeout(install,1200); setTimeout(install,2600);
   setInterval(function(){ try{ applyOverrides(); window.renderMaterials=renderMaterials; window.renderCats=renderCats; window.addMat=addMatStable; if(E("materialList")) renderMaterials(currentCat()); }catch(e){} },1800);
 })();
+
+/* =========================================================
+   BNS V73 - Alleen laatste materiaal-sync + PIN veld
+   - Basis blijft V72/V62
+   - Admin materiaal opslaan schrijft ook direct naar materiaal-kiezen
+   - Artikelkleur wordt op het materiaal zelf opgeslagen
+   - Admin PIN veld blijft leeg en password
+   ========================================================= */
+(function bnsV73MaterialAdminToPlannerFinal(){
+  "use strict";
+  if (window.__bnsV73MaterialAdminToPlannerFinal) return;
+  window.__bnsV73MaterialAdminToPlannerFinal = true;
+
+  var OVERRIDE_KEY = "bns_material_overrides_v72";
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function catKey(v){ return T(v || "EXTRA").toUpperCase().replace(/[^A-Z0-9]/g,"") || "EXTRA"; }
+  function nrKey(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g,""); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c];}); }
+  function normColor(v){
+    v=T(v); if(/^#[0-9a-f]{6}$/i.test(v)) return v;
+    var m=v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if(m) return "#"+[m[1],m[2],m[3]].map(function(n){var h=(parseInt(n,10)||0).toString(16);return h.length<2?"0"+h:h;}).join("");
+    return "";
+  }
+  function S(){ try{ if(typeof state!=="undefined" && state) return state; }catch(e){} return window.state || (window.state={materials:[],orders:[]}); }
+  function mats(){ var s=S(); s.materials=Array.isArray(s.materials)?s.materials:[]; return s.materials; }
+  function orders(){ var s=S(); s.orders=Array.isArray(s.orders)?s.orders:[]; return s.orders; }
+  function makeCode(cat,nr){ cat=catKey(cat); nr=nrKey(nr); return nr ? (nr.indexOf(cat)===0?nr:cat+nr) : cat; }
+  function readMap(){ try{return JSON.parse(localStorage.getItem(OVERRIDE_KEY)||"{}");}catch(e){return{};} }
+  function writeMap(m){ try{localStorage.setItem(OVERRIDE_KEY,JSON.stringify(m||{}));}catch(e){} }
+  function putOverride(m){ if(!m||!m.id)return; var map=readMap(); map[String(m.id)]=Object.assign({},map[String(m.id)]||{},m,{_savedAt:Date.now()}); writeMap(map); }
+  function applyOverrides(){ var list=mats(), map=readMap(); Object.keys(map).forEach(function(id){ var ov=map[id]; if(!ov||!ov.id)return; var m=list.find(function(x){return String(x.id)===String(ov.id);}); if(!m){list.push(Object.assign({},ov));return;} Object.assign(m,ov); }); }
+  function productName(m){ return T(m&&(m.product||m.searchName||m.zoeknaam||m.type||m.name||m.description||m.beschrijving)); }
+  function productDesc(m){ return T(m&&(m.description||m.beschrijving||m.notes||"")); }
+  function searchText(m){ return [m&&m.cat,m&&m.rubriek,m&&m.category,m&&m.code,m&&m.productNr,m&&m.nr,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.name,m&&m.description,m&&m.beschrijving,m&&m.notes,m&&m.price].join(" ").toLowerCase(); }
+  function selectedColor(cat){
+    var p=E("bnsV56ColorPreview")||E("adminMatColorPreview");
+    var c=normColor(p && (p.style.backgroundColor || p.style.background));
+    var active=document.querySelector("#bnsV56Dots .bns-v56-dot.active,.bns-color-dot.active,.bns-v48-dot.active");
+    return normColor(active && (active.dataset.color||active.getAttribute("data-color")||active.style.backgroundColor)) || c || catColor(cat);
+  }
+  function catColor(cat){
+    var k=catKey(cat), def={TW:"#dc2626",TO:"#f97316",KW:"#22c55e",KA:"#a855f7",SL:"#eab308",EXTRA:"#334155",BT:"#0ea5e9",HN:"#7c3aed",TEST:"#22c55e"};
+    try{ var s=S(); var c=s.settings&&s.settings.categoryColors&&s.settings.categoryColors[k]; if(normColor(c)) return normColor(c); }catch(e){}
+    try{ var b=JSON.parse(localStorage.getItem("bns_rubriek_kleuren_v12_pro")||"{}"); if(normColor(b[k])) return normColor(b[k]); }catch(e){}
+    try{ var a=JSON.parse(localStorage.getItem("bnsCatColors")||"{}"); if(normColor(a[k])) return normColor(a[k]); }catch(e){}
+    return def[k]||def.EXTRA;
+  }
+  function materialColor(m){ return normColor(m && m.color) || catColor(m && (m.cat||m.rubriek||m.category)); }
+  function chosenList(){ try{ if(typeof chosen!=="undefined" && Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
+  function sameMaterial(a,b){ if(!a||!b)return false; if(a.id&&b.id&&String(a.id)===String(b.id))return true; return catKey(a.cat||a.rubriek||a.category)===catKey(b.cat||b.rubriek||b.category) && nrKey(a.code||a.productNr||a.nr)===nrKey(b.code||b.productNr||b.nr); }
+  function parseDate(v){ var s=T(v),m=s.match(/^(\d{4})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/); if(m)return mk(+m[1],+m[2],+m[3]); m=s.match(/^(\d{1,2})[-\.\/](\d{1,2})[-\.\/](\d{4})/); if(m)return mk(+m[3],+m[2],+m[1]); var d=new Date(s); return isNaN(d.getTime())?null:mk(d.getFullYear(),d.getMonth()+1,d.getDate()); }
+  function mk(y,m,d){ var x=new Date(y,m-1,d); if(x.getFullYear()!==y||x.getMonth()!==m-1||x.getDate()!==d)return null; x.setHours(0,0,0,0); return x; }
+  function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); x.setHours(0,0,0,0); return x; }
+  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e)s=e; if(!s)return null; if(!e||e.getTime()<=s.getTime())e=addDays(s,1); return {start:s,end:e}; }
+  function wantedPeriod(){ return period((E("dateStart")||{}).value,(E("dateEnd")||{}).value); }
+  function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
+  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<b.end.getTime()&&b.start.getTime()<a.end.getTime()); }
+  function blocksOrder(o){ var s=T(o&&o.status).toLowerCase(); if(!s)return false; if(/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd/.test(s))return false; if(s.indexOf("offerte")>=0)return false; return /bevestigd|opdracht|optie 14|optie14/.test(s); }
+  function editingId(){ try{ if(typeof editing!=="undefined"&&editing) return String(editing); }catch(e){} return window.editing?String(window.editing):""; }
+  function reservationFor(m){ var w=wantedPeriod(); if(!w)return null; var edit=editingId(); for(var i=0;i<orders().length;i++){ var o=orders()[i]; if(!o||!blocksOrder(o))continue; if(edit&&String(o.id||"")===edit)continue; var ml=Array.isArray(o.materials)?o.materials:[]; if(!ml.some(function(x){return sameMaterial(x,m);} ))continue; var op=orderPeriod(o); if(overlaps(w,op))return {order:o,period:op,wanted:w}; } return null; }
+  function matStatus(m){ var raw=T(m&&m.status).toLowerCase(); if(chosenList().some(function(x){return sameMaterial(x,m);} ))return {key:"chosen",label:"Toegevoegd",blocked:false}; if(/inactive|niet actief|niet beschikbaar|defect|damage|schade|missing|vermist|vermissing/.test(raw))return {key:"defect",label:"Niet inzetbaar",blocked:true}; var r=reservationFor(m); if(r)return {key:"reserved",label:"Gereserveerd",blocked:true,reservation:r}; return {key:"free",label:"Vrij",blocked:false}; }
+  function currentCat(){ return catKey(window.currentCat || localStorage.getItem("bnsV56Cat") || "TW"); }
+
+  function forceRenderMaterials(cat){
+    var box=E("materialList"); if(!box)return;
+    applyOverrides(); var active=catKey(cat||currentCat()); window.currentCat=active; try{currentCat=active;}catch(e){}
+    var q=T((E("materialSearch")||{}).value).toLowerCase();
+    var rows=mats().filter(function(m){return catKey(m.cat||m.rubriek||m.category)===active;}).filter(function(m){return !q||searchText(m).indexOf(q)>=0;}).slice(0,500);
+    box.innerHTML=rows.length?rows.map(function(m){ var st=matStatus(m), col=materialColor(m), p=productName(m), d=productDesc(m), price=m.price||"oude prijs: € 0"; return '<div class="bns-v72-row '+esc(st.key)+'" data-material-id="'+esc(m.id)+'" style="--mat-color:'+esc(col)+'"><div class="bns-v72-bar"></div><div><div class="bns-v72-title"><b>'+esc(m.code||"")+'</b> '+esc(p)+'</div>'+(d&&d!==p?'<div class="bns-v72-desc">'+esc(d)+'</div>':'')+'<div class="bns-v72-price">'+esc(price)+'</div></div><span class="bns-v72-pill '+esc(st.key)+'">'+esc(st.label)+'</span></div>'; }).join(""):'<p class="bns-empty">Geen materiaal gevonden in rubriek '+esc(active)+'.</p>';
+  }
+
+  function selectedId(){
+    var ids=[window.__bnsSelectedMaterialId,window.bnsSelectedMaterialId,window.__bnsV48EditingMaterialId];
+    try{ if(typeof selectedMaterialId!=="undefined")ids.push(selectedMaterialId); }catch(e){}
+    try{ if(typeof editId!=="undefined")ids.push(editId); }catch(e){}
+    for(var i=0;i<ids.length;i++) if(T(ids[i])) return T(ids[i]);
+    return "";
+  }
+  function saveLocal(){
+    try{localStorage.setItem("eventPlannerProState",JSON.stringify(S()));}catch(e){}
+    try{localStorage.setItem("plannerState",JSON.stringify(S()));}catch(e){}
+    try{localStorage.setItem("eventPlannerPro",JSON.stringify(S()));}catch(e){}
+    try{localStorage.setItem("eventPlannerProV91",JSON.stringify(S()));}catch(e){}
+    try{if(typeof save==="function")save();}catch(e){}
+  }
+  function saveFirebase(m){ try{ if(!m||!m.id||!window.BNS||!window.BNS.fs||!window.BNS.db)return; var fs=window.BNS.fs; fs.setDoc(fs.doc(window.BNS.db,"materials",String(m.id)),Object.assign({},m,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){}); }catch(e){} }
+  function saveMaterialFinal(ev){
+    if(ev){ev.preventDefault();ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}
+    var cat=catKey((E("bnsV56Cat")||E("adminMatCat")||{}).value||"TW");
+    var nr=nrKey((E("bnsV56Nr")||E("adminMatCode")||E("adminMatNr")||{}).value||"");
+    var prod=T((E("bnsV56Product")||E("adminMatProduct")||{}).value||"");
+    var desc=T((E("bnsV56Desc")||E("adminMatName")||{}).value||"");
+    var price=T((E("bnsV56Price")||E("adminMatPrice")||{}).value||"");
+    var status=T((E("bnsV56Status")||E("adminMatStatus")||{}).value||"free")||"free";
+    var code=makeCode(cat,nr);
+    var color=selectedColor(cat);
+    var list=mats();
+    var sid=selectedId();
+    var m=(sid&&list.find(function(x){return String(x.id)===sid;})) || list.find(function(x){return catKey(x.cat||x.rubriek||x.category)===cat && nrKey(x.code||x.productNr||x.nr)===nrKey(code);});
+    if(!m){m={id:"mat_"+Date.now()+"_"+Math.random().toString(36).slice(2,7)}; list.push(m);}
+    Object.assign(m,{cat:cat,rubriek:cat,category:cat,code:code,productNr:nr,nr:nr,product:prod||desc||code,searchName:prod||desc||code,zoeknaam:prod||desc||code,type:prod||desc||code,name:prod||desc||code,description:desc||prod||code,beschrijving:desc||prod||code,price:price,status:status,color:color});
+    window.__bnsSelectedMaterialId=String(m.id); window.bnsSelectedMaterialId=String(m.id); try{editId=String(m.id);}catch(e){}
+    // bewaar ook de rubriekkleur zoals admin hem verwacht
+    try{var s=S();s.settings=s.settings||{};s.settings.categoryColors=s.settings.categoryColors||{};s.settings.categoryColors[cat]=color;}catch(e){}
+    putOverride(m); saveLocal(); saveFirebase(m);
+    if(E("bnsV56AdminSearch")){}
+    forceRenderMaterials(cat);
+    try{ if(typeof window.renderCats==="function") window.renderCats(); }catch(e){}
+    try{ if(typeof renderAdminListV61==="function") renderAdminListV61(); }catch(e){}
+    try{ if(typeof renderAdminList==="function") renderAdminList(); }catch(e){}
+    try{ if(typeof toastMsg==="function") toastMsg("Materiaal opgeslagen"); else if(typeof showToast==="function") showToast("Materiaal opgeslagen"); }catch(e){}
+    return false;
+  }
+  function bindSaves(){
+    ["bnsV56Save","adminSaveMat"].forEach(function(id){var b=E(id); if(!b||b.dataset.bnsV73Save==="1")return; var c=b.cloneNode(true); c.type="button"; c.dataset.bnsV73Save="1"; c.addEventListener("click",saveMaterialFinal,true); c.onclick=saveMaterialFinal; b.parentNode.replaceChild(c,b);});
+    window.renderMaterials=forceRenderMaterials; try{renderMaterials=forceRenderMaterials;}catch(e){}
+  }
+  function pinFix(){
+    var p=E("adminPin") || Array.prototype.slice.call(document.querySelectorAll('input')).find(function(i){return /pin/i.test(i.placeholder||"") && /admin/i.test((document.body.textContent||"").slice(0,1000));});
+    if(!p)return;
+    try{p.type="password";}catch(e){}
+    p.setAttribute("autocomplete","new-password"); p.setAttribute("inputmode","numeric");
+    if(!p.dataset.bnsV73Cleared && document.activeElement!==p){p.value="";p.dataset.bnsV73Cleared="1";}
+  }
+  function install(){ bindSaves(); pinFix(); if(E("materialList")) forceRenderMaterials(currentCat()); }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){setTimeout(install,500);}); else setTimeout(install,300);
+  setTimeout(install,1300); setTimeout(install,3000);
+  setInterval(function(){ bindSaves(); pinFix(); },2000);
+})();
