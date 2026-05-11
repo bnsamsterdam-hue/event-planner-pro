@@ -11159,3 +11159,131 @@ setInterval(install,1500);
 
   setTimeout(install, 1500);
 })();
+
+/* =========================================================
+   BNS V62.1 - Alleen materiaalbeheer Firebase opslag fix
+   - Geen wijzigingen aan planning, datum, admin layout of documenten.
+   - Voorkomt dat oude standaard-materialen Firebase overschrijven.
+   - Slaat state.materials op in Firestore: materials/data {items, updatedAt}.
+   ========================================================= */
+(function(){
+  'use strict';
+  var FIREBASE_VERSION = '10.12.5';
+  var LS_TS = 'bns_materials_updated_at_v621';
+  var lastSig = '';
+  var loaded = false;
+  var saving = false;
+  var timer = null;
+
+  function log(){ try{ console.log.apply(console, ['[BNS materials Firebase]'].concat([].slice.call(arguments))); }catch(e){} }
+  function S(){ try{ if(typeof state !== 'undefined' && state && Array.isArray(state.materials)) return state; }catch(e){} try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){} return null; }
+  function saveLocal(){ try{ if(typeof save === 'function') save(); else if(window.save) window.save(); }catch(e){} }
+  function getTs(){ return Number(localStorage.getItem(LS_TS) || '0') || 0; }
+  function setTs(v){ try{ localStorage.setItem(LS_TS, String(v || Date.now())); }catch(e){} }
+  function stableMaterials(list){
+    return (Array.isArray(list) ? list : []).map(function(m){
+      var o = Object.assign({}, m || {});
+      delete o.__tmp; delete o._local; delete o._dirty;
+      return o;
+    }).sort(function(a,b){ return String(a.id || '').localeCompare(String(b.id || '')); });
+  }
+  function sig(list){
+    try{ return JSON.stringify(stableMaterials(list)); }
+    catch(e){ return String(Date.now()); }
+  }
+  function remoteItems(data){
+    if(!data) return [];
+    if(Array.isArray(data.items)) return data.items;
+    if(Array.isArray(data.materials)) return data.materials;
+    if(Array.isArray(data.list)) return data.list;
+    return [];
+  }
+  async function initFirebase(){
+    window.BNS = window.BNS || {};
+    if(window.BNS.db && window.BNS.fs) return true;
+    if(!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN') return false;
+    try{
+      var appMod = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-app.js');
+      var fsMod = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-firestore.js');
+      if(!window.BNS.app) window.BNS.app = appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+      window.BNS.fs = window.BNS.fs || fsMod;
+      window.BNS.db = window.BNS.db || fsMod.getFirestore(window.BNS.app);
+      window.BNS.firebaseReady = true;
+      return true;
+    }catch(e){ log('Firebase start mislukt', e); return false; }
+  }
+  async function readRemote(){
+    if(!(await initFirebase())) return null;
+    var fs = window.BNS.fs;
+    var snap = await fs.getDoc(fs.doc(window.BNS.db, 'materials', 'data'));
+    if(!snap.exists()) return null;
+    return snap.data();
+  }
+  async function writeRemote(items, updatedAt){
+    if(!(await initFirebase())) return false;
+    if(!Array.isArray(items)) return false;
+    var fs = window.BNS.fs;
+    await fs.setDoc(fs.doc(window.BNS.db, 'materials', 'data'), {
+      items: stableMaterials(items),
+      updatedAt: updatedAt || Date.now(),
+      source: 'planner-admin-materials'
+    }, { merge: true });
+    return true;
+  }
+  async function loadRemoteIfNewer(){
+    var s = S(); if(!s) return;
+    try{
+      var data = await readRemote();
+      var items = remoteItems(data);
+      var remoteTs = Number((data && data.updatedAt) || 0) || 0;
+      var localTs = getTs();
+      if(items.length && remoteTs && remoteTs > localTs){
+        s.materials = items;
+        setTs(remoteTs);
+        saveLocal();
+        lastSig = sig(s.materials);
+        try{ if(typeof window.renderCats === 'function') window.renderCats(); }catch(e){}
+        try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(); }catch(e){}
+        try{ if(typeof window.adminRender === 'function') window.adminRender(); }catch(e){}
+        log('Materialen geladen uit Firebase', items.length);
+      }else{
+        lastSig = sig(s.materials || []);
+        log('Firebase materialen niet nieuwer; lokaal behouden');
+      }
+      loaded = true;
+    }catch(e){ loaded = true; lastSig = sig((s && s.materials) || []); log('Materiaal laden overgeslagen', e); }
+  }
+  function scheduleUpload(){
+    if(timer) clearTimeout(timer);
+    timer = setTimeout(async function(){
+      var s = S(); if(!s || !Array.isArray(s.materials) || saving) return;
+      saving = true;
+      var ts = Date.now();
+      setTs(ts);
+      try{
+        await writeRemote(s.materials, ts);
+        log('Materialen opgeslagen naar Firebase', s.materials.length);
+      }catch(e){ log('Materiaal Firebase opslaan mislukt; lokaal blijft bewaard', e); }
+      saving = false;
+    }, 500);
+  }
+  function watchMaterials(){
+    var s = S(); if(!s || !Array.isArray(s.materials)) return;
+    var now = sig(s.materials);
+    if(!lastSig) lastSig = now;
+    if(loaded && now !== lastSig){
+      lastSig = now;
+      scheduleUpload();
+    }
+  }
+  function install(){
+    var s = S(); if(s) lastSig = sig(s.materials || []);
+    loadRemoteIfNewer();
+    setInterval(watchMaterials, 1200);
+    window.BNS = window.BNS || {};
+    window.BNS.saveMaterialsToFirebase = function(){ var s=S(); if(s) { lastSig = sig(s.materials || []); return writeRemote(s.materials || [], Date.now()); } };
+    window.BNS.reloadMaterialsFromFirebase = loadRemoteIfNewer;
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 900); });
+  else setTimeout(install, 600);
+})();
