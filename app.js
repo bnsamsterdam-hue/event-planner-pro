@@ -9045,7 +9045,9 @@ setInterval(install,1500);
   function materialSearchText(m){
     return [
       m && (m.cat || m.rubriek || m.category),
-      m && (m.code || m.type || m.naam),
+      m && (m.code || m.naam),
+      m && (m.productNr || m.nr),
+      m && (m.product || m.searchName || m.type),
       m && (m.name || m.description || m.beschrijving),
       m && (m.notes || m.note || m.notities || m.opmerking),
       m && m.price
@@ -9119,14 +9121,17 @@ setInterval(install,1500);
 
     box.innerHTML = rows.length ? rows.map(function(m){
       var st = fixedMaterialStatus(m);
-      var code = m.code || m.type || m.naam || "";
-      var name = m.name || m.description || m.beschrijving || "";
+      var code = m.code || m.naam || "";
+      var productName = m.product || m.searchName || m.type || "";
+      var desc = m.name || m.description || m.beschrijving || "";
+      var mainName = productName || desc;
+      var subText = (desc && desc !== mainName) ? desc : (m.price || m.notes || "");
       var title = st.key === "reserved" && st.reservation && st.reservation.order
         ? "Gereserveerd voor " + (((st.reservation.order.customer||{}).name) || "klant") + " van " + niceDate(st.reservation.period.start) + " tot " + niceDate(st.reservation.period.end)
         : st.label;
       return '<div class="bns-v45-row status-'+esc(st.key)+'" data-material-id="'+esc(m.id)+'" style="--cat-color:'+catColor(m.cat || m.rubriek || m.category)+'" title="'+esc(title)+'">'+
         '<div class="bns-v45-bar"></div>'+ 
-        '<div class="bns-v45-main"><b>'+esc(code)+'</b> '+esc(name)+'<br><small>'+esc(m.price || m.notes || '')+'</small></div>'+ 
+        '<div class="bns-v45-main"><b>'+esc(code)+'</b> '+esc(mainName)+'<br><small>'+esc(subText)+'</small></div>'+ 
         '<span class="bns-v45-pill '+esc(st.key)+'">'+esc(st.label)+'</span></div>';
     }).join("") : '<p class="bns-empty">Geen materiaal gevonden in rubriek '+esc(selectedCat)+'.</p>';
   }
@@ -9139,7 +9144,7 @@ setInterval(install,1500);
     var modal = E(MODAL_ID);
     if (!modal) { modal = document.createElement("div"); modal.id = MODAL_ID; document.body.appendChild(modal); }
 
-    var html = '<div class="card"><h2>Materiaal status</h2><div class="box"><b>'+esc(m.code || m.type || '')+'</b> '+esc(m.name || m.description || m.beschrijving || '')+'<br><br>';
+    var html = '<div class="card"><h2>Materiaal status</h2><div class="box"><b>'+esc(m.code || m.naam || '')+'</b> '+esc(m.product || m.searchName || m.type || m.name || m.description || m.beschrijving || '')+'<br><small>'+esc(m.name || m.description || m.beschrijving || '')+'</small><br><br>';
     if (st.key === "reserved" && st.reservation && st.reservation.order) {
       var o = st.reservation.order;
       html += '<b>Status:</b> Gereserveerd<br>'+ 
@@ -9236,8 +9241,7 @@ setInterval(install,1500);
 
   // Alleen opnieuw koppelen als een oudere patch de functie terugzet. Geen continue her-render, dus geen verspringen.
   setInterval(function(){
-    // BNS V68: niet meer elke 2,5 sec de oude V45 materiaal-render terugzetten.
-    // Dat overschreef de nieuwe admin -> planner materiaal-sync, waardoor Nieuwe opdracht oude namen bleef tonen.
+    if (window.renderMaterials !== renderMaterialsV45 || window.addMat !== addMatV45) install();
     updateAlertButtonStable();
   }, 2500);
 
@@ -11678,44 +11682,4 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,150);
   setTimeout(install,1200);
   setInterval(function(){ if(applyOverrides()){ renderCatsNow(); renderMaterialsNow(window.currentCat||'TW'); renderAdminListNow(); } },3000);
-})();
-
-
-/* =========================================================
-   BNS V68 - FIX ADMIN -> NIEUWE OPDRACHT MATERIAAL SYNC
-   Alleen fix: oude V45 her-render mag materiaal kiezen niet terugzetten.
-   ========================================================= */
-(function(){
-  "use strict";
-  if (window.__bnsV68MaterialSyncGuard) return;
-  window.__bnsV68MaterialSyncGuard = true;
-
-  function call(fn){ try{ if (typeof fn === "function") fn(); }catch(e){} }
-  function rerenderMaterialen(){
-    try{
-      if (typeof window.BNS_V67_renderCats === "function") window.BNS_V67_renderCats();
-      if (typeof window.BNS_V67_renderMaterials === "function") window.BNS_V67_renderMaterials(window.currentCat || "TW");
-      if (typeof window.renderCats === "function" && window.renderCats !== window.BNS_V67_renderCats) window.renderCats = window.BNS_V67_renderCats;
-      if (typeof window.renderMaterials === "function" && window.renderMaterials !== window.BNS_V67_renderMaterials) window.renderMaterials = window.BNS_V67_renderMaterials;
-      try { renderCats = window.BNS_V67_renderCats; } catch(e) {}
-      try { renderMaterials = window.BNS_V67_renderMaterials; } catch(e) {}
-    }catch(e){}
-  }
-
-  // Na opslaan direct nogmaals plannerlijst verversen.
-  document.addEventListener("click", function(ev){
-    var btn = ev.target && ev.target.closest && ev.target.closest("#adminSaveMat,#bnsV56Save");
-    if (!btn) return;
-    setTimeout(rerenderMaterialen, 30);
-    setTimeout(rerenderMaterialen, 250);
-    setTimeout(rerenderMaterialen, 900);
-  }, true);
-
-  // Laatste veiligheidslaag tegen oude renderers die later nog proberen terug te komen.
-  setInterval(function(){
-    if (window.BNS_V67_renderMaterials && window.renderMaterials !== window.BNS_V67_renderMaterials) {
-      window.renderMaterials = window.BNS_V67_renderMaterials;
-      try { renderMaterials = window.BNS_V67_renderMaterials; } catch(e) {}
-    }
-  }, 700);
 })();
