@@ -9045,9 +9045,7 @@ setInterval(install,1500);
   function materialSearchText(m){
     return [
       m && (m.cat || m.rubriek || m.category),
-      m && (m.code || m.naam),
-      m && (m.productNr || m.nr),
-      m && (m.product || m.searchName || m.type),
+      m && (m.code || m.type || m.naam),
       m && (m.name || m.description || m.beschrijving),
       m && (m.notes || m.note || m.notities || m.opmerking),
       m && m.price
@@ -9121,17 +9119,14 @@ setInterval(install,1500);
 
     box.innerHTML = rows.length ? rows.map(function(m){
       var st = fixedMaterialStatus(m);
-      var code = m.code || m.naam || "";
-      var productName = m.product || m.searchName || m.type || "";
-      var desc = m.name || m.description || m.beschrijving || "";
-      var mainName = productName || desc;
-      var subText = (desc && desc !== mainName) ? desc : (m.price || m.notes || "");
+      var code = m.code || m.type || m.naam || "";
+      var name = m.name || m.description || m.beschrijving || "";
       var title = st.key === "reserved" && st.reservation && st.reservation.order
         ? "Gereserveerd voor " + (((st.reservation.order.customer||{}).name) || "klant") + " van " + niceDate(st.reservation.period.start) + " tot " + niceDate(st.reservation.period.end)
         : st.label;
       return '<div class="bns-v45-row status-'+esc(st.key)+'" data-material-id="'+esc(m.id)+'" style="--cat-color:'+catColor(m.cat || m.rubriek || m.category)+'" title="'+esc(title)+'">'+
         '<div class="bns-v45-bar"></div>'+ 
-        '<div class="bns-v45-main"><b>'+esc(code)+'</b> '+esc(mainName)+'<br><small>'+esc(subText)+'</small></div>'+ 
+        '<div class="bns-v45-main"><b>'+esc(code)+'</b> '+esc(name)+'<br><small>'+esc(m.price || m.notes || '')+'</small></div>'+ 
         '<span class="bns-v45-pill '+esc(st.key)+'">'+esc(st.label)+'</span></div>';
     }).join("") : '<p class="bns-empty">Geen materiaal gevonden in rubriek '+esc(selectedCat)+'.</p>';
   }
@@ -9144,7 +9139,7 @@ setInterval(install,1500);
     var modal = E(MODAL_ID);
     if (!modal) { modal = document.createElement("div"); modal.id = MODAL_ID; document.body.appendChild(modal); }
 
-    var html = '<div class="card"><h2>Materiaal status</h2><div class="box"><b>'+esc(m.code || m.naam || '')+'</b> '+esc(m.product || m.searchName || m.type || m.name || m.description || m.beschrijving || '')+'<br><small>'+esc(m.name || m.description || m.beschrijving || '')+'</small><br><br>';
+    var html = '<div class="card"><h2>Materiaal status</h2><div class="box"><b>'+esc(m.code || m.type || '')+'</b> '+esc(m.name || m.description || m.beschrijving || '')+'<br><br>';
     if (st.key === "reserved" && st.reservation && st.reservation.order) {
       var o = st.reservation.order;
       html += '<b>Status:</b> Gereserveerd<br>'+ 
@@ -11166,639 +11161,137 @@ setInterval(install,1500);
 })();
 
 /* =========================================================
-   BNS V66 - VEILIGE PATCH OP V62 BASIS
-   - Alleen materiaal opslag vastzetten met de werkende V64 laag.
-   - Admin PIN veld blijft leeg en gemaskeerd.
-   - Geen layout/planning/datum wijzigingen.
+   BNS V72 - V62 basis: materiaalbeheer -> planner stabiel
+   Alleen materiaalbeheer/materiaal kiezen.
+   - Admin wijziging direct zichtbaar in planner
+   - Datum/reservering-blokkade zoals V62/V45: alleen overlap blokkeert
+   - Gereserveerd toont popup met klant/opdracht/datum
+   - Materiaalkleur uit admin op regel + statusled
+   - Geen layout/menu/planning wijzigingen buiten materiaal
    ========================================================= */
-(function bnsV66StableMaterialSaveOnV62(){
+(function bnsV72MaterialStableOnly(){
   "use strict";
-  if (window.__bnsV66StableMaterialSaveOnV62) return;
-  window.__bnsV66StableMaterialSaveOnV62 = true;
+  if (window.__bnsV72MaterialStableOnly) return;
+  window.__bnsV72MaterialStableOnly = true;
 
-  var OVERRIDE_KEY = "bns_material_overrides_v64";
-  var LAST_SAVE_KEY = "bns_material_last_save_v64";
-  var lastSavedId = "";
-
-  function E(id){ return document.getElementById(id); }
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function upper(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g, ""); }
-  function stateObj(){ try { if (typeof state !== "undefined" && state) return state; } catch(e){} return window.state || null; }
-  function notify(t){ try { if (typeof toastMsg === "function") return toastMsg(t); } catch(e){} try { console.log(t); } catch(e){} }
-  function localSave(){ try { if (typeof save === "function") return save(); } catch(e){} try { var s=stateObj(); if(s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s)); } catch(e){} }
-
-  function readOverrides(){
-    try { return JSON.parse(localStorage.getItem(OVERRIDE_KEY) || "{}"); }
-    catch(e){ return {}; }
-  }
-  function writeOverrides(map){
-    try { localStorage.setItem(OVERRIDE_KEY, JSON.stringify(map || {})); } catch(e){}
-  }
-  function putOverride(m){
-    if (!m || !m.id) return;
-    var map = readOverrides();
-    map[String(m.id)] = Object.assign({}, map[String(m.id)] || {}, m, { _v64SavedAt: Date.now() });
-    writeOverrides(map);
-    try { localStorage.setItem(LAST_SAVE_KEY, JSON.stringify(map[String(m.id)])); } catch(e){}
-  }
-  function removeOverride(id){
-    var map = readOverrides();
-    delete map[String(id || "")];
-    writeOverrides(map);
-  }
-
-  function getVal(ids){
-    for (var i=0;i<ids.length;i++){
-      var el = E(ids[i]);
-      if (el && T(el.value)) return T(el.value);
-    }
-    return "";
-  }
-  function selectedId(){
-    var ids = [window.__bnsSelectedMaterialId, window.bnsSelectedMaterialId, window.__bnsV48EditingMaterialId];
-    try { if (typeof selectedMaterialId !== "undefined") ids.push(selectedMaterialId); } catch(e){}
-    try { if (typeof editId !== "undefined") ids.push(editId); } catch(e){}
-    for (var i=0;i<ids.length;i++) if (T(ids[i])) return T(ids[i]);
-    return lastSavedId || "";
-  }
-  function findMaterial(s, data){
-    s.materials = Array.isArray(s.materials) ? s.materials : [];
-    var sid = selectedId();
-    var m = sid ? s.materials.find(function(x){ return T(x.id) === sid; }) : null;
-    if (!m && data.id) m = s.materials.find(function(x){ return T(x.id) === T(data.id); });
-    if (!m && data.cat && data.code) {
-      m = s.materials.find(function(x){
-        return upper(x.cat || x.rubriek || x.category) === upper(data.cat) &&
-               upper(x.code || x.searchName || x.zoeknaam) === upper(data.code);
-      });
-    }
-    return m || null;
-  }
-
-  function formData(){
-    var cat = upper(getVal(["bnsV56Cat","adminMatCat","materialCat","rubriekInput"])) || "EXTRA";
-    var nr = upper(getVal(["bnsV56Nr","adminMatNr","productNr","productNumber"]));
-    var product = getVal(["bnsV56Product","adminMatCode","productSearchName","productName"]);
-    var desc = getVal(["bnsV56Desc","adminMatName","productDescription","materialDescription"]);
-    var price = getVal(["bnsV56Price","adminMatPrice"]);
-    var statusEl = E("bnsV56Status") || E("adminMatStatus");
-    var status = statusEl ? T(statusEl.value || "free") : "free";
-
-    var code = "";
-    if (nr) code = nr.indexOf(cat) === 0 ? nr : cat + nr;
-    else code = upper(getVal(["adminMatCode"])) || cat;
-
-    var name = desc || product || code;
-    return {
-      cat: cat,
-      rubriek: cat,
-      category: cat,
-      code: code,
-      productNr: nr,
-      product: product,
-      searchName: product,
-      zoeknaam: product,
-      type: product,
-      name: name,
-      description: desc || name,
-      beschrijving: desc || name,
-      price: price,
-      status: status || "free"
-    };
-  }
-
-  function applyOverrides(){
-    var s = stateObj();
-    if (!s || !Array.isArray(s.materials)) return false;
-    var map = readOverrides();
-    var changed = false;
-    Object.keys(map).forEach(function(id){
-      var ov = map[id];
-      if (!ov || !ov.id) return;
-      var m = s.materials.find(function(x){ return T(x.id) === T(ov.id); });
-      if (!m) { s.materials.push(Object.assign({}, ov)); changed = true; return; }
-      ["cat","rubriek","category","code","productNr","product","searchName","zoeknaam","type","name","description","beschrijving","price","status","notes","color"].forEach(function(k){
-        if (ov[k] !== undefined && m[k] !== ov[k]) { m[k] = ov[k]; changed = true; }
-      });
-    });
-    return changed;
-  }
-
-  async function syncMaterialFirebase(m){
-    try {
-      if (!m || !m.id || !window.BNS || !window.BNS.fs || !window.BNS.db) return false;
-      var fs = window.BNS.fs;
-      var clean = Object.assign({}, m, { updatedAt: new Date().toISOString() });
-      await fs.setDoc(fs.doc(window.BNS.db, "materials", String(clean.id)), clean, { merge:true });
-      return true;
-    } catch(e) {
-      console.warn("Materiaal Firebase sync later opnieuw proberen", e);
-      return false;
-    }
-  }
-
-  function saveStableMaterial(ev){
-    if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    var s = stateObj();
-    if (!s) { notify("Geen state gevonden"); return false; }
-    s.materials = Array.isArray(s.materials) ? s.materials : [];
-    var data = formData();
-    if (!data.cat || !data.code) { notify("Vul rubriek en product nr/zoeknaam in"); return false; }
-    var m = findMaterial(s, data);
-    if (!m) { m = { id: "mat_" + Date.now() + "_" + Math.random().toString(36).slice(2,8) }; s.materials.push(m); }
-    Object.assign(m, data);
-    lastSavedId = T(m.id);
-    window.__bnsSelectedMaterialId = lastSavedId;
-    window.bnsSelectedMaterialId = lastSavedId;
-    try { if (typeof selectedMaterialId !== "undefined") selectedMaterialId = lastSavedId; } catch(e){}
-    try { if (typeof editId !== "undefined") editId = lastSavedId; } catch(e){}
-
-    putOverride(m);
-    applyOverrides();
-    localSave();
-    syncMaterialFirebase(m);
-
-    try { if (typeof adminRender === "function") adminRender(); } catch(e){}
-    try { if (typeof renderCats === "function") renderCats(); } catch(e){}
-    try { if (typeof window.renderCats === "function") window.renderCats(); } catch(e){}
-    try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || m.cat); } catch(e){}
-    try { if (typeof window.renderMaterials === "function") window.renderMaterials(window.currentCat || m.cat); } catch(e){}
-    notify("Materiaal opgeslagen en vastgezet");
-    return false;
-  }
-
-  function deleteStableMaterial(ev){
-    if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    var sid = selectedId();
-    if (!sid) { notify("Kies eerst materiaal"); return false; }
-    if (!confirm("Weet je zeker dat je dit materiaal wilt wissen?")) return false;
-    var s = stateObj();
-    if (s && Array.isArray(s.materials)) s.materials = s.materials.filter(function(m){ return T(m.id) !== sid; });
-    removeOverride(sid);
-    lastSavedId = "";
-    try { window.__bnsSelectedMaterialId = ""; window.bnsSelectedMaterialId = ""; } catch(e){}
-    localSave();
-    try { if (typeof adminRender === "function") adminRender(); } catch(e){}
-    try { if (typeof renderCats === "function") renderCats(); } catch(e){}
-    try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || "TW"); } catch(e){}
-    notify("Materiaal verwijderd");
-    return false;
-  }
-
-  function bindButtons(){
-    ["adminSaveMat","bnsV56Save"].forEach(function(id){
-      var b = E(id); if (!b || b.dataset.bnsV66Save === "1") return;
-      b.dataset.bnsV66Save = "1";
-      b.type = "button";
-      b.addEventListener("click", saveStableMaterial, true);
-      b.onclick = saveStableMaterial;
-    });
-    ["adminDeleteMat","bnsV56Delete"].forEach(function(id){
-      var b = E(id); if (!b || b.dataset.bnsV66Delete === "1") return;
-      b.dataset.bnsV66Delete = "1";
-      b.type = "button";
-      b.addEventListener("click", deleteStableMaterial, true);
-    });
-    if (!document.documentElement.dataset.bnsV66MaterialClick) {
-      document.documentElement.dataset.bnsV66MaterialClick = "1";
-      document.addEventListener("click", function(e){
-        var btn = e.target && e.target.closest && e.target.closest("[data-v61-edit],[data-v56-edit],[data-material-id],[onclick*='fillMat']");
-        if (!btn) return;
-        var id = btn.getAttribute("data-v61-edit") || btn.getAttribute("data-v56-edit") || btn.getAttribute("data-material-id") || "";
-        if (id) { lastSavedId = id; window.__bnsSelectedMaterialId = id; window.bnsSelectedMaterialId = id; }
-      }, true);
-    }
-  }
-
-  function patchSave(){
-    try {
-      if (typeof save === "function" && !save.__bnsV66) {
-        var old = save;
-        var wrapped = function(){ applyOverrides(); return old.apply(this, arguments); };
-        wrapped.__bnsV66 = true;
-        save = wrapped;
-        window.save = wrapped;
-      }
-    } catch(e){}
-  }
-  function patchRender(name){
-    try {
-      var fn = window[name] || (typeof globalThis[name] === "function" ? globalThis[name] : null);
-      if (typeof fn !== "function" || fn.__bnsV66) return;
-      var wrapped = function(){ applyOverrides(); return fn.apply(this, arguments); };
-      wrapped.__bnsV66 = true;
-      window[name] = wrapped;
-      try { globalThis[name] = wrapped; } catch(e){}
-    } catch(e){}
-  }
-
-  function run(){
-    patchSave();
-    applyOverrides();
-    bindButtons();
-    patchRender("renderAll");
-    patchRender("adminRender");
-    patchRender("renderMaterials");
-  }
-
-  window.BNS_saveMaterialStableV66 = saveStableMaterial;
-  window.BNS_applyMaterialOverridesV66 = applyOverrides;
-
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(run, 100); });
-  else setTimeout(run, 100);
-  setTimeout(run, 800);
-  setTimeout(run, 2000);
-  setInterval(function(){
-    var changed = applyOverrides();
-    if (changed) {
-      try { localSave(); } catch(e){}
-      try { if (typeof adminRender === "function") adminRender(); } catch(e){}
-      try { if (typeof renderMaterials === "function") renderMaterials(window.currentCat || "TW"); } catch(e){}
-    }
-    bindButtons();
-  }, 5000);
-})();
-
-(function bnsV66AdminPinMask(){
-  "use strict";
-  if (window.__bnsV66AdminPinMask) return;
-  window.__bnsV66AdminPinMask = true;
-  function E(id){ return document.getElementById(id); }
-  function securePin(clearNow){
-    var pin = E("adminPin");
-    if (!pin) return;
-    try { pin.type = "password"; } catch(e){}
-    pin.name = "bns_admin_pin";
-    pin.setAttribute("autocomplete", "new-password");
-    pin.setAttribute("inputmode", "numeric");
-    pin.setAttribute("placeholder", "PIN");
-    if (clearNow && document.activeElement !== pin) pin.value = "";
-  }
-  function bind(){
-    securePin(false);
-    var pin = E("adminPin");
-    if (pin && !pin.dataset.bnsV66Pin) {
-      pin.dataset.bnsV66Pin = "1";
-      pin.addEventListener("focus", function(){ securePin(false); }, true);
-      pin.addEventListener("blur", function(){ securePin(false); }, true);
-    }
-    var btn = E("unlockAdmin");
-    if (btn && !btn.dataset.bnsV66Pin) {
-      btn.dataset.bnsV66Pin = "1";
-      btn.addEventListener("click", function(){ setTimeout(function(){ securePin(true); }, 250); }, true);
-    }
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(function(){ securePin(true); bind(); }, 300); });
-  else setTimeout(function(){ securePin(true); bind(); }, 150);
-  setInterval(bind, 1200);
-})();
-
-/* =========================================================
-   BNS V67 - ALLEEN MATERIAAL ADMIN -> PLANNER SYNC
-   Basis: v66. Doel: admin materiaalwijziging direct zichtbaar in
-   Nieuwe opdracht / Materiaal kiezen.
-   Geen datum/planning/layout wijzigingen.
-   ========================================================= */
-(function bnsV67MaterialAdminPlannerSync(){
-  "use strict";
-  if (window.__bnsV67MaterialAdminPlannerSync) return;
-  window.__bnsV67MaterialAdminPlannerSync = true;
-
-  var OVERRIDE_KEY = "bns_material_overrides_v64";
+  var OVERRIDE_KEY = "bns_material_overrides_v72";
+  var STYLE_ID = "bns-v72-material-stable-style";
+  var MODAL_ID = "bnsV72MaterialStatusModal";
   var selectedId = "";
+  var lastRenderKey = "";
 
   function E(id){ return document.getElementById(id); }
-  function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function txt(v){ return String(v == null ? "" : v).trim(); }
-  function catKey(v){ return txt(v || "EXTRA").toUpperCase().replace(/[^A-Z0-9]/g,"") || "EXTRA"; }
-  function nrKey(v){ return txt(v).toUpperCase().replace(/[^A-Z0-9]/g,""); }
-  function S(){ try{ if (typeof state !== "undefined" && state) return state; }catch(e){} return window.state || {}; }
-  function mats(){ var s=S(); s.materials = Array.isArray(s.materials) ? s.materials : []; return s.materials; }
-  function toast(t){ try{ if(typeof toastMsg === "function") return toastMsg(t); }catch(e){} try{ console.log(t); }catch(e){} }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c];}); }
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function lower(v){ return T(v).toLowerCase(); }
+  function catKey(v){ return T(v || "EXTRA").toUpperCase().replace(/[^A-Z0-9]/g,"") || "EXTRA"; }
+  function nrKey(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g,""); }
+  function normColor(v){
+    v=T(v); if(/^#[0-9a-f]{6}$/i.test(v)) return v;
+    var m=v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if(m) return "#"+[m[1],m[2],m[3]].map(function(n){var h=(parseInt(n,10)||0).toString(16);return h.length<2?"0"+h:h;}).join("");
+    return "";
+  }
+  function S(){ try{ if(typeof state!=="undefined" && state) return state; }catch(e){} return window.state || (window.state={materials:[],orders:[]}); }
+  function mats(){ var s=S(); s.materials=Array.isArray(s.materials)?s.materials:[]; return s.materials; }
+  function orders(){ var s=S(); s.orders=Array.isArray(s.orders)?s.orders:[]; return s.orders; }
+  function chosenList(){ try{ if(typeof chosen!=="undefined" && Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
+  function setChosenList(a){ try{ chosen=a; }catch(e){} window.chosen=a; }
+  function toast(t){ try{ if(typeof toastMsg==="function") return toastMsg(t); }catch(e){} try{ if(typeof showToast==="function") return showToast(t); }catch(e){} console.log(t); }
 
-  function getProductNr(m){
-    var c = catKey(m && (m.cat || m.rubriek || m.category));
-    var nr = nrKey(m && (m.productNr || m.nr || m.number));
-    if (nr) return nr.indexOf(c) === 0 ? nr.slice(c.length) || nr : nr;
-    var code = nrKey(m && m.code);
-    if (code.indexOf(c) === 0) return code.slice(c.length) || code;
-    return code;
-  }
-  function makeCode(cat,nr){
-    cat = catKey(cat); nr = nrKey(nr);
-    if (!nr) return cat;
-    return nr.indexOf(cat) === 0 ? nr : cat + nr;
-  }
-  function productName(m){
-    return txt(m && (m.product || m.searchName || m.zoeknaam || m.type || m.name || m.description || m.beschrijving));
-  }
-  function productDesc(m){
-    return txt(m && (m.description || m.beschrijving || m.notes || ""));
-  }
-  function statusText(st){
-    st = txt(st || "free").toLowerCase();
-    if (st === "reserved" || st === "gereserveerd") return ["Gereserveerd","reserved"];
-    if (st === "defect") return ["Defect","defect"];
-    if (st === "inactive" || st === "niet actief" || st === "niet beschikbaar") return ["Niet actief","inactive"];
-    return ["Vrij","free"];
-  }
-  function catColor(cat){
-    var key = catKey(cat);
-    var defaults = {TW:'#1683d8',TO:'#f97316',KW:'#22c55e',KA:'#a855f7',SL:'#eab308',EXTRA:'#334155'};
-    try{
-      var a = JSON.parse(localStorage.getItem('bnsCatColors') || '{}');
-      var b = JSON.parse(localStorage.getItem('bns_rubriek_kleuren_v12_pro') || '{}');
-      return b[key] || a[key] || defaults[key] || defaults.EXTRA;
-    }catch(e){ return defaults[key] || defaults.EXTRA; }
-  }
-  function normalizeColor(v){
-    v = txt(v);
-    if(/^#[0-9a-f]{6}$/i.test(v)) return v;
-    var m = v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-    if(m){ return '#' + [m[1],m[2],m[3]].map(function(n){ var h=(parseInt(n,10)||0).toString(16); return h.length<2?'0'+h:h; }).join(''); }
-    return '';
-  }
-  function selectedAdminColor(cat){
-    var active = document.querySelector('.bns-color-dot.active,.bns-v48-dot.active');
-    var v = active && (active.dataset.color || active.getAttribute('data-color') || active.style.backgroundColor || active.style.getPropertyValue('--dot'));
-    return normalizeColor(v) || normalizeColor((E('adminMatColor')||{}).value) || normalizeColor((E('bnsV56Color')||{}).value) || catColor(cat);
-  }
-  function saveCatColor(cat,color){
-    cat = catKey(cat); color = normalizeColor(color) || catColor(cat);
-    ['bnsCatColors','bns_rubriek_kleuren_v12_pro'].forEach(function(key){
-      try{ var o=JSON.parse(localStorage.getItem(key)||'{}'); o[cat]=color; localStorage.setItem(key,JSON.stringify(o)); }catch(e){}
-    });
-    try{ if(typeof window.BNS_V12_PRO_setRubriekColor==='function') window.BNS_V12_PRO_setRubriekColor(cat,color); }catch(e){}
-  }
-  function materialColor(m){ return normalizeColor(m && m.color) || catColor(m && (m.cat || m.rubriek || m.category)); }
-  function chosenList(){ try{return Array.isArray(chosen)?chosen:[];}catch(e){return [];} }
-
-  function readOverrides(){ try{return JSON.parse(localStorage.getItem(OVERRIDE_KEY)||"{}");}catch(e){return{};} }
-  function writeOverrides(map){ try{localStorage.setItem(OVERRIDE_KEY, JSON.stringify(map||{}));}catch(e){} }
-  function putOverride(m){ if(!m || !m.id)return; var map=readOverrides(); map[String(m.id)] = Object.assign({}, map[String(m.id)]||{}, m, {_v67SavedAt:Date.now()}); writeOverrides(map); }
+  function readMap(){ try{return JSON.parse(localStorage.getItem(OVERRIDE_KEY)||"{}");}catch(e){return{};} }
+  function writeMap(m){ try{localStorage.setItem(OVERRIDE_KEY,JSON.stringify(m||{}));}catch(e){} }
+  function putOverride(m){ if(!m||!m.id) return; var map=readMap(); map[String(m.id)]=Object.assign({},map[String(m.id)]||{},m,{_savedAt:Date.now()}); writeMap(map); }
   function applyOverrides(){
-    var list = mats(), map = readOverrides(), changed=false;
-    Object.keys(map).forEach(function(id){
-      var ov = map[id]; if(!ov || !ov.id)return;
-      var m = list.find(function(x){return String(x.id)===String(ov.id);});
-      if(!m){ list.push(Object.assign({},ov)); changed=true; return; }
-      ["cat","rubriek","category","code","productNr","product","searchName","zoeknaam","type","name","description","beschrijving","price","status","notes","color"].forEach(function(k){ if(ov[k]!==undefined && m[k]!==ov[k]){m[k]=ov[k]; changed=true;} });
+    var list=mats(), map=readMap(), changed=false;
+    Object.keys(map).forEach(function(id){ var ov=map[id]; if(!ov||!ov.id) return; var m=list.find(function(x){return String(x.id)===String(ov.id);}); if(!m){ list.push(Object.assign({},ov)); changed=true; return; }
+      ["cat","rubriek","category","code","productNr","nr","product","searchName","zoeknaam","type","name","description","beschrijving","price","status","notes","color","issueText","usable"].forEach(function(k){ if(ov[k]!==undefined && m[k]!==ov[k]){m[k]=ov[k]; changed=true;} });
     });
     return changed;
   }
 
-  function currentSelectedId(){
-    var ids=[selectedId, window.__bnsSelectedMaterialId, window.bnsSelectedMaterialId, window.__bnsV48EditingMaterialId];
-    try{ if(typeof selectedMaterialId !== "undefined") ids.push(selectedMaterialId); }catch(e){}
-    try{ if(typeof editId !== "undefined") ids.push(editId); }catch(e){}
-    for(var i=0;i<ids.length;i++){ if(txt(ids[i])) return txt(ids[i]); }
-    return "";
-  }
-  function findMaterialForForm(data){
-    var list=mats(), sid=currentSelectedId();
-    var m = sid ? list.find(function(x){return String(x.id)===String(sid);}) : null;
-    if(!m && data.code) m = list.find(function(x){return catKey(x.cat||x.rubriek||x.category)===data.cat && nrKey(x.code)===nrKey(data.code);});
-    return m || null;
-  }
-
-  function formData(){
-    var cat = catKey((E('adminMatCat')||{}).value || 'EXTRA');
-    var nr = nrKey((E('adminMatCode')||{}).value || (E('adminMatNr')||{}).value || (E('productNr')||{}).value || '');
-    var product = txt((E('adminMatProduct')||{}).value || (E('productSearchName')||{}).value || (E('productName')||{}).value || '');
-    var desc = txt((E('adminMatName')||{}).value || (E('productDescription')||{}).value || (E('materialDescription')||{}).value || '');
-    var price = txt((E('adminMatPrice')||{}).value || '');
-    var status = txt((E('adminMatStatus')||{}).value || 'free') || 'free';
-    var code = makeCode(cat,nr);
-    var display = product || desc || code;
-    var color = selectedAdminColor(cat);
-    return {
-      cat:cat, rubriek:cat, category:cat,
-      code:code, productNr:nr,
-      product:display, searchName:display, zoeknaam:display, type:display,
-      name:display,
-      description:desc || display, beschrijving:desc || display,
-      price:price, status:status,
-      color:color
-    };
-  }
-
-  function persistLocal(){
-    var s=S();
-    try{ localStorage.setItem('eventPlannerProState', JSON.stringify(s)); }catch(e){}
-    try{ localStorage.setItem('plannerState', JSON.stringify(s)); }catch(e){}
-    try{ localStorage.setItem('eventPlannerPro', JSON.stringify(s)); }catch(e){}
-    try{ localStorage.setItem('eventPlannerProV91', JSON.stringify(s)); }catch(e){}
-    try{ if(typeof save === 'function') save(); }catch(e){}
-  }
-  async function syncFirebase(m){
-    try{
-      if(!m || !m.id || !window.BNS || !window.BNS.fs || !window.BNS.db) return;
-      var fs=window.BNS.fs;
-      await fs.setDoc(fs.doc(window.BNS.db,'materials',String(m.id)), Object.assign({},m,{updatedAt:new Date().toISOString()}), {merge:true});
-    }catch(e){ console.warn('Materiaal Firebase sync later opnieuw', e); }
-  }
-
-  function renderCatsNow(){
-    var box=E('materialCats'); if(!box)return;
-    applyOverrides();
-    var cats=[].slice.call(new Set(mats().map(function(m){return catKey(m.cat||m.rubriek||m.category);}))).sort();
-    if(!cats.length) cats=['TW','TO','KW','EXTRA'];
-    var active=catKey(window.currentCat || (typeof currentCat!=='undefined'?currentCat:'') || cats[0]);
-    if(cats.indexOf(active)<0) active=cats[0];
-    window.currentCat=active; try{currentCat=active;}catch(e){}
-    box.innerHTML=cats.map(function(c){return '<button type="button" class="'+(c===active?'active':'')+'" data-cat="'+esc(c)+'" style="border-bottom:5px solid '+catColor(c)+'">'+esc(c)+'</button>';}).join('');
-    box.querySelectorAll('button').forEach(function(b){ b.onclick=function(ev){ ev.preventDefault(); window.currentCat=catKey(b.dataset.cat||b.textContent); try{currentCat=window.currentCat;}catch(e){} renderCatsNow(); renderMaterialsNow(window.currentCat); var search=E('materialSearch'); if(search)search.value=''; }; });
-  }
-
-  function renderMaterialsNow(cat){
-    var box=E('materialList'); if(!box)return;
-    applyOverrides();
-    var active=catKey(cat || window.currentCat || 'TW'); window.currentCat=active; try{currentCat=active;}catch(e){}
-    var q=txt((E('materialSearch')||{}).value).toLowerCase();
-    var selected=chosenList();
-    var rows=mats().filter(function(m){return catKey(m.cat||m.rubriek||m.category)===active;}).filter(function(m){return !q || [m.cat,m.code,m.product,m.searchName,m.zoeknaam,m.name,m.description,m.beschrijving,m.price,m.notes].join(' ').toLowerCase().indexOf(q)>=0;}).slice(0,250);
-    box.innerHTML = rows.length ? rows.map(function(m){
-      var st=statusText(m.status), sel=selected.some(function(x){return String(x.id)===String(m.id);});
-      var desc=productDesc(m), p=productName(m);
-      return '<div class="bns-material-row status-'+st[1]+' '+(sel?'selected':'')+'" data-material-id="'+esc(m.id)+'" style="--cat-color:'+materialColor(m)+'">'+
-        '<div class="bns-catbar"></div><div class="bns-material-text"><strong>'+esc(m.code||'')+'</strong><span>'+esc(p)+'</span>'+(desc && desc!==p?'<small>'+esc(desc)+'</small>':'<small>'+esc(m.price||'oude prijs: € 0')+'</small>')+'</div>'+ 
-        '<span class="bns-status-pill '+st[1]+'"><i></i>'+st[0]+'</span></div>';
-    }).join('') : '<p class="bns-empty">Geen materiaal gevonden.</p>';
-    box.querySelectorAll('[data-material-id]').forEach(function(row){ row.onclick=function(){ if(typeof addMat==='function') addMat(row.dataset.materialId); }; });
-  }
-
-  function renderAdminListNow(){
-    var box=E('adminMatList'); if(!box)return;
-    applyOverrides();
-    var q=txt((E('adminMatSearch')||{}).value).toLowerCase();
-    var rows=mats().filter(function(m){return !q || [m.cat,m.code,m.product,m.searchName,m.name,m.description,m.beschrijving,m.price,m.notes].join(' ').toLowerCase().indexOf(q)>=0;}).slice(0,500);
-    box.innerHTML = rows.length ? rows.map(function(m){
-      return '<div class="admin-row" style="border-left:8px solid '+materialColor(m)+'"><span><b>'+esc(m.code||'')+'</b> '+esc(productName(m))+(productDesc(m)&&productDesc(m)!==productName(m)?'<br><small>'+esc(productDesc(m))+'</small>':'')+' | rubriek '+esc(catKey(m.cat||m.rubriek||m.category))+'</span><button type="button" data-bns-v67-edit="'+esc(m.id)+'">Wijzig</button></div>';
-    }).join('') : '<small>Zoek materiaal</small>';
-    box.querySelectorAll('[data-bns-v67-edit]').forEach(function(btn){ btn.onclick=function(){ fillMaterial(btn.getAttribute('data-bns-v67-edit')); }; });
-  }
-
-  function fillMaterial(id){
-    applyOverrides();
-    var m=mats().find(function(x){return String(x.id)===String(id);}); if(!m)return;
-    selectedId=String(m.id); window.__bnsSelectedMaterialId=selectedId; window.bnsSelectedMaterialId=selectedId;
-    if(E('adminMatCat')) E('adminMatCat').value=catKey(m.cat||m.rubriek||m.category);
-    if(E('adminMatCode')) E('adminMatCode').value=getProductNr(m);
-    if(E('adminMatProduct')) E('adminMatProduct').value=productName(m);
-    if(E('adminMatName')) E('adminMatName').value=productDesc(m);
-    if(E('adminMatPrice')) E('adminMatPrice').value=m.price||'';
-    if(E('adminMatStatus')) E('adminMatStatus').value=m.status||'free';
-    var msg=E('adminMaterialSaved')||E('adminSelectedMat'); if(msg) msg.textContent='Gekozen: '+(m.code||'')+' '+productName(m);
-  }
-
-  function saveMaterial(ev){
-    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    var data=formData();
-    if(!data.cat || !data.code){ toast('Vul rubriek en product nr in'); return false; }
-    saveCatColor(data.cat, data.color);
-    var m=findMaterialForForm(data);
-    if(!m){ m={id:'mat_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)}; mats().push(m); }
-    Object.assign(m,data);
-    selectedId=String(m.id); window.__bnsSelectedMaterialId=selectedId; window.bnsSelectedMaterialId=selectedId;
-    putOverride(m);
-    persistLocal();
-    renderCatsNow(); renderMaterialsNow(data.cat); renderAdminListNow();
-    syncFirebase(m);
-    var msg=E('adminMaterialSaved')||E('adminSelectedMat'); if(msg) msg.textContent='Opgeslagen: '+(m.code||'')+' '+productName(m);
-    toast('Materiaal opgeslagen');
-    return false;
-  }
-
-  function deleteMaterial(ev){
-    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    var id=currentSelectedId(); if(!id){toast('Kies eerst materiaal'); return false;}
-    if(!confirm('Weet je zeker dat je dit materiaal wilt wissen?')) return false;
-    var s=S(); s.materials=mats().filter(function(m){return String(m.id)!==String(id);});
-    var map=readOverrides(); delete map[String(id)]; writeOverrides(map);
-    selectedId=''; window.__bnsSelectedMaterialId=''; window.bnsSelectedMaterialId='';
-    persistLocal(); renderCatsNow(); renderMaterialsNow(window.currentCat||'TW'); renderAdminListNow();
-    toast('Materiaal verwijderd');
-    return false;
-  }
-
-  function cloneAndBind(id,handler,flag){
-    var old=E(id); if(!old || old.dataset[flag]==='1') return;
-    var b=old.cloneNode(true);
-    b.dataset[flag]='1'; b.type='button';
-    b.addEventListener('click',handler,true); b.onclick=handler;
-    old.parentNode.replaceChild(b,old);
-  }
-
-  function install(){
-    applyOverrides();
-    window.renderMaterials=renderMaterialsNow; window.renderCats=renderCatsNow; window.BNS_V12_PRO_renderMaterials=renderMaterialsNow; window.BNS_V12_renderMaterials=renderMaterialsNow;
-    window.BNS_V67_renderMaterials=renderMaterialsNow; window.BNS_V67_renderCats=renderCatsNow;
-    try{renderMaterials=renderMaterialsNow;}catch(e){} try{renderCats=renderCatsNow;}catch(e){}
-    window.fillMat=fillMaterial; try{fillMat=fillMaterial;}catch(e){}
-    cloneAndBind('adminSaveMat',saveMaterial,'bnsV67Save');
-    cloneAndBind('adminDeleteMat',deleteMaterial,'bnsV67Delete');
-    var search=E('materialSearch'); if(search && !search.dataset.bnsV67){ search.dataset.bnsV67='1'; search.addEventListener('input',function(){renderMaterialsNow(window.currentCat||'TW');}); }
-    var adminSearch=E('adminMatSearch'); if(adminSearch && !adminSearch.dataset.bnsV67){ adminSearch.dataset.bnsV67='1'; adminSearch.addEventListener('input',renderAdminListNow); }
-    renderCatsNow(); renderMaterialsNow(window.currentCat||'TW'); renderAdminListNow();
-  }
-
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,150);
-  setTimeout(install,1200);
-  setInterval(function(){ if(applyOverrides()){ renderCatsNow(); renderMaterialsNow(window.currentCat||'TW'); renderAdminListNow(); } },3000);
-})();
-
-/* =========================================================
-   BNS V71 - RESERVERING BLOKKERING HERSTELD
-   Basis blijft v70. Wijzigt alleen materiaal kiezen:
-   - planner gebruikt weer V45 datum/reservering als bron
-   - admin product/zoeknaam/omschrijving/kleur blijven zichtbaar
-   - gereserveerd/defect/niet inzetbaar opent status popup via bestaande addMat
-   ========================================================= */
-(function bnsV71ReservationRestore(){
-  "use strict";
-  if (window.__bnsV71ReservationRestore) return;
-  window.__bnsV71ReservationRestore = true;
-
-  function E(id){ return document.getElementById(id); }
-  function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function txt(v){ return String(v == null ? "" : v).trim(); }
-  function catKey(v){ return txt(v).toUpperCase(); }
-  function S(){ try{return state;}catch(e){} try{return window.state;}catch(e){} return {}; }
-  function mats(){ var s=S(); return Array.isArray(s.materials) ? s.materials : []; }
-  function chosenList(){ try{return Array.isArray(chosen)?chosen:[];}catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
-  function productName(m){ return txt(m && (m.product || m.searchName || m.zoeknaam || m.type || m.name || m.description || m.beschrijving)); }
-  function productDesc(m){ return txt(m && (m.description || m.beschrijving || m.notes || m.name || "")); }
-  function normalizeColor(v){
-    v = txt(v);
-    if(/^#[0-9a-f]{3,8}$/i.test(v)) return v;
-    var m = v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-    if(m){ return '#' + [m[1],m[2],m[3]].map(function(x){return Math.max(0,Math.min(255,parseInt(x,10))).toString(16).padStart(2,'0');}).join(''); }
-    return '';
-  }
   function catColor(cat){
-    var k=catKey(cat), defaults={TW:'#dc2626',TO:'#f97316',KW:'#22c55e',KA:'#a855f7',SL:'#eab308',EXTRA:'#334155',EXTR:'#334155'};
-    try{ var a=JSON.parse(localStorage.getItem('bns_rubriek_kleuren_v12_pro')||'{}'); if(a[k]) return a[k]; }catch(e){}
-    try{ var b=JSON.parse(localStorage.getItem('bnsCatColors')||'{}'); if(b[k]) return b[k]; }catch(e){}
-    return defaults[k] || defaults.EXTRA;
+    var k=catKey(cat), def={TW:"#dc2626",TO:"#f97316",KW:"#22c55e",KA:"#a855f7",SL:"#eab308",EXTRA:"#334155",BT:"#0ea5e9",HN:"#7c3aed",TEST:"#22c55e"};
+    try{ var a=JSON.parse(localStorage.getItem("bnsCatColors")||"{}"); var b=JSON.parse(localStorage.getItem("bns_rubriek_kleuren_v12_pro")||"{}"); var st=(S().settings||{}); var c=st.categoryColors||st.catColors||{}; return normColor(c[k])||normColor(b[k])||normColor(a[k])||def[k]||def.EXTRA; }catch(e){ return def[k]||def.EXTRA; }
   }
-  function materialColor(m){ return normalizeColor(m && m.color) || normalizeColor(m && m.materialColor) || catColor(m && (m.cat || m.rubriek || m.category)); }
-  function readOverrides(){ try{return JSON.parse(localStorage.getItem('bns_material_overrides_v67')||'{}');}catch(e){return{};} }
-  function applyOverrides(){
-    var list=mats(), map=readOverrides();
-    Object.keys(map).forEach(function(id){
-      var ov=map[id]; if(!ov || !ov.id) return;
-      var m=list.find(function(x){return String(x.id)===String(ov.id);});
-      if(!m){ list.push(Object.assign({},ov)); return; }
-      ['cat','rubriek','category','code','productNr','product','searchName','zoeknaam','type','name','description','beschrijving','price','status','notes','color'].forEach(function(k){ if(ov[k]!==undefined) m[k]=ov[k]; });
-    });
+  function materialColor(m){ return normColor(m && m.color) || catColor(m && (m.cat||m.rubriek||m.category)); }
+  function saveCatColor(cat,color){
+    cat=catKey(cat); color=normColor(color)||catColor(cat);
+    ["bnsCatColors","bns_rubriek_kleuren_v12_pro"].forEach(function(key){try{var o=JSON.parse(localStorage.getItem(key)||"{}");o[cat]=color;localStorage.setItem(key,JSON.stringify(o));}catch(e){}});
+    var s=S(); s.settings=s.settings||{}; s.settings.categoryColors=s.settings.categoryColors||{}; s.settings.categoryColors[cat]=color;
   }
-  function sameChosen(m){ return chosenList().some(function(x){ return String(x.id)===String(m.id); }); }
-  function rowStatus(m){
-    var raw=txt(m && m.status).toLowerCase();
-    if(sameChosen(m)) return {key:'chosen',label:'Toegevoegd',blocked:false};
-    if(raw==='inactive' || raw==='niet actief' || raw==='niet beschikbaar') return {key:'inactive',label:'Niet inzetbaar',blocked:true};
-    if(raw==='defect' || raw==='damage' || raw==='schade' || raw==='missing' || raw==='vermist') return {key:'defect',label:'Niet inzetbaar',blocked:true};
-    try{
-      var dbg=window.BNS_V45_PLANNING_DEBUG;
-      if(dbg && typeof dbg.reservationForMaterial==='function'){
-        var res=dbg.reservationForMaterial(m);
-        if(res) return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:res};
-      }
-    }catch(e){}
-    return {key:'free',label:'Vrij',blocked:false};
+  function selectedColor(cat){
+    var active=document.querySelector(".bns-color-dot.active,.bns-v48-dot.active,.bns-v56-dot.active");
+    var v=active&&(active.dataset.color||active.getAttribute("data-color")||active.style.backgroundColor||active.style.getPropertyValue("--dot"));
+    return normColor(v)||normColor((E("adminMatColor")||{}).value)||normColor((E("bnsV56Color")||{}).value)||catColor(cat);
   }
-  function materialSearchText(m){ return [m&&m.cat,m&&m.rubriek,m&&m.category,m&&m.code,m&&m.productNr,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.name,m&&m.description,m&&m.beschrijving,m&&m.price,m&&m.notes].join(' ').toLowerCase(); }
-  function ensureCss(){
-    if(E('bns-v71-reservation-css')) return;
-    var css=document.createElement('style'); css.id='bns-v71-reservation-css';
-    css.textContent='#materialList .bns-material-row.status-reserved .bns-status-pill{background:#fee2e2!important;color:#991b1b!important}#materialList .bns-material-row.status-reserved .bns-status-pill i{background:#dc2626!important}#materialList .bns-material-row.status-inactive .bns-status-pill,#materialList .bns-material-row.status-defect .bns-status-pill{background:#fee2e2!important;color:#991b1b!important}#materialList .bns-material-row.status-chosen .bns-status-pill{background:#dbeafe!important;color:#1e40af!important}';
-    document.head.appendChild(css);
+
+  function productNr(m){ var c=catKey(m&&(m.cat||m.rubriek||m.category)); var n=nrKey(m&&(m.productNr||m.nr||m.number)); if(n) return n.indexOf(c)===0 ? (n.slice(c.length)||n) : n; var co=nrKey(m&&m.code); return co.indexOf(c)===0 ? (co.slice(c.length)||co) : co; }
+  function makeCode(cat,nr){ cat=catKey(cat); nr=nrKey(nr); return nr ? (nr.indexOf(cat)===0?nr:cat+nr) : cat; }
+  function productName(m){ return T(m&&(m.product||m.searchName||m.zoeknaam||m.type||m.name||m.description||m.beschrijving)); }
+  function productDesc(m){ return T(m&&(m.description||m.beschrijving||m.notes||"")); }
+  function searchText(m){ return [m&&m.cat,m&&m.rubriek,m&&m.category,m&&m.code,m&&m.productNr,m&&m.nr,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.name,m&&m.description,m&&m.beschrijving,m&&m.notes,m&&m.price].join(" ").toLowerCase(); }
+  function sameMaterial(a,b){ if(!a||!b) return false; if(a.id&&b.id) return String(a.id)===String(b.id); return catKey(a.cat||a.rubriek||a.category)===catKey(b.cat||b.rubriek||b.category) && nrKey(a.code||a.productNr||a.nr)===nrKey(b.code||b.productNr||b.nr); }
+
+  function parseDate(v){
+    var s=T(v); if(!s) return null; var m=s.match(/^(\d{4})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/); if(m) return mk(+m[1],+m[2],+m[3]);
+    m=s.match(/^(\d{1,2})[-\.\/](\d{1,2})[-\.\/](\d{4})/); if(m) return mk(+m[3],+m[2],+m[1]);
+    var d=new Date(s); return isNaN(d.getTime())?null:mk(d.getFullYear(),d.getMonth()+1,d.getDate());
   }
-  function renderMaterialsV71(cat){
-    ensureCss(); applyOverrides();
-    var box=E('materialList'); if(!box) return;
-    var active=catKey(cat || window.currentCat || (typeof currentCat!=='undefined'?currentCat:'') || 'TW');
-    window.currentCat=active; try{currentCat=active;}catch(e){}
-    var q=txt((E('materialSearch')||{}).value).toLowerCase();
-    var rows=mats().filter(function(m){return catKey(m.cat||m.rubriek||m.category)===active;}).filter(function(m){return !q || materialSearchText(m).indexOf(q)>=0;}).slice(0,250);
-    box.innerHTML=rows.length?rows.map(function(m){
-      var st=rowStatus(m), p=productName(m), d=productDesc(m);
-      var title=st.key==='reserved'&&st.reservation&&st.reservation.order ? 'Gereserveerd voor '+(((st.reservation.order.customer||{}).name)||'klant') : st.label;
-      return '<div class="bns-material-row status-'+esc(st.key)+'" data-material-id="'+esc(m.id)+'" style="--cat-color:'+esc(materialColor(m))+'" title="'+esc(title)+'">'+
-        '<div class="bns-catbar"></div><div class="bns-material-text"><strong>'+esc(m.code||'')+'</strong><span>'+esc(p)+'</span>'+(d&&d!==p?'<small>'+esc(d)+'</small>':'<small>'+esc(m.price||'oude prijs: € 0')+'</small>')+'</div>'+ 
-        '<span class="bns-status-pill '+esc(st.key)+'"><i></i>'+esc(st.label)+'</span></div>';
-    }).join(''):'<p class="bns-empty">Geen materiaal gevonden.</p>';
-    box.querySelectorAll('[data-material-id]').forEach(function(row){
-      row.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} if(typeof window.addMat==='function') window.addMat(row.getAttribute('data-material-id')); return false; };
-    });
+  function mk(y,m,d){ var x=new Date(y,m-1,d); if(x.getFullYear()!==y||x.getMonth()!==m-1||x.getDate()!==d) return null; x.setHours(0,0,0,0); return x; }
+  function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); x.setHours(0,0,0,0); return x; }
+  function nice(d){ return d?String(d.getDate()).padStart(2,"0")+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+d.getFullYear():""; }
+  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e) s=e; if(!s) return null; if(!e||e.getTime()<=s.getTime()) e=addDays(s,1); return {start:s,end:e}; }
+  function wantedPeriod(){ return period((E("dateStart")||{}).value,(E("dateEnd")||{}).value); }
+  function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
+  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<b.end.getTime()&&b.start.getTime()<a.end.getTime()); }
+  function blocksOrder(o){ var s=lower(o&&o.status); if(!s) return false; if(s.indexOf("geannuleerd")>=0||s.indexOf("cancel")>=0||s.indexOf("uitgevoerd")>=0||s.indexOf("afgerond")>=0||s.indexOf("verwijderd")>=0) return false; if(s.indexOf("offerte")>=0) return false; return s.indexOf("bevestigd")>=0||s.indexOf("opdracht")>=0||s.indexOf("optie 14")>=0||s==="optie14"; }
+  function editingId(){ try{ if(typeof editing!=="undefined"&&editing) return String(editing); }catch(e){} return window.editing?String(window.editing):""; }
+  function reservationFor(m){ var w=wantedPeriod(); if(!w) return null; var edit=editingId(); for(var i=0;i<orders().length;i++){ var o=orders()[i]; if(!o||!blocksOrder(o)) continue; if(edit&&String(o.id||"")===edit) continue; var ml=Array.isArray(o.materials)?o.materials:[]; if(!ml.some(function(x){return sameMaterial(x,m);} )) continue; var op=orderPeriod(o); if(overlaps(w,op)) return {order:o,period:op,wanted:w}; } return null; }
+  function matStatus(m){
+    var raw=lower(m&&m.status); var chosenNow=chosenList().some(function(x){return sameMaterial(x,m);}); if(chosenNow) return {key:"chosen",label:"Toegevoegd",blocked:false};
+    if(raw==="inactive"||raw==="niet actief"||raw==="niet beschikbaar") return {key:"inactive",label:"Niet inzetbaar",blocked:true};
+    if(raw==="defect"||raw==="damage"||raw==="schade"||raw==="missing"||raw==="vermist"||raw==="vermissing") return {key:"defect",label:"Niet inzetbaar",blocked:true};
+    var r=reservationFor(m); if(r) return {key:"reserved",label:"Gereserveerd",blocked:true,reservation:r};
+    return {key:"free",label:"Vrij",blocked:false};
   }
-  function install(){
-    window.renderMaterials=renderMaterialsV71;
-    try{ renderMaterials=renderMaterialsV71; }catch(e){}
-    renderMaterialsV71(window.currentCat || (typeof currentCat!=='undefined'?currentCat:'TW'));
+
+  function css(){ if(E(STYLE_ID)) return; var st=document.createElement("style"); st.id=STYLE_ID; st.textContent=""+
+    "#materialList{min-height:260px!important;max-height:60vh!important;overflow-y:auto!important;overflow-x:hidden!important;overflow-anchor:none!important;padding:0 6px 90px 0!important;}"+
+    "#materialList .bns-v72-row{display:grid!important;grid-template-columns:8px minmax(0,1fr) auto!important;gap:12px!important;align-items:center!important;width:100%!important;min-height:80px!important;margin:9px 0!important;padding:13px 14px!important;border:1px solid #dbe3ef!important;border-radius:18px!important;background:var(--panel,#fff)!important;color:var(--text,#172033)!important;box-sizing:border-box!important;cursor:pointer!important;box-shadow:none!important;transition:none!important;transform:none!important;animation:none!important;}"+
+    "#materialList .bns-v72-bar{width:8px!important;height:52px!important;border-radius:999px!important;background:var(--mat-color,#0ea5e9)!important;}"+
+    "#materialList .bns-v72-title{font-size:17px!important;line-height:1.15!important;color:#172033!important;white-space:normal!important;overflow:visible!important;}#materialList .bns-v72-title b{font-size:18px!important;font-weight:1000!important;margin-right:5px!important;}"+
+    "#materialList .bns-v72-desc{font-size:14px!important;line-height:1.2!important;color:#475569!important;font-weight:700!important;margin-top:3px!important;white-space:normal!important;}#materialList .bns-v72-price{font-size:12px!important;color:#64748b!important;font-weight:800!important;margin-top:4px!important;}"+
+    "#materialList .bns-v72-pill{white-space:nowrap!important;display:inline-flex!important;gap:7px!important;align-items:center!important;border-radius:999px!important;padding:8px 12px!important;font-weight:1000!important;justify-content:center!important;animation:none!important;}#materialList .bns-v72-pill:before{content:'';width:11px;height:11px;border-radius:999px;background:var(--mat-color,#0ea5e9)!important;display:inline-block!important;}"+
+    "#materialList .bns-v72-pill.free{background:#dcfce7!important;color:#166534!important;}#materialList .bns-v72-pill.reserved{background:#fee2e2!important;color:#991b1b!important;}#materialList .bns-v72-pill.defect,#materialList .bns-v72-pill.inactive{background:#fee2e2!important;color:#991b1b!important;}#materialList .bns-v72-pill.chosen{background:#dbeafe!important;color:#1e40af!important;}"+
+    "#"+MODAL_ID+"{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.60);display:grid;place-items:center;padding:18px;}#"+MODAL_ID+".hidden{display:none!important;}#"+MODAL_ID+" .card{width:min(720px,96vw);background:var(--panel,#fff);color:var(--text,#111827);border-radius:20px;padding:22px;box-shadow:0 20px 60px rgba(15,23,42,.35);}#"+MODAL_ID+" .box{border:1px solid #dbe3ef;border-radius:14px;padding:14px;margin:12px 0;line-height:1.55;}#"+MODAL_ID+" button{margin:6px;padding:10px 14px;border-radius:12px;font-weight:900;}";
+    document.head.appendChild(st);
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,400);}); else setTimeout(install,200);
-  setTimeout(install,1200);
-  setTimeout(install,2600);
-  setInterval(function(){ if(window.renderMaterials!==renderMaterialsV71) install(); },1800);
+
+  function cats(){ var seen={}; mats().forEach(function(m){seen[catKey(m.cat||m.rubriek||m.category)]=1;}); var arr=Object.keys(seen); var pref=["TW","TO","KW","EXTRA","BT","HN","TEST"]; arr.sort(function(a,b){var ia=pref.indexOf(a),ib=pref.indexOf(b); if(ia>=0||ib>=0) return (ia<0?99:ia)-(ib<0?99:ib); return a.localeCompare(b);}); return arr.length?arr:["TW","TO","KW","EXTRA"]; }
+  function currentCat(){ var c=catKey(window.currentCat || (function(){try{return currentCat;}catch(e){return"";}})() || "TW"); window.currentCat=c; try{currentCat=c;}catch(e){} return c; }
+  function renderCats(){ var box=E("materialCats"); if(!box) return; applyOverrides(); var cs=cats(), cur=currentCat(); if(cs.indexOf(cur)<0) cur=cs[0]; window.currentCat=cur; try{currentCat=cur;}catch(e){} box.innerHTML=cs.map(function(c){return '<button type="button" class="'+(c===cur?'active':'')+'" data-bns-v72-cat="'+esc(c)+'" style="border-bottom:5px solid '+catColor(c)+'">'+esc(c)+'</button>';}).join(""); }
+  function renderMaterials(cat){
+    var box=E("materialList"); if(!box) return; css(); applyOverrides(); var active=catKey(cat||currentCat()); window.currentCat=active; try{currentCat=active;}catch(e){}
+    var q=lower((E("materialSearch")||{}).value); var rows=mats().filter(function(m){return catKey(m.cat||m.rubriek||m.category)===active;}).filter(function(m){return !q||searchText(m).indexOf(q)>=0;}).slice(0,500);
+    var key=active+"|"+q+"|"+rows.map(function(m){var st=matStatus(m);return [m.id,m.code,productName(m),productDesc(m),m.status,m.color,st.key].join(":");}).join(";");
+    if(lastRenderKey===key && box.querySelector(".bns-v72-row")) return; lastRenderKey=key;
+    box.innerHTML=rows.length?rows.map(function(m){ var st=matStatus(m), col=materialColor(m), p=productName(m), d=productDesc(m), price=m.price||"oude prijs: € 0"; return '<div class="bns-v72-row '+esc(st.key)+'" data-material-id="'+esc(m.id)+'" style="--mat-color:'+esc(col)+'"><div class="bns-v72-bar"></div><div><div class="bns-v72-title"><b>'+esc(m.code||"")+'</b> '+esc(p)+'</div>'+(d&&d!==p?'<div class="bns-v72-desc">'+esc(d)+'</div>':'')+'<div class="bns-v72-price">'+esc(price)+'</div></div><span class="bns-v72-pill '+esc(st.key)+'">'+esc(st.label)+'</span></div>'; }).join(""):'<p class="bns-empty">Geen materiaal gevonden in rubriek '+esc(active)+'.</p>';
+  }
+  function showPopup(m,st){ var modal=E(MODAL_ID); if(!modal){modal=document.createElement("div"); modal.id=MODAL_ID; document.body.appendChild(modal);} var html='<div class="card"><h2>Materiaal status</h2><div class="box"><b>'+esc(m.code||"")+'</b> '+esc(productName(m))+'<br><br>'; if(st.key==="reserved"&&st.reservation){var o=st.reservation.order; html+='<b>Status:</b> Gereserveerd<br><b>Klant:</b> '+esc((o.customer&&o.customer.name)||o.customerName||"Onbekend")+'<br><b>Opdracht:</b> '+esc(o.number||"")+' - '+esc(o.title||"")+'<br><b>Datum reservering:</b> '+esc(nice(st.reservation.period.start))+' tot '+esc(nice(st.reservation.period.end))+'<br><b>Jouw datum:</b> '+esc(nice(st.reservation.wanted.start))+' tot '+esc(nice(st.reservation.wanted.end));} else {html+='<b>Status:</b> '+esc(st.label)+'<br><b>Omschrijving:</b> '+esc(m.issueText||m.notes||"");} html+='</div><button type="button" onclick="document.getElementById(\''+MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button></div>'; modal.innerHTML=html; modal.className=""; }
+  function addMatStable(id){ var m=mats().find(function(x){return String(x.id)===String(id);}); if(!m) return false; var st=matStatus(m); if(st.key==="chosen"){ setChosenList(chosenList().filter(function(x){return !sameMaterial(x,m);})); try{renderChosen();}catch(e){} renderMaterials(currentCat()); return false; } if(st.blocked){ showPopup(m,st); return false; } var list=chosenList(); if(!list.some(function(x){return sameMaterial(x,m);})){ var c=JSON.parse(JSON.stringify(m)); c.status="reserved"; if(c.qty==null)c.qty=1; if(c.linePrice==null)c.linePrice=0; if(c.lineDeposit==null)c.lineDeposit=0; list.push(c); setChosenList(list); } try{renderChosen();}catch(e){} try{summaryRender();}catch(e){} try{calcTotals();}catch(e){} renderMaterials(currentCat()); return false; }
+
+  function formData(){ var cat=catKey((E("adminMatCat")||{}).value||"EXTRA"), nr=nrKey((E("adminMatCode")||{}).value||(E("adminMatNr")||{}).value||(E("productNr")||{}).value||""), prod=T((E("adminMatProduct")||{}).value||(E("productSearchName")||{}).value||(E("productName")||{}).value||""), desc=T((E("adminMatName")||{}).value||(E("productDescription")||{}).value||(E("materialDescription")||{}).value||""), price=T((E("adminMatPrice")||{}).value||""), status=T((E("adminMatStatus")||{}).value||"free")||"free", code=makeCode(cat,nr), display=prod||desc||code, color=selectedColor(cat); return {cat:cat,rubriek:cat,category:cat,code:code,productNr:nr,nr:nr,product:display,searchName:display,zoeknaam:display,type:display,name:display,description:desc||display,beschrijving:desc||display,price:price,status:status,color:color}; }
+  function currentSelectedId(){ var ids=[selectedId,window.__bnsSelectedMaterialId,window.bnsSelectedMaterialId,window.__bnsV48EditingMaterialId]; try{if(typeof selectedMaterialId!=="undefined") ids.push(selectedMaterialId);}catch(e){} for(var i=0;i<ids.length;i++) if(T(ids[i])) return T(ids[i]); return ""; }
+  function findForForm(data){ var sid=currentSelectedId(), list=mats(); var m=sid&&list.find(function(x){return String(x.id)===String(sid);}); if(!m) m=list.find(function(x){return catKey(x.cat||x.rubriek||x.category)===data.cat&&nrKey(x.code)===nrKey(data.code);}); return m||null; }
+  function persist(){ try{localStorage.setItem("eventPlannerProState",JSON.stringify(S()));}catch(e){} try{localStorage.setItem("plannerState",JSON.stringify(S()));}catch(e){} try{localStorage.setItem("eventPlannerPro",JSON.stringify(S()));}catch(e){} try{localStorage.setItem("eventPlannerProV91",JSON.stringify(S()));}catch(e){} try{if(typeof save==="function")save();}catch(e){} }
+  function firebaseSync(m){ try{ if(!m||!m.id||!window.BNS||!window.BNS.fs||!window.BNS.db) return; var fs=window.BNS.fs; fs.setDoc(fs.doc(window.BNS.db,"materials",String(m.id)),Object.assign({},m,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){}); }catch(e){} }
+  function saveMaterial(ev){ if(ev){ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();} var data=formData(); if(!data.cat||!data.code){toast("Vul rubriek en product nr in");return false;} saveCatColor(data.cat,data.color); var m=findForForm(data); if(!m){m={id:"mat_"+Date.now()+"_"+Math.random().toString(36).slice(2,8)};mats().push(m);} Object.assign(m,data); selectedId=String(m.id); window.__bnsSelectedMaterialId=selectedId; window.bnsSelectedMaterialId=selectedId; putOverride(m); persist(); lastRenderKey=""; renderCats(); renderMaterials(data.cat); firebaseSync(m); toast("Materiaal opgeslagen"); return false; }
+  function deleteMaterial(ev){ if(ev){ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();} var id=currentSelectedId(); if(!id){toast("Kies eerst materiaal");return false;} if(!confirm("Weet je zeker dat je dit materiaal wilt wissen?")) return false; S().materials=mats().filter(function(m){return String(m.id)!==String(id);}); var map=readMap(); delete map[String(id)]; writeMap(map); selectedId=""; window.__bnsSelectedMaterialId=""; window.bnsSelectedMaterialId=""; persist(); lastRenderKey=""; renderCats(); renderMaterials(currentCat()); toast("Materiaal verwijderd"); return false; }
+  function fillMaterial(id){ applyOverrides(); var m=mats().find(function(x){return String(x.id)===String(id);}); if(!m)return; selectedId=String(m.id); window.__bnsSelectedMaterialId=selectedId; window.bnsSelectedMaterialId=selectedId; if(E("adminMatCat"))E("adminMatCat").value=catKey(m.cat||m.rubriek||m.category); if(E("adminMatCode"))E("adminMatCode").value=productNr(m); if(E("adminMatProduct"))E("adminMatProduct").value=productName(m); if(E("adminMatName"))E("adminMatName").value=productDesc(m); if(E("adminMatPrice"))E("adminMatPrice").value=m.price||""; if(E("adminMatStatus"))E("adminMatStatus").value=m.status||"free"; }
+  function bindButton(id,fn,flag){ var b=E(id); if(!b||b.dataset[flag]==="1") return; var c=b.cloneNode(true); c.type="button"; c.dataset[flag]="1"; c.addEventListener("click",fn,true); c.onclick=fn; b.parentNode.replaceChild(c,b); }
+  function install(){ css(); applyOverrides(); window.renderMaterials=renderMaterials; window.renderCats=renderCats; window.addMat=addMatStable; window.BNS_V72_renderMaterials=renderMaterials; try{renderMaterials=renderMaterials;}catch(e){} try{renderCats=renderCats;}catch(e){} try{addMat=addMatStable;}catch(e){} bindButton("adminSaveMat",saveMaterial,"bnsV72"); bindButton("adminDeleteMat",deleteMaterial,"bnsV72"); var list=E("materialList"); if(list&&!list.dataset.bnsV72Click){list.dataset.bnsV72Click="1"; list.addEventListener("click",function(ev){var r=ev.target.closest&&ev.target.closest("[data-material-id]"); if(!r||!list.contains(r))return; ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation(); addMatStable(r.getAttribute("data-material-id")); return false;},true);} var catsBox=E("materialCats"); if(catsBox&&!catsBox.dataset.bnsV72){catsBox.dataset.bnsV72="1"; catsBox.addEventListener("click",function(ev){var b=ev.target.closest&&ev.target.closest("[data-bns-v72-cat]"); if(!b)return; ev.preventDefault();ev.stopPropagation(); window.currentCat=catKey(b.getAttribute("data-bns-v72-cat")); try{currentCat=window.currentCat;}catch(e){} var ms=E("materialSearch"); if(ms) ms.value=""; lastRenderKey=""; renderCats(); renderMaterials(window.currentCat);},true);} var ms=E("materialSearch"); if(ms&&!ms.dataset.bnsV72){ms.dataset.bnsV72="1"; ms.addEventListener("input",function(){lastRenderKey=""; renderMaterials(currentCat());});} ["dateStart","dateEnd","orderStatus"].forEach(function(id){var el=E(id); if(el&&!el.dataset.bnsV72){el.dataset.bnsV72="1"; el.addEventListener("change",function(){lastRenderKey=""; renderMaterials(currentCat());}); el.addEventListener("input",function(){lastRenderKey=""; renderMaterials(currentCat());});}}); var rows=document.querySelectorAll("[data-bns-v67-edit],[data-v61-edit]"); rows.forEach(function(btn){ if(!btn.dataset.bnsV72Edit){btn.dataset.bnsV72Edit="1"; btn.addEventListener("click",function(){fillMaterial(btn.getAttribute("data-bns-v67-edit")||btn.getAttribute("data-v61-edit"));},true);}}); if(E("materialCats")) renderCats(); if(E("materialList")) renderMaterials(currentCat()); }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",function(){setTimeout(install,400);}); else setTimeout(install,200);
+  setTimeout(install,1200); setTimeout(install,2600);
+  setInterval(function(){ try{ applyOverrides(); window.renderMaterials=renderMaterials; window.renderCats=renderCats; window.addMat=addMatStable; if(E("materialList")) renderMaterials(currentCat()); }catch(e){} },1800);
 })();
