@@ -1,9 +1,1 @@
-{
-  "name": "BNS Bezorger",
-  "short_name": "BNS Bezorger",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#eef4fb",
-  "theme_color": "#0756b7",
-  "icons": []
-}
+{"name":"Bezorger Tapwagen.nl","short_name":"Tapwagen","start_url":"../?telefoon=1&driver=1","display":"standalone","background_color":"#eef7ff","theme_color":"#075fc4"}
