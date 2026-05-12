@@ -14463,3 +14463,196 @@ setInterval(install,1500);
   [400,900,1600,3000,6000].forEach(function(t){ setTimeout(install,t); });
   setInterval(function(){ try{ install(); }catch(e){} }, 1200);
 })();
+
+/* =========================================================
+   BNS V106 - alleen Admin > Personeel rechten onthouden
+   - Fix: extra rechten knipperden blauw en vielen terug naar wit.
+   - Slaat rechten direct op bij aanklikken, ook als oude render opnieuw tekent.
+   - Geen wijzigingen aan materialen, facturen, opdrachten of telefoon-layout.
+   ========================================================= */
+(function bnsV106PersistPersoneelRechten(){
+  'use strict';
+  if (window.__bnsV106PersistPersoneelRechten) return;
+  window.__bnsV106PersistPersoneelRechten = true;
+
+  var ALL = [
+    'prices','agenda','gps','resolve','materials','customers','locations','orders','invoice','admin',
+    'report_storing','report_schade','report_vermissing','photo_before','photo_after','signature','call_customer','done'
+  ];
+  var EXTRA_LABELS = {
+    report_storing:'Storing melden', report_schade:'Schade melden', report_vermissing:'Vermissing melden',
+    photo_before:'Foto voor levering', photo_after:'Foto na levering', signature:'Handtekening klant',
+    call_customer:'Klant bellen', done:'Afmelden / uitgevoerd'
+  };
+
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || null; }
+  function users(){ var s=S(); if(!s) return []; s.users = Array.isArray(s.users) ? s.users : []; return s.users; }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function saveAll(){
+    try{ if(typeof save === 'function') save(); }catch(e){}
+    try{ if(typeof saveState === 'function') saveState(); }catch(e){}
+    var s=S(); if(s){
+      ['event-planner-pro-v87','eventPlannerProState','plannerState','eventPlannerPro','eventPlannerProV91','bns_state','bns_app_state'].forEach(function(k){
+        try{ localStorage.setItem(k, JSON.stringify(s)); }catch(e){}
+      });
+    }
+  }
+  function fbSyncUser(u){
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.doc && window.BNS.fs.setDoc && u && u.id){
+        window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'users',String(u.id)), Object.assign({},u,{updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){});
+      }
+    }catch(e){}
+  }
+
+  function rememberId(id){
+    if(!id) return;
+    window.__bnsV106SelectedUserId = String(id);
+    try{ localStorage.setItem('bns_v106_selected_user_id', String(id)); }catch(e){}
+  }
+  function selectedId(){
+    return window.__bnsV106SelectedUserId || (function(){ try{return localStorage.getItem('bns_v106_selected_user_id')||'';}catch(e){return '';} })();
+  }
+  function visible(el){ return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length)); }
+  function findSaveButton(){
+    return A('button').find(function(b){ return /opslaan gebruiker/i.test(T(b.textContent)); }) || null;
+  }
+  function userPane(){
+    var btn=findSaveButton();
+    if(btn){
+      var p=btn.closest('#adminUsers,[data-admin="adminUsers"],[data-admin="users"],.adminPane,.panel,.card,section');
+      if(p) return p;
+    }
+    return E('adminUsers') || document;
+  }
+  function fieldText(el){
+    var parts=[el&&el.id, el&&el.name, el&&el.placeholder, el&&el.getAttribute&&el.getAttribute('aria-label')];
+    try{ var lab=el.closest('label'); if(lab) parts.push(lab.textContent||''); }catch(e){}
+    try{ if(el.parentElement) parts.push(el.parentElement.textContent||''); }catch(e){}
+    return L(parts.filter(Boolean).join(' '));
+  }
+  function formInputs(){
+    var root=userPane();
+    return A('input,select',root).filter(visible);
+  }
+  function formNamePin(){
+    var root=userPane();
+    var inputs=A('input',root).filter(function(inp){
+      var type=L(inp.type||'text');
+      if(['checkbox','radio','button','submit','reset','hidden','file','color','date','time'].indexOf(type)>=0) return false;
+      return visible(inp);
+    });
+    var name=inputs.find(function(inp){ var m=fieldText(inp); return /(naam|name|medewerker|gebruiker)/.test(m) && !/pin/.test(m); }) || inputs[0];
+    var pin=inputs.find(function(inp){ return /pin|pincode/.test(fieldText(inp)); }) || inputs[1];
+    return {name:T(name&&name.value), pin:T(pin&&pin.value)};
+  }
+  function findCurrentUser(){
+    var id=selectedId();
+    var list=users();
+    var u=id && list.find(function(x){return String(x.id)===String(id);});
+    if(u) return u;
+    var fp=formNamePin();
+    if(fp.pin) u=list.find(function(x){ return T(x.pin)===fp.pin; });
+    if(u){ rememberId(u.id); return u; }
+    if(fp.name) u=list.find(function(x){ return L(x.name)===L(fp.name); });
+    if(u){ rememberId(u.id); return u; }
+    return null;
+  }
+  function rightsFromBoxes(){
+    var r={};
+    ALL.forEach(function(k){
+      var cb=E('bnsV74Right_'+k) || E('bnsV105Right_'+k);
+      if(cb) r[k]=!!cb.checked;
+    });
+    return r;
+  }
+  function applyBoxesFromUser(u){
+    if(!u) return;
+    u.rights = u.rights || {};
+    ALL.forEach(function(k){
+      var cb=E('bnsV74Right_'+k) || E('bnsV105Right_'+k);
+      if(cb) cb.checked = !!u.rights[k];
+    });
+  }
+  function updateListText(u){
+    if(!u) return;
+    var row=document.querySelector('[data-bns-v74-user="'+String(u.id).replace(/"/g,'\\"')+'"]');
+    if(!row) return;
+    var smalls=A('small',row);
+    var allowed=[];
+    Object.keys(u.rights||{}).forEach(function(k){
+      if(!u.rights[k]) return;
+      var cb=E('bnsV74Right_'+k) || E('bnsV105Right_'+k);
+      var label=EXTRA_LABELS[k] || (cb && cb.closest('label') && T(cb.closest('label').textContent)) || k;
+      if(allowed.indexOf(label)<0) allowed.push(label);
+    });
+    if(smalls[1]) smalls[1].textContent = allowed.join(', ') || 'Geen extra rechten';
+  }
+  var lockUntil=0;
+  function saveRightsNow(){
+    var u=findCurrentUser();
+    if(!u) return;
+    u.rights = Object.assign({}, u.rights||{}, rightsFromBoxes());
+    u.updatedAt = new Date().toISOString();
+    rememberId(u.id);
+    saveAll();
+    fbSyncUser(u);
+    updateListText(u);
+    lockUntil=Date.now()+1400;
+  }
+  function keepBoxesStable(){
+    var u=findCurrentUser();
+    if(!u) return;
+    if(Date.now() < lockUntil){
+      // Oude her-render probeert soms de checkbox terug te zetten. Zet hem dan weer naar de opgeslagen waarde.
+      applyBoxesFromUser(u);
+    }
+  }
+  function install(){
+    // extra rechtenbox bestaat door V105. Als hij er nog niet staat, laat V105/V74 hem bouwen.
+    A('[data-bns-v74-edit]').forEach(function(btn){
+      if(btn.dataset.bnsV106Sel==='1') return; btn.dataset.bnsV106Sel='1';
+      btn.addEventListener('click',function(){ rememberId(btn.getAttribute('data-bns-v74-edit')); setTimeout(function(){ applyBoxesFromUser(findCurrentUser()); },60); },true);
+    });
+    A('[data-bns-v74-user]').forEach(function(row){
+      if(row.dataset.bnsV106Sel==='1') return; row.dataset.bnsV106Sel='1';
+      row.addEventListener('click',function(){ rememberId(row.getAttribute('data-bns-v74-user')); setTimeout(function(){ applyBoxesFromUser(findCurrentUser()); },60); },true);
+    });
+    A('input[id^="bnsV74Right_"],input[id^="bnsV105Right_"]').forEach(function(cb){
+      if(cb.dataset.bnsV106Save==='1') return; cb.dataset.bnsV106Save='1';
+      cb.addEventListener('change',function(ev){
+        var u=findCurrentUser();
+        if(!u){ return; }
+        saveRightsNow();
+      },true);
+      cb.addEventListener('click',function(){ setTimeout(saveRightsNow,0); },true);
+    });
+    var btn=findSaveButton();
+    if(btn && btn.dataset.bnsV106Save !== '1'){
+      btn.dataset.bnsV106Save='1';
+      btn.addEventListener('click',function(){ setTimeout(saveRightsNow,140); },true);
+    }
+    keepBoxesStable();
+  }
+
+  document.addEventListener('click',function(ev){
+    var t=ev.target;
+    if(t && t.closest){
+      var edit=t.closest('[data-bns-v74-edit]'); if(edit) rememberId(edit.getAttribute('data-bns-v74-edit'));
+      var row=t.closest('[data-bns-v74-user]'); if(row) rememberId(row.getAttribute('data-bns-v74-user'));
+    }
+    setTimeout(install,40);
+  },true);
+  document.addEventListener('change',function(ev){
+    var t=ev.target;
+    if(t && t.matches && t.matches('input[id^="bnsV74Right_"],input[id^="bnsV105Right_"]')){
+      setTimeout(saveRightsNow,0);
+    }
+  },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,250); }); else setTimeout(install,100);
+  [400,900,1800,3500].forEach(function(t){ setTimeout(install,t); });
+  setInterval(function(){ try{ install(); }catch(e){} }, 1000);
+})();
