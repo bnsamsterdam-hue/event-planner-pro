@@ -11146,3 +11146,114 @@ setInterval(install,1500);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,200);}); else setTimeout(install,200);
   [600,1500,3000].forEach(function(ms){setTimeout(install,ms);});
 })();
+
+/* =========================================================
+   Tapwagen.nl V115 - Telefoon reset terug in Admin > Personeel
+   Alleen resetknoppen toegevoegd; bestaande functies blijven ongemoeid.
+   ========================================================= */
+(function tapwagenV115PhoneReset(){
+  'use strict';
+  if(window.TAPWAGEN_V115_PHONE_RESET) return; window.TAPWAGEN_V115_PHONE_RESET = true;
+
+  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function S(){ try { return typeof state !== 'undefined' ? state : (window.state || null); } catch(e){ return window.state || null; } }
+  function isAdminPersoneelVisible(){
+    var txt = document.body ? (document.body.innerText || '') : '';
+    return /Personeel\s*\/\s*gebruiker rechten/i.test(txt) || /Opslaan gebruiker/i.test(txt);
+  }
+  function saveAll(){
+    var st = S();
+    try { if(typeof save === 'function') save(); } catch(e) {}
+    try { if(typeof saveState === 'function') saveState(); } catch(e) {}
+    if(st){
+      ['event-planner-pro-v87','eventPlannerProState','plannerState','eventPlannerPro','eventPlannerProV91','bns_state','bns_app_state'].forEach(function(k){
+        try { localStorage.setItem(k, JSON.stringify(st)); } catch(e) {}
+      });
+    }
+  }
+  function syncUser(u){
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.db && u && u.id){
+        window.BNS.fs.setDoc(
+          window.BNS.fs.doc(window.BNS.db, 'users', String(u.id)),
+          Object.assign({}, u, {updatedAt:new Date().toISOString()}),
+          {merge:true}
+        ).catch(function(){});
+      }
+    }catch(e){}
+  }
+  function clearDevice(u){
+    if(!u) return;
+    ['deviceId','phoneDeviceId','mobileDeviceId','linkedDeviceId','boundDeviceId','device','phoneId','mobileId','deviceKey'].forEach(function(k){
+      try { delete u[k]; } catch(e) { u[k] = ''; }
+    });
+    u.phoneResetAt = new Date().toISOString();
+  }
+  function toast(msg){
+    try{
+      var old=document.getElementById('tapwagenV115Toast'); if(old) old.remove();
+      var d=document.createElement('div'); d.id='tapwagenV115Toast'; d.textContent=msg;
+      d.style.cssText='position:fixed;right:18px;bottom:18px;z-index:999999;background:#0f172a;color:white;border-radius:14px;padding:13px 16px;font-weight:900;box-shadow:0 10px 30px rgba(0,0,0,.25)';
+      document.body.appendChild(d); setTimeout(function(){ if(d.parentNode) d.remove(); },2600);
+    }catch(e){ alert(msg); }
+  }
+  function resetUser(id){
+    var st=S(); if(!st || !Array.isArray(st.users)) return;
+    var u=st.users.find(function(x){ return String(x.id)===String(id); });
+    if(!u) return;
+    if(!confirm('Telefoon resetten voor '+(u.name||'deze bezorger')+'?\nDaarna kan deze bezorger opnieuw op een telefoon inloggen.')) return;
+    clearDevice(u);
+    saveAll();
+    syncUser(u);
+    toast('Telefoon reset uitgevoerd voor '+(u.name||'bezoeker'));
+    setTimeout(install,150);
+  }
+  function css(){
+    if(document.getElementById('tapwagenV115PhoneResetCss')) return;
+    var s=document.createElement('style'); s.id='tapwagenV115PhoneResetCss';
+    s.textContent='\n.tapwagen-v115-reset-panel{margin:16px 0;padding:16px;border:1px solid #dbe3ef;border-radius:18px;background:rgba(255,255,255,.82);box-shadow:0 8px 22px rgba(15,23,42,.07)}\n.tapwagen-v115-reset-panel h3{margin:0 0 6px;font-size:19px;color:#172033}\n.tapwagen-v115-reset-panel p{margin:0 0 12px;color:#64748b;font-weight:700}\n.tapwagen-v115-reset-list{display:grid;gap:8px}\n.tapwagen-v115-reset-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0}\n.tapwagen-v115-reset-row b{font-size:15px;color:#172033}.tapwagen-v115-reset-row small{color:#64748b;font-weight:800}\n.tapwagen-v115-reset-row button,.tapwagen-v115-inline-reset{border:0;border-radius:12px;background:#0ea5e9;color:white;font-weight:900;padding:9px 12px;cursor:pointer}\n.tapwagen-v115-inline-reset{margin-left:8px;background:#0f766e}\n';
+    document.head.appendChild(s);
+  }
+  function addInlineButtons(){
+    var st=S(); if(!st || !Array.isArray(st.users)) return;
+    st.users.forEach(function(u){
+      if(!u || String(u.role||'').toLowerCase().indexOf('bezorger')<0) return;
+      var candidates=A('div,li,tr').filter(function(el){
+        var txt=el.innerText||'';
+        return txt.indexOf(u.name||'')>=0 && (txt.indexOf('PIN '+(u.pin||''))>=0 || txt.indexOf('PIN')>=0) && !el.querySelector('[data-v115-reset-user]');
+      });
+      var row=candidates.sort(function(a,b){ return (a.innerText||'').length-(b.innerText||'').length; })[0];
+      if(row){
+        var btn=document.createElement('button'); btn.type='button'; btn.className='tapwagen-v115-inline-reset'; btn.setAttribute('data-v115-reset-user',u.id); btn.textContent='Telefoon reset';
+        row.appendChild(btn);
+      }
+    });
+  }
+  function ensurePanel(){
+    if(!isAdminPersoneelVisible()) return;
+    var st=S(); if(!st || !Array.isArray(st.users)) return;
+    var drivers=st.users.filter(function(u){ return String(u.role||'').toLowerCase().indexOf('bezorger')>=0; });
+    if(!drivers.length) return;
+    var panel=document.getElementById('tapwagenV115ResetPanel');
+    if(!panel){
+      panel=document.createElement('div'); panel.id='tapwagenV115ResetPanel'; panel.className='tapwagen-v115-reset-panel';
+      var anchor=A('h1,h2,h3,h4').find(function(h){ return /Personeel\s*\/\s*gebruiker rechten/i.test(h.textContent||''); });
+      var box=anchor && (anchor.closest('.panel,.card,section,div') || anchor.parentElement);
+      if(box && box.parentNode) box.parentNode.insertBefore(panel, box.nextSibling); else document.body.appendChild(panel);
+    }
+    panel.innerHTML='<h3>Telefoon koppelingen</h3><p>Gebruik dit als een bezorger op een andere telefoon wil inloggen.</p><div class="tapwagen-v115-reset-list">'+drivers.map(function(u){
+      var linked=!!(u.deviceId||u.phoneDeviceId||u.mobileDeviceId||u.linkedDeviceId||u.boundDeviceId||u.device||u.phoneId||u.mobileId||u.deviceKey);
+      return '<div class="tapwagen-v115-reset-row"><div><b>'+H(u.name||'Bezorger')+'</b><br><small>PIN '+H(u.pin||'')+' · '+(linked?'telefoon gekoppeld':'geen telefoon gekoppeld')+'</small></div><button type="button" data-v115-reset-user="'+H(u.id)+'">Telefoon reset</button></div>';
+    }).join('')+'</div>';
+  }
+  function install(){ css(); if(!isAdminPersoneelVisible()) return; addInlineButtons(); ensurePanel(); }
+  document.addEventListener('click', function(ev){
+    var btn=ev.target && ev.target.closest && ev.target.closest('[data-v115-reset-user]');
+    if(btn){ ev.preventDefault(); ev.stopPropagation(); resetUser(btn.getAttribute('data-v115-reset-user')); return false; }
+    setTimeout(install,120);
+  }, true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,250); }); else setTimeout(install,250);
+  [700,1500,3000,5000].forEach(function(ms){ setTimeout(install,ms); });
+})();
