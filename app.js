@@ -14656,3 +14656,218 @@ setInterval(install,1500);
   [400,900,1800,3500].forEach(function(t){ setTimeout(install,t); });
   setInterval(function(){ try{ install(); }catch(e){} }, 1000);
 })();
+
+/* =========================================================
+   BNS V107 - alleen laatste fix: rechten blijven staan + afmeldknop telefoon
+   - Geen wijzigingen aan materiaal, facturen, reserveringen of planner-layout.
+   ========================================================= */
+(function bnsV107RightsStableAndPhoneDone(){
+  'use strict';
+  if (window.__bnsV107RightsStableAndPhoneDone) return;
+  window.__bnsV107RightsStableAndPhoneDone = true;
+
+  var EXTRA = {
+    report_storing:'Storing melden', report_schade:'Schade melden', report_vermissing:'Vermissing melden',
+    photo_before:'Foto voor levering', photo_after:'Foto na levering', signature:'Handtekening klant',
+    call_customer:'Klant bellen', done:'Afmelden / uitgevoerd'
+  };
+  var ALL = ['prices','agenda','gps','resolve','materials','customers','locations','orders','invoice','admin'].concat(Object.keys(EXTRA));
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || null; }
+  function users(){ var s=S(); if(!s) return []; s.users=Array.isArray(s.users)?s.users:[]; return s.users; }
+  function orders(){ var s=S(); if(!s) return []; s.orders=Array.isArray(s.orders)?s.orders:[]; return s.orders; }
+  function saveAll(){
+    var s=S();
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof saveState==='function') saveState(); }catch(e){}
+    if(s){ ['event-planner-pro-v87','eventPlannerProState','plannerState','eventPlannerPro','eventPlannerProV91','bns_state','bns_app_state'].forEach(function(k){ try{ localStorage.setItem(k,JSON.stringify(s)); }catch(e){} }); }
+  }
+  function fbDoc(col,id,obj){ try{ if(window.BNS&&window.BNS.fs&&window.BNS.db&&window.BNS.fs.doc&&window.BNS.fs.setDoc&&id){ window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,col,String(id)), Object.assign({},obj,{updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){}); } }catch(e){} }
+  function setSel(id){ if(!id) return; window.__bnsV107SelectedUserId=String(id); try{ localStorage.setItem('bns_v107_selected_user_id',String(id)); }catch(e){} }
+  function getSel(){
+    return T(window.__bnsV107SelectedUserId || window.bnsSelectedUserId || window.selectedUserId || (function(){try{return localStorage.getItem('bns_v107_selected_user_id')||localStorage.getItem('bns_v106_selected_user_id')||'';}catch(e){return ''}})());
+  }
+  function selectedUser(){
+    var id=getSel(), list=users();
+    var u=id && list.find(function(x){return String(x.id)===String(id);});
+    if(u) return u;
+    var pinEl=E('userPin')||E('adminUserPin')||E('bnsUserPin')||document.querySelector('input[placeholder*="PIN"],input[placeholder*="pin"]');
+    var nameEl=E('userName')||E('adminUserName')||E('bnsUserName')||document.querySelector('input[placeholder="Naam"],input[placeholder*="naam"],input[placeholder*="Naam"]');
+    var pin=T(pinEl&&pinEl.value), name=L(nameEl&&nameEl.value);
+    u=(pin&&list.find(function(x){return T(x.pin)===pin;})) || (name&&list.find(function(x){return L(x.name)===name;}));
+    if(u) setSel(u.id);
+    return u||null;
+  }
+  function cbFor(k){ return E('bnsV105Right_'+k) || E('bnsV74Right_'+k); }
+  function readChecks(){ var r={}; ALL.forEach(function(k){ var cb=cbFor(k); if(cb) r[k]=!!cb.checked; }); return r; }
+  function applyChecks(u){ if(!u || !u.rights) return; ALL.forEach(function(k){ var cb=cbFor(k); if(cb) cb.checked=!!u.rights[k]; }); }
+  function updateList(u){
+    if(!u) return;
+    var row=document.querySelector('[data-bns-v74-user="'+String(u.id).replace(/"/g,'\\"')+'"]');
+    if(!row) return;
+    var smalls=A('small',row);
+    var labels=[];
+    Object.keys(u.rights||{}).forEach(function(k){
+      if(!u.rights[k]) return;
+      var cb=cbFor(k), txt=EXTRA[k] || (cb&&cb.closest('label')&&T(cb.closest('label').textContent)) || k;
+      if(labels.indexOf(txt)<0) labels.push(txt);
+    });
+    if(smalls[1]) smalls[1].textContent=labels.join(', ') || 'Geen extra rechten';
+  }
+  function persistChecks(){
+    var u=selectedUser();
+    if(!u) return;
+    u.rights=Object.assign({},u.rights||{},readChecks());
+    u.updatedAt=new Date().toISOString();
+    setSel(u.id);
+    saveAll(); fbDoc('users',u.id,u); updateList(u); applyChecks(u);
+  }
+  function installRights(){
+    A('[data-bns-v74-edit],[data-bns-v74-user]').forEach(function(el){
+      if(el.dataset.bnsV107Sel==='1') return; el.dataset.bnsV107Sel='1';
+      el.addEventListener('click',function(){ var id=el.getAttribute('data-bns-v74-edit')||el.getAttribute('data-bns-v74-user'); setSel(id); setTimeout(function(){ applyChecks(selectedUser()); },80); },true);
+    });
+    A('input[id^="bnsV105Right_"],input[id^="bnsV74Right_"]').forEach(function(cb){
+      if(cb.dataset.bnsV107Save==='1') return; cb.dataset.bnsV107Save='1';
+      cb.addEventListener('click',function(){ setTimeout(persistChecks,0); setTimeout(function(){ applyChecks(selectedUser()); },120); },true);
+      cb.addEventListener('change',function(){ setTimeout(persistChecks,0); setTimeout(function(){ applyChecks(selectedUser()); },120); },true);
+    });
+    var btn=A('button').find(function(b){return /opslaan gebruiker/i.test(T(b.textContent));});
+    if(btn && btn.dataset.bnsV107Save!=='1'){ btn.dataset.bnsV107Save='1'; btn.addEventListener('click',function(){ setTimeout(persistChecks,180); },true); }
+    applyChecks(selectedUser());
+  }
+
+  function isPhone(){ return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'') || /driver|telefoon|bezorger|mobiel|phone/i.test(location.search+' '+location.pathname+' '+location.hash); }
+  function orderById(id){ return orders().find(function(o){ return String(o.id)===String(id); }); }
+  function cardOrderId(card){
+    var b=card.querySelector('[data-v87-done],[data-v83-phone-done],[data-v87-report],[data-bns-v101-photo-before],[data-bns-v101-photo-after],[data-bns-v101-sign]');
+    if(b) return b.getAttribute('data-v87-done')||b.getAttribute('data-v83-phone-done')||b.getAttribute('data-v87-report')||b.getAttribute('data-bns-v101-photo-before')||b.getAttribute('data-bns-v101-photo-after')||b.getAttribute('data-bns-v101-sign')||'';
+    var m=T(card.textContent).match(/(20\d{2}-\d{3,5}|201\d-\d{4})/);
+    if(m){ var o=orders().find(function(x){return T(x.number)===m[1];}); if(o) return String(o.id); }
+    return '';
+  }
+  window.BNS_V107_DONE_ORDER=function(orderId){
+    var o=orderById(orderId); if(!o) return alert('Opdracht niet gevonden.');
+    if(!confirm('Opdracht afmelden als uitgevoerd?')) return;
+    o.status='Uitgevoerd'; o.doneAt=new Date().toISOString();
+    saveAll(); fbDoc('orders',o.id,o);
+    try{ if(typeof renderDriver==='function') renderDriver(); }catch(e){}
+    try{ if(typeof BNS_V87_renderPhone==='function') BNS_V87_renderPhone(); }catch(e){}
+    alert('Opdracht afgemeld als uitgevoerd.');
+  };
+  function addDoneButtons(){
+    if(!isPhone()) return;
+    A('.bns-v87-phone-card,.bns-v83-phone-card,.order-card').forEach(function(card){
+      if(card.querySelector('[data-v87-done],[data-v83-phone-done],[data-bns-v107-done]') || /afmelden\s*\/\s*uitgevoerd|uitgevoerd/i.test(card.textContent||'')) return;
+      var id=cardOrderId(card); if(!id) return;
+      var actions=card.querySelector('.bns-v87-phone-actions,.bns-v83-phone-actions,.v95acts') || card;
+      actions.insertAdjacentHTML('beforeend','<button type="button" class="bns-v105-phone-btn bns-v107-done" data-bns-v107-done="'+H(id)+'" onclick="BNS_V107_DONE_ORDER(\''+H(id)+'\')">Afmelden / uitgevoerd</button>');
+    });
+  }
+  function install(){ installRights(); addDoneButtons(); }
+  document.addEventListener('click',function(ev){ var t=ev.target; if(t&&t.closest){ var el=t.closest('[data-bns-v74-edit],[data-bns-v74-user]'); if(el) setSel(el.getAttribute('data-bns-v74-edit')||el.getAttribute('data-bns-v74-user')); } setTimeout(install,50); },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,250); }); else setTimeout(install,100);
+  [400,900,1800,3500,7000].forEach(function(t){ setTimeout(install,t); });
+  setInterval(function(){ try{ install(); }catch(e){} }, 600);
+})();
+
+/* =========================================================
+   BNS V108 - alleen telefoon app-uitloggen + rustiger beeld
+   - Geen wijzigingen aan materialen, facturen, reserveringen of planner-data.
+   - Afmelden = uitloggen uit de telefoon-app terug naar PIN-scherm.
+   ========================================================= */
+(function bnsV108PhoneAppLogoutAndCalm(){
+  'use strict';
+  if (window.__bnsV108PhoneAppLogoutAndCalm) return;
+  window.__bnsV108PhoneAppLogoutAndCalm = true;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function isPhone(){ return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'') || /driver|telefoon|bezorger|mobiel|phone/i.test(location.search+' '+location.pathname+' '+location.hash); }
+
+  function css(){
+    if(E('bnsV108PhoneCalmStyle')) return;
+    var st=document.createElement('style');
+    st.id='bnsV108PhoneCalmStyle';
+    st.textContent = ''+
+      '@media(max-width:900px){'+
+      'html,body{animation:none!important;transition:none!important;}'+
+      'body.bns-v108-phone-stable *{animation:none!important;transition:none!important;}'+
+      'body.bns-v108-phone-stable #bnsV83PhoneLogin,body.bns-v108-phone-stable #bnsV83PhoneApp,body.bns-v108-phone-stable #bnsV87PhoneRoot,body.bns-v108-phone-stable #bnsV89PhoneRoot,body.bns-v108-phone-stable #bnsV91PhoneRoot{display:none!important;visibility:hidden!important;pointer-events:none!important;}'+
+      '.bns-v108-app-logout{position:fixed!important;right:10px!important;top:10px!important;z-index:2147483647!important;border:0!important;border-radius:14px!important;background:#dc2626!important;color:#fff!important;font-weight:950!important;font-size:15px!important;padding:10px 12px!important;box-shadow:0 8px 24px rgba(15,23,42,.24)!important;}'+
+      '.bns-v108-login-note{margin:10px 18px;background:#e0f2fe;border:1px solid #bae6fd;border-radius:14px;padding:10px;color:#075985;font-weight:900;text-align:center;}'+
+      '}';
+    document.head.appendChild(st);
+  }
+
+  function clearPhoneLogin(){
+    [
+      'bns_phone_user_v95','bns_phone_user_v89','bns_phone_user_v87','bns_v83_phone_user_id',
+      'bns_driver_user','bns_driver_pin','bns_mobile_user','bns_current_driver',
+      'bns_v87_phone_user_id','bns_v95_phone_user_id'
+    ].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+    try{ sessionStorage.removeItem('bns_phone_user_v95'); }catch(e){}
+  }
+
+  window.BNS_V108_LOGOUT_PHONE_APP = function(){
+    clearPhoneLogin();
+    try{ document.body.classList.remove('bns-v87-phone-app','bns-v83-phone-app','bns-v95-phone-app'); }catch(e){}
+    try{ if(typeof renderLogin === 'function' && isPhone()){ renderLogin(); return; } }catch(e){}
+    try{ location.href = location.pathname + '?telefoon=1&logout=1&v=108'; }catch(e){ location.reload(); }
+  };
+
+  function isLoggedInPhone(){
+    var root=E('bnsV95PhoneRoot') || E('bnsV87PhoneRoot') || E('bnsV83PhoneApp') || E('bnsV83PhoneLogin');
+    var txt=T(root && root.textContent);
+    return !!(root && /BNS Bezorger/i.test(txt) && !/Vul alleen je persoonlijke PIN|Vul je persoonlijke PIN|Inloggen\s*$/i.test(txt));
+  }
+
+  function ensureLogoutButton(){
+    if(!isPhone()) return;
+    css();
+    try{ document.body.classList.add('bns-v108-phone-stable'); }catch(e){}
+    var existing=E('bnsV108AppLogout');
+    if(isLoggedInPhone()){
+      if(!existing){
+        var b=document.createElement('button');
+        b.id='bnsV108AppLogout';
+        b.type='button';
+        b.className='bns-v108-app-logout';
+        b.textContent='Uitloggen app';
+        b.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); window.BNS_V108_LOGOUT_PHONE_APP(); };
+        document.body.appendChild(b);
+      }
+    } else if(existing){
+      existing.remove();
+    }
+
+    // Als een oude kaart al een knop "Uitloggen" heeft, maak die expliciet app-uitlog in plaats van opdracht-afmelden.
+    A('button,a').forEach(function(el){
+      var tx=T(el.textContent).toLowerCase();
+      if(tx==='uitloggen' || tx==='afmelden app'){
+        if(el.dataset.bnsV108Logout==='1') return;
+        el.dataset.bnsV108Logout='1';
+        el.textContent='Uitloggen app';
+        el.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); window.BNS_V108_LOGOUT_PHONE_APP(); },true);
+      }
+    });
+  }
+
+  // Rustig herhalen: niet iedere halve seconde compleet renderen, alleen knop bewaken.
+  var busy=false;
+  function tick(){
+    if(busy) return; busy=true;
+    try{ ensureLogoutButton(); }catch(e){}
+    busy=false;
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,300); }); else setTimeout(tick,150);
+  [700,1600,3200,6500].forEach(function(t){ setTimeout(tick,t); });
+  setInterval(tick,2500);
+})();
