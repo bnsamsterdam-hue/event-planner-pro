@@ -14871,3 +14871,162 @@ setInterval(install,1500);
   [700,1600,3200,6500].forEach(function(t){ setTimeout(tick,t); });
   setInterval(tick,2500);
 })();
+
+/* =========================================================
+   BNS V109 - alleen fix: rechten-vinkjes blijven stabiel + telefoon rustiger
+   - Geen wijzigingen aan materialen, facturen, reserveringen of opdrachtdata.
+   - Nieuwe rechten worden met alle oude/nieuwe aliases opgeslagen.
+   - Telefoon: verwijder de V108 root-verberg-class zodat de bestaande driverkaart stabiel zichtbaar blijft.
+   ========================================================= */
+(function bnsV109RightsAndPhoneCalmOnly(){
+  'use strict';
+  if (window.__bnsV109RightsAndPhoneCalmOnly) return;
+  window.__bnsV109RightsAndPhoneCalmOnly = true;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function E(id){ return document.getElementById(id); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || (window.state={users:[],orders:[],alerts:[]}); }
+  function users(){ var s=S(); s.users=Array.isArray(s.users)?s.users:[]; return s.users; }
+  function saveAll(){ try{ if(typeof save==='function') save(); }catch(e){} try{ if(typeof saveState==='function') saveState(); }catch(e){} ['event-planner-pro-v87','eventPlannerProState','plannerState','eventPlannerPro','eventPlannerProV91','bns_state','bns_app_state'].forEach(function(k){try{localStorage.setItem(k,JSON.stringify(S()));}catch(e){}}); }
+  function fbReady(){ return !!(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.doc && window.BNS.fs.setDoc); }
+  function fbUser(u){ try{ if(fbReady() && u && u.id) window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'users',String(u.id)),Object.assign({},u,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){}); }catch(e){} }
+
+  var GROUPS = [
+    {label:/storing/i, keys:['report_storing','reportStoring','storing','storingMelden']},
+    {label:/schade/i, keys:['report_schade','reportDamage','report_damage','damage','schadeMelden']},
+    {label:/vermissing/i, keys:['report_vermissing','reportMissing','report_missing','missing','vermissingMelden']},
+    {label:/foto\s*voor/i, keys:['photo_before','photoBefore','beforePhoto','fotoVoor','photoBeforeDelivery']},
+    {label:/foto\s*na/i, keys:['photo_after','photoAfter','afterPhoto','fotoNa','photoAfterDelivery']},
+    {label:/handtekening/i, keys:['signature','signatureCustomer','customerSignature','handtekening','signature_customer']},
+    {label:/klant\s*bellen/i, keys:['call_customer','phoneCall','callCustomer','customerCall']},
+    {label:/afmelden\s*\/\s*uitgevoerd|uitgevoerd/i, keys:['done','markDone','resolve','afmeldenUitgevoerd']}
+  ];
+
+  function canonicalKeyFromLabelText(txt){
+    txt=T(txt);
+    for(var i=0;i<GROUPS.length;i++){ if(GROUPS[i].label.test(txt)) return GROUPS[i]; }
+    return null;
+  }
+  function findExtraCheckboxes(){
+    var out=[];
+    A('input[type="checkbox"]').forEach(function(cb){
+      var label = cb.closest('label') || cb.parentElement;
+      var text = T(label && label.textContent);
+      var group = canonicalKeyFromLabelText(text);
+      if(group) out.push({cb:cb, group:group, text:text});
+    });
+    return out;
+  }
+  function unionRight(u, group){
+    if(!u) return false;
+    var r=u.rights||{};
+    return group.keys.some(function(k){ return r[k] === true; });
+  }
+  function setGroup(u, group, val){
+    if(!u) return;
+    u.rights = Object.assign({}, u.rights||{});
+    group.keys.forEach(function(k){ u.rights[k] = !!val; });
+    u.updatedAt = new Date().toISOString();
+  }
+  function selectedId(){
+    var vals=[];
+    try{ vals.push(localStorage.getItem('bns_v107_selected_user_id')||''); }catch(e){}
+    try{ vals.push(localStorage.getItem('bns_v106_selected_user_id')||''); }catch(e){}
+    vals.push(window.__bnsV107SelectedUserId||'', window.__bnsV109SelectedUserId||'', window.bnsSelectedUserId||'', window.selectedUserId||'');
+    for(var i=0;i<vals.length;i++){ if(T(vals[i])) return T(vals[i]); }
+    return '';
+  }
+  function userFromForm(){
+    var id=selectedId();
+    var list=users();
+    var u=id ? list.find(function(x){return String(x.id)===String(id);}) : null;
+    if(u) return u;
+    var pinEl = E('userPin') || E('newUserPin') || document.querySelector('input[placeholder*="PIN"],input[placeholder*="pin"]');
+    var nameEl = E('userName') || E('newUserName') || document.querySelector('input[placeholder="Naam"],input[placeholder*="naam"]');
+    var pin=T(pinEl&&pinEl.value), name=L(nameEl&&nameEl.value);
+    return list.find(function(x){ return (pin && T(x.pin)===pin) || (name && L(x.name)===name); }) || null;
+  }
+  function rememberFromClick(el){
+    var row = el && el.closest && el.closest('[data-bns-v74-user],[data-bns-v74-edit]');
+    var id = row && (row.getAttribute('data-bns-v74-user') || row.getAttribute('data-bns-v74-edit'));
+    if(!id){
+      var edit = el && el.closest && el.closest('[data-bns-v74-edit]');
+      id = edit && edit.getAttribute('data-bns-v74-edit');
+    }
+    if(id){
+      window.__bnsV109SelectedUserId=String(id);
+      window.__bnsV107SelectedUserId=String(id);
+      try{ localStorage.setItem('bns_v107_selected_user_id',String(id)); }catch(e){}
+    }
+  }
+  function updateUserRow(u){
+    if(!u) return;
+    var row = document.querySelector('[data-bns-v74-user="'+String(u.id).replace(/"/g,'\\"')+'"]');
+    if(!row) return;
+    var labels=[];
+    GROUPS.forEach(function(g){ if(unionRight(u,g)){ labels.push(g.keys[0].replace('report_','').replace('photo_before','Foto voor levering').replace('photo_after','Foto na levering').replace('signature','Handtekening klant').replace('call_customer','Klant bellen').replace('done','Afmelden / uitgevoerd')); } });
+    var smalls=A('small',row);
+    if(smalls.length){ smalls[smalls.length-1].textContent = (smalls[smalls.length-1].textContent.split(',')[0]||'') + (labels.length ? ', '+labels.join(', ') : ''); }
+  }
+  var suppress=false;
+  function applyVisual(){
+    var u=userFromForm();
+    if(!u) return;
+    suppress=true;
+    findExtraCheckboxes().forEach(function(x){ x.cb.checked = unionRight(u,x.group); });
+    suppress=false;
+    updateUserRow(u);
+  }
+  function bindRights(){
+    findExtraCheckboxes().forEach(function(x){
+      if(x.cb.dataset.bnsV109Rights==='1') return;
+      x.cb.dataset.bnsV109Rights='1';
+      x.cb.addEventListener('click',function(ev){
+        if(suppress) return;
+        var u=userFromForm();
+        if(!u) return;
+        var desired = !unionRight(u,x.group);
+        setGroup(u,x.group,desired);
+        x.cb.checked = desired;
+        saveAll(); fbUser(u);
+        setTimeout(applyVisual,20);
+      },true);
+      x.cb.addEventListener('change',function(ev){
+        if(suppress) return;
+        var u=userFromForm();
+        if(!u) return;
+        setGroup(u,x.group,!!x.cb.checked);
+        saveAll(); fbUser(u);
+        setTimeout(applyVisual,20);
+      },true);
+    });
+  }
+
+  function phoneMode(){ return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'') || /driver|telefoon|bezorger|mobiel|phone/i.test(location.search+' '+location.pathname+' '+location.hash); }
+  function calmPhone(){
+    if(!phoneMode()) return;
+    try{ document.body.classList.remove('bns-v108-phone-stable'); }catch(e){}
+    var style=E('bnsV109PhoneCalmStyle');
+    if(!style){
+      style=document.createElement('style'); style.id='bnsV109PhoneCalmStyle';
+      style.textContent='@media(max-width:900px){body *{animation:none!important;transition:none!important}.bns-v108-app-logout{position:fixed!important;right:10px!important;top:10px!important;z-index:2147483647!important}.bns-v87-phone-card,.bns-v83-phone-card,.order-card{transform:none!important;opacity:1!important}}';
+      document.head.appendChild(style);
+    }
+    // Houd maar één app-uitlogknop over.
+    var outs=A('#bnsV108AppLogout,.bns-v108-app-logout');
+    outs.slice(1).forEach(function(el){ try{el.remove();}catch(e){} });
+  }
+
+  function install(){
+    bindRights();
+    applyVisual();
+    calmPhone();
+  }
+  document.addEventListener('click',function(ev){ rememberFromClick(ev.target); setTimeout(install,50); },true);
+  document.addEventListener('input',function(){ setTimeout(install,50); },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,200); }); else setTimeout(install,80);
+  [300,800,1600,3200,6500].forEach(function(t){ setTimeout(install,t); });
+  setInterval(install,1200);
+})();
