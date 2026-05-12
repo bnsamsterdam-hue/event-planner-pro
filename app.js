@@ -2958,7 +2958,7 @@ setTimeout(()=>{
     setTimeout(install, 500);
   }
 
-  setInterval(install, 1000);
+  setTimeout(install, 1000); // V80: geen continue her-render van personeel
 })();
 
 
@@ -7384,7 +7384,7 @@ setInterval(install,1500);
 
   setTimeout(install, 500);
   setTimeout(install, 1500);
-  setInterval(install, 1000);
+  setTimeout(install, 1000); // V80: geen continue her-render van personeel
 })();
 
 
@@ -11293,7 +11293,7 @@ setInterval(install,1500);
   function install(){ css(); applyOverrides(); window.renderMaterials=renderMaterials; window.renderCats=renderCats; window.addMat=addMatStable; window.BNS_V72_renderMaterials=renderMaterials; try{renderMaterials=renderMaterials;}catch(e){} try{renderCats=renderCats;}catch(e){} try{addMat=addMatStable;}catch(e){} bindButton("adminSaveMat",saveMaterial,"bnsV72"); bindButton("adminDeleteMat",deleteMaterial,"bnsV72"); var list=E("materialList"); if(list&&!list.dataset.bnsV72Click){list.dataset.bnsV72Click="1"; list.addEventListener("click",function(ev){var r=ev.target.closest&&ev.target.closest("[data-material-id]"); if(!r||!list.contains(r))return; ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation(); addMatStable(r.getAttribute("data-material-id")); return false;},true);} var catsBox=E("materialCats"); if(catsBox&&!catsBox.dataset.bnsV72){catsBox.dataset.bnsV72="1"; catsBox.addEventListener("click",function(ev){var b=ev.target.closest&&ev.target.closest("[data-bns-v72-cat]"); if(!b)return; ev.preventDefault();ev.stopPropagation(); window.currentCat=catKey(b.getAttribute("data-bns-v72-cat")); try{currentCat=window.currentCat;}catch(e){} var ms=E("materialSearch"); if(ms) ms.value=""; lastRenderKey=""; renderCats(); renderMaterials(window.currentCat);},true);} var ms=E("materialSearch"); if(ms&&!ms.dataset.bnsV72){ms.dataset.bnsV72="1"; ms.addEventListener("input",function(){lastRenderKey=""; renderMaterials(getCurrentCat());});} ["dateStart","dateEnd","orderStatus"].forEach(function(id){var el=E(id); if(el&&!el.dataset.bnsV72){el.dataset.bnsV72="1"; el.addEventListener("change",function(){lastRenderKey=""; renderMaterials(getCurrentCat());}); el.addEventListener("input",function(){lastRenderKey=""; renderMaterials(getCurrentCat());});}}); var rows=document.querySelectorAll("[data-bns-v67-edit],[data-v61-edit]"); rows.forEach(function(btn){ if(!btn.dataset.bnsV72Edit){btn.dataset.bnsV72Edit="1"; btn.addEventListener("click",function(){fillMaterial(btn.getAttribute("data-bns-v67-edit")||btn.getAttribute("data-v61-edit"));},true);}}); if(E("materialCats")) renderCats(); if(E("materialList")) renderMaterials(getCurrentCat()); }
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",function(){setTimeout(install,400);}); else setTimeout(install,200);
   setTimeout(install,1200); setTimeout(install,2600);
-  setInterval(function(){ try{ applyOverrides(); window.renderMaterials=renderMaterials; window.renderCats=renderCats; window.addMat=addMatStable; if(E("materialList")) renderMaterials(getCurrentCat()); }catch(e){} },1800);
+  setTimeout(function(){ try{ applyOverrides(); window.renderMaterials=renderMaterials; window.renderCats=renderCats; window.addMat=addMatStable; if(E("materialList")) renderMaterials(getCurrentCat()); }catch(e){} },500); // V80: geen periodieke materiaal-hertekening
 })();
 
 /* =========================================================
@@ -13046,546 +13046,260 @@ setInterval(install,1500);
   window.BNS_V76_resetDeviceForUser = resetUserDevice;
 })();
 
-/* =========================================================
-   BNS V79 - telefoon PIN-only + meerdere bezorgers + factuur/opdracht zoeken
-   Alleen toevoegende patch onderaan; bestaande functies blijven staan.
-   ========================================================= */
-(function bnsV78PhoneMultiDriverSearch(){
-  "use strict";
-  if (window.__bnsV78PhoneMultiDriverSearch) return;
-  window.__bnsV78PhoneMultiDriverSearch = true;
 
+/* =========================================================
+   BNS V80 HOTFIX - stabiel admin/materiaal + PIN-only telefoon
+   Basis blijft V77: facturen/documenten, admin materiaal/personeel en bestaande functies blijven staan.
+   Deze patch voegt alleen een laatste laag toe die oude knipperende render/polling logica overstemt.
+   ========================================================= */
+(function bnsV80StableAdminPhoneDrivers(){
+  "use strict";
+  if (window.__bnsV80StableAdminPhoneDrivers) return;
+  window.__bnsV80StableAdminPhoneDrivers = true;
+
+  var FIREBASE_VERSION = "10.12.5";
   var DEVICE_KEY = "bns_device_id_v76";
-  var PHONE_USER_KEY = "bns_phone_user_id_v76";
-  var PHONE_APP_ID = "bnsV78PhoneApp";
-  var PHONE_LOGIN_ID = "bnsV78PhoneLogin";
-  var PHONE_DRIVER_APP_ID = "bnsV78DriverApp";
-  var DRIVER_BOX_ID = "bnsV78DriverMultiBox";
-  var DRIVER_SELECTED_KEY = "bns_v78_current_driver_ids";
-  var STYLE_ID = "bns-v78-style";
+  var PHONE_LOCK_KEY = "bns_phone_user_id_v76";
+  var PHONE_ROOT_ID = "bnsV80PhoneRoot";
+  var STYLE_ID = "bnsV80Style";
+  var DRIVER_BOX_ID = "bnsV80DriverMultiBox";
+  var DRIVER_STORE_KEY = "bns_v80_selected_driver_ids";
+  var ORDER_SEARCH_ID = "bnsV80OrderSearch";
+  var USER_LIST_ID = "bnsV80UserList";
+  var firebasePromise = null;
+  var phoneSubscribed = false;
+  var lastAdminMaterialKey = "";
+  var lastUserListKey = "";
+  var selectedUserId = "";
+  var materialRowTimer = 0;
   var observerStarted = false;
 
   function E(id){ return document.getElementById(id); }
   function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
   function T(v){ return String(v == null ? "" : v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
-  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
   function nowIso(){ return new Date().toISOString(); }
-  function isSmall(){ try { return window.innerWidth <= 760 || window.matchMedia("(max-width: 760px)").matches; } catch(e){ return window.innerWidth <= 760; } }
-  function params(){ try { return new URLSearchParams(location.search || ""); } catch(e){ return new URLSearchParams(""); } }
-
-  function S(){
-    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
-    try { if (window.state && typeof window.state === "object") return window.state; } catch(e) {}
-    return null;
-  }
-  function users(){ var s=S(); if(!s) return []; s.users = Array.isArray(s.users) ? s.users : []; return s.users; }
-  function orders(){ var s=S(); if(!s) return []; s.orders = Array.isArray(s.orders) ? s.orders : []; return s.orders; }
+  function stateObj(){ try { if (typeof state !== "undefined" && state) return state; } catch(e) {} try { if (window.state) return window.state; } catch(e) {} return null; }
+  function users(){ var s=stateObj(); if(!s) return []; s.users = Array.isArray(s.users) ? s.users : []; return s.users; }
+  function orders(){ var s=stateObj(); if(!s) return []; s.orders = Array.isArray(s.orders) ? s.orders : []; return s.orders; }
+  function materials(){ var s=stateObj(); if(!s) return []; s.materials = Array.isArray(s.materials) ? s.materials : []; return s.materials; }
+  function activeUser(u){ return !!(u && !u.deletedAt && u.active !== false && u.disabled !== true && u.removed !== true); }
   function roleNorm(v){ if(/admin/i.test(v||"")) return "Admin"; if(/planner/i.test(v||"")) return "Planner"; return "Bezorger"; }
   function isDriver(u){ return roleNorm(u && u.role) === "Bezorger"; }
   function isAdmin(u){ return roleNorm(u && u.role) === "Admin"; }
-  function activeUser(u){ return !!(u && !u.deletedAt && u.active !== false && u.disabled !== true && u.removed !== true); }
-  function currentUser(){ try { if (typeof user !== "undefined" && user) return user; } catch(e) {} try { return window.user || null; } catch(e){ return null; } }
+  function currentUser(){ try { if (typeof user !== "undefined" && user) return user; } catch(e) {} try { return window.user || null; } catch(e) { return null; } }
   function setCurrentUser(u){ try { user = u || null; } catch(e) {} try { window.user = u || null; } catch(e) {} }
-  function toast(t){ try { if (typeof toastMsg === "function") return toastMsg(t); } catch(e) {} try { console.log(t); } catch(e) {} }
+  function toast(msg){ msg=T(msg); try { if(typeof toastMsg === "function") return toastMsg(msg); } catch(e) {} try { console.log(msg); } catch(e) {} }
+  function notify(msg, title){ if(window.bnsNotice) return window.bnsNotice(msg || "", title || "Melding"); try { alert(msg); } catch(e) { toast(msg); } return Promise.resolve(true); }
+  function ask(msg, title){ if(window.bnsConfirm) return window.bnsConfirm(msg || "", title || "Bevestigen"); return Promise.resolve(confirm(msg || "Weet je het zeker?")); }
+  function clone(obj){ try { return JSON.parse(JSON.stringify(obj)); } catch(e) { return Object.assign({}, obj); } }
   function saveLocal(){
-    var s=S(); if(!s) return;
-    try { if (typeof save === "function") save(); } catch(e) {}
-    ["event-planner-pro-v87", "eventPlannerProState", "plannerState", "eventPlannerPro", "eventPlannerProV91"].forEach(function(k){ try { localStorage.setItem(k, JSON.stringify(s)); } catch(e) {} });
+    var s=stateObj(); if(!s) return;
+    try { if(typeof save === "function") save(); } catch(e) {}
+    ["event-planner-pro-v87","eventPlannerProState","plannerState","eventPlannerPro","eventPlannerProV91"].forEach(function(k){ try { localStorage.setItem(k, JSON.stringify(s)); } catch(e) {} });
   }
-  function syncOrder(o){ try { if (window.BNS && typeof window.BNS.syncOrder === "function") Promise.resolve(window.BNS.syncOrder(o)).catch(function(){}); } catch(e) {} }
-  function syncUsers(){ try { if (typeof window.BNS_V76_syncUsers === "function") window.BNS_V76_syncUsers(); } catch(e) {} }
-  function fetchUsers(timeout){ try { if (typeof window.BNS_V76_fetchUsersFresh === "function") return Promise.resolve(window.BNS_V76_fetchUsersFresh(timeout || 1200)); } catch(e) {} return Promise.resolve(false); }
-
-  function deviceId(){
-    var v = "";
-    try { v = localStorage.getItem(DEVICE_KEY) || ""; } catch(e) {}
-    if (!v) {
-      v = "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
-      try { localStorage.setItem(DEVICE_KEY, v); } catch(e) {}
-    }
-    return v;
-  }
-  function deviceName(){ var ua=""; try { ua = navigator.userAgent || ""; } catch(e) {} return ua.slice(0, 120); }
-  function lockedPhoneUserId(){ try { return localStorage.getItem(PHONE_USER_KEY) || ""; } catch(e){ return ""; } }
-  function setPhoneLock(id){ try { if(id) localStorage.setItem(PHONE_USER_KEY, String(id)); else localStorage.removeItem(PHONE_USER_KEY); } catch(e) {} }
-
-  function showModal(opts){
-    opts = opts || {};
-    if (window.bnsPrompt && opts.input) return window.bnsPrompt(opts.message || "", opts.value || "", opts.title || "Invoer");
-    if (window.bnsConfirm && opts.cancel) return window.bnsConfirm(opts.message || "", opts.title || "Bevestigen");
-    if (window.bnsNotice && !opts.cancel && !opts.input) { window.bnsNotice(opts.message || "", opts.title || "Melding"); return Promise.resolve(true); }
-    return new Promise(function(resolve){
-      var old = E("bnsV78Modal"); if (old) old.remove();
-      var wrap = document.createElement("div");
-      wrap.id = "bnsV78Modal";
-      wrap.className = "bns-v78-modal";
-      wrap.innerHTML = '<div class="bns-v78-modal-card"><h2>'+esc(opts.title || "Melding")+'</h2><p>'+esc(opts.message || "")+'</p>' +
-        (opts.input ? '<input id="bnsV78ModalInput" value="'+esc(opts.value || "")+'">' : '') +
-        '<div class="bns-v78-modal-actions">' +
-        (opts.cancel ? '<button type="button" class="bns-v78-cancel">Annuleren</button>' : '') +
-        '<button type="button" class="bns-v78-ok">'+esc(opts.okText || "OK")+'</button></div></div>';
-      document.body.appendChild(wrap);
-      var input = E("bnsV78ModalInput"); if (input) setTimeout(function(){ input.focus(); input.select(); }, 30);
-      var close = function(val){ try { wrap.remove(); } catch(e) {} resolve(val); };
-      wrap.querySelector(".bns-v78-ok").onclick = function(){ close(opts.input ? T(input && input.value) : true); };
-      var cancel = wrap.querySelector(".bns-v78-cancel"); if (cancel) cancel.onclick = function(){ close(opts.input ? null : false); };
-    });
-  }
-  function notice(msg,title){ return showModal({title:title || "Melding", message:msg || ""}); }
-  function ask(msg,title){ return showModal({title:title || "Bevestigen", message:msg || "", cancel:true, okText:"Ja"}); }
-  function promptText(msg,val,title){ return showModal({title:title || "Invoer", message:msg || "", input:true, value:val || "", cancel:true, okText:"Opslaan"}); }
+  function idFor(prefix){ return prefix + "_" + Date.now() + "_" + Math.random().toString(36).slice(2,8); }
+  function deviceId(){ var v=""; try { v=localStorage.getItem(DEVICE_KEY)||""; } catch(e) {} if(!v){ v=idFor("dev"); try { localStorage.setItem(DEVICE_KEY,v); } catch(e) {} } return v; }
+  function deviceName(){ var ua=""; try { ua=navigator.userAgent||""; } catch(e) {} return ua.slice(0,120); }
+  function phoneLock(){ try { return localStorage.getItem(PHONE_LOCK_KEY)||""; } catch(e) { return ""; } }
+  function setPhoneLock(id){ try { if(id) localStorage.setItem(PHONE_LOCK_KEY,String(id)); else localStorage.removeItem(PHONE_LOCK_KEY); } catch(e) {} }
+  function params(){ try { return new URLSearchParams(location.search || ""); } catch(e) { return new URLSearchParams(""); } }
+  function isMobileLike(){ try { return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "") || window.innerWidth <= 760; } catch(e) { return false; } }
+  function phoneContext(){ var p=params(); if(p.get("driver")==="1" || p.get("bezorger")==="1" || p.get("mobile")==="1") return true; if(isMobileLike()) return true; var u=currentUser(); return !!(u && isDriver(u) && window.innerWidth <= 900); }
 
   function ensureStyle(){
-    if (E(STYLE_ID)) return;
-    var st = document.createElement("style"); st.id = STYLE_ID;
-    st.textContent = "" +
-      ".bns-v78-hidden{display:none!important}"+
-      "body.bns-v78-phone-mode{background:#f3f6fb!important;margin:0!important;overflow-x:hidden!important}"+
-      "body.bns-v78-phone-mode > *:not(#"+PHONE_APP_ID+"):not(#toast):not(.toast):not(.bns-v76-backdrop):not(.bns-v78-modal):not(script):not(style){display:none!important}"+
-      "#"+PHONE_APP_ID+"{display:none}"+
-      "body.bns-v78-phone-mode #"+PHONE_APP_ID+"{display:block!important;min-height:100vh;background:#f3f6fb;color:#172033;font-family:system-ui,-apple-system,Segoe UI,sans-serif}"+
-      ".bns-v78-head{position:sticky;top:0;z-index:5;padding:22px 18px;background:linear-gradient(135deg,#0756b7,#0ea5e9);color:#fff;box-shadow:0 8px 24px rgba(15,23,42,.22)}"+
-      ".bns-v78-head h1{margin:0;font-size:28px;line-height:1.05;color:#fff!important}.bns-v78-head small{display:block;margin-top:6px;font-weight:900;opacity:.9}"+
-      ".bns-v78-login-card,.bns-v78-panel{margin:26px auto;padding:22px;width:min(620px,calc(100vw - 28px));background:#fff;border:1px solid #dbe3ef;border-radius:26px;box-shadow:0 12px 36px rgba(15,23,42,.10)}"+
-      ".bns-v78-login-card h2{font-size:34px;margin:0 0 10px;color:#172033}.bns-v78-login-card p{font-size:18px;font-weight:850;color:#64748b;margin:0 0 18px}"+
-      ".bns-v78-login-card input{width:100%;box-sizing:border-box;border:1px solid #dbe3ef;border-radius:18px;padding:18px 20px;font-size:28px;letter-spacing:.18em;color:#172033;background:#fff;margin:8px 0 14px;text-align:center}"+
-      ".bns-v78-btn{border:0;border-radius:18px;padding:16px 18px;font-size:18px;font-weight:950;cursor:pointer;background:#0756b7;color:#fff;width:100%;box-shadow:0 8px 20px rgba(7,86,183,.20)}"+
-      ".bns-v78-subbtn{border:0;border-radius:14px;padding:12px 14px;font-weight:900;cursor:pointer;background:#e2e8f0;color:#172033}"+
-      ".bns-v78-tools{display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:14px 14px 4px}.bns-v78-tools input{border:1px solid #dbe3ef;border-radius:15px;padding:12px;font-weight:800;font-size:16px}.bns-v78-tools button{border:0;border-radius:15px;padding:12px;font-weight:950;background:#0756b7;color:#fff}"+
-      ".bns-v78-list{padding:0 12px 90px}.bns-v78-order{background:#fff;border:1px solid #dbe3ef;border-radius:22px;margin:12px 0;padding:16px;box-shadow:0 8px 24px rgba(15,23,42,.10)}"+
-      ".bns-v78-order h3{font-size:22px;margin:0 0 8px;color:#172033}.bns-v78-meta{display:grid;gap:4px;font-size:15px;font-weight:750;color:#334155;margin-bottom:12px}.bns-v78-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.bns-v78-actions a,.bns-v78-actions button{border:0;text-align:center;text-decoration:none;border-radius:14px;padding:13px 9px;font-size:15px;font-weight:950;color:#fff;background:#2563eb}.bns-v78-actions .green{background:#16a34a}.bns-v78-actions .dark{background:#334155}.bns-v78-actions .orange{background:#f97316}.bns-v78-actions .wide{grid-column:1/-1}.bns-v78-empty{margin:26px 14px;background:#fff;border-radius:20px;padding:22px;font-weight:900;text-align:center;color:#334155}"+
-      ".bns-v78-driver-box{border:1px solid #dbe3ef;border-radius:18px;padding:13px;margin:10px 0;background:rgba(14,165,233,.06)}.bns-v78-driver-title{font-weight:950;margin-bottom:8px;color:#172033}.bns-v78-driver-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}.bns-v78-driver-grid label{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #dbe3ef;border-radius:13px;padding:10px;font-weight:850}.bns-v78-driver-box small{display:block;margin-top:8px;color:#64748b;font-weight:800}"+
-      ".bns-v78-search{border:1px solid #dbe3ef;background:#fff;border-radius:18px;padding:13px;margin:10px 0 14px;box-shadow:0 5px 14px rgba(15,23,42,.06)}.bns-v78-search input{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:13px;font-size:16px;font-weight:850}.bns-v78-invoice-note{display:block;color:#0f766e;font-weight:850;margin-top:4px}"+
-      ".bns-v78-modal{position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:18px}.bns-v78-modal-card{width:min(520px,96vw);background:#fff;color:#172033;border-radius:22px;padding:22px;box-shadow:0 22px 70px rgba(15,23,42,.40);border:1px solid #dbe3ef}.bns-v78-modal-card h2{margin:0 0 10px;font-size:22px;color:#172033}.bns-v78-modal-card p{white-space:pre-wrap;font-weight:800;color:#334155}.bns-v78-modal-card input{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px}.bns-v78-modal-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}.bns-v78-modal-actions button{border:0;border-radius:14px;padding:11px 15px;font-weight:950;cursor:pointer;background:#2563eb;color:#fff}.bns-v78-modal-actions .bns-v78-cancel{background:#64748b}";
+    if(E(STYLE_ID)) return;
+    var st=document.createElement("style"); st.id=STYLE_ID;
+    st.textContent = ""+
+      "#"+PHONE_ROOT_ID+"{display:none}"+
+      "body.bns-v80-phone-mode{margin:0!important;background:#f3f6fb!important;overflow:hidden!important}"+
+      "body.bns-v80-phone-mode #"+PHONE_ROOT_ID+"{display:block!important;position:fixed!important;inset:0!important;z-index:2147483000!important;overflow:auto!important;background:#f3f6fb!important;color:#172033!important;font-family:system-ui,-apple-system,Segoe UI,sans-serif!important}"+
+      "body.bns-v80-phone-mode #login,body.bns-v80-phone-mode #app,body.bns-v80-phone-mode #bnsDriverApp,body.bns-v80-phone-mode #bnsV78PhoneApp{display:none!important;visibility:hidden!important}"+
+      ".bns-v80-head{position:sticky;top:0;z-index:2;padding:22px 18px;background:linear-gradient(135deg,#0756b7,#0ea5e9);color:#fff;box-shadow:0 8px 24px rgba(15,23,42,.22)}"+
+      ".bns-v80-head h1{margin:0;font-size:30px;line-height:1.05;color:#fff!important}.bns-v80-head small{display:block;margin-top:6px;font-weight:900;opacity:.9}"+
+      ".bns-v80-card{margin:28px auto;padding:24px;width:min(620px,calc(100vw - 28px));box-sizing:border-box;background:#fff;border:1px solid #dbe3ef;border-radius:26px;box-shadow:0 12px 36px rgba(15,23,42,.10)}"+
+      ".bns-v80-card h2{font-size:36px;margin:0 0 10px;color:#172033}.bns-v80-card p{font-size:18px;font-weight:850;color:#64748b;margin:0 0 18px}"+
+      ".bns-v80-card input{width:100%;box-sizing:border-box;border:1px solid #dbe3ef;border-radius:18px;padding:18px 20px;font-size:28px;letter-spacing:.16em;color:#172033;background:#fff;margin:8px 0 14px;text-align:center}"+
+      ".bns-v80-btn{border:0;border-radius:18px;padding:16px 18px;font-size:18px;font-weight:950;cursor:pointer;background:#0756b7;color:#fff;width:100%;box-shadow:0 8px 20px rgba(7,86,183,.20)}"+
+      ".bns-v80-tools{display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:14px}.bns-v80-tools input{border:1px solid #dbe3ef;border-radius:15px;padding:12px;font-weight:800;font-size:16px}.bns-v80-tools button{border:0;border-radius:15px;padding:12px;font-weight:950;background:#0756b7;color:#fff}"+
+      ".bns-v80-list{padding:0 12px 90px}.bns-v80-order{background:#fff;border:1px solid #dbe3ef;border-radius:22px;margin:12px 0;padding:16px;box-shadow:0 8px 24px rgba(15,23,42,.10)}"+
+      ".bns-v80-order h3{font-size:22px;margin:0 0 8px;color:#172033}.bns-v80-meta{display:grid;gap:4px;font-size:15px;font-weight:750;color:#334155;margin-bottom:12px}.bns-v80-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.bns-v80-actions a,.bns-v80-actions button{border:0;text-align:center;text-decoration:none;border-radius:14px;padding:13px 9px;font-size:15px;font-weight:950;color:#fff;background:#2563eb}.bns-v80-actions .green{background:#16a34a}.bns-v80-actions .dark{background:#334155}.bns-v80-actions .orange{background:#f97316}.bns-v80-actions .wide{grid-column:1/-1}"+
+      ".bns-v80-empty{margin:26px 14px;background:#fff;border-radius:20px;padding:22px;font-weight:900;text-align:center;color:#334155}"+
+      "#"+DRIVER_BOX_ID+"{border:1px solid #dbe3ef;border-radius:18px;padding:13px;margin:10px 0;background:rgba(14,165,233,.06)}#"+DRIVER_BOX_ID+" .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}#"+DRIVER_BOX_ID+" label{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #dbe3ef;border-radius:13px;padding:10px;font-weight:850}#"+DRIVER_BOX_ID+" small{display:block;margin-top:8px;color:#64748b;font-weight:800}.bns-v80-hide{display:none!important}"+
+      ".bns-v80-search{border:1px solid #dbe3ef;background:#fff;border-radius:18px;padding:13px;margin:10px 0 14px;box-shadow:0 5px 14px rgba(15,23,42,.06)}.bns-v80-search input{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:13px;font-size:16px;font-weight:850}"+
+      ".bns-v80-row-free .badge,.bns-v80-badge-free{background:#dcfce7!important;color:#166534!important}.bns-v80-row-reserved .badge,.bns-v80-badge-reserved{background:#fee2e2!important;color:#991b1b!important}.bns-v80-row-defect .badge,.bns-v80-badge-defect{background:#fee2e2!important;color:#991b1b!important}.bns-v80-row-now .badge,.bns-v80-badge-now{background:#dbeafe!important;color:#1e40af!important}"+
+      ".bns-v80-user-row{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:10px;border:1px solid #dbe3ef;border-radius:14px;margin:8px 0;background:#fff}.bns-v80-user-row button{border:0;border-radius:12px;padding:9px 11px;font-weight:900;cursor:pointer;background:#0f62c0;color:#fff}.bns-v80-user-row button.delete{background:#dc2626}.bns-v80-user-row button.reset{background:#0f766e}.bns-v80-user-row small{display:block;color:#64748b;font-weight:800}";
     document.head.appendChild(st);
   }
 
-  function phoneContext(){
-    var p = params();
-    if (p.get("driver") === "1" || p.get("bezorger") === "1" || p.get("mobile") === "1") return true;
-    try { if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "")) return true; } catch(e) {}
-    var u = currentUser();
-    if (u && isDriver(u) && isSmall()) return true;
-    if (!isSmall()) return false;
-    try {
-      var txt = L(document.body && document.body.innerText || "");
-      if (txt.indexOf("bns bezorger") >= 0 || txt.indexOf("mobiele opdrachten") >= 0) return true;
-    } catch(e) {}
-    return false;
+  async function initFirebase(){
+    if(window.BNS && window.BNS.fs && window.BNS.db) return window.BNS;
+    if(firebasePromise) return firebasePromise;
+    firebasePromise = (async function(){
+      window.BNS = window.BNS || {};
+      if(!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === "VUL_HIER_IN") return null;
+      try{
+        var appMod = await import("https://www.gstatic.com/firebasejs/"+FIREBASE_VERSION+"/firebase-app.js");
+        var fsMod = await import("https://www.gstatic.com/firebasejs/"+FIREBASE_VERSION+"/firebase-firestore.js");
+        var apps = []; try { apps = appMod.getApps ? appMod.getApps() : []; } catch(e) { apps = []; }
+        window.BNS.app = window.BNS.app || (apps.length ? apps[0] : appMod.initializeApp(window.BNS_FIREBASE_CONFIG));
+        window.BNS.fs = window.BNS.fs || fsMod;
+        window.BNS.db = window.BNS.db || fsMod.getFirestore(window.BNS.app);
+        return window.BNS;
+      } catch(e){ try { console.warn("BNS V80 Firebase niet beschikbaar", e); } catch(_e) {} return null; }
+    })();
+    return firebasePromise;
   }
-
-  function checkDeviceAllowed(u){
-    if (!u) return {ok:false,msg:"Gebruiker niet gevonden."};
-    if (!isDriver(u)) return {ok:false,msg:"Deze telefoon is alleen voor bezorgers."};
-    var dev = deviceId();
-    var lock = lockedPhoneUserId();
-    if (lock && String(lock) !== String(u.id)) {
-      var owner = users().find(function(x){ return String(x.id) === String(lock); });
-      return {ok:false,msg:"Deze telefoon is gekoppeld aan " + (owner && owner.name ? owner.name : "een andere medewerker") + ". Vraag admin om Telefoon reset."};
+  function cleanUser(u){
+    return {id:T(u&&u.id)||idFor("u"), name:T(u&&u.name), phone:T(u&&u.phone), pin:T(u&&u.pin), role:roleNorm(u&&u.role), rights:Object.assign({},(u&&u.rights)||{}), deviceId:T(u&&u.deviceId), deviceName:T(u&&u.deviceName), deviceLockedAt:T(u&&u.deviceLockedAt), updatedAt:T(u&&u.updatedAt)||nowIso()};
+  }
+  function syncUsers(){
+    try { if(typeof window.BNS_V76_syncUsers === "function") window.BNS_V76_syncUsers(); } catch(e) {}
+    var rows = users().filter(activeUser).map(cleanUser).filter(function(u){ return u.id && u.name && u.pin; });
+    if(!rows.length) return;
+    initFirebase().then(function(bns){ if(!bns||!bns.fs||!bns.db) return; var fs=bns.fs, now=nowIso(); Promise.all(rows.map(function(u){ return fs.setDoc(fs.doc(bns.db,"users",String(u.id)), Object.assign({},u,{updatedAt:now}), {merge:true}); })).catch(function(){}); fs.setDoc(fs.doc(bns.db,"meta","users"), {users:rows, updatedAt:now}, {merge:false}).catch(function(){}); });
+  }
+  function syncOrder(o){
+    if(!o || !o.id) return;
+    try { if(window.BNS && typeof window.BNS.syncOrder === "function") Promise.resolve(window.BNS.syncOrder(o)).catch(function(){}); } catch(e) {}
+    initFirebase().then(function(bns){ if(!bns||!bns.fs||!bns.db) return; var fs=bns.fs; fs.setDoc(fs.doc(bns.db,"orders",String(o.id)), Object.assign({},o,{updatedAt:nowIso()}), {merge:true}).catch(function(){}); });
+  }
+  async function fetchUsers(timeoutMs){
+    try { if(typeof window.BNS_V76_fetchUsersFresh === "function") await window.BNS_V76_fetchUsersFresh(timeoutMs || 900); } catch(e) {}
+    var done;
+    var timer = new Promise(function(resolve){ done=setTimeout(function(){ resolve(false); }, timeoutMs || 1000); });
+    var work = (async function(){
+      var bns=await initFirebase(); if(!bns||!bns.fs||!bns.db) return false; var fs=bns.fs;
+      try{ var meta=await fs.getDoc(fs.doc(bns.db,"meta","users")); if(meta&&meta.exists&&meta.exists()){ var d=meta.data()||{}; if(Array.isArray(d.users)&&d.users.length){ applyUsers(d.users,true); return true; } } } catch(e) {}
+      try{ var snap=await fs.getDocs(fs.collection(bns.db,"users")); var rows=snap.docs.map(function(d){ return Object.assign({id:d.id},d.data()); }); if(rows.length){ applyUsers(rows,true); return true; } } catch(e) {}
+      return false;
+    })();
+    try { return await Promise.race([work,timer]); } finally { clearTimeout(done); }
+  }
+  function applyUsers(rows, replace){
+    var clean = (rows||[]).map(cleanUser).filter(function(u){ return u.id && u.name && u.pin; });
+    if(!clean.length) return false;
+    var s=stateObj(); if(!s) return false;
+    if(replace) s.users = clean;
+    else {
+      var byId={}; users().forEach(function(u){ if(u&&u.id) byId[String(u.id)]=u; });
+      clean.forEach(function(u){ byId[String(u.id)] = Object.assign({}, byId[String(u.id)]||{}, u); });
+      s.users = Object.keys(byId).map(function(k){ return byId[k]; });
     }
-    var allowed = Array.isArray(u.allowedDeviceIds) ? u.allowedDeviceIds.filter(Boolean).map(String) : [];
-    var bound = T(u.deviceId);
-    if (bound && bound !== dev && allowed.indexOf(dev) < 0) return {ok:false,msg:"Deze PIN is al gekoppeld aan een andere telefoon. Vraag admin om Telefoon reset."};
-    if (!bound && allowed.length && allowed.indexOf(dev) < 0) return {ok:false,msg:"Deze telefoon is niet toegestaan voor deze medewerker. Vraag admin om Telefoon reset."};
+    saveLocal(); stableUserList(); renderDriverBox(); return true;
+  }
+  function subscribeRealtime(){
+    if(phoneSubscribed) return; phoneSubscribed = true;
+    initFirebase().then(function(bns){ if(!bns||!bns.fs||!bns.db||!bns.fs.onSnapshot) return; var fs=bns.fs;
+      try { fs.onSnapshot(fs.doc(bns.db,"meta","users"), function(snap){ if(!snap||!snap.exists||!snap.exists()) return; var d=snap.data()||{}; if(Array.isArray(d.users)) { applyUsers(d.users,true); enforcePhoneUser(); } }); } catch(e) {}
+      try { fs.onSnapshot(fs.collection(bns.db,"orders"), function(snap){ if(!snap) return; snap.docChanges().forEach(function(ch){ var o=Object.assign({id:ch.doc.id},ch.doc.data()); applyOrder(o, ch.type === "removed"); }); renderPhoneOrders(); }); } catch(e) {}
+    });
+  }
+  function applyOrder(o, removed){ if(!o||!o.id) return; var s=stateObj(); if(!s) return; s.orders=Array.isArray(s.orders)?s.orders:[]; var idx=s.orders.findIndex(function(x){ return String(x.id)===String(o.id); }); if(removed){ if(idx>=0) s.orders.splice(idx,1); } else if(idx>=0) s.orders[idx]=Object.assign({},s.orders[idx],o); else s.orders.push(o); saveLocal(); }
+
+  function checkDevice(u){
+    if(!u) return {ok:false,msg:"Gebruiker niet gevonden."};
+    if(!isDriver(u)) return {ok:false,msg:"Deze telefoon is alleen voor bezorgers."};
+    var dev=deviceId(), lock=phoneLock();
+    if(lock && String(lock)!==String(u.id)){ var owner=users().find(function(x){ return String(x.id)===String(lock); }); return {ok:false,msg:"Deze telefoon is gekoppeld aan "+(owner&&owner.name?owner.name:"een andere medewerker")+". Vraag admin om Telefoon reset."}; }
+    var allowed=Array.isArray(u.allowedDeviceIds)?u.allowedDeviceIds.filter(Boolean).map(String):[];
+    var bound=T(u.deviceId);
+    if(bound && bound!==dev && allowed.indexOf(dev)<0) return {ok:false,msg:"Deze PIN is al gekoppeld aan een andere telefoon. Vraag admin om Telefoon reset."};
+    if(!bound && allowed.length && allowed.indexOf(dev)<0) return {ok:false,msg:"Deze telefoon is niet toegestaan voor deze medewerker. Vraag admin om Telefoon reset."};
     return {ok:true,msg:""};
   }
-  function bindDevice(u){
-    if (!u || !isDriver(u)) return;
-    var dev = deviceId();
-    var changed = false;
-    if (!u.deviceId) { u.deviceId = dev; changed = true; }
-    if (!u.deviceName) { u.deviceName = deviceName(); changed = true; }
-    if (!u.deviceLockedAt) { u.deviceLockedAt = nowIso(); changed = true; }
-    setPhoneLock(u.id);
-    if (changed) { u.updatedAt = nowIso(); saveLocal(); syncUsers(); }
-  }
-  function logoutPhone(msg){
-    setCurrentUser(null);
-    setPhoneLock("");
-    try { if (E("app")) E("app").classList.add("hidden"); } catch(e) {}
-    try { if (E("login")) E("login").classList.remove("hidden"); } catch(e) {}
-    renderPhoneLogin();
-    if (msg) notice(msg, "Aanmelden");
-  }
-  function findByPin(pin){ return users().find(function(u){ return activeUser(u) && isDriver(u) && String(u.pin || "") === String(pin); }) || null; }
+  function bindDevice(u){ if(!u||!isDriver(u)) return; var dev=deviceId(), changed=false; if(!u.deviceId){ u.deviceId=dev; changed=true; } if(!u.deviceName){ u.deviceName=deviceName(); changed=true; } if(!u.deviceLockedAt){ u.deviceLockedAt=nowIso(); changed=true; } setPhoneLock(u.id); if(changed){ u.updatedAt=nowIso(); saveLocal(); syncUsers(); } }
+  function rootPhone(){ ensureStyle(); var r=E(PHONE_ROOT_ID); if(!r){ r=document.createElement("div"); r.id=PHONE_ROOT_ID; document.body.appendChild(r); } return r; }
+  function phoneMode(){ ensureStyle(); if(phoneContext()) document.body.classList.add("bns-v80-phone-mode"); }
+  function showPhoneLogin(){ if(!phoneContext()) return; setCurrentUser(null); phoneMode(); var r=rootPhone(); r.innerHTML='<div class="bns-v80-head"><h1>BNS Bezorger</h1><small>Mobiele opdrachten</small></div><div class="bns-v80-card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in. Namen van collega\'s worden niet getoond.</p><input id="bnsV80PhonePin" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" type="text" placeholder="PIN" maxlength="12"><button type="button" class="bns-v80-btn" id="bnsV80PhoneLoginBtn">Inloggen</button></div>'; var inp=E("bnsV80PhonePin"), btn=E("bnsV80PhoneLoginBtn"); if(inp){ setTimeout(function(){ try{ inp.focus(); }catch(e){} },60); inp.onkeydown=function(ev){ if(ev.key==="Enter") phoneLogin(inp.value); }; } if(btn) btn.onclick=function(){ phoneLogin(inp&&inp.value); }; }
+  async function phoneLogin(pinValue){ var p=T(pinValue); if(!p){ notify("Vul je PIN in.","Aanmelden"); return false; } await fetchUsers(1200); var u=users().find(function(x){ return activeUser(x) && isDriver(x) && String(x.pin||"")===String(p); }); if(!u){ notify("PIN niet gevonden of gebruiker is verwijderd.","Aanmelden"); return false; } var chk=checkDevice(u); if(!chk.ok){ notify(chk.msg,"Aanmelden"); return false; } bindDevice(u); setCurrentUser(u); phoneMode(); subscribeRealtime(); renderPhoneOrders(); return false; }
+  async function autoPhone(){ if(!phoneContext()) return; phoneMode(); subscribeRealtime(); var lock=phoneLock(); var u=null; if(lock){ await fetchUsers(1200); u=users().find(function(x){ return activeUser(x) && isDriver(x) && String(x.id)===String(lock); }); if(!u){ setPhoneLock(""); showPhoneLogin(); return; } var chk=checkDevice(u); if(!chk.ok){ setPhoneLock(""); showPhoneLogin(); notify(chk.msg,"Aanmelden"); return; } bindDevice(u); setCurrentUser(u); renderPhoneOrders(); return; } var cu=currentUser(); if(cu && activeUser(cu) && isDriver(cu)){ var chk2=checkDevice(cu); if(chk2.ok){ bindDevice(cu); renderPhoneOrders(); return; } } showPhoneLogin(); }
+  function enforcePhoneUser(){ if(!phoneContext()) return; var u=currentUser(); if(!u) return; var fresh=users().find(function(x){ return String(x.id)===String(u.id); }); if(!fresh || !activeUser(fresh)){ setPhoneLock(""); showPhoneLogin(); notify("Deze gebruiker is verwijderd of uitgezet.","Aanmelden"); return; } var chk=checkDevice(fresh); if(!chk.ok){ setPhoneLock(""); showPhoneLogin(); notify(chk.msg,"Aanmelden"); return; } setCurrentUser(fresh); }
 
-  async function phoneLogin(pin){
-    pin = T(pin);
-    if (!pin) { notice("Vul je PIN in.", "Aanmelden"); return false; }
-    var u = findByPin(pin);
-    await fetchUsers(900);
-    u = findByPin(pin);
-    if (!u) { notice("PIN niet gevonden of gebruiker is verwijderd.", "Aanmelden"); return false; }
-    var chk = checkDeviceAllowed(u);
-    if (!chk.ok) { notice(chk.msg, "Aanmelden"); return false; }
-    bindDevice(u);
-    setCurrentUser(u);
-    renderPhoneDriverApp();
-    return false;
-  }
-
-  async function tryAutoPhoneLogin(){
-    if (!phoneContext()) return false;
-    var lock = lockedPhoneUserId();
-    if (!lock) return false;
-    await fetchUsers(1000);
-    var u = users().find(function(x){ return activeUser(x) && String(x.id) === String(lock); }) || null;
-    if (!u) { setPhoneLock(""); return false; }
-    var chk = checkDeviceAllowed(u);
-    if (!chk.ok) { setPhoneLock(""); notice(chk.msg, "Aanmelden"); return false; }
-    setCurrentUser(u);
-    renderPhoneDriverApp();
-    fetchUsers(1500).then(function(){ var fresh = users().find(function(x){return String(x.id)===String(u.id);}); if(!fresh || !activeUser(fresh)){ logoutPhone("Deze gebruiker is verwijderd of uitgezet."); } });
-    return true;
-  }
-
-  function ensurePhoneRoot(){
-    ensureStyle();
-    var root = E(PHONE_APP_ID);
-    if (!root) { root = document.createElement("div"); root.id = PHONE_APP_ID; document.body.appendChild(root); }
-    return root;
-  }
-  function renderPhoneLogin(){
-    if (!phoneContext()) return;
-    ensureStyle();
-    document.body.classList.add("bns-v78-phone-mode");
-    var root = ensurePhoneRoot();
-    root.innerHTML = '<div id="'+PHONE_LOGIN_ID+'">' +
-      '<div class="bns-v78-head"><h1>BNS Bezorger</h1><small>Mobiele opdrachten</small></div>' +
-      '<div class="bns-v78-login-card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in. Namen van collega\'s worden niet getoond.</p>' +
-      '<input id="bnsV78PhonePin" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" type="text" placeholder="PIN" maxlength="12">' +
-      '<button type="button" class="bns-v78-btn" id="bnsV78PhoneLoginBtn">Inloggen</button></div></div>';
-    var pin = E("bnsV78PhonePin");
-    var btn = E("bnsV78PhoneLoginBtn");
-    if (pin) { setTimeout(function(){ try { pin.focus(); } catch(e) {} }, 60); pin.onkeydown = function(ev){ if (ev.key === "Enter") phoneLogin(pin.value); }; }
-    if (btn) btn.onclick = function(){ phoneLogin(pin && pin.value); };
-  }
-
-  function niceDate(v){ v=T(v).slice(0,10); var p=v.split("-"); return p.length===3 ? p[2]+"-"+p[1]+"-"+p[0] : v; }
   function dateVal(o){ return T(o && (o.start || o.dateStart || o.startDate || o.date || "9999-12-31")); }
-  function orderEnd(o){ return T(o && (o.end || o.dateEnd || o.endDate || dateVal(o))); }
-  function orderActive(o){ var st=L(o && o.status); return !!o && !/geannuleerd|geannuleerde|cancel|uitgevoerd|afgerond|verwijderd|deleted|done/.test(st); }
-  function materialText(o){ var m=o && (o.materials || o.mats) || []; if(!Array.isArray(m)) return ""; return m.map(function(x){ return typeof x === "string" ? x : (x.code || x.name || ""); }).filter(Boolean).join(", "); }
-  function addressOf(o){
-    var parts=[];
-    function add(v){ v=T(v); if(v && parts.indexOf(v)<0) parts.push(v); }
-    if(!o) return "";
-    add(o.locationName); add(o.locationAddress); add(o.locationStreet); add(o.locationZip); add(o.locationCity); add(o.address); add(o.street); add(o.zip); add(o.city);
-    if (o.location && typeof o.location === "object") { add(o.location.name); add(o.location.address); add(o.location.street); add(o.location.zip); add(o.location.city); }
-    return parts.join(", ");
-  }
-  function customerName(o){ return T(o && (o.customerName || (o.customer && o.customer.name) || "")); }
-  function customerPhone(o){ return T(o && (o.customerPhone || o.phone || (o.customer && o.customer.phone) || "")); }
-  function routeUrl(kind, addr){ var q=encodeURIComponent(addr || ""); return kind === "waze" ? "https://waze.com/ul?q="+q+"&navigate=yes" : "https://www.google.com/maps/search/?api=1&query="+q; }
-
-  function orderDriverNames(o){
-    var names=[];
-    function add(v){ v=T(v); if(v && names.map(L).indexOf(L(v))<0) names.push(v); }
-    if (!o) return names;
-    if (Array.isArray(o.driverNames)) o.driverNames.forEach(add);
-    if (Array.isArray(o.bezorgers)) o.bezorgers.forEach(function(x){ add(typeof x === "string" ? x : x && x.name); });
-    if (Array.isArray(o.drivers)) o.drivers.forEach(function(x){ add(typeof x === "string" ? x : x && x.name); });
-    [o.driverName, o.driver, o.bezorger, o.driverUser && o.driverUser.name].forEach(function(v){
-      T(v).split(/[,;|]+/).forEach(add);
-    });
-    return names;
-  }
-  function orderDriverIds(o){
-    var ids=[];
-    function add(v){ v=T(v); if(v && ids.indexOf(v)<0) ids.push(v); }
-    if (!o) return ids;
-    if (Array.isArray(o.driverIds)) o.driverIds.forEach(add);
-    if (Array.isArray(o.bezorgerIds)) o.bezorgerIds.forEach(add);
-    if (Array.isArray(o.drivers)) o.drivers.forEach(function(x){ if(x && typeof x === "object") add(x.id); });
-    add(o.driverId); add(o.bezorgerId); add(o.driverUser && o.driverUser.id);
-    return ids;
-  }
-  function assignedTo(u,o){
-    if (!u || !isDriver(u)) return true;
-    var uid=T(u.id), uname=L(u.name);
-    var ids=orderDriverIds(o);
-    if (uid && ids.indexOf(uid) >= 0) return true;
-    var names=orderDriverNames(o).map(L);
-    if (uname && names.indexOf(uname) >= 0) return true;
-    return false;
-  }
-  function phoneRows(){ var u=currentUser(); return orders().filter(orderActive).filter(function(o){return assignedTo(u,o);}).sort(function(a,b){return dateVal(a).localeCompare(dateVal(b));}); }
-
-  function orderCard(o){
-    var id=esc(o.id || ""), nr=esc(o.number || ""), title=esc(o.title || "Zonder titel"), addr=addressOf(o), phone=customerPhone(o);
-    var start=dateVal(o), end=orderEnd(o), dateLine=niceDate(start)+(end && end!==start ? " t/m "+niceDate(end) : "");
-    return '<div class="bns-v78-order" data-bns-v78-order="'+id+'"><h3>'+nr+' - '+title+'</h3>'+
-      '<div class="bns-v78-meta"><div>Datum: '+esc(dateLine)+'</div><div>Klant: '+esc(customerName(o) || "Klant onbekend")+'</div><div>Adres: '+esc(addr || "Adres onbekend")+'</div><div>Materialen: '+esc(materialText(o) || "Geen materialen")+'</div><div>Status: '+esc(o.status || "")+'</div></div>'+
-      '<div class="bns-v78-actions"><a class="green" href="'+esc(routeUrl("waze",addr))+'" target="_blank" rel="noopener">Waze</a><a class="dark" href="'+esc(routeUrl("maps",addr))+'" target="_blank" rel="noopener">Maps</a>'+
-      (phone ? '<a href="tel:'+esc(phone)+'">Bel klant</a>' : '<button type="button">Geen tel.</button>')+
-      '<button type="button" class="orange" data-bns-v78-report="'+id+'">Melding</button><button type="button" class="wide" data-bns-v78-done="'+id+'">Afmelden / uitgevoerd</button></div></div>';
-  }
-  function renderPhoneDriverApp(){
-    if (!phoneContext()) return;
-    var u = currentUser();
-    if (!u || !isDriver(u)) { renderPhoneLogin(); return; }
-    ensureStyle(); document.body.classList.add("bns-v78-phone-mode");
-    try { if (E("login")) E("login").classList.add("hidden"); if (E("app")) E("app").classList.add("hidden"); } catch(e) {}
-    var root = ensurePhoneRoot();
-    var rows = phoneRows();
-    root.innerHTML = '<div id="'+PHONE_DRIVER_APP_ID+'"><div class="bns-v78-head"><h1>BNS Bezorger</h1><small>'+esc(u.name || "Bezorger")+' - Mobiele opdrachten</small></div>'+
-      '<div class="bns-v78-tools"><input id="bnsV78PhoneSearch" placeholder="Zoek opdracht / klant / adres"><button type="button" id="bnsV78Refresh">Verversen</button><button type="button" id="bnsV78Logout">Uitloggen</button></div>'+
-      '<div class="bns-v78-list" id="bnsV78OrderList">'+(rows.length ? rows.map(orderCard).join("") : '<div class="bns-v78-empty">Geen opdrachten voor deze bezorger.</div>')+'</div></div>';
-    bindPhoneApp(root);
-  }
-  function bindPhoneApp(root){
-    var search=E("bnsV78PhoneSearch"); if(search) search.oninput=function(){ var q=L(search.value); A(".bns-v78-order", root).forEach(function(el){ el.style.display = !q || L(el.innerText).indexOf(q)>=0 ? "" : "none"; }); };
-    var refresh=E("bnsV78Refresh"); if(refresh) refresh.onclick=function(){ fetchUsers(1000).then(renderPhoneDriverApp); };
-    var logout=E("bnsV78Logout"); if(logout) logout.onclick=function(){ logoutPhone(); };
-    A("[data-bns-v78-done]", root).forEach(function(btn){ btn.onclick=function(){ var o=findOrder(btn.getAttribute("data-bns-v78-done")); if(!o) return; ask("Opdracht afmelden als uitgevoerd?", "Opdracht afmelden").then(function(ok){ if(!ok) return; o.status="Uitgevoerd"; o.doneAt=nowIso(); saveLocal(); syncOrder(o); toast("Opdracht afgemeld"); renderPhoneDriverApp(); }); }; });
-    A("[data-bns-v78-report]", root).forEach(function(btn){ btn.onclick=function(){ var o=findOrder(btn.getAttribute("data-bns-v78-report")); if(!o) return; promptText("Melding voor planning:", "", "Melding").then(function(text){ text=T(text); if(!text) return; var s=S(); if(!s) return; s.alerts=Array.isArray(s.alerts)?s.alerts:[]; s.alerts.push({id:"a_"+Math.random().toString(36).slice(2,10), orderId:o.id||"", orderNumber:o.number||"", title:"Bezorger melding", text:text, note:text, resolved:false, createdAt:nowIso(), time:new Date().toLocaleString(), from:(currentUser()&&currentUser().name)||"Bezorger"}); saveLocal(); toast("Melding verstuurd"); }); }; });
-  }
-  function findOrder(id){ return orders().find(function(o){ return String(o.id || "") === String(id || ""); }) || null; }
+  function endVal(o){ return T(o && (o.end || o.dateEnd || o.endDate || dateVal(o))); }
+  function niceDate(v){ v=T(v).slice(0,10); var p=v.split("-"); return p.length===3?p[2]+"-"+p[1]+"-"+p[0]:v; }
+  function orderActive(o){ var st=L(o&&o.status); return !!o && !/geannuleerd|geannuleerde|cancel|uitgevoerd|afgerond|verwijderd|deleted|done/.test(st); }
+  function orderDriverIds(o){ var ids=[]; function add(v){ v=T(v); if(v && ids.indexOf(v)<0) ids.push(v); } if(!o) return ids; if(Array.isArray(o.driverIds)) o.driverIds.forEach(add); if(Array.isArray(o.bezorgerIds)) o.bezorgerIds.forEach(add); if(Array.isArray(o.drivers)) o.drivers.forEach(function(x){ if(x&&typeof x==="object") add(x.id); }); add(o.driverId); add(o.bezorgerId); add(o.driverUser&&o.driverUser.id); return ids; }
+  function orderDriverNames(o){ var names=[]; function add(v){ v=T(v); if(v && names.map(L).indexOf(L(v))<0) names.push(v); } if(!o) return names; if(Array.isArray(o.driverNames)) o.driverNames.forEach(add); if(Array.isArray(o.bezorgers)) o.bezorgers.forEach(function(x){ add(typeof x==="string"?x:x&&x.name); }); if(Array.isArray(o.drivers)) o.drivers.forEach(function(x){ add(typeof x==="string"?x:x&&x.name); }); [o.driverName,o.driver,o.bezorger,o.driverUser&&o.driverUser.name].forEach(function(v){ T(v).split(/[,;|]+/).forEach(add); }); return names; }
+  function assignedTo(u,o){ if(!u || !isDriver(u)) return true; var uid=T(u.id), uname=L(u.name), ids=orderDriverIds(o), names=orderDriverNames(o).map(L); if(uid && ids.indexOf(uid)>=0) return true; if(uname && names.indexOf(uname)>=0) return true; return false; }
+  function customerName(o){ return T(o&&(o.customerName || (o.customer&&o.customer.name) || "")); }
+  function customerPhone(o){ return T(o&&(o.customerPhone || o.phone || (o.customer&&o.customer.phone) || "")); }
+  function addressOf(o){ var parts=[]; function add(v){ v=T(v); if(v && parts.indexOf(v)<0) parts.push(v); } if(!o) return ""; [o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,o.address,o.street,o.zip,o.city].forEach(add); if(o.location&&typeof o.location==="object") [o.location.name,o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add); return parts.join(", "); }
+  function materialText(o){ var m=o&&(o.materials||o.mats)||[]; if(!Array.isArray(m)) return ""; return m.map(function(x){ return typeof x==="string"?x:(x.code||x.name||""); }).filter(Boolean).join(", "); }
+  function routeUrl(kind, addr){ var q=encodeURIComponent(addr||""); return kind==="waze"?"https://waze.com/ul?q="+q+"&navigate=yes":"https://www.google.com/maps/search/?api=1&query="+q; }
+  function renderPhoneOrders(){ if(!phoneContext()) return; var u=currentUser(); if(!u || !isDriver(u)){ showPhoneLogin(); return; } phoneMode(); var rows=orders().filter(orderActive).filter(function(o){ return assignedTo(u,o); }).sort(function(a,b){ return dateVal(a).localeCompare(dateVal(b)); }).slice(0,120); var r=rootPhone(); r.innerHTML='<div class="bns-v80-head"><h1>BNS Bezorger</h1><small>'+esc(u.name||"Bezorger")+' - Mobiele opdrachten</small></div><div class="bns-v80-tools"><input id="bnsV80PhoneSearch" placeholder="Zoek opdracht / klant / adres"><button type="button" id="bnsV80Refresh">Verversen</button><button type="button" id="bnsV80Logout">Uitloggen</button></div><div class="bns-v80-list">'+(rows.length?rows.map(phoneCard).join(""):'<div class="bns-v80-empty">Geen opdrachten voor deze bezorger.</div>')+'</div>'; bindPhoneButtons(r); }
+  function phoneCard(o){ var id=esc(o.id||""), addr=addressOf(o), phone=customerPhone(o), start=dateVal(o), end=endVal(o), range=niceDate(start)+(end&&end!==start?" t/m "+niceDate(end):""); return '<div class="bns-v80-order" data-bns-v80-order="'+id+'"><h3>'+esc(o.number||"")+' - '+esc(o.title||"Zonder titel")+'</h3><div class="bns-v80-meta"><div>Datum: '+esc(range)+'</div><div>Klant: '+esc(customerName(o)||"Klant onbekend")+'</div><div>Adres: '+esc(addr||"Adres onbekend")+'</div><div>Materialen: '+esc(materialText(o)||"Geen materialen")+'</div><div>Status: '+esc(o.status||"")+'</div></div><div class="bns-v80-actions"><a class="green" href="'+esc(routeUrl("waze",addr))+'" target="_blank" rel="noopener">Waze</a><a class="dark" href="'+esc(routeUrl("maps",addr))+'" target="_blank" rel="noopener">Maps</a>'+(phone?'<a href="tel:'+esc(phone)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button type="button" class="orange" data-bns-v80-report="'+id+'">Melding</button><button type="button" class="wide" data-bns-v80-done="'+id+'">Afmelden / uitgevoerd</button></div></div>'; }
+  function bindPhoneButtons(root){ var search=E("bnsV80PhoneSearch"); if(search) search.oninput=function(){ var q=L(search.value); A(".bns-v80-order",root).forEach(function(el){ el.style.display=!q||L(el.innerText).indexOf(q)>=0?"":"none"; }); }; var ref=E("bnsV80Refresh"); if(ref) ref.onclick=function(){ fetchUsers(1200).then(renderPhoneOrders); }; var lo=E("bnsV80Logout"); if(lo) lo.onclick=function(){ setPhoneLock(""); setCurrentUser(null); showPhoneLogin(); }; A("[data-bns-v80-done]",root).forEach(function(btn){ btn.onclick=function(){ var o=findOrder(btn.getAttribute("data-bns-v80-done")); if(!o) return; ask("Opdracht afmelden als uitgevoerd?","Opdracht afmelden").then(function(ok){ if(!ok) return; o.status="Uitgevoerd"; o.doneAt=nowIso(); saveLocal(); syncOrder(o); renderPhoneOrders(); }); }; }); A("[data-bns-v80-report]",root).forEach(function(btn){ btn.onclick=function(){ var o=findOrder(btn.getAttribute("data-bns-v80-report")); if(!o) return; var text=prompt("Melding voor planning:",""); text=T(text); if(!text) return; var s=stateObj(); if(!s) return; s.alerts=Array.isArray(s.alerts)?s.alerts:[]; s.alerts.push({id:idFor("a"),orderId:o.id||"",orderNumber:o.number||"",title:"Bezorger melding",text:text,note:text,resolved:false,createdAt:nowIso(),time:new Date().toLocaleString(),from:(currentUser()&&currentUser().name)||"Bezorger"}); saveLocal(); toast("Melding verstuurd"); }; }); }
+  function findOrder(id){ return orders().find(function(o){ return String(o.id||"")===String(id||""); }) || null; }
 
   function driverUsers(){ return users().filter(function(u){ return activeUser(u) && isDriver(u); }).sort(function(a,b){ return T(a.name).localeCompare(T(b.name)); }); }
-  function getSelectedDriverIds(){
-    var ids=[];
-    A("#"+DRIVER_BOX_ID+" input[type='checkbox']:checked").forEach(function(cb){ if(T(cb.value) && ids.indexOf(T(cb.value))<0) ids.push(T(cb.value)); });
-    if (!ids.length) { try { ids = JSON.parse(sessionStorage.getItem(DRIVER_SELECTED_KEY) || "[]").map(T).filter(Boolean); } catch(e) { ids=[]; } }
-    return ids;
-  }
-  function setSelectedDriverIds(ids){ try { sessionStorage.setItem(DRIVER_SELECTED_KEY, JSON.stringify((ids||[]).map(T).filter(Boolean))); } catch(e) {} }
-  function selectedDrivers(){ var ids=getSelectedDriverIds(); return driverUsers().filter(function(u){ return ids.indexOf(String(u.id))>=0; }); }
-  function selectedDriverNames(){ return selectedDrivers().map(function(u){ return u.name || ""; }).filter(Boolean); }
-  function ensureDriverSelectValue(names){
-    var sel=E("orderDriver"); if(!sel) return;
-    var joined=(names||selectedDriverNames()).join(", ");
-    var opt=sel.querySelector("option[data-bns-v78-multi]");
-    if(!opt){ opt=document.createElement("option"); opt.setAttribute("data-bns-v78-multi","1"); sel.insertBefore(opt, sel.firstChild); }
-    opt.value=joined; opt.textContent=joined || "Geen"; opt.selected=true;
-    if(!joined){ var empty=Array.prototype.slice.call(sel.options).find(function(o){ return !T(o.value); }); if(empty) empty.selected=true; }
-  }
-  function readDriversFromOrder(o){
-    if(!o) return [];
-    var ids=orderDriverIds(o);
-    if(ids.length) return ids;
-    var names=orderDriverNames(o).map(L);
-    return driverUsers().filter(function(u){ return names.indexOf(L(u.name))>=0; }).map(function(u){ return String(u.id); });
-  }
-  function renderDriverMultiBox(){
-    var sel=E("orderDriver"); if(!sel) return;
-    try { sel.classList.add("bns-v78-hidden"); } catch(e) {}
-    ensureStyle();
-    var box=E(DRIVER_BOX_ID);
-    if(!box){ box=document.createElement("div"); box.id=DRIVER_BOX_ID; box.className="bns-v78-driver-box"; sel.insertAdjacentElement("afterend", box); }
-    var selected=getSelectedDriverIds();
-    var rows=driverUsers();
-    var key=JSON.stringify({selected:selected, rows:rows.map(function(u){return [u.id,u.name,u.role];})});
-    if(box.dataset.bnsV78Key === key && box.querySelector("input[type='checkbox']")) { ensureDriverSelectValue(); return; }
-    box.dataset.bnsV78Key = key;
-    box.innerHTML='<div class="bns-v78-driver-title">Bezorgers voor deze opdracht</div><div class="bns-v78-driver-grid">'+
-      (rows.length ? rows.map(function(u){ var checked=selected.indexOf(String(u.id))>=0 ? " checked" : ""; return '<label><input type="checkbox" value="'+esc(u.id)+'"'+checked+'> '+esc(u.name || "")+'</label>'; }).join("") : '<small>Geen bezorgers gevonden in Admin > Personeel.</small>')+
-      '</div><small>Je kunt meerdere bezorgers aanvinken. De telefoon toont de opdracht bij iedere gekozen bezorger.</small>';
-    A("input[type='checkbox']", box).forEach(function(cb){ cb.onchange=function(){ var ids=getSelectedDriverIds(); setSelectedDriverIds(ids); box.dataset.bnsV78Key=""; ensureDriverSelectValue(); updateSummaryDriverText(); }; });
-    ensureDriverSelectValue(); updateSummaryDriverText();
-  }
-  function updateSummaryDriverText(){
-    var names=selectedDriverNames().join(", ");
-    try { if (typeof summaryRender === "function") summaryRender(); } catch(e) {}
-    try {
-      A(".summary-card").forEach(function(card){ var b=card.querySelector("b"); if(b && /bezorger/i.test(b.textContent || "") && names){ var nodes=Array.prototype.slice.call(card.childNodes).filter(function(n){ return n.nodeType===3; }); if(nodes.length) nodes[nodes.length-1].nodeValue=names; } });
-    } catch(e) {}
-  }
-  function applyDriversToOrder(o, selected){
-    if(!o) return;
-    selected = selected || selectedDrivers();
-    var names = selected.map(function(u){ return u.name || ""; }).filter(Boolean);
-    var ids = selected.map(function(u){ return String(u.id || ""); }).filter(Boolean);
-    var joined = names.join(", ");
-    o.driver = joined;
-    o.driverName = joined;
-    o.bezorger = joined;
-    o.driverNames = names;
-    o.driverIds = ids;
-    o.bezorgerIds = ids;
-    o.drivers = selected.map(function(u){ return {id:u.id || "", name:u.name || "", role:u.role || "Bezorger"}; });
-    o.updatedAt = nowIso();
-  }
-  function patchSaveOrder(){
-    var old=null;
-    try { old = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null); } catch(e) { old=null; }
-    if(!old) return;
-    var wrapped = old.__bnsV78MultiDriver ? old : null;
-    if(!wrapped){
-      wrapped=function(){
-        var selected = selectedDrivers();
-        ensureDriverSelectValue(selected.map(function(u){return u.name || "";}));
-        var nr="", edit="";
-        try { nr = T(E("orderNumber") && E("orderNumber").value); } catch(e) {}
-        try { if (typeof editing !== "undefined") edit = T(editing); } catch(e) {}
-        var r = old.apply(this, arguments);
-        setTimeout(function(){
-          var s=S(); if(!s || !Array.isArray(s.orders)) return;
-          var o = (edit && s.orders.find(function(x){return String(x.id||"")===String(edit);}));
-          if(!o && nr) o = s.orders.find(function(x){return String(x.number||"")===String(nr);});
-          if(!o && s.orders.length) o = s.orders[s.orders.length-1];
-          if(o){ applyDriversToOrder(o, selected); saveLocal(); syncOrder(o); try { if(typeof renderOrders === "function") renderOrders(); } catch(e) {} try { if(typeof renderDashboard === "function") renderDashboard(); } catch(e) {} }
-        }, 60);
-        return r;
-      };
-      wrapped.__bnsV78MultiDriver=true; if(old.__bnsV73) wrapped.__bnsV73=true;
-      try { window.saveCurrentOrder=wrapped; } catch(e) {}
-      try { saveCurrentOrder=wrapped; } catch(e) {}
-    }
-    try { window.BNS_V78_saveCurrentOrder = wrapped; } catch(e) {}
-    var btn=E("saveOrder");
-    if(btn && btn.dataset.bnsV78Save !== "1"){
-      btn.dataset.bnsV78Save="1";
-      btn.onclick=function(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } return wrapped(); };
-    }
-  }
-  function bindSaveClickCapture(){
-    if(document.documentElement.dataset.bnsV78SaveCapture === "1") return;
-    document.documentElement.dataset.bnsV78SaveCapture = "1";
-    document.addEventListener("click", function(ev){
-      var t = ev.target;
-      if(!t || !t.closest) return;
-      var btn = t.closest("#saveOrder");
-      if(!btn) return;
-      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      patchSaveOrder();
-      var fn = null;
-      try { fn = window.BNS_V78_saveCurrentOrder || window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null); } catch(e) { fn = null; }
-      if(fn) return fn();
-      return false;
-    }, true);
-  }
-  function patchEditOrder(){
-    var old=null;
-    try { old = window.editOrder || (typeof editOrder === "function" ? editOrder : null); } catch(e){ old=null; }
-    if(!old || old.__bnsV78EditDriver) return;
-    var wrapped=function(oid){
-      var r=old.apply(this, arguments);
-      setTimeout(function(){ var o=findOrder(oid); var ids=readDriversFromOrder(o); setSelectedDriverIds(ids); renderDriverMultiBox(); ensureDriverSelectValue(); }, 120);
-      return r;
-    };
-    wrapped.__bnsV78EditDriver=true; if(old.__bnsV73) wrapped.__bnsV73=true;
-    try { window.editOrder=wrapped; } catch(e) {}
-    try { editOrder=wrapped; } catch(e) {}
-  }
-  function patchClearOrder(){
-    var old=null;
-    try { old=window.clearOrder || (typeof clearOrder === "function" ? clearOrder : null); } catch(e){ old=null; }
-    if(!old || old.__bnsV78ClearDriver) return;
-    var wrapped=function(){ var r=old.apply(this, arguments); setSelectedDriverIds([]); setTimeout(renderDriverMultiBox, 50); return r; };
-    wrapped.__bnsV78ClearDriver=true; if(old.__bnsV73) wrapped.__bnsV73=true;
-    try { window.clearOrder=wrapped; } catch(e) {}
-    try { clearOrder=wrapped; } catch(e) {}
-  }
+  function selectedDriverIds(){ var ids=[]; A("#"+DRIVER_BOX_ID+" input[type='checkbox']:checked").forEach(function(cb){ if(T(cb.value)&&ids.indexOf(T(cb.value))<0) ids.push(T(cb.value)); }); if(ids.length) return ids; try { ids=JSON.parse(sessionStorage.getItem(DRIVER_STORE_KEY)||"[]").map(T).filter(Boolean); } catch(e) { ids=[]; } return ids; }
+  function setSelectedDriverIds(ids){ try { sessionStorage.setItem(DRIVER_STORE_KEY, JSON.stringify((ids||[]).map(T).filter(Boolean))); } catch(e) {} }
+  function selectedDrivers(){ var ids=selectedDriverIds(); return driverUsers().filter(function(u){ return ids.indexOf(String(u.id))>=0; }); }
+  function applyDriversToOrder(o, sel){ if(!o) return; sel=sel||selectedDrivers(); var names=sel.map(function(u){ return u.name||""; }).filter(Boolean); var ids=sel.map(function(u){ return String(u.id||""); }).filter(Boolean); var joined=names.join(", "); o.driver=joined; o.driverName=joined; o.bezorger=joined; o.driverNames=names; o.driverIds=ids; o.bezorgerIds=ids; o.drivers=sel.map(function(u){ return {id:u.id||"", name:u.name||"", role:u.role||"Bezorger"}; }); o.updatedAt=nowIso(); }
+  function idsFromOrder(o){ var ids=orderDriverIds(o); if(ids.length) return ids; var names=orderDriverNames(o).map(L); return driverUsers().filter(function(u){ return names.indexOf(L(u.name))>=0; }).map(function(u){ return String(u.id); }); }
+  function renderDriverBox(){ var sel=E("orderDriver"); if(!sel) return; ensureStyle(); sel.classList.add("bns-v80-hide"); var box=E(DRIVER_BOX_ID); if(!box){ box=document.createElement("div"); box.id=DRIVER_BOX_ID; sel.insertAdjacentElement("afterend",box); } var drivers=driverUsers(); var selected=selectedDriverIds(); var key=JSON.stringify({d:drivers.map(function(u){return [u.id,u.name,u.role];}), s:selected}); if(box.dataset.key===key) return; box.dataset.key=key; box.innerHTML='<b>Bezorgers voor deze opdracht</b><div class="grid">'+(drivers.length?drivers.map(function(u){ return '<label><input type="checkbox" value="'+esc(u.id)+'" '+(selected.indexOf(String(u.id))>=0?'checked':'')+'> '+esc(u.name||"")+'</label>'; }).join(""):'<small>Geen bezorgers gevonden in Admin &gt; Personeel.</small>')+'</div><small>Meerdere bezorgers aanvinken kan. De telefoon toont de opdracht bij iedere gekozen bezorger.</small>'; A("input",box).forEach(function(cb){ cb.onchange=function(){ setSelectedDriverIds(selectedDriverIds()); syncSelectDriverText(); }; }); syncSelectDriverText(); }
+  function syncSelectDriverText(){ var sel=E("orderDriver"); if(!sel) return; var names=selectedDrivers().map(function(u){return u.name||"";}).filter(Boolean); var opt=sel.querySelector("option[data-bns-v80-multi]"); if(!opt){ opt=document.createElement("option"); opt.setAttribute("data-bns-v80-multi","1"); sel.insertBefore(opt,sel.firstChild); } opt.value=names.join(", "); opt.textContent=opt.value||"Geen"; opt.selected=true; try { if(typeof summaryRender === "function") summaryRender(); } catch(e) {} }
+  function patchOrderSave(){ var old=null; try { old=window.saveCurrentOrder || (typeof saveCurrentOrder==="function"?saveCurrentOrder:null); } catch(e) {} if(!old || old.__bnsV80Save) return; var wrapped=function(){ var sel=selectedDrivers(); syncSelectDriverText(); var edit="", nr=""; try { edit=T(editing); } catch(e) {} try { nr=T(E("orderNumber")&&E("orderNumber").value); } catch(e) {} var r=old.apply(this,arguments); setTimeout(function(){ var o=null; if(edit) o=orders().find(function(x){ return String(x.id||"")===String(edit); }); if(!o&&nr) o=orders().find(function(x){ return String(x.number||"")===String(nr); }); if(!o&&orders().length) o=orders()[orders().length-1]; if(o){ applyDriversToOrder(o,sel); saveLocal(); syncOrder(o); try { if(typeof renderOrders==="function") renderOrders(); } catch(e) {} } },80); return r; }; wrapped.__bnsV80Save=true; if(old.__bnsV73) wrapped.__bnsV73=true; try { window.saveCurrentOrder=wrapped; } catch(e) {} try { saveCurrentOrder=wrapped; } catch(e) {} var b=E("saveOrder"); if(b){ b.onclick=function(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } return wrapped(); }; } }
+  function patchEditOrder(){ var old=null; try { old=window.editOrder || (typeof editOrder==="function"?editOrder:null); } catch(e) {} if(!old || old.__bnsV80Edit) return; var wrapped=function(id){ var r=old.apply(this,arguments); setTimeout(function(){ var o=findOrder(id); setSelectedDriverIds(idsFromOrder(o)); renderDriverBox(); syncSelectDriverText(); },120); return r; }; wrapped.__bnsV80Edit=true; try { window.editOrder=wrapped; } catch(e) {} try { editOrder=wrapped; } catch(e) {} }
+  function patchClearOrder(){ var old=null; try { old=window.clearOrder || (typeof clearOrder==="function"?clearOrder:null); } catch(e) {} if(!old || old.__bnsV80Clear) return; var wrapped=function(){ var r=old.apply(this,arguments); setSelectedDriverIds([]); setTimeout(renderDriverBox,60); return r; }; wrapped.__bnsV80Clear=true; try { window.clearOrder=wrapped; } catch(e) {} try { clearOrder=wrapped; } catch(e) {} }
 
-  function orderSearchText(o){
-    var parts=[];
-    function add(v){
-      if(v==null) return;
-      if(typeof v === "string" || typeof v === "number" || typeof v === "boolean") { parts.push(String(v)); return; }
-      if(Array.isArray(v)) { v.forEach(add); return; }
-      if(typeof v === "object") { Object.keys(v).forEach(function(k){ if(!/^pin$/i.test(k)) add(v[k]); }); }
-    }
-    function addLinkedInvoiceRows(){
-      var s=S() || {}, rows=[];
-      [s.invoices,s.facturen,s.documents,s.documenten,s.invoiceDocuments,s.docs].forEach(function(arr){ if(Array.isArray(arr)) rows=rows.concat(arr); });
-      var oid=T(o && o.id), nr=T(o && o.number);
-      rows.forEach(function(x){
-        if(!x || typeof x !== "object") return;
-        var xid=T(x.orderId||x.opdrachtId||x.order_id||x.opdracht_id);
-        var xnr=T(x.orderNumber||x.opdrachtNummer||x.opdrachtNr||x.number||x.nr);
-        if((oid && xid===oid) || (nr && xnr===nr)) add(x);
-      });
-    }
-    add(o);
-    addLinkedInvoiceRows();
-    return L(parts.join(" "));
-  }
-  function ensureOrderSearchBar(){
-    var list=E("ordersList") || E("orderList") || E("ordersListV11");
-    if(!list) return;
-    ensureStyle();
-    if(E("bnsV78OrderInvoiceSearch")) return;
-    var wrap=document.createElement("div"); wrap.className="bns-v78-search";
-    wrap.innerHTML='<input id="bnsV78OrderInvoiceSearch" placeholder="Zoek opdracht / factuur nr / naam / plaats / titel / opdrachtnummer">';
-    list.insertAdjacentElement("beforebegin", wrap);
-    var inp=E("bnsV78OrderInvoiceSearch");
-    var orig=E("ordersSearch"); if(orig && orig.value && !inp.value) inp.value=orig.value;
-    inp.oninput=function(){ if(orig) orig.value=inp.value; try { if(typeof renderOrders === "function") renderOrders(); } catch(e) {} setTimeout(applyOrderSearchFilter, 30); };
-  }
-  function applyOrderSearchFilter(){
-    var inp=E("bnsV78OrderInvoiceSearch"); if(!inp) return;
-    var q=L(inp.value); if(!q) { augmentOrderCards(); return; }
-    var cards=A("[data-order-id],.order-card,.bns-card").filter(function(el){ return !el.closest("#"+PHONE_APP_ID); });
-    if(!cards.length) return;
-    cards.forEach(function(card){
-      var oid=T(card.getAttribute("data-order-id") || card.getAttribute("data-bns-order-id") || "");
-      var num=T(card.getAttribute("data-order-number") || "");
-      var o=(oid && orders().find(function(x){return String(x.id||"")===String(oid);} )) || (num && orders().find(function(x){return String(x.number||"")===String(num);}));
-      var txt=L(card.innerText || "") + " " + (o ? orderSearchText(o) : "");
-      card.style.display = txt.indexOf(q) >= 0 ? "" : "none";
-    });
-    augmentOrderCards();
-  }
-  function augmentOrderCards(){
-    A("[data-order-id],.order-card,.bns-card").forEach(function(card){
-      if(card.closest("#"+PHONE_APP_ID)) return;
-      var oid=T(card.getAttribute("data-order-id") || card.getAttribute("data-bns-order-id") || "");
-      var num=T(card.getAttribute("data-order-number") || "");
-      var txt=L(card.innerText || "");
-      var o=(oid && orders().find(function(x){return String(x.id||"")===String(oid);} )) || (num && orders().find(function(x){return String(x.number||"")===String(num);}));
-      if(!o && num) o=orders().find(function(x){return String(x.number||"")===String(num);});
-      if(!o && txt){ o=orders().find(function(x){ return x.number && txt.indexOf(L(x.number))>=0; }); }
-      if(!o) return;
-      var inv=o.invoice && o.invoice.invoiceNumber ? o.invoice.invoiceNumber : "";
-      var dnames=orderDriverNames(o).join(", ");
-      var text=(inv ? "Factuur: "+inv : "") + (inv && dnames ? " | " : "") + (dnames ? "Bezorgers: "+dnames : "");
-      var note=card.querySelector(".bns-v78-invoice-note");
-      if(!text){ if(note) note.remove(); return; }
-      if(!note){ note=document.createElement("small"); note.className="bns-v78-invoice-note"; var target=card.querySelector(".order-title") || card.querySelector("b") || card.firstElementChild || card; try { target.insertAdjacentElement("afterend", note); } catch(e) { card.appendChild(note); } }
-      note.textContent=text;
-    });
-  }
-  function patchRenderOrders(){
-    var old=null;
-    try { old=window.renderOrders || (typeof renderOrders === "function" ? renderOrders : null); } catch(e){ old=null; }
-    if(old && !old.__bnsV78Search){
-      var wrapped=function(){ var r=old.apply(this, arguments); setTimeout(function(){ ensureOrderSearchBar(); applyOrderSearchFilter(); }, 20); return r; };
-      wrapped.__bnsV78Search=true;
-      try { window.renderOrders=wrapped; } catch(e) {}
-      try { renderOrders=wrapped; } catch(e) {}
-    }
-  }
+  function installOrderSearch(){ var list=E("ordersList")||E("orderList")||E("ordersListV11")||document.querySelector("#orders .order-list,#orders .cards,#orders"); if(!list || E(ORDER_SEARCH_ID)) return; var wrap=document.createElement("div"); wrap.className="bns-v80-search"; wrap.innerHTML='<input id="'+ORDER_SEARCH_ID+'" placeholder="Zoek opdracht / factuur nr / naam / plaats / titel / opdrachtnummer">'; list.parentNode.insertBefore(wrap,list); var inp=E(ORDER_SEARCH_ID); inp.oninput=filterOrders; }
+  function orderSearchText(o){ var parts=[]; function add(v){ if(v==null) return; if(typeof v==="string"||typeof v==="number"||typeof v==="boolean") parts.push(String(v)); else if(Array.isArray(v)) v.forEach(add); else if(typeof v==="object") Object.keys(v).forEach(function(k){ if(!/^pin$/i.test(k)) add(v[k]); }); } add(o); return L(parts.join(" ")); }
+  function filterOrders(){ var q=L((E(ORDER_SEARCH_ID)||{}).value); A("[data-order-id],.order-card,.bns-card").forEach(function(card){ if(card.closest("#"+PHONE_ROOT_ID)) return; if(!q){ card.style.display=""; return; } var oid=T(card.getAttribute("data-order-id")||card.getAttribute("data-bns-order-id")||""); var o=oid?orders().find(function(x){ return String(x.id||"")===String(oid); }):null; var txt=L(card.innerText||"")+" "+(o?orderSearchText(o):""); card.style.display=txt.indexOf(q)>=0?"":"none"; }); }
+  function patchRenderOrders(){ var old=null; try { old=window.renderOrders || (typeof renderOrders==="function"?renderOrders:null); } catch(e) {} if(old && !old.__bnsV80Search){ var wrapped=function(){ var r=old.apply(this,arguments); setTimeout(function(){ installOrderSearch(); filterOrders(); },30); return r; }; wrapped.__bnsV80Search=true; try { window.renderOrders=wrapped; } catch(e) {} try { renderOrders=wrapped; } catch(e) {} } }
 
-  function updateAssignedPatchGlobals(){
-    try { window.BNS_V78_orderAssignedTo = assignedTo; } catch(e) {}
-    try { window.BNS_V78_renderPhone = renderPhoneDriverApp; } catch(e) {}
-  }
-  function install(){
-    ensureStyle();
-    updateAssignedPatchGlobals();
-    patchSaveOrder();
-    bindSaveClickCapture();
-    patchEditOrder();
-    patchClearOrder();
-    patchRenderOrders();
-    renderDriverMultiBox();
-    ensureOrderSearchBar();
-    augmentOrderCards();
-    tryAutoPhoneLogin().then(function(ok){ if(!ok && phoneContext() && !(currentUser() && isDriver(currentUser()))) renderPhoneLogin(); else if(phoneContext() && currentUser() && isDriver(currentUser())) renderPhoneDriverApp(); });
-  }
-  function startObserver(){
-    if(observerStarted || !window.MutationObserver) return;
-    observerStarted = true;
-    var obs = new MutationObserver(function(){ clearTimeout(startObserver._t); startObserver._t=setTimeout(function(){ renderDriverMultiBox(); ensureOrderSearchBar(); augmentOrderCards(); }, 120); });
-    try { obs.observe(document.body, {childList:true, subtree:true}); } catch(e) {}
-  }
+  function currentChosen(){ try { return Array.isArray(chosen)?chosen:[]; } catch(e) { return []; } }
+  function setChosen(list){ try { chosen=list; } catch(e) {} try { window.chosen=list; } catch(e) {} }
+  function editingId(){ try { return T(editing); } catch(e) { return T(window.editing); } }
+  function sameMaterial(a,b){ if(!a||!b) return false; if(a.id&&b.id&&String(a.id)===String(b.id)) return true; return T(a.code)&&T(b.code)&&T(a.code)===T(b.code); }
+  function currentDateRange(){ var s=T(E("dateStart")&&E("dateStart").value), e=T(E("dateEnd")&&E("dateEnd").value)||s; return {start:s, end:e||s}; }
+  function overlap(a1,a2,b1,b2){ a1=T(a1); a2=T(a2)||a1; b1=T(b1); b2=T(b2)||b1; if(!a1 || !b1) return true; return a1 <= b2 && b1 <= a2; }
+  function materialById(id){ return materials().find(function(m){ return String(m.id||"")===String(id||""); }) || null; }
+  function materialIdFromEl(el){ if(!el) return ""; var r=el.closest("[data-material-id],[data-bns-material-id],[data-bns-v72-mat],[data-id],.material-row,.bns-v56-row"); if(!r) return ""; var id=T(r.getAttribute("data-material-id")||r.getAttribute("data-bns-material-id")||r.getAttribute("data-bns-v72-mat")||r.getAttribute("data-id")||""); if(id) return id; var m=T(r.getAttribute("onclick")||"").match(/addMat\(['\"]([^'\"]+)/); return m?m[1]:""; }
+  function reservationFor(m){ if(!m) return null; var want=currentDateRange(), edit=editingId(); for(var i=0;i<orders().length;i++){ var o=orders()[i]; if(!orderActive(o)) continue; if(edit && String(o.id||"")===String(edit)) continue; var mats=Array.isArray(o.materials)?o.materials:[]; var has=mats.some(function(x){ return sameMaterial(x,m); }); if(has && overlap(want.start,want.end,dateVal(o),endVal(o))) return {order:o,wanted:want}; } return null; }
+  function matStatus(m){ var chosenNow=currentChosen().some(function(x){ return sameMaterial(x,m); }); if(chosenNow) return {key:"now",label:"Nu toegevoegd",blocked:false}; var res=reservationFor(m); if(res) return {key:"reserved",label:"Gereserveerd",blocked:true,reservation:res}; var st=L(m&&m.status); if(/reserved|gereserveerd/.test(st)) return {key:"reserved",label:"Gereserveerd",blocked:true,reservation:null}; if(/defect|damage|schade|missing|vermist|inactive|niet/.test(st)) return {key:"defect",label:(st||"Defect"),blocked:true,reservation:null}; return {key:"free",label:"Vrij",blocked:false}; }
+  function showMaterialInfo(m,st){ var msg=""; if(st&&st.reservation){ var o=st.reservation.order; msg="Status: Gereserveerd\nKlant: "+(((o.customer||{}).name)||o.customerName||"Onbekend")+"\nOpdracht: "+(o.number||"")+" - "+(o.title||"")+"\nDatum reservering: "+niceDate(dateVal(o))+" t/m "+niceDate(endVal(o)); } else { msg="Status: "+(st&&st.label||"Niet beschikbaar")+"\nMateriaal: "+(m.code||"")+" "+(m.name||m.product||""); } notify(msg,"Materiaal status"); }
+  function addMaterialV80(id){ var m=materialById(id); if(!m) return false; var st=matStatus(m); if(st.key==="now"){ setChosen(currentChosen().filter(function(x){ return !sameMaterial(x,m); })); try { renderChosen(); } catch(e) {} try { summaryRender(); } catch(e) {} patchMaterialRowsSoon(); return false; } if(st.blocked){ showMaterialInfo(m,st); patchMaterialRowsSoon(); return false; } var list=currentChosen(); if(!list.some(function(x){ return sameMaterial(x,m); })){ var c=clone(m); c.status="reserved"; if(c.qty==null) c.qty=1; if(c.linePrice==null) c.linePrice=0; if(c.lineDeposit==null) c.lineDeposit=0; list.push(c); setChosen(list); } try { renderChosen(); } catch(e) {} try { calcTotals(); } catch(e) {} try { summaryRender(); } catch(e) {} patchMaterialRowsSoon(); return false; }
+  function bindMaterialPicker(){ try { window.addMat=addMaterialV80; addMat=addMaterialV80; } catch(e) { window.addMat=addMaterialV80; } if(document.documentElement.dataset.bnsV80MaterialClick==="1") return; document.documentElement.dataset.bnsV80MaterialClick="1"; document.addEventListener("click",function(ev){ var list=E("materialList"); if(!list) return; var t=ev.target; if(!t || !t.closest || !list.contains(t)) return; var id=materialIdFromEl(t); if(!id) return; ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); addMaterialV80(id); return false; },true); }
+  function patchMaterialRowsSoon(){ clearTimeout(materialRowTimer); materialRowTimer=setTimeout(patchMaterialRows,50); }
+  function patchMaterialRows(){ var list=E("materialList"); if(!list) return; A("[data-material-id],[data-bns-material-id],[data-bns-v72-mat],[data-id],.material-row,.bns-v56-row",list).forEach(function(row){ var id=materialIdFromEl(row); var m=materialById(id); if(!m) return; var st=matStatus(m); row.classList.remove("bns-v80-row-free","bns-v80-row-reserved","bns-v80-row-defect","bns-v80-row-now"); row.classList.add("bns-v80-row-"+st.key); var badge=row.querySelector(".badge,.bns-v56-pill,.bns-v72-pill"); if(!badge){ badge=document.createElement("span"); badge.className="badge"; row.appendChild(badge); } badge.textContent=st.label; badge.classList.remove("bns-v80-badge-free","bns-v80-badge-reserved","bns-v80-badge-defect","bns-v80-badge-now"); badge.classList.add("bns-v80-badge-"+st.key); }); }
 
-  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 400); setTimeout(startObserver, 1000); });
-  else { setTimeout(install, 250); setTimeout(startObserver, 1000); }
-  setTimeout(install, 1200);
-  setTimeout(install, 2600);
-  setInterval(function(){ if(phoneContext() && currentUser() && isDriver(currentUser())) renderPhoneDriverApp(); }, 30000);
-  document.addEventListener("visibilitychange", function(){ if(!document.hidden) setTimeout(install, 120); });
+  function matCat(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8)||"EXTRA"; }
+  function matNr(v,cat){ v=T(v).toUpperCase().replace(/\s+/g,""); cat=matCat(cat||""); if(v.indexOf(cat)===0) v=v.slice(cat.length)||v; return v; }
+  function matCode(cat,nr){ cat=matCat(cat); nr=T(nr).toUpperCase().replace(/\s+/g,""); return nr?(nr.indexOf(cat)===0?nr:cat+nr):cat; }
+  function matName(m){ return T(m&&(m.product||m.searchName||m.zoeknaam||m.type||m.name||m.description||m.beschrijving)); }
+  function matDesc(m){ return T(m&&(m.description||m.beschrijving||m.notes||m.name||"")); }
+  function readAdminMaterial(){ var cat=matCat((E("bnsV56Cat")||E("adminMatCat")||{}).value||"TW"); var nr=matNr((E("bnsV56Nr")||E("adminMatCode")||E("adminMatNr")||{}).value||"",cat); var product=T((E("bnsV56Product")||E("adminMatProduct")||{}).value||""); var desc=T((E("bnsV56Desc")||E("adminMatName")||{}).value||""); var price=T((E("bnsV56Price")||E("adminMatPrice")||{}).value||""); var status=T((E("bnsV56Status")||E("adminMatStatus")||{}).value||"free")||"free"; return {cat:cat,nr:nr,product:product,desc:desc,price:price,status:status,code:matCode(cat,nr)}; }
+  function selectedMaterialId(){ var ids=[window.__bnsSelectedMaterialId,window.bnsSelectedMaterialId,window.__bnsV48EditingMaterialId]; try { ids.push(editId); } catch(e) {} for(var i=0;i<ids.length;i++) if(T(ids[i])) return T(ids[i]); return ""; }
+  function saveAdminMaterial(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } var s=stateObj(); if(!s) return false; s.materials=Array.isArray(s.materials)?s.materials:[]; var d=readAdminMaterial(); if(!d.nr&&!d.product&&!d.desc){ notify("Vul productnummer of naam in.","Materiaal"); return false; } var sid=selectedMaterialId(); var m=sid?s.materials.find(function(x){ return String(x.id)===String(sid); }):null; if(!m) m=s.materials.find(function(x){ return matCat(x.cat||x.rubriek||x.category)===d.cat && matCode(d.cat,matNr(x.code||x.productNr||x.nr,d.cat))===d.code; }); if(!m){ m={id:idFor("mat")}; s.materials.unshift(m); } Object.assign(m,{cat:d.cat,rubriek:d.cat,category:d.cat,code:d.code,productNr:d.nr,nr:d.nr,product:d.product||d.desc||d.code,searchName:d.product||d.desc||d.code,zoeknaam:d.product||d.desc||d.code,type:d.product||d.desc||d.code,name:d.product||d.desc||d.code,description:d.desc||d.product||d.code,beschrijving:d.desc||d.product||d.code,price:d.price,status:d.status,updatedAt:nowIso()}); window.__bnsSelectedMaterialId=String(m.id); window.bnsSelectedMaterialId=String(m.id); try { editId=String(m.id); } catch(e) {} saveLocal(); stableAdminMaterialList(true); patchMaterialRowsSoon(); syncMaterial(m); toast("Materiaal opgeslagen"); return false; }
+  function syncMaterial(m){ initFirebase().then(function(bns){ if(!bns||!bns.fs||!bns.db||!m||!m.id) return; bns.fs.setDoc(bns.fs.doc(bns.db,"materials",String(m.id)), Object.assign({},m,{updatedAt:nowIso()}), {merge:true}).catch(function(){}); }); }
+  function stableAdminMaterialList(force){ var list=E("bnsV56AdminList"); if(!list) return; var cat=matCat((E("bnsV56Cat")||{}).value || localStorage.getItem("bnsV61AdminCat") || "TW"); var q=L((E("bnsV56AdminSearch")||{}).value||""); var rows=materials().filter(function(m){ return matCat(m.cat||m.rubriek||m.category)===cat; }); if(q) rows=rows.filter(function(m){ return L([m.cat,m.code,m.productNr,m.nr,m.product,m.name,m.description,m.beschrijving,m.notes,m.price].map(T).join(" ")).indexOf(q)>=0; }); rows=rows.slice(0,300); var key=JSON.stringify([cat,q,rows.map(function(m){ return [m.id,m.code,matName(m),matDesc(m),m.updatedAt]; })]); if(!force && key===lastAdminMaterialKey) return; lastAdminMaterialKey=key; list.innerHTML=rows.length?rows.map(function(m){ return '<div class="bns-v56-admin-row" data-material-id="'+esc(m.id)+'"><div class="bar"></div><div><b>'+esc(m.code||"")+'</b> '+esc(matName(m))+'<br><small>'+esc(matDesc(m))+' | rubriek '+esc(matCat(m.cat||m.rubriek||m.category))+'</small></div><button type="button" data-bns-v80-edit-mat="'+esc(m.id)+'">Wijzig</button></div>'; }).join(""):'<small>Geen materiaal gevonden in rubriek '+esc(cat)+'.</small>'; A("[data-bns-v80-edit-mat]",list).forEach(function(b){ b.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} var m=materialById(b.getAttribute("data-bns-v80-edit-mat")); if(!m) return false; window.__bnsSelectedMaterialId=String(m.id); window.bnsSelectedMaterialId=String(m.id); try { editId=String(m.id); } catch(e) {} if(E("bnsV56Cat")) E("bnsV56Cat").value=matCat(m.cat||m.rubriek||m.category); if(E("bnsV56Nr")) E("bnsV56Nr").value=matNr(m.code||m.productNr||m.nr,m.cat); if(E("bnsV56Product")) E("bnsV56Product").value=matName(m); if(E("bnsV56Desc")) E("bnsV56Desc").value=matDesc(m); if(E("bnsV56Price")) E("bnsV56Price").value=T(m.price||""); if(E("bnsV56Status")) E("bnsV56Status").value=T(m.status||"free"); return false; }; }); }
+  function bindAdminMaterial(){ ["bnsV56Save","adminSaveMat"].forEach(function(id){ var b=E(id); if(b && b.dataset.bnsV80MatSave!=="1"){ b.dataset.bnsV80MatSave="1"; b.type="button"; b.onclick=saveAdminMaterial; b.addEventListener("click",saveAdminMaterial,true); } }); var search=E("bnsV56AdminSearch"); if(search && search.dataset.bnsV80MatSearch!=="1"){ search.dataset.bnsV80MatSearch="1"; search.addEventListener("input",function(){ stableAdminMaterialList(true); },true); } stableAdminMaterialList(false); }
+
+  function findUserSaveButton(){ return A("button").find(function(b){ return /opslaan\s+gebruiker|gebruiker\s+opslaan|opslaan\s+medewerker/i.test(b.textContent||""); }) || null; }
+  function userPane(){ var b=findUserSaveButton(); return b?(b.closest("#adminUsers,[data-admin='adminUsers'],[data-admin='users'],.adminPane,.panel,.card,section,main,div")||document):(E("adminUsers")||document); }
+  function fieldText(el){ if(!el) return ""; var a=[el.id,el.name,el.placeholder,el.getAttribute("aria-label")]; var lab=el.closest&&el.closest("label"); if(lab) a.push(lab.textContent); var prev=el.previousElementSibling; if(prev) a.push(prev.textContent); return L(a.join(" ")); }
+  function textInputs(root){ return A("input",root||userPane()).filter(function(i){ var type=L(i.type||"text"); return ["button","submit","checkbox","radio","color","date","hidden"].indexOf(type)<0 && !/^bnsV/i.test(i.id||""); }); }
+  function nameInput(){ var known=["adminUserName","userName","bnsUserName","employeeName","medewerkerNaam"]; for(var i=0;i<known.length;i++) if(E(known[i])) return E(known[i]); var rows=textInputs(userPane()); return rows.find(function(inp){ var t=fieldText(inp); return /(naam|name|medewerker|gebruiker|bezorger)/.test(t)&&!/pin|code/.test(t); }) || rows[0] || null; }
+  function pinInput(){ var known=["adminUserPin","userPin","bnsUserPin","employeePin","medewerkerPin"]; for(var i=0;i<known.length;i++) if(E(known[i])) return E(known[i]); var rows=textInputs(userPane()); return rows.find(function(inp){ return /pin|pincode/.test(fieldText(inp)); }) || rows[1] || null; }
+  function roleSelect(){ var known=["adminUserRole","userRole","bnsUserRole","employeeRole","medewerkerRol"]; for(var i=0;i<known.length;i++) if(E(known[i])) return E(known[i]); return A("select",userPane()).find(function(s){ return /admin|planner|bezorger/i.test(s.textContent||""); }) || null; }
+  function readRights(){ var rights={}; A("input[type='checkbox']",userPane()).forEach(function(cb){ var id=cb.id||cb.name||""; var m=id.match(/(?:right|rights|bnsForceRight_|bnsRight_|bnsV74Right_)([A-Za-z0-9_-]+)/i); if(m) rights[m[1]]=!!cb.checked; }); return rights; }
+  function setUserForm(u){ var n=nameInput(), p=pinInput(), r=roleSelect(); if(n) n.value=u?(u.name||""):""; if(p){ p.type="tel"; p.autocomplete="off"; p.value=u?(u.pin||""):""; } if(r) r.value=u?(u.role||"Bezorger"):"Bezorger"; }
+  function saveUser(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } var n=nameInput(), p=pinInput(), r=roleSelect(); var name=T(n&&n.value), pin=T(p&&p.value), role=roleNorm(r&&r.value||"Bezorger"); if(!name||!pin){ notify("Vul naam en PIN in.","Gebruiker"); return false; } var s=stateObj(); if(!s) return false; s.users=Array.isArray(s.users)?s.users:[]; var u=selectedUserId?s.users.find(function(x){return String(x.id)===String(selectedUserId);}):null; if(!u) u=s.users.find(function(x){ return String(x.pin)===String(pin); }); if(!u){ u={id:idFor("u"), rights:{}}; s.users.push(u); } u.name=name; u.pin=pin; u.role=role; u.rights=Object.assign({},u.rights||{},readRights()); u.updatedAt=nowIso(); selectedUserId=String(u.id); saveLocal(); stableUserList(true); renderDriverBox(); syncUsers(); toast("Gebruiker opgeslagen"); return false; }
+  function deleteUserId(id){ var s=stateObj(); if(!s) return; var u=users().find(function(x){ return String(x.id)===String(id); }); if(!u) return; if(isAdmin(u)){ notify("Admin gebruiker niet verwijderen.","Gebruiker"); return; } ask("Gebruiker "+(u.name||"")+" verwijderen? Deze PIN werkt daarna niet meer op de telefoon.","Gebruiker verwijderen").then(function(ok){ if(!ok) return; s.users=users().filter(function(x){ return String(x.id)!==String(id); }); if(phoneLock()===String(id)) setPhoneLock(""); saveLocal(); selectedUserId=""; stableUserList(true); syncUsers(); initFirebase().then(function(bns){ if(!bns||!bns.fs||!bns.db) return; var fs=bns.fs; try { fs.deleteDoc(fs.doc(bns.db,"users",String(id))).catch(function(){}); } catch(e) {} try { fs.setDoc(fs.doc(bns.db,"deletedUsers",String(id)), {id:String(id), pin:u.pin||"", name:u.name||"", deletedAt:nowIso()}, {merge:true}).catch(function(){}); } catch(e) {} }); toast("Gebruiker verwijderd"); }); }
+  function resetDevice(id){ var u=users().find(function(x){ return String(x.id)===String(id); }); if(!u) return; ask("Telefoonkoppeling resetten voor "+(u.name||"deze gebruiker")+"?", "Telefoon reset").then(function(ok){ if(!ok) return; delete u.deviceId; delete u.deviceName; delete u.deviceLockedAt; u.allowedDeviceIds=[]; u.updatedAt=nowIso(); saveLocal(); stableUserList(true); syncUsers(); toast("Telefoon reset opgeslagen"); }); }
+  function stableUserList(force){ var target=E(USER_LIST_ID) || E("bnsForceUserList") || E("bnsV75UserList"); if(!target){ var b=findUserSaveButton(); if(!b) return; target=document.createElement("div"); target.id=USER_LIST_ID; b.insertAdjacentElement("afterend",target); } var rows=users(); var key=JSON.stringify(rows.map(function(u){return [u.id,u.name,u.pin,u.role,u.deviceId,u.updatedAt];})); if(!force && key===lastUserListKey) return; lastUserListKey=key; target.innerHTML=rows.map(function(u){ var locked=u.deviceId?"Telefoon gekoppeld":"Geen telefoon gekoppeld"; return '<div class="bns-v80-user-row" data-user-id="'+esc(u.id)+'"><span><b>'+esc(u.name||"")+'</b><small>'+esc(roleNorm(u.role))+' - PIN '+esc(u.pin||"")+'</small><small>'+esc(locked)+'</small></span><button type="button" data-bns-v80-edit-user="'+esc(u.id)+'">Wijzig</button><button type="button" class="reset" data-bns-v80-reset-user="'+esc(u.id)+'">Telefoon reset</button><button type="button" class="delete" data-bns-v80-delete-user="'+esc(u.id)+'">Verwijder</button></div>'; }).join(""); A("[data-bns-v80-edit-user]",target).forEach(function(b){ b.onclick=function(){ var u=users().find(function(x){ return String(x.id)===String(b.getAttribute("data-bns-v80-edit-user")); }); if(!u) return; selectedUserId=String(u.id); setUserForm(u); }; }); A("[data-bns-v80-reset-user]",target).forEach(function(b){ b.onclick=function(){ resetDevice(b.getAttribute("data-bns-v80-reset-user")); }; }); A("[data-bns-v80-delete-user]",target).forEach(function(b){ b.onclick=function(){ deleteUserId(b.getAttribute("data-bns-v80-delete-user")); }; }); }
+  function bindUsers(){ var b=findUserSaveButton(); if(b && b.dataset.bnsV80UserSave!=="1"){ b.dataset.bnsV80UserSave="1"; b.type="button"; b.onclick=saveUser; b.addEventListener("click",saveUser,true); } var p=pinInput(); if(p){ try { p.type="tel"; } catch(e) {} p.autocomplete="off"; p.inputMode="numeric"; } stableUserList(false); }
+
+  function install(){ ensureStyle(); bindMaterialPicker(); patchMaterialRowsSoon(); bindAdminMaterial(); bindUsers(); renderDriverBox(); patchOrderSave(); patchEditOrder(); patchClearOrder(); installOrderSearch(); patchRenderOrders(); if(phoneContext() && (!E(PHONE_ROOT_ID) || phoneLock() || (currentUser() && isDriver(currentUser())))) autoPhone(); }
+  function startObserver(){ if(observerStarted || !window.MutationObserver) return; observerStarted=true; var obs=new MutationObserver(function(){ clearTimeout(startObserver._t); startObserver._t=setTimeout(function(){ bindAdminMaterial(); bindUsers(); renderDriverBox(); patchMaterialRowsSoon(); installOrderSearch(); if(phoneContext() && !E(PHONE_ROOT_ID)) autoPhone(); },160); }); try { obs.observe(document.body,{childList:true,subtree:true}); } catch(e) {} }
+
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",function(){ setTimeout(install,150); setTimeout(startObserver,500); }); else { setTimeout(install,80); setTimeout(startObserver,500); }
+  setTimeout(install,700); setTimeout(install,1800);
+  document.addEventListener("visibilitychange",function(){ if(!document.hidden) setTimeout(function(){ fetchUsers(1000).then(install); },100); });
+  window.BNS_V80_PHONE_RENDER = renderPhoneOrders;
+  window.BNS_V80_SYNC_USERS = syncUsers;
 })();
