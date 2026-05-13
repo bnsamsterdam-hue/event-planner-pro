@@ -5,23 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="robots" content="noindex">
   <title>Bezorger Tapwagen.nl</title>
+  <style>
+    html,body{margin:0;min-height:100%;font-family:Arial,sans-serif;background:#eef7ff;color:#172033}
+    .box{margin:24px;padding:24px;border-radius:22px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.12);border:1px solid #dbeafe}
+    h1{margin:0 0 10px;font-size:32px}.muted{color:#64748b;font-weight:700}.btn{display:block;margin-top:18px;background:#075fc4;color:#fff;text-decoration:none;text-align:center;border-radius:18px;padding:18px;font-weight:900;font-size:20px}
+  </style>
   <script>
-    (function(){
-      try{
-        if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }); }
-        if(window.caches){ caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); }); }
-      }catch(e){}
+    (async function(){
+      try {
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+        if (window.caches && caches.keys) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+      } catch(e) {}
       var base = location.pathname.replace(/\/driver\/?$/i,'/');
-      var target = location.origin + base + '?driver=1&v=132&nocache=' + Date.now();
-      setTimeout(function(){ location.replace(target); }, 80);
+      var target = location.origin + base + '?driver=1&v=131&nocache=' + Date.now();
+      location.replace(target);
     })();
   </script>
 </head>
-<body style="font-family:Arial,sans-serif;background:#eef7ff;color:#172033">
-  <div style="margin:24px;padding:24px;border-radius:22px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.12);border:1px solid #dbeafe">
+<body>
+  <div class="box">
     <h1>Bezorger Tapwagen.nl</h1>
-    <p>Mobiele opdrachten worden geopend...</p>
-    <a style="display:block;margin-top:18px;background:#075fc4;color:#fff;text-decoration:none;text-align:center;border-radius:18px;padding:18px;font-weight:900;font-size:20px" href="../?driver=1&v=132">Open mobiele planner</a>
+    <p class="muted">Mobiele planner wordt geopend...</p>
+    <a class="btn" href="../?driver=1&v=131">Open mobiele planner</a>
   </div>
 </body>
 </html>
