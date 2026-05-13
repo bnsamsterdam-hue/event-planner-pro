@@ -596,3 +596,119 @@ async function boot(){
     restoreSession(userAllowed,SESSION_KEY,showApp);
   }catch(e){console.error(e);setStatus('Fout: '+e.message)}
 }
+
+/* =========================================================
+   V129 driver-only: planner -> telefoon live/retry sync
+   - Geen planner/app.js wijziging.
+   - Telefoon schrijft niet naar orders behalve Afmelden/uitgevoerd.
+   - Orders/users worden read-only live vervangen, niet gemerged.
+   - Fallback polling vangt vastlopende Firebase listener/cache op.
+   ========================================================= */
+let __tapV129LiveStarted = false;
+let __tapV129PollTimer = null;
+let __tapV129LastUsersKey = '';
+let __tapV129LastOrdersKey = '';
+let __tapV129SnapshotReady = false;
+
+function __tapV129Key(rows){
+  try {
+    return JSON.stringify((rows||[]).map(function(x){
+      return {
+        id: x && x.id,
+        updatedAt: x && x.updatedAt,
+        status: x && x.status,
+        title: x && x.title,
+        number: x && x.number,
+        driverId: x && x.driverId,
+        bezorgerId: x && x.bezorgerId,
+        driverIds: x && x.driverIds,
+        bezorgerIds: x && x.bezorgerIds,
+        driverNames: x && x.driverNames,
+        bezorgerNames: x && x.bezorgerNames,
+        driver: x && x.driver,
+        bezorger: x && x.bezorger,
+        rights: x && x.rights,
+        pin: x && x.pin,
+        name: x && x.name,
+        role: x && x.role
+      };
+    }));
+  } catch(e) { return String(Date.now()); }
+}
+
+function __tapV129ApplyUsers(rows, from){
+  rows = Array.isArray(rows) ? rows : [];
+  const key = __tapV129Key(rows);
+  if (key === __tapV129LastUsersKey) return false;
+  __tapV129LastUsersKey = key;
+  BNS.state.users = rows;
+  if (BNS.user) {
+    const fresh = rows.find(function(u){ return String(u.id) === String(BNS.user.id); });
+    if (fresh) BNS.user = fresh;
+  }
+  if (BNS.user) scheduleRender();
+  return true;
+}
+
+function __tapV129ApplyOrders(rows, from){
+  rows = Array.isArray(rows) ? rows : [];
+  const key = __tapV129Key(rows);
+  if (key === __tapV129LastOrdersKey) return false;
+  __tapV129LastOrdersKey = key;
+  BNS.state.orders = rows;
+  if (BNS.user) scheduleRender();
+  return true;
+}
+
+async function __tapV129PollOnce(silent){
+  if (!BNS.firebase || !BNS.db) return;
+  try {
+    const usersSnap = await BNS.firebase.getDocs(BNS.firebase.collection(BNS.db,'users'));
+    const ordersSnap = await BNS.firebase.getDocs(BNS.firebase.collection(BNS.db,'orders'));
+    const users = usersSnap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    const orders = ordersSnap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    const u = __tapV129ApplyUsers(users,'poll');
+    const o = __tapV129ApplyOrders(orders,'poll');
+    if (!silent && (u || o)) toast('Bijgewerkt');
+    if (!silent && !(u || o)) toast('Geen nieuwe wijzigingen');
+    setStatus('Laatste sync: ' + new Date().toLocaleTimeString('nl-NL'));
+  } catch(e) {
+    console.warn('V129 poll mislukt', e);
+    if (!silent) toast('Verversen mislukt');
+  }
+}
+
+function startReadOnlyListeners(){
+  if (__tapV129LiveStarted) return;
+  __tapV129LiveStarted = true;
+  try {
+    __tapV129LastUsersKey = __tapV129Key(BNS.state.users || []);
+    __tapV129LastOrdersKey = __tapV129Key(BNS.state.orders || []);
+
+    if (BNS.firebase && BNS.db && BNS.firebase.onSnapshot) {
+      BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,'users'), function(snap){
+        const rows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+        __tapV129SnapshotReady = true;
+        __tapV129ApplyUsers(rows,'snapshot');
+      }, function(err){ console.warn('users listener fout', err); });
+
+      BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,'orders'), function(snap){
+        const rows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+        __tapV129SnapshotReady = true;
+        __tapV129ApplyOrders(rows,'snapshot');
+      }, function(err){ console.warn('orders listener fout', err); });
+    }
+  } catch(e) {
+    console.warn('V129 live listener niet gestart', e);
+  }
+
+  // Zachte fallback: leest alleen, schrijft niets. Rendert alleen bij echte wijziging.
+  clearInterval(__tapV129PollTimer);
+  __tapV129PollTimer = setInterval(function(){ __tapV129PollOnce(true); }, 5000);
+}
+
+// Verversknop overschrijven: haalt users + orders op en toont meteen nieuwe plannerwijzigingen.
+setTimeout(function(){
+  const btn = $('refreshBtn');
+  if (btn) btn.onclick = async function(){ await __tapV129PollOnce(false); };
+}, 0);
