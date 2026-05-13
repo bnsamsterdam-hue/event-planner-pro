@@ -3,9 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta name="robots" content="noindex">
   <title>Bezorger Tapwagen.nl</title>
-  <link rel="manifest" href="manifest.json?v=122">
-  <link rel="stylesheet" href="driver.css?v=122">
+  <link rel="manifest" href="manifest.json?v=123">
+  <link rel="stylesheet" href="driver.css?v=123">
 </head>
 <body>
   <header class="top">
@@ -13,7 +16,7 @@
       <h1>Bezorger Tapwagen.nl</h1>
       <small id="who">Mobiele opdrachten</small>
     </div>
-    <button id="logoutBtn" class="ghost hidden" type="button">Uitloggen</button>
+    <button id="logoutBtn" class="ghost hidden" type="button">Uitloggen app</button>
   </header>
 
   <main class="wrap">
@@ -21,15 +24,10 @@
 
     <section id="loginBox" class="card login-card">
       <h2>Inloggen</h2>
-      <p class="help">Kies je naam en vul je PIN in.</p>
-
+      <p class="help">Vul alleen je persoonlijke PIN in.</p>
       <div class="login-grid">
-        <label>Naam</label>
-        <select id="loginName"></select>
-
         <label>PIN</label>
         <input id="loginPin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN">
-
         <button id="loginBtn" type="button" class="btn-full">Inloggen</button>
       </div>
     </section>
@@ -40,27 +38,20 @@
         <button id="refreshBtn" type="button">Verversen</button>
         <button id="clearSearchBtn" class="btn-dark" type="button">Leeg</button>
       </div>
-
-      <section id="ordersView">
-        <div id="orders"></div>
-      </section>
-
+      <section id="ordersView"><div id="orders"></div></section>
       <section id="detailView" class="hidden"></section>
     </section>
   </main>
 
-  <input id="photoInput" class="hidden" type="file" accept="image/*" capture="environment">
   <div id="toast" class="toast"></div>
 
-  <script src="../firebase-config.js?v=122"></script>
-  <script src="../firebase-push-config.js?v=122"></script>
-  <script src="../firebase-push-client.js?v=122"></script>
-  <script src="driver.js?v=122"></script>
+  <script src="../firebase-config.js?v=123"></script>
+  <script src="../firebase-push-config.js?v=123"></script>
+  <script src="../firebase-push-client.js?v=123"></script>
+  <script src="driver.js?v=123"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=122').then(function(reg){
-        if (reg && reg.update) reg.update();
-      }).catch(function(){});
+      navigator.serviceWorker.register('./sw.js?v=123').then(function(reg){ if(reg && reg.update) reg.update(); }).catch(function(){});
     }
   </script>
 </body>
