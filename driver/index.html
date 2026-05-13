@@ -11,20 +11,16 @@
     h1{margin:0 0 10px;font-size:32px}.muted{color:#64748b;font-weight:700}.btn{display:block;margin-top:18px;background:#075fc4;color:#fff;text-decoration:none;text-align:center;border-radius:18px;padding:18px;font-weight:900;font-size:20px}
   </style>
   <script>
-    (async function(){
-      try {
-        if ('serviceWorker' in navigator) {
-          const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map(r => r.unregister()));
+    (function(){
+      try{
+        if('serviceWorker' in navigator){
+          navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{r.unregister();}catch(e){} }); });
         }
-        if (window.caches && caches.keys) {
-          const keys = await caches.keys();
-          await Promise.all(keys.map(k => caches.delete(k)));
-        }
-      } catch(e) {}
+        if(window.caches){ caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); }); }
+      }catch(e){}
       var base = location.pathname.replace(/\/driver\/?$/i,'/');
-      var target = location.origin + base + '?driver=1&v=131&nocache=' + Date.now();
-      location.replace(target);
+      var target = location.origin + base + '?telefoon=1&v=134';
+      setTimeout(function(){ location.replace(target); }, 80);
     })();
   </script>
 </head>
@@ -32,7 +28,7 @@
   <div class="box">
     <h1>Bezorger Tapwagen.nl</h1>
     <p class="muted">Mobiele planner wordt geopend...</p>
-    <a class="btn" href="../?driver=1&v=131">Open mobiele planner</a>
+    <a class="btn" href="../?telefoon=1&v=134">Open mobiele planner</a>
   </div>
 </body>
 </html>
