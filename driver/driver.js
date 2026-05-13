@@ -9,8 +9,27 @@ function lower(v){return clean(v).toLowerCase()}
 function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function toast(t){const e=$("toast");if(!e){alert(t);return}e.textContent=String(t||"");e.classList.add("show");clearTimeout(e._timer);e._timer=setTimeout(()=>e.classList.remove("show"),3800)}
 function setStatus(t){const e=$("status");if(e)e.textContent=t}
-function hasRight(k){return !!(BNS.user&&BNS.user.rights&&BNS.user.rights[k])}
+function rightsObj(u=BNS.user){return (u&&u.rights)||{}}
+function hasRight(k){
+  const r=rightsObj();
+  if(!r)return false;
+  if(Array.isArray(r))return r.includes(k);
+  return !!r[k];
+}
 function hasAnyRight(keys){return keys.some(k=>hasRight(k))}
+function hasAnyAlias(groups){return groups.some(g=>hasAnyRight(Array.isArray(g)?g:[g]))}
+function roleIs(v){return lower(BNS.user&&BNS.user.role)===v}
+function isAdmin(){return roleIs("admin")}
+function canUseWaze(){return isAdmin()||hasAnyRight(["gps","route","waze"])}
+function canUsePhone(){return isAdmin()||hasAnyRight(["phoneCall","klantBellen","call","bellen","phone"])}
+function canUseGeneralReport(){return isAdmin()||hasAnyRight(["reportGeneral","melding","meldingen","reports","resolve"])}
+function canUseDamage(){return isAdmin()||hasAnyRight(["reportDamage","damage","schade"])}
+function canUseStoring(){return isAdmin()||hasAnyRight(["reportStoring","storing"])}
+function canUseMissing(){return isAdmin()||hasAnyRight(["reportMissing","vermissing","missing"])}
+function canUsePhotoBefore(){return isAdmin()||hasAnyRight(["photoBefore","fotoVoor","fotoVoorLevering","photoBeforeDelivery"])}
+function canUsePhotoAfter(){return isAdmin()||hasAnyRight(["photoAfter","fotoNa","fotoNaLevering","photoAfterDelivery"])}
+function canUseSignature(){return isAdmin()||hasAnyRight(["signatureCustomer","handtekening","handtekeningKlant","signature"])}
+function canUseDone(){return isAdmin()||hasAnyRight(["resolve","afmelden","done","uitgevoerd","finish"])}
 function statusOf(o){return lower(o&&o.status)}
 function isCancelled(o){return["geannuleerd","geannuleerde","annulering","cancelled","canceled"].includes(statusOf(o))}
 function isDone(o){return["uitgevoerd","afgerond","voltooid","done","klaar"].includes(statusOf(o))}
@@ -23,7 +42,11 @@ function niceDate(v){v=clean(v).slice(0,10);const p=v.split("-");return p.length
 function addressOf(o){const p=[];const add=v=>{v=clean(v);if(v&&!p.includes(v))p.push(v)};[o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,o.address,o.street,o.zip,o.city].forEach(add);if(o.location&&typeof o.location==="object")[o.location.name,o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add);return p.join(", ")}
 function customerName(o){return clean(o.customerName||(o.customer&&o.customer.name)||o.klant||"")}
 function customerPhone(o){return clean(o.customerPhone||o.phone||(o.customer&&o.customer.phone)||"")}
-function driverName(o){return clean(o.driverName||o.driver||o.bezorger||"")}
+function driverName(o){
+  const arr=o.driverNames||o.bezorgerNames||o.drivers||o.bezorgers;
+  if(Array.isArray(arr))return arr.map(x=>typeof x==="string"?x:(x&&x.name)||"").filter(Boolean).join(", ");
+  return clean(o.driverName||o.driver||o.bezorger||"")
+}
 function materialList(o){const m=o.materials||o.mats||[];return Array.isArray(m)?m.map(x=>typeof x==="string"?{name:x,qty:""}:{name:x.code||x.name||"",qty:x.qty||x.count||x.aantal||"",extra:x.extra||x.note||""}).filter(x=>x.name):[]}
 function materialText(o){const m=materialList(o);return m.length?m.map(x=>`${x.qty?x.qty+"x ":""}${x.name}`).join(", "):""}
 function routeUrl(type,a){const q=encodeURIComponent(a||"");return type==="waze"?`https://waze.com/ul?q=${q}&navigate=yes`:`https://www.google.com/maps/search/?api=1&query=${q}`}
@@ -53,6 +76,14 @@ async function loadInitial(){
 }
 async function loadOrdersOnly(){
   BNS.state.orders=await loadCollection("orders");
+  try{
+    const users=await loadCollection("users");
+    BNS.state.users=users;
+    if(BNS.user&&BNS.user.id){
+      const fresh=users.find(u=>String(u.id)===String(BNS.user.id));
+      if(fresh)BNS.user=fresh;
+    }
+  }catch(e){console.warn("users refresh overgeslagen",e)}
 }
 async function updateOrder(o){
   if(!o||!o.id)return;
@@ -92,11 +123,18 @@ function userAllowed(u){
   const r=lower(u.role);
   return r==="bezorger"||r==="planner"||r==="admin"||!!(u.rights&&(u.rights.gps||u.rights.agenda||u.rights.resolve||u.rights.orders||u.rights.damage||u.rights.schade||u.rights.storing||u.rights.materials||u.rights.prices));
 }
+function valueList(v){
+  if(Array.isArray(v))return v.map(x=>typeof x==="string"?x:(x&&(x.id||x.name))||"").filter(Boolean).map(String);
+  if(v==null)return [];
+  return String(v).split(/[;,]/).map(x=>x.trim()).filter(Boolean);
+}
 function assignedToUser(o){
-  const uid=String(BNS.user.id||""),un=lower(BNS.user.name||""),did=String(o.driverId||o.bezorgerId||o.userId||""),dn=lower(o.driverName||o.driver||o.bezorger||"");
-  if(did&&uid&&did===uid)return true;
-  if(dn&&un&&dn===un)return true;
-  if((lower(BNS.user.role)==="planner"||lower(BNS.user.role)==="admin")&&hasRight("orders"))return true;
+  const uid=String(BNS.user.id||""),un=lower(BNS.user.name||"");
+  const ids=[o.driverId,o.bezorgerId,o.userId,...valueList(o.driverIds),...valueList(o.bezorgerIds),...valueList(o.userIds)].filter(v=>v!=null).map(String);
+  const names=[o.driverName,o.driver,o.bezorger,...valueList(o.driverNames),...valueList(o.bezorgerNames),...valueList(o.drivers),...valueList(o.bezorgers)].filter(Boolean).map(lower);
+  if(uid&&ids.includes(uid))return true;
+  if(un&&names.includes(un))return true;
+  if((roleIs("planner")||roleIs("admin"))&&hasRight("orders"))return true;
   return false;
 }
 function visibleOrder(o){
@@ -121,13 +159,13 @@ function otherCustomerOrders(o){
     .filter(x => dateTime(orderEnd(x)) >= todayTime())
     .sort((a,b) => dateTime(orderStart(a)) - dateTime(orderStart(b)));
 }
-function canRoute(){return hasAnyRight(["gps","route","waze"])||lower(BNS.user.role)==="admin"}
-function canAgenda(){return hasRight("agenda")||lower(BNS.user.role)==="admin"}
-function canDone(){return hasAnyRight(["resolve","afmelden","done","uitgevoerd"])||lower(BNS.user.role)==="admin"}
-function canMaterials(){return hasAnyRight(["materials","materialen","orders"])||lower(BNS.user.role)==="admin"}
-function canPrices(){return hasAnyRight(["prices","prijzen"])||lower(BNS.user.role)==="admin"}
-function canReport(){return true}
-function canDamage(){return hasAnyRight(["damage","schade","storing","vermissing","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
+function canRoute(){return canUseWaze()}
+function canAgenda(){return hasRight("agenda")||isAdmin()}
+function canDone(){return canUseDone()}
+function canMaterials(){return hasAnyRight(["materials","materialen","orders"])||isAdmin()}
+function canPrices(){return hasAnyRight(["prices","prijzen"])||isAdmin()}
+function canReport(){return canUseGeneralReport()}
+function canDamage(){return canUseDamage()||canUseStoring()||canUseMissing()}
 
 function orderBadges(o){
   const badges=[`<span class="badge">${esc(o.status||"Open")}</span>`];
@@ -155,11 +193,14 @@ function orderCard(o){
       <button type="button" class="more-btn wide" data-detail="${esc(o.id)}">Open opdracht</button>
       ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
       ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Maps</a>`:""}
-      ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
+      ${p&&canUsePhone()?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Offerte">Offerte</button>`:""}
+      ${canUseStoring()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
+      ${canUseDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
+      ${canUseMissing()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
+      ${canUsePhotoBefore()?`<button type="button" class="btn btn-dark" data-photo="${esc(o.id)}" data-type="Foto voor levering">Foto voor</button>`:""}
+      ${canUsePhotoAfter()?`<button type="button" class="btn btn-dark" data-photo="${esc(o.id)}" data-type="Foto na levering">Foto na</button>`:""}
+      ${canUseSignature()?`<button type="button" class="btn btn-purple" data-signature="${esc(o.id)}">Handtekening</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
   </article>`;
@@ -196,13 +237,15 @@ function detailHtml(o){
     <div class="report-grid">
       ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
       ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Google Maps</a>`:""}
-      ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
+      ${p&&canUsePhone()?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAgenda()?`<button type="button" class="btn btn-dark" data-agenda="${esc(o.id)}">Agenda info</button>`:""}
       ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Offerte">Offerte</button>`:""}
+      ${canUseStoring()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
+      ${canUseDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
+      ${canUseMissing()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
+      ${canUsePhotoBefore()?`<button type="button" class="btn btn-dark" data-photo="${esc(o.id)}" data-type="Foto voor levering">Foto voor</button>`:""}
+      ${canUsePhotoAfter()?`<button type="button" class="btn btn-dark" data-photo="${esc(o.id)}" data-type="Foto na levering">Foto na</button>`:""}
+      ${canUseSignature()?`<button type="button" class="btn btn-purple" data-signature="${esc(o.id)}">Handtekening</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
   </article>`;
@@ -248,6 +291,54 @@ async function sendReport(order,type){
   });
 
   toast(`${type} verstuurd voor opdracht ${order.number || ""}`);
+}
+
+async function fileToDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(String(r.result||""));
+    r.onerror=reject;
+    r.readAsDataURL(file);
+  });
+}
+async function sendPhoto(order,type){
+  const inp=$("photoInput");
+  if(!inp){toast("Foto invoer ontbreekt");return}
+  inp.value="";
+  inp.onchange=async()=>{
+    const file=inp.files&&inp.files[0];
+    if(!file)return;
+    try{
+      const data=await fileToDataUrl(file);
+      const alert={
+        orderId:order.id||"",orderNumber:order.number||"",linkedOrder:order.id||"",linkedOrderNumber:order.number||"",
+        title:type,text:"Foto toegevoegd",photoData:data,mediaData:data,mediaType:"photo",resolved:false,
+        createdAt:new Date().toISOString(),from:BNS.user.name||"",userId:BNS.user.id||""
+      };
+      await addAlert(alert);
+      order.media=Array.isArray(order.media)?order.media:[];
+      order.media.push({type,mediaType:"photo",photoData:data,createdAt:alert.createdAt,from:alert.from});
+      await updateOrder(order);
+      toast(type+" opgeslagen");
+    }catch(e){console.error(e);toast("Foto opslaan mislukt")}
+  };
+  inp.click();
+}
+async function sendSignature(order){
+  const name=prompt("Naam klant / ondertekenaar:", customerName(order)||"");
+  if(name===null)return;
+  const note="Handtekening klant"+(name?" - "+name:"");
+  const data="SIGNATURE:"+note+" @ "+new Date().toISOString();
+  const alert={
+    orderId:order.id||"",orderNumber:order.number||"",linkedOrder:order.id||"",linkedOrderNumber:order.number||"",
+    title:"Handtekening klant",text:note,signatureData:data,mediaData:data,mediaType:"signature",resolved:false,
+    createdAt:new Date().toISOString(),from:BNS.user.name||"",userId:BNS.user.id||""
+  };
+  await addAlert(alert);
+  order.media=Array.isArray(order.media)?order.media:[];
+  order.media.push({type:"Handtekening klant",mediaType:"signature",signatureData:data,text:note,createdAt:alert.createdAt,from:alert.from});
+  await updateOrder(order);
+  toast("Handtekening opgeslagen");
 }
 
 function bindActions(){
