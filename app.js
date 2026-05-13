@@ -1,35 +1,4 @@
 
-/* =========================================================
-   V121 TELEFOON STARTSTABILISATIE
-   Alleen actief op /driver/ of ?driver/?bezorger/?telefoon.
-   Doel: geen flikkerend wit scherm door oude herhaal-renders.
-========================================================= */
-(function(){
-  try{
-    var qs = new URLSearchParams(location.search || '');
-    var phone = qs.has('driver') || qs.has('bezorger') || qs.has('telefoon') || /\/driver\/?$/i.test(location.pathname || '') || /\/driver\//i.test(location.pathname || '');
-    if(!phone) return;
-    if(qs.has('driver') && qs.get('driver') !== '1'){
-      qs.set('driver','1');
-      history.replaceState(null, '', location.pathname + '?' + qs.toString() + (location.hash || ''));
-    }
-    window.__BNS_PHONE_MODE_V121 = true;
-    window.__BNS_REAL_SET_INTERVAL_V121 = window.setInterval;
-    window.setInterval = function(fn, delay){
-      try{
-        var d = Number(delay || 0);
-        // Tijdens het laden op telefoon worden oude setInterval-renders eenmalige timeouts.
-        // Daardoor verdwijnt het PIN-scherm niet steeds naar wit.
-        return window.setTimeout(fn, isFinite(d) && d > 0 ? d : 0);
-      }catch(e){ return 0; }
-    };
-    var st = document.createElement('style');
-    st.id = 'bns-v121-phone-boot-style';
-    st.textContent = 'html,body{background:#eef7ff!important}#bnsMobileDriverApp{display:block!important;visibility:visible!important;opacity:1!important;min-height:100vh!important}#bnsV83PhoneLogin,#bnsV83PhoneApp,#bnsV87PhoneRoot,#bnsV89PhoneRoot,#bnsV91PhoneRoot{display:none!important;visibility:hidden!important;pointer-events:none!important}body.bns-v83-phone-login>#bnsMobileDriverApp,body.bns-v83-phone-app>#bnsMobileDriverApp,body.bns-v87-phone-login>#bnsMobileDriverApp,body.bns-v87-phone-app>#bnsMobileDriverApp,body.bns-v89-phone>#bnsMobileDriverApp,body.bns-v91-phone>#bnsMobileDriverApp,body.bns-v95-phone>#bnsMobileDriverApp,body.bns-driver-mode>#bnsMobileDriverApp{display:block!important;visibility:visible!important}body.bns-v83-phone-login>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v83-phone-app>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v87-phone-login>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v87-phone-app>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v89-phone>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v91-phone>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal){display:none!important}';
-    (document.head || document.documentElement).appendChild(st);
-  }catch(e){}
-})();
-
 
 // ===== V9.1 safety fixes =====
 function safePrint(){ window.print(); }
@@ -14164,44 +14133,160 @@ setInterval(install,1500);
   setTimeout(cleanPlannerDashboard, 500);
 })();
 
-
 /* =========================================================
-   V121 TELEFOON SCHERM STABIEL HOUDEN
-   Alleen telefoon. Herstelt setInterval na laden en forceert een zichtbaar PIN/driver scherm.
+   Tapwagen.nl V126 - planner alerts Firebase sync only
+   Doel: telefoonmeldingen/foto/handtekening uit driver/alerts
+   zichtbaar maken in Systeemmeldingen zonder plannerfuncties te wijzigen.
 ========================================================= */
-(function(){
-  try{
-    if(!window.__BNS_PHONE_MODE_V121) return;
-    // Na het laden mag normale browser/Firebase timing terug, maar oude app-intervals zijn al geneutraliseerd.
-    if(window.__BNS_REAL_SET_INTERVAL_V121){ window.setInterval = window.__BNS_REAL_SET_INTERVAL_V121; }
-    function phoneMode(){
-      try{
-        var qs = new URLSearchParams(location.search || '');
-        return qs.has('driver') || qs.has('bezorger') || qs.has('telefoon') || /\/driver\/?$/i.test(location.pathname||'') || /\/driver\//i.test(location.pathname||'');
-      }catch(e){ return false; }
+(function TapwagenV126PlannerAlertsSyncOnly(){
+  "use strict";
+  if (window.__tapwagenV126AlertsSyncInstalled) return;
+  window.__tapwagenV126AlertsSyncInstalled = true;
+
+  var COLLECTIONS = ["alerts", "driverAlerts", "systemAlerts"];
+  var unsubscribers = [];
+  var wrapped = {};
+
+  function S(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    try { if (window.state) return window.state; } catch(e) {}
+    return null;
+  }
+  function saveLocal(){
+    try { if (typeof save === "function") save(); return; } catch(e) {}
+    try { if (typeof saveState === "function") saveState(); return; } catch(e) {}
+    try { localStorage.setItem("eventPlannerProV91", JSON.stringify(S() || {})); } catch(e) {}
+  }
+  function normAlert(a){
+    a = a || {};
+    var id = String(a.id || ("alert_" + Date.now() + "_" + Math.random().toString(36).slice(2,7)));
+    var title = a.title || a.type || "Systeemmelding";
+    var text = a.note || a.message || a.text || "";
+    var time = a.time || a.createdAt || a.date || new Date().toLocaleString("nl-NL");
+    return Object.assign({}, a, {
+      id: id,
+      title: title,
+      type: a.type || title,
+      note: a.note || text,
+      message: a.message || text,
+      text: a.text || text,
+      time: time,
+      source: a.source || "telefoon",
+      resolved: !!a.resolved
+    });
+  }
+  function mergeAlerts(rows){
+    var s = S();
+    if (!s) return;
+    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+    var byId = new Map(s.alerts.map(function(a){ return [String(a.id), a]; }));
+    (rows || []).forEach(function(row){
+      var a = normAlert(row);
+      var old = byId.get(String(a.id));
+      byId.set(String(a.id), Object.assign({}, old || {}, a));
+    });
+    s.alerts = Array.from(byId.values()).sort(function(a,b){
+      return String(b.createdAt || b.updatedAt || b.time || "").localeCompare(String(a.createdAt || a.updatedAt || a.time || ""));
+    });
+    saveLocal();
+    updateButtonOnly();
+  }
+  function updateButtonOnly(){
+    try { if (typeof updateAlertButton === "function") { updateAlertButton(); return; } } catch(e) {}
+    var btn = document.getElementById("alertsBtn");
+    var s = S();
+    if (btn && s) {
+      var open = (s.alerts || []).filter(function(a){ return !a.resolved; }).length;
+      btn.textContent = "🚨 Systeemmeldingen (" + open + ")";
+      if (open) btn.classList.add("bns-a12-blink"); else btn.classList.remove("bns-a12-blink");
     }
-    function fixText(){
-      try{
-        document.querySelectorAll('h1, title, small, .bns-mobile-head *').forEach(function(el){
-          if(el && el.childNodes && el.childNodes.length===1 && el.textContent){
-            el.textContent = el.textContent.replace(/BNS\s+Bezorger/g,'Bezorger Tapwagen.nl').replace(/BNS/g,'Tapwagen.nl');
-          }
+  }
+  async function ensureFirebase(){
+    if (window.BNS && window.BNS.fs && window.BNS.db) return true;
+    try { if (window.BNS && typeof window.BNS.reloadFromFirebase === "function") await window.BNS.reloadFromFirebase(); } catch(e) {}
+    return !!(window.BNS && window.BNS.fs && window.BNS.db);
+  }
+  async function loadAlertsOnce(){
+    if (!(await ensureFirebase())) return;
+    var fs = window.BNS.fs, db = window.BNS.db;
+    var all = [];
+    for (var i=0;i<COLLECTIONS.length;i++) {
+      try {
+        var snap = await fs.getDocs(fs.collection(db, COLLECTIONS[i]));
+        snap.forEach(function(d){ all.push(Object.assign({id:d.id}, d.data())); });
+      } catch(e) {}
+    }
+    if (all.length) mergeAlerts(all);
+  }
+  async function startRealtime(){
+    if (!(await ensureFirebase())) return;
+    if (unsubscribers.length) return;
+    var fs = window.BNS.fs, db = window.BNS.db;
+    COLLECTIONS.forEach(function(col){
+      try {
+        var unsub = fs.onSnapshot(fs.collection(db, col), function(snap){
+          var rows = [];
+          snap.forEach(function(d){ rows.push(Object.assign({id:d.id}, d.data())); });
+          if (rows.length) mergeAlerts(rows);
         });
-        document.title = 'Bezorger Tapwagen.nl';
-      }catch(e){}
+        unsubscribers.push(unsub);
+      } catch(e) {}
+    });
+  }
+  async function firebaseUpdateAlert(id, data){
+    if (!id || !(await ensureFirebase())) return;
+    var fs = window.BNS.fs, db = window.BNS.db;
+    var row = Object.assign({}, data || {}, {id:String(id), updatedAt:new Date().toISOString()});
+    COLLECTIONS.forEach(function(col){
+      try { fs.setDoc(fs.doc(db, col, String(id)), row, {merge:true}).catch(function(){}); } catch(e) {}
+    });
+  }
+  async function firebaseDeleteAlert(id){
+    if (!id || !(await ensureFirebase())) return;
+    var fs = window.BNS.fs, db = window.BNS.db;
+    COLLECTIONS.forEach(function(col){
+      try { fs.deleteDoc(fs.doc(db, col, String(id))).catch(function(){}); } catch(e) {}
+    });
+  }
+  function wrapFunction(name, kind){
+    var fn = window[name];
+    if (typeof fn !== "function" || wrapped[name] === fn) return;
+    var original = fn;
+    var replacement = function(id){
+      var result = original.apply(this, arguments);
+      if (kind === "delete") firebaseDeleteAlert(id);
+      if (kind === "resolve") firebaseUpdateAlert(id, {resolved:true, resolvedAt:new Date().toLocaleString("nl-NL")});
+      return result;
+    };
+    replacement.__tapwagenV126Wrapped = true;
+    wrapped[name] = replacement;
+    window[name] = replacement;
+    try { eval(name + " = window['" + name + "']"); } catch(e) {}
+  }
+  function installWrappers(){
+    ["BNS_A12_DELETE_ALERT","BNS_damageDelete","bnsAlertDelV11","bnsDeleteAlertV108","bnsDeleteAlertV109"].forEach(function(n){ wrapFunction(n,"delete"); });
+    ["BNS_A12_RESOLVE_ALERT","BNS_damageResolve","bnsAlertDoneV11","bnsResolveAlertV108","bnsResolveAlertV109"].forEach(function(n){ wrapFunction(n,"resolve"); });
+  }
+  function hookButtons(){
+    var alerts = document.getElementById("alertsBtn");
+    if (alerts && !alerts.dataset.tapwagenV126Alerts) {
+      alerts.dataset.tapwagenV126Alerts = "1";
+      alerts.addEventListener("click", function(){ loadAlertsOnce(); }, true);
     }
-    function enforce(){
-      if(!phoneMode()) return;
-      try{
-        document.body.classList.add('bns-driver-mode');
-        ['bns-v83-phone-login','bns-v83-phone-app','bns-v87-phone-login','bns-v87-phone-app','bns-v89-phone','bns-v91-phone'].forEach(function(c){document.body.classList.remove(c);});
-        ['bnsV83PhoneLogin','bnsV83PhoneApp','bnsV87PhoneRoot','bnsV89PhoneRoot','bnsV91PhoneRoot'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
-        var app=document.getElementById('bnsMobileDriverApp');
-        if(app){ app.style.display='block'; app.style.visibility='visible'; app.style.opacity='1'; }
-        fixText();
-      }catch(e){}
+    var sync = document.getElementById("syncBtn");
+    if (sync && !sync.dataset.tapwagenV126Alerts) {
+      sync.dataset.tapwagenV126Alerts = "1";
+      sync.addEventListener("click", function(){ loadAlertsOnce(); }, true);
     }
-    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', enforce); else enforce();
-    setTimeout(enforce,50); setTimeout(enforce,250); setTimeout(enforce,800); setTimeout(enforce,1600); setTimeout(enforce,3000);
-  }catch(e){}
+  }
+  function init(){
+    installWrappers();
+    hookButtons();
+    loadAlertsOnce();
+    startRealtime();
+    setTimeout(function(){ installWrappers(); hookButtons(); updateButtonOnly(); }, 1200);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(init, 1200); });
+  else setTimeout(init, 1200);
+  setInterval(function(){ installWrappers(); hookButtons(); }, 5000);
 })();
