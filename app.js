@@ -14132,3 +14132,149 @@ setInterval(install,1500);
   setInterval(cleanPlannerDashboard, 1500);
   setTimeout(cleanPlannerDashboard, 500);
 })();
+
+/* =========================================================
+   TAPWAGEN V137 TEST - oude naam + PIN login, telefoon read-only
+   Basis: V100. Alleen actief via ?olddriver=1 of /driver/ redirect.
+   Doel: testen of oude naam+PIN login stabieler is zonder planning terug te schrijven.
+   ========================================================= */
+(function tapwagenV137OldLoginPhoneTest(){
+  "use strict";
+  if (window.__tapwagenV137OldLoginPhoneTest) return;
+  window.__tapwagenV137OldLoginPhoneTest = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function isMode(){ var p=(location.search+" "+location.pathname).toLowerCase(); return /olddriver=1|\/driver\//.test(p); }
+  if(!isMode()) return;
+
+  var ROOT_ID = "tapV137PhoneRoot";
+  var SESSION_KEY = "tap_v137_driver_user";
+  var users = [], orders = [], alerts = [];
+  var started = false;
+  var pollTimer = null;
+  var lastRenderKey = "";
+
+  function state(){ try{ if(typeof state !== "undefined" && state) return state; }catch(e){} return window.state || {users:[],orders:[],alerts:[]}; }
+  function now(){ return new Date().toISOString(); }
+  function fsReady(){ return !!(window.BNS && window.BNS.fs && window.BNS.db); }
+  function fs(){ return window.BNS.fs; }
+  function roleIsDriver(u){ return L(u && u.role) === "bezorger" && u.deleted !== true && u.active !== false; }
+  function currentUser(){ var id=""; try{id=sessionStorage.getItem(SESSION_KEY)||"";}catch(e){} return users.find(function(u){return String(u.id)===String(id);}) || null; }
+  function setCurrentUser(u){ try{ if(u&&u.id) sessionStorage.setItem(SESSION_KEY,String(u.id)); }catch(e){} }
+  function clearCurrentUser(){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
+  function ensureRoot(){
+    var r=E(ROOT_ID); if(r) return r;
+    r=document.createElement("div"); r.id=ROOT_ID; document.body.appendChild(r);
+    var st=document.createElement("style"); st.id="tapV137Style"; st.textContent="html,body{background:#eef7ff!important}.tap-v137-root{position:fixed;inset:0;z-index:2147483000;background:#eef7ff;color:#172033;overflow:auto;font-family:Arial,sans-serif}.tap-v137-head{position:sticky;top:0;z-index:5;background:linear-gradient(135deg,#075fc4,#0ea5e9);color:#fff;padding:18px 14px;box-shadow:0 8px 24px rgba(15,23,42,.22)}.tap-v137-head h1{margin:0;font-size:25px}.tap-v137-head small{display:block;margin-top:4px;font-weight:800}.tap-v137-wrap{padding:12px 10px 100px;max-width:840px;margin:0 auto}.tap-v137-card{background:#fff;border:1px solid #dbeafe;border-radius:22px;padding:16px;margin:12px 0;box-shadow:0 10px 28px rgba(15,23,42,.11)}.tap-v137-input,.tap-v137-select,.tap-v137-text{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:14px;font-size:17px;margin:6px 0 12px;background:#fff}.tap-v137-btn,.tap-v137-link{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:46px;border:0;border-radius:14px;padding:12px 13px;background:#075fc4;color:#fff;font-weight:900;text-decoration:none;font-size:15px}.tap-v137-green{background:#16a34a}.tap-v137-dark{background:#334155}.tap-v137-red{background:#dc2626}.tap-v137-orange{background:#f97316}.tap-v137-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tap-v137-wide{grid-column:1/-1}.tap-v137-meta{font-size:14px;line-height:1.55}.tap-v137-title{font-size:20px;font-weight:1000;margin-bottom:8px}.tap-v137-msg{background:#e0f2fe;border:1px solid #bae6fd;color:#075985;border-radius:14px;padding:10px;font-weight:900;margin:10px 0}.tap-v137-muted{color:#64748b;font-weight:700}.tap-v137-modal{position:fixed;inset:0;z-index:2147483500;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}.tap-v137-modal-card{background:#fff;border-radius:22px;padding:18px;max-width:650px;width:100%;max-height:88vh;overflow:auto}.tap-v137-preview{max-width:100%;border-radius:14px;margin:8px 0}.tap-v137-sig{width:100%;height:220px;border:2px solid #111827;border-radius:12px;background:#fff}@media(max-width:430px){.tap-v137-grid{grid-template-columns:1fr}.tap-v137-wide{grid-column:1}}";
+    document.head.appendChild(st);
+    return r;
+  }
+  function html(h){ var r=ensureRoot(); r.className="tap-v137-root"; r.innerHTML=h; return r; }
+  function toast(t){ var old=E("tapV137Toast"); if(old)old.remove(); var d=document.createElement("div"); d.id="tapV137Toast"; d.style.cssText="position:fixed;left:16px;right:16px;bottom:20px;z-index:2147483600;background:#fff;border:3px solid #111827;border-radius:18px;padding:14px;font-weight:900;text-align:center;box-shadow:0 14px 50px rgba(0,0,0,.35)"; d.textContent=t; document.body.appendChild(d); setTimeout(function(){ if(d)d.remove(); },3000); }
+
+  function mergeById(target, rows){
+    target.length = 0;
+    rows.forEach(function(r){ if(r && r.id) target.push(r); });
+  }
+  function pullCollection(name){
+    return new Promise(function(resolve){
+      try{
+        if(!fsReady() || !fs().getDocs){ resolve([]); return; }
+        fs().getDocs(fs().collection(window.BNS.db,name)).then(function(snap){
+          var rows=[]; snap.forEach(function(d){ rows.push(Object.assign({id:d.id}, d.data())); }); resolve(rows);
+        }).catch(function(){ resolve([]); });
+      }catch(e){ resolve([]); }
+    });
+  }
+  function pullAll(){
+    return Promise.all([pullCollection("users"),pullCollection("orders"),pullCollection("alerts")]).then(function(res){
+      if(res[0].length) mergeById(users,res[0]); else users = (state().users||[]).slice();
+      if(res[1].length || fsReady()) mergeById(orders,res[1]); else orders = (state().orders||[]).slice();
+      if(res[2].length) mergeById(alerts,res[2]); else alerts = (state().alerts||[]).slice();
+    });
+  }
+  function startReadOnlyPoll(){
+    if(pollTimer) clearInterval(pollTimer);
+    pollTimer=setInterval(function(){ pullAll().then(function(){ var u=currentUser(); if(u) renderApp(u,true); }); },5000);
+  }
+  function writeAlert(a){
+    a.id = a.id || ("alert_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8));
+    a.createdAt = a.createdAt || now();
+    try{ if(Array.isArray(state().alerts) && !state().alerts.some(function(x){return String(x.id)===String(a.id);})){ state().alerts.push(a); } }catch(e){}
+    try{ if(fsReady() && fs().setDoc && fs().doc) return fs().setDoc(fs().doc(window.BNS.db,"alerts",String(a.id)),a,{merge:true}); }catch(e){}
+    return Promise.resolve();
+  }
+  function updateOrderDone(o,u){
+    if(!o||!o.id) return Promise.resolve();
+    var patch=Object.assign({},o,{status:"Uitgevoerd",doneAt:now(),doneBy:u&&u.name||""});
+    try{ if(fsReady() && fs().setDoc && fs().doc) return fs().setDoc(fs().doc(window.BNS.db,"orders",String(o.id)),patch,{merge:true}); }catch(e){}
+    return Promise.resolve();
+  }
+  function userRights(u){ return Object.assign({}, u&&u.rights || {}); }
+  function right(u, keys, def){ var r=userRights(u); for(var i=0;i<keys.length;i++){ if(r[keys[i]] === true) return true; if(r[keys[i]] === false) return false; } return def !== false; }
+  function orderIds(o){ return [].concat(o.driverIds||[],o.bezorgerIds||[],o.driverId||[],o.bezorgerId||[]).map(String); }
+  function orderNames(o){ return [].concat(o.driverNames||[],o.bezorgerNames||[],o.driverName||[],o.bezorgerName||[],o.driver||[],o.bezorger||[]).map(function(x){return L(x);}); }
+  function belongs(o,u){ if(!u||!o) return false; if(orderIds(o).indexOf(String(u.id))>=0) return true; var n=L(u.name); return !!n && orderNames(o).some(function(x){ return x===n || (x&&n&&x.indexOf(n)>=0) || (x&&n&&n.indexOf(x)>=0); }); }
+  function activeOrder(o){ var s=L(o&&o.status); return o && o.deleted!==true && !/geannuleerd|cancel|verwijderd|uitgevoerd|done/.test(s); }
+  function cust(o){ return T(o.customerName || (o.customer&&o.customer.name) || o.klant || ""); }
+  function phone(o){ return T(o.customerPhone || o.phone || (o.customer&&o.customer.phone) || ""); }
+  function address(o){ var l=o.location||{}; return [o.locationName,l.name,o.locationStreet,l.street,o.locationZip,l.zip,o.locationCity,l.city,o.address,o.city].map(T).filter(Boolean).join(", "); }
+  function mats(o){ return (Array.isArray(o.materials)?o.materials:[]).map(function(m){ return [m.code,m.name,m.product,m.description].map(T).filter(Boolean).slice(0,2).join(" "); }).filter(Boolean).join(", "); }
+  function dateNice(d){ var p=T(d).slice(0,10).split("-"); return p.length===3 ? p[2]+"-"+p[1]+"-"+p[0] : T(d); }
+  function routeUrl(type,a){ var q=encodeURIComponent(a||""); return type==="waze" ? "https://waze.com/ul?q="+q+"&navigate=yes" : "https://www.google.com/maps/search/?api=1&query="+q; }
+
+  function renderLogin(msg){
+    var opts=users.filter(roleIsDriver).map(function(u){ return '<option value="'+H(u.id)+'">'+H(u.name)+' ('+H(u.role||'Bezorger')+')</option>'; }).join("");
+    html('<div class="tap-v137-head"><h1>Bezorger Tapwagen.nl</h1><small>Oude login test - naam + PIN</small></div><div class="tap-v137-wrap"><div class="tap-v137-card"><h2>Inloggen</h2><p class="tap-v137-muted">Kies je naam en vul je PIN in.</p>'+(msg?'<div class="tap-v137-msg">'+H(msg)+'</div>':'')+'<label>Naam</label><select id="tapV137Name" class="tap-v137-select">'+opts+'</select><label>PIN</label><input id="tapV137Pin" class="tap-v137-input" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN"><button id="tapV137Login" class="tap-v137-btn tap-v137-wide" type="button">Inloggen</button></div></div>');
+    var btn=E("tapV137Login"), pin=E("tapV137Pin");
+    function go(){ var id=T(E("tapV137Name")&&E("tapV137Name").value), p=T(pin&&pin.value); var u=users.find(function(x){return String(x.id)===String(id) && T(x.pin)===p && roleIsDriver(x);}); if(!u){renderLogin("Naam of PIN klopt niet.");return;} setCurrentUser(u); renderApp(u,false); startReadOnlyPoll(); }
+    if(btn)btn.onclick=go; if(pin)pin.onkeydown=function(ev){ if(ev.key==="Enter"){ev.preventDefault();go();} };
+  }
+  function orderCard(o,u){
+    var ad=address(o), ph=phone(o), id=H(o.id||""), buttons=[];
+    if(right(u,["gps","route","waze"],true)){ buttons.push('<a class="tap-v137-link tap-v137-green" target="_blank" href="'+H(routeUrl("waze",ad))+'">Waze</a>'); buttons.push('<a class="tap-v137-link tap-v137-dark" target="_blank" href="'+H(routeUrl("maps",ad))+'">Maps</a>'); }
+    if(ph && right(u,["phoneCall","call","bellen"],true)) buttons.push('<a class="tap-v137-link" href="tel:'+H(ph)+'">Bel klant</a>');
+    if(right(u,["report","meldingen","reports"],true)) buttons.push('<button class="tap-v137-btn tap-v137-orange" data-report="'+id+'" data-type="Melding">Melding</button>');
+    if(right(u,["reportStoring","storing"],true)) buttons.push('<button class="tap-v137-btn tap-v137-dark" data-report="'+id+'" data-type="Storing">Storing</button>');
+    if(right(u,["reportDamage","damage","schade"],true)) buttons.push('<button class="tap-v137-btn tap-v137-red" data-report="'+id+'" data-type="Schade">Schade</button>');
+    if(right(u,["reportMissing","vermissing"],true)) buttons.push('<button class="tap-v137-btn tap-v137-dark" data-report="'+id+'" data-type="Vermissing">Vermissing</button>');
+    if(right(u,["photoBefore","photo","fotoVoor"],true)) buttons.push('<button class="tap-v137-btn tap-v137-dark" data-photo="'+id+'" data-type="Foto voor levering">Foto voor</button>');
+    if(right(u,["photoAfter","fotoNa"],true)) buttons.push('<button class="tap-v137-btn tap-v137-dark" data-photo="'+id+'" data-type="Foto na levering">Foto na</button>');
+    if(right(u,["signatureCustomer","signature","handtekening"],true)) buttons.push('<button class="tap-v137-btn tap-v137-dark" data-sign="'+id+'">Handtekening</button>');
+    if(right(u,["phoneDone","resolve","done","uitgevoerd"],true)) buttons.push('<button class="tap-v137-btn tap-v137-green tap-v137-wide" data-done="'+id+'">Afmelden / uitgevoerd</button>');
+    return '<div class="tap-v137-card" data-order-card="'+id+'"><div class="tap-v137-title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="tap-v137-meta"><b>Datum:</b> '+H(dateNice(o.start))+(o.end&&o.end!==o.start?' t/m '+H(dateNice(o.end)):'')+'<br><b>Klant:</b> '+H(cust(o)||'Onbekend')+'<br><b>Adres:</b> '+H(ad||'Geen adres')+'<br><b>Materiaal:</b> '+H(mats(o)||'Geen materialen')+'</div><div class="tap-v137-grid" style="margin-top:12px">'+buttons.join("")+'</div></div>';
+  }
+  function renderApp(u,quiet){
+    var rows=orders.filter(function(o){return activeOrder(o)&&belongs(o,u);}).sort(function(a,b){return T(a.start).localeCompare(T(b.start));});
+    var key=rows.map(function(o){return [o.id,o.updatedAt,o.status,o.title,o.number,JSON.stringify(o.driverIds||[]),JSON.stringify(o.bezorgerIds||[]),JSON.stringify(o.driverNames||[]),JSON.stringify(o.bezorgerNames||[])].join('|');}).join(';;')+'|'+JSON.stringify(userRights(u));
+    if(quiet && key===lastRenderKey) return;
+    lastRenderKey=key;
+    html('<div class="tap-v137-head"><h1>Bezorger Tapwagen.nl</h1><small>'+H(u.name)+' - oude login test</small></div><div class="tap-v137-wrap"><div class="tap-v137-msg">'+(quiet?'Bijgewerkt':'Data geladen')+'</div><div class="tap-v137-grid"><button id="tapV137Refresh" class="tap-v137-btn" type="button">Verversen</button><button id="tapV137Logout" class="tap-v137-btn tap-v137-dark" type="button">Uitloggen</button></div>'+(rows.length?rows.map(function(o){return orderCard(o,u);}).join(""):'<div class="tap-v137-card">Geen opdrachten voor deze gebruiker.</div>')+'</div>');
+    bind(u);
+  }
+  function modal(h){ var old=E("tapV137Modal"); if(old)old.remove(); var d=document.createElement("div"); d.id="tapV137Modal"; d.className="tap-v137-modal"; d.innerHTML='<div class="tap-v137-modal-card">'+h+'</div>'; document.body.appendChild(d); return d; }
+  function closeModal(){ var m=E("tapV137Modal"); if(m)m.remove(); }
+  function findOrder(id){ return orders.find(function(o){return String(o.id)===String(id);}); }
+  function sendAlert(o,u,type,text,extra){ return writeAlert(Object.assign({orderId:o&&o.id||'',orderNumber:o&&o.number||'',orderTitle:o&&o.title||'',customerName:cust(o),title:type,type:type,text:text||'',note:text||'',message:text||'',resolved:false,from:u&&u.name||'',driverId:u&&u.id||'',driverName:u&&u.name||'',source:'telefoon'},extra||{})); }
+  function openReport(id,u,type){ var o=findOrder(id); if(!o)return; modal('<h2>'+H(type||'Melding')+'</h2><textarea id="tapV137Text" class="tap-v137-text" rows="5" placeholder="Typ je melding"></textarea><button id="tapV137Send" class="tap-v137-btn tap-v137-green" type="button">Versturen</button> <button id="tapV137Cancel" class="tap-v137-btn tap-v137-dark" type="button">Annuleren</button>'); E('tapV137Cancel').onclick=closeModal; E('tapV137Send').onclick=function(){var t=T(E('tapV137Text').value); if(!t){toast('Typ eerst een melding');return;} sendAlert(o,u,type||'Melding',t,{}).then(function(){closeModal();toast('Melding verstuurd naar planning');});}; }
+  function compress(file,cb){ var rd=new FileReader(); rd.onload=function(){ var img=new Image(); img.onload=function(){ var max=900,w=img.width,h=img.height; if(w>max||h>max){var r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r);} var c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); cb(c.toDataURL('image/jpeg',0.58)); }; img.onerror=function(){cb(rd.result);}; img.src=rd.result; }; rd.readAsDataURL(file); }
+  function openPhoto(id,u,type){ var o=findOrder(id); if(!o)return; modal('<h2>'+H(type||'Foto')+'</h2><input id="tapV137File" class="tap-v137-input" type="file" accept="image/*" capture="environment"><textarea id="tapV137PhotoText" class="tap-v137-text" rows="3" placeholder="Opmerking"></textarea><div id="tapV137Preview"></div><button id="tapV137PhotoSend" class="tap-v137-btn tap-v137-green" type="button">Foto versturen</button> <button id="tapV137Cancel" class="tap-v137-btn tap-v137-dark" type="button">Annuleren</button>'); var data=''; E('tapV137Cancel').onclick=closeModal; E('tapV137File').onchange=function(){var f=this.files&&this.files[0]; if(!f)return; compress(f,function(d){data=d; E('tapV137Preview').innerHTML='<img class="tap-v137-preview" src="'+d+'">';});}; E('tapV137PhotoSend').onclick=function(){ if(!data){toast('Maak of kies eerst een foto');return;} var note=T(E('tapV137PhotoText').value); sendAlert(o,u,type||'Foto bezorger',note||'Foto toegevoegd',{photoData:data,mediaKind:'photo'}).then(function(){closeModal();toast('Foto verstuurd naar planning');}); }; }
+  function openSign(id,u){ var o=findOrder(id); if(!o)return; modal('<h2>Handtekening klant</h2><input id="tapV137SignName" class="tap-v137-input" placeholder="Naam klant"><canvas id="tapV137Sig" class="tap-v137-sig"></canvas><button id="tapV137SaveSig" class="tap-v137-btn tap-v137-green" type="button">Handtekening versturen</button> <button id="tapV137ClearSig" class="tap-v137-btn tap-v137-dark" type="button">Opnieuw</button> <button id="tapV137Cancel" class="tap-v137-btn tap-v137-dark" type="button">Annuleren</button>'); E('tapV137Cancel').onclick=closeModal; var c=E('tapV137Sig'),ctx=c.getContext('2d'),draw=false,has=false; function fit(){var r=c.getBoundingClientRect(); c.width=Math.max(300,Math.floor(r.width)); c.height=220; ctx.lineWidth=3; ctx.lineCap='round'; ctx.strokeStyle='#111827';} fit(); function pos(ev){var e=ev.touches&&ev.touches[0]||ev,r=c.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top};} function st(ev){ev.preventDefault();draw=true;has=true;var p=pos(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);} function mv(ev){if(!draw)return;ev.preventDefault();var p=pos(ev);ctx.lineTo(p.x,p.y);ctx.stroke();} function en(ev){if(ev)ev.preventDefault();draw=false;} ['mousedown','touchstart'].forEach(function(n){c.addEventListener(n,st,{passive:false});}); ['mousemove','touchmove'].forEach(function(n){c.addEventListener(n,mv,{passive:false});}); ['mouseup','mouseleave','touchend','touchcancel'].forEach(function(n){c.addEventListener(n,en,{passive:false});}); E('tapV137ClearSig').onclick=function(){fit();has=false;}; E('tapV137SaveSig').onclick=function(){ if(!has){toast('Laat eerst tekenen');return;} var name=T(E('tapV137SignName').value), data=c.toDataURL('image/png'); sendAlert(o,u,'Handtekening klant',name?('Ondertekend door '+name):'Klant heeft getekend',{signatureData:data,signatureName:name,mediaKind:'signature'}).then(function(){closeModal();toast('Handtekening verstuurd naar planning');}); }; }
+  function bind(u){
+    var refresh=E('tapV137Refresh'); if(refresh) refresh.onclick=function(){ pullAll().then(function(){ var fresh=users.find(function(x){return String(x.id)===String(u.id);})||u; renderApp(fresh,false); toast('Verversd'); }); };
+    var logout=E('tapV137Logout'); if(logout) logout.onclick=function(){ clearCurrentUser(); renderLogin(); };
+    A('[data-report]').forEach(function(b){ b.onclick=function(){ openReport(b.getAttribute('data-report'),u,b.getAttribute('data-type')||'Melding'); }; });
+    A('[data-photo]').forEach(function(b){ b.onclick=function(){ openPhoto(b.getAttribute('data-photo'),u,b.getAttribute('data-type')||'Foto'); }; });
+    A('[data-sign]').forEach(function(b){ b.onclick=function(){ openSign(b.getAttribute('data-sign'),u); }; });
+    A('[data-done]').forEach(function(b){ b.onclick=function(){ var o=findOrder(b.getAttribute('data-done')); if(!o)return; if(!confirm('Opdracht afmelden als uitgevoerd?'))return; updateOrderDone(o,u).then(function(){toast('Opdracht afgemeld'); pullAll().then(function(){renderApp(u,false);});}); }; });
+  }
+  function boot(){
+    if(started) return; started=true; ensureRoot(); html('<div class="tap-v137-head"><h1>Bezorger Tapwagen.nl</h1><small>Starten...</small></div><div class="tap-v137-wrap"><div class="tap-v137-card">Data laden...</div></div>');
+    setTimeout(function(){ pullAll().then(function(){ var u=currentUser(); if(u){ renderApp(u,false); startReadOnlyPoll(); } else { renderLogin(); } }); },450);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded',boot); else setTimeout(boot,20);
+})();
