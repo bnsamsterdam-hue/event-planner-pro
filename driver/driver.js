@@ -1,4 +1,4 @@
-/* Tapwagen.nl Bezorger - driver-only V124
+/* Tapwagen.nl Bezorger - driver-only V125
    Alleen telefoonmap. Planner/app.js blijft ongemoeid.
 */
 const FIREBASE_VERSION = "10.12.5";
@@ -42,13 +42,30 @@ async function loadAll(){
 }
 async function writeDoc(col,id,data){
   if(!id) throw new Error("Geen id");
-  await APP.firebase.setDoc(APP.firebase.doc(APP.db,col,String(id)),data,{merge:true});
+  const row = { ...data, updatedAt: nowIso() };
+  await APP.firebase.setDoc(APP.firebase.doc(APP.db,col,String(id)),row,{merge:true});
+  return row;
 }
 async function addAlert(alert){
   const id = alert.id || ("alert_"+Date.now()+"_"+Math.random().toString(36).slice(2,7));
-  const row = { ...alert, id, resolved:false, source:"bezorger", createdAt: alert.createdAt || nowIso(), time: alert.time || nowLocal() };
+  const row = { ...alert, id, resolved:false, source:"telefoon", sourceApp:"driver", createdAt: alert.createdAt || nowIso(), time: alert.time || nowLocal(), updatedAt: nowIso() };
+  // Belangrijk: alerts is de hoofd-inbox voor de planner.
   await writeDoc("alerts", id, row);
+  // Extra kopieen zijn onschadelijk en helpen als een oudere planner op een andere collectie kijkt.
+  try{ await writeDoc("driverAlerts", id, row); }catch(e){}
+  try{ await writeDoc("systemAlerts", id, row); }catch(e){}
   return row;
+}
+async function updateOrderWithDriverEvent(order, event){
+  if(!order || !order.id) return;
+  const copy = { ...order };
+  copy.driverReports = Array.isArray(copy.driverReports) ? copy.driverReports : [];
+  copy.driverReports.push(event);
+  copy.lastDriverAlertAt = nowIso();
+  copy.lastDriverAlertType = event.type || event.title || "Melding";
+  copy.lastDriverAlertText = event.text || event.note || "";
+  await writeDoc("orders", copy.id, copy);
+  Object.assign(order, copy);
 }
 
 function userAllowed(u){ return lower(u.role)==="bezorger" || lower(u.role)==="driver" || lower(u.role)==="chauffeur"; }
@@ -207,8 +224,11 @@ function alertBase(order,type,note,extra){
 }
 async function sendAlert(order,type,note,extra){
   const alert = alertBase(order,type,note,extra);
-  await addAlert(alert);
-  return alert;
+  setStatus("Melding versturen...");
+  const saved = await addAlert(alert);
+  try{ await updateOrderWithDriverEvent(order, saved); }catch(e){ console.warn("Order event opslaan niet gelukt", e); }
+  setStatus("Data geladen");
+  return saved;
 }
 async function sendReport(order,type){
   const label = type || "Bezorger melding";
@@ -225,10 +245,10 @@ function compressImage(file){
   return new Promise((resolve,reject)=>{
     const r=new FileReader(); r.onerror=reject; r.onload=()=>{
       const img=new Image(); img.onerror=reject; img.onload=()=>{
-        const max=1000; let w=img.width,h=img.height;
+        const max=700; let w=img.width,h=img.height;
         if(w>h && w>max){ h=Math.round(h*max/w); w=max; } else if(h>max){ w=Math.round(w*max/h); h=max; }
         const c=document.createElement("canvas"); c.width=w; c.height=h; c.getContext("2d").drawImage(img,0,0,w,h);
-        resolve(c.toDataURL("image/jpeg",0.75));
+        resolve(c.toDataURL("image/jpeg",0.52));
       }; img.src=r.result;
     }; r.readAsDataURL(file);
   });
