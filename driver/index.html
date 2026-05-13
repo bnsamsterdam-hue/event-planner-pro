@@ -12,15 +12,15 @@
   </style>
   <script>
     (function(){
-      try{
-        if('serviceWorker' in navigator){
-          navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{r.unregister();}catch(e){} }); });
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{ r.unregister(); }catch(e){} }); });
         }
-        if(window.caches){ caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); }); }
-      }catch(e){}
+        if (window.caches && caches.keys) caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); });
+      } catch(e) {}
       var base = location.pathname.replace(/\/driver\/?$/i,'/');
-      var target = location.origin + base + '?telefoon=1&v=134';
-      setTimeout(function(){ location.replace(target); }, 80);
+      var target = location.origin + base + '?telefoon=1&v=136';
+      setTimeout(function(){ location.replace(target); }, 60);
     })();
   </script>
 </head>
@@ -28,7 +28,7 @@
   <div class="box">
     <h1>Bezorger Tapwagen.nl</h1>
     <p class="muted">Mobiele planner wordt geopend...</p>
-    <a class="btn" href="../?telefoon=1&v=134">Open mobiele planner</a>
+    <a class="btn" href="../?telefoon=1&v=136">Open mobiele planner</a>
   </div>
 </body>
 </html>
