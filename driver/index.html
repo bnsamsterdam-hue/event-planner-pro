@@ -4,9 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
   <title>Bezorger Tapwagen.nl</title>
-  <link rel="manifest" href="manifest.json?v=129">
-  <link rel="stylesheet" href="driver.css?v=129">
+  <link rel="manifest" href="manifest.json?v=130">
+  <link rel="stylesheet" href="driver.css?v=130">
 </head>
 <body>
   <header class="top">
@@ -23,14 +25,11 @@
     <section id="loginBox" class="card login-card">
       <h2>Inloggen</h2>
       <p class="help">Kies je naam en vul je PIN in.</p>
-
       <div class="login-grid">
         <label>Naam</label>
         <select id="loginName"></select>
-
         <label>PIN</label>
         <input id="loginPin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN">
-
         <button id="loginBtn" type="button" class="btn-full">Inloggen</button>
       </div>
     </section>
@@ -41,25 +40,23 @@
         <button id="refreshBtn" type="button">Verversen</button>
         <button id="clearSearchBtn" class="btn-dark" type="button">Leeg</button>
       </div>
-
-      <section id="ordersView">
-        <div id="orders"></div>
-      </section>
-
+      <section id="ordersView"><div id="orders"></div></section>
       <section id="detailView" class="hidden"></section>
     </section>
   </main>
 
   <div id="toast" class="toast"></div>
 
-  <script src="../firebase-config.js?v=129"></script>
-  <script src="../firebase-push-config.js?v=129"></script>
-  <script src="../firebase-push-client.js?v=129"></script>
-  <script src="driver.js?v=129"></script>
   <script>
+    // Oude service-worker/cache weggooien; deze telefoonpagina gebruikt netwerk-first.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{ r.unregister(); }catch(e){} }); });
+      navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ r.unregister(); }); }).catch(function(){});
     }
+    if (window.caches) caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); }).catch(function(){});
   </script>
+  <script src="../firebase-config.js?v=130"></script>
+  <script src="../firebase-push-config.js?v=130"></script>
+  <script src="../firebase-push-client.js?v=130"></script>
+  <script src="driver.js?v=130"></script>
 </body>
 </html>
