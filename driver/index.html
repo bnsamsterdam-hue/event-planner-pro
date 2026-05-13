@@ -12,16 +12,8 @@
   </style>
   <script>
     (function(){
-      try {
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{ r.unregister(); }catch(e){} }); });
-        }
-        if (window.caches && caches.keys) {
-          caches.keys().then(function(keys){ keys.forEach(function(k){ caches.delete(k); }); });
-        }
-      } catch(e) {}
-      var base = location.pathname.replace(/\/bestuurder\/?$/i,'/').replace(/\/driver\/?$/i,'/');
-      var target = location.origin + base + '?telefoon=1&driver=1&v=114';
+      var base = location.pathname.replace(/\/driver\/?$/i,'/');
+      var target = location.origin + base + '?driver=1&v=117';
       location.replace(target);
     })();
   </script>
@@ -30,7 +22,7 @@
   <div class="box">
     <h1>Bezorger Tapwagen.nl</h1>
     <p class="muted">Mobiele planner wordt geopend...</p>
-    <a class="btn" href="../?telefoon=1&driver=1&v=114">Open mobiele planner</a>
+    <a class="btn" href="../?driver=1&v=117">Open mobiele planner</a>
   </div>
 </body>
 </html>
