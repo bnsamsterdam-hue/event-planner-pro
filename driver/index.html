@@ -3,12 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
+  <meta name="robots" content="noindex">
   <title>Bezorger Tapwagen.nl</title>
-  <link rel="manifest" href="manifest.json?v=125">
-  <link rel="stylesheet" href="driver.css?v=125">
+  <link rel="manifest" href="manifest.json?v=128">
+  <link rel="stylesheet" href="driver.css?v=128">
 </head>
 <body>
   <header class="top">
@@ -16,7 +14,7 @@
       <h1>Bezorger Tapwagen.nl</h1>
       <small id="who">Mobiele opdrachten</small>
     </div>
-    <button id="logoutBtn" class="ghost hidden" type="button">Uitloggen app</button>
+    <button id="logoutBtn" class="ghost hidden" type="button">Uitloggen</button>
   </header>
 
   <main class="wrap">
@@ -24,10 +22,15 @@
 
     <section id="loginBox" class="card login-card">
       <h2>Inloggen</h2>
-      <p class="help">Vul alleen je persoonlijke PIN in.</p>
+      <p class="help">Kies je naam en vul je PIN in.</p>
+
       <div class="login-grid">
+        <label>Naam</label>
+        <select id="loginName"></select>
+
         <label>PIN</label>
         <input id="loginPin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN">
+
         <button id="loginBtn" type="button" class="btn-full">Inloggen</button>
       </div>
     </section>
@@ -38,23 +41,25 @@
         <button id="refreshBtn" type="button">Verversen</button>
         <button id="clearSearchBtn" class="btn-dark" type="button">Leeg</button>
       </div>
-      <section id="ordersView"><div id="orders"></div></section>
+
+      <section id="ordersView">
+        <div id="orders"></div>
+      </section>
+
       <section id="detailView" class="hidden"></section>
     </section>
   </main>
 
   <div id="toast" class="toast"></div>
 
+  <script src="../firebase-config.js?v=128"></script>
+  <script src="../firebase-push-config.js?v=128"></script>
+  <script src="../firebase-push-client.js?v=128"></script>
+  <script src="driver.js?v=128"></script>
   <script>
-  // Driver-app moet geen oude service-worker/cache vasthouden.
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ r.unregister(); }); }).catch(function(){});
-  }
-  if (window.caches) caches.keys().then(function(keys){ keys.forEach(function(k){ if(/driver|bezorger|bns/i.test(k)) caches.delete(k); }); }).catch(function(){});
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{ r.unregister(); }catch(e){} }); });
+    }
   </script>
-  <script src="../firebase-config.js?v=125"></script>
-  <script src="../firebase-push-config.js?v=125"></script>
-  <script src="../firebase-push-client.js?v=125"></script>
-  <script src="driver.js?v=125"></script>
 </body>
 </html>

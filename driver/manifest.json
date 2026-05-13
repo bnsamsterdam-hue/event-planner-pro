@@ -1,7 +1,7 @@
 {
   "name": "Bezorger Tapwagen.nl",
-  "short_name": "Tapwagen",
-  "start_url": "./?v=124",
+  "short_name": "Tapwagen.nl",
+  "start_url": "./?v=128",
   "display": "standalone",
   "background_color": "#eef4fb",
   "theme_color": "#0756b7",

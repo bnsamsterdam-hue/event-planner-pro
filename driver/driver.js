@@ -1,351 +1,598 @@
-/* Tapwagen.nl Bezorger - driver-only V125
-   Alleen telefoonmap. Planner/app.js blijft ongemoeid.
-*/
-const FIREBASE_VERSION = "10.12.5";
-const APP = { firebase:null, app:null, db:null, user:null, state:{users:[],orders:[]} };
-const $ = (id)=>document.getElementById(id);
-const $$ = (sel,root=document)=>Array.from(root.querySelectorAll(sel));
+const FIREBASE_VERSION="10.12.5";
+const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[]}};
 
-function clean(v){ return String(v ?? "").trim(); }
-function lower(v){ return clean(v).toLowerCase(); }
-function esc(v){ return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-function nowIso(){ return new Date().toISOString(); }
-function nowLocal(){ return new Date().toLocaleString("nl-NL"); }
-function toast(t){ const e=$("toast"); if(!e){ alert(t); return; } e.textContent=String(t||""); e.classList.add("show"); clearTimeout(e._t); e._t=setTimeout(()=>e.classList.remove("show"),3500); }
-function setStatus(t){ const e=$("status"); if(e) e.textContent=t; }
-function unique(arr){ return Array.from(new Set((arr||[]).map(x=>clean(x)).filter(Boolean))); }
+const $=id=>document.getElementById(id);
+const qsa=(sel,root=document)=>Array.from(root.querySelectorAll(sel));
+
+function clean(v){return String(v||"").trim()}
+function lower(v){return clean(v).toLowerCase()}
+function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function toast(t){const e=$("toast");if(!e){alert(t);return}e.textContent=String(t||"");e.classList.add("show");clearTimeout(e._timer);e._timer=setTimeout(()=>e.classList.remove("show"),3800)}
+function setStatus(t){const e=$("status");if(e)e.textContent=t}
+function hasRight(k){return !!(BNS.user&&BNS.user.rights&&BNS.user.rights[k])}
+function hasAnyRight(keys){return keys.some(k=>hasRight(k))}
+function statusOf(o){return lower(o&&o.status)}
+function isCancelled(o){return["geannuleerd","geannuleerde","annulering","cancelled","canceled"].includes(statusOf(o))}
+function isDone(o){return["uitgevoerd","afgerond","voltooid","done","klaar"].includes(statusOf(o))}
+function isDeleted(o){return["verwijderd","gewist","deleted","trash"].includes(statusOf(o))}
+function orderStart(o){return clean(o.start||o.dateStart||o.startDate||o.date||"")}
+function orderEnd(o){return clean(o.end||o.dateEnd||o.endDate||orderStart(o))}
+function dateTime(v){const d=new Date(clean(v).slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?0:d.getTime()}
+function todayTime(){const d=new Date();d.setHours(0,0,0,0);return d.getTime()}
+function niceDate(v){v=clean(v).slice(0,10);const p=v.split("-");return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:v}
+function addressOf(o){const p=[];const add=v=>{v=clean(v);if(v&&!p.includes(v))p.push(v)};[o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,o.address,o.street,o.zip,o.city].forEach(add);if(o.location&&typeof o.location==="object")[o.location.name,o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add);return p.join(", ")}
+function customerName(o){return clean(o.customerName||(o.customer&&o.customer.name)||o.klant||"")}
+function customerPhone(o){return clean(o.customerPhone||o.phone||(o.customer&&o.customer.phone)||"")}
+function driverName(o){return clean(o.driverName||o.driver||o.bezorger||"")}
+function materialList(o){const m=o.materials||o.mats||[];return Array.isArray(m)?m.map(x=>typeof x==="string"?{name:x,qty:""}:{name:x.code||x.name||"",qty:x.qty||x.count||x.aantal||"",extra:x.extra||x.note||""}).filter(x=>x.name):[]}
+function materialText(o){const m=materialList(o);return m.length?m.map(x=>`${x.qty?x.qty+"x ":""}${x.name}`).join(", "):""}
+function routeUrl(type,a){const q=encodeURIComponent(a||"");return type==="waze"?`https://waze.com/ul?q=${q}&navigate=yes`:`https://www.google.com/maps/search/?api=1&query=${q}`}
 
 async function initFirebase(){
-  if(!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === "VUL_HIER_IN"){
-    setStatus("Firebase config ontbreekt.");
+  if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){
+    setStatus("Firebase config ontbreekt of is niet ingevuld.");
+    toast("Firebase config ontbreekt");
     throw new Error("Firebase config ontbreekt");
   }
-  const appMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`);
-  const fsMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
-  APP.firebase = fsMod;
-  APP.app = appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
-  APP.db = fsMod.getFirestore(APP.app);
+  const appMod=await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`);
+  const fsMod=await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
+  BNS.firebase=fsMod;
+  BNS.app=appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+  BNS.db=fsMod.getFirestore(BNS.app);
   setStatus("Firebase verbonden");
 }
-async function loadCollection(name){
-  const snap = await APP.firebase.getDocs(APP.firebase.collection(APP.db,name));
-  const rows = [];
-  snap.forEach(d=>rows.push({id:d.id,...d.data()}));
-  return rows;
+async function loadCollection(n){
+  const s=await BNS.firebase.getDocs(BNS.firebase.collection(BNS.db,n));
+  return s.docs.map(d=>({id:d.id,...d.data()}));
 }
-async function loadAll(){
+async function loadInitial(){
   setStatus("Data laden...");
-  const [users,orders] = await Promise.all([loadCollection("users"), loadCollection("orders")]);
-  APP.state.users = users;
-  APP.state.orders = orders;
+  BNS.state.users=await loadCollection("users");
+  BNS.state.orders=await loadCollection("orders");
   setStatus("Data geladen");
 }
-async function writeDoc(col,id,data){
-  if(!id) throw new Error("Geen id");
-  const row = { ...data, updatedAt: nowIso() };
-  await APP.firebase.setDoc(APP.firebase.doc(APP.db,col,String(id)),row,{merge:true});
-  return row;
+async function loadOrdersOnly(){
+  BNS.state.orders=await loadCollection("orders");
 }
-async function addAlert(alert){
-  const id = alert.id || ("alert_"+Date.now()+"_"+Math.random().toString(36).slice(2,7));
-  const row = { ...alert, id, resolved:false, source:"telefoon", sourceApp:"driver", createdAt: alert.createdAt || nowIso(), time: alert.time || nowLocal(), updatedAt: nowIso() };
-  // Belangrijk: alerts is de hoofd-inbox voor de planner.
-  await writeDoc("alerts", id, row);
-  // Extra kopieen zijn onschadelijk en helpen als een oudere planner op een andere collectie kijkt.
-  try{ await writeDoc("driverAlerts", id, row); }catch(e){}
-  try{ await writeDoc("systemAlerts", id, row); }catch(e){}
-  return row;
+async function updateOrder(o){
+  if(!o||!o.id)return;
+  o.updatedAt=new Date().toISOString();
+  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"orders",String(o.id)),o,{merge:true});
 }
-async function updateOrderWithDriverEvent(order, event){
-  if(!order || !order.id) return;
-  const copy = { ...order };
-  copy.driverReports = Array.isArray(copy.driverReports) ? copy.driverReports : [];
-  copy.driverReports.push(event);
-  copy.lastDriverAlertAt = nowIso();
-  copy.lastDriverAlertType = event.type || event.title || "Melding";
-  copy.lastDriverAlertText = event.text || event.note || "";
-  await writeDoc("orders", copy.id, copy);
-  Object.assign(order, copy);
+async function addAlert(a){
+  const id=a.id||("a_"+Math.random().toString(36).slice(2,10));
+  a.id=id;
+  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"alerts",id),a,{merge:true});
 }
-
-function userAllowed(u){ return lower(u.role)==="bezorger" || lower(u.role)==="driver" || lower(u.role)==="chauffeur"; }
-function loginByPin(){
-  const pin = clean($("loginPin").value);
-  if(!pin){ toast("Vul je PIN in"); return; }
-  const found = (APP.state.users||[]).find(u => userAllowed(u) && clean(u.pin) === pin);
-  if(!found){ toast("PIN klopt niet of gebruiker is geen bezorger"); return; }
-  APP.user = found;
-  sessionStorage.setItem("tapwagen_driver_user_id", String(found.id));
-  $("loginPin").value = "";
-  showApp();
+function populateUsers(f){
+  const users=(BNS.state.users||[]).filter(f);
+  $("loginName").innerHTML=users.length?users.map(u=>`<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.role||"Medewerker")})</option>`).join(""):`<option value="">Geen gebruikers gevonden</option>`;
 }
-function restoreSession(){
-  const id = sessionStorage.getItem("tapwagen_driver_user_id");
-  if(!id) return false;
-  const u = (APP.state.users||[]).find(x => String(x.id)===String(id));
-  if(u && userAllowed(u)){ APP.user = u; showApp(); return true; }
-  return false;
+function loginWithFilter(f,key,after){
+  const id=$("loginName").value,pin=clean($("loginPin").value);
+  const found=(BNS.state.users||[]).find(u=>String(u.id)===String(id)&&String(u.pin||"")===pin);
+  if(!found){toast("Naam of PIN klopt niet");return}
+  if(!f(found)){toast("Geen rechten voor deze portal");return}
+  BNS.user=found;
+  sessionStorage.setItem(key,found.id);
+  $("loginPin").value="";
+  after();
 }
-function logout(){ sessionStorage.removeItem("tapwagen_driver_user_id"); APP.user=null; showLogin(); }
-
-function userRights(){ return (APP.user && APP.user.rights) || {}; }
-function hasRight(keys, fallback=false){
-  const r = userRights();
-  for(const k of keys){ if(r[k] === true) return true; if(r[k] === false) return false; }
-  return fallback;
-}
-const RIGHTS = {
-  route:      ["gps","route","waze"],
-  call:       ["phoneCall","call","bellen","klantBellen"],
-  message:    ["resolve","meldingen","reports","report","phoneMessage"],
-  storing:    ["reportStoring","storing","storingMelden"],
-  damage:     ["reportDamage","damage","schade","schadeMelden"],
-  missing:    ["reportMissing","missing","vermissing","vermissingMelden"],
-  photoBefore:["photoBefore","fotoVoor","fotoVoorLevering"],
-  photoAfter: ["photoAfter","fotoNa","fotoNaLevering"],
-  signature:  ["signatureCustomer","signature","handtekening","handtekeningKlant"],
-  done:       ["phoneDone","done","uitgevoerd","afmelden"]
-};
-function can(k){
-  if(!APP.user) return false;
-  if(lower(APP.user.role)==="admin") return true;
-  const def = (k === "route" || k === "message" || k === "done") ? true : false;
-  return hasRight(RIGHTS[k]||[k], def);
+function restoreSession(f,key,after){
+  const id=sessionStorage.getItem(key);
+  if(!id)return;
+  const found=(BNS.state.users||[]).find(u=>String(u.id)===String(id));
+  if(found&&f(found)){BNS.user=found;after()}
 }
 
-function statusOf(o){ return lower(o && o.status); }
-function isCancelled(o){ return ["geannuleerd","annulering","cancelled","canceled"].includes(statusOf(o)); }
-function isDone(o){ return ["uitgevoerd","afgerond","voltooid","done","klaar"].includes(statusOf(o)); }
-function isDeleted(o){ return ["verwijderd","deleted","trash","gewist"].includes(statusOf(o)); }
-function orderStart(o){ return clean(o.start || o.dateStart || o.startDate || o.date || ""); }
-function orderEnd(o){ return clean(o.end || o.dateEnd || o.endDate || orderStart(o)); }
-function dateTime(v){ const d=new Date(clean(v).slice(0,10)+"T00:00:00"); return Number.isNaN(d.getTime())?0:d.getTime(); }
-function todayTime(){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
-function niceDate(v){ v=clean(v).slice(0,10); const p=v.split("-"); return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:v; }
-function customerName(o){ return clean(o.customerName || (o.customer&&o.customer.name) || o.klant || ""); }
-function customerPhone(o){ return clean(o.customerPhone || o.phone || (o.customer&&o.customer.phone) || ""); }
-function addressOf(o){
-  const p=[]; const add=(v)=>{ v=clean(v); if(v && !p.includes(v)) p.push(v); };
-  [o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,o.address,o.street,o.zip,o.city].forEach(add);
-  if(o.location && typeof o.location === "object") [o.location.name,o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add);
-  return p.join(" ");
-}
-function materialList(o){
-  const m = Array.isArray(o.materials) ? o.materials : (Array.isArray(o.mats) ? o.mats : []);
-  return m.map(x => typeof x === "string" ? x : clean([x.code,x.name].filter(Boolean).join(" "))).filter(Boolean);
-}
-function materialText(o){ return materialList(o).join(", "); }
-function routeUrl(type,a){ const q=encodeURIComponent(a||""); return type==="waze" ? `https://waze.com/ul?q=${q}&navigate=yes` : `https://www.google.com/maps/search/?api=1&query=${q}`; }
+const SESSION_KEY="bns_driver_firebase_user_id";
+let CURRENT_DETAIL_ID="";
 
-function allDriverIds(o){ return unique([o.driverId,o.bezorgerId,o.userId].concat(Array.isArray(o.driverIds)?o.driverIds:[]).concat(Array.isArray(o.bezorgerIds)?o.bezorgerIds:[])); }
-function allDriverNames(o){
-  const raw=[o.driverName,o.driver,o.bezorger,o.bezorgerName].concat(Array.isArray(o.driverNames)?o.driverNames:[]).concat(Array.isArray(o.bezorgerNames)?o.bezorgerNames:[]);
-  return unique(raw.flatMap(v => clean(v).split(/[,;|]/g))).map(lower);
+function userAllowed(u){
+  const r=lower(u.role);
+  return r==="bezorger"||r==="planner"||r==="admin"||!!(u.rights&&(u.rights.gps||u.rights.agenda||u.rights.resolve||u.rights.orders||u.rights.damage||u.rights.schade||u.rights.storing||u.rights.materials||u.rights.prices));
 }
 function assignedToUser(o){
-  const uid=String(APP.user.id||""); const un=lower(APP.user.name||"");
-  if(allDriverIds(o).map(String).includes(uid)) return true;
-  if(allDriverNames(o).includes(un)) return true;
+  const uid=String(BNS.user.id||""),un=lower(BNS.user.name||""),did=String(o.driverId||o.bezorgerId||o.userId||""),dn=lower(o.driverName||o.driver||o.bezorger||"");
+  if(did&&uid&&did===uid)return true;
+  if(dn&&un&&dn===un)return true;
+  if((lower(BNS.user.role)==="planner"||lower(BNS.user.role)==="admin")&&hasRight("orders"))return true;
   return false;
 }
 function visibleOrder(o){
-  if(!o || isCancelled(o) || isDone(o) || isDeleted(o)) return false;
-  if(dateTime(orderEnd(o)) && dateTime(orderEnd(o)) < todayTime()) return false;
+  if(isCancelled(o)||isDone(o)||isDeleted(o))return false;
+  if(dateTime(orderEnd(o))<todayTime())return false;
   return assignedToUser(o);
 }
-function getOrders(){ return (APP.state.orders||[]).filter(visibleOrder).sort((a,b)=>dateTime(orderStart(a))-dateTime(orderStart(b))); }
-function findOrder(id){ return (APP.state.orders||[]).find(o=>String(o.id)===String(id)); }
-
-function showLogin(){
-  $("loginBox").classList.remove("hidden");
-  $("appBox").classList.add("hidden");
-  $("logoutBtn").classList.add("hidden");
-  $("who").textContent = "Mobiele opdrachten";
-  setTimeout(()=>$("loginPin") && $("loginPin").focus(),80);
+function getOrders(){
+  return(BNS.state.orders||[]).filter(visibleOrder).sort((a,b)=>dateTime(orderStart(a))-dateTime(orderStart(b)));
 }
+function findOrder(id){return(BNS.state.orders||[]).find(o=>String(o.id)===String(id))}
+function otherCustomerOrders(o){
+  const currentId = String(o.id || "");
+  const currentNumber = String(o.number || "");
+
+  return (BNS.state.orders || [])
+    .filter(x => String(x.id || "") !== currentId)
+    .filter(x => String(x.number || "") === currentNumber)
+    .filter(x => !isCancelled(x))
+    .filter(x => !isDone(x))
+    .filter(x => !isDeleted(x))
+    .filter(x => dateTime(orderEnd(x)) >= todayTime())
+    .sort((a,b) => dateTime(orderStart(a)) - dateTime(orderStart(b)));
+}
+function canRoute(){return hasAnyRight(["gps","route","waze"])||lower(BNS.user.role)==="admin"}
+function canAgenda(){return hasRight("agenda")||lower(BNS.user.role)==="admin"}
+function canDone(){return hasAnyRight(["resolve","afmelden","done","uitgevoerd"])||lower(BNS.user.role)==="admin"}
+function canMaterials(){return hasAnyRight(["materials","materialen","orders"])||lower(BNS.user.role)==="admin"}
+function canPrices(){return hasAnyRight(["prices","prijzen"])||lower(BNS.user.role)==="admin"}
+function canReport(){return true}
+function canDamage(){return hasAnyRight(["damage","schade","storing","vermissing","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
+
+function orderBadges(o){
+  const badges=[`<span class="badge">${esc(o.status||"Open")}</span>`];
+  if(canAgenda())badges.push(`<span class="badge">Agenda</span>`);
+  if(canRoute())badges.push(`<span class="badge ok">Route</span>`);
+  if(otherCustomerOrders(o).length)badges.push(`<span class="badge warn">Meer artikelen</span>`);
+  if(canPrices())badges.push(`<span class="badge dark">Prijzen</span>`);
+  return badges.join("");
+}
+
+function orderCard(o){
+  const a=addressOf(o),p=customerPhone(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  const mats=materialList(o);
+  return `<article class="order-card order" data-id="${esc(o.id)}">
+    <span class="order-number">${esc(o.number||"Opdracht")}</span>
+    <div class="order-title">${esc(o.title||"Zonder titel")}</div>
+    <div class="badges">${orderBadges(o)}</div>
+    <div class="meta">
+      <div class="meta-row"><span>📅</span><div><strong>${esc(dl||"Geen datum")}</strong></div></div>
+      <div class="meta-row"><span>👤</span><div>${esc(customerName(o)||"Klant onbekend")}</div></div>
+      <div class="meta-row"><span>📍</span><div>${esc(a||"Adres onbekend")}</div></div>
+      <div class="meta-row"><span>📦</span><div>${esc(mats.length?`${mats.length} artikelsoorten - ${materialText(o)}`:"Geen materialen")}</div></div>
+    </div>
+    <div class="action-grid">
+      <button type="button" class="more-btn wide" data-detail="${esc(o.id)}">Open opdracht</button>
+      ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
+      ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Maps</a>`:""}
+      ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
+      ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Offerte">Offerte</button>`:""}
+      ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
+    </div>
+  </article>`;
+}
+
+function render(){
+  const rows=getOrders();
+  $("orders").innerHTML=rows.length?rows.map(orderCard).join(""):`<div class="empty">Geen opdrachten voor deze gebruiker.</div>`;
+  bindActions();
+}
+
+function showOrders(){
+  CURRENT_DETAIL_ID="";
+  $("detailView").classList.add("hidden");
+  $("ordersView").classList.remove("hidden");
+}
+
+function detailHtml(o){
+  const a=addressOf(o),p=customerPhone(o),mats=materialList(o),more=otherCustomerOrders(o);
+  const s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  return `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div>
+  <article class="card detail-card">
+    <h2>${esc(o.number||"")} - ${esc(o.title||"Zonder titel")}</h2>
+    <div class="badges">${orderBadges(o)}</div>
+    <div class="section-title">Opdracht</div>
+    <div class="info-box">📅 ${esc(dl||"Geen datum")}<br>👤 ${esc(customerName(o)||"Klant onbekend")}<br>📍 ${esc(a||"Adres onbekend")}<br>🚚 ${esc(driverName(o)||BNS.user?.name||"")}</div>
+
+    <div class="section-title">Materialen</div>
+    <div class="info-box">${mats.length?mats.map(x=>`• ${esc(x.qty?x.qty+"x ":"")}${esc(x.name)}${x.extra?" - "+esc(x.extra):""}`).join("<br>"):"Geen materialen"}</div>
+
+    ${more.length?`<div class="section-title">Meer artikelen / opdrachten voor deze klant</div><div class="info-box">${more.map(x=>`• ${esc(x.number||"")} ${esc(x.title||"")} - ${esc(niceDate(orderStart(x)))}`).join("<br>")}</div>`:""}
+
+    <div class="section-title">Acties</div>
+    <div class="report-grid">
+      ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
+      ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Google Maps</a>`:""}
+      ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
+      ${canAgenda()?`<button type="button" class="btn btn-dark" data-agenda="${esc(o.id)}">Agenda info</button>`:""}
+      ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Offerte">Offerte</button>`:""}
+      ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
+    </div>
+  </article>`;
+}
+
+function showDetail(id){
+  CURRENT_DETAIL_ID=String(id||"");
+  const o=findOrder(id);
+  if(!o)return;
+  $("ordersView").classList.add("hidden");
+  $("detailView").classList.remove("hidden");
+  $("detailView").innerHTML=detailHtml(o);
+  bindActions();
+}
+
+async function sendReport(order,type){
+  let extra="";
+
+  if(type==="Schade") extra=prompt("Omschrijving schade:", "");
+  else if(type==="Storing") extra=prompt("Omschrijving storing:", "");
+  else if(type==="Vermissing") extra=prompt("Wat mist er?", "");
+  else if(type==="Offerte") extra=prompt("Waarvoor moet offerte gemaakt worden?", "");
+  else extra=prompt("Melding voor planning:", "");
+
+  if(!extra) return;
+
+  await addAlert({
+    orderId: order.id || "",
+    orderNumber: order.number || "",
+    title: type,
+    text: extra,
+
+    // 🔴 BELANGRIJK: dit zorgt dat je kunt filteren
+    linkedOrder: order.id || "",
+    linkedOrderNumber: order.number || "",
+
+    resolved: false,
+    createdAt: new Date().toISOString(),
+
+    // alleen meldingen van deze bezorger
+    from: BNS.user.name || "",
+    userId: BNS.user.id || ""
+  });
+
+  toast(`${type} verstuurd voor opdracht ${order.number || ""}`);
+}
+
+function bindActions(){
+  qsa("[data-detail]").forEach(b=>{b.onclick=()=>showDetail(b.dataset.detail)});
+  qsa("[data-back]").forEach(b=>{b.onclick=()=>showOrders()});
+  qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!confirm("Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadOrdersOnly();showOrders();render()}});
+  qsa("[data-report]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.report);if(!o)return;await sendReport(o,b.dataset.type||"Melding")}});
+  qsa("[data-agenda]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.agenda);if(!o)return;toast(`Agenda:\n${niceDate(orderStart(o))} ${o.startTime||""} - ${o.endTime||""}`)}});
+}
+
 function showApp(){
   $("loginBox").classList.add("hidden");
   $("appBox").classList.remove("hidden");
   $("logoutBtn").classList.remove("hidden");
-  $("who").textContent = APP.user ? `${APP.user.name} - Bezorger` : "Mobiele opdrachten";
-  renderOrders();
+  $("who").textContent=BNS.user?`${BNS.user.name} - ${BNS.user.role||"Medewerker"}`:"";
+  render();
+}
+
+async function boot(){
+  try{
+    await initFirebase();
+    await loadInitial();
+    populateUsers(userAllowed);
+    $("loginBtn").onclick=()=>loginWithFilter(userAllowed,SESSION_KEY,showApp);
+    $("loginPin").addEventListener("keydown",e=>{if(e.key==="Enter")loginWithFilter(userAllowed,SESSION_KEY,showApp)});
+    $("logoutBtn").onclick=()=>{sessionStorage.removeItem(SESSION_KEY);location.reload()};
+   $("refreshBtn").onclick=async()=>{
+  await loadOrdersOnly();
+
+  if(!$("detailView").classList.contains("hidden") && CURRENT_DETAIL_ID){
+    showDetail(CURRENT_DETAIL_ID);
+  }else{
+    render();
+  }
+
+  toast("Verversd");
+};
+    $("clearSearchBtn").onclick=()=>{$("searchBox").value="";qsa(".order").forEach(el=>el.style.display="")};
+    $("searchBox").oninput=()=>{const q=lower($("searchBox").value);qsa(".order").forEach(el=>{el.style.display=!q||lower(el.innerText).includes(q)?"":"none"})};
+    restoreSession(userAllowed,SESSION_KEY,showApp);
+  }catch(e){console.error(e);setStatus("Fout: "+e.message)}
+}
+boot();
+
+/* =========================================================
+   Tapwagen.nl V128 DRIVER-ONLY PATCH
+   Basis: oude zelfstandige driver.js + echte driver/index.html.
+   Doel:
+   - GEEN redirect naar hoofd-app ?driver= meer.
+   - Planner/app.js blijft ongemoeid.
+   - Telefoon leest orders/users live read-only en schrijft alleen bij acties.
+   - Telefoon mag orders alleen wijzigen bij Afmelden / uitgevoerd.
+   - Meldingen/foto/handtekening gaan alleen naar Firebase alerts.
+   ========================================================= */
+
+function rightsObj(){ return (BNS.user && BNS.user.rights) || {}; }
+function rightVal(keys){
+  const r = rightsObj();
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(r,k)) return r[k] === true;
+  }
+  return false;
+}
+function roleName(){ return lower(BNS.user && BNS.user.role || ''); }
+function isAdminUser(){ return roleName()==='admin'; }
+function canRoute(){ return isAdminUser() || rightVal(['gps','route','waze']); }
+function canAgenda(){ return isAdminUser() || rightVal(['agenda']); }
+function canDone(){ return isAdminUser() || rightVal(['phoneDone','resolve','afmelden','done','uitgevoerd']); }
+function canMaterials(){ return isAdminUser() || rightVal(['materials','materialen','orders']); }
+function canPrices(){ return isAdminUser() || rightVal(['prices','prijzen']); }
+function canCall(){ return isAdminUser() || rightVal(['phoneCall','call','bellen','klantBellen']); }
+function canReport(){ return isAdminUser() || rightVal(['phoneMessage','meldingen','reports','report','resolve']); }
+function canStoring(){ return isAdminUser() || rightVal(['reportStoring','storing','storingMelden']); }
+function canDamage(){ return isAdminUser() || rightVal(['reportDamage','damage','schade','schadeMelden']); }
+function canMissing(){ return isAdminUser() || rightVal(['reportMissing','missing','vermissing','vermissingMelden']); }
+function canPhotoBefore(){ return isAdminUser() || rightVal(['photoBefore','fotoVoor','fotoVoorLevering']); }
+function canPhotoAfter(){ return isAdminUser() || rightVal(['photoAfter','fotoNa','fotoNaLevering']); }
+function canSignature(){ return isAdminUser() || rightVal(['signatureCustomer','signature','handtekening','handtekeningKlant']); }
+
+function arr(v){ return Array.isArray(v) ? v : (v == null || v === '' ? [] : [v]); }
+function normList(v){ return arr(v).map(x=>lower(x)).filter(Boolean); }
+function idList(v){ return arr(v).map(x=>String(x||'').trim()).filter(Boolean); }
+function assignedToUser(o){
+  const uid = String(BNS.user && BNS.user.id || '').trim();
+  const un = lower(BNS.user && BNS.user.name || '');
+  const role = roleName();
+  if ((role === 'planner' || role === 'admin') && rightVal(['orders'])) return true;
+
+  const ids = []
+    .concat(idList(o.driverIds))
+    .concat(idList(o.bezorgerIds))
+    .concat(idList(o.driverId))
+    .concat(idList(o.bezorgerId))
+    .concat(idList(o.userId));
+  if (uid && ids.includes(uid)) return true;
+
+  const names = []
+    .concat(normList(o.driverNames))
+    .concat(normList(o.bezorgerNames))
+    .concat(normList(o.driverName))
+    .concat(normList(o.driver))
+    .concat(normList(o.bezorger));
+  if (un && names.includes(un)) return true;
+
+  return false;
+}
+
+async function loadOrdersOnly(){
+  const [users,orders] = await Promise.all([loadCollection('users'), loadCollection('orders')]);
+  BNS.state.users = users;
+  BNS.state.orders = orders;
+  if (BNS.user) {
+    const fresh = users.find(u => String(u.id) === String(BNS.user.id));
+    if (fresh) BNS.user = fresh;
+  }
+}
+
+let __tapLiveStarted = false;
+let __tapRenderTimer = null;
+function scheduleRender(){
+  if (!BNS.user) return;
+  clearTimeout(__tapRenderTimer);
+  __tapRenderTimer = setTimeout(function(){
+    if (CURRENT_DETAIL_ID && !$('detailView').classList.contains('hidden')) showDetail(CURRENT_DETAIL_ID);
+    else render();
+  }, 300);
+}
+function mergeRows(target, rows){
+  let changed = false;
+  rows.forEach(row => {
+    const idx = target.findIndex(x => String(x.id) === String(row.id));
+    const old = idx >= 0 ? JSON.stringify(target[idx]) : '';
+    if (idx >= 0) target[idx] = Object.assign({}, target[idx], row);
+    else target.push(row);
+    if (idx < 0 || JSON.stringify(target[idx]) !== old) changed = true;
+  });
+  return changed;
+}
+function startReadOnlyListeners(){
+  if (__tapLiveStarted || !BNS.firebase || !BNS.db || !BNS.firebase.onSnapshot) return;
+  __tapLiveStarted = true;
+  try {
+    BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,'users'), function(snap){
+      const rows = snap.docs.map(d=>({id:d.id,...d.data()}));
+      if (mergeRows(BNS.state.users, rows)) {
+        if (BNS.user) {
+          const fresh = BNS.state.users.find(u=>String(u.id)===String(BNS.user.id));
+          if (fresh) BNS.user = fresh;
+        }
+        scheduleRender();
+      }
+    });
+    BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,'orders'), function(snap){
+      const rows = snap.docs.map(d=>({id:d.id,...d.data()}));
+      if (mergeRows(BNS.state.orders, rows)) scheduleRender();
+    });
+  } catch(e) {
+    console.warn('Live lezen niet gestart', e);
+  }
+}
+
+function orderBadges(o){
+  const badges=[`<span class="badge">${esc(o.status||"Open")}</span>`];
+  if(canAgenda())badges.push(`<span class="badge">Agenda</span>`);
+  if(canRoute())badges.push(`<span class="badge ok">Route</span>`);
+  if(otherCustomerOrders(o).length)badges.push(`<span class="badge warn">Meer artikelen</span>`);
+  if(canPrices())badges.push(`<span class="badge dark">Prijzen</span>`);
+  return badges.join('');
+}
+function orderActionButtons(o, detail){
+  const a = addressOf(o), p = customerPhone(o), id = esc(o.id);
+  return `${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl('waze',a))}" target="_blank" rel="noopener">Waze</a>`:''}
+    ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl('maps',a))}" target="_blank" rel="noopener">${detail?'Google Maps':'Maps'}</a>`:''}
+    ${p && canCall()?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:''}
+    ${detail && canAgenda()?`<button type="button" class="btn btn-dark" data-agenda="${id}">Agenda info</button>`:''}
+    ${canReport()?`<button type="button" class="btn btn-orange" data-report="${id}" data-type="Melding">Melding</button>`:''}
+    ${canDamage()?`<button type="button" class="btn btn-red" data-report="${id}" data-type="Schade">Schade</button>`:''}
+    ${canStoring()?`<button type="button" class="btn btn-purple" data-report="${id}" data-type="Storing">Storing</button>`:''}
+    ${canMissing()?`<button type="button" class="btn btn-dark" data-report="${id}" data-type="Vermissing">Vermissing</button>`:''}
+    ${canPhotoBefore()?`<button type="button" class="btn btn-green" data-photo="${id}" data-type="Foto voor levering">Foto voor</button>`:''}
+    ${canPhotoAfter()?`<button type="button" class="btn btn-green" data-photo="${id}" data-type="Foto na levering">Foto na</button>`:''}
+    ${canSignature()?`<button type="button" class="btn btn-purple" data-sign="${id}">Handtekening</button>`:''}
+    ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${id}">Afmelden / uitgevoerd</button>`:''}`;
 }
 function orderCard(o){
-  const id=esc(o.id||""); const a=addressOf(o); const ph=customerPhone(o);
-  const s=orderStart(o), e=orderEnd(o); const dl=s&&e&&s!==e ? `${niceDate(s)} t/m ${niceDate(e)}` : niceDate(s||e);
-  const actions=[];
-  actions.push(`<button type="button" class="more-btn wide" data-detail="${id}">Open opdracht</button>`);
-  if(can("route")){
-    actions.push(`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`);
-    actions.push(`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Maps</a>`);
-  }
-  if(can("call")) actions.push(ph ? `<a class="btn" href="tel:${esc(ph)}">Bel klant</a>` : `<button type="button" class="btn">Geen tel.</button>`);
-  if(can("message")) actions.push(`<button type="button" class="btn btn-orange" data-report="${id}" data-type="Bezorger melding">Melding</button>`);
-  if(can("storing")) actions.push(`<button type="button" class="btn btn-red" data-report="${id}" data-type="Storing">Storing</button>`);
-  if(can("damage")) actions.push(`<button type="button" class="btn btn-orange" data-report="${id}" data-type="Schade">Schade</button>`);
-  if(can("missing")) actions.push(`<button type="button" class="btn btn-purple" data-report="${id}" data-type="Vermissing">Vermissing</button>`);
-  if(can("photoBefore")) actions.push(`<button type="button" class="btn btn-dark" data-photo="${id}" data-type="Foto voor levering">Foto voor</button>`);
-  if(can("photoAfter")) actions.push(`<button type="button" class="btn btn-dark" data-photo="${id}" data-type="Foto na levering">Foto na</button>`);
-  if(can("signature")) actions.push(`<button type="button" class="btn btn-purple" data-sign="${id}">Handtekening</button>`);
-  if(can("done")) actions.push(`<button type="button" class="btn btn-green wide" data-done="${id}">Afmelden / uitgevoerd</button>`);
-  return `<article class="order-card order" data-id="${id}"><span class="order-number">${esc(o.number||"Opdracht")}</span><div class="order-title">${esc(o.title||"Zonder titel")}</div><div class="meta"><div class="meta-row"><span>📅</span><div><strong>${esc(dl||"Geen datum")}</strong></div></div><div class="meta-row"><span>👤</span><div>${esc(customerName(o)||"Klant onbekend")}</div></div><div class="meta-row"><span>📍</span><div>${esc(a||"Adres onbekend")}</div></div><div class="meta-row"><span>📦</span><div>${esc(materialText(o)||"Geen materialen")}</div></div></div><div class="action-grid">${actions.join("")}</div></article>`;
+  const a=addressOf(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  const mats=materialList(o);
+  return `<article class="order-card order" data-id="${esc(o.id)}">
+    <span class="order-number">${esc(o.number||'Opdracht')}</span>
+    <div class="order-title">${esc(o.title||'Zonder titel')}</div>
+    <div class="badges">${orderBadges(o)}</div>
+    <div class="meta">
+      <div class="meta-row"><span>📅</span><div><strong>${esc(dl||'Geen datum')}</strong></div></div>
+      <div class="meta-row"><span>👤</span><div>${esc(customerName(o)||'Klant onbekend')}</div></div>
+      <div class="meta-row"><span>📍</span><div>${esc(a||'Adres onbekend')}</div></div>
+      <div class="meta-row"><span>📦</span><div>${esc(mats.length?`${mats.length} artikelsoorten - ${materialText(o)}`:'Geen materialen')}</div></div>
+    </div>
+    <div class="action-grid">
+      <button type="button" class="more-btn wide" data-detail="${esc(o.id)}">Open opdracht</button>
+      ${orderActionButtons(o,false)}
+    </div>
+  </article>`;
 }
-function renderOrders(){
-  const rows=getOrders();
-  $("orders").innerHTML = rows.length ? rows.map(orderCard).join("") : `<div class="empty">Geen opdrachten voor deze gebruiker.</div>`;
-  bindActions();
+function detailHtml(o){
+  const a=addressOf(o),mats=materialList(o),more=otherCustomerOrders(o);
+  const s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  return `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div>
+  <article class="card detail-card">
+    <h2>${esc(o.number||'')} - ${esc(o.title||'Zonder titel')}</h2>
+    <div class="badges">${orderBadges(o)}</div>
+    <div class="section-title">Opdracht</div>
+    <div class="info-box">📅 ${esc(dl||'Geen datum')}<br>👤 ${esc(customerName(o)||'Klant onbekend')}<br>📍 ${esc(a||'Adres onbekend')}<br>🚚 ${esc(driverName(o)||BNS.user?.name||'')}</div>
+    <div class="section-title">Materialen</div>
+    <div class="info-box">${mats.length?mats.map(x=>`• ${esc(x.qty?x.qty+'x ':'')}${esc(x.name)}${x.extra?' - '+esc(x.extra):''}`).join('<br>'):'Geen materialen'}</div>
+    ${more.length?`<div class="section-title">Meer artikelen / opdrachten voor deze klant</div><div class="info-box">${more.map(x=>`• ${esc(x.number||'')} ${esc(x.title||'')} - ${esc(niceDate(orderStart(x)))}`).join('<br>')}</div>`:''}
+    <div class="section-title">Acties</div>
+    <div class="report-grid">${orderActionButtons(o,true)}</div>
+  </article>`;
 }
 
-function alertBase(order,type,note,extra){
-  return {
-    id: "alert_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),
-    title: type,
-    type: type,
-    kind: type,
-    note: note || "",
-    message: note || "",
-    text: note || "",
-    orderId: order.id || "",
-    linkedOrder: order.id || "",
-    orderNumber: order.number || "",
-    linkedOrderNumber: order.number || "",
-    orderTitle: order.title || "",
-    customerName: customerName(order),
-    klant: customerName(order),
-    driverName: APP.user && APP.user.name || "",
-    from: APP.user && APP.user.name || "",
-    userId: APP.user && APP.user.id || "",
-    resolved: false,
-    source: "bezorger",
-    createdAt: nowIso(),
-    time: nowLocal(),
-    ...(extra||{})
-  };
-}
-async function sendAlert(order,type,note,extra){
-  const alert = alertBase(order,type,note,extra);
-  setStatus("Melding versturen...");
-  const saved = await addAlert(alert);
-  try{ await updateOrderWithDriverEvent(order, saved); }catch(e){ console.warn("Order event opslaan niet gelukt", e); }
-  setStatus("Data geladen");
-  return saved;
+async function addAlert(a){
+  const id = a.id || ('a_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8));
+  const row = Object.assign({}, a, {
+    id,
+    resolved:false,
+    source:'telefoon',
+    sourceApp:'driver',
+    createdAt:a.createdAt || new Date().toISOString(),
+    time:a.time || new Date().toLocaleString('nl-NL'),
+    updatedAt:new Date().toISOString()
+  });
+  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,'alerts',id),row,{merge:true});
+  return row;
 }
 async function sendReport(order,type){
-  const label = type || "Bezorger melding";
-  let promptText = "Melding voor planning:";
-  if(label === "Schade") promptText = "Omschrijving schade:";
-  if(label === "Storing") promptText = "Omschrijving storing:";
-  if(label === "Vermissing") promptText = "Wat mist er?";
-  const note = prompt(promptText, "");
-  if(!note) return;
-  try{ await sendAlert(order,label,note,{}); toast("Melding verstuurd naar planning"); }
-  catch(e){ console.error(e); toast("Niet verstuurd: "+(e.message||e)); }
+  let extra = '';
+  if(type==='Schade') extra=prompt('Omschrijving schade:', '');
+  else if(type==='Storing') extra=prompt('Omschrijving storing:', '');
+  else if(type==='Vermissing') extra=prompt('Wat mist er?', '');
+  else extra=prompt('Melding voor planning:', '');
+  if(!extra) return;
+  await addAlert({
+    orderId: order.id || '', orderNumber: order.number || '', orderTitle: order.title || '',
+    customerName: customerName(order), title:type, type:type, text:extra, note:extra, message:extra,
+    linkedOrder: order.id || '', linkedOrderNumber: order.number || '',
+    from: BNS.user.name || '', userId: BNS.user.id || '', driverId:BNS.user.id||'', driverName:BNS.user.name||''
+  });
+  toast(`${type} verstuurd naar planning`);
 }
-function compressImage(file){
+function resizeImage(file, max=1200, quality=.72){
   return new Promise((resolve,reject)=>{
-    const r=new FileReader(); r.onerror=reject; r.onload=()=>{
-      const img=new Image(); img.onerror=reject; img.onload=()=>{
-        const max=700; let w=img.width,h=img.height;
-        if(w>h && w>max){ h=Math.round(h*max/w); w=max; } else if(h>max){ w=Math.round(w*max/h); h=max; }
-        const c=document.createElement("canvas"); c.width=w; c.height=h; c.getContext("2d").drawImage(img,0,0,w,h);
-        resolve(c.toDataURL("image/jpeg",0.52));
-      }; img.src=r.result;
-    }; r.readAsDataURL(file);
+    const fr=new FileReader();
+    fr.onerror=reject;
+    fr.onload=()=>{
+      const img=new Image();
+      img.onerror=reject;
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(Math.max(w,h)>max){ const r=max/Math.max(w,h); w=Math.round(w*r); h=Math.round(h*r); }
+        const c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(file);
   });
 }
-async function takePhoto(order,type){
-  const input=document.createElement("input"); input.type="file"; input.accept="image/*"; input.capture="environment";
-  input.onchange=async()=>{
-    const file=input.files && input.files[0]; if(!file) return;
+async function sendPhoto(order,type){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.capture='environment';
+  inp.onchange=async()=>{
+    const file=inp.files&&inp.files[0]; if(!file) return;
     try{
-      setStatus("Foto verwerken...");
-      const data=await compressImage(file);
-      const note=prompt("Opmerking bij foto:", "") || type;
-      const item={id:"media_"+Date.now(), type, data, note, createdAt:nowIso(), time:nowLocal(), driverId:APP.user.id, driverName:APP.user.name};
-      order.media=Array.isArray(order.media)?order.media:[]; order.media.push(item);
-      order.photos=Array.isArray(order.photos)?order.photos:[]; order.photos.push(item);
-      order.customerPhotos=Array.isArray(order.customerPhotos)?order.customerPhotos:[]; order.customerPhotos.push(item);
-      await writeDoc("orders", order.id, order);
-      await sendAlert(order,type,note,{photoData:data, media:item});
-      setStatus("Data geladen"); toast("Foto verstuurd naar planning");
-    }catch(e){ console.error(e); setStatus("Data geladen"); toast("Foto niet verstuurd: "+(e.message||e)); }
+      toast('Foto verwerken...');
+      const photoData=await resizeImage(file);
+      await addAlert({
+        orderId:order.id||'', orderNumber:order.number||'', orderTitle:order.title||'', customerName:customerName(order),
+        title:type, type:type, text:'Foto toegevoegd', note:'Foto toegevoegd', photoData,
+        from:BNS.user.name||'', userId:BNS.user.id||'', driverId:BNS.user.id||'', driverName:BNS.user.name||''
+      });
+      toast('Foto verstuurd naar planning');
+    }catch(e){ console.error(e); toast('Foto versturen mislukt'); }
   };
-  input.click();
+  inp.click();
 }
-function openSignature(order){
-  const old=document.getElementById("signModal"); if(old) old.remove();
-  const m=document.createElement("div"); m.id="signModal"; m.className="tw-modal";
-  m.innerHTML=`<div class="tw-modal-card"><h2>Handtekening klant</h2><input id="sigName" placeholder="Naam klant"><canvas id="sigCanvas" class="tw-sign"></canvas><button id="sigSave" class="btn btn-green btn-full" type="button">Handtekening opslaan</button><button id="sigClear" class="btn btn-dark btn-full" type="button">Opnieuw tekenen</button><button id="sigCancel" class="btn btn-red btn-full" type="button">Annuleren</button></div>`;
-  document.body.appendChild(m);
-  const c=$("sigCanvas"), ctx=c.getContext("2d"); let drawing=false,has=false;
-  function fit(){ const r=c.getBoundingClientRect(); c.width=Math.max(300,Math.floor(r.width)); c.height=220; ctx.lineWidth=3; ctx.lineCap="round"; ctx.strokeStyle="#111827"; }
-  function pos(ev){ const e=(ev.touches&&ev.touches[0])||ev, r=c.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; }
-  function start(ev){ ev.preventDefault(); drawing=true; has=true; const p=pos(ev); ctx.beginPath(); ctx.moveTo(p.x,p.y); }
-  function move(ev){ if(!drawing) return; ev.preventDefault(); const p=pos(ev); ctx.lineTo(p.x,p.y); ctx.stroke(); }
-  function end(ev){ if(ev) ev.preventDefault(); drawing=false; }
-  setTimeout(fit,30);
-  ["mousedown","touchstart"].forEach(n=>c.addEventListener(n,start,{passive:false}));
-  ["mousemove","touchmove"].forEach(n=>c.addEventListener(n,move,{passive:false}));
-  ["mouseup","mouseleave","touchend","touchcancel"].forEach(n=>c.addEventListener(n,end,{passive:false}));
-  $("sigCancel").onclick=()=>m.remove();
-  $("sigClear").onclick=()=>{ fit(); has=false; };
-  $("sigSave").onclick=async()=>{
-    if(!has){ toast("Laat eerst tekenen"); return; }
-    try{
-      const name=clean($("sigName").value); const data=c.toDataURL("image/png");
-      const item={id:"sig_"+Date.now(), type:"Handtekening klant", data, customerName:name, createdAt:nowIso(), time:nowLocal(), driverId:APP.user.id, driverName:APP.user.name};
-      order.media=Array.isArray(order.media)?order.media:[]; order.media.push(item);
-      order.signatures=Array.isArray(order.signatures)?order.signatures:[]; order.signatures.push(item);
-      order.customerSignature=data; order.customerSignedName=name; order.customerSignedAt=nowIso();
-      await writeDoc("orders", order.id, order);
-      await sendAlert(order,"Handtekening klant", name?`Ondertekend door ${name}`:"Klant heeft getekend", {signatureData:data, signatureName:name, media:item});
-      m.remove(); toast("Handtekening verstuurd naar planning");
-    }catch(e){ console.error(e); toast("Handtekening niet verstuurd: "+(e.message||e)); }
+function openSignatureModal(order){
+  const old=document.getElementById('tapSignModal'); if(old) old.remove();
+  const modal=document.createElement('div'); modal.id='tapSignModal';
+  modal.style.cssText='position:fixed;z-index:999999;inset:0;background:rgba(15,23,42,.65);display:flex;align-items:center;justify-content:center;padding:14px';
+  modal.innerHTML='<div style="background:#fff;border-radius:22px;padding:14px;width:min(96vw,560px);box-shadow:0 24px 70px rgba(0,0,0,.35)"><h2 style="margin:4px 0 10px">Handtekening klant</h2><canvas id="tapSignCanvas" width="520" height="240" style="width:100%;height:240px;border:2px solid #111;border-radius:14px;background:#fff;touch-action:none"></canvas><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button id="tapSignClear" type="button" style="background:#334155;color:white;border:0;border-radius:12px;padding:12px;font-weight:900">Leeg</button><button id="tapSignCancel" type="button" style="background:#64748b;color:white;border:0;border-radius:12px;padding:12px;font-weight:900">Annuleren</button><button id="tapSignSave" type="button" style="background:#16a34a;color:white;border:0;border-radius:12px;padding:12px;font-weight:900">Opslaan</button></div></div>';
+  document.body.appendChild(modal);
+  const canvas=document.getElementById('tapSignCanvas'); const ctx=canvas.getContext('2d');
+  ctx.lineWidth=4; ctx.lineCap='round'; ctx.strokeStyle='#111'; let drawing=false, did=false;
+  function pos(ev){ const r=canvas.getBoundingClientRect(); const t=ev.touches&&ev.touches[0]||ev; return {x:(t.clientX-r.left)*(canvas.width/r.width), y:(t.clientY-r.top)*(canvas.height/r.height)}; }
+  function start(ev){ ev.preventDefault(); drawing=true; did=true; const p=pos(ev); ctx.beginPath(); ctx.moveTo(p.x,p.y); }
+  function move(ev){ if(!drawing)return; ev.preventDefault(); const p=pos(ev); ctx.lineTo(p.x,p.y); ctx.stroke(); }
+  function end(){ drawing=false; }
+  ['mousedown','touchstart'].forEach(e=>canvas.addEventListener(e,start,{passive:false}));
+  ['mousemove','touchmove'].forEach(e=>canvas.addEventListener(e,move,{passive:false}));
+  ['mouseup','mouseleave','touchend','touchcancel'].forEach(e=>canvas.addEventListener(e,end));
+  document.getElementById('tapSignClear').onclick=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);did=false;};
+  document.getElementById('tapSignCancel').onclick=()=>modal.remove();
+  document.getElementById('tapSignSave').onclick=async()=>{
+    if(!did){ toast('Zet eerst een handtekening'); return; }
+    const signatureData=canvas.toDataURL('image/png');
+    await addAlert({
+      orderId:order.id||'', orderNumber:order.number||'', orderTitle:order.title||'', customerName:customerName(order),
+      title:'Handtekening klant', type:'Handtekening klant', text:'Handtekening toegevoegd', note:'Handtekening toegevoegd', signatureData,
+      from:BNS.user.name||'', userId:BNS.user.id||'', driverId:BNS.user.id||'', driverName:BNS.user.name||''
+    });
+    modal.remove(); toast('Handtekening verstuurd naar planning');
   };
 }
-async function markDone(order){
-  if(!confirm("Opdracht afmelden als uitgevoerd?")) return;
-  order.status="Uitgevoerd"; order.doneAt=nowIso(); order.doneBy=APP.user.name||"";
-  await writeDoc("orders", order.id, order);
-  await loadAll(); renderOrders(); toast("Opdracht afgemeld");
-}
-function showDetail(id){
-  const o=findOrder(id); if(!o) return;
-  $("ordersView").classList.add("hidden"); $("detailView").classList.remove("hidden");
-  $("detailView").innerHTML = `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div>${orderCard(o)}`;
-  bindActions();
-}
-function showOrders(){ $("detailView").classList.add("hidden"); $("ordersView").classList.remove("hidden"); }
 function bindActions(){
-  $$('[data-detail]').forEach(b=>b.onclick=()=>showDetail(b.dataset.detail));
-  $$('[data-back]').forEach(b=>b.onclick=showOrders);
-  $$('[data-report]').forEach(b=>b.onclick=()=>{ const o=findOrder(b.dataset.report); if(o) sendReport(o,b.dataset.type); });
-  $$('[data-photo]').forEach(b=>b.onclick=()=>{ const o=findOrder(b.dataset.photo); if(o) takePhoto(o,b.dataset.type); });
-  $$('[data-sign]').forEach(b=>b.onclick=()=>{ const o=findOrder(b.dataset.sign); if(o) openSignature(o); });
-  $$('[data-done]').forEach(b=>b.onclick=()=>{ const o=findOrder(b.dataset.done); if(o) markDone(o); });
+  qsa('[data-detail]').forEach(b=>{b.onclick=()=>showDetail(b.dataset.detail)});
+  qsa('[data-back]').forEach(b=>{b.onclick=()=>showOrders()});
+  qsa('[data-done]').forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!confirm('Opdracht afmelden als uitgevoerd?'))return;o.status='Uitgevoerd';o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||'';await updateOrder(o);toast('Opdracht afgemeld');await loadOrdersOnly();showOrders();render();}});
+  qsa('[data-report]').forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.report);if(!o)return;await sendReport(o,b.dataset.type||'Melding')}});
+  qsa('[data-photo]').forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.photo);if(!o)return;await sendPhoto(o,b.dataset.type||'Foto')}});
+  qsa('[data-sign]').forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.sign);if(!o)return;openSignatureModal(o);}});
+  qsa('[data-agenda]').forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.agenda);if(!o)return;toast(`Agenda:\n${niceDate(orderStart(o))} ${o.startTime||''} - ${o.endTime||''}`)}});
 }
-
-async function refresh(){
-  try{
-    await loadAll();
-    if(APP.user){
-      const fresh=(APP.state.users||[]).find(u=>String(u.id)===String(APP.user.id));
-      if(fresh) APP.user=fresh;
-      showApp();
-    }
-    toast("Verversd");
-  }catch(e){ console.error(e); toast("Verversen mislukt: "+(e.message||e)); }
+function showApp(){
+  $('loginBox').classList.add('hidden');
+  $('appBox').classList.remove('hidden');
+  $('logoutBtn').classList.remove('hidden');
+  $('who').textContent=BNS.user?`${BNS.user.name} - Bezorger Tapwagen.nl`:'';
+  startReadOnlyListeners();
+  render();
 }
 async function boot(){
   try{
-    await initFirebase(); await loadAll();
-    $("loginBtn").onclick=loginByPin;
-    $("loginPin").addEventListener("keydown", e=>{ if(e.key==="Enter") loginByPin(); });
-    $("logoutBtn").onclick=logout;
-    $("refreshBtn").onclick=refresh;
-    $("clearSearchBtn").onclick=()=>{ $("searchBox").value=""; $$(".order").forEach(el=>el.style.display=""); };
-    $("searchBox").oninput=()=>{ const q=lower($("searchBox").value); $$(".order").forEach(el=>el.style.display=!q||lower(el.innerText).includes(q)?"":"none"); };
-    if(!restoreSession()) showLogin();
-  }catch(e){ console.error(e); setStatus("Fout: "+(e.message||e)); }
+    await initFirebase();
+    await loadInitial();
+    populateUsers(userAllowed);
+    $('loginBtn').onclick=()=>loginWithFilter(userAllowed,SESSION_KEY,showApp);
+    $('loginPin').addEventListener('keydown',e=>{if(e.key==='Enter')loginWithFilter(userAllowed,SESSION_KEY,showApp)});
+    $('logoutBtn').onclick=()=>{sessionStorage.removeItem(SESSION_KEY);location.reload()};
+    $('refreshBtn').onclick=async()=>{
+      await loadOrdersOnly();
+      if(!$('detailView').classList.contains('hidden') && CURRENT_DETAIL_ID) showDetail(CURRENT_DETAIL_ID); else render();
+      toast('Verversd');
+    };
+    $('clearSearchBtn').onclick=()=>{$('searchBox').value='';qsa('.order').forEach(el=>el.style.display='')};
+    $('searchBox').oninput=()=>{const q=lower($('searchBox').value);qsa('.order').forEach(el=>{el.style.display=!q||lower(el.innerText).includes(q)?'':'none'})};
+    restoreSession(userAllowed,SESSION_KEY,showApp);
+  }catch(e){console.error(e);setStatus('Fout: '+e.message)}
 }
-boot();
