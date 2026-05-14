@@ -14138,7 +14138,7 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   Tapwagen.nl V141 - telefoonmeldingen/media naar planner + vaste opslag in opdracht-overzicht
+   Tapwagen.nl V142 - planner media/alerts, telefoon blijft V140 stabiel
    Basis: V140. Alleen meldingen/media-laag.
    - Planner leest Firebase alerts live.
    - Systeemmeldingen toont tekst/foto/handtekening.
@@ -14147,6 +14147,10 @@ setInterval(install,1500);
    ========================================================= */
 (function TapwagenV141AlertsMediaOnly(){
   "use strict";
+  // V142: deze planner/media-laag mag NIET op de telefoonroute draaien.
+  // De telefoon blijft de stabiele V140 naam+PIN-laag gebruiken; alleen de planner leest/toont alerts/media.
+  var __twRoute = String(location.search || "").toLowerCase();
+  if (__twRoute.indexOf("driver=") >= 0 || __twRoute.indexOf("telefoon=") >= 0 || __twRoute.indexOf("olddriver=") >= 0) return;
   if (window.__tapwagenV141AlertsMediaOnly) return;
   window.__tapwagenV141AlertsMediaOnly = true;
 
@@ -14204,9 +14208,8 @@ setInterval(install,1500);
     var txt=L([a.type,a.title,a.note,a.message,a.text,a.from].join(" "));
     return src.indexOf("telefoon")>=0 || src.indexOf("driver")>=0 || txt.indexOf("bezorger")>=0 || txt.indexOf("storing")>=0 || txt.indexOf("schade")>=0 || txt.indexOf("vermissing")>=0 || txt.indexOf("foto")>=0 || txt.indexOf("handtekening")>=0;
   }
-  function isSystemAlert(a){ var t=L([a&&a.type,a&&a.title].join(" ")); return /schade|vermissing|vermist/.test(t) || a.system === true; }
-  function openAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved && isSystemAlert(a); }); }
-  function driverAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved && isDriverAlert(a); }); }
+  function openAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved; }); }
+  function driverAlerts(){ return openAlerts().filter(isDriverAlert); }
   function typeLabel(a){ var t=T(a.type || a.title || "Melding"); if(/foto/i.test(t) && /voor/i.test(t)) return "Foto voor levering"; if(/foto/i.test(t) && /na/i.test(t)) return "Foto na levering"; return t; }
   function mediaHtml(a){
     var h="";
@@ -14220,7 +14223,7 @@ setInterval(install,1500);
   function doShare(id){ var a=(ensure().alerts||[]).find(function(x){return String(x.id)===String(id);}); if(!a) return; var txt=shareText(a); if(navigator.share){ navigator.share({title:typeLabel(a), text:txt}).catch(function(){}); } else { try{ navigator.clipboard.writeText(txt); alert("Melding gekopieerd."); }catch(e){ alert(txt); } } }
   function doPrint(id){ var a=(ensure().alerts||[]).find(function(x){return String(x.id)===String(id);}); if(!a) return; var w=window.open("","_blank"); if(!w) return; w.document.write('<!doctype html><html><head><title>'+H(typeLabel(a))+'</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#172033}img{max-width:100%;border:1px solid #ddd;border-radius:12px;margin:10px 0}.box{border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0}</style></head><body><h1>'+H(typeLabel(a))+'</h1><div class="box"><b>Opdracht:</b> '+H(a.orderNumber||"")+' '+H(a.orderTitle||"")+'<br><b>Klant:</b> '+H(a.customerName||"")+'<br><b>Bezorger:</b> '+H(a.driverName||a.from||"")+'<br><b>Tijd:</b> '+H(a.time||a.createdAt||"")+'</div><p>'+H(a.note||a.message||a.text||"")+'</p>'+mediaHtml(a)+'</body></html>'); w.document.close(); setTimeout(function(){w.print();},250); }
   function markResolved(id){ var s=ensure(); var a=(s.alerts||[]).find(function(x){return String(x.id)===String(id);}); if(!a) return; a.resolved=true; a.resolvedAt=new Date().toISOString(); writeAlert(a); saveLocal(); refreshAll(); }
-  function removeAlert(id){ var s=ensure(); s.alerts=(s.alerts||[]).filter(function(a){return String(a.id)!==String(id);}); deleteAlertRemote(id); saveLocal(); refreshAll(); }
+  function removeAlert(id){ if(!confirm("Deze melding verwijderen?")) return; var s=ensure(); s.alerts=(s.alerts||[]).filter(function(a){return String(a.id)!==String(id);}); deleteAlertRemote(id); saveLocal(); refreshAll(); }
 
   function style(){
     if(E(STYLE_ID)) return;
@@ -14321,4 +14324,105 @@ setInterval(install,1500);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,250); }); else setTimeout(install,150);
   setTimeout(install,1200); setTimeout(install,3000);
+})();
+
+/* Tapwagen V146 - eigen meldvensters + systeemmeldingen alleen schade/vermissing
+   Basis: V142 stabiele telefoon. Geen planner/reservering/factuur/materiaal-wijzigingen.
+*/
+(function TapwagenV146CleanPhoneAndAlerts(){
+  if (window.__tapwagenV146CleanPhoneAndAlerts) return;
+  window.__tapwagenV146CleanPhoneAndAlerts = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function isPhone(){ return /driver|telefoon|olddriver/i.test(location.search) || /\/driver\/?$/i.test(location.pathname); }
+  function state(){ try{ if(typeof window.state==='object'&&window.state) return window.state; }catch(e){} try{ if(typeof state==='object'&&state) return state; }catch(e){} try{ return JSON.parse(localStorage.getItem('event-planner-pro-v87')||'{}')||{}; }catch(e){ return {}; } }
+  function saveLocal(){ try{ if(typeof saveState==='function'){ saveState(); return; } }catch(e){} try{ if(typeof save==='function'){ save(); return; } }catch(e){} try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(state())); }catch(e){} }
+  function syncSet(coll,id,obj){ try{ if(window.BNS&&BNS.fs&&BNS.db&&BNS.fs.setDoc&&BNS.fs.doc&&id){ BNS.fs.setDoc(BNS.fs.doc(BNS.db,coll,String(id)), Object.assign({},obj,{updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){}); } }catch(e){} }
+  function syncDel(coll,id){ try{ if(window.BNS&&BNS.fs&&BNS.db&&BNS.fs.deleteDoc&&BNS.fs.doc&&id){ BNS.fs.deleteDoc(BNS.fs.doc(BNS.db,coll,String(id))).catch(function(){}); } }catch(e){} }
+  function orderById(id){ var s=state(); return (s.orders||[]).find(function(o){return String(o.id||'')===String(id||'');})||null; }
+  function currentDriverName(){ try{ var u=(typeof currentUser==='function'&&currentUser())||window.currentUser||window.user||null; if(u&&u.name)return u.name; }catch(e){} try{ var s=state(), ids=['bnsDriverUserId','bns_phone_user_v95','bns_phone_user_v89','bns_phone_user_v87']; for(var i=0;i<ids.length;i++){ var id=localStorage.getItem(ids[i]); if(id){ var u=(s.users||[]).find(function(x){return String(x.id)===String(id);}); if(u&&u.name)return u.name; } } }catch(e){} return 'Bezorger'; }
+  function customerName(o){ return T((o&&o.customer&&o.customer.name)||o.customerName||o.klant||''); }
+  function isSystemType(v){ var x=L(v); return x.indexOf('schade')>=0 || x.indexOf('vermissing')>=0 || x.indexOf('vermist')>=0; }
+  function isSystemAlert(a){ return !!(a && !a.resolved && isSystemType([a.type,a.title,a.kind,a.note,a.message,a.text].join(' '))); }
+  function allDriverAlerts(){ return (state().alerts||[]).filter(function(a){ return a && !a.resolved && (L(a.source).indexOf('telefoon')>=0 || L([a.type,a.title,a.note,a.message,a.text].join(' ')).match(/schade|vermissing|storing|melding|foto|handtekening/)); }); }
+  function systemAlerts(){ return (state().alerts||[]).filter(isSystemAlert); }
+  function id(){ return 'a_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
+  function toast(msg){
+    var old=E('twV146Toast'); if(old)old.remove();
+    var d=document.createElement('div'); d.id='twV146Toast'; d.textContent=msg;
+    d.style.cssText='position:fixed;left:18px;right:18px;bottom:22px;z-index:2147483647;background:#0f172a;color:#fff;border-radius:16px;padding:14px 16px;font-weight:900;text-align:center;box-shadow:0 14px 40px rgba(0,0,0,.25)';
+    document.body.appendChild(d); setTimeout(function(){try{d.remove();}catch(e){}},2200);
+  }
+  function modalHtml(title,body,buttons){
+    var old=E('twV146Modal'); if(old)old.remove();
+    var m=document.createElement('div'); m.id='twV146Modal';
+    m.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.58);display:flex;align-items:center;justify-content:center;padding:18px';
+    m.innerHTML='<div style="background:#fff;color:#172033;border-radius:24px;padding:22px;max-width:620px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.30)"><h2 style="margin:0 0 14px;font-size:24px">'+H(title)+'</h2>'+body+'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">'+buttons+'</div></div>';
+    document.body.appendChild(m); return m;
+  }
+  function closeModal(){ var m=E('twV146Modal'); if(m)m.remove(); }
+  function askText(title, label, cb){
+    var body='<label style="display:block;font-weight:900;margin:6px 0">'+H(label||'Omschrijving')+'</label><textarea id="twV146Text" style="width:100%;min-height:130px;box-sizing:border-box;border:2px solid #dbe3ef;border-radius:16px;padding:14px;font-size:18px;resize:vertical" placeholder="Typ hier de melding"></textarea>';
+    var buttons='<button id="twV146Cancel" type="button" style="background:#334155;color:#fff;border:0;border-radius:14px;padding:12px 16px;font-weight:900">Annuleren</button><button id="twV146Ok" type="button" style="background:#075fc4;color:#fff;border:0;border-radius:14px;padding:12px 18px;font-weight:900">Versturen</button>';
+    modalHtml(title,body,buttons);
+    E('twV146Cancel').onclick=closeModal;
+    E('twV146Ok').onclick=function(){ var v=T(E('twV146Text').value).trim(); if(!v){toast('Typ eerst een omschrijving.');return;} closeModal(); cb(v); };
+    setTimeout(function(){try{E('twV146Text').focus();}catch(e){}},80);
+  }
+  function makePhoneAlert(orderId, kind, note){
+    var s=state(); s.alerts=Array.isArray(s.alerts)?s.alerts:[];
+    var o=orderById(orderId)||{};
+    var a={id:id(),orderId:orderId||'',orderNumber:o.number||'',orderTitle:o.title||'',customerName:customerName(o),type:kind,title:kind,note:note||kind,text:note||kind,message:note||kind,resolved:false,system:isSystemType(kind),source:'telefoon',from:currentDriverName(),driverName:currentDriverName(),createdAt:new Date().toISOString(),time:new Date().toLocaleString('nl-NL')};
+    s.alerts.push(a); saveLocal(); syncSet('alerts',a.id,a); updateSystemButton(); toast(isSystemType(kind)?'Systeemmelding verstuurd.':'Melding opgeslagen.');
+  }
+  function getBtnKind(btn){ var k=T(btn.getAttribute('data-kind')||btn.dataset.kind||btn.textContent).trim(); var l=L(k); if(l.indexOf('schade')>=0)return 'Schade'; if(l.indexOf('vermissing')>=0||l.indexOf('vermist')>=0)return 'Vermissing'; if(l.indexOf('storing')>=0)return 'Storing'; if(l.indexOf('melding')>=0)return 'Melding'; return ''; }
+  function getOrderId(btn){ return btn.getAttribute('data-report')||btn.getAttribute('data-quick-alert')||btn.getAttribute('data-v95-report')||btn.getAttribute('data-v91-report')||btn.getAttribute('data-v87-report')||(btn.closest('[data-order-id]')&&btn.closest('[data-order-id]').getAttribute('data-order-id'))||''; }
+  function interceptPhonePrompts(){
+    if(!isPhone())return;
+    document.addEventListener('click',function(e){
+      var btn=e.target&&e.target.closest&&e.target.closest('button,[data-report],[data-quick-alert],[data-v95-report],[data-v91-report],[data-v87-report]');
+      if(!btn)return;
+      var kind=getBtnKind(btn); if(!kind)return;
+      var orderId=getOrderId(btn); if(!orderId)return;
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+      askText(kind, kind+' omschrijving:', function(note){ makePhoneAlert(orderId,kind,note); });
+      return false;
+    },true);
+  }
+  function renderSystemAlert(a){
+    return '<div style="border:1px solid #dbe3ef;border-radius:16px;background:#f8fafc;padding:14px;margin:10px 0"><h4 style="margin:0 0 6px">'+H(a.type||a.title||'Systeemmelding')+'</h4><small>'+H(a.time||a.createdAt||'')+'</small><div><b>Opdracht:</b> '+H(a.orderNumber||'')+' '+H(a.orderTitle||'')+'</div><div><b>Klant:</b> '+H(a.customerName||'')+'</div><div><b>Bezorger:</b> '+H(a.driverName||a.from||'')+'</div><p style="white-space:pre-wrap">'+H(a.note||a.message||a.text||'')+'</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-tw146-resolve="'+H(a.id)+'" style="background:#16a34a;color:#fff;border:0;border-radius:12px;padding:9px 12px;font-weight:900">Afmelden</button><button type="button" data-tw146-delete="'+H(a.id)+'" style="background:#dc2626;color:#fff;border:0;border-radius:12px;padding:9px 12px;font-weight:900">Verwijderen</button></div></div>';
+  }
+  function openSystemModal(ev){
+    if(ev){ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}
+    var rows=systemAlerts();
+    var body=rows.length?rows.map(renderSystemAlert).join(''):'<p>Geen open systeemmeldingen.</p>';
+    modalHtml('🚨 Systeemmeldingen',body,'<button type="button" id="twV146Close" style="background:#2563eb;color:#fff;border:0;border-radius:14px;padding:12px 16px;font-weight:900">Sluiten</button>');
+    E('twV146Close').onclick=closeModal;
+    A('[data-tw146-resolve]').forEach(function(b){b.onclick=function(){ var sid=b.getAttribute('data-tw146-resolve'); var a=(state().alerts||[]).find(function(x){return String(x.id)===String(sid);}); if(a){a.resolved=true;a.resolvedAt=new Date().toISOString();syncSet('alerts',a.id,a);saveLocal();} closeModal(); updateSystemButton(); openSystemModal(); };});
+    A('[data-tw146-delete]').forEach(function(b){b.onclick=function(){ var sid=b.getAttribute('data-tw146-delete'); var s=state(); s.alerts=(s.alerts||[]).filter(function(x){return String(x.id)!==String(sid);}); syncDel('alerts',sid); saveLocal(); closeModal(); updateSystemButton(); openSystemModal(); };});
+    return false;
+  }
+  function updateSystemButton(){
+    var b=E('alertsBtn'); if(!b)return;
+    var n=systemAlerts().length;
+    b.textContent=n?'🚨 Systeemmeldingen ('+n+')':'Systeemmeldingen (0)';
+    b.style.background=n?'#dc2626':''; b.style.color=n?'#fff':'';
+  }
+  function bindSystemButton(){
+    var b=E('alertsBtn'); if(!b)return;
+    if(b.dataset.twV146!=='1'){
+      b.dataset.twV146='1';
+      b.addEventListener('click',openSystemModal,true);
+    }
+    updateSystemButton();
+  }
+  function hideNonSystemFromSystemCount(){ updateSystemButton(); }
+  function install(){ bindSystemButton(); hideNonSystemFromSystemCount(); }
+  interceptPhonePrompts();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,300);
+  setInterval(install,2000);
 })();
