@@ -8300,7 +8300,7 @@ setInterval(install,1500);
     var data = '';
     qs('#bnsV100Cancel').onclick = closeModal;
     qs('#bnsV100File').onchange = function(){ var f=this.files&&this.files[0]; if(!f)return; compressImage(f,function(d){ data=d; qs('#bnsV100Preview').innerHTML='<img class="bns-v100-preview" src="'+d+'">'; }); };
-    qs('#bnsV100SavePhoto').onclick = function(){ if(!data){ msg('Maak of kies eerst een foto.'); return; } var note=clean(qs('#bnsV100PhotoText').value); order.media=Array.isArray(order.media)?order.media:[]; order.photos=Array.isArray(order.photos)?order.photos:[]; var item={id:'media_'+Date.now(),type:kind,data:data,note:note,createdAt:new Date().toISOString(),driverName:(currentUser()&&currentUser().name)||''}; order.media.push(item); order.photos.push(item); saveState(); makeAlert(order, kind, note || kind, {photoData:data, media:item}); closeModal(); msg('Foto opgeslagen en verstuurd naar planning.'); };
+    qs('#bnsV100SavePhoto').onclick = function(){ if(!data){ msg('Maak of kies eerst een foto.'); return; } var note=clean(qs('#bnsV100PhotoText').value); order.media=Array.isArray(order.media)?order.media:[]; order.photos=Array.isArray(order.photos)?order.photos:[]; var item={id:'media_'+Date.now(),type:kind,data:data,note:note,createdAt:new Date().toISOString(),driverName:(currentUser()&&currentUser().name)||''}; order.media.push(item); order.photos.push(item); saveState(); syncDoc('orders', order.id || order.orderId || order.number, order); closeModal(); msg('Foto opgeslagen in klantmap/opdracht.'); };
   }
 
   function openSignature(order) {
@@ -8314,7 +8314,7 @@ setInterval(install,1500);
     function end(ev){ if(ev)ev.preventDefault(); drawing=false; }
     fit(); ['mousedown','touchstart'].forEach(function(n){c.addEventListener(n,start,{passive:false});}); ['mousemove','touchmove'].forEach(function(n){c.addEventListener(n,move,{passive:false});}); ['mouseup','mouseleave','touchend','touchcancel'].forEach(function(n){c.addEventListener(n,end,{passive:false});});
     qs('#bnsV100Clear').onclick=function(){fit();has=false;};
-    qs('#bnsV100SaveSign').onclick=function(){ if(!has){ msg('Laat eerst tekenen.'); return; } var name=clean(qs('#bnsV100SignName').value), data=c.toDataURL('image/png'); order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; var item={id:'sig_'+Date.now(),type:'Handtekening klant',data:data,customerName:name,createdAt:new Date().toISOString(),driverName:(currentUser()&&currentUser().name)||''}; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedName=name; order.customerSignedAt=new Date().toISOString(); saveState(); makeAlert(order, 'Handtekening klant', name?('Ondertekend door '+name):'Klant heeft getekend', {signatureData:data, media:item}); closeModal(); msg('Handtekening opgeslagen en verstuurd naar planning.'); };
+    qs('#bnsV100SaveSign').onclick=function(){ if(!has){ msg('Laat eerst tekenen.'); return; } var name=clean(qs('#bnsV100SignName').value), data=c.toDataURL('image/png'); order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; var item={id:'sig_'+Date.now(),type:'Handtekening klant',data:data,customerName:name,createdAt:new Date().toISOString(),driverName:(currentUser()&&currentUser().name)||''}; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedName=name; order.customerSignedAt=new Date().toISOString(); saveState(); syncDoc('orders', order.id || order.orderId || order.number, order); closeModal(); msg('Handtekening opgeslagen in klantmap/opdracht.'); };
   }
 
   function sortedOrders() {
@@ -11293,6 +11293,8 @@ setInterval(install,1500);
     if(!a.type && a.title) a.type = a.title;
     if(!a.title && a.type) a.title = a.type;
     if(a.resolved == null) a.resolved = false;
+    var _t = L([a.type,a.title,a.note,a.message,a.text].join(' '));
+    if(/foto|photo|handtekening|signature/.test(_t)) a.resolved = true;
     return a;
   }
   function mergeAlerts(rows, replace){
@@ -11319,7 +11321,7 @@ setInterval(install,1500);
     var txt=L([a.type,a.title,a.note,a.message,a.text,a.from].join(" "));
     return src.indexOf("telefoon")>=0 || src.indexOf("driver")>=0 || txt.indexOf("bezorger")>=0 || txt.indexOf("storing")>=0 || txt.indexOf("schade")>=0 || txt.indexOf("vermissing")>=0 || txt.indexOf("foto")>=0 || txt.indexOf("handtekening")>=0;
   }
-  function isSystemAlert(a){ var t=L([a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text].join(' ')); return a&&a.system===true || /schade|vermissing|vermist/.test(t); }
+  function isSystemAlert(a){ var t=L([a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text].join(' ')); if(/foto|photo|handtekening|signature/.test(t)) return false; return a&&a.system===true || /schade|storing|melding/.test(t); }
   function openAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved && isSystemAlert(a); }); }
   function driverAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved && isDriverAlert(a); }); }
   function typeLabel(a){ var t=T(a.type || a.title || "Melding"); if(/foto/i.test(t) && /voor/i.test(t)) return "Foto voor levering"; if(/foto/i.test(t) && /na/i.test(t)) return "Foto na levering"; return t; }
@@ -13677,3 +13679,282 @@ setInterval(install,1500);
   // V95: V94 herhaal-patch uitgezet tegen flikkeren.
 })();
 
+
+/* =========================================================
+   BNS V159 - rechten namen gelijk trekken + WhatsApp opdracht delen
+   Basis blijft V158/200. Geen driver-map wijziging, geen brede Firebase pull/sync.
+   Fixes:
+   - Admin > personeel rechten schrijft ook alias-rechten die telefoonknoppen lezen.
+   - WhatsApp delen knop op telefoonopdrachten.
+   - Rechten worden bij opslaan genormaliseerd, zonder planner-opslag te blokkeren.
+   ========================================================= */
+(function bnsV159RightsAndWhatsAppFix(){
+  'use strict';
+  if (window.__bnsV159RightsAndWhatsAppFix) return;
+  window.__bnsV159RightsAndWhatsAppFix = true;
+
+  var EXTRA_RIGHTS = [
+    ['whatsappShare', 'Telefoon: WhatsApp opdracht delen']
+  ];
+
+  var ALIAS_GROUPS = [
+    ['orders','opdrachten','order','planning'],
+    ['invoice','factuur','offerte','documents','documenten'],
+    ['gps','route','waze','maps','navigation'],
+    ['resolve','melding','meldingen','afmeldenMelding'],
+    ['phoneCall','callCustomer','belKlant','bellen','phone'],
+    ['phoneDone','done','afmelden','uitgevoerd','complete'],
+    ['reportStoring','storing','storingMelden'],
+    ['reportDamage','damage','schade','schadeMelden'],
+    ['reportMissing','missing','vermissing','vermissingMelden'],
+    ['photoBefore','fotoVoor','photoStart','fotoLeveringVoor'],
+    ['photoAfter','fotoNa','photoEnd','fotoLeveringNa'],
+    ['signatureCustomer','handtekening','signature','customerSignature'],
+    ['whatsappShare','shareWhatsapp','whatsapp','delen','shareOrder']
+  ];
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function S(){
+    try { if (typeof state !== 'undefined' && state) return state; } catch(e) {}
+    try { if (window.state) return window.state; } catch(e) {}
+    return null;
+  }
+
+  function users(){
+    var s = S();
+    if (!s) return [];
+    s.users = Array.isArray(s.users) ? s.users : [];
+    return s.users;
+  }
+
+  function orders(){
+    var s = S();
+    if (!s) return [];
+    s.orders = Array.isArray(s.orders) ? s.orders : [];
+    return s.orders;
+  }
+
+  function saveLocalOnly(){
+    try { if (typeof save === 'function') save(); } catch(e) {}
+    try { if (typeof saveState === 'function') saveState(); } catch(e) {}
+    try { localStorage.setItem('event-planner-pro-v87', JSON.stringify(S())); } catch(e) {}
+    try { localStorage.setItem('eventPlannerProState', JSON.stringify(S())); } catch(e) {}
+    try { localStorage.setItem('plannerState', JSON.stringify(S())); } catch(e) {}
+    try { localStorage.setItem('eventPlannerPro', JSON.stringify(S())); } catch(e) {}
+    try { localStorage.setItem('eventPlannerProV91', JSON.stringify(S())); } catch(e) {}
+  }
+
+  function syncUser(u){
+    try {
+      if (window.BNS && window.BNS.fs && window.BNS.db && u && u.id && window.BNS.fs.setDoc && window.BNS.fs.doc) {
+        window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db, 'users', String(u.id)), Object.assign({}, u, {updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){});
+      }
+    } catch(e) {}
+  }
+
+  function anyTrue(r, names){
+    return names.some(function(k){ return r && r[k] === true; });
+  }
+
+  function anyFalse(r, names){
+    return names.some(function(k){ return r && r[k] === false; });
+  }
+
+  function normalizeRightsForUser(u){
+    if (!u) return false;
+    u.rights = u.rights || {};
+    var r = u.rights;
+    var changed = false;
+
+    ALIAS_GROUPS.forEach(function(group){
+      var val;
+      if (anyTrue(r, group)) val = true;
+      else if (anyFalse(r, group)) val = false;
+      if (val !== undefined) {
+        group.forEach(function(k){
+          if (r[k] !== val) { r[k] = val; changed = true; }
+        });
+      }
+    });
+
+    var role = L(u.role);
+    if (role === 'bezorger') {
+      ['gps','phoneCall','phoneDone','resolve','reportStoring','reportDamage','reportMissing','photoBefore','photoAfter','signatureCustomer','whatsappShare','shareWhatsapp','whatsapp'].forEach(function(k){
+        if (r[k] == null) { r[k] = true; changed = true; }
+      });
+      ['materials','customers','locations','orders','invoice','admin'].forEach(function(k){
+        if (r[k] == null) { r[k] = false; changed = true; }
+      });
+    }
+    if (role === 'planner') {
+      ['prices','agenda','materials','customers','locations','orders','opdrachten','invoice','factuur'].forEach(function(k){
+        if (r[k] == null) { r[k] = true; changed = true; }
+      });
+      if (r.admin == null) { r.admin = false; changed = true; }
+    }
+    if (role === 'admin') {
+      ['prices','agenda','gps','resolve','phoneCall','phoneDone','reportStoring','reportDamage','reportMissing','photoBefore','photoAfter','signatureCustomer','materials','customers','locations','orders','opdrachten','invoice','factuur','admin','whatsappShare','shareWhatsapp','whatsapp'].forEach(function(k){
+        if (r[k] !== true) { r[k] = true; changed = true; }
+      });
+    }
+    return changed;
+  }
+
+  function normalizeAllUsers(doSync){
+    var changed = false;
+    users().forEach(function(u){
+      if (normalizeRightsForUser(u)) { changed = true; if (doSync) syncUser(u); }
+    });
+    if (changed) saveLocalOnly();
+  }
+
+  function selectedUser(){
+    var id = '';
+    try { id = window.bnsSelectedUserId || window.selectedUserId || ''; } catch(e) {}
+    if (!id) {
+      var row = document.querySelector('[data-bns-v74-user].selected,[data-bns-v74-user].active,[data-user-id].selected,[data-user-id].active');
+      if (row) id = row.getAttribute('data-bns-v74-user') || row.getAttribute('data-user-id') || '';
+    }
+    return users().find(function(u){ return String(u.id) === String(id); }) || null;
+  }
+
+  function installExtraRightsCheckbox(){
+    var grid = document.querySelector('#bnsForceUserRightsBox .bns-v74-grid') || document.querySelector('.bns-v74-grid');
+    if (!grid) return;
+    EXTRA_RIGHTS.forEach(function(pair){
+      var key = pair[0], label = pair[1];
+      if (E('bnsV74Right_' + key)) return;
+      var lab = document.createElement('label');
+      lab.innerHTML = '<input id="bnsV74Right_'+H(key)+'" type="checkbox"><span>'+H(label)+'</span>';
+      grid.appendChild(lab);
+    });
+    var u = selectedUser();
+    if (u && u.rights) {
+      EXTRA_RIGHTS.forEach(function(pair){ var cb = E('bnsV74Right_' + pair[0]); if (cb) cb.checked = !!(u.rights[pair[0]] || u.rights.shareWhatsapp || u.rights.whatsapp); });
+    }
+  }
+
+  function applyAdminCheckboxAliases(){
+    var u = selectedUser();
+    if (!u) return;
+    u.rights = u.rights || {};
+
+    A('input[type="checkbox"][id^="bnsV74Right_"]').forEach(function(cb){
+      var key = cb.id.replace('bnsV74Right_', '');
+      u.rights[key] = !!cb.checked;
+    });
+    normalizeRightsForUser(u);
+    u.updatedAt = new Date().toISOString();
+    saveLocalOnly();
+    syncUser(u);
+  }
+
+  function currentPhoneUser(){
+    var ids = [];
+    try { ids.push(sessionStorage.getItem('bns_driver_session_user_v100') || ''); } catch(e) {}
+    try { ids.push(localStorage.getItem('bnsV91PhoneUser') || '', localStorage.getItem('bnsV95PhoneUser') || '', localStorage.getItem('bnsV89PhoneUser') || '', localStorage.getItem('bns_phone_user_v89') || '', localStorage.getItem('bns_phone_user_v87') || '', localStorage.getItem('bns_v83_phone_user_id') || ''); } catch(e) {}
+    ids = ids.map(T).filter(Boolean);
+    for (var i=0;i<ids.length;i++) {
+      var u = users().find(function(x){ return String(x.id) === String(ids[i]); });
+      if (u) return u;
+    }
+    try { if (typeof user !== 'undefined' && user && L(user.role)==='bezorger') return user; } catch(e) {}
+    try { if (window.user && L(window.user.role)==='bezorger') return window.user; } catch(e) {}
+    return null;
+  }
+
+  function hasShareRight(){
+    var u = currentPhoneUser();
+    if (!u) return true;
+    normalizeRightsForUser(u);
+    var r = u.rights || {};
+    if (r.whatsappShare === false || r.shareWhatsapp === false || r.whatsapp === false) return false;
+    return r.whatsappShare === true || r.shareWhatsapp === true || r.whatsapp === true || true;
+  }
+
+  function orderById(id){
+    id = T(id);
+    return orders().find(function(o){ return String(o.id || '') === id; }) || null;
+  }
+
+  function orderText(o){
+    if (!o) return '';
+    var c = o.customer || {};
+    var l = o.location || {};
+    var mats = Array.isArray(o.materials) ? o.materials : [];
+    var matText = mats.map(function(m){ return typeof m === 'string' ? m : [m.qty || m.amount || m.aantal || '', m.code || '', m.name || m.product || m.description || ''].filter(Boolean).join(' '); }).filter(Boolean).join(', ');
+    var adres = [l.name, l.street, l.zip, l.city].filter(Boolean).join(' ') || [c.street, c.zip, c.city].filter(Boolean).join(' ');
+    return [
+      'Opdracht ' + T(o.number || ''),
+      T(o.title || ''),
+      'Datum: ' + T(o.start || o.date || '') + (T(o.end || '') && T(o.end) !== T(o.start) ? ' t/m ' + T(o.end) : ''),
+      'Klant: ' + T(c.name || o.customerName || ''),
+      'Adres: ' + T(adres),
+      'Materiaal: ' + T(matText),
+      T(o.extra || o.notes || o.note || '')
+    ].filter(function(x){ return T(x).replace(/^(Klant|Adres|Materiaal):\s*$/,''); }).join('\n');
+  }
+
+  function openWhatsAppForOrder(id){
+    var o = orderById(id);
+    var txt = orderText(o);
+    if (!txt) txt = 'Opdracht delen';
+    location.href = 'https://wa.me/?text=' + encodeURIComponent(txt);
+  }
+
+  function injectWhatsAppButtons(){
+    if (!hasShareRight()) return;
+    A('.bns-mobile-card[data-order-id]').forEach(function(card){
+      if (card.querySelector('[data-bns-v159-whatsapp]')) return;
+      var actions = card.querySelector('.bns-mobile-actions');
+      if (!actions) return;
+      var id = card.getAttribute('data-order-id') || '';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('data-bns-v159-whatsapp', id);
+      btn.textContent = 'WhatsApp delen';
+      btn.style.background = '#16a34a';
+      btn.style.gridColumn = '1 / -1';
+      actions.appendChild(btn);
+    });
+  }
+
+  function install(){
+    normalizeAllUsers(false);
+    installExtraRightsCheckbox();
+    injectWhatsAppButtons();
+  }
+
+  document.addEventListener('click', function(ev){
+    var edit = ev.target && ev.target.closest && ev.target.closest('[data-bns-v74-edit],[data-user-id],[data-bns-v74-user]');
+    if (edit) setTimeout(function(){ installExtraRightsCheckbox(); normalizeAllUsers(false); }, 80);
+
+    var saveBtn = ev.target && ev.target.closest && ev.target.closest('button');
+    if (saveBtn && /opslaan gebruiker|gebruiker opslaan/i.test(saveBtn.textContent || '')) {
+      setTimeout(function(){ applyAdminCheckboxAliases(); normalizeAllUsers(true); installExtraRightsCheckbox(); }, 150);
+      setTimeout(function(){ normalizeAllUsers(true); }, 600);
+    }
+
+    var wa = ev.target && ev.target.closest && ev.target.closest('[data-bns-v159-whatsapp]');
+    if (wa) { ev.preventDefault(); openWhatsAppForOrder(wa.getAttribute('data-bns-v159-whatsapp')); }
+  }, true);
+
+  document.addEventListener('change', function(ev){
+    var cb = ev.target && ev.target.closest && ev.target.closest('input[type="checkbox"][id^="bnsV74Right_"]');
+    if (!cb) return;
+    setTimeout(applyAdminCheckboxAliases, 60);
+  }, true);
+
+  var mo = new MutationObserver(function(){ installExtraRightsCheckbox(); injectWhatsAppButtons(); });
+  try { mo.observe(document.documentElement || document.body, {childList:true, subtree:true}); } catch(e) {}
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,200); }); else setTimeout(install,120);
+  setTimeout(install,800);
+  setTimeout(install,1800);
+  setInterval(install, 5000);
+})();
