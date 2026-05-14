@@ -8278,8 +8278,6 @@ setInterval(install,1500);
     var s = getState(); if (!s) return;
     s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
     var u = currentUser();
-    var alertKind = String(type || "").toLowerCase();
-    var isSystem = alertKind.indexOf("schade") >= 0 || alertKind.indexOf("vermissing") >= 0;
     var a = Object.assign({
       id: "a_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8),
       orderId: order && order.id || "",
@@ -8291,8 +8289,6 @@ setInterval(install,1500);
       note: text || type,
       message: text || type,
       resolved: false,
-      systemAlert: isSystem,
-      internalOnly: !isSystem,
       createdAt: new Date().toISOString(),
       time: new Date().toLocaleString("nl-NL"),
       from: u && u.name || "Bezorger",
@@ -8300,7 +8296,6 @@ setInterval(install,1500);
       driverName: u && u.name || "",
       source: "telefoon"
     }, extra || {});
-    if (isSystem) { a.systemAlert = true; a.internalOnly = false; }
     s.alerts.push(a);
     saveState();
     syncDoc("alerts", a.id, a);
@@ -14237,8 +14232,10 @@ setInterval(install,1500);
   function phoneAddress(o){var l=o.location||{},c=o.customer||{};return [l.street||c.street,l.zip||c.zip,l.city||c.city].filter(Boolean).join(' ');} function cust(o){return T((o.customer&&o.customer.name)||o.customerName||o.title||'');} function dateNice(v){var s=T(v).slice(0,10),p=s.split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:s;} function phoneMats(o){return (Array.isArray(o.materials)?o.materials:[]).map(function(m){return matCode(m)+' '+matName(m);}).join(', ');} function activeOrder(o){var st=L(o&&o.status);return !/geannuleerd|uitgevoerd|verwijderd|deleted|cancel/.test(st);}
   function phoneRoot(){css();document.documentElement.classList.add('bns-v95-phone');document.body.classList.add('bns-v95-phone');var r=E(PHONE_ROOT);if(!r){r=document.createElement('div');r.id=PHONE_ROOT;document.body.appendChild(r);}return r;}
   function phoneHtml(h){var r=phoneRoot();if(phoneKey!==h){r.innerHTML=h;phoneKey=h;}return r;}
-  function renderLogin(msg){phoneHtml('<div class="v95head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div><div class="v95topmsg">Data geladen</div><div class="v95card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in.</p><p id="v95msg" class="v95err">'+H(msg||'')+'</p><input id="v95pin" class="v95input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button id="v95login" class="v95btn" type="button">Inloggen</button></div>');var p=E('v95pin'),b=E('v95login');if(b)b.onclick=function(){doLogin(T(p&&p.value));};if(p){p.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();doLogin(T(p.value));}};setTimeout(function(){try{p.focus();}catch(e){}},50);}}
-  function doLogin(pin){if(!pin){var m=E('v95msg');if(m)m.textContent='Vul je PIN in.';return;}pullAll(function(){var u=driverUsers().find(function(x){return T(x.pin)===pin;});if(!u){renderLogin('Verkeerde PIN of geen actieve bezorger.');return;}var d=device(),linked=T(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==d){renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}u.deviceId=d;u.phoneDeviceId=d;u.mobileDeviceId=d;setUser(u);saveAll();syncDoc('users',u.id,u);renderPhoneApp(u);});}
+  function linkedUserForDevice(){var d=device();return driverUsers().find(function(x){return T(x.deviceId||x.phoneDeviceId||x.mobileDeviceId)===d;})||null;}
+  function renderLogin(msg){var linked=linkedUserForDevice();var list=driverUsers();var selectHtml='';if(linked){selectHtml='<div class="v95topmsg">Naam gekoppeld: '+H(linked.name||'Bezorger')+'</div><input id="v95user" type="hidden" value="'+H(linked.id)+'">';}else{selectHtml='<label style="font-weight:900;display:block;margin:8px 0 4px">Naam</label><select id="v95user" class="v95input">'+list.map(function(u){return '<option value="'+H(u.id)+'">'+H(u.name||'Bezorger')+' ('+H(u.role||'Bezorger')+')</option>';}).join('')+'</select>';}
+    phoneHtml('<div class="v95head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div><div class="v95topmsg">Data geladen</div><div class="v95card"><h2>Inloggen</h2><p>'+(linked?'Vul je PIN in voor deze bezorger.':'Kies je naam en vul je PIN in.')+'</p><p id="v95msg" class="v95err">'+H(msg||'')+'</p>'+selectHtml+'<label style="font-weight:900;display:block;margin:8px 0 4px">PIN</label><input id="v95pin" class="v95input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button id="v95login" class="v95btn" type="button">Inloggen</button></div>');var p=E('v95pin'),b=E('v95login'),sel=E('v95user');if(b)b.onclick=function(){doLogin(T(p&&p.value),T(sel&&sel.value));};if(p){p.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();doLogin(T(p.value),T(sel&&sel.value));}};setTimeout(function(){try{p.focus();}catch(e){}},50);}}
+  function doLogin(pin,userId){if(!pin){var m=E('v95msg');if(m)m.textContent='Vul je PIN in.';return;}pullAll(function(){var d=device();var u=driverUsers().find(function(x){return String(x.id)===String(userId);})||linkedUserForDevice();if(!u){renderLogin('Kies eerst een bezorger.');return;}if(T(u.pin)!==pin){renderLogin('Verkeerde PIN voor deze bezorger.');return;}var linked=T(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==d){renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}u.deviceId=d;u.phoneDeviceId=d;u.mobileDeviceId=d;setUser(u);saveAll();syncDoc('users',u.id,u);renderPhoneApp(u);});}
   function makeAlert(o,u,title,text,extra){var a=Object.assign({id:'alert_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),orderId:o&&o.id||'',orderNumber:o&&o.number||'',orderTitle:o&&o.title||'',customerName:cust(o),title:title,type:title,text:text||'',note:text||'',message:text||'',resolved:false,createdAt:new Date().toISOString(),time:new Date().toLocaleString('nl-NL'),from:u&&u.name||'Bezorger',driverId:u&&u.id||'',driverName:u&&u.name||'',source:'telefoon'},extra||{});alerts().push(a);saveAll();syncDoc('alerts',a.id,a);return a;}
   function findOrder(id){return orders().find(function(o){return String(o.id)===String(id);});}
   function modal(html){var old=E('bnsV95PhoneModal');if(old)old.remove();var m=document.createElement('div');m.id='bnsV95PhoneModal';m.className='v95modal';m.innerHTML='<div class="v95modalCard">'+html+'</div>';document.body.appendChild(m);return m;} function closePhoneModal(){var m=E('bnsV95PhoneModal');if(m)m.remove();}
@@ -14356,16 +14353,9 @@ setInterval(install,1500);
     var txt=L([a.type,a.title,a.note,a.message,a.text,a.from].join(" "));
     return src.indexOf("telefoon")>=0 || src.indexOf("driver")>=0 || txt.indexOf("bezorger")>=0 || txt.indexOf("storing")>=0 || txt.indexOf("schade")>=0 || txt.indexOf("vermissing")>=0 || txt.indexOf("foto")>=0 || txt.indexOf("handtekening")>=0;
   }
-  function openAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved; }); }
-  function isSystemAlert(a){
-    if(!a || a.resolved) return false;
-    if(a.systemAlert === true) return true;
-    if(a.internalOnly === true) return false;
-    var txt=L([a.type,a.title,a.note,a.message,a.text].join(" "));
-    return txt.indexOf("schade") >= 0 || txt.indexOf("vermissing") >= 0;
-  }
-  function systemAlerts(){ return openAlerts().filter(isSystemAlert); }
-  function driverAlerts(){ return openAlerts().filter(isDriverAlert); }
+  function isSystemAlert(a){ var t=L([a && a.type, a && a.title, a && a.note, a && a.message, a && a.text].join(' ')); return t.indexOf('schade')>=0 || t.indexOf('vermissing')>=0; }
+  function openAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved && isSystemAlert(a); }); }
+  function driverAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved; }).filter(isDriverAlert); }
   function typeLabel(a){ var t=T(a.type || a.title || "Melding"); if(/foto/i.test(t) && /voor/i.test(t)) return "Foto voor levering"; if(/foto/i.test(t) && /na/i.test(t)) return "Foto na levering"; return t; }
   function mediaHtml(a){
     var h="";
@@ -14404,7 +14394,7 @@ setInterval(install,1500);
 
   function refreshAlertButton(){
     var b=E('alertsBtn'); if(!b) return;
-    var n=systemAlerts().length;
+    var n=openAlerts().length;
     b.textContent = n ? '🚨 Systeemmeldingen ('+n+')' : 'Systeemmeldingen (0)';
     b.classList.toggle('bns-alert-open', n>0);
     if(!b.dataset.twV141){ b.dataset.twV141='1'; b.addEventListener('click', openSystemAlerts, true); }
@@ -14413,7 +14403,7 @@ setInterval(install,1500);
     if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
     style(); var old=E('twV141AlertModal'); if(old) old.remove();
     var m=document.createElement('div'); m.id='twV141AlertModal'; m.style.cssText='position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.58);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:22px';
-    var rows=systemAlerts();
+    var rows=openAlerts();
     m.innerHTML='<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:840px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.28)"><button style="float:right" onclick="document.getElementById(\'twV141AlertModal\').remove()">Sluiten</button><h2>🚨 Systeemmeldingen</h2>'+(rows.length?rows.map(renderAlertItem).join(''):'<p>Geen open systeemmeldingen.</p>')+'</div>';
     document.body.appendChild(m);
     return false;
