@@ -14325,3 +14325,117 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,250); }); else setTimeout(install,150);
   setTimeout(install,1200); setTimeout(install,3000);
 })();
+
+/* ===== V150: planner opslaan -> Firebase push fix (telefoonmap ongewijzigd) ===== */
+(function(){
+  if(window.__tapwagenV150PlannerSyncInstalled) return;
+  window.__tapwagenV150PlannerSyncInstalled = true;
+  function T(v){ return String(v == null ? '' : v); }
+  function now(){ return new Date().toISOString(); }
+  function S(){
+    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    var keys=['bns_state','bns_app_state','bns_v12_state','bns_planner_state'];
+    for(var i=0;i<keys.length;i++){
+      try{ var raw=localStorage.getItem(keys[i]); if(raw){ var obj=JSON.parse(raw); if(obj&&typeof obj==='object') return obj; } }catch(e){}
+    }
+    return {orders:[],users:[],materials:[],alerts:[]};
+  }
+  function arr(name){ var s=S(); if(!Array.isArray(s[name])) s[name]=[]; return s[name]; }
+  function fbReady(){ return !!(window.BNS && window.BNS.fs && window.BNS.db); }
+  function fs(){ return window.BNS && window.BNS.fs; }
+  function db(){ return window.BNS && window.BNS.db; }
+  function docId(x,prefix){
+    return T(x && (x.id || x._id || x.uid || x.number || x.code || x.name)) || (prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7));
+  }
+  function clonePlain(x){ try{ return JSON.parse(JSON.stringify(x)); }catch(e){ return Object.assign({}, x||{}); } }
+  function stable(x){
+    try{
+      return JSON.stringify(x, function(k,v){
+        if(k==='updatedAt' || k==='lastSyncAt' || k==='syncedAt' || k==='_syncedAt') return undefined;
+        return v;
+      });
+    }catch(e){ return String(Math.random()); }
+  }
+  var baseline={orders:{},users:{},materials:{},alerts:{}};
+  var initialized=false;
+  var timer=null;
+  var lastRun=0;
+  function setBaseline(){
+    ['orders','users','materials','alerts'].forEach(function(c){
+      baseline[c]={};
+      arr(c).forEach(function(x){ var id=docId(x,c.slice(0,-1)||c); baseline[c][id]=stable(x); });
+    });
+    initialized=true;
+  }
+  function writeDoc(coll,id,obj){
+    try{
+      if(!fbReady() || !id || !obj) return Promise.resolve(false);
+      var data=clonePlain(obj); data.id=id; data.updatedAt=now();
+      return fs().setDoc(fs().doc(db(), coll, String(id)), data, {merge:true}).then(function(){ return true; }).catch(function(){ return false; });
+    }catch(e){ return Promise.resolve(false); }
+  }
+  function pushChangedCollection(coll){
+    var list=arr(coll); var tasks=[];
+    list.forEach(function(x){
+      if(!x || typeof x!=='object') return;
+      var id=docId(x, coll.slice(0,-1)||coll);
+      if(!x.id) x.id=id;
+      var sig=stable(x);
+      if(!initialized || baseline[coll][id] !== sig){
+        baseline[coll][id]=sig;
+        tasks.push(writeDoc(coll,id,x));
+      }
+    });
+    return Promise.all(tasks);
+  }
+  function pushChanged(reason){
+    if(!fbReady()) return;
+    if(!initialized) setBaseline();
+    var t=Date.now();
+    if(t-lastRun<400) return;
+    lastRun=t;
+    Promise.all([
+      pushChangedCollection('orders'),
+      pushChangedCollection('users'),
+      pushChangedCollection('materials'),
+      pushChangedCollection('alerts')
+    ]).then(function(){
+      try{ if(reason && /opslaan|save|wijzig|verwijder|reset|bezorger|materiaal|opdracht/i.test(reason)){ console.log('[Tapwagen V150] Firebase sync na:', reason); } }catch(e){}
+    });
+  }
+  function schedule(reason){
+    clearTimeout(timer);
+    timer=setTimeout(function(){ pushChanged(reason||'actie'); }, 700);
+  }
+  function installEventSync(){
+    document.addEventListener('click', function(ev){
+      var el=ev.target && ev.target.closest ? ev.target.closest('button,a,input[type=button],input[type=submit]') : ev.target;
+      var txt=T(el && (el.textContent || el.value || el.getAttribute && (el.getAttribute('aria-label')||el.getAttribute('title'))));
+      if(/opslaan|save|wijzig|verwijder|delete|reset|afmelden|uitgevoerd|bezorger|materiaal|opdracht|factuur|offerte/i.test(txt)) schedule(txt||'click');
+    }, true);
+    document.addEventListener('change', function(){ schedule('change'); }, true);
+    document.addEventListener('submit', function(){ schedule('submit'); }, true);
+  }
+  function installFunctionWraps(){
+    ['saveAll','saveState','saveLocal','save','persist','renderOrders','renderAll','adminRender'].forEach(function(name){
+      try{
+        var old=window[name];
+        if(typeof old==='function' && !old.__v150Wrapped){
+          var wrapped=function(){ var r=old.apply(this, arguments); schedule(name); return r; };
+          wrapped.__v150Wrapped=true;
+          window[name]=wrapped;
+        }
+      }catch(e){}
+    });
+  }
+  function boot(){
+    try{ setBaseline(); }catch(e){}
+    installEventSync();
+    installFunctionWraps();
+    setTimeout(function(){ installFunctionWraps(); setBaseline(); }, 1500);
+    setTimeout(function(){ installFunctionWraps(); }, 4000);
+    window.TapwagenForceFirebaseSync=function(){ pushChanged('handmatig'); };
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
