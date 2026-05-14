@@ -14138,7 +14138,7 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   Tapwagen.nl V142 - planner media/alerts, telefoon blijft V140 stabiel
+   Tapwagen.nl V141 - telefoonmeldingen/media naar planner + vaste opslag in opdracht-overzicht
    Basis: V140. Alleen meldingen/media-laag.
    - Planner leest Firebase alerts live.
    - Systeemmeldingen toont tekst/foto/handtekening.
@@ -14147,10 +14147,6 @@ setInterval(install,1500);
    ========================================================= */
 (function TapwagenV141AlertsMediaOnly(){
   "use strict";
-  // V142: deze planner/media-laag mag NIET op de telefoonroute draaien.
-  // De telefoon blijft de stabiele V140 naam+PIN-laag gebruiken; alleen de planner leest/toont alerts/media.
-  var __twRoute = String(location.search || "").toLowerCase();
-  if (__twRoute.indexOf("driver=") >= 0 || __twRoute.indexOf("telefoon=") >= 0 || __twRoute.indexOf("olddriver=") >= 0) return;
   if (window.__tapwagenV141AlertsMediaOnly) return;
   window.__tapwagenV141AlertsMediaOnly = true;
 
