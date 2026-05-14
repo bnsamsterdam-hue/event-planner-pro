@@ -1,35 +1,4 @@
 
-/* =========================================================
-   V121 TELEFOON STARTSTABILISATIE
-   Alleen actief op /driver/ of ?driver/?bezorger/?telefoon.
-   Doel: geen flikkerend wit scherm door oude herhaal-renders.
-========================================================= */
-(function(){
-  try{
-    var qs = new URLSearchParams(location.search || '');
-    var phone = qs.has('driver') || qs.has('bezorger') || qs.has('telefoon') || /\/driver\/?$/i.test(location.pathname || '') || /\/driver\//i.test(location.pathname || '');
-    if(!phone) return;
-    if(qs.has('driver') && qs.get('driver') !== '1'){
-      qs.set('driver','1');
-      history.replaceState(null, '', location.pathname + '?' + qs.toString() + (location.hash || ''));
-    }
-    window.__BNS_PHONE_MODE_V121 = true;
-    window.__BNS_REAL_SET_INTERVAL_V121 = window.setInterval;
-    window.setInterval = function(fn, delay){
-      try{
-        var d = Number(delay || 0);
-        // Tijdens het laden op telefoon worden oude setInterval-renders eenmalige timeouts.
-        // Daardoor verdwijnt het PIN-scherm niet steeds naar wit.
-        return window.setTimeout(fn, isFinite(d) && d > 0 ? d : 0);
-      }catch(e){ return 0; }
-    };
-    var st = document.createElement('style');
-    st.id = 'bns-v121-phone-boot-style';
-    st.textContent = 'html,body{background:#eef7ff!important}#bnsMobileDriverApp{display:block!important;visibility:visible!important;opacity:1!important;min-height:100vh!important}#bnsV83PhoneLogin,#bnsV83PhoneApp,#bnsV87PhoneRoot,#bnsV89PhoneRoot,#bnsV91PhoneRoot{display:none!important;visibility:hidden!important;pointer-events:none!important}body.bns-v83-phone-login>#bnsMobileDriverApp,body.bns-v83-phone-app>#bnsMobileDriverApp,body.bns-v87-phone-login>#bnsMobileDriverApp,body.bns-v87-phone-app>#bnsMobileDriverApp,body.bns-v89-phone>#bnsMobileDriverApp,body.bns-v91-phone>#bnsMobileDriverApp,body.bns-v95-phone>#bnsMobileDriverApp,body.bns-driver-mode>#bnsMobileDriverApp{display:block!important;visibility:visible!important}body.bns-v83-phone-login>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v83-phone-app>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v87-phone-login>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v87-phone-app>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v89-phone>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal),body.bns-v91-phone>*:not(#bnsMobileDriverApp):not(script):not(style):not(.toast):not(#toast):not(.bns-v100-modal){display:none!important}';
-    (document.head || document.documentElement).appendChild(st);
-  }catch(e){}
-})();
-
 
 // ===== V9.1 safety fixes =====
 function safePrint(){ window.print(); }
@@ -8331,7 +8300,7 @@ setInterval(install,1500);
     var data = '';
     qs('#bnsV100Cancel').onclick = closeModal;
     qs('#bnsV100File').onchange = function(){ var f=this.files&&this.files[0]; if(!f)return; compressImage(f,function(d){ data=d; qs('#bnsV100Preview').innerHTML='<img class="bns-v100-preview" src="'+d+'">'; }); };
-    qs('#bnsV100SavePhoto').onclick = function(){ if(!data){ msg('Maak of kies eerst een foto.'); return; } var note=clean(qs('#bnsV100PhotoText').value); order.media=Array.isArray(order.media)?order.media:[]; order.photos=Array.isArray(order.photos)?order.photos:[]; var item={id:'media_'+Date.now(),type:kind,data:data,note:note,createdAt:new Date().toISOString(),driverName:(currentUser()&&currentUser().name)||''}; order.media.push(item); order.photos.push(item); saveState(); syncDoc('orders', order.id, order); makeAlert(order, kind, note || kind, {photoData:data, media:item}); closeModal(); msg('Foto opgeslagen en verstuurd naar planning.'); };
+    qs('#bnsV100SavePhoto').onclick = function(){ if(!data){ msg('Maak of kies eerst een foto.'); return; } var note=clean(qs('#bnsV100PhotoText').value); order.media=Array.isArray(order.media)?order.media:[]; order.photos=Array.isArray(order.photos)?order.photos:[]; var item={id:'media_'+Date.now(),type:kind,data:data,note:note,createdAt:new Date().toISOString(),driverName:(currentUser()&&currentUser().name)||''}; order.media.push(item); order.photos.push(item); saveState(); makeAlert(order, kind, note || kind, {photoData:data, media:item}); closeModal(); msg('Foto opgeslagen en verstuurd naar planning.'); };
   }
 
   function openSignature(order) {
@@ -8345,7 +8314,7 @@ setInterval(install,1500);
     function end(ev){ if(ev)ev.preventDefault(); drawing=false; }
     fit(); ['mousedown','touchstart'].forEach(function(n){c.addEventListener(n,start,{passive:false});}); ['mousemove','touchmove'].forEach(function(n){c.addEventListener(n,move,{passive:false});}); ['mouseup','mouseleave','touchend','touchcancel'].forEach(function(n){c.addEventListener(n,end,{passive:false});});
     qs('#bnsV100Clear').onclick=function(){fit();has=false;};
-    qs('#bnsV100SaveSign').onclick=function(){ if(!has){ msg('Laat eerst tekenen.'); return; } var name=clean(qs('#bnsV100SignName').value), data=c.toDataURL('image/png'); order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; var item={id:'sig_'+Date.now(),type:'Handtekening klant',data:data,customerName:name,createdAt:new Date().toISOString(),driverName:(currentUser()&&currentUser().name)||''}; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedName=name; order.customerSignedAt=new Date().toISOString(); saveState(); syncDoc('orders', order.id, order); makeAlert(order, 'Handtekening klant', name?('Ondertekend door '+name):'Klant heeft getekend', {signatureData:data, media:item}); closeModal(); msg('Handtekening opgeslagen en verstuurd naar planning.'); };
+    qs('#bnsV100SaveSign').onclick=function(){ if(!has){ msg('Laat eerst tekenen.'); return; } var name=clean(qs('#bnsV100SignName').value), data=c.toDataURL('image/png'); order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; var item={id:'sig_'+Date.now(),type:'Handtekening klant',data:data,customerName:name,createdAt:new Date().toISOString(),driverName:(currentUser()&&currentUser().name)||''}; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedName=name; order.customerSignedAt=new Date().toISOString(); saveState(); makeAlert(order, 'Handtekening klant', name?('Ondertekend door '+name):'Klant heeft getekend', {signatureData:data, media:item}); closeModal(); msg('Handtekening opgeslagen en verstuurd naar planning.'); };
   }
 
   function sortedOrders() {
@@ -8420,7 +8389,7 @@ setInterval(install,1500);
     var app = ensureApp();
     var u = currentUser();
     if (!u) {
-      app.innerHTML = '<div class="bns-mobile-head"><h1>BNS Bezorger</h1><small>Mobiele opdrachten</small></div>'+
+      app.innerHTML = '<div class="bns-mobile-head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div>'+
         '<div class="bns-empty" style="text-align:left"><h2 style="margin-top:0">Inloggen</h2><p>Vul je persoonlijke PIN in.</p><input id="bnsDriverPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:16px;font-size:22px;margin:8px 0 12px"><button id="bnsDriverLogin" style="width:100%;border:0;border-radius:16px;padding:16px;background:#075fc4;color:#fff;font-weight:900;font-size:20px">Inloggen</button><div id="bnsDriverLoginMsg" style="margin-top:10px;color:#dc2626;font-weight:800"></div></div>';
       var pin = document.getElementById('bnsDriverPin');
       var btn = document.getElementById('bnsDriverLogin');
@@ -8438,7 +8407,7 @@ setInterval(install,1500);
     var orders = sortedOrders();
     var name = u && u.name ? u.name : "Bezorger";
 
-    app.innerHTML = '<div class="bns-mobile-head"><h1>BNS Bezorger</h1><small>'+esc(name)+' - '+esc(todayISO())+'</small></div>'+
+    app.innerHTML = '<div class="bns-mobile-head"><h1>Bezorger Tapwagen.nl</h1><small>'+esc(name)+' - '+esc(todayISO())+'</small></div>'+
       '<div class="bns-mobile-tools"><input id="bnsDriverSearch" placeholder="Zoek opdracht / klant / adres"><button type="button" id="bnsDriverRefresh">Verversen</button><button type="button" id="bnsDriverLogout">Uitloggen</button></div>'+
       '<div class="bns-mobile-list" id="bnsDriverList">'+(orders.length ? orders.map(card).join("") : '<div class="bns-empty">Geen opdrachten voor deze bezorger.</div>')+'</div>';
 
@@ -12510,7 +12479,7 @@ setInterval(install,1500);
     css();
     if(!E('bnsV83PhoneLogin')){
       var d=document.createElement('div'); d.id='bnsV83PhoneLogin';
-      d.innerHTML='<div class="bns-v83-phone-head"><h1>BNS Bezorger</h1><small>Mobiele opdrachten</small></div><div class="bns-v83-login-card"><h2>Inloggen</h2><p>Vul je persoonlijke PIN in.</p><input id="bnsV83PhonePin" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button type="button" id="bnsV83PhoneLoginBtn">Inloggen</button></div>';
+      d.innerHTML='<div class="bns-v83-phone-head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div><div class="bns-v83-login-card"><h2>Inloggen</h2><p>Vul je persoonlijke PIN in.</p><input id="bnsV83PhonePin" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button type="button" id="bnsV83PhoneLoginBtn">Inloggen</button></div>';
       document.body.appendChild(d);
     }
     document.body.classList.add('bns-v83-phone-login'); document.body.classList.remove('bns-v83-phone-app');
@@ -12549,7 +12518,7 @@ setInterval(install,1500);
     css(); document.body.classList.remove('bns-v83-phone-login'); document.body.classList.add('bns-v83-phone-app');
     var app=E('bnsV83PhoneApp'); if(!app){ app=document.createElement('div'); app.id='bnsV83PhoneApp'; document.body.appendChild(app); }
     var rows=orders().filter(orderVisibleForPhone).filter(function(o){ return orderBelongsToUser(o,u); }).sort(function(a,b){ return String(a.start||'').localeCompare(String(b.start||'')); });
-    app.innerHTML='<div class="bns-v83-phone-head"><h1>BNS Bezorger</h1><small>'+H(u.name||'Bezorger')+'</small></div><div class="bns-v83-phone-tools"><input id="bnsV83PhoneSearch" placeholder="Zoek opdracht / klant / adres"><button type="button" id="bnsV83PhoneRefresh">Verversen</button><button type="button" id="bnsV83PhoneLogout">Afmelden</button></div><div class="bns-v83-phone-list">'+(rows.length?rows.map(function(o){ var addr=orderAddress(o), phone=orderPhone(o), dr=niceDate(o.start)+(o.end&&o.end!==o.start?' t/m '+niceDate(o.end):''); return '<div class="bns-v83-phone-card"><div class="bns-v83-phone-title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="bns-v83-phone-meta"><div>Datum: '+H(dr)+'</div><div>Klant: '+H(orderCustomer(o)||'')+'</div><div>Adres: '+H(addr||'')+'</div><div>Materiaal: '+H(orderMats(o)||'Geen materialen')+'</div></div><div class="bns-v83-phone-actions"><a class="green" target="_blank" href="'+H(routeUrl('waze',addr))+'">Waze</a><a class="dark" target="_blank" href="'+H(routeUrl('maps',addr))+'">Maps</a>'+(phone?'<a href="tel:'+H(phone)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button type="button" data-v83-phone-done="'+H(o.id||'')+'">Uitgevoerd</button></div></div>'; }).join(''):'<div class="bns-v83-empty">Geen opdrachten voor deze bezorger.</div>')+'</div>';
+    app.innerHTML='<div class="bns-v83-phone-head"><h1>Bezorger Tapwagen.nl</h1><small>'+H(u.name||'Bezorger')+'</small></div><div class="bns-v83-phone-tools"><input id="bnsV83PhoneSearch" placeholder="Zoek opdracht / klant / adres"><button type="button" id="bnsV83PhoneRefresh">Verversen</button><button type="button" id="bnsV83PhoneLogout">Afmelden</button></div><div class="bns-v83-phone-list">'+(rows.length?rows.map(function(o){ var addr=orderAddress(o), phone=orderPhone(o), dr=niceDate(o.start)+(o.end&&o.end!==o.start?' t/m '+niceDate(o.end):''); return '<div class="bns-v83-phone-card"><div class="bns-v83-phone-title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="bns-v83-phone-meta"><div>Datum: '+H(dr)+'</div><div>Klant: '+H(orderCustomer(o)||'')+'</div><div>Adres: '+H(addr||'')+'</div><div>Materiaal: '+H(orderMats(o)||'Geen materialen')+'</div></div><div class="bns-v83-phone-actions"><a class="green" target="_blank" href="'+H(routeUrl('waze',addr))+'">Waze</a><a class="dark" target="_blank" href="'+H(routeUrl('maps',addr))+'">Maps</a>'+(phone?'<a href="tel:'+H(phone)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button type="button" data-v83-phone-done="'+H(o.id||'')+'">Uitgevoerd</button></div></div>'; }).join(''):'<div class="bns-v83-empty">Geen opdrachten voor deze bezorger.</div>')+'</div>';
     var q=E('bnsV83PhoneSearch'); if(q) q.oninput=function(){ var s=L(q.value); A('.bns-v83-phone-card',app).forEach(function(c){ c.style.display=!s||L(c.innerText).indexOf(s)>=0?'':'none'; }); };
     var ref=E('bnsV83PhoneRefresh'); if(ref) ref.onclick=function(){ try{ if(window.BNS&&window.BNS.reloadFromFirebase) window.BNS.reloadFromFirebase(); }catch(e){} renderPhone83(); };
     var lo=E('bnsV83PhoneLogout'); if(lo) lo.onclick=function(){ try{ localStorage.removeItem(PHONE_USER_KEY); }catch(e){} location.reload(); };
@@ -12623,7 +12592,7 @@ setInterval(install,1500);
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(bind,600); }); else setTimeout(bind,350);
   setTimeout(bind,1400); setTimeout(bind,3200); setTimeout(bind,5200);
-  setInterval(function(){ try{ patchAdminPin(); patchInvoiceButtons(); ensureDriverChooser(); patchOrderSave(); patchGlobalLogin(); startFirebaseListeners(); if(isPhone()) renderPhone83(); }catch(e){} },8000);
+  setInterval(function(){ try{ patchAdminPin(); patchInvoiceButtons(); ensureDriverChooser(); patchOrderSave(); patchGlobalLogin(); startFirebaseListeners(); /* telefoon: oude V83 render uitgeschakeld */ }catch(e){} },8000);
 })();
 
 /* =========================================================
@@ -13533,7 +13502,7 @@ setInterval(install,1500);
     document.body.classList.add('bns-v87-phone-app'); document.body.classList.remove('bns-v87-phone-login','bns-driver-mode','bns-v83-phone-login','bns-v83-phone-app');
     var q=T(E('bnsV87PhoneSearch') && E('bnsV87PhoneSearch').value).toLowerCase();
     var rows=phoneOrders(u); if(q) rows=rows.filter(function(o){ return L([o.number,o.title,(o.customer&&o.customer.name),address(o),materialText(o)].join(' ')).indexOf(q)>=0; });
-    app.innerHTML='<div class="bns-v87-phone-head"><h1>BNS Bezorger</h1><small>'+H(u.name)+' - mobiele opdrachten</small></div><div class="bns-v87-phone-tools"><input id="bnsV87PhoneSearch" placeholder="Zoek opdracht / klant / adres" value="'+H(q)+'"><button type="button" id="bnsV87PhoneRefresh">Verversen</button><button type="button" id="bnsV87PhoneLogout">Uitloggen</button></div><div class="bns-v87-phone-list">'+(rows.length?rows.map(phoneCard).join(''):'<div class="bns-v87-empty">Geen opdrachten voor deze bezorger.</div>')+'</div>';
+    app.innerHTML='<div class="bns-v87-phone-head"><h1>Bezorger Tapwagen.nl</h1><small>'+H(u.name)+' - mobiele opdrachten</small></div><div class="bns-v87-phone-tools"><input id="bnsV87PhoneSearch" placeholder="Zoek opdracht / klant / adres" value="'+H(q)+'"><button type="button" id="bnsV87PhoneRefresh">Verversen</button><button type="button" id="bnsV87PhoneLogout">Uitloggen</button></div><div class="bns-v87-phone-list">'+(rows.length?rows.map(phoneCard).join(''):'<div class="bns-v87-empty">Geen opdrachten voor deze bezorger.</div>')+'</div>';
     var search=E('bnsV87PhoneSearch'); if(search){ search.focus=function(){}; search.oninput=renderPhone; }
     var ref=E('bnsV87PhoneRefresh'); if(ref) ref.onclick=function(){ pullAll().then(renderPhone); };
     var lo=E('bnsV87PhoneLogout'); if(lo) lo.onclick=function(){ try{localStorage.removeItem(PHONE_USER_KEY);localStorage.removeItem('bns_v83_phone_user_id');}catch(e){} renderPhoneLogin(); };
@@ -13552,7 +13521,7 @@ setInterval(install,1500);
     ensureStyle();
     var box=E(PHONE_LOGIN_ID); if(!box){ box=document.createElement('div'); box.id=PHONE_LOGIN_ID; document.body.appendChild(box); }
     document.body.classList.add('bns-v87-phone-login'); document.body.classList.remove('bns-v87-phone-app','bns-driver-mode','bns-v83-phone-login','bns-v83-phone-app');
-    box.innerHTML='<div class="bns-v87-phone-head"><h1>BNS Bezorger</h1><small>Mobiele opdrachten</small></div><div class="bns-v87-login-card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in. Namen van collega\'s worden niet getoond.</p>'+(message?'<p style="color:#dc2626">'+H(message)+'</p>':'')+'<input id="bnsV87PhonePin" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button type="button" id="bnsV87PhoneLoginBtn">Inloggen</button></div>';
+    box.innerHTML='<div class="bns-v87-phone-head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div><div class="bns-v87-login-card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in. Namen van collega\'s worden niet getoond.</p>'+(message?'<p style="color:#dc2626">'+H(message)+'</p>':'')+'<input id="bnsV87PhonePin" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button type="button" id="bnsV87PhoneLoginBtn">Inloggen</button></div>';
     var input=E('bnsV87PhonePin'), btn=E('bnsV87PhoneLoginBtn');
     if(btn) btn.onclick=function(){ var p=T(input&&input.value); pullAll().then(function(){ loginPhonePin(p); }); };
     if(input){ input.onkeydown=function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); btn && btn.click(); } }; setTimeout(function(){ try{ input.focus(); }catch(e){} },100); }
@@ -13578,7 +13547,7 @@ setInterval(install,1500);
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,300); }); else setTimeout(install,120);
   setTimeout(install,900); setTimeout(install,2200); setTimeout(install,5000);
-  setInterval(function(){ try{ startListeners(); flushPending(); installPeopleBox(); if(mobileLike()) renderPhone(); }catch(e){} }, 8000);
+  setInterval(function(){ try{ startListeners(); flushPending(); installPeopleBox(); }catch(e){} }, 8000);
 })();
 
 /* =========================================================
@@ -13631,7 +13600,7 @@ setInterval(install,1500);
   function setHtml(html){ var r=root(); if(lastRender!==html){ r.innerHTML=html; lastRender=html; } return r; }
   function message(t){ var el=E('v89msg'); if(el) el.textContent=t||''; }
 
-  function renderLogin(msg){ var html='<div class="v89head"><h1>BNS Bezorger</h1><small>Mobiele opdrachten</small></div><div class="v89topmsg">Data geladen</div><div class="v89card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in. Namen van collega\'s worden niet getoond.</p><p id="v89msg" class="v89err">'+H(msg||'')+'</p><input id="v89pin" class="v89input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button id="v89login" class="v89btn" type="button">Inloggen</button></div>'; var r=setHtml(html); var p=E('v89pin'), b=E('v89login'); if(b && b.dataset.b!=='1'){ b.dataset.b='1'; b.onclick=function(){ doLogin(T(p&&p.value)); }; } if(p && p.dataset.b!=='1'){ p.dataset.b='1'; p.onkeydown=function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); doLogin(T(p.value)); } }; setTimeout(function(){ try{p.focus();}catch(e){} },80); } }
+  function renderLogin(msg){ var html='<div class="v89head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div><div class="v89topmsg">Data geladen</div><div class="v89card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in. Namen van collega\'s worden niet getoond.</p><p id="v89msg" class="v89err">'+H(msg||'')+'</p><input id="v89pin" class="v89input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button id="v89login" class="v89btn" type="button">Inloggen</button></div>'; var r=setHtml(html); var p=E('v89pin'), b=E('v89login'); if(b && b.dataset.b!=='1'){ b.dataset.b='1'; b.onclick=function(){ doLogin(T(p&&p.value)); }; } if(p && p.dataset.b!=='1'){ p.dataset.b='1'; p.onkeydown=function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); doLogin(T(p.value)); } }; setTimeout(function(){ try{p.focus();}catch(e){} },80); } }
   function doLogin(pin){ if(!pin){ message('Vul je PIN in.'); return; } pullAll().then(function(){ var u=drivers().find(function(x){ return T(x.pin)===pin; }); if(!u){ renderLogin('Verkeerde PIN of geen actieve bezorger.'); return; } var d=uid(); var linked=T(u.deviceId||u.phoneDeviceId); if(linked && linked!==d){ renderLogin('Deze bezorger is al gekoppeld aan een andere telefoon. Vraag admin om telefoon reset.'); return; } u.deviceId=d; u.phoneDeviceId=d; u.deviceLinkedAt=u.deviceLinkedAt||new Date().toISOString(); saveLocal(); syncDoc('users',u.id,u); setCurrent(u); renderApp(u); }); }
   function activeOrder(o){ var st=L(o&&o.status); return !/geannuleerd|uitgevoerd|verwijderd|deleted|cancel/.test(st); }
   function nameNorm(v){ return L(v).replace(/\s+/g,' ').trim(); }
@@ -13644,7 +13613,7 @@ setInterval(install,1500);
   function phone(o){ return T((o.customer&&o.customer.phone)||o.phone||''); }
   function mats(o){ return (Array.isArray(o.materials)?o.materials:[]).map(function(m){ return T((m.code||m.productNr||'')+' '+(m.name||m.product||m.description||'')); }).filter(Boolean).join(', '); }
   function card(o){ var ad=address(o), ph=phone(o), enc=encodeURIComponent(ad); return '<div class="v89order"><div class="v89title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="v89meta"><div><b>Datum:</b> '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'</div><div><b>Klant:</b> '+H(cust(o))+'</div><div><b>Adres:</b> '+H(ad||'Geen adres')+'</div><div><b>Materiaal:</b> '+H(mats(o)||'Geen materialen')+'</div></div><div class="v89acts"><a class="green" target="_blank" href="https://waze.com/ul?q='+enc+'&navigate=yes">Waze</a><a target="_blank" href="https://www.google.com/maps/search/?api=1&query='+enc+'">Maps</a>'+(ph?'<a href="tel:'+H(ph)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button type="button" class="v89btn dark" style="margin:0;font-size:16px;padding:13px 10px">Open</button></div></div>'; }
-  function renderApp(u){ var q=T(E('v89search')&&E('v89search').value); var rows=orders().filter(activeOrder).filter(function(o){ return belongs(o,u); }); if(q){ var qq=L(q); rows=rows.filter(function(o){ return L([o.number,o.title,cust(o),address(o),mats(o)].join(' ')).indexOf(qq)>=0; }); } rows.sort(function(a,b){ return T(a.start).localeCompare(T(b.start)); }); var html='<div class="v89head"><h1>BNS Bezorger</h1><small>'+H(u.name)+' - Bezorger</small></div><div class="v89topmsg">Data geladen</div><div class="v89tools"><input id="v89search" class="v89search" placeholder="Zoek opdracht / klant / adres" value="'+H(q)+'"><button id="v89refresh" class="v89btn" type="button">Verversen</button><button id="v89logout" class="v89btn dark" type="button">Uitloggen</button></div>'+(rows.length?rows.map(card).join(''):'<div class="v89empty">Geen opdrachten voor deze gebruiker.</div>'); setHtml(html); var s=E('v89search'), ref=E('v89refresh'), lo=E('v89logout'); if(s && s.dataset.b!=='1'){ s.dataset.b='1'; s.oninput=function(){ renderApp(u); }; } if(ref && ref.dataset.b!=='1'){ ref.dataset.b='1'; ref.onclick=function(){ pullAll().then(function(){ renderApp(currentUser()||u); }); }; } if(lo && lo.dataset.b!=='1'){ lo.dataset.b='1'; lo.onclick=function(){ clearCurrent(); renderLogin(); }; } }
+  function renderApp(u){ var q=T(E('v89search')&&E('v89search').value); var rows=orders().filter(activeOrder).filter(function(o){ return belongs(o,u); }); if(q){ var qq=L(q); rows=rows.filter(function(o){ return L([o.number,o.title,cust(o),address(o),mats(o)].join(' ')).indexOf(qq)>=0; }); } rows.sort(function(a,b){ return T(a.start).localeCompare(T(b.start)); }); var html='<div class="v89head"><h1>Bezorger Tapwagen.nl</h1><small>'+H(u.name)+' - Bezorger</small></div><div class="v89topmsg">Data geladen</div><div class="v89tools"><input id="v89search" class="v89search" placeholder="Zoek opdracht / klant / adres" value="'+H(q)+'"><button id="v89refresh" class="v89btn" type="button">Verversen</button><button id="v89logout" class="v89btn dark" type="button">Uitloggen</button></div>'+(rows.length?rows.map(card).join(''):'<div class="v89empty">Geen opdrachten voor deze gebruiker.</div>'); setHtml(html); var s=E('v89search'), ref=E('v89refresh'), lo=E('v89logout'); if(s && s.dataset.b!=='1'){ s.dataset.b='1'; s.oninput=function(){ renderApp(u); }; } if(ref && ref.dataset.b!=='1'){ ref.dataset.b='1'; ref.onclick=function(){ pullAll().then(function(){ renderApp(currentUser()||u); }); }; } if(lo && lo.dataset.b!=='1'){ lo.dataset.b='1'; lo.onclick=function(){ clearCurrent(); renderLogin(); }; } }
   function render(){ if(!isPhone()) return; startFb(); var u=currentUser(); if(!u){ renderLogin(); return; } var linked=T(u.deviceId||u.phoneDeviceId); if(linked && linked!==uid()){ clearCurrent(); renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.'); return; } renderApp(u); }
 
   function userByValue(v){ var x=T(v); if(!x) return null; return drivers().find(function(u){ return String(u.id)===x || L(u.name)===L(x) || T(u.pin)===x; }) || null; }
@@ -13702,7 +13671,7 @@ setInterval(install,1500);
   function msg(m){var e=$('v91msg');if(e)e.textContent=m||'';}
   function schedule(){clearTimeout(renderTimer);renderTimer=setTimeout(render,100);}
   function bindPin(){var p=$('v91pin'),b=$('v91login'); if(p&&!p.dataset.b){p.dataset.b='1';p.value=lastPin||'';p.addEventListener('input',function(){lastPin=p.value;},true);p.addEventListener('keydown',function(ev){if(ev.key==='Enter'){ev.preventDefault();login(txt(p.value));}},true);setTimeout(function(){try{p.focus();}catch(e){}},30);} if(b&&!b.dataset.b){b.dataset.b='1';b.onclick=function(){login(txt(p&&p.value));};}}
-  function renderLogin(message){var h='<div class="v91head"><h1>BNS Bezorger</h1><small>Mobiele opdrachten</small></div><div class="v91topmsg">PIN-only login</div><div class="v91card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in. Namen van collega\'s worden niet getoond.</p><p id="v91msg" class="v91err">'+esc(message||'')+'</p><input id="v91pin" class="v91input" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="PIN"><button id="v91login" class="v91btn" type="button">Inloggen</button></div>';setHtml(h);bindPin();}
+  function renderLogin(message){var h='<div class="v91head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div><div class="v91topmsg">PIN-only login</div><div class="v91card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in. Namen van collega\'s worden niet getoond.</p><p id="v91msg" class="v91err">'+esc(message||'')+'</p><input id="v91pin" class="v91input" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="PIN"><button id="v91login" class="v91btn" type="button">Inloggen</button></div>';setHtml(h);bindPin();}
   function login(pin){lastPin=pin;if(!pin){msg('Vul je PIN in.');return;}var u=drivers().find(function(x){return txt(x.pin)===pin;});if(!u){msg('PIN nog niet gevonden, data wordt geladen...');pullAll().then(function(){u=drivers().find(function(x){return txt(x.pin)===pin;});if(!u){msg('Verkeerde PIN of gebruiker niet actief.');return;}finishLogin(u);});return;}finishLogin(u);}
   function finishLogin(u){var d=device();var linked=txt(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==d){msg('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}u.deviceId=d;u.phoneDeviceId=d;u.mobileDeviceId=d;setUser(u);lastPin='';saveAll();syncDoc('users',u.id,u);renderApp(u);}
   function cust(o){return txt(o&&o.customer&&(o.customer.name||o.customer.customerName)||o.customerName||o.name||'');}
@@ -13716,7 +13685,7 @@ setInterval(install,1500);
   function belongs(o,u){if(!u)return false;var id=String(u.id);if(ids(o).indexOf(id)>=0)return true;var n=low(u.name);return n&&names(o).some(function(x){return x===n||x.indexOf(n)>=0||n.indexOf(x)>=0;});}
   function card(o){var ad=address(o),ph=phone(o),enc=encodeURIComponent(ad),id=esc(o.id||'');return '<div class="v91order"><div class="v91title">'+esc(o.number||'')+' - '+esc(o.title||'Zonder titel')+'</div><div class="v91meta"><div><b>Datum:</b> '+esc(dateNice(o.start))+(o.end&&o.end!==o.start?' t/m '+esc(dateNice(o.end)):'')+'</div><div><b>Klant:</b> '+esc(cust(o))+'</div><div><b>Adres:</b> '+esc(ad||'Geen adres')+'</div><div><b>Materiaal:</b> '+esc(mats(o)||'Geen materialen')+'</div></div><div class="v91acts"><a class="green" target="_blank" href="https://waze.com/ul?q='+enc+'&navigate=yes">Waze</a><a target="_blank" href="https://www.google.com/maps/search/?api=1&query='+enc+'">Maps</a>'+(ph?'<a href="tel:'+esc(ph)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button type="button" class="dark" data-v91-report="'+id+'">Melding</button><button type="button" class="dark" data-v91-photo="'+id+'">Foto maken</button><button type="button" class="dark" data-v91-sign="'+id+'">Handtekening</button><button type="button" class="red" data-v91-done="'+id+'">Uitgevoerd</button></div></div>';}
   function bindCards(u){all('[data-v91-report]').forEach(function(b){if(b.dataset.b)return;b.dataset.b='1';b.onclick=function(){openReport(b.getAttribute('data-v91-report'),u);};});all('[data-v91-photo]').forEach(function(b){if(b.dataset.b)return;b.dataset.b='1';b.onclick=function(){openPhoto(b.getAttribute('data-v91-photo'),u);};});all('[data-v91-sign]').forEach(function(b){if(b.dataset.b)return;b.dataset.b='1';b.onclick=function(){openSign(b.getAttribute('data-v91-sign'),u);};});all('[data-v91-done]').forEach(function(b){if(b.dataset.b)return;b.dataset.b='1';b.onclick=function(){var o=findOrder(b.getAttribute('data-v91-done'));if(!o)return;if(confirm('Opdracht afmelden als uitgevoerd?')){o.status='Uitgevoerd';o.doneAt=now();saveAll();syncDoc('orders',o.id,o);renderApp(u);}};});}
-  function renderApp(u){var q=lastQ;var rows=ensure().orders.filter(activeOrder).filter(function(o){return belongs(o,u);});if(q){var l=low(q);rows=rows.filter(function(o){return low([o.number,o.title,cust(o),address(o),mats(o)].join(' ')).indexOf(l)>=0;});}rows.sort(function(a,b){return txt(a.start).localeCompare(txt(b.start));});var h='<div class="v91head"><h1>BNS Bezorger</h1><small>'+esc(u.name)+' - Bezorger</small></div><div class="v91topmsg">Data geladen</div><div class="v91tools"><input id="v91search" class="v91search" placeholder="Zoek opdracht / klant / adres" value="'+esc(q)+'"><button id="v91refresh" class="v91btn" type="button">Verversen</button><button id="v91logout" class="v91btn dark" type="button">Uitloggen</button></div>'+(rows.length?rows.map(card).join(''):'<div class="v91empty">Geen opdrachten voor deze gebruiker.</div>');setHtml(h);var s=$('v91search'),r=$('v91refresh'),l=$('v91logout');if(s&&!s.dataset.b){s.dataset.b='1';s.oninput=function(){lastQ=s.value;renderApp(u);};}if(r&&!r.dataset.b){r.dataset.b='1';r.onclick=function(){pullAll().then(function(){renderApp(currentUser()||u);});};}if(l&&!l.dataset.b){l.dataset.b='1';l.onclick=function(){clearUser();renderLogin();};}bindCards(u);}
+  function renderApp(u){var q=lastQ;var rows=ensure().orders.filter(activeOrder).filter(function(o){return belongs(o,u);});if(q){var l=low(q);rows=rows.filter(function(o){return low([o.number,o.title,cust(o),address(o),mats(o)].join(' ')).indexOf(l)>=0;});}rows.sort(function(a,b){return txt(a.start).localeCompare(txt(b.start));});var h='<div class="v91head"><h1>Bezorger Tapwagen.nl</h1><small>'+esc(u.name)+' - Bezorger</small></div><div class="v91topmsg">Data geladen</div><div class="v91tools"><input id="v91search" class="v91search" placeholder="Zoek opdracht / klant / adres" value="'+esc(q)+'"><button id="v91refresh" class="v91btn" type="button">Verversen</button><button id="v91logout" class="v91btn dark" type="button">Uitloggen</button></div>'+(rows.length?rows.map(card).join(''):'<div class="v91empty">Geen opdrachten voor deze gebruiker.</div>');setHtml(h);var s=$('v91search'),r=$('v91refresh'),l=$('v91logout');if(s&&!s.dataset.b){s.dataset.b='1';s.oninput=function(){lastQ=s.value;renderApp(u);};}if(r&&!r.dataset.b){r.dataset.b='1';r.onclick=function(){pullAll().then(function(){renderApp(currentUser()||u);});};}if(l&&!l.dataset.b){l.dataset.b='1';l.onclick=function(){clearUser();renderLogin();};}bindCards(u);}
   function render(){if(!mobileMode()){patchPlannerAlerts();return;}var u=currentUser();if(!u){renderLogin();return;}var linked=txt(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==device()){clearUser();renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}renderApp(u);}
   function findOrder(id){return ensure().orders.find(function(o){return String(o.id)===String(id);});}
   function modal(html){var old=$(MODAL);if(old)old.remove();var m=document.createElement('div');m.id=MODAL;m.className='v91modal';m.innerHTML='<div class="v91modalCard">'+html+'</div>';document.body.appendChild(m);return m;}
@@ -13724,8 +13693,8 @@ setInterval(install,1500);
   function makeAlert(o,u,title,text,extra){var a=Object.assign({id:nid('alert'),orderId:o&&o.id||'',orderNumber:o&&o.number||'',orderTitle:o&&o.title||'',customerName:cust(o),title:title,type:title,reportType:title,text:text||'',note:text||'',message:text||'',resolved:false,createdAt:now(),time:new Date().toLocaleString('nl-NL'),from:u&&u.name||'Bezorger',driverId:u&&u.id||'',driverName:u&&u.name||'',source:'telefoon'},extra||{});ensure().alerts.push(a);saveAll();syncDoc('alerts',a.id,a);patchPlannerAlerts();return a;}
   function openReport(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Melding aan planning</h2><p class="v91small">Deze tekst komt bij de planner in Systeemmeldingen.</p><textarea id="v91reportText" class="v91textarea" placeholder="Typ je melding"></textarea><button id="v91sendReport" class="v91btn green" type="button">Versturen</button><button id="v91cancel" class="v91btn dark" type="button">Annuleren</button>');$('v91cancel').onclick=closeModal;$('v91sendReport').onclick=function(){var t=txt($('v91reportText')&&$('v91reportText').value);if(!t){alert('Typ eerst een melding.');return;}makeAlert(o,u,'Bezorger melding',t,{});closeModal();alert('Melding verstuurd naar planning.');};}
   function compress(file,cb){var rd=new FileReader();rd.onload=function(){var img=new Image();img.onload=function(){var max=900,w=img.width,h=img.height;if(w>max||h>max){var rr=Math.min(max/w,max/h);w=Math.round(w*rr);h=Math.round(h*rr);}var c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);cb(c.toDataURL('image/jpeg',0.58));};img.onerror=function(){cb(rd.result);};img.src=rd.result;};rd.readAsDataURL(file);}
-  function openPhoto(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Foto bij opdracht/klant</h2><p class="v91small">Maak een foto of kies een foto. De foto wordt opgeslagen bij deze opdracht en als melding naar planning gestuurd.</p><input id="v91photoFile" class="v91file" type="file" accept="image/*" capture="environment"><textarea id="v91photoText" class="v91textarea" placeholder="Opmerking bij foto"></textarea><div id="v91photoPreview"></div><button id="v91sendPhoto" class="v91btn green" type="button">Foto opslaan</button><button id="v91cancel" class="v91btn dark" type="button">Annuleren</button>');var data='';$('v91cancel').onclick=closeModal;$('v91photoFile').onchange=function(){var f=this.files&&this.files[0];if(!f)return;compress(f,function(d){data=d;var p=$('v91photoPreview');if(p)p.innerHTML='<img class="v91preview" src="'+d+'">';});};$('v91sendPhoto').onclick=function(){if(!data){alert('Maak of kies eerst een foto.');return;}var note=txt($('v91photoText')&&$('v91photoText').value);o.photos=Array.isArray(o.photos)?o.photos:[];o.photos.push({id:nid('photo'),data:data,note:note,driverId:u.id,driverName:u.name,createdAt:now()});o.customerPhotos=Array.isArray(o.customerPhotos)?o.customerPhotos:[];o.customerPhotos.push({data:data,note:note,createdAt:now(),driverName:u.name});saveAll();syncDoc('orders',o.id,o);makeAlert(o,u,'Foto bezorger',note||'Foto toegevoegd',{photoData:data});closeModal();alert('Foto opgeslagen bij opdracht en verstuurd naar planning.');};}
-  function openSign(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Handtekening klant</h2><p class="v91small">Laat de klant hieronder tekenen voor akkoord/aflevering.</p><input id="v91signName" class="v91input" placeholder="Naam klant"><canvas id="v91sig" class="v91sig"></canvas><button id="v91saveSig" class="v91btn green" type="button">Handtekening opslaan</button><button id="v91clearSig" class="v91btn dark" type="button">Opnieuw tekenen</button><button id="v91cancel" class="v91btn dark" type="button">Annuleren</button>');$('v91cancel').onclick=closeModal;var c=$('v91sig'),ctx=c.getContext('2d'),draw=false,has=false;function fit(){var r=c.getBoundingClientRect();c.width=Math.max(300,Math.floor(r.width));c.height=220;ctx.lineWidth=3;ctx.lineCap='round';ctx.strokeStyle='#111827';}fit();function pos(ev){var e=ev.touches&&ev.touches[0]||ev,r=c.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}function st(ev){ev.preventDefault();draw=true;has=true;var p=pos(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);}function mv(ev){if(!draw)return;ev.preventDefault();var p=pos(ev);ctx.lineTo(p.x,p.y);ctx.stroke();}function en(ev){if(ev)ev.preventDefault();draw=false;}['mousedown','touchstart'].forEach(function(n){c.addEventListener(n,st,{passive:false});});['mousemove','touchmove'].forEach(function(n){c.addEventListener(n,mv,{passive:false});});['mouseup','mouseleave','touchend','touchcancel'].forEach(function(n){c.addEventListener(n,en,{passive:false});});$('v91clearSig').onclick=function(){fit();has=false;};$('v91saveSig').onclick=function(){if(!has){alert('Laat eerst tekenen.');return;}var name=txt($('v91signName')&&$('v91signName').value);var data=c.toDataURL('image/png');o.signatures=Array.isArray(o.signatures)?o.signatures:[];o.signatures.push({id:nid('sig'),data:data,customerName:name,driverId:u.id,driverName:u.name,createdAt:now()});o.customerSignature=data;o.customerSignedName=name;o.customerSignedAt=now();saveAll();syncDoc('orders',o.id,o);makeAlert(o,u,'Handtekening klant',name?('Ondertekend door '+name):'Klant heeft getekend',{signatureData:data,signatureName:name});closeModal();alert('Handtekening opgeslagen bij opdracht en verstuurd naar planning.');};}
+  function openPhoto(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Foto bij opdracht/klant</h2><p class="v91small">Maak een foto of kies een foto. De foto wordt opgeslagen bij deze opdracht en als melding naar planning gestuurd.</p><input id="v91photoFile" class="v91file" type="file" accept="image/*" capture="environment"><textarea id="v91photoText" class="v91textarea" placeholder="Opmerking bij foto"></textarea><div id="v91photoPreview"></div><button id="v91sendPhoto" class="v91btn green" type="button">Foto opslaan</button><button id="v91cancel" class="v91btn dark" type="button">Annuleren</button>');var data='';$('v91cancel').onclick=closeModal;$('v91photoFile').onchange=function(){var f=this.files&&this.files[0];if(!f)return;compress(f,function(d){data=d;var p=$('v91photoPreview');if(p)p.innerHTML='<img class="v91preview" src="'+d+'">';});};$('v91sendPhoto').onclick=function(){if(!data){alert('Maak of kies eerst een foto.');return;}var note=txt($('v91photoText')&&$('v91photoText').value);o.photos=Array.isArray(o.photos)?o.photos:[];o.photos.push({id:nid('photo'),data:data,note:note,driverId:u.id,driverName:u.name,createdAt:now()});o.customerPhotos=Array.isArray(o.customerPhotos)?o.customerPhotos:[];o.customerPhotos.push({data:data,note:note,createdAt:now(),driverName:u.name});saveAll();makeAlert(o,u,'Foto bezorger',note||'Foto toegevoegd',{photoData:data});closeModal();alert('Foto opgeslagen bij opdracht en verstuurd naar planning.');};}
+  function openSign(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Handtekening klant</h2><p class="v91small">Laat de klant hieronder tekenen voor akkoord/aflevering.</p><input id="v91signName" class="v91input" placeholder="Naam klant"><canvas id="v91sig" class="v91sig"></canvas><button id="v91saveSig" class="v91btn green" type="button">Handtekening opslaan</button><button id="v91clearSig" class="v91btn dark" type="button">Opnieuw tekenen</button><button id="v91cancel" class="v91btn dark" type="button">Annuleren</button>');$('v91cancel').onclick=closeModal;var c=$('v91sig'),ctx=c.getContext('2d'),draw=false,has=false;function fit(){var r=c.getBoundingClientRect();c.width=Math.max(300,Math.floor(r.width));c.height=220;ctx.lineWidth=3;ctx.lineCap='round';ctx.strokeStyle='#111827';}fit();function pos(ev){var e=ev.touches&&ev.touches[0]||ev,r=c.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}function st(ev){ev.preventDefault();draw=true;has=true;var p=pos(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);}function mv(ev){if(!draw)return;ev.preventDefault();var p=pos(ev);ctx.lineTo(p.x,p.y);ctx.stroke();}function en(ev){if(ev)ev.preventDefault();draw=false;}['mousedown','touchstart'].forEach(function(n){c.addEventListener(n,st,{passive:false});});['mousemove','touchmove'].forEach(function(n){c.addEventListener(n,mv,{passive:false});});['mouseup','mouseleave','touchend','touchcancel'].forEach(function(n){c.addEventListener(n,en,{passive:false});});$('v91clearSig').onclick=function(){fit();has=false;};$('v91saveSig').onclick=function(){if(!has){alert('Laat eerst tekenen.');return;}var name=txt($('v91signName')&&$('v91signName').value);var data=c.toDataURL('image/png');o.signatures=Array.isArray(o.signatures)?o.signatures:[];o.signatures.push({id:nid('sig'),data:data,customerName:name,driverId:u.id,driverName:u.name,createdAt:now()});o.customerSignature=data;o.customerSignedName=name;o.customerSignedAt=now();saveAll();makeAlert(o,u,'Handtekening klant',name?('Ondertekend door '+name):'Klant heeft getekend',{signatureData:data,signatureName:name});closeModal();alert('Handtekening opgeslagen bij opdracht en verstuurd naar planning.');};}
   function patchPlannerAlerts(){if(mobileMode())return;var btn=$('alertsBtn');if(!btn)return;var open=ensure().alerts.filter(function(a){return !a.resolved;});btn.textContent='🚨 Systeemmeldingen ('+open.length+')';btn.onclick=function(){var old=$('bnsAlertModalV91');if(old)old.remove();var m=document.createElement('div');m.id='bnsAlertModalV91';m.style.cssText='position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:22px';var rows=ensure().alerts.filter(function(a){return !a.resolved;});m.innerHTML='<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:760px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.28)"><button style="float:right" onclick="document.getElementById(\'bnsAlertModalV91\').remove()">Sluiten</button><h2>🚨 Systeemmeldingen</h2>'+(rows.length?rows.map(function(a){var media='';if(a.photoData)media+='<img class="bns-alert-img" src="'+a.photoData+'">';if(a.signatureData)media+='<img class="bns-alert-img" src="'+a.signatureData+'">';return '<div style="border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc"><b>'+esc(a.title||'Systeemmelding')+'</b><br><small>'+esc(a.time||'')+'</small><div><b>Opdracht:</b> '+esc(a.orderNumber||'')+' '+esc(a.orderTitle||'')+'</div><div><b>Klant:</b> '+esc(a.customerName||'')+'</div><div>'+esc(a.note||a.message||a.text||'')+'</div>'+media+'<div style="display:flex;gap:8px;margin-top:10px"><button onclick="window.bnsV91ResolveAlert(\''+esc(a.id)+'\')">Afmelden</button><button onclick="window.bnsV91DeleteAlert(\''+esc(a.id)+'\')">Wis storing</button></div></div>';}).join(''):'<p>Geen open systeemmeldingen.</p>')+'</div>';document.body.appendChild(m);};}
   window.bnsV91ResolveAlert=function(id){var a=ensure().alerts.find(function(x){return String(x.id)===String(id);});if(a){a.resolved=true;saveAll();syncDoc('alerts',a.id,a);}var m=$('bnsAlertModalV91');if(m)m.remove();patchPlannerAlerts();};
   window.bnsV91DeleteAlert=function(id){var s=ensure();s.alerts=s.alerts.filter(function(x){return String(x.id)!==String(id);});saveAll();try{if(fbReady()&&window.BNS.fs.deleteDoc&&window.BNS.fs.doc)window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'alerts',String(id))).catch(function(){});}catch(e){}var m=$('bnsAlertModalV91');if(m)m.remove();patchPlannerAlerts();};
@@ -14115,28 +14084,28 @@ setInterval(install,1500);
   function curUser(){var id='';try{id=localStorage.getItem('bns_phone_user_v95')||localStorage.getItem('bns_phone_user_v89')||localStorage.getItem('bns_phone_user_v87')||localStorage.getItem('bns_v83_phone_user_id')||'';}catch(e){} return driverUsers().find(function(u){return String(u.id)===String(id);})||null;}
   function saveAll(){try{if(typeof save==='function')save();}catch(e){} try{if(typeof saveState==='function')saveState();}catch(e){} ['event-planner-pro-v87','eventPlannerProState','plannerState','eventPlannerPro','eventPlannerProV91','bns_state','bns_app_state'].forEach(function(k){try{localStorage.setItem(k,JSON.stringify(S()));}catch(e){}});}
   function fbReady(){return !!(window.BNS&&window.BNS.fs&&window.BNS.db);} function syncDoc(c,id,o){try{if(fbReady()&&id&&window.BNS.fs.setDoc&&window.BNS.fs.doc)window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,c,String(id)),Object.assign({},o,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){});}catch(e){}}
-  function pullAll(cb){try{if(!fbReady()||!window.BNS.fs.getDocs)return cb&&cb();var fs=window.BNS.fs;Promise.all(['users','orders','materials','alerts'].map(function(c){return fs.getDocs(fs.collection(window.BNS.db,c)).then(function(snap){var target={users:users(),orders:orders(),materials:mats(),alerts:alerts()}[c];snap.forEach(function(d){var row=Object.assign({id:d.id},d.data());var old=target.find(function(x){return String(x.id)===String(row.id);});if(old)Object.assign(old,row);else target.push(row);});});})).then(function(){saveAll();cb&&cb();}).catch(function(){cb&&cb();});}catch(e){cb&&cb();}}
+  function pullAll(cb){try{if(!fbReady()||!window.BNS.fs.getDocs)return cb&&cb();var fs=window.BNS.fs;Promise.all(['users','orders','materials','alerts'].map(function(c){return fs.getDocs(fs.collection(window.BNS.db,c)).then(function(snap){var rows=[];snap.forEach(function(d){rows.push(Object.assign({id:d.id},d.data()));});var s=S();if(c==='users'&&rows.length)s.users=rows;if(c==='orders')s.orders=rows;if(c==='materials'&&rows.length)s.materials=rows;if(c==='alerts')s.alerts=rows;});})).then(function(){saveAll();cb&&cb();}).catch(function(){cb&&cb();});}catch(e){cb&&cb();}}
   function belongs(o,u){if(!o||!u)return false;var ids=[];['driverIds','bezorgerIds'].forEach(function(k){if(Array.isArray(o[k]))o[k].forEach(function(id){ids.push(T(id));});});if(Array.isArray(o.drivers))o.drivers.forEach(function(d){if(d&&d.id)ids.push(T(d.id));});if(ids.indexOf(T(u.id))>=0)return true;var names=[];['driverNames','bezorgerNames'].forEach(function(k){if(Array.isArray(o[k]))o[k].forEach(function(n){names.push(L(n));});});[o.driver,o.driverName,o.bezorger].forEach(function(v){T(v).split(/[,;]|\s+en\s+/i).forEach(function(n){if(T(n))names.push(L(n));});});return names.some(function(n){return n&&L(u.name)&&(n===L(u.name)||n.indexOf(L(u.name))>=0||L(u.name).indexOf(n)>=0);});}
   function phoneAddress(o){var l=o.location||{},c=o.customer||{};return [l.street||c.street,l.zip||c.zip,l.city||c.city].filter(Boolean).join(' ');} function cust(o){return T((o.customer&&o.customer.name)||o.customerName||o.title||'');} function dateNice(v){var s=T(v).slice(0,10),p=s.split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:s;} function phoneMats(o){return (Array.isArray(o.materials)?o.materials:[]).map(function(m){return matCode(m)+' '+matName(m);}).join(', ');} function activeOrder(o){var st=L(o&&o.status);return !/geannuleerd|uitgevoerd|verwijderd|deleted|cancel/.test(st);}
   function phoneRoot(){css();document.documentElement.classList.add('bns-v95-phone');document.body.classList.add('bns-v95-phone');var r=E(PHONE_ROOT);if(!r){r=document.createElement('div');r.id=PHONE_ROOT;document.body.appendChild(r);}return r;}
   function phoneHtml(h){var r=phoneRoot();if(phoneKey!==h){r.innerHTML=h;phoneKey=h;}return r;}
-  function renderLogin(msg){phoneHtml('<div class="v95head"><h1>BNS Bezorger</h1><small>Mobiele opdrachten</small></div><div class="v95topmsg">Data geladen</div><div class="v95card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in.</p><p id="v95msg" class="v95err">'+H(msg||'')+'</p><input id="v95pin" class="v95input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button id="v95login" class="v95btn" type="button">Inloggen</button></div>');var p=E('v95pin'),b=E('v95login');if(b)b.onclick=function(){doLogin(T(p&&p.value));};if(p){p.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();doLogin(T(p.value));}};setTimeout(function(){try{p.focus();}catch(e){}},50);}}
+  function renderLogin(msg){phoneHtml('<div class="v95head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div><div class="v95topmsg">Data geladen</div><div class="v95card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in.</p><p id="v95msg" class="v95err">'+H(msg||'')+'</p><input id="v95pin" class="v95input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button id="v95login" class="v95btn" type="button">Inloggen</button></div>');var p=E('v95pin'),b=E('v95login');if(b)b.onclick=function(){doLogin(T(p&&p.value));};if(p){p.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();doLogin(T(p.value));}};setTimeout(function(){try{p.focus();}catch(e){}},50);}}
   function doLogin(pin){if(!pin){var m=E('v95msg');if(m)m.textContent='Vul je PIN in.';return;}pullAll(function(){var u=driverUsers().find(function(x){return T(x.pin)===pin;});if(!u){renderLogin('Verkeerde PIN of geen actieve bezorger.');return;}var d=device(),linked=T(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==d){renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}u.deviceId=d;u.phoneDeviceId=d;u.mobileDeviceId=d;setUser(u);saveAll();syncDoc('users',u.id,u);renderPhoneApp(u);});}
   function makeAlert(o,u,title,text,extra){var a=Object.assign({id:'alert_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),orderId:o&&o.id||'',orderNumber:o&&o.number||'',orderTitle:o&&o.title||'',customerName:cust(o),title:title,type:title,text:text||'',note:text||'',message:text||'',resolved:false,createdAt:new Date().toISOString(),time:new Date().toLocaleString('nl-NL'),from:u&&u.name||'Bezorger',driverId:u&&u.id||'',driverName:u&&u.name||'',source:'telefoon'},extra||{});alerts().push(a);saveAll();syncDoc('alerts',a.id,a);return a;}
   function findOrder(id){return orders().find(function(o){return String(o.id)===String(id);});}
   function modal(html){var old=E('bnsV95PhoneModal');if(old)old.remove();var m=document.createElement('div');m.id='bnsV95PhoneModal';m.className='v95modal';m.innerHTML='<div class="v95modalCard">'+html+'</div>';document.body.appendChild(m);return m;} function closePhoneModal(){var m=E('bnsV95PhoneModal');if(m)m.remove();}
   function compress(file,cb){var rd=new FileReader();rd.onload=function(){var img=new Image();img.onload=function(){var max=900,w=img.width,h=img.height;if(w>max||h>max){var rr=Math.min(max/w,max/h);w=Math.round(w*rr);h=Math.round(h*rr);}var c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);cb(c.toDataURL('image/jpeg',0.58));};img.onerror=function(){cb(rd.result);};img.src=rd.result;};rd.readAsDataURL(file);}
-  function openPhoto(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Foto bij opdracht/klant</h2><input id="v95photoFile" class="v95input" type="file" accept="image/*" capture="environment"><textarea id="v95photoText" class="v95textarea" placeholder="Opmerking bij foto"></textarea><div id="v95photoPreview"></div><button id="v95sendPhoto" class="v95btn green">Foto opslaan</button><button id="v95cancel" class="v95btn dark">Annuleren</button>');var data='';E('v95cancel').onclick=closePhoneModal;E('v95photoFile').onchange=function(){var f=this.files&&this.files[0];if(!f)return;compress(f,function(d){data=d;var p=E('v95photoPreview');if(p)p.innerHTML='<img class="v95preview" src="'+d+'">';});};E('v95sendPhoto').onclick=function(){if(!data){alert('Maak of kies eerst een foto.');return;}var note=T(E('v95photoText')&&E('v95photoText').value);o.photos=Array.isArray(o.photos)?o.photos:[];o.photos.push({id:'photo_'+Date.now(),data:data,note:note,driverId:u.id,driverName:u.name,createdAt:new Date().toISOString()});o.customerPhotos=Array.isArray(o.customerPhotos)?o.customerPhotos:[];o.customerPhotos.push({data:data,note:note,createdAt:new Date().toISOString(),driverName:u.name});saveAll();syncDoc('orders',o.id,o);makeAlert(o,u,'Foto bezorger',note||'Foto toegevoegd',{photoData:data});closePhoneModal();alert('Foto opgeslagen bij opdracht en verstuurd naar planning.');};}
-  function openSign(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Handtekening klant</h2><input id="v95signName" class="v95input" placeholder="Naam klant"><canvas id="v95sig" class="v95sig"></canvas><button id="v95saveSig" class="v95btn green">Handtekening opslaan</button><button id="v95clearSig" class="v95btn dark">Opnieuw tekenen</button><button id="v95cancel" class="v95btn dark">Annuleren</button>');E('v95cancel').onclick=closePhoneModal;var c=E('v95sig'),ctx=c.getContext('2d'),draw=false,has=false;function fit(){var r=c.getBoundingClientRect();c.width=Math.max(300,Math.floor(r.width));c.height=220;ctx.lineWidth=3;ctx.lineCap='round';ctx.strokeStyle='#111827';}fit();function pos(ev){var e=ev.touches&&ev.touches[0]||ev,r=c.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}function st(ev){ev.preventDefault();draw=true;has=true;var p=pos(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);}function mv(ev){if(!draw)return;ev.preventDefault();var p=pos(ev);ctx.lineTo(p.x,p.y);ctx.stroke();}function en(ev){if(ev)ev.preventDefault();draw=false;}['mousedown','touchstart'].forEach(function(n){c.addEventListener(n,st,{passive:false});});['mousemove','touchmove'].forEach(function(n){c.addEventListener(n,mv,{passive:false});});['mouseup','mouseleave','touchend','touchcancel'].forEach(function(n){c.addEventListener(n,en,{passive:false});});E('v95clearSig').onclick=function(){fit();has=false;};E('v95saveSig').onclick=function(){if(!has){alert('Laat eerst tekenen.');return;}var name=T(E('v95signName')&&E('v95signName').value),data=c.toDataURL('image/png');o.signatures=Array.isArray(o.signatures)?o.signatures:[];o.signatures.push({id:'sig_'+Date.now(),data:data,customerName:name,driverId:u.id,driverName:u.name,createdAt:new Date().toISOString()});o.customerSignature=data;o.customerSignedName=name;o.customerSignedAt=new Date().toISOString();saveAll();syncDoc('orders',o.id,o);makeAlert(o,u,'Handtekening klant',name?('Ondertekend door '+name):'Klant heeft getekend',{signatureData:data,signatureName:name});closePhoneModal();alert('Handtekening opgeslagen bij opdracht en verstuurd naar planning.');};}
+  function openPhoto(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Foto bij opdracht/klant</h2><input id="v95photoFile" class="v95input" type="file" accept="image/*" capture="environment"><textarea id="v95photoText" class="v95textarea" placeholder="Opmerking bij foto"></textarea><div id="v95photoPreview"></div><button id="v95sendPhoto" class="v95btn green">Foto opslaan</button><button id="v95cancel" class="v95btn dark">Annuleren</button>');var data='';E('v95cancel').onclick=closePhoneModal;E('v95photoFile').onchange=function(){var f=this.files&&this.files[0];if(!f)return;compress(f,function(d){data=d;var p=E('v95photoPreview');if(p)p.innerHTML='<img class="v95preview" src="'+d+'">';});};E('v95sendPhoto').onclick=function(){if(!data){alert('Maak of kies eerst een foto.');return;}var note=T(E('v95photoText')&&E('v95photoText').value);o.photos=Array.isArray(o.photos)?o.photos:[];o.photos.push({id:'photo_'+Date.now(),data:data,note:note,driverId:u.id,driverName:u.name,createdAt:new Date().toISOString()});o.customerPhotos=Array.isArray(o.customerPhotos)?o.customerPhotos:[];o.customerPhotos.push({data:data,note:note,createdAt:new Date().toISOString(),driverName:u.name});saveAll();makeAlert(o,u,'Foto bezorger',note||'Foto toegevoegd',{photoData:data});closePhoneModal();alert('Foto opgeslagen bij opdracht en verstuurd naar planning.');};}
+  function openSign(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Handtekening klant</h2><input id="v95signName" class="v95input" placeholder="Naam klant"><canvas id="v95sig" class="v95sig"></canvas><button id="v95saveSig" class="v95btn green">Handtekening opslaan</button><button id="v95clearSig" class="v95btn dark">Opnieuw tekenen</button><button id="v95cancel" class="v95btn dark">Annuleren</button>');E('v95cancel').onclick=closePhoneModal;var c=E('v95sig'),ctx=c.getContext('2d'),draw=false,has=false;function fit(){var r=c.getBoundingClientRect();c.width=Math.max(300,Math.floor(r.width));c.height=220;ctx.lineWidth=3;ctx.lineCap='round';ctx.strokeStyle='#111827';}fit();function pos(ev){var e=ev.touches&&ev.touches[0]||ev,r=c.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}function st(ev){ev.preventDefault();draw=true;has=true;var p=pos(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);}function mv(ev){if(!draw)return;ev.preventDefault();var p=pos(ev);ctx.lineTo(p.x,p.y);ctx.stroke();}function en(ev){if(ev)ev.preventDefault();draw=false;}['mousedown','touchstart'].forEach(function(n){c.addEventListener(n,st,{passive:false});});['mousemove','touchmove'].forEach(function(n){c.addEventListener(n,mv,{passive:false});});['mouseup','mouseleave','touchend','touchcancel'].forEach(function(n){c.addEventListener(n,en,{passive:false});});E('v95clearSig').onclick=function(){fit();has=false;};E('v95saveSig').onclick=function(){if(!has){alert('Laat eerst tekenen.');return;}var name=T(E('v95signName')&&E('v95signName').value),data=c.toDataURL('image/png');o.signatures=Array.isArray(o.signatures)?o.signatures:[];o.signatures.push({id:'sig_'+Date.now(),data:data,customerName:name,driverId:u.id,driverName:u.name,createdAt:new Date().toISOString()});o.customerSignature=data;o.customerSignedName=name;o.customerSignedAt=new Date().toISOString();saveAll();makeAlert(o,u,'Handtekening klant',name?('Ondertekend door '+name):'Klant heeft getekend',{signatureData:data,signatureName:name});closePhoneModal();alert('Handtekening opgeslagen bij opdracht en verstuurd naar planning.');};}
   function openReport(id,u){var o=findOrder(id);if(!o)return;modal('<h2>Melding aan planning</h2><textarea id="v95reportText" class="v95textarea" placeholder="Typ je melding"></textarea><button id="v95sendReport" class="v95btn green">Versturen</button><button id="v95cancel" class="v95btn dark">Annuleren</button>');E('v95cancel').onclick=closePhoneModal;E('v95sendReport').onclick=function(){var t=T(E('v95reportText')&&E('v95reportText').value);if(!t){alert('Typ eerst een melding.');return;}makeAlert(o,u,'Bezorger melding',t,{});closePhoneModal();alert('Melding verstuurd naar planning.');};}
   function orderCard(o){var ad=phoneAddress(o),ph=T((o.customer&&o.customer.phone)||o.phone||''),enc=encodeURIComponent(ad),id=H(o.id||'');return '<div class="v95order"><div class="v95title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="v95meta"><div><b>Datum:</b> '+H(dateNice(o.start))+(o.end&&o.end!==o.start?' t/m '+H(dateNice(o.end)):'')+'</div><div><b>Klant:</b> '+H(cust(o))+'</div><div><b>Adres:</b> '+H(ad||'Geen adres')+'</div><div><b>Materiaal:</b> '+H(phoneMats(o)||'Geen materialen')+'</div></div><div class="v95acts"><a class="green" target="_blank" href="https://waze.com/ul?q='+enc+'&navigate=yes">Waze</a><a target="_blank" href="https://www.google.com/maps/search/?api=1&query='+enc+'">Maps</a>'+(ph?'<a href="tel:'+H(ph)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button class="dark" data-v95-report="'+id+'">Melding</button><button class="dark" data-v95-photo="'+id+'">Foto maken</button><button class="dark" data-v95-sign="'+id+'">Handtekening</button></div></div>';}
-  function renderPhoneApp(u){var q='';var rows=orders().filter(function(o){return activeOrder(o)&&belongs(o,u);});rows.sort(function(a,b){return T(a.start).localeCompare(T(b.start));});phoneHtml('<div class="v95head"><h1>BNS Bezorger</h1><small>'+H(u.name)+' - Bezorger</small></div><div class="v95topmsg">Data geladen</div><div class="v95tools"><button id="v95refresh" class="v95btn" type="button">Verversen</button><button id="v95logout" class="v95btn dark" type="button">Uitloggen</button></div>'+(rows.length?rows.map(orderCard).join(''):'<div class="v95empty">Geen opdrachten voor deze gebruiker.</div>'));var r=E('v95refresh'),l=E('v95logout');if(r)r.onclick=function(){pullAll(function(){renderPhoneApp(curUser()||u);});};if(l)l.onclick=function(){clearUser();renderLogin();};A('[data-v95-report]').forEach(function(b){b.onclick=function(){openReport(b.getAttribute('data-v95-report'),u);};});A('[data-v95-photo]').forEach(function(b){b.onclick=function(){openPhoto(b.getAttribute('data-v95-photo'),u);};});A('[data-v95-sign]').forEach(function(b){b.onclick=function(){openSign(b.getAttribute('data-v95-sign'),u);};});}
+  function renderPhoneApp(u){var q='';var rows=orders().filter(function(o){return activeOrder(o)&&belongs(o,u);});rows.sort(function(a,b){return T(a.start).localeCompare(T(b.start));});phoneHtml('<div class="v95head"><h1>Bezorger Tapwagen.nl</h1><small>'+H(u.name)+' - Bezorger</small></div><div class="v95topmsg">Data geladen</div><div class="v95tools"><button id="v95refresh" class="v95btn" type="button">Verversen</button><button id="v95logout" class="v95btn dark" type="button">Uitloggen</button></div>'+(rows.length?rows.map(orderCard).join(''):'<div class="v95empty">Geen opdrachten voor deze gebruiker.</div>'));var r=E('v95refresh'),l=E('v95logout');if(r)r.onclick=function(){pullAll(function(){renderPhoneApp(curUser()||u);});};if(l)l.onclick=function(){clearUser();renderLogin();};A('[data-v95-report]').forEach(function(b){b.onclick=function(){openReport(b.getAttribute('data-v95-report'),u);};});A('[data-v95-photo]').forEach(function(b){b.onclick=function(){openPhoto(b.getAttribute('data-v95-photo'),u);};});A('[data-v95-sign]').forEach(function(b){b.onclick=function(){openSign(b.getAttribute('data-v95-sign'),u);};});}
   function renderPhone(){if(!phoneMode())return;css();var u=curUser();if(!u){renderLogin();return;}var linked=T(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==device()){clearUser();renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}renderPhoneApp(u);}
 
   function init(){css();patchMaterial(); if(phoneMode()){renderLogin();setTimeout(function(){pullAll(renderPhone);},50);setTimeout(renderPhone,500);} }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else setTimeout(init,50);
   ['input','change','click'].forEach(function(t){document.addEventListener(t,function(ev){if(ev.target&&/^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){setTimeout(function(){matKey='';renderMaterials95(window.currentCat||lastCat,true);},20);}},true);});
-  setInterval(function(){try{patchMaterial(); if(phoneMode())renderPhone();}catch(e){}},3000);
+  setInterval(function(){try{patchMaterial();}catch(e){}},3000);
 })();
 
 
@@ -14164,44 +14133,191 @@ setInterval(install,1500);
   setTimeout(cleanPlannerDashboard, 500);
 })();
 
+/* BNS V140 - telefoon read-only veiligheidsfix */
+(function(){function fix(){try{document.querySelectorAll('h1').forEach(function(h){if(/BNS Bezorger/i.test(h.textContent||''))h.textContent='Bezorger Tapwagen.nl';});}catch(e){}} if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fix);else setTimeout(fix,50);setInterval(fix,5000);}());
+
 
 /* =========================================================
-   V121 TELEFOON SCHERM STABIEL HOUDEN
-   Alleen telefoon. Herstelt setInterval na laden en forceert een zichtbaar PIN/driver scherm.
-========================================================= */
-(function(){
-  try{
-    if(!window.__BNS_PHONE_MODE_V121) return;
-    // Na het laden mag normale browser/Firebase timing terug, maar oude app-intervals zijn al geneutraliseerd.
-    if(window.__BNS_REAL_SET_INTERVAL_V121){ window.setInterval = window.__BNS_REAL_SET_INTERVAL_V121; }
-    function phoneMode(){
-      try{
-        var qs = new URLSearchParams(location.search || '');
-        return qs.has('driver') || qs.has('bezorger') || qs.has('telefoon') || /\/driver\/?$/i.test(location.pathname||'') || /\/driver\//i.test(location.pathname||'');
-      }catch(e){ return false; }
-    }
-    function fixText(){
-      try{
-        document.querySelectorAll('h1, title, small, .bns-mobile-head *').forEach(function(el){
-          if(el && el.childNodes && el.childNodes.length===1 && el.textContent){
-            el.textContent = el.textContent.replace(/BNS\s+Bezorger/g,'Bezorger Tapwagen.nl').replace(/BNS/g,'Tapwagen.nl');
-          }
+   Tapwagen.nl V141 - telefoonmeldingen/media naar planner + vaste opslag in opdracht-overzicht
+   Basis: V140. Alleen meldingen/media-laag.
+   - Planner leest Firebase alerts live.
+   - Systeemmeldingen toont tekst/foto/handtekening.
+   - Bezorger meldingen toont alleen echte bezorger-meldingen.
+   - Overzicht bestelling toont media/meldingen per opdracht/klant, niet op klantbon/factuur.
+   ========================================================= */
+(function TapwagenV141AlertsMediaOnly(){
+  "use strict";
+  if (window.__tapwagenV141AlertsMediaOnly) return;
+  window.__tapwagenV141AlertsMediaOnly = true;
+
+  var STYLE_ID = "tapwagen-v141-alert-media-style";
+  var alertUnsub = null;
+  var alertStarted = false;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function H(v){ return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function appState(){ try{ if(typeof state !== "undefined" && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return {orders:[],users:[],alerts:[],driverReportTypes:[]}; }
+  function ensure(){ var s=appState(); if(!Array.isArray(s.orders)) s.orders=[]; if(!Array.isArray(s.users)) s.users=[]; if(!Array.isArray(s.alerts)) s.alerts=[]; if(!Array.isArray(s.driverReportTypes)) s.driverReportTypes=[]; return s; }
+  function saveLocal(){ try{ if(typeof save === "function") save(); }catch(e){} try{ if(typeof saveState === "function") saveState(); }catch(e){} try{ if(typeof saveBns === "function") saveBns(); }catch(e){} try{ localStorage.setItem("bns_state", JSON.stringify(ensure())); localStorage.setItem("bns_app_state", JSON.stringify(ensure())); }catch(e){} }
+  function fbReady(){ return !!(window.BNS && window.BNS.fs && window.BNS.db); }
+  function fs(){ return window.BNS && window.BNS.fs; }
+  function db(){ return window.BNS && window.BNS.db; }
+  function writeAlert(a){ try{ if(fbReady() && fs().setDoc && fs().doc && a && a.id){ fs().setDoc(fs().doc(db(), "alerts", String(a.id)), Object.assign({}, a, {updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){}); } }catch(e){} }
+  function deleteAlertRemote(id){ try{ if(fbReady() && fs().deleteDoc && fs().doc && id){ fs().deleteDoc(fs().doc(db(), "alerts", String(id))).catch(function(){}); } }catch(e){} }
+  function normalizeAlert(a){
+    a = a || {};
+    if(!a.id) a.id = "alert_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
+    if(!a.createdAt) a.createdAt = new Date().toISOString();
+    if(!a.time) a.time = new Date(a.createdAt).toLocaleString("nl-NL");
+    if(!a.note && a.message) a.note = a.message;
+    if(!a.message && a.note) a.message = a.note;
+    if(!a.text && (a.note || a.message)) a.text = a.note || a.message;
+    if(!a.type && a.title) a.type = a.title;
+    if(!a.title && a.type) a.title = a.type;
+    if(a.resolved == null) a.resolved = false;
+    return a;
+  }
+  function mergeAlerts(rows, replace){
+    var s=ensure();
+    var map={};
+    if(!replace){ (s.alerts||[]).forEach(function(a){ if(a && a.id) map[String(a.id)] = normalizeAlert(a); }); }
+    (rows||[]).forEach(function(a){ if(a && a.id) map[String(a.id)] = normalizeAlert(a); });
+    s.alerts = Object.keys(map).map(function(k){ return map[k]; }).sort(function(a,b){ return String(b.createdAt||"").localeCompare(String(a.createdAt||"")); });
+    saveLocal();
+  }
+  function orderId(o){ return String(o && o.id || ""); }
+  function orderNumber(o){ return String(o && o.number || ""); }
+  function customerName(o){ return T((o&&o.customer&&o.customer.name) || (o&&o.customerName) || (o&&o.klant) || ""); }
+  function orderTitle(o){ return [o && o.number || "", o && o.title || ""].filter(Boolean).join(" - "); }
+  function findOrder(id){ return (ensure().orders||[]).find(function(o){ return String(o.id||"") === String(id||""); }); }
+  function alertOrderMatch(a,o){
+    if(!a || !o) return false;
+    var oid=orderId(o), num=orderNumber(o);
+    return (oid && String(a.orderId||a.linkedOrder||"") === oid) || (num && String(a.orderNumber||a.linkedOrderNumber||"") === num);
+  }
+  function isDriverAlert(a){
+    if(!a) return false;
+    var src=L(a.source || "");
+    var txt=L([a.type,a.title,a.note,a.message,a.text,a.from].join(" "));
+    return src.indexOf("telefoon")>=0 || src.indexOf("driver")>=0 || txt.indexOf("bezorger")>=0 || txt.indexOf("storing")>=0 || txt.indexOf("schade")>=0 || txt.indexOf("vermissing")>=0 || txt.indexOf("foto")>=0 || txt.indexOf("handtekening")>=0;
+  }
+  function openAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved; }); }
+  function driverAlerts(){ return openAlerts().filter(isDriverAlert); }
+  function typeLabel(a){ var t=T(a.type || a.title || "Melding"); if(/foto/i.test(t) && /voor/i.test(t)) return "Foto voor levering"; if(/foto/i.test(t) && /na/i.test(t)) return "Foto na levering"; return t; }
+  function mediaHtml(a){
+    var h="";
+    var img = a.photoData || a.photo || a.image || (a.media && a.media.data) || "";
+    var sig = a.signatureData || a.signature || "";
+    if(img) h += '<div class="tw-v141-media"><b>Foto</b><br><img src="'+H(img)+'" alt="Foto melding"></div>';
+    if(sig) h += '<div class="tw-v141-media"><b>Handtekening</b><br><img src="'+H(sig)+'" alt="Handtekening"></div>';
+    return h;
+  }
+  function shareText(a){ return [typeLabel(a), "Opdracht: " + T(a.orderNumber||""), "Klant: " + T(a.customerName||""), T(a.note||a.message||a.text||"")].filter(Boolean).join("\n"); }
+  function doShare(id){ var a=(ensure().alerts||[]).find(function(x){return String(x.id)===String(id);}); if(!a) return; var txt=shareText(a); if(navigator.share){ navigator.share({title:typeLabel(a), text:txt}).catch(function(){}); } else { try{ navigator.clipboard.writeText(txt); alert("Melding gekopieerd."); }catch(e){ alert(txt); } } }
+  function doPrint(id){ var a=(ensure().alerts||[]).find(function(x){return String(x.id)===String(id);}); if(!a) return; var w=window.open("","_blank"); if(!w) return; w.document.write('<!doctype html><html><head><title>'+H(typeLabel(a))+'</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#172033}img{max-width:100%;border:1px solid #ddd;border-radius:12px;margin:10px 0}.box{border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0}</style></head><body><h1>'+H(typeLabel(a))+'</h1><div class="box"><b>Opdracht:</b> '+H(a.orderNumber||"")+' '+H(a.orderTitle||"")+'<br><b>Klant:</b> '+H(a.customerName||"")+'<br><b>Bezorger:</b> '+H(a.driverName||a.from||"")+'<br><b>Tijd:</b> '+H(a.time||a.createdAt||"")+'</div><p>'+H(a.note||a.message||a.text||"")+'</p>'+mediaHtml(a)+'</body></html>'); w.document.close(); setTimeout(function(){w.print();},250); }
+  function markResolved(id){ var s=ensure(); var a=(s.alerts||[]).find(function(x){return String(x.id)===String(id);}); if(!a) return; a.resolved=true; a.resolvedAt=new Date().toISOString(); writeAlert(a); saveLocal(); refreshAll(); }
+  function removeAlert(id){ if(!confirm("Deze melding verwijderen?")) return; var s=ensure(); s.alerts=(s.alerts||[]).filter(function(a){return String(a.id)!==String(id);}); deleteAlertRemote(id); saveLocal(); refreshAll(); }
+
+  function style(){
+    if(E(STYLE_ID)) return;
+    var st=document.createElement("style"); st.id=STYLE_ID;
+    st.textContent = ''+
+      '.tw-v141-media img{max-width:260px;max-height:190px;border-radius:12px;border:1px solid #dbe3ef;background:#fff;display:block;margin-top:6px}.tw-v141-alert{border:1px solid #dbe3ef;border-radius:16px;padding:14px;margin:10px 0;background:#f8fafc}.tw-v141-alert h4{margin:0 0 6px}.tw-v141-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.tw-v141-actions button{border:0;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff}.tw-v141-actions .danger{background:#dc2626}.tw-v141-actions .ok{background:#16a34a}.tw-v141-order-media{border:2px solid #dbeafe;border-radius:18px;padding:14px;margin-top:16px;background:#f8fbff}.tw-v141-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.tw-v141-card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff}.tw-v141-card img{max-width:100%;border-radius:10px;border:1px solid #e5e7eb}.bns-alert-open{background:#dc2626!important;color:#fff!important}';
+    document.head.appendChild(st);
+  }
+
+  function renderAlertItem(a){
+    return '<div class="tw-v141-alert">'+
+      '<h4>'+H(typeLabel(a))+'</h4>'+
+      '<small>'+H(a.time||a.createdAt||'')+'</small>'+
+      '<div><b>Opdracht:</b> '+H(a.orderNumber||'')+' '+H(a.orderTitle||'')+'</div>'+
+      '<div><b>Klant:</b> '+H(a.customerName||'')+'</div>'+
+      '<div><b>Bezorger:</b> '+H(a.driverName||a.from||'')+'</div>'+
+      '<div>'+H(a.note||a.message||a.text||'')+'</div>'+
+      mediaHtml(a)+
+      '<div class="tw-v141-actions"><button type="button" onclick="TapwagenV141ShareAlert(\''+H(a.id)+'\')">Delen</button><button type="button" onclick="TapwagenV141PrintAlert(\''+H(a.id)+'\')">Print</button><button class="ok" type="button" onclick="TapwagenV141ResolveAlert(\''+H(a.id)+'\')">Afmelden</button><button class="danger" type="button" onclick="TapwagenV141DeleteAlert(\''+H(a.id)+'\')">Verwijderen</button></div>'+
+    '</div>';
+  }
+
+  function refreshAlertButton(){
+    var b=E('alertsBtn'); if(!b) return;
+    var n=openAlerts().length;
+    b.textContent = n ? '🚨 Systeemmeldingen ('+n+')' : 'Systeemmeldingen (0)';
+    b.classList.toggle('bns-alert-open', n>0);
+    if(!b.dataset.twV141){ b.dataset.twV141='1'; b.addEventListener('click', openSystemAlerts, true); }
+  }
+  function openSystemAlerts(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    style(); var old=E('twV141AlertModal'); if(old) old.remove();
+    var m=document.createElement('div'); m.id='twV141AlertModal'; m.style.cssText='position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.58);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:22px';
+    var rows=openAlerts();
+    m.innerHTML='<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:840px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.28)"><button style="float:right" onclick="document.getElementById(\'twV141AlertModal\').remove()">Sluiten</button><h2>🚨 Systeemmeldingen</h2>'+(rows.length?rows.map(renderAlertItem).join(''):'<p>Geen open systeemmeldingen.</p>')+'</div>';
+    document.body.appendChild(m);
+    return false;
+  }
+
+  function renderDriverDashboard(){
+    var box=E('driverList'); if(!box) return;
+    style();
+    var s=ensure(); var alerts=driverAlerts(); var types=s.driverReportTypes||[];
+    if(!types.length){ types=[
+      {id:'storing',name:'Storing',driver:true,text:true,photo:false,signature:false,color:'#dc2626'},
+      {id:'schade',name:'Schade',driver:true,text:true,photo:true,signature:false,color:'#ea580c'},
+      {id:'vermissing',name:'Vermissing',driver:true,text:true,photo:false,signature:false,color:'#7c3aed'},
+      {id:'foto_voor',name:'Foto voor levering',driver:true,text:false,photo:true,signature:false,color:'#2563eb'},
+      {id:'foto_na',name:'Foto na levering',driver:true,text:false,photo:true,signature:false,color:'#16a34a'},
+      {id:'handtekening',name:'Handtekening klant',driver:true,text:false,photo:false,signature:true,color:'#0f766e'}
+    ]; s.driverReportTypes=types; saveLocal(); }
+    var typeHtml=types.map(function(t){ return '<div class="bns-type-card" style="--type-color:'+H(t.color||'#2563eb')+'"><div class="bns-type-card-title"><b>'+H(t.name||'Melding')+'</b><span class="bns-type-pill">'+(t.driver?'Bezorger':'Verborgen')+'</span></div><div class="bns-type-options"><label><input type="checkbox" data-v141-type="'+H(t.id)+'" data-key="driver" '+(t.driver?'checked':'')+'> Zichtbaar op telefoon</label><label><input type="checkbox" data-v141-type="'+H(t.id)+'" data-key="text" '+(t.text?'checked':'')+'> Tekst</label><label><input type="checkbox" data-v141-type="'+H(t.id)+'" data-key="photo" '+(t.photo?'checked':'')+'> Foto</label><label><input type="checkbox" data-v141-type="'+H(t.id)+'" data-key="signature" '+(t.signature?'checked':'')+'> Handtekening</label></div></div>'; }).join('');
+    box.innerHTML='<div class="bns-driver-admin-dashboard"><div class="bns-driver-hero"><h2>Bezorger meldingen dashboard</h2><p>Alleen meldingen/foto\'s/handtekeningen die vanaf telefoon zijn ingestuurd. Rubrieken bepalen welke knoppen de bezorger ziet.</p></div><div class="bns-driver-stats"><div class="bns-driver-stat"><b>'+alerts.length+'</b><span>Open meldingen</span></div><div class="bns-driver-stat"><b>'+types.filter(function(t){return t.driver;}).length+'</b><span>Telefoonknoppen</span></div></div><div class="bns-driver-section"><div class="bns-driver-section-head"><h3>Meldingsrubrieken bezorger</h3></div><div class="bns-type-grid">'+typeHtml+'</div></div><div class="bns-driver-section"><div class="bns-driver-section-head"><h3>Open bezorger meldingen</h3><small>'+alerts.length+' open</small></div><div class="bns-alert-dashboard-list">'+(alerts.length?alerts.map(renderAlertItem).join(''):'<p>Geen open bezorger meldingen.</p>')+'</div></div></div>';
+    A('[data-v141-type]', box).forEach(function(inp){ inp.onchange=function(){ var id=inp.getAttribute('data-v141-type'), key=inp.getAttribute('data-key'); var t=(ensure().driverReportTypes||[]).find(function(x){return String(x.id)===String(id);}); if(t){ t[key]=!!inp.checked; saveLocal(); renderDriverDashboard(); } }; });
+  }
+
+  function mediaForOrder(o){ return (ensure().alerts||[]).filter(function(a){ return alertOrderMatch(a,o) && isDriverAlert(a); }).sort(function(a,b){ return String(b.createdAt||'').localeCompare(String(a.createdAt||'')); }); }
+  function mediaBlock(o){
+    var rows=mediaForOrder(o); if(!rows.length) return '';
+    return '<div class="tw-v141-order-media"><h3>Foto\'s / handtekeningen / bezorger meldingen</h3><div class="tw-v141-grid">'+rows.map(function(a){ return '<div class="tw-v141-card"><b>'+H(typeLabel(a))+'</b><br><small>'+H(a.time||a.createdAt||'')+'</small><div>'+H(a.note||a.message||a.text||'')+'</div>'+mediaHtml(a)+'<div class="tw-v141-actions"><button type="button" onclick="TapwagenV141ShareAlert(\''+H(a.id)+'\')">Delen</button><button type="button" onclick="TapwagenV141PrintAlert(\''+H(a.id)+'\')">Print</button></div></div>'; }).join('')+'</div></div>';
+  }
+  function patchOrderOverview(){
+    var old=window.BNS_V128_SHOW_ORDER_OVERVIEW;
+    if(!old || old.__twV141) return;
+    var wrapped=function(id){ var res=old.apply(this, arguments); setTimeout(function(){ try{ var m=E('bnsOrderOverviewModal'); if(!m) return; var o=findOrder(id) || (ensure().orders||[]).find(function(x){return String(x.number||'')===String(id||'');}); if(!o) return; var card=m.querySelector('.bns-order-overview-card') || m.firstElementChild; if(!card || card.querySelector('.tw-v141-order-media')) return; var html=mediaBlock(o); if(html) card.insertAdjacentHTML('beforeend', html); }catch(e){} },80); return res; };
+    wrapped.__twV141=true; window.BNS_V128_SHOW_ORDER_OVERVIEW=wrapped;
+  }
+
+  function startFirebaseAlerts(){
+    if(alertStarted || !fbReady()) return; alertStarted=true;
+    try{
+      if(fs().onSnapshot && fs().collection){
+        alertUnsub = fs().onSnapshot(fs().collection(db(), 'alerts'), function(snap){
+          var rows=[]; snap.forEach(function(d){ rows.push(normalizeAlert(Object.assign({id:d.id}, d.data()))); });
+          mergeAlerts(rows, true); refreshAll();
         });
-        document.title = 'Bezorger Tapwagen.nl';
-      }catch(e){}
-    }
-    function enforce(){
-      if(!phoneMode()) return;
-      try{
-        document.body.classList.add('bns-driver-mode');
-        ['bns-v83-phone-login','bns-v83-phone-app','bns-v87-phone-login','bns-v87-phone-app','bns-v89-phone','bns-v91-phone'].forEach(function(c){document.body.classList.remove(c);});
-        ['bnsV83PhoneLogin','bnsV83PhoneApp','bnsV87PhoneRoot','bnsV89PhoneRoot','bnsV91PhoneRoot'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
-        var app=document.getElementById('bnsMobileDriverApp');
-        if(app){ app.style.display='block'; app.style.visibility='visible'; app.style.opacity='1'; }
-        fixText();
-      }catch(e){}
-    }
-    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', enforce); else enforce();
-    setTimeout(enforce,50); setTimeout(enforce,250); setTimeout(enforce,800); setTimeout(enforce,1600); setTimeout(enforce,3000);
-  }catch(e){}
+      } else { loadAlertsOnce(); }
+    }catch(e){ alertStarted=false; }
+  }
+  function loadAlertsOnce(){
+    try{ if(!fbReady() || !fs().getDocs) return; fs().getDocs(fs().collection(db(),'alerts')).then(function(snap){ var rows=[]; snap.forEach(function(d){ rows.push(normalizeAlert(Object.assign({id:d.id}, d.data()))); }); mergeAlerts(rows,true); refreshAll(); }).catch(function(){}); }catch(e){}
+  }
+  function refreshAll(){ style(); refreshAlertButton(); patchOrderOverview(); if(E('driverList')){ try{ renderDriverDashboard(); }catch(e){} } }
+
+  window.TapwagenV141ShareAlert=doShare;
+  window.TapwagenV141PrintAlert=doPrint;
+  window.TapwagenV141ResolveAlert=markResolved;
+  window.TapwagenV141DeleteAlert=removeAlert;
+  window.TapwagenV141RefreshAlerts=loadAlertsOnce;
+
+  function install(){
+    style();
+    refreshAlertButton();
+    patchOrderOverview();
+    try{ window.renderDriver = renderDriverDashboard; renderDriver = renderDriverDashboard; }catch(e){ window.renderDriver = renderDriverDashboard; }
+    startFirebaseAlerts();
+    setTimeout(loadAlertsOnce,800);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,250); }); else setTimeout(install,150);
+  setTimeout(install,1200); setTimeout(install,3000);
 })();
