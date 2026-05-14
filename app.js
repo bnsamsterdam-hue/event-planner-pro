@@ -12419,23 +12419,13 @@ setInterval(install,1500);
     A('input',box).forEach(function(i){ i.onchange=function(){ var ids=selectedDriverIds(); sel.value=ids[0]||''; }; });
   }
   function setSelectedDrivers(ids){ ensureDriverChooser(); ids=(ids||[]).map(String); A('#bnsV83DriverBox input[type=checkbox]').forEach(function(i){ i.checked=ids.indexOf(String(i.value))>=0; }); var sel=E('orderDriver'); if(sel) sel.value=ids[0]||''; }
-  function applyDriversToOrder(o, capturedIds){
+  function applyDriversToOrder(o){
     if(!o) return o;
-    var ids=(capturedIds||[]).map(String).filter(Boolean);
-    if(!ids.length) ids=selectedDriverIds();
-    if(!ids.length && val('orderDriver')) ids=[val('orderDriver')];
-    ids=Array.from(new Set(ids.map(String).filter(Boolean)));
+    var ids=selectedDriverIds(); if(!ids.length && val('orderDriver')) ids=[val('orderDriver')];
     var ds=users().filter(function(u){ return ids.indexOf(String(u.id))>=0 || ids.indexOf(String(u.name))>=0; });
     var names=ds.map(driverName).filter(Boolean);
-    o.driverIds=ds.map(function(u){return String(u.id);});
-    o.bezorgerIds=o.driverIds.slice();
-    o.driverNames=names.slice();
-    o.bezorgerNames=names.slice();
-    o.drivers=ds.map(function(u){return {id:String(u.id),name:u.name,role:u.role||'Bezorger'};});
-    o.driver=names.join(', ');
-    o.driverName=o.driver;
-    o.bezorger=o.driver;
-    o.updatedAt=new Date().toISOString();
+    o.driverIds=ds.map(function(u){return String(u.id);}); o.bezorgerIds=o.driverIds.slice(); o.driverNames=names; o.bezorgerNames=names; o.drivers=ds.map(function(u){return {id:u.id,name:u.name,role:u.role};});
+    o.driver=names.join(', '); o.driverName=names.join(', '); o.bezorger=names.join(', ');
     return o;
   }
   function findOrderByNumber(nr){ return orders().find(function(o){ return String(o.number||'')===String(nr); }); }
@@ -12446,13 +12436,9 @@ setInterval(install,1500);
       var fresh=btn.cloneNode(true); fresh.dataset.bnsV83Save='1';
       fresh.onclick=function(ev){
         if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-        var nr=val('orderNumber');
-        var capturedDriverIds=selectedDriverIds();
-        if(!capturedDriverIds.length && val('orderDriver')) capturedDriverIds=[val('orderDriver')];
-        capturedDriverIds=Array.from(new Set(capturedDriverIds.map(String).filter(Boolean)));
-        var r=false;
+        var nr=val('orderNumber'); var r=false;
         try{ if(typeof window.saveCurrentOrder==='function') r=window.saveCurrentOrder(); else if(typeof saveCurrentOrder==='function') r=saveCurrentOrder(); else if(typeof oldClick==='function') r=oldClick.call(this,ev); }catch(e){ console.error(e); }
-        setTimeout(function(){ var o=findOrderByNumber(nr); if(o){ applyDriversToOrder(o,capturedDriverIds); saveLocal(); syncDoc('orders',o.id,o); renderPhone83(); try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} } },120);
+        setTimeout(function(){ var o=findOrderByNumber(nr); if(o){ applyDriversToOrder(o); saveLocal(); syncDoc('orders',o.id,o); renderPhone83(); try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} } },120);
         return false;
       };
       btn.parentNode.replaceChild(fresh,btn);
@@ -14339,5 +14325,3 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,250); }); else setTimeout(install,150);
   setTimeout(install,1200); setTimeout(install,3000);
 })();
-
-/* ===== V154: directe save-fix: geen globale extra click/submit hooks; bezorgers worden voor save vastgelegd. ===== */
