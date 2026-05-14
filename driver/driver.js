@@ -54,6 +54,21 @@ async function loadInitial(){
 async function loadOrdersOnly(){
   BNS.state.orders=await loadCollection("orders");
 }
+async function loadUsersOnly(){
+  BNS.state.users=await loadCollection("users");
+  if(BNS.user){
+    const fresh=(BNS.state.users||[]).find(u=>String(u.id)===String(BNS.user.id));
+    if(fresh) BNS.user=fresh;
+  }
+}
+async function loadPhoneData(){
+  BNS.state.users=await loadCollection("users");
+  BNS.state.orders=await loadCollection("orders");
+  if(BNS.user){
+    const fresh=(BNS.state.users||[]).find(u=>String(u.id)===String(BNS.user.id));
+    if(fresh) BNS.user=fresh;
+  }
+}
 async function updateOrder(o){
   if(!o||!o.id)return;
   o.updatedAt=new Date().toISOString();
@@ -65,7 +80,14 @@ async function addAlert(a){
   await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"alerts",id),a,{merge:true});
 }
 function populateUsers(f){
-  const users=(BNS.state.users||[]).filter(f);
+  let users=(BNS.state.users||[]).filter(f);
+  try{
+    const locked=localStorage.getItem(LOCKED_USER_KEY)||"";
+    if(locked){
+      const one=users.find(u=>String(u.id)===String(locked));
+      if(one) users=[one];
+    }
+  }catch(e){}
   $("loginName").innerHTML=users.length?users.map(u=>`<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.role||"Medewerker")})</option>`).join(""):`<option value="">Geen gebruikers gevonden</option>`;
 }
 function loginWithFilter(f,key,after){
@@ -75,6 +97,7 @@ function loginWithFilter(f,key,after){
   if(!f(found)){toast("Geen rechten voor deze portal");return}
   BNS.user=found;
   sessionStorage.setItem(key,found.id);
+  try{localStorage.setItem(LOCKED_USER_KEY, found.id);}catch(e){}
   $("loginPin").value="";
   after();
 }
@@ -86,6 +109,7 @@ function restoreSession(f,key,after){
 }
 
 const SESSION_KEY="tapwagen_driver_user_id_v143";
+const LOCKED_USER_KEY="tapwagen_driver_locked_user_id";
 let CURRENT_DETAIL_ID="";
 
 function userAllowed(u){
@@ -168,7 +192,7 @@ function orderCard(o){
       ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
       ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
       ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Offerte">Offerte</button>`:""}
+      ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
   </article>`;
@@ -211,7 +235,7 @@ function detailHtml(o){
       ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
       ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
       ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Offerte">Offerte</button>`:""}
+      ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
   </article>`;
@@ -227,14 +251,51 @@ function showDetail(id){
   bindActions();
 }
 
+function askText(title, label){
+  return new Promise(resolve=>{
+    const wrap=document.createElement("div");
+    wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:16px";
+    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35)"><h2 style="margin-top:0">${esc(title)}</h2><label style="font-weight:900">${esc(label||"Tekst")}</label><textarea id="twAskText" rows="5" style="margin-top:8px;width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px"></textarea><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><button id="twAskCancel" type="button" class="btn-dark">Annuleren</button><button id="twAskSave" type="button" class="btn-green">Versturen</button></div></div>`;
+    document.body.appendChild(wrap);
+    const ta=wrap.querySelector("#twAskText");
+    wrap.querySelector("#twAskCancel").onclick=()=>{wrap.remove();resolve("")};
+    wrap.querySelector("#twAskSave").onclick=()=>{const v=clean(ta.value);wrap.remove();resolve(v)};
+    setTimeout(()=>{try{ta.focus()}catch(e){}},50);
+  });
+}
+function askConfirm(title, text){
+  return new Promise(resolve=>{
+    const wrap=document.createElement("div");
+    wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:16px";
+    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(480px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35)"><h2 style="margin-top:0">${esc(title)}</h2><p>${esc(text||"")}</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><button id="twNo" type="button" class="btn-dark">Nee</button><button id="twYes" type="button" class="btn-green">Ja</button></div></div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelector("#twNo").onclick=()=>{wrap.remove();resolve(false)};
+    wrap.querySelector("#twYes").onclick=()=>{wrap.remove();resolve(true)};
+  });
+}
+function canQuote(){return hasAnyRight(["invoice","factuur","offerte","quote","offer","orders"])||lower(BNS.user.role)==="admin"}
+function money(v){const n=Number(String(v||0).replace(',','.'));return Number.isFinite(n)&&n?('€ '+n.toFixed(2).replace('.',',')):clean(v||'')}
+function quoteHtml(o){
+  const mats=materialList(o);
+  return `<div style="padding:10px"><h2>${esc(o.number||'Opdracht')} - ${esc(o.title||'')}</h2><p><b>Klant:</b> ${esc(customerName(o)||'')}<br><b>Datum:</b> ${esc(niceDate(orderStart(o)))}${orderEnd(o)&&orderEnd(o)!==orderStart(o)?' t/m '+esc(niceDate(orderEnd(o))):''}<br><b>Adres:</b> ${esc(addressOf(o)||'')}</p><h3>Materialen</h3><ul>${mats.map(m=>`<li>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}${m.extra?' - '+esc(m.extra):''}</li>`).join('')||'<li>Geen materialen</li>'}</ul>${canPrices()?`<p><b>Totaal:</b> ${esc(money(o.amount||o.total||o.price||''))}<br><b>Borg:</b> ${esc(money(o.deposit||o.borg||''))}</p>`:''}<p>${esc(o.extra||o.notes||'')}</p></div>`;
+}
+function openQuote(order){
+  const wrap=document.createElement("div");
+  wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:12px";
+  wrap.innerHTML='<div style="background:#fff;border-radius:22px;width:min(760px,100%);max-height:92vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.35)"><div id="twQuoteBody">'+quoteHtml(order)+'</div><div style="position:sticky;bottom:0;background:#fff;padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;border-top:1px solid #e5e7eb"><button id="twQuoteClose" class="btn-dark" type="button">Sluiten</button><button id="twQuoteShare" type="button">Delen</button><button id="twQuotePrint" class="btn-green" type="button">Print</button></div></div>';
+  document.body.appendChild(wrap);
+  wrap.querySelector('#twQuoteClose').onclick=()=>wrap.remove();
+  wrap.querySelector('#twQuoteShare').onclick=async()=>{const text=(wrap.querySelector('#twQuoteBody').innerText||''); if(navigator.share){try{await navigator.share({title:'Offerte '+(order.number||''),text});}catch(e){}} else {location.href='mailto:?subject='+encodeURIComponent('Offerte '+(order.number||''))+'&body='+encodeURIComponent(text);}};
+  wrap.querySelector('#twQuotePrint').onclick=()=>{const w=window.open('','_blank'); if(w){w.document.write('<html><head><title>Offerte</title></head><body>'+quoteHtml(order)+'</body></html>');w.document.close();w.print();}};
+}
+
 async function sendReport(order,type){
   let extra="";
 
-  if(type==="Schade") extra=prompt("Omschrijving schade:", "");
-  else if(type==="Storing") extra=prompt("Omschrijving storing:", "");
-  else if(type==="Vermissing") extra=prompt("Wat mist er?", "");
-  else if(type==="Offerte") extra=prompt("Waarvoor moet offerte gemaakt worden?", "");
-  else extra=prompt("Melding voor planning:", "");
+  if(type==="Schade") extra=await askText("Schade melden", "Omschrijving schade");
+  else if(type==="Storing") extra=await askText("Storing melden", "Omschrijving storing");
+  else if(type==="Vermissing") extra=await askText("Vermissing melden", "Wat mist er?");
+  else extra=await askText("Melding voor planning", "Melding");
 
   if(!extra) return;
 
@@ -330,14 +391,15 @@ function bindActions(){
   setTimeout(enhanceDriverButtons,0);
   qsa("[data-detail]").forEach(b=>{b.onclick=()=>showDetail(b.dataset.detail)});
   qsa("[data-back]").forEach(b=>{b.onclick=()=>showOrders()});
-  qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!confirm("Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadOrdersOnly();showOrders();render()}});
+  qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!await askConfirm("Opdracht afmelden", "Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadPhoneData();showOrders();render()}});
+  qsa("[data-quote]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.quote); if(o)openQuote(o)}});
   qsa("[data-report]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.report);if(!o)return;await sendReport(o,b.dataset.type||"Melding")}});
   qsa("[data-agenda]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.agenda);if(!o)return;toast(`Agenda:\n${niceDate(orderStart(o))} ${o.startTime||""} - ${o.endTime||""}`)}});
 }
 
 let __twAutoRefreshStarted=false;
 function showApp(){
-  if(!__twAutoRefreshStarted){__twAutoRefreshStarted=true;setInterval(async()=>{try{if(BNS.user){await loadOrdersOnly(); if(!$("detailView").classList.contains("hidden") && CURRENT_DETAIL_ID)showDetail(CURRENT_DETAIL_ID); else render();}}catch(e){}},10000);}
+  if(!__twAutoRefreshStarted){__twAutoRefreshStarted=true;setInterval(async()=>{try{if(BNS.user){await loadPhoneData(); if(!$("detailView").classList.contains("hidden") && CURRENT_DETAIL_ID)showDetail(CURRENT_DETAIL_ID); else render();}}catch(e){}},10000);}
   $("loginBox").classList.add("hidden");
   $("appBox").classList.remove("hidden");
   $("logoutBtn").classList.remove("hidden");
@@ -354,7 +416,7 @@ async function boot(){
     $("loginPin").addEventListener("keydown",e=>{if(e.key==="Enter")loginWithFilter(userAllowed,SESSION_KEY,showApp)});
     $("logoutBtn").onclick=()=>{sessionStorage.removeItem(SESSION_KEY);location.reload()};
    $("refreshBtn").onclick=async()=>{
-  await loadOrdersOnly();
+  await loadPhoneData();
 
   if(!$("detailView").classList.contains("hidden") && CURRENT_DETAIL_ID){
     showDetail(CURRENT_DETAIL_ID);
