@@ -3069,12 +3069,32 @@ setTimeout(()=>{
     return "";
   }
 
+  function rubriekColor(cat){
+    try {
+      if (typeof catColor === 'function') return catColor(cat || 'EXTRA');
+    } catch(e){}
+    try {
+      var raw = localStorage.getItem('bns_rubriek_kleuren_v12_pro');
+      var map = raw ? JSON.parse(raw) : {};
+      return map[String(cat || '').toUpperCase()] || (String(cat || '').toUpperCase() === 'TW' ? '#dc2626' : '#60a5fa');
+    } catch(e){}
+    return String(cat || '').toUpperCase() === 'TW' ? '#dc2626' : '#60a5fa';
+  }
+
+  function calendarDateOnly(value, addDays){
+    var safe = value || new Date().toISOString().slice(0, 10);
+    var d = new Date(safe + 'T00:00:00');
+    if (addDays) d.setDate(d.getDate() + addDays);
+    return d.toISOString().slice(0,10).replaceAll('-', '');
+  }
+
   function openCalendarForCurrentOrder(type){
     const number = fieldValue("orderNumber");
     const title = fieldValue("orderTitle") || "Opdracht";
     const customer = fieldValue("customerName");
     const materialCodes = currentMaterialCodes();
     const materialCat = currentFirstMaterialCat();
+    const materialColor = rubriekColor(materialCat);
 
     const start = fieldValue("dateStart");
     const end = fieldValue("dateEnd") || start;
@@ -3086,29 +3106,26 @@ setTimeout(()=>{
     let details;
 
     if (type === "pickup") {
-      eventTitle = "Ophalen TR blauw - " + [number, customer, title].filter(Boolean).join(" - ");
-      eventStart = toCalendarDate(end, False);
+      // Ophalen: titel moet beginnen met TR en op de einddatum staan.
+      eventTitle = "TR " + title;
+      eventStart = calendarDateOnly(end, 0);
+      eventEnd = calendarDateOnly(end, 1);
     } else {
-      eventTitle = [
-        "Opdracht",
-        materialCat ? "[" + materialCat + "]" : "",
-        number,
-        customer,
-        title
-      ].filter(Boolean).join(" - ");
-      eventStart = toCalendarDate(start, False);
+      // Opdracht: alleen de titel van de opdracht op begindatum.
+      eventTitle = title;
+      eventStart = calendarDateOnly(start, 0);
+      eventEnd = calendarDateOnly(start, 1);
     }
 
-    eventEnd = type === "pickup" ? toCalendarDate(end, True) : toCalendarDate(end || start, True);
-
     details = [
-      "Event Planner PRO",
+      "Tapwagen.nl planner",
       "Opdracht: " + number,
       "Titel: " + title,
       "Klant: " + customer,
       "Materialen: " + (materialCodes.join(", ") || "Nog geen materialen"),
-      "Kleur artikel/rubriek: " + (materialCat || "onbekend"),
-      type === "pickup" ? "Ophalen: TR kleur blauw" : "",
+      type === "pickup" ? "Rubriek kleur: licht blauw / TR ophalen" : "Rubriek: " + (materialCat || "onbekend"),
+      type === "pickup" ? "Kleurcode: #60a5fa" : "Kleurcode rubriek: " + materialColor,
+      "Let op: Google Agenda laat kleur niet automatisch zetten via de normale agenda-link. Kies eventueel dezelfde kleur in Google Agenda.",
       "Adres: " + address
     ].filter(Boolean).join("\n");
 
@@ -3116,7 +3133,8 @@ setTimeout(()=>{
       + "&text=" + encodeURIComponent(eventTitle)
       + "&dates=" + encodeURIComponent(eventStart + "/" + eventEnd)
       + "&location=" + encodeURIComponent(address)
-      + "&details=" + encodeURIComponent(details);
+      + "&details=" + encodeURIComponent(details)
+      + "&ctz=" + encodeURIComponent("Europe/Amsterdam");
 
     window.open(url, "_blank");
   }
@@ -3193,7 +3211,7 @@ setTimeout(()=>{
       <button type="button" id="bnsWazePlannerBtn" class="bns-tool-green">Waze route naar opdracht</button>
       <button type="button" id="bnsMapsPlannerBtn" class="bns-tool-dark">Google Maps route</button>
       <button type="button" id="bnsAgendaOrderBtn">Agenda opdracht maken</button>
-      <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda ophalen TR blauw</button>
+      <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda ophalen</button>
     `;
 
     if (orderHead && orderHead.insertAdjacentElement) {
@@ -11336,6 +11354,28 @@ setInterval(install,1500);
   function shareText(a){ return [typeLabel(a), "Opdracht: " + T(a.orderNumber||""), "Klant: " + T(a.customerName||""), T(a.note||a.message||a.text||"")].filter(Boolean).join("\n"); }
   function doShare(id){ var a=(ensure().alerts||[]).find(function(x){return String(x.id)===String(id);}); if(!a) return; var txt=shareText(a); if(navigator.share){ navigator.share({title:typeLabel(a), text:txt}).catch(function(){}); } else { try{ navigator.clipboard.writeText(txt); alert("Melding gekopieerd."); }catch(e){ alert(txt); } } }
   function doPrint(id){ var a=(ensure().alerts||[]).find(function(x){return String(x.id)===String(id);}); if(!a) return; var w=window.open("","_blank"); if(!w) return; w.document.write('<!doctype html><html><head><title>'+H(typeLabel(a))+'</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#172033}img{max-width:100%;border:1px solid #ddd;border-radius:12px;margin:10px 0}.box{border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0}</style></head><body><h1>'+H(typeLabel(a))+'</h1><div class="box"><b>Opdracht:</b> '+H(a.orderNumber||"")+' '+H(a.orderTitle||"")+'<br><b>Klant:</b> '+H(a.customerName||"")+'<br><b>Bezorger:</b> '+H(a.driverName||a.from||"")+'<br><b>Tijd:</b> '+H(a.time||a.createdAt||"")+'</div><p>'+H(a.note||a.message||a.text||"")+'</p>'+mediaHtml(a)+'</body></html>'); w.document.close(); setTimeout(function(){w.print();},250); }
+  function customerKey(a){ return T(a.customerName || a.klant || a.customer || 'Onbekende klant') || 'Onbekende klant'; }
+  function customerAlerts(name){ return driverAlerts().filter(function(a){ return customerKey(a) === name; }); }
+  function customerShareText(name){
+    var rows = customerAlerts(name);
+    var out = ['Status meldingen klant: ' + name, 'Aantal: ' + rows.length, ''];
+    rows.forEach(function(a,i){
+      out.push((i+1)+'. '+typeLabel(a));
+      out.push('Opdracht: ' + T(a.orderNumber||'') + ' ' + T(a.orderTitle||''));
+      out.push('Bezorger: ' + T(a.driverName||a.from||''));
+      out.push('Tijd: ' + T(a.time||a.createdAt||''));
+      var msg=T(a.note||a.message||a.text||''); if(msg) out.push(msg);
+      out.push('');
+    });
+    return out.join('\n');
+  }
+  function shareCustomer(name){ var txt=customerShareText(name); if(navigator.share){ navigator.share({title:'Status meldingen - '+name, text:txt}).catch(function(){}); } else { try{ navigator.clipboard.writeText(txt); alert('Klantstatus gekopieerd.'); }catch(e){ alert(txt); } } }
+  function printCustomer(name){
+    var rows=customerAlerts(name); var w=window.open('','_blank'); if(!w) return;
+    var html='<!doctype html><html><head><title>Status meldingen - '+H(name)+'</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#172033}.box{border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0;page-break-inside:avoid}img{max-width:100%;border:1px solid #ddd;border-radius:12px;margin:10px 0}.actions{position:sticky;top:0;background:white;padding:8px 0}@media print{.actions{display:none}}</style></head><body><div class="actions"><button onclick="window.print()">Printen</button></div><h1>Status meldingen klant: '+H(name)+'</h1>';
+    rows.forEach(function(a){ html += '<div class="box"><h3>'+H(typeLabel(a))+'</h3><small>'+H(a.time||a.createdAt||'')+'</small><div><b>Opdracht:</b> '+H(a.orderNumber||'')+' '+H(a.orderTitle||'')+'</div><div><b>Bezorger:</b> '+H(a.driverName||a.from||'')+'</div><p>'+H(a.note||a.message||a.text||'')+'</p>'+mediaHtml(a)+'</div>'; });
+    html += '</body></html>'; w.document.write(html); w.document.close(); setTimeout(function(){w.print();},250);
+  }
   function markResolved(id){ var s=ensure(); var a=(s.alerts||[]).find(function(x){return String(x.id)===String(id);}); if(!a) return; a.resolved=true; a.resolvedAt=new Date().toISOString(); writeAlert(a); saveLocal(); refreshAll(); }
   function removeAlert(id){ var s=ensure(); s.alerts=(s.alerts||[]).filter(function(a){return String(a.id)!==String(id);}); deleteAlertRemote(id); saveLocal(); refreshAll(); }
 
@@ -11343,7 +11383,7 @@ setInterval(install,1500);
     if(E(STYLE_ID)) return;
     var st=document.createElement("style"); st.id=STYLE_ID;
     st.textContent = ''+
-      '.tw-v141-media img{max-width:260px;max-height:190px;border-radius:12px;border:1px solid #dbe3ef;background:#fff;display:block;margin-top:6px}.tw-v141-alert{border:1px solid #dbe3ef;border-radius:16px;padding:14px;margin:10px 0;background:#f8fafc}.tw-v141-alert h4{margin:0 0 6px}.tw-v141-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.tw-v141-actions button{border:0;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff}.tw-v141-actions .danger{background:#dc2626}.tw-v141-actions .ok{background:#16a34a}.tw-v141-order-media{border:2px solid #dbeafe;border-radius:18px;padding:14px;margin-top:16px;background:#f8fbff}.tw-v141-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.tw-v141-card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff}.tw-v141-card img{max-width:100%;border-radius:10px;border:1px solid #e5e7eb}.bns-alert-open{background:#dc2626!important;color:#fff!important}';
+      '.tw-v141-media img{max-width:260px;max-height:190px;border-radius:12px;border:1px solid #dbe3ef;background:#fff;display:block;margin-top:6px}.tw-v141-alert{border:1px solid #dbe3ef;border-radius:16px;padding:14px;margin:10px 0;background:#f8fafc}.tw-v141-alert h4{margin:0 0 6px}.tw-v141-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.tw-v141-actions button{border:0;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff}.tw-v141-actions .danger{background:#dc2626}.tw-v141-actions .ok{background:#16a34a}.tw-v141-order-media{border:2px solid #dbeafe;border-radius:18px;padding:14px;margin-top:16px;background:#f8fbff}.tw-v141-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.tw-v141-card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff}.tw-v141-card img{max-width:100%;border-radius:10px;border:1px solid #e5e7eb}.bns-alert-open{background:#dc2626!important;color:#fff!important}.tw-v161-customer{border:2px solid #bfdbfe;border-radius:18px;background:#f8fbff;padding:12px;margin:12px 0}.tw-v161-customer-head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}.tw-v161-customer-head h4{margin:0}.tw-v161-customer-actions{display:flex;gap:8px;flex-wrap:wrap}.tw-v161-customer-actions button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer}';
     document.head.appendChild(st);
   }
 
@@ -11390,7 +11430,12 @@ setInterval(install,1500);
       {id:'handtekening',name:'Handtekening klant',driver:true,text:false,photo:false,signature:true,color:'#0f766e'}
     ]; s.driverReportTypes=types; saveLocal(); }
     var typeHtml=types.map(function(t){ return '<div class="bns-type-card" style="--type-color:'+H(t.color||'#2563eb')+'"><div class="bns-type-card-title"><b>'+H(t.name||'Melding')+'</b><span class="bns-type-pill">'+(t.driver?'Bezorger':'Verborgen')+'</span></div><div class="bns-type-options"><label><input type="checkbox" data-v141-type="'+H(t.id)+'" data-key="driver" '+(t.driver?'checked':'')+'> Zichtbaar op telefoon</label><label><input type="checkbox" data-v141-type="'+H(t.id)+'" data-key="text" '+(t.text?'checked':'')+'> Tekst</label><label><input type="checkbox" data-v141-type="'+H(t.id)+'" data-key="photo" '+(t.photo?'checked':'')+'> Foto</label><label><input type="checkbox" data-v141-type="'+H(t.id)+'" data-key="signature" '+(t.signature?'checked':'')+'> Handtekening</label></div></div>'; }).join('');
-    box.innerHTML='<div class="bns-driver-admin-dashboard"><div class="bns-driver-hero"><h2>Bezorger meldingen dashboard</h2><p>Alleen meldingen/foto\'s/handtekeningen die vanaf telefoon zijn ingestuurd. Rubrieken bepalen welke knoppen de bezorger ziet.</p></div><div class="bns-driver-stats"><div class="bns-driver-stat"><b>'+alerts.length+'</b><span>Open meldingen</span></div><div class="bns-driver-stat"><b>'+types.filter(function(t){return t.driver;}).length+'</b><span>Telefoonknoppen</span></div></div><div class="bns-driver-section"><div class="bns-driver-section-head"><h3>Meldingsrubrieken bezorger</h3></div><div class="bns-type-grid">'+typeHtml+'</div></div><div class="bns-driver-section"><div class="bns-driver-section-head"><h3>Open bezorger meldingen</h3><small>'+alerts.length+' open</small></div><div class="bns-alert-dashboard-list">'+(alerts.length?alerts.map(renderAlertItem).join(''):'<p>Geen open bezorger meldingen.</p>')+'</div></div></div>';
+    var groups={}; alerts.forEach(function(a){ var k=customerKey(a); if(!groups[k]) groups[k]=[]; groups[k].push(a); });
+    var customerHtml=Object.keys(groups).sort().map(function(name){
+      var rows=groups[name];
+      return '<div class="tw-v161-customer"><div class="tw-v161-customer-head"><h4>'+H(name)+' <small>('+rows.length+' melding'+(rows.length===1?'':'en')+')</small></h4><div class="tw-v161-customer-actions"><button type="button" onclick="TapwagenV141ShareCustomer('+JSON.stringify(name).replace(/"/g,'&quot;')+')">Deel klantstatus</button><button type="button" onclick="TapwagenV141PrintCustomer('+JSON.stringify(name).replace(/"/g,'&quot;')+')">Print klantstatus</button></div></div>'+rows.map(renderAlertItem).join('')+'</div>';
+    }).join('');
+    box.innerHTML='<div class="bns-driver-admin-dashboard"><div class="bns-driver-hero"><h2>Bezorger meldingen dashboard</h2><p>Alleen meldingen/foto\'s/handtekeningen die vanaf telefoon zijn ingestuurd. Per klant kun je status delen of printen.</p></div><div class="bns-driver-stats"><div class="bns-driver-stat"><b>'+alerts.length+'</b><span>Open meldingen</span></div><div class="bns-driver-stat"><b>'+types.filter(function(t){return t.driver;}).length+'</b><span>Telefoonknoppen</span></div></div><div class="bns-driver-section"><div class="bns-driver-section-head"><h3>Meldingsrubrieken bezorger</h3></div><div class="bns-type-grid">'+typeHtml+'</div></div><div class="bns-driver-section"><div class="bns-driver-section-head"><h3>Open bezorger meldingen per klant</h3><small>'+alerts.length+' open</small></div><div class="bns-alert-dashboard-list">'+(alerts.length?customerHtml:'<p>Geen open bezorger meldingen.</p>')+'</div></div></div>';
     A('[data-v141-type]', box).forEach(function(inp){ inp.onchange=function(){ var id=inp.getAttribute('data-v141-type'), key=inp.getAttribute('data-key'); var t=(ensure().driverReportTypes||[]).find(function(x){return String(x.id)===String(id);}); if(t){ t[key]=!!inp.checked; saveLocal(); renderDriverDashboard(); } }; });
   }
 
@@ -11424,6 +11469,8 @@ setInterval(install,1500);
 
   window.TapwagenV141ShareAlert=doShare;
   window.TapwagenV141PrintAlert=doPrint;
+  window.TapwagenV141ShareCustomer=shareCustomer;
+  window.TapwagenV141PrintCustomer=printCustomer;
   window.TapwagenV141ResolveAlert=markResolved;
   window.TapwagenV141DeleteAlert=removeAlert;
   window.TapwagenV141RefreshAlerts=loadAlertsOnce;
