@@ -7938,43 +7938,6 @@ setInterval(install,1500);
     try { localStorage.removeItem("bnsV91PhoneUser"); localStorage.removeItem("bnsV95PhoneUser"); localStorage.removeItem("bnsV89PhoneUser"); } catch(e) {}
   }
 
-  var DEVICE_LOCK_KEY = "bns_driver_locked_user_v143";
-  var DEVICE_ID_KEY = "bns_driver_device_id_v143";
-
-  function deviceId() {
-    try {
-      var id = localStorage.getItem(DEVICE_ID_KEY);
-      if (!id) {
-        id = "dev_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
-        localStorage.setItem(DEVICE_ID_KEY, id);
-      }
-      return id;
-    } catch(e) {
-      return "dev_session";
-    }
-  }
-
-  function lockedUserId() {
-    try { return localStorage.getItem(DEVICE_LOCK_KEY) || ""; } catch(e) { return ""; }
-  }
-
-  function setLockedUser(u) {
-    try { if (u && u.id) localStorage.setItem(DEVICE_LOCK_KEY, String(u.id)); } catch(e) {}
-    try {
-      if (u && u.id) {
-        u.phoneDeviceId = deviceId();
-        u.phoneLinkedAt = new Date().toISOString();
-        syncDoc("users", u.id, u);
-      }
-    } catch(e) {}
-  }
-
-  function lockedUser() {
-    var id = lockedUserId();
-    if (!id) return null;
-    return driverUsers().find(function(u){ return String(u.id || "") === String(id); }) || null;
-  }
-
   function currentUser() {
     var sid = sessionUserId();
     if (sid) {
@@ -8237,9 +8200,6 @@ setInterval(install,1500);
       .bns-call { background: #0ea5e9; }
       .bns-report { background: #f97316; }
       .bns-done { background: #2563eb; grid-column: 1 / -1; }
-      .bns-price { background: #64748b; }
-      .bns-offer { background: #0f766e; }
-      .bns-mobile-price-line { background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:8px;margin:8px 0;font-weight:900;color:#0f172a; }
       .bns-empty {
         margin: 28px 16px;
         background: #fff;
@@ -8357,80 +8317,6 @@ setInterval(install,1500);
     qs('#bnsV100SaveSign').onclick=function(){ if(!has){ msg('Laat eerst tekenen.'); return; } var name=clean(qs('#bnsV100SignName').value), data=c.toDataURL('image/png'); order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; var item={id:'sig_'+Date.now(),type:'Handtekening klant',data:data,customerName:name,createdAt:new Date().toISOString(),driverName:(currentUser()&&currentUser().name)||''}; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedName=name; order.customerSignedAt=new Date().toISOString(); saveState(); makeAlert(order, 'Handtekening klant', name?('Ondertekend door '+name):'Klant heeft getekend', {signatureData:data, media:item}); closeModal(); msg('Handtekening opgeslagen en verstuurd naar planning.'); };
   }
 
-  function euro(v) {
-    var n = Number(String(v == null ? 0 : v).replace(',', '.').replace(/[^0-9.\-]/g, ''));
-    if (!isFinite(n)) n = 0;
-    return '€ ' + n.toFixed(2).replace('.', ',');
-  }
-
-  function materialRows(order, showPrice) {
-    var mats = Array.isArray(order && order.materials) ? order.materials : [];
-    if (!mats.length) return '<tr><td colspan="' + (showPrice ? 5 : 4) + '">Geen materialen gekozen.</td></tr>';
-    return mats.map(function(m, i){
-      var code = esc(m.code || m.productNr || m.id || '');
-      var name = esc(m.name || m.description || m.product || m.omschrijving || '');
-      var cat = esc(m.cat || m.rubriek || m.category || '');
-      var qty = esc(m.qty || m.aantal || 1);
-      var price = esc(m.price || m.prijs || '');
-      return '<tr><td>'+(i+1)+'</td><td>'+qty+'</td><td><b>'+code+'</b></td><td>'+name+'</td><td>'+cat+'</td>'+(showPrice?'<td>'+price+'</td>':'')+'</tr>';
-    }).join('');
-  }
-
-  function totalsLine(order) {
-    var p = order && order.pricing || {};
-    var total = p.grand != null ? p.grand : (order && order.amount != null ? order.amount : 0);
-    var deposit = p.deposit != null ? p.deposit : (order && order.deposit != null ? order.deposit : 0);
-    return 'Totaal: ' + euro(total) + ' | Borg: ' + euro(deposit);
-  }
-
-  function orderShareText(order, withPrices) {
-    var c = order.customer || {}; var l = order.location || {};
-    var lines = [
-      'Offerte / opdracht ' + (order.number || ''),
-      order.title || '',
-      '',
-      'Klant: ' + (c.name || customerName(order) || ''),
-      'Locatie: ' + ([l.name, l.street, l.zip, l.city].filter(Boolean).join(' ') || addressOf(order) || ''),
-      'Datum: ' + (niceDate(orderStart(order)) + (orderEnd(order) && orderEnd(order) !== orderStart(order) ? ' t/m ' + niceDate(orderEnd(order)) : '')),
-      '',
-      'Materialen:'
-    ];
-    (order.materials || []).forEach(function(m){ lines.push('- ' + [m.code || '', m.name || m.description || m.product || '', withPrices ? (m.price || m.prijs || '') : ''].filter(Boolean).join(' ')); });
-    if (withPrices) { lines.push('', totalsLine(order)); }
-    if (order.extra) { lines.push('', 'Bijzonderheden:', order.extra); }
-    return lines.filter(function(x){ return x != null; }).join('\n');
-  }
-
-  function openPrices(order) {
-    modal('<h2>Prijzen</h2><p><b>'+esc(order.number||'')+' - '+esc(order.title||'')+'</b></p><div class="bns-mobile-price-line">'+esc(totalsLine(order))+'</div><table style="width:100%;border-collapse:collapse"><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRows(order, true)+'</tbody></table><button id="bnsV100ClosePrice" class="dark">Sluiten</button>');
-    var b = qs('#bnsV100ClosePrice'); if (b) b.onclick = closeModal;
-  }
-
-  function openOffer(order) {
-    var showPrices = hasRight('prices', false);
-    var title = 'Offerte / opdrachtbevestiging';
-    var c = order.customer || {}, l = order.location || {};
-    var html = '<h2>'+esc(title)+'</h2>' +
-      '<p><b>'+esc(order.number||'')+' - '+esc(order.title||'')+'</b></p>' +
-      '<div style="display:grid;gap:10px">' +
-      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:10px"><b>Klant</b><br>'+esc(c.name||customerName(order)||'')+'<br>'+esc([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div>' +
-      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:10px"><b>Locatie</b><br>'+esc(l.name||'')+'<br>'+esc([l.street,l.zip,l.city].filter(Boolean).join(' ') || addressOf(order) || '')+'</div>' +
-      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:10px"><b>Datum</b><br>'+esc(niceDate(orderStart(order))+(orderEnd(order)&&orderEnd(order)!==orderStart(order)?' t/m '+niceDate(orderEnd(order)):''))+'</div>' +
-      '</div><h3>Materialen</h3><table style="width:100%;border-collapse:collapse"><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th>'+(showPrices?'<th>Prijs</th>':'')+'</tr></thead><tbody>'+materialRows(order, showPrices)+'</tbody></table>' +
-      (showPrices ? '<div class="bns-mobile-price-line">'+esc(totalsLine(order))+'</div>' : '') +
-      (order.extra ? '<h3>Bijzonderheden</h3><div style="white-space:pre-wrap;background:#f8fafc;border-radius:14px;padding:10px">'+esc(order.extra)+'</div>' : '') +
-      '<button id="bnsV100ShareOffer">Delen</button><button id="bnsV100PrintOffer">Print</button><button id="bnsV100CloseOffer" class="dark">Sluiten</button>';
-    modal(html);
-    var text = orderShareText(order, showPrices);
-    var share = qs('#bnsV100ShareOffer');
-    if (share) share.onclick = function(){
-      if (navigator.share) navigator.share({title: title, text: text}).catch(function(){});
-      else { try { navigator.clipboard.writeText(text); msg('Offerte tekst gekopieerd.'); } catch(e){ location.href='mailto:?subject='+encodeURIComponent(title)+'&body='+encodeURIComponent(text); } }
-    };
-    var print = qs('#bnsV100PrintOffer'); if (print) print.onclick = function(){ window.print(); };
-    var close = qs('#bnsV100CloseOffer'); if (close) close.onclick = closeModal;
-  }
-
   function sortedOrders() {
     var s = getState();
 
@@ -8458,8 +8344,6 @@ setInterval(install,1500);
       actions.push('<a class="bns-waze" href="'+esc(routeUrl("waze", address))+'" target="_blank" rel="noopener">Waze</a>');
       actions.push('<a class="bns-maps" href="'+esc(routeUrl("maps", address))+'" target="_blank" rel="noopener">Maps</a>');
     }
-    if (hasRight('invoice', false)) actions.push('<button class="bns-offer" type="button" data-offer="'+id+'">Offerte</button>');
-    if (hasRight('prices', false)) actions.push('<button class="bns-price" type="button" data-prices="'+id+'">Prijzen</button>');
     if (hasRight('phoneCall', true)) actions.push(phone ? '<a class="bns-call" href="tel:'+esc(phone)+'">Bel klant</a>' : '<button class="bns-call" type="button">Geen tel.</button>');
     if (hasRight('resolve', true)) actions.push('<button class="bns-report" type="button" data-report="'+id+'" data-kind="Melding">Melding</button>');
     if (hasRight('reportStoring', true)) actions.push('<button class="bns-v100-storing" type="button" data-report="'+id+'" data-kind="Storing">Storing</button>');
@@ -8477,7 +8361,6 @@ setInterval(install,1500);
         '<div>👤 '+esc(customerName(order) || "Klant onbekend")+'</div>'+
         '<div>📍 '+esc(address || "Adres onbekend")+'</div>'+
         '<div>📦 '+esc(materialText(order) || "Geen materialen")+'</div>'+
-        (hasRight('prices', false) ? '<div>💶 '+esc(totalsLine(order))+'</div>' : '')+
         '<div>📌 Status: '+esc(order.status || "")+'</div>'+
       '</div><div class="bns-mobile-actions">'+actions.join('')+'</div></div>';
   }
@@ -8506,25 +8389,15 @@ setInterval(install,1500);
     var app = ensureApp();
     var u = currentUser();
     if (!u) {
-      var locked = lockedUser();
-      var users = driverUsers();
-      var selectHtml = '';
-      if (locked) {
-        selectHtml = '<div style="background:#f8fafc;border:1px solid #dbe3ef;border-radius:14px;padding:14px;margin:8px 0 12px"><b>Naam</b><br>'+esc(locked.name||'Bezorger')+'</div>';
-      } else {
-        selectHtml = '<label style="display:block;font-weight:900;margin-top:8px">Naam<select id="bnsDriverUserSelect" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:14px;font-size:18px;margin:8px 0 12px;background:#fff">'+users.map(function(x){return '<option value="'+esc(x.id||'')+'">'+esc(x.name||'Bezorger')+'</option>';}).join('')+'</select></label>';
-      }
       app.innerHTML = '<div class="bns-mobile-head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div>'+
-        '<div class="bns-empty" style="text-align:left"><h2 style="margin-top:0">Inloggen</h2><p>'+(locked?'Vul de PIN in voor deze bezorger.':'Kies je naam en vul je PIN in. Daarna blijft deze telefoon aan die naam gekoppeld.')+'</p>'+selectHtml+'<input id="bnsDriverPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:16px;font-size:22px;margin:8px 0 12px"><button id="bnsDriverLogin" style="width:100%;border:0;border-radius:16px;padding:16px;background:#075fc4;color:#fff;font-weight:900;font-size:20px">Inloggen</button><div id="bnsDriverLoginMsg" style="margin-top:10px;color:#dc2626;font-weight:800"></div></div>';
+        '<div class="bns-empty" style="text-align:left"><h2 style="margin-top:0">Inloggen</h2><p>Vul je persoonlijke PIN in.</p><input id="bnsDriverPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:16px;font-size:22px;margin:8px 0 12px"><button id="bnsDriverLogin" style="width:100%;border:0;border-radius:16px;padding:16px;background:#075fc4;color:#fff;font-weight:900;font-size:20px">Inloggen</button><div id="bnsDriverLoginMsg" style="margin-top:10px;color:#dc2626;font-weight:800"></div></div>';
       var pin = document.getElementById('bnsDriverPin');
       var btn = document.getElementById('bnsDriverLogin');
-      var sel = document.getElementById('bnsDriverUserSelect');
       function doLogin(){
         var p = clean(pin && pin.value);
-        var target = locked || users.find(function(x){ return String(x.id||'') === String(sel && sel.value || ''); }) || users[0];
-        if (!target || String(target.pin || '') !== String(p) || lower(target.role) !== 'bezorger') { var m=document.getElementById('bnsDriverLoginMsg'); if(m)m.textContent='Verkeerde PIN voor deze bezorger.'; return; }
-        setLockedUser(target);
-        setSessionUser(target);
+        var u = driverUsers().find(function(x){ return String(x.pin || '') === String(p) && lower(x.role) === 'bezorger'; });
+        if (!u) { var m=document.getElementById('bnsDriverLoginMsg'); if(m)m.textContent='Verkeerde PIN of geen actieve bezorger.'; return; }
+        setSessionUser(u);
         render();
       }
       if (btn) btn.onclick = doLogin;
@@ -8567,22 +8440,6 @@ setInterval(install,1500);
         });
       };
     }
-
-    qsa("[data-prices]", app).forEach(function (btn) {
-      btn.onclick = function () {
-        var order = findOrderById(btn.dataset.prices);
-        if (!order) return;
-        openPrices(order);
-      };
-    });
-
-    qsa("[data-offer]", app).forEach(function (btn) {
-      btn.onclick = function () {
-        var order = findOrderById(btn.dataset.offer);
-        if (!order) return;
-        openOffer(order);
-      };
-    });
 
     qsa("[data-done]", app).forEach(function (btn) {
       btn.onclick = function () {
@@ -14232,10 +14089,8 @@ setInterval(install,1500);
   function phoneAddress(o){var l=o.location||{},c=o.customer||{};return [l.street||c.street,l.zip||c.zip,l.city||c.city].filter(Boolean).join(' ');} function cust(o){return T((o.customer&&o.customer.name)||o.customerName||o.title||'');} function dateNice(v){var s=T(v).slice(0,10),p=s.split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:s;} function phoneMats(o){return (Array.isArray(o.materials)?o.materials:[]).map(function(m){return matCode(m)+' '+matName(m);}).join(', ');} function activeOrder(o){var st=L(o&&o.status);return !/geannuleerd|uitgevoerd|verwijderd|deleted|cancel/.test(st);}
   function phoneRoot(){css();document.documentElement.classList.add('bns-v95-phone');document.body.classList.add('bns-v95-phone');var r=E(PHONE_ROOT);if(!r){r=document.createElement('div');r.id=PHONE_ROOT;document.body.appendChild(r);}return r;}
   function phoneHtml(h){var r=phoneRoot();if(phoneKey!==h){r.innerHTML=h;phoneKey=h;}return r;}
-  function linkedUserForDevice(){var d=device();return driverUsers().find(function(x){return T(x.deviceId||x.phoneDeviceId||x.mobileDeviceId)===d;})||null;}
-  function renderLogin(msg){var linked=linkedUserForDevice();var list=driverUsers();var selectHtml='';if(linked){selectHtml='<div class="v95topmsg">Naam gekoppeld: '+H(linked.name||'Bezorger')+'</div><input id="v95user" type="hidden" value="'+H(linked.id)+'">';}else{selectHtml='<label style="font-weight:900;display:block;margin:8px 0 4px">Naam</label><select id="v95user" class="v95input">'+list.map(function(u){return '<option value="'+H(u.id)+'">'+H(u.name||'Bezorger')+' ('+H(u.role||'Bezorger')+')</option>';}).join('')+'</select>';}
-    phoneHtml('<div class="v95head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div><div class="v95topmsg">Data geladen</div><div class="v95card"><h2>Inloggen</h2><p>'+(linked?'Vul je PIN in voor deze bezorger.':'Kies je naam en vul je PIN in.')+'</p><p id="v95msg" class="v95err">'+H(msg||'')+'</p>'+selectHtml+'<label style="font-weight:900;display:block;margin:8px 0 4px">PIN</label><input id="v95pin" class="v95input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button id="v95login" class="v95btn" type="button">Inloggen</button></div>');var p=E('v95pin'),b=E('v95login'),sel=E('v95user');if(b)b.onclick=function(){doLogin(T(p&&p.value),T(sel&&sel.value));};if(p){p.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();doLogin(T(p.value),T(sel&&sel.value));}};setTimeout(function(){try{p.focus();}catch(e){}},50);}}
-  function doLogin(pin,userId){if(!pin){var m=E('v95msg');if(m)m.textContent='Vul je PIN in.';return;}pullAll(function(){var d=device();var u=driverUsers().find(function(x){return String(x.id)===String(userId);})||linkedUserForDevice();if(!u){renderLogin('Kies eerst een bezorger.');return;}if(T(u.pin)!==pin){renderLogin('Verkeerde PIN voor deze bezorger.');return;}var linked=T(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==d){renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}u.deviceId=d;u.phoneDeviceId=d;u.mobileDeviceId=d;setUser(u);saveAll();syncDoc('users',u.id,u);renderPhoneApp(u);});}
+  function renderLogin(msg){phoneHtml('<div class="v95head"><h1>Bezorger Tapwagen.nl</h1><small>Mobiele opdrachten</small></div><div class="v95topmsg">Data geladen</div><div class="v95card"><h2>Inloggen</h2><p>Vul alleen je persoonlijke PIN in.</p><p id="v95msg" class="v95err">'+H(msg||'')+'</p><input id="v95pin" class="v95input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN"><button id="v95login" class="v95btn" type="button">Inloggen</button></div>');var p=E('v95pin'),b=E('v95login');if(b)b.onclick=function(){doLogin(T(p&&p.value));};if(p){p.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();doLogin(T(p.value));}};setTimeout(function(){try{p.focus();}catch(e){}},50);}}
+  function doLogin(pin){if(!pin){var m=E('v95msg');if(m)m.textContent='Vul je PIN in.';return;}pullAll(function(){var u=driverUsers().find(function(x){return T(x.pin)===pin;});if(!u){renderLogin('Verkeerde PIN of geen actieve bezorger.');return;}var d=device(),linked=T(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==d){renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}u.deviceId=d;u.phoneDeviceId=d;u.mobileDeviceId=d;setUser(u);saveAll();syncDoc('users',u.id,u);renderPhoneApp(u);});}
   function makeAlert(o,u,title,text,extra){var a=Object.assign({id:'alert_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),orderId:o&&o.id||'',orderNumber:o&&o.number||'',orderTitle:o&&o.title||'',customerName:cust(o),title:title,type:title,text:text||'',note:text||'',message:text||'',resolved:false,createdAt:new Date().toISOString(),time:new Date().toLocaleString('nl-NL'),from:u&&u.name||'Bezorger',driverId:u&&u.id||'',driverName:u&&u.name||'',source:'telefoon'},extra||{});alerts().push(a);saveAll();syncDoc('alerts',a.id,a);return a;}
   function findOrder(id){return orders().find(function(o){return String(o.id)===String(id);});}
   function modal(html){var old=E('bnsV95PhoneModal');if(old)old.remove();var m=document.createElement('div');m.id='bnsV95PhoneModal';m.className='v95modal';m.innerHTML='<div class="v95modalCard">'+html+'</div>';document.body.appendChild(m);return m;} function closePhoneModal(){var m=E('bnsV95PhoneModal');if(m)m.remove();}
@@ -14283,7 +14138,7 @@ setInterval(install,1500);
 
 
 /* =========================================================
-   Tapwagen.nl V142 - planner media/alerts, telefoon blijft V140 stabiel
+   Tapwagen.nl V141 - telefoonmeldingen/media naar planner + vaste opslag in opdracht-overzicht
    Basis: V140. Alleen meldingen/media-laag.
    - Planner leest Firebase alerts live.
    - Systeemmeldingen toont tekst/foto/handtekening.
@@ -14292,10 +14147,6 @@ setInterval(install,1500);
    ========================================================= */
 (function TapwagenV141AlertsMediaOnly(){
   "use strict";
-  // V142: deze planner/media-laag mag NIET op de telefoonroute draaien.
-  // De telefoon blijft de stabiele V140 naam+PIN-laag gebruiken; alleen de planner leest/toont alerts/media.
-  var __twRoute = String(location.search || "").toLowerCase();
-  if (__twRoute.indexOf("driver=") >= 0 || __twRoute.indexOf("telefoon=") >= 0 || __twRoute.indexOf("olddriver=") >= 0) return;
   if (window.__tapwagenV141AlertsMediaOnly) return;
   window.__tapwagenV141AlertsMediaOnly = true;
 
@@ -14353,9 +14204,9 @@ setInterval(install,1500);
     var txt=L([a.type,a.title,a.note,a.message,a.text,a.from].join(" "));
     return src.indexOf("telefoon")>=0 || src.indexOf("driver")>=0 || txt.indexOf("bezorger")>=0 || txt.indexOf("storing")>=0 || txt.indexOf("schade")>=0 || txt.indexOf("vermissing")>=0 || txt.indexOf("foto")>=0 || txt.indexOf("handtekening")>=0;
   }
-  function isSystemAlert(a){ var t=L([a && a.type, a && a.title, a && a.note, a && a.message, a && a.text].join(' ')); return t.indexOf('schade')>=0 || t.indexOf('vermissing')>=0; }
+  function isSystemAlert(a){ var t=L([a&&a.type,a&&a.title].join(" ")); return /schade|vermissing|vermist/.test(t) || a.system === true; }
   function openAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved && isSystemAlert(a); }); }
-  function driverAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved; }).filter(isDriverAlert); }
+  function driverAlerts(){ return (ensure().alerts||[]).filter(function(a){ return !a.resolved && isDriverAlert(a); }); }
   function typeLabel(a){ var t=T(a.type || a.title || "Melding"); if(/foto/i.test(t) && /voor/i.test(t)) return "Foto voor levering"; if(/foto/i.test(t) && /na/i.test(t)) return "Foto na levering"; return t; }
   function mediaHtml(a){
     var h="";
