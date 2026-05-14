@@ -11,9 +11,6 @@ function toast(t){const e=$("toast");if(!e){alert(t);return}e.textContent=String
 function setStatus(t){const e=$("status");if(e)e.textContent=t}
 function hasRight(k){return !!(BNS.user&&BNS.user.rights&&BNS.user.rights[k])}
 function hasAnyRight(keys){return keys.some(k=>hasRight(k))}
-function deviceId(){let id=localStorage.getItem('tapwagen_driver_device_id_v147')||''; if(!id){id='dev_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9); localStorage.setItem('tapwagen_driver_device_id_v147',id)} return id}
-function linkedUser(){const d=deviceId(); return (BNS.state.users||[]).find(u=>String(u.deviceId||u.phoneDeviceId||u.mobileDeviceId||'')===d&&userAllowed(u))||null}
-function setLinkedUser(u){const d=deviceId(); u.deviceId=d; u.phoneDeviceId=d; u.mobileDeviceId=d; u.deviceLinkedAt=u.deviceLinkedAt||new Date().toISOString(); try{localStorage.setItem('tapwagen_driver_linked_user_v147',String(u.id||''))}catch(e){}}
 function statusOf(o){return lower(o&&o.status)}
 function isCancelled(o){return["geannuleerd","geannuleerde","annulering","cancelled","canceled"].includes(statusOf(o))}
 function isDone(o){return["uitgevoerd","afgerond","voltooid","done","klaar"].includes(statusOf(o))}
@@ -68,22 +65,15 @@ async function addAlert(a){
   await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"alerts",id),a,{merge:true});
 }
 function populateUsers(f){
-  const linked=linkedUser();
-  const users=linked?[linked]:(BNS.state.users||[]).filter(f);
-  const sel=$("loginName");
-  sel.innerHTML=users.length?users.map(u=>`<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.role||"Medewerker")})</option>`).join(""):`<option value="">Geen gebruikers gevonden</option>`;
-  sel.disabled=!!linked;
-  const help=document.querySelector('#loginBox .help'); if(help) help.textContent=linked?'Deze telefoon is gekoppeld aan '+linked.name+'. Vul je PIN in.':'Kies je naam en vul je PIN in.';
+  const users=(BNS.state.users||[]).filter(f);
+  $("loginName").innerHTML=users.length?users.map(u=>`<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.role||"Medewerker")})</option>`).join(""):`<option value="">Geen gebruikers gevonden</option>`;
 }
 function loginWithFilter(f,key,after){
   const id=$("loginName").value,pin=clean($("loginPin").value);
   const found=(BNS.state.users||[]).find(u=>String(u.id)===String(id)&&String(u.pin||"")===pin);
   if(!found){toast("Naam of PIN klopt niet");return}
   if(!f(found)){toast("Geen rechten voor deze portal");return}
-  const linked=linkedUser(); if(linked && String(linked.id)!==String(found.id)){toast("Deze telefoon is gekoppeld aan "+linked.name);return}
-  setLinkedUser(found);
   BNS.user=found;
-  try{BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"users",String(found.id)),found,{merge:true}).catch(()=>{})}catch(e){}
   sessionStorage.setItem(key,found.id);
   $("loginPin").value="";
   after();
@@ -142,14 +132,11 @@ function canAgenda(){return hasRight("agenda")||lower(BNS.user.role)==="admin"}
 function canDone(){return hasAnyRight(["resolve","afmelden","done","uitgevoerd"])||lower(BNS.user.role)==="admin"}
 function canMaterials(){return hasAnyRight(["materials","materialen","orders"])||lower(BNS.user.role)==="admin"}
 function canPrices(){return hasAnyRight(["prices","prijzen"])||lower(BNS.user.role)==="admin"}
-function canReport(){return hasAnyRight(["resolve","reports","meldingen","report","phoneReport"])||lower(BNS.user.role)==="admin"}
-function canStoring(){return hasAnyRight(["reportStoring","storing","reports","meldingen"])||lower(BNS.user.role)==="admin"}
-function canSchade(){return hasAnyRight(["reportDamage","damage","schade","reports","meldingen"])||lower(BNS.user.role)==="admin"}
-function canVermissing(){return hasAnyRight(["reportMissing","missing","vermissing","vermist","reports","meldingen"])||lower(BNS.user.role)==="admin"}
-function canPhotoBefore(){return hasAnyRight(["photoBefore","fotoVoor","foto_voor","fotoVoorLevering","photo_before"])||lower(BNS.user.role)==="admin"}
-function canPhotoAfter(){return hasAnyRight(["photoAfter","fotoNa","foto_na","fotoNaLevering","photo_after"])||lower(BNS.user.role)==="admin"}
-function canSignature(){return hasAnyRight(["signatureCustomer","handtekening","signature","sign","klantHandtekening"])||lower(BNS.user.role)==="admin"}
-function canInvoice(){return hasAnyRight(["invoice","factuur","offerte","quote"])||lower(BNS.user.role)==="admin"}
+function canReport(){return true}
+function canDamage(){return hasAnyRight(["damage","schade","storing","vermissing","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
+function canPhotoBefore(){return hasAnyRight(["fotoVoor","photoBefore","foto_voor","fotoVoorLevering","photo_before","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
+function canPhotoAfter(){return hasAnyRight(["fotoNa","photoAfter","foto_na","fotoNaLevering","photo_after","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
+function canSignature(){return hasAnyRight(["handtekening","signature","sign","klantHandtekening","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
 
 function orderBadges(o){
   const badges=[`<span class="badge">${esc(o.status||"Open")}</span>`];
@@ -179,10 +166,9 @@ function orderCard(o){
       ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Maps</a>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
-      ${canSchade()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
-      ${canStoring()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
-      ${canVermissing()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
-      ${canInvoice()?`<button type="button" class="btn btn-orange" data-offer="${esc(o.id)}">Offerte</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Offerte">Offerte</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
   </article>`;
@@ -222,10 +208,10 @@ function detailHtml(o){
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAgenda()?`<button type="button" class="btn btn-dark" data-agenda="${esc(o.id)}">Agenda info</button>`:""}
       ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
-      ${canSchade()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
-      ${canStoring()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
-      ${canVermissing()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
-      ${canInvoice()?`<button type="button" class="btn btn-orange" data-offer="${esc(o.id)}">Offerte</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
+      ${canDamage()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Offerte">Offerte</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
   </article>`;
@@ -247,6 +233,7 @@ async function sendReport(order,type){
   if(type==="Schade") extra=prompt("Omschrijving schade:", "");
   else if(type==="Storing") extra=prompt("Omschrijving storing:", "");
   else if(type==="Vermissing") extra=prompt("Wat mist er?", "");
+  else if(type==="Offerte") extra=prompt("Waarvoor moet offerte gemaakt worden?", "");
   else extra=prompt("Melding voor planning:", "");
 
   if(!extra) return;
@@ -263,7 +250,6 @@ async function sendReport(order,type){
     driverName: BNS.user.name || "",
     title: type,
     type: type,
-    system: /^(Schade|Vermissing)$/i.test(type),
     text: extra,
     note: extra,
     message: extra,
@@ -310,7 +296,7 @@ async function sendPhoto(order,type){
     id:"alert_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),
     source:"telefoon", orderId:order.id||"", orderNumber:order.number||"", linkedOrder:order.id||"", linkedOrderNumber:order.number||"",
     orderTitle:order.title||"", customerName:customerName(order)||"", driverName:BNS.user.name||"", from:BNS.user.name||"", userId:BNS.user.id||"",
-    title:type, type:type, system:false, text:"Foto toegevoegd", note:"Foto toegevoegd", message:"Foto toegevoegd", photoData:data,
+    title:type, type:type, text:"Foto toegevoegd", note:"Foto toegevoegd", message:"Foto toegevoegd", photoData:data,
     resolved:false, createdAt:new Date().toISOString(), time:new Date().toLocaleString("nl-NL")
   });
   toast(type+" verstuurd");
@@ -326,7 +312,7 @@ function openSignatureModal(order){
   function start(e){e.preventDefault();down=true;last=pos(e)} function move(e){if(!down)return;e.preventDefault();const p=pos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p} function end(){down=false;last=null}
   ["mousedown","touchstart"].forEach(ev=>c.addEventListener(ev,start,{passive:false})); ["mousemove","touchmove"].forEach(ev=>c.addEventListener(ev,move,{passive:false})); ["mouseup","mouseleave","touchend","touchcancel"].forEach(ev=>c.addEventListener(ev,end));
   wrap.querySelector("#sigClear").onclick=()=>ctx.clearRect(0,0,c.width,c.height); wrap.querySelector("#sigCancel").onclick=()=>wrap.remove();
-  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); await addAlert({id:"alert_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),source:"telefoon",orderId:order.id||"",orderNumber:order.number||"",linkedOrder:order.id||"",linkedOrderNumber:order.number||"",orderTitle:order.title||"",customerName:customerName(order)||"",driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||"",title:"Handtekening klant",type:"Handtekening klant",system:false,text:"Handtekening toegevoegd",note:"Handtekening toegevoegd",message:"Handtekening toegevoegd",signatureData:data,resolved:false,createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL")}); wrap.remove(); toast("Handtekening verstuurd");};
+  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); await addAlert({id:"alert_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),source:"telefoon",orderId:order.id||"",orderNumber:order.number||"",linkedOrder:order.id||"",linkedOrderNumber:order.number||"",orderTitle:order.title||"",customerName:customerName(order)||"",driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||"",title:"Handtekening klant",type:"Handtekening klant",text:"Handtekening toegevoegd",note:"Handtekening toegevoegd",message:"Handtekening toegevoegd",signatureData:data,resolved:false,createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL")}); wrap.remove(); toast("Handtekening verstuurd");};
 }
 function enhanceDriverButtons(){
   qsa(".order-card").forEach(card=>{
@@ -340,29 +326,12 @@ function enhanceDriverButtons(){
   qsa("[data-signature]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.signature); if(o)openSignatureModal(o)}});
 }
 
-function offerHtml(o){
-  const mats=materialList(o);
-  const total=o.total||o.totaal||o.amount||o.bedrag||'';
-  const borg=o.deposit||o.borg||'';
-  const rows=mats.length?mats.map((m,i)=>`<tr><td>${i+1}</td><td>${esc(m.name||'')}</td><td>${esc(m.qty||'')}</td><td>${canPrices()?esc(m.price||m.prijs||''):''}</td></tr>`).join(''):'<tr><td colspan="4">Geen materialen</td></tr>';
-  return `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div><article class="card detail-card" id="offerView"><h2>Offerte / opdrachtbevestiging</h2><h3>${esc(o.number||'')} - ${esc(o.title||'')}</h3><div class="info-box"><b>Klant:</b> ${esc(customerName(o)||'')}<br><b>Adres:</b> ${esc(addressOf(o)||'')}<br><b>Datum:</b> ${esc(niceDate(orderStart(o)))} t/m ${esc(niceDate(orderEnd(o)))}</div><div class="section-title">Materialen</div><table style="width:100%;border-collapse:collapse"><thead><tr><th>#</th><th>Omschrijving</th><th>Aantal</th><th>${canPrices()?'Prijs':''}</th></tr></thead><tbody>${rows}</tbody></table>${canPrices()?`<div class="info-box"><b>Totaal:</b> ${esc(total||'')}<br><b>Borg:</b> ${esc(borg||'')}</div>`:''}<div class="report-grid"><button class="btn" type="button" data-share-offer> Delen </button><button class="btn btn-dark" type="button" data-print-offer> Print </button></div></article>`;
-}
-function showOffer(id){
-  const o=findOrder(id); if(!o)return;
-  $("ordersView").classList.add("hidden"); $("detailView").classList.remove("hidden"); $("detailView").innerHTML=offerHtml(o);
-  const txt=`Offerte / opdrachtbevestiging\n${o.number||''} - ${o.title||''}\nKlant: ${customerName(o)||''}\nAdres: ${addressOf(o)||''}\nDatum: ${niceDate(orderStart(o))} t/m ${niceDate(orderEnd(o))}\nMaterialen: ${materialText(o)}`;
-  const sh=document.querySelector('[data-share-offer]'); if(sh) sh.onclick=()=>{ if(navigator.share)navigator.share({title:'Offerte '+(o.number||''),text:txt}).catch(()=>{}); else {navigator.clipboard&&navigator.clipboard.writeText(txt); toast('Offerte gekopieerd');} };
-  const pr=document.querySelector('[data-print-offer]'); if(pr) pr.onclick=()=>window.print();
-  bindActions();
-}
-
 function bindActions(){
   setTimeout(enhanceDriverButtons,0);
   qsa("[data-detail]").forEach(b=>{b.onclick=()=>showDetail(b.dataset.detail)});
   qsa("[data-back]").forEach(b=>{b.onclick=()=>showOrders()});
   qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!confirm("Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadOrdersOnly();showOrders();render()}});
   qsa("[data-report]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.report);if(!o)return;await sendReport(o,b.dataset.type||"Melding")}});
-  qsa("[data-offer]").forEach(b=>{b.onclick=()=>showOffer(b.dataset.offer)});
   qsa("[data-agenda]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.agenda);if(!o)return;toast(`Agenda:\n${niceDate(orderStart(o))} ${o.startTime||""} - ${o.endTime||""}`)}});
 }
 
