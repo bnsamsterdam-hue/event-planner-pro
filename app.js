@@ -15753,10 +15753,40 @@ setInterval(install,1500);
     return '';
   }
   function saveAndSync(o){
+    try{ if(!o) return; }catch(e){}
+    try{ if(o){
+      o.status='Verwijderd';
+      o.deleted=true;
+      o.removed=true;
+      o.hidden=true;
+      o.cancelled=false;
+      o.deletedAt=o.deletedAt||new Date().toISOString();
+      o.updatedAt=new Date().toISOString();
+    }}catch(e){}
     try{ if(typeof saveLocal==='function') saveLocal(); }catch(e){}
     try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof saveState==='function') saveState(); }catch(e){}
+    try{ localStorage.setItem('bns_state', JSON.stringify(window.state||state)); }catch(e){}
+    try{ localStorage.setItem('bns_app_state', JSON.stringify(window.state||state)); }catch(e){}
+    try{
+      var key='bns_pending_firebase_orders_v1';
+      var rows=[];
+      try{ rows=JSON.parse(localStorage.getItem(key)||'[]')||[]; }catch(_e){ rows=[]; }
+      rows=rows.filter(function(x){ return String(x && x.id)!==String(o && o.id); });
+      rows.push(o);
+      localStorage.setItem(key, JSON.stringify(rows));
+    }catch(e){}
     try{ if(typeof syncOrder==='function') syncOrder(o); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
     try{ if(window.firebaseSync && typeof window.firebaseSync.saveOrder==='function') window.firebaseSync.saveOrder(o); }catch(e){}
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.db && o && o.id){
+        var fs=window.BNS.fs;
+        fs.setDoc(fs.doc(window.BNS.db,'orders',String(o.id)), Object.assign({}, o, {
+          status:'Verwijderd', deleted:true, removed:true, hidden:true, cancelled:false, updatedAt:new Date().toISOString()
+        }), {merge:true}).catch(function(err){ console.warn('Verwijderen nog niet naar Firebase geschreven', err); });
+      }
+    }catch(e){}
     try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
     try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
     try{ if(typeof renderOrdersFinal==='function') renderOrdersFinal(); }catch(e){}
@@ -15813,4 +15843,16 @@ setInterval(install,1500);
   function tick(){ css(); patchButtons(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,150); }); else setTimeout(tick,100);
   setTimeout(tick,500); setTimeout(tick,1200); setInterval(tick,2000);
+})();
+
+
+/* ===== V185 Tapwagen: verwijderde opdrachten ook voor telefoon/driver verbergen ===== */
+(function(){
+  function T(v){ return (v==null?'':String(v)).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function isDeletedOrder(o){
+    var s=L(o&&o.status);
+    return !!(o && (o.deleted===true || o.removed===true || o.hidden===true || o.archived===true || s==='verwijderd' || s==='gewist' || s==='deleted' || s==='trash'));
+  }
+  window.BNS_IS_DELETED_ORDER_V185 = isDeletedOrder;
 })();
