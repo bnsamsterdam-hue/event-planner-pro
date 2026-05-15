@@ -15724,135 +15724,133 @@ setInterval(install,1500);
   setTimeout(tick,700); setTimeout(tick,1500); setInterval(tick,2500);
 })();
 
-/* ===== V184 Tapwagen: opdrachtkaart Annuleren -> Verwijderen met bevestiging ===== */
+/* ===== V186 Tapwagen: echte verwijderfunctie + Firebase/telefoon veilig =====
+   - Annuleren-knop wordt Verwijderen.
+   - Bij verwijderen blijft opdracht in Verwijderde opdrachten, maar verdwijnt uit actief en telefoon.
+   - Schrijft dezelfde flags lokaal en naar Firebase orders.
+   - Geen reset/wisfunctie, geen Amsterdam beheer.
+*/
 (function(){
+  if(window.__TW_V186_DELETE_FIX__) return; window.__TW_V186_DELETE_FIX__=true;
   function T(v){ return (v==null?'':String(v)).trim(); }
   function L(v){ return T(v).toLowerCase(); }
   function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function orderList(){ try{ if(window.state && Array.isArray(window.state.orders)) return window.state.orders; }catch(e){} try{ if(typeof state!=='undefined' && state && Array.isArray(state.orders)) return state.orders; }catch(e){} return []; }
-  function getIdFromButton(btn){
-    var txt='';
-    try{ txt = btn.getAttribute('onclick') || ''; }catch(e){}
-    var m = txt.match(/(?:cancel|editOrder|restore)\(['\"]([^'\"]+)['\"]\)/i);
-    if(m) return m[1];
-    var card = btn.closest && btn.closest('.order-card');
-    if(card){
-      var b = card.querySelector('button[onclick*="editOrder"]') || card.querySelector('button[onclick*="cancel"]');
-      if(b){
-        var oc = b.getAttribute('onclick') || '';
-        var mm = oc.match(/(?:editOrder|cancel|restore)\(['\"]([^'\"]+)['\"]\)/i);
-        if(mm) return mm[1];
-      }
-      var title = card.querySelector('.order-title');
-      if(title){
-        var nr = T(title.textContent).split(' - ')[0];
-        var hit = orderList().find(function(o){ return String(o.id)===nr || String(o.number||'')===nr; });
-        if(hit) return hit.id;
-      }
-    }
-    return '';
+  function S(){ try{ if(typeof state!=='undefined' && state && Array.isArray(state.orders)) return state; }catch(e){} try{ if(window.state && Array.isArray(window.state.orders)) return window.state; }catch(e){} return null; }
+  function orders(){ var s=S(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function findOrder(id){
+    var sid=T(id); if(!sid) return null;
+    return orders().find(function(o){ return T(o && o.id)===sid || T(o && o.number)===sid || T(o && o.oldId)===sid; }) || null;
   }
-  function saveAndSync(o){
-    try{ if(!o) return; }catch(e){}
-    try{ if(o){
-      o.status='Verwijderd';
-      o.deleted=true;
-      o.removed=true;
-      o.hidden=true;
-      o.cancelled=false;
-      o.deletedAt=o.deletedAt||new Date().toISOString();
-      o.updatedAt=new Date().toISOString();
-    }}catch(e){}
-    try{ if(typeof saveLocal==='function') saveLocal(); }catch(e){}
+  function markDeleted(o){
+    if(!o) return o;
+    var now=new Date().toISOString();
+    o._oldStatus=o._oldStatus||o.status||'';
+    o.status='Verwijderd';
+    o.deleted=true;
+    o.removed=true;
+    o.hidden=true;
+    o.cancelled=false;
+    o.active=false;
+    o.deletedAt=o.deletedAt||now;
+    o.removedAt=o.removedAt||now;
+    o.updatedAt=now;
+    return o;
+  }
+  function saveLocalAll(){
+    var s=S();
     try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof saveLocal==='function') saveLocal(); }catch(e){}
     try{ if(typeof saveState==='function') saveState(); }catch(e){}
-    try{ localStorage.setItem('bns_state', JSON.stringify(window.state||state)); }catch(e){}
-    try{ localStorage.setItem('bns_app_state', JSON.stringify(window.state||state)); }catch(e){}
-    try{
-      var key='bns_pending_firebase_orders_v1';
-      var rows=[];
-      try{ rows=JSON.parse(localStorage.getItem(key)||'[]')||[]; }catch(_e){ rows=[]; }
-      rows=rows.filter(function(x){ return String(x && x.id)!==String(o && o.id); });
-      rows.push(o);
-      localStorage.setItem(key, JSON.stringify(rows));
-    }catch(e){}
+    try{ if(typeof saveBns==='function') saveBns(); }catch(e){}
+    try{ if(typeof saveApp==='function') saveApp(); }catch(e){}
+    if(s){
+      ['event-planner-pro-v87','event-planner-pro-v8','event-planner-pro','bns_event_planner','bns_state','bns_app_state'].forEach(function(k){
+        try{ localStorage.setItem(k, JSON.stringify(s)); }catch(e){}
+      });
+    }
+  }
+  function syncDeleted(o){
+    if(!o || !o.id) return;
     try{ if(typeof syncOrder==='function') syncOrder(o); }catch(e){}
     try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
     try{ if(window.firebaseSync && typeof window.firebaseSync.saveOrder==='function') window.firebaseSync.saveOrder(o); }catch(e){}
     try{
-      if(window.BNS && window.BNS.fs && window.BNS.db && o && o.id){
-        var fs=window.BNS.fs;
-        fs.setDoc(fs.doc(window.BNS.db,'orders',String(o.id)), Object.assign({}, o, {
-          status:'Verwijderd', deleted:true, removed:true, hidden:true, cancelled:false, updatedAt:new Date().toISOString()
-        }), {merge:true}).catch(function(err){ console.warn('Verwijderen nog niet naar Firebase geschreven', err); });
+      if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc){
+        window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'orders',String(o.id)), Object.assign({}, o, {
+          status:'Verwijderd', deleted:true, removed:true, hidden:true, cancelled:false, active:false, updatedAt:new Date().toISOString()
+        }), {merge:true}).then(function(){
+          try{ if(typeof toastMsg==='function') toastMsg('Opdracht verwijderd en naar Firebase geschreven'); }catch(e){}
+        }).catch(function(err){ console.warn('V186 Firebase order verwijder sync later', err); });
       }
     }catch(e){}
+    try{ if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase==='function') setTimeout(function(){ window.BNSFirebaseSync.uploadLocalToFirebase('delete-order-v186'); },250); }catch(e){}
+  }
+  function renderAgain(){
     try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
     try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    try{ if(typeof renderDashboard==='function') renderDashboard(); }catch(e){}
     try{ if(typeof renderOrdersFinal==='function') renderOrdersFinal(); }catch(e){}
   }
-  function removeOrder(id){
-    var list=orderList();
-    var o=list.find(function(x){ return String(x.id)===String(id); });
-    if(!o) return false;
-    var nr = o.number || o.title || id;
-    var ok = window.confirm('Weet je zeker dat je opdracht '+nr+' wilt verwijderen?\n\nDe opdracht gaat naar Verwijderde opdrachten en wordt niet definitief gewist.');
-    if(!ok) return true;
-    o.status='Verwijderd';
-    o.deleted=true;
-    o.deletedAt=new Date().toISOString();
-    o.cancelled=false;
-    o.updatedAt=new Date().toISOString();
-    saveAndSync(o);
-    setTimeout(function(){ saveAndSync(o); }, 350);
+  function deleteOrderById(id, ask){
+    var o=findOrder(id); if(!o) return false;
+    var nr=o.number||o.title||o.id;
+    if(ask!==false){
+      if(!window.confirm('Weet je zeker dat je opdracht '+nr+' wilt verwijderen?\n\nDe opdracht gaat naar Verwijderde opdrachten en verdwijnt ook van de telefoon.')) return true;
+    }
+    markDeleted(o);
+    saveLocalAll();
+    syncDeleted(o);
+    renderAgain();
+    setTimeout(function(){ saveLocalAll(); syncDeleted(o); renderAgain(); }, 700);
     return true;
   }
+  function idFromButton(btn){
+    var oc=''; try{ oc=btn.getAttribute('onclick')||''; }catch(e){}
+    var m=oc.match(/(?:cancel|editOrder|restore|markDone)\(['"]([^'"]+)['"]\)/i); if(m) return m[1];
+    var card=btn.closest && (btn.closest('[data-bns-order-id]') || btn.closest('[data-order-id]') || btn.closest('.order-card') || btn.closest('.bns-card'));
+    if(card){
+      var id=card.getAttribute('data-bns-order-id') || card.getAttribute('data-order-id') || card.getAttribute('data-id') || '';
+      if(id) return id;
+      var edit=card.querySelector('button[onclick*="editOrder"],button[onclick*="cancel"]');
+      if(edit){ var eoc=edit.getAttribute('onclick')||''; var mm=eoc.match(/(?:editOrder|cancel)\(['"]([^'"]+)['"]\)/i); if(mm) return mm[1]; }
+      var txt=T(card.textContent);
+      var hit=orders().find(function(o){ return o && o.number && txt.indexOf(String(o.number))>=0; });
+      if(hit) return hit.id;
+    }
+    return '';
+  }
   function patchButtons(){
-    A('.order-card button').forEach(function(btn){
-      var txt=L(btn.textContent);
-      if(txt==='annuleren'){
-        btn.textContent='Verwijderen';
-        btn.classList.add('danger','tw-v184-delete-order');
-        btn.title='Verwijder opdracht naar Verwijderde opdrachten';
-      }
+    A('button').forEach(function(btn){
+      var t=L(btn.textContent);
+      var oc=L(btn.getAttribute('onclick')||'');
+      if(t==='annuleren' && oc.indexOf('cancel(')>=0){ btn.textContent='Verwijderen'; }
       if(L(btn.textContent)==='verwijderen'){
-        btn.classList.add('danger','tw-v184-delete-order');
+        btn.classList.add('danger','tw-v186-delete-order');
         btn.style.cursor='pointer';
         btn.style.pointerEvents='auto';
+        btn.title='Verplaats opdracht naar Verwijderde opdrachten en verberg op telefoon';
       }
     });
   }
   function css(){
-    if(document.getElementById('twV184Css')) return;
-    var s=document.createElement('style'); s.id='twV184Css';
-    s.textContent='.tw-v184-delete-order{background:#dc2626!important;color:#fff!important;border:0!important;cursor:pointer!important;opacity:1!important}.tw-v184-delete-order:hover{filter:brightness(.9)!important;transform:translateY(-1px)}';
+    if(document.getElementById('twV186Css')) return;
+    var s=document.createElement('style'); s.id='twV186Css';
+    s.textContent='.tw-v186-delete-order{background:#dc2626!important;color:#fff!important;border:0!important;cursor:pointer!important;opacity:1!important}.tw-v186-delete-order:hover{filter:brightness(.9)!important;transform:translateY(-1px)!important}';
     document.head.appendChild(s);
   }
+  var oldCancel=null; try{ oldCancel=window.cancel; }catch(e){}
+  window.cancel=function(oid){ return deleteOrderById(oid,true); };
+  window.BNS_V186_DELETE_ORDER=function(oid){ return deleteOrderById(oid,true); };
   document.addEventListener('click', function(ev){
-    var btn = ev.target && ev.target.closest && ev.target.closest('button');
-    if(!btn) return;
-    if(!btn.closest('.order-card')) return;
-    var txt=L(btn.textContent);
-    if(txt!=='annuleren' && txt!=='verwijderen') return;
-    var id=getIdFromButton(btn);
-    if(!id) return;
+    var btn=ev.target && ev.target.closest && ev.target.closest('button'); if(!btn) return;
+    var t=L(btn.textContent); var oc=L(btn.getAttribute('onclick')||'');
+    if(t!=='verwijderen' && !(t==='annuleren' && oc.indexOf('cancel(')>=0)) return;
+    var id=idFromButton(btn); if(!id) return;
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
-    removeOrder(id);
+    deleteOrderById(id,true);
     return false;
   }, true);
   function tick(){ css(); patchButtons(); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,150); }); else setTimeout(tick,100);
-  setTimeout(tick,500); setTimeout(tick,1200); setInterval(tick,2000);
-})();
-
-
-/* ===== V185 Tapwagen: verwijderde opdrachten ook voor telefoon/driver verbergen ===== */
-(function(){
-  function T(v){ return (v==null?'':String(v)).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function isDeletedOrder(o){
-    var s=L(o&&o.status);
-    return !!(o && (o.deleted===true || o.removed===true || o.hidden===true || o.archived===true || s==='verwijderd' || s==='gewist' || s==='deleted' || s==='trash'));
-  }
-  window.BNS_IS_DELETED_ORDER_V185 = isDeletedOrder;
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,100); }); else setTimeout(tick,100);
+  setTimeout(tick,500); setTimeout(tick,1200); setInterval(tick,2500);
 })();
