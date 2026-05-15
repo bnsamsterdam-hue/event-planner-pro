@@ -15070,3 +15070,91 @@ setInterval(install,1500);
   setTimeout(applyButton, 2200);
   setInterval(applyButton, 700);
 })();
+
+/* =========================================================
+   V180 - systeemmelding knop definitief rustig
+   - Maakt de V179-filter de enige waarheid voor de kleur/teller.
+   - Corrigeert oude render/snapshot code direct terug zodat de knop niet rood/groen flikkert.
+   - Wist niets en verandert geen Firebase-data.
+   ========================================================= */
+(function BNS_V180_ALERT_BUTTON_AUTHORITY(){
+  'use strict';
+  if (window.__BNS_V180_ALERT_BUTTON_AUTHORITY__) return;
+  window.__BNS_V180_ALERT_BUTTON_AUTHORITY__ = true;
+
+  var STYLE_ID = 'bnsV180AlertButtonAuthorityStyle';
+  var CLOSED_IDS_KEY = 'bns_v178_closed_alert_ids';
+  var CLOSED_BEFORE_KEY = 'bns_v179_closed_before_iso';
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return {alerts:[]}; }
+  function alerts(){ var s=S(); return Array.isArray(s.alerts) ? s.alerts : []; }
+  function getJson(key){ try{ return JSON.parse(localStorage.getItem(key)||'{}') || {}; }catch(e){ return {}; } }
+  function parseTime(v){ var t=Date.parse(T(v)); return isNaN(t) ? 0 : t; }
+  function closedBeforeMs(){ return parseTime(localStorage.getItem(CLOSED_BEFORE_KEY) || ''); }
+  function textOf(a){ return L([a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text,a&&a.source,a&&a.status,a&&a.kind].join(' ')); }
+  function alertTimeMs(a){ return parseTime(a && (a.createdAt || a.time || a.date || a.updatedAt)); }
+  function isPhotoOrSignature(a){ return /foto|photo|handtekening|signature/.test(textOf(a)); }
+  function isClosed(a){
+    if(!a) return true;
+    var id = T(a.id || a.alertId || a.key);
+    if(id && getJson(CLOSED_IDS_KEY)[id]) return true;
+    if(a.resolved || a.deleted || a.removed || a.closed || a.hidden || a.archived) return true;
+    var st = L(a.status || a.state || '');
+    if(st === 'opgelost' || st === 'afgehandeld' || st === 'verwijderd' || st === 'closed' || st === 'deleted' || st === 'resolved') return true;
+    var cb = closedBeforeMs();
+    var at = alertTimeMs(a);
+    if(cb && (!at || at <= cb)) return true;
+    return false;
+  }
+  function isAllowedOpen(a){
+    if(isClosed(a) || isPhotoOrSignature(a)) return false;
+    var t = textOf(a);
+    if(/vermissing|missing|vermist/.test(t)) return false;
+    return /storing|schade/.test(t) || /(^|\s)melding(\s|$)/.test(t) || /bezorger melding/.test(t);
+  }
+  function count(){ return alerts().filter(isAllowedOpen).length; }
+  function style(){
+    if(E(STYLE_ID)) return;
+    var st=document.createElement('style'); st.id=STYLE_ID;
+    st.textContent = '#alertsBtn.bns-v180-zero,#alertsBtn.bns-v180-zero:hover,#alertsBtn.bns-v180-zero:focus{background:#16a34a!important;color:#fff!important;border-color:#16a34a!important;box-shadow:none!important;animation:none!important;filter:none!important}#alertsBtn.bns-v180-open,#alertsBtn.bns-v180-open:hover,#alertsBtn.bns-v180-open:focus{background:#dc2626!important;color:#fff!important;border-color:#dc2626!important;animation:none!important;filter:none!important}';
+    document.head.appendChild(st);
+  }
+  var applying = false;
+  function apply(){
+    if(applying) return;
+    applying = true;
+    try{
+      style();
+      var b = E('alertsBtn');
+      if(!b) return;
+      var n = count();
+      b.textContent = n ? '🚨 Systeemmeldingen ('+n+')' : 'Systeemmeldingen (0)';
+      ['bns-v176-alert-open','bns-v178-alert-open','bns-v179-open'].forEach(function(c){ b.classList.remove(c); });
+      b.classList.toggle('bns-v180-open', n > 0);
+      b.classList.toggle('bns-v180-zero', n === 0);
+      b.style.setProperty('background', n ? '#dc2626' : '#16a34a', 'important');
+      b.style.setProperty('color', '#ffffff', 'important');
+      b.style.setProperty('border-color', n ? '#dc2626' : '#16a34a', 'important');
+      b.style.setProperty('animation', 'none', 'important');
+      b.style.setProperty('filter', 'none', 'important');
+      b.dataset.bnsV180Count = String(n);
+    }finally{
+      applying = false;
+    }
+  }
+  function startObserver(){
+    var b = E('alertsBtn');
+    if(!b || b.dataset.bnsV180Observed === '1') return;
+    b.dataset.bnsV180Observed = '1';
+    try{
+      new MutationObserver(function(){ requestAnimationFrame(apply); }).observe(b, {attributes:true, childList:true, characterData:true, subtree:true});
+    }catch(e){}
+  }
+  function tick(){ apply(); startObserver(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick, 50); }); else setTimeout(tick, 50);
+  setTimeout(tick, 250); setTimeout(tick, 700); setTimeout(tick, 1500); setTimeout(tick, 3000);
+  setInterval(tick, 250);
+})();
