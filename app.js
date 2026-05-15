@@ -15952,3 +15952,180 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,100); }); else setTimeout(tick,80);
   setTimeout(tick,500); setTimeout(tick,1200); setInterval(tick,2000);
 })();
+
+/* ===== V188 Tapwagen: stabiele wis-knoppen media/order + eigen deelmenu =====
+   - Wis/verwijderknoppen blijven zichtbaar na render-refresh.
+   - Overzicht bestelling media/foto/handtekening/meldingen krijgen Wis-knop.
+   - Delen krijgt eigen menu: WhatsApp, E-mail, SMS, Kopieren, Windows delen.
+   - Geen Amsterdam PIN, geen reset/wis-bedrijf functie.
+*/
+(function(){
+  if(window.__twV188MediaShareDeleteFix) return;
+  window.__twV188MediaShareDeleteFix = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];}); }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
+  function alerts(){ var s=stateObj(); return s && Array.isArray(s.alerts) ? s.alerts : []; }
+  function orders(){ var s=stateObj(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function saveLocal(){
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof saveState==='function') saveState(); }catch(e){}
+    try{ var s=stateObj(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); localStorage.setItem('eventPlannerProState', JSON.stringify(s)); } }catch(e){}
+  }
+  function toast(t){ try{ if(typeof toastMsg==='function') toastMsg(t); else if(typeof toast==='function') toast(t); else console.log(t); }catch(e){} }
+  function alertById(id){ return alerts().find(function(a){ return String(a && a.id)===String(id); }); }
+  function alertLabel(a){ var t=T(a && (a.type||a.title)) || 'Melding'; if(/foto/i.test(t)&&/voor/i.test(t)) return 'Foto voor levering'; if(/foto/i.test(t)&&/na/i.test(t)) return 'Foto na levering'; return t; }
+  function shareText(a){
+    if(!a) return '';
+    return [
+      alertLabel(a),
+      a.orderNumber || a.orderTitle ? 'Opdracht: '+T([a.orderNumber,a.orderTitle].filter(Boolean).join(' - ')) : '',
+      a.customerName ? 'Klant: '+T(a.customerName) : '',
+      a.driverName || a.from ? 'Bezorger: '+T(a.driverName||a.from) : '',
+      a.time || a.createdAt ? 'Tijd: '+T(a.time||a.createdAt) : '',
+      T(a.note||a.message||a.text||'')
+    ].filter(Boolean).join('\n');
+  }
+  function closeShare(){ var m=E('twV188ShareModal'); if(m) m.remove(); }
+  function showShare(id){
+    var a=alertById(id); if(!a) return;
+    closeShare();
+    var txt=shareText(a);
+    var enc=encodeURIComponent(txt);
+    var subject=encodeURIComponent(alertLabel(a)+' '+T(a.orderNumber||''));
+    var m=document.createElement('div');
+    m.id='twV188ShareModal';
+    m.innerHTML='<div class="tw-v188-share-card">'+
+      '<button type="button" class="tw-v188-close" data-close="1">×</button>'+
+      '<h2>Delen</h2><p>Kies hoe je deze melding wilt delen.</p>'+
+      '<textarea readonly>'+H(txt)+'</textarea>'+
+      '<div class="tw-v188-share-grid">'+
+        '<a class="wa" target="_blank" rel="noopener" href="https://wa.me/?text='+enc+'">WhatsApp</a>'+
+        '<a class="mail" href="mailto:?subject='+subject+'&body='+enc+'">E-mail</a>'+
+        '<a class="sms" href="sms:?&body='+enc+'">SMS</a>'+
+        '<button type="button" data-copy="1">Kopieer tekst</button>'+
+        '<button type="button" data-native="1">Windows delen</button>'+
+      '</div>'+
+    '</div>';
+    document.body.appendChild(m);
+    m.addEventListener('click',function(ev){
+      if(ev.target===m || ev.target.getAttribute('data-close')) closeShare();
+      if(ev.target.getAttribute('data-copy')){ try{ navigator.clipboard.writeText(txt).then(function(){ toast('Tekst gekopieerd'); }); }catch(e){ window.prompt('Kopieer tekst:', txt); } }
+      if(ev.target.getAttribute('data-native')){ if(navigator.share){ navigator.share({title:alertLabel(a),text:txt}).catch(function(){}); } else { toast('Windows delen niet beschikbaar. Gebruik WhatsApp, e-mail of kopieer.'); } }
+    });
+  }
+  async function writeAlertRemote(a){
+    if(!a || !a.id) return;
+    try{ if(typeof writeAlert==='function'){ writeAlert(a); } }catch(e){}
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.db){
+        var fs=window.BNS.fs;
+        await fs.setDoc(fs.doc(window.BNS.db,'alerts',String(a.id)), Object.assign({},a,{updatedAt:new Date().toISOString()}), {merge:true});
+      }
+    }catch(e){}
+  }
+  function removeAlertStable(id){
+    var a=alertById(id);
+    if(a){
+      a.resolved=true; a.deleted=true; a.hidden=true; a.status='verwijderd';
+      a.resolvedAt=a.resolvedAt||new Date().toISOString();
+      a.deletedAt=a.deletedAt||new Date().toISOString();
+      writeAlertRemote(a);
+    }
+    var s=stateObj(); if(s && Array.isArray(s.alerts)){ s.alerts=s.alerts.filter(function(x){ return String(x && x.id)!==String(id); }); }
+    saveLocal();
+    try{ if(typeof TapwagenV141RefreshAlerts==='function') setTimeout(TapwagenV141RefreshAlerts,350); }catch(e){}
+    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+    toast('Melding verwijderd');
+    setTimeout(patchAll,120);
+  }
+  function extractAlertId(btn){
+    var oc=btn && (btn.getAttribute('onclick')||'');
+    var m=oc.match(/TapwagenV141(?:ShareAlert|PrintAlert|DeleteAlert|ResolveAlert)\(['"]([^'"]+)['"]\)/i);
+    return m ? m[1] : '';
+  }
+  function patchMediaCards(){
+    A('.tw-v141-card,.tw-v141-alert').forEach(function(card){
+      var actions=card.querySelector('.tw-v141-actions');
+      if(!actions) return;
+      var share=actions.querySelector('button[onclick*="TapwagenV141ShareAlert"]');
+      var id=share ? extractAlertId(share) : '';
+      if(!id) return;
+      // Maak Delen eigen menu, niet alleen Windows share.
+      if(share && share.dataset.twV188!=='1'){
+        share.dataset.twV188='1';
+        share.onclick=function(ev){ if(ev){ev.preventDefault(); ev.stopPropagation();} showShare(id); return false; };
+      }
+      // Voeg in overzicht bestelling ook Wis toe. In systeemmeldingen bestond die soms al.
+      if(!actions.querySelector('[data-tw-v188-delete="'+CSS.escape(id)+'"]')){
+        var b=document.createElement('button');
+        b.type='button'; b.textContent='Wis'; b.className='danger tw-v188-delete-media'; b.setAttribute('data-tw-v188-delete',id);
+        b.onclick=function(ev){ if(ev){ev.preventDefault(); ev.stopPropagation();} if(confirm('Deze melding/foto/handtekening uit dit overzicht wissen?')) removeAlertStable(id); return false; };
+        actions.appendChild(b);
+      }
+    });
+  }
+  function extractOrderIdFromCard(card){
+    if(!card) return '';
+    var did=card.getAttribute('data-order-id')||card.getAttribute('data-bns-order-id'); if(did) return did;
+    var b=card.querySelector('button[onclick*="editOrder"],button[onclick*="cancel"],button[onclick*="restore"]');
+    if(b){ var oc=b.getAttribute('onclick')||''; var m=oc.match(/(?:editOrder|cancel|restore)\(['"]([^'"]+)['"]\)/i); if(m) return m[1]; }
+    var txt=T(card.textContent); var num=(txt.match(/\b20\d{2}-\d+\b/)||[])[0];
+    if(num){ var o=orders().find(function(x){ return String(x.number||'')===num; }); if(o) return o.id; }
+    return '';
+  }
+  function patchOrderDeleteButtons(){
+    A('.order-card').forEach(function(card){
+      var actions=card.querySelector('.actions'); if(!actions) return;
+      if(actions.querySelector('.tw-v187-delete-order,.tw-v188-delete-order')) return;
+      var id=extractOrderIdFromCard(card); if(!id) return;
+      var b=document.createElement('button');
+      b.type='button'; b.textContent='Verwijder opdracht'; b.className='danger tw-v187-delete-order tw-v188-delete-order';
+      b.onclick=function(ev){
+        if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+        // laat V187 eigen modal dit afhandelen via click event
+        var e=new MouseEvent('click',{bubbles:true,cancelable:true});
+        b.dispatchEvent(e);
+        return false;
+      };
+      // Geef V187 herkenning via data/kaart
+      card.setAttribute('data-order-id', id);
+      actions.appendChild(b);
+    });
+  }
+  function css(){
+    if(E('twV188Css')) return;
+    var s=document.createElement('style'); s.id='twV188Css';
+    s.textContent=''+
+      '.tw-v141-actions{display:flex!important;gap:8px!important;flex-wrap:wrap!important}.tw-v141-actions button{display:inline-flex!important;align-items:center!important;justify-content:center!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important}.tw-v188-delete-media{background:#dc2626!important;color:white!important;border:0!important;border-radius:10px!important;padding:8px 11px!important;font-weight:900!important;cursor:pointer!important}.tw-v188-delete-order{display:inline-flex!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important}.tw-v188-share-card{background:#fff!important;color:#111827!important;border:3px solid #111827!important;border-radius:22px!important;max-width:min(720px,94vw)!important;width:100%!important;padding:22px!important;box-shadow:0 24px 80px rgba(0,0,0,.35)!important;position:relative!important;font-family:Arial,Helvetica,sans-serif!important}#twV188ShareModal{position:fixed!important;inset:0!important;background:rgba(15,23,42,.58)!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:20px!important}.tw-v188-close{position:absolute!important;right:14px!important;top:12px!important;border:0!important;background:#e5e7eb!important;color:#111827!important;border-radius:999px!important;width:36px!important;height:36px!important;font-size:24px!important;cursor:pointer!important}.tw-v188-share-card h2{margin:0 0 8px!important;font-size:28px!important}.tw-v188-share-card textarea{width:100%!important;min-height:150px!important;border:2px solid #cbd5e1!important;border-radius:14px!important;padding:12px!important;color:#111827!important;background:#fff!important;font-size:15px!important}.tw-v188-share-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))!important;gap:10px!important;margin-top:14px!important}.tw-v188-share-grid a,.tw-v188-share-grid button{border:0!important;border-radius:14px!important;padding:13px 14px!important;text-align:center!important;text-decoration:none!important;font-weight:900!important;cursor:pointer!important;background:#334155!important;color:white!important}.tw-v188-share-grid .wa{background:#16a34a!important}.tw-v188-share-grid .mail{background:#2563eb!important}.tw-v188-share-grid .sms{background:#7c3aed!important}';
+    document.head.appendChild(s);
+  }
+  function patchAll(){ css(); patchMediaCards(); patchOrderDeleteButtons(); }
+  // Override publieke share functies zodat alle bestaande knoppen eigen deelmenu gebruiken.
+  window.TapwagenV141ShareAlert=function(id){ showShare(id); };
+  var oldCustomerShare=window.TapwagenV141ShareCustomer;
+  window.TapwagenV141ShareCustomer=function(name){
+    try{ if(typeof oldCustomerShare==='function' && !navigator.share) return oldCustomerShare(name); }catch(e){}
+    var rows=alerts().filter(function(a){ return T(a.customerName||a.klant||a.customer)==T(name) && !a.deleted && !a.resolved; });
+    var txt='Status klant: '+name+'\n\n'+rows.map(function(a,i){ return (i+1)+'. '+shareText(a); }).join('\n\n');
+    var fake={id:'customer_'+Date.now(),type:'Klantstatus',customerName:name,message:txt};
+    // Toon hetzelfde menu zonder fake op te slaan.
+    closeShare();
+    var enc=encodeURIComponent(txt), subject=encodeURIComponent('Status klant '+name);
+    var m=document.createElement('div'); m.id='twV188ShareModal';
+    m.innerHTML='<div class="tw-v188-share-card"><button type="button" class="tw-v188-close" data-close="1">×</button><h2>Klantstatus delen</h2><textarea readonly>'+H(txt)+'</textarea><div class="tw-v188-share-grid"><a class="wa" target="_blank" rel="noopener" href="https://wa.me/?text='+enc+'">WhatsApp</a><a class="mail" href="mailto:?subject='+subject+'&body='+enc+'">E-mail</a><a class="sms" href="sms:?&body='+enc+'">SMS</a><button type="button" data-copy="1">Kopieer tekst</button><button type="button" data-native="1">Windows delen</button></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click',function(ev){ if(ev.target===m || ev.target.getAttribute('data-close')) closeShare(); if(ev.target.getAttribute('data-copy')){ try{ navigator.clipboard.writeText(txt).then(function(){ toast('Tekst gekopieerd'); }); }catch(e){ window.prompt('Kopieer tekst:', txt); } } if(ev.target.getAttribute('data-native')){ if(navigator.share){ navigator.share({title:'Status klant '+name,text:txt}).catch(function(){}); } else toast('Windows delen niet beschikbaar.'); } });
+  };
+  document.addEventListener('click',function(ev){
+    var del=ev.target && ev.target.closest && ev.target.closest('.tw-v188-delete-media');
+    if(del){ var id=del.getAttribute('data-tw-v188-delete'); if(id){ ev.preventDefault(); ev.stopPropagation(); removeAlertStable(id); return false; } }
+  },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(patchAll,150); }); else setTimeout(patchAll,100);
+  setTimeout(patchAll,700); setTimeout(patchAll,1600); setInterval(patchAll,1800);
+})();
