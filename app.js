@@ -14795,3 +14795,157 @@ setInterval(install,1500);
   setTimeout(installButton, 2200);
   setInterval(installButton, 4000);
 })();
+
+
+/* =========================================================
+   V178 - Tapwagen meldingen echt afsluiten + oude Firebase meldingen opschonen
+   - Nieuwe meldingen: alleen Storing, Schade en Melding tellen als systeemmelding.
+   - Foto's en handtekeningen worden nooit open systeemmelding.
+   - Afmelden/verwijderen schrijft resolved/deleted naar Firebase alerts.
+   - Extra knop: Alle open systeemmeldingen afsluiten, voor oude 36 meldingen.
+   - Sluit lokaal en remote; data blijft als afgehandeld backup bewaard.
+   ========================================================= */
+(function BNS_V178_ALERT_HARD_CLOSE_FIX(){
+  'use strict';
+  if (window.__BNS_V178_ALERT_HARD_CLOSE_FIX__) return;
+  window.__BNS_V178_ALERT_HARD_CLOSE_FIX__ = true;
+
+  var MODAL_ID = 'bnsV178AlertModal';
+  var STYLE_ID = 'bnsV178AlertStyle';
+  var CLOSED_KEY = 'bns_v178_closed_alert_ids';
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return {orders:[], alerts:[]}; }
+  function ensure(){ var s=S(); if(!Array.isArray(s.orders)) s.orders=[]; if(!Array.isArray(s.alerts)) s.alerts=[]; return s; }
+  function fbReady(){ return !!(window.BNS && window.BNS.fs && window.BNS.db); }
+  function fs(){ return window.BNS && window.BNS.fs; }
+  function db(){ return window.BNS && window.BNS.db; }
+  function now(){ return new Date().toISOString(); }
+  function closedMap(){ try{ return JSON.parse(localStorage.getItem(CLOSED_KEY)||'{}') || {}; }catch(e){ return {}; } }
+  function setClosed(id){ if(!id) return; try{ var m=closedMap(); m[String(id)] = now(); localStorage.setItem(CLOSED_KEY, JSON.stringify(m)); }catch(e){} }
+  function isClosedId(id){ var m=closedMap(); return !!(id && m[String(id)]); }
+  function saveLocal(){ try{ if(typeof save === 'function') save(); }catch(e){} try{ if(typeof saveState === 'function') saveState(); }catch(e){} try{ if(typeof saveBns === 'function') saveBns(); }catch(e){} try{ localStorage.setItem('bns_state', JSON.stringify(ensure())); localStorage.setItem('bns_app_state', JSON.stringify(ensure())); }catch(e){} }
+
+  function textOf(a){ return L([a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text,a&&a.source,a&&a.status].join(' ')); }
+  function isClosed(a){
+    if(!a) return true;
+    if(isClosedId(a.id)) return true;
+    if(a.resolved || a.deleted || a.removed || a.closed || a.hidden || a.archived) return true;
+    var st=L(a.status || a.state || '');
+    return st === 'opgelost' || st === 'afgehandeld' || st === 'verwijderd' || st === 'closed' || st === 'deleted' || st === 'resolved';
+  }
+  function isPhotoOrSignature(a){ return /foto|photo|handtekening|signature/.test(textOf(a)); }
+  function allowedOpen(a){
+    if(isClosed(a) || isPhotoOrSignature(a)) return false;
+    var t=textOf(a);
+    if(/vermissing|missing|vermist/.test(t)) return false;
+    return /storing|schade/.test(t) || /(^|\s)melding(\s|$)/.test(t) || /bezorger melding/.test(t);
+  }
+  function openAlerts(){ return (ensure().alerts || []).filter(allowedOpen); }
+  function normalizeAllLocal(){
+    var changed=false, s=ensure();
+    s.alerts = (s.alerts||[]).map(function(a){
+      if(!a) return a;
+      if(isClosedId(a.id) || isPhotoOrSignature(a) || isClosed(a)){
+        if(!a.resolved){ a.resolved=true; changed=true; }
+        if(isClosedId(a.id)){ a.deleted = a.deleted || true; a.status = a.status || 'verwijderd'; changed=true; }
+      }
+      return a;
+    });
+    if(changed) saveLocal();
+  }
+  function writeRemote(a){
+    try{
+      if(!fbReady() || !a || !a.id || !fs().setDoc || !fs().doc) return;
+      fs().setDoc(fs().doc(db(), 'alerts', String(a.id)), Object.assign({}, a, {updatedAt:now()}), {merge:true}).catch(function(){});
+    }catch(e){}
+  }
+  function deleteRemote(id){ try{ if(fbReady() && id && fs().deleteDoc && fs().doc) fs().deleteDoc(fs().doc(db(), 'alerts', String(id))).catch(function(){}); }catch(e){} }
+  function closeOne(id, action, note){
+    var s=ensure(), found=null;
+    s.alerts = (s.alerts||[]).map(function(a){
+      if(String(a&&a.id) !== String(id)) return a;
+      found=a; setClosed(a.id);
+      a.resolved = true; a.closed = true; a.status = action === 'delete' ? 'verwijderd' : 'opgelost';
+      if(action === 'delete'){ a.deleted = true; a.deletedAt = now(); }
+      else { a.resolvedAt = now(); a.resolveText = note || 'Opgelost'; }
+      a.updatedAt = now();
+      return a;
+    });
+    if(found){ writeRemote(found); if(action==='delete') setTimeout(function(){ deleteRemote(id); }, 1000); }
+    saveLocal(); updateButton(); setTimeout(openModal, 120);
+  }
+  function closeAllOpen(){
+    var rows=openAlerts();
+    if(!rows.length){ alert('Geen open systeemmeldingen om af te sluiten.'); return; }
+    if(!confirm('Alle '+rows.length+' open systeemmeldingen afsluiten in Firebase? Data blijft als afgehandeld bewaard.')) return;
+    rows.forEach(function(a){
+      setClosed(a.id);
+      a.resolved = true; a.closed = true; a.status = 'opgelost'; a.resolvedAt = now(); a.resolveText = 'Bulk afgesloten door beheer'; a.updatedAt = now();
+      writeRemote(a);
+    });
+    saveLocal(); updateButton(); setTimeout(openModal, 250);
+    alert(rows.length + ' meldingen zijn afgesloten. Maak daarna eventueel 1 nieuwe testmelding en druk F5.');
+  }
+  function resolve(id){ var txt=prompt('Afmelding / oplossing:', 'Opgelost'); if(txt===null) return; closeOne(id, 'resolve', txt || 'Opgelost'); }
+  function remove(id){ if(!confirm('Melding verwijderen/afsluiten in Firebase?')) return; closeOne(id, 'delete', 'Verwijderd'); }
+
+  function style(){
+    if(E(STYLE_ID)) return;
+    var st=document.createElement('style'); st.id=STYLE_ID;
+    st.textContent = '#'+MODAL_ID+'{position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.58);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:22px}#'+MODAL_ID+' .box{background:#fff;color:#111827;border-radius:22px;padding:22px;max-width:920px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.30)}#'+MODAL_ID+' .top{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap}#'+MODAL_ID+' .row{border:1px solid #d8dee9;border-radius:16px;padding:14px;margin:12px 0;background:#f8fafc}#'+MODAL_ID+' button{border:0;border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}#'+MODAL_ID+' .ok{background:#16a34a;color:#fff}#'+MODAL_ID+' .danger{background:#dc2626;color:#fff}#'+MODAL_ID+' .blue{background:#2563eb;color:#fff}#'+MODAL_ID+' .dark{background:#111827;color:#fff}.bns-v178-alert-open{background:#dc2626!important;color:#fff!important}.bns-v178-alert-zero{background:#16a34a!important;color:#fff!important}';
+    document.head.appendChild(st);
+  }
+  function row(a){
+    var msg=T(a.note||a.message||a.text||'');
+    return '<div class="row"><b>'+H(a.type||a.title||'Melding')+'</b><br><small>'+H(a.time||a.createdAt||'')+'</small>'+
+      '<div><b>Opdracht:</b> '+H(a.orderNumber||a.linkedOrderNumber||'')+' '+H(a.orderTitle||'')+'</div>'+
+      '<div><b>Klant:</b> '+H(a.customerName||a.klant||'')+'</div>'+
+      (msg?'<p style="white-space:pre-wrap">'+H(msg)+'</p>':'')+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="ok" type="button" data-v178-resolve="'+H(a.id)+'">Afmelden</button><button class="danger" type="button" data-v178-delete="'+H(a.id)+'">Verwijderen</button></div></div>';
+  }
+  function openModal(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    normalizeAllLocal(); style(); var old=E(MODAL_ID); if(old) old.remove();
+    var rows=openAlerts(); var m=document.createElement('div'); m.id=MODAL_ID;
+    m.innerHTML = '<div class="box"><div class="top"><h2>🚨 Systeemmeldingen</h2><div><button class="dark" type="button" data-v178-close="1">Sluiten</button></div></div><p>Alleen open meldingen van bezorger: <b>Storing</b>, <b>Schade</b> en <b>Melding</b>. Foto\'s en handtekeningen blijven bij de opdracht/klantmap en tellen niet mee.</p>'+
+      '<div style="margin:10px 0"><button class="blue" type="button" data-v178-clean="1">Alle open systeemmeldingen afsluiten</button></div>'+
+      (rows.length?rows.map(row).join(''):'<p>Geen open systeemmeldingen.</p>')+'</div>';
+    document.body.appendChild(m);
+    A('[data-v178-close]', m).forEach(function(b){ b.onclick=function(){ m.remove(); }; });
+    A('[data-v178-clean]', m).forEach(function(b){ b.onclick=closeAllOpen; });
+    A('[data-v178-resolve]', m).forEach(function(b){ b.onclick=function(){ resolve(b.getAttribute('data-v178-resolve')); }; });
+    A('[data-v178-delete]', m).forEach(function(b){ b.onclick=function(){ remove(b.getAttribute('data-v178-delete')); }; });
+    return false;
+  }
+  function updateButton(){
+    normalizeAllLocal(); var b=E('alertsBtn'); if(!b) return; var n=openAlerts().length;
+    b.textContent = n ? '🚨 Systeemmeldingen ('+n+')' : 'Systeemmeldingen (0)';
+    b.classList.toggle('bns-v178-alert-open', n>0); b.classList.toggle('bns-v178-alert-zero', n===0); b.style.animation='none';
+  }
+  function install(){
+    style(); var old=E('alertsBtn'); if(old && old.dataset.bnsV178 !== '1'){
+      var b=old.cloneNode(true); b.id=old.id; b.dataset.bnsV178='1'; old.parentNode.replaceChild(b, old); b.addEventListener('click', openModal, true);
+    }
+    updateButton();
+  }
+
+  window.BNS_V178_RESOLVE_ALERT = resolve;
+  window.BNS_V178_DELETE_ALERT = remove;
+  window.BNS_V178_CLOSE_ALL_ALERTS = closeAllOpen;
+  window.TapwagenV141ResolveAlert = resolve;
+  window.TapwagenV141DeleteAlert = remove;
+  window.BNS_A12_ALERT_RESOLVE = resolve;
+  window.BNS_A12_ALERT_DELETE = remove;
+  window.resolveAlert = resolve;
+  window.deleteAlert = remove;
+  window.openAlerts = openModal;
+  window.openAlertsV91 = openModal;
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 250); }); else setTimeout(install, 100);
+  setTimeout(install, 900); setTimeout(install, 2400); setInterval(install, 3000);
+})();
