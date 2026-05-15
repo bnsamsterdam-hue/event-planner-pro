@@ -14165,7 +14165,7 @@ setInterval(install,1500);
   [500,1200,2500,5000].forEach(function(ms){ setTimeout(install,ms); });
 })();
 
-/* ===== V163: autocomplete klanten en locaties bij nieuwe opdracht ===== */
+/* ===== V164: eigen adresboek dropdown voor klanten en locaties ===== */
 (function(){
   function E(id){ return document.getElementById(id); }
   function T(v){ return String(v == null ? '' : v).trim(); }
@@ -14175,113 +14175,159 @@ setInterval(install,1500);
     try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
     try{ return JSON.parse(localStorage.getItem('eventPlannerState') || '{}') || {}; }catch(e){ return {}; }
   }
-  function uniqKey(parts){ return parts.map(L).filter(Boolean).join('|'); }
+  function mergeNonEmpty(target, item){ Object.keys(item).forEach(function(k){ if(T(item[k]) && !T(target[k])) target[k]=item[k]; }); }
+  function normKey(parts){ return parts.map(L).filter(Boolean).join('|'); }
   function customerList(){
     var s=getState(), out=[], seen={};
     function add(c){
       c=c||{};
-      var name=T(c.name || c.customerName || c.klant);
+      var name=T(c.name || c.customerName || c.klant || c.klantNaam);
       if(!name || /^klant\s*\d+$/i.test(name)) return;
       var item={
-        id:T(c.id), name:name, street:T(c.street || c.customerStreet), zip:T(c.zip || c.postcode || c.customerZip),
-        city:T(c.city || c.plaats || c.customerCity), phone:T(c.phone || c.telefoon || c.customerPhone), email:T(c.email || c.customerEmail)
+        id:T(c.id) || ('cust_'+Math.random().toString(36).slice(2)),
+        name:name,
+        street:T(c.street || c.customerStreet || c.straat || c.adres),
+        zip:T(c.zip || c.postcode || c.customerZip || c.customerPostcode),
+        city:T(c.city || c.plaats || c.customerCity || c.customerPlace),
+        phone:T(c.phone || c.telefoon || c.customerPhone),
+        email:T(c.email || c.customerEmail),
+        source:T(c.id)?'klantenbestand':'opdracht'
       };
-      var key=uniqKey([item.name,item.street,item.zip,item.city]);
+      var key=normKey([item.name,item.street,item.zip,item.city,item.phone,item.email]);
       if(!seen[key]){ seen[key]=item; out.push(item); }
-      else Object.assign(seen[key], Object.fromEntries(Object.entries(item).filter(function(kv){return T(kv[1]);})));
+      else mergeNonEmpty(seen[key], item);
     }
     (s.customers||[]).forEach(add);
-    (s.orders||[]).forEach(function(o){ add(o.customer || {name:o.customerName, street:o.customerStreet, zip:o.customerZip, city:o.customerCity, phone:o.customerPhone, email:o.customerEmail}); });
+    (s.orders||[]).forEach(function(o){
+      add(o.customer || {id:'order_'+(o.id||o.number||''), name:o.customerName||o.klant, street:o.customerStreet||o.street||o.adres, zip:o.customerZip||o.postcode, city:o.customerCity||o.plaats, phone:o.customerPhone||o.phone, email:o.customerEmail||o.email});
+    });
     return out.sort(function(a,b){ return a.name.localeCompare(b.name,'nl'); });
   }
   function locationList(){
     var s=getState(), out=[], seen={};
     function add(l){
       l=l||{};
-      var name=T(l.name || l.locationName || l.street || l.locationStreet);
-      var street=T(l.street || l.locationStreet);
+      var name=T(l.name || l.locationName || l.locatie || l.street || l.locationStreet);
+      var street=T(l.street || l.locationStreet || l.straat || l.adres);
       var city=T(l.city || l.plaats || l.locationCity);
       if(!name && !street) return;
       var item={
-        id:T(l.id), name:name || street, street:street, zip:T(l.zip || l.postcode || l.locationZip),
-        city:city, contact:T(l.contact || l.locationContact), phone:T(l.phone || l.telefoon || l.locationPhone)
+        id:T(l.id) || ('loc_'+Math.random().toString(36).slice(2)),
+        name:name || street,
+        street:street,
+        zip:T(l.zip || l.postcode || l.locationZip),
+        city:city,
+        contact:T(l.contact || l.locationContact),
+        phone:T(l.phone || l.telefoon || l.locationPhone),
+        source:T(l.id)?'locatiebestand':'opdracht'
       };
-      var key=uniqKey([item.name,item.street,item.zip,item.city]);
+      var key=normKey([item.name,item.street,item.zip,item.city,item.phone]);
       if(!seen[key]){ seen[key]=item; out.push(item); }
-      else Object.assign(seen[key], Object.fromEntries(Object.entries(item).filter(function(kv){return T(kv[1]);})));
+      else mergeNonEmpty(seen[key], item);
     }
     (s.locations||[]).forEach(add);
-    (s.orders||[]).forEach(function(o){ add(o.location || {name:o.locationName, street:o.locationStreet, zip:o.locationZip, city:o.locationCity, contact:o.locationContact, phone:o.locationPhone}); });
+    (s.orders||[]).forEach(function(o){
+      add(o.location || {id:'order_'+(o.id||o.number||''), name:o.locationName||o.locatie, street:o.locationStreet||o.street||o.adres, zip:o.locationZip||o.postcode, city:o.locationCity||o.plaats, contact:o.locationContact, phone:o.locationPhone});
+    });
     return out.sort(function(a,b){ return a.name.localeCompare(b.name,'nl'); });
   }
-  function ensureDatalist(id){
-    var dl=E(id);
-    if(!dl){ dl=document.createElement('datalist'); dl.id=id; document.body.appendChild(dl); }
-    return dl;
+  function ensureStyle(){
+    if(E('bnsV164AddressBookStyle')) return;
+    var st=document.createElement('style'); st.id='bnsV164AddressBookStyle';
+    st.textContent='.bns-v164-suggest{position:absolute;z-index:999999;background:#fff;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 16px 40px rgba(15,23,42,.22);max-height:320px;overflow:auto;display:none;padding:6px;box-sizing:border-box}.bns-v164-row{display:block;width:100%;text-align:left;border:0;background:#fff;border-radius:10px;padding:10px 12px;cursor:pointer;color:#172033}.bns-v164-row:hover,.bns-v164-row.active{background:#eaf3ff}.bns-v164-row b{display:block;font-size:15px}.bns-v164-row small{display:block;color:#64748b;margin-top:3px;line-height:1.25}.bns-v164-empty{padding:10px 12px;color:#64748b;font-size:13px}';
+    document.head.appendChild(st);
   }
-  function fillDatalist(){
-    var cdl=ensureDatalist('bnsV163CustomerSuggestions');
-    cdl.innerHTML=customerList().slice(0,500).map(function(c){
-      var label=[c.street,c.zip,c.city].filter(Boolean).join(' ');
-      return '<option value="'+H(c.name)+'" label="'+H(label)+'"></option>';
-    }).join('');
-    var ldl=ensureDatalist('bnsV163LocationSuggestions');
-    ldl.innerHTML=locationList().slice(0,500).map(function(l){
-      var label=[l.street,l.zip,l.city].filter(Boolean).join(' ');
-      return '<option value="'+H(l.name)+'" label="'+H(label)+'"></option>';
-    }).join('');
+  function box(id){ var b=E(id); if(!b){ b=document.createElement('div'); b.id=id; b.className='bns-v164-suggest'; document.body.appendChild(b); } return b; }
+  function placeBox(input,b){ var r=input.getBoundingClientRect(); b.style.left=(window.scrollX+r.left)+'px'; b.style.top=(window.scrollY+r.bottom+4)+'px'; b.style.width=Math.max(r.width,320)+'px'; }
+  function setAny(ids,v,clear){ ids.forEach(function(id){ var el=E(id); if(el){ if(clear || T(v)) el.value=T(v); try{ el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} } }); }
+  function clearCustomerFields(){
+    setAny(['customerName'], '', false);
+    setAny(['customerStreet','customerZip','customerCity','customerPhone','customerEmail'], '', true);
   }
-  function findCustomerByTyped(v){
-    var q=L(v); if(q.length<1) return null;
-    var list=customerList();
-    return list.find(function(c){return L(c.name)===q;}) || list.find(function(c){return L(c.name).indexOf(q)===0;}) || null;
+  function clearLocationFields(){
+    setAny(['locationName'], '', false);
+    setAny(['locationStreet','locationZip','locationCity','locationContact','locationPhone'], '', true);
   }
-  function findLocationByTyped(v){
-    var q=L(v); if(q.length<1) return null;
-    var list=locationList();
-    return list.find(function(l){return L(l.name)===q;}) || list.find(function(l){return L(l.name).indexOf(q)===0;}) || null;
-  }
-  function setVal(id,v){ var el=E(id); if(el && T(v)) el.value=v; }
   function applyCustomer(c){
     if(!c) return;
-    setVal('customerName',c.name); setVal('customerStreet',c.street); setVal('customerZip',c.zip); setVal('customerCity',c.city); setVal('customerPhone',c.phone); setVal('customerEmail',c.email);
+    clearCustomerFields();
+    setAny(['customerName'], c.name, true);
+    setAny(['customerStreet'], c.street, true);
+    setAny(['customerZip'], c.zip, true);
+    setAny(['customerCity'], c.city, true);
+    setAny(['customerPhone'], c.phone, true);
+    setAny(['customerEmail'], c.email, true);
+    hideAll();
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+    try{ if(typeof renderSummary==='function') renderSummary(); }catch(e){}
   }
   function applyLocation(l){
     if(!l) return;
-    setVal('locationName',l.name); setVal('locationStreet',l.street); setVal('locationZip',l.zip); setVal('locationCity',l.city); setVal('locationContact',l.contact); setVal('locationPhone',l.phone);
+    clearLocationFields();
+    setAny(['locationName'], l.name, true);
+    setAny(['locationStreet'], l.street, true);
+    setAny(['locationZip'], l.zip, true);
+    setAny(['locationCity'], l.city, true);
+    setAny(['locationContact'], l.contact, true);
+    setAny(['locationPhone'], l.phone, true);
+    hideAll();
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+    try{ if(typeof renderSummary==='function') renderSummary(); }catch(e){}
+  }
+  function hideAll(){ ['bnsV164CustomerBox','bnsV164LocationBox'].forEach(function(id){ var b=E(id); if(b) b.style.display='none'; }); }
+  function customerMatches(q){
+    q=L(q); if(q.length<1) return [];
+    return customerList().filter(function(c){ return [c.name,c.street,c.zip,c.city,c.phone,c.email].join(' ').toLowerCase().indexOf(q)>=0; }).slice(0,12);
+  }
+  function locationMatches(q){
+    q=L(q); if(q.length<1) return [];
+    return locationList().filter(function(l){ return [l.name,l.street,l.zip,l.city,l.contact,l.phone].join(' ').toLowerCase().indexOf(q)>=0; }).slice(0,12);
+  }
+  function renderCustomerBox(input){
+    var rows=customerMatches(input.value), b=box('bnsV164CustomerBox'); placeBox(input,b);
+    b.innerHTML=rows.length?rows.map(function(c,i){ return '<button type="button" class="bns-v164-row" data-kind="customer" data-i="'+i+'"><b>'+H(c.name)+'</b><small>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+(c.phone?' - '+H(c.phone):'')+'</small></button>'; }).join(''):'<div class="bns-v164-empty">Geen klant gevonden</div>';
+    b._rows=rows; b.style.display='block';
+  }
+  function renderLocationBox(input){
+    var rows=locationMatches(input.value), b=box('bnsV164LocationBox'); placeBox(input,b);
+    b.innerHTML=rows.length?rows.map(function(l,i){ return '<button type="button" class="bns-v164-row" data-kind="location" data-i="'+i+'"><b>'+H(l.name)+'</b><small>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+(l.phone?' - '+H(l.phone):'')+'</small></button>'; }).join(''):'<div class="bns-v164-empty">Geen locatie gevonden</div>';
+    b._rows=rows; b.style.display='block';
   }
   function bind(){
-    fillDatalist();
+    ensureStyle();
     var cn=E('customerName');
-    if(cn && cn.dataset.bnsV163Auto !== '1'){
-      cn.dataset.bnsV163Auto='1'; cn.setAttribute('list','bnsV163CustomerSuggestions'); cn.setAttribute('autocomplete','off');
-      cn.addEventListener('input',function(){ fillDatalist(); });
-      cn.addEventListener('change',function(){ applyCustomer(findCustomerByTyped(cn.value)); });
-      cn.addEventListener('blur',function(){ var c=findCustomerByTyped(cn.value); if(c && L(c.name)===L(cn.value)) applyCustomer(c); });
+    if(cn && cn.dataset.bnsV164Auto!=='1'){
+      cn.dataset.bnsV164Auto='1'; cn.removeAttribute('list'); cn.setAttribute('autocomplete','off');
+      cn.addEventListener('input',function(){ renderCustomerBox(cn); });
+      cn.addEventListener('focus',function(){ if(T(cn.value)) renderCustomerBox(cn); });
+      cn.addEventListener('keydown',function(ev){ if(ev.key==='Escape') hideAll(); });
     }
     var ln=E('locationName');
-    if(ln && ln.dataset.bnsV163Auto !== '1'){
-      ln.dataset.bnsV163Auto='1'; ln.setAttribute('list','bnsV163LocationSuggestions'); ln.setAttribute('autocomplete','off');
-      ln.addEventListener('input',function(){ fillDatalist(); });
-      ln.addEventListener('change',function(){ applyLocation(findLocationByTyped(ln.value)); });
-      ln.addEventListener('blur',function(){ var l=findLocationByTyped(ln.value); if(l && L(l.name)===L(ln.value)) applyLocation(l); });
+    if(ln && ln.dataset.bnsV164Auto!=='1'){
+      ln.dataset.bnsV164Auto='1'; ln.removeAttribute('list'); ln.setAttribute('autocomplete','off');
+      ln.addEventListener('input',function(){ renderLocationBox(ln); });
+      ln.addEventListener('focus',function(){ if(T(ln.value)) renderLocationBox(ln); });
+      ln.addEventListener('keydown',function(ev){ if(ev.key==='Escape') hideAll(); });
     }
   }
+  document.addEventListener('mousedown',function(ev){
+    var row=ev.target && ev.target.closest && ev.target.closest('.bns-v164-row');
+    if(row){
+      ev.preventDefault(); ev.stopPropagation();
+      var b=row.closest('.bns-v164-suggest'), i=parseInt(row.getAttribute('data-i')||'-1',10);
+      if(row.getAttribute('data-kind')==='customer') applyCustomer((b._rows||[])[i]);
+      if(row.getAttribute('data-kind')==='location') applyLocation((b._rows||[])[i]);
+      return;
+    }
+    if(!(ev.target && ev.target.closest && ev.target.closest('.bns-v164-suggest,#customerName,#locationName'))) setTimeout(hideAll,80);
+  },true);
   document.addEventListener('click',function(ev){
     var b=ev.target && ev.target.closest && ev.target.closest('button,.nav');
-    if(!b) return;
-    setTimeout(bind,120); setTimeout(fillDatalist,500);
+    if(b) setTimeout(bind,120);
   },true);
-  document.addEventListener('input',function(ev){
-    if(ev.target && ['customerName','locationName','adminCustomerSearch','adminLocationSearch'].indexOf(ev.target.id)>=0){ setTimeout(fillDatalist,80); }
-  },true);
-  document.addEventListener('change',function(ev){
-    if(ev.target && ev.target.id==='customerName') applyCustomer(findCustomerByTyped(ev.target.value));
-    if(ev.target && ev.target.id==='locationName') applyLocation(findLocationByTyped(ev.target.value));
-  },true);
+  window.addEventListener('scroll',hideAll,true);
+  window.addEventListener('resize',hideAll);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(bind,250); }); else setTimeout(bind,250);
   [800,1600,3000,6000].forEach(function(ms){ setTimeout(bind,ms); });
-  window.BNS_V163_refreshCustomerLocationAutocomplete=function(){ fillDatalist(); bind(); };
+  window.BNS_V164_refreshAddressBook=function(){ bind(); };
 })();
