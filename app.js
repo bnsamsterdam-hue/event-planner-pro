@@ -15723,3 +15723,94 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,200); }); else setTimeout(tick,100);
   setTimeout(tick,700); setTimeout(tick,1500); setInterval(tick,2500);
 })();
+
+/* ===== V184 Tapwagen: opdrachtkaart Annuleren -> Verwijderen met bevestiging ===== */
+(function(){
+  function T(v){ return (v==null?'':String(v)).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function orderList(){ try{ if(window.state && Array.isArray(window.state.orders)) return window.state.orders; }catch(e){} try{ if(typeof state!=='undefined' && state && Array.isArray(state.orders)) return state.orders; }catch(e){} return []; }
+  function getIdFromButton(btn){
+    var txt='';
+    try{ txt = btn.getAttribute('onclick') || ''; }catch(e){}
+    var m = txt.match(/(?:cancel|editOrder|restore)\(['\"]([^'\"]+)['\"]\)/i);
+    if(m) return m[1];
+    var card = btn.closest && btn.closest('.order-card');
+    if(card){
+      var b = card.querySelector('button[onclick*="editOrder"]') || card.querySelector('button[onclick*="cancel"]');
+      if(b){
+        var oc = b.getAttribute('onclick') || '';
+        var mm = oc.match(/(?:editOrder|cancel|restore)\(['\"]([^'\"]+)['\"]\)/i);
+        if(mm) return mm[1];
+      }
+      var title = card.querySelector('.order-title');
+      if(title){
+        var nr = T(title.textContent).split(' - ')[0];
+        var hit = orderList().find(function(o){ return String(o.id)===nr || String(o.number||'')===nr; });
+        if(hit) return hit.id;
+      }
+    }
+    return '';
+  }
+  function saveAndSync(o){
+    try{ if(typeof saveLocal==='function') saveLocal(); }catch(e){}
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof syncOrder==='function') syncOrder(o); }catch(e){}
+    try{ if(window.firebaseSync && typeof window.firebaseSync.saveOrder==='function') window.firebaseSync.saveOrder(o); }catch(e){}
+    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    try{ if(typeof renderOrdersFinal==='function') renderOrdersFinal(); }catch(e){}
+  }
+  function removeOrder(id){
+    var list=orderList();
+    var o=list.find(function(x){ return String(x.id)===String(id); });
+    if(!o) return false;
+    var nr = o.number || o.title || id;
+    var ok = window.confirm('Weet je zeker dat je opdracht '+nr+' wilt verwijderen?\n\nDe opdracht gaat naar Verwijderde opdrachten en wordt niet definitief gewist.');
+    if(!ok) return true;
+    o.status='Verwijderd';
+    o.deleted=true;
+    o.deletedAt=new Date().toISOString();
+    o.cancelled=false;
+    o.updatedAt=new Date().toISOString();
+    saveAndSync(o);
+    setTimeout(function(){ saveAndSync(o); }, 350);
+    return true;
+  }
+  function patchButtons(){
+    A('.order-card button').forEach(function(btn){
+      var txt=L(btn.textContent);
+      if(txt==='annuleren'){
+        btn.textContent='Verwijderen';
+        btn.classList.add('danger','tw-v184-delete-order');
+        btn.title='Verwijder opdracht naar Verwijderde opdrachten';
+      }
+      if(L(btn.textContent)==='verwijderen'){
+        btn.classList.add('danger','tw-v184-delete-order');
+        btn.style.cursor='pointer';
+        btn.style.pointerEvents='auto';
+      }
+    });
+  }
+  function css(){
+    if(document.getElementById('twV184Css')) return;
+    var s=document.createElement('style'); s.id='twV184Css';
+    s.textContent='.tw-v184-delete-order{background:#dc2626!important;color:#fff!important;border:0!important;cursor:pointer!important;opacity:1!important}.tw-v184-delete-order:hover{filter:brightness(.9)!important;transform:translateY(-1px)}';
+    document.head.appendChild(s);
+  }
+  document.addEventListener('click', function(ev){
+    var btn = ev.target && ev.target.closest && ev.target.closest('button');
+    if(!btn) return;
+    if(!btn.closest('.order-card')) return;
+    var txt=L(btn.textContent);
+    if(txt!=='annuleren' && txt!=='verwijderen') return;
+    var id=getIdFromButton(btn);
+    if(!id) return;
+    ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+    removeOrder(id);
+    return false;
+  }, true);
+  function tick(){ css(); patchButtons(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,150); }); else setTimeout(tick,100);
+  setTimeout(tick,500); setTimeout(tick,1200); setInterval(tick,2000);
+})();
