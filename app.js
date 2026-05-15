@@ -15518,3 +15518,208 @@ setInterval(install,1500);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick, 300); }); else setTimeout(tick, 100);
   setTimeout(tick, 800); setTimeout(tick, 1800); setInterval(tick, 2500);
 })();
+
+/* ===== V183: meerdere bezorgers betrouwbaar, oude enkele select niet leidend ===== */
+(function(){
+  var PATCH='twV183MultiDriversStable';
+  if(window[PATCH]) return;
+  window[PATCH]=true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];}); }
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || null; }
+  function orders(){ var s=S(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function users(){ var s=S(); return s && Array.isArray(s.users) ? s.users : []; }
+  function saveLocal(){ try{ if(typeof save==='function') save(); }catch(e){} try{ var s=S(); if(s) localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); }catch(e){} }
+  function syncOrder(o){ try{ if(o && window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){} }
+  function driverUsers(){
+    return users().filter(function(u){
+      if(!u || u.deleted===true || u.active===false) return false;
+      return /bezorger|driver|chauffeur/i.test(T(u.role||''));
+    });
+  }
+  function userKey(u){ return String(u && (u.id || u.name || u.pin) || ''); }
+  function userName(u){ return T(u && u.name); }
+  function byIdOrName(v){
+    var s=T(v), l=L(v); if(!s) return null;
+    return users().find(function(u){ return String(u.id)===s || L(u.name)===l || String(u.pin)===s; }) || null;
+  }
+  function unique(arr){ var out=[]; (arr||[]).forEach(function(v){ v=T(v); if(v && out.indexOf(v)<0) out.push(v); }); return out; }
+  function idsFromOrder(o){
+    var ids=[]; if(!o) return ids;
+    if(Array.isArray(o.driverIds)) ids=ids.concat(o.driverIds);
+    if(Array.isArray(o.bezorgerIds)) ids=ids.concat(o.bezorgerIds);
+    if(Array.isArray(o.drivers)) o.drivers.forEach(function(d){ if(d) ids.push(d.id || d.name); });
+    var names=[];
+    if(Array.isArray(o.driverNames)) names=names.concat(o.driverNames);
+    if(Array.isArray(o.bezorgerNames)) names=names.concat(o.bezorgerNames);
+    [o.driverName,o.driver,o.bezorger,o.driverId,o.bezorgerId].forEach(function(v){ T(v).split(/[,;]/).forEach(function(x){ if(T(x)) names.push(T(x)); }); });
+    names.forEach(function(n){ var u=byIdOrName(n); if(u) ids.push(userKey(u)); });
+    return unique(ids.map(function(v){ var u=byIdOrName(v); return u ? userKey(u) : v; }));
+  }
+  function currentOrder(){
+    var nr=E('orderNumber') ? T(E('orderNumber').value) : '';
+    if(nr){ var o=orders().find(function(x){ return String(x.number||'')===nr; }); if(o) return o; }
+    return null;
+  }
+  function checkedIds(){
+    var box=E('bnsV83DriverBox');
+    var ids=[];
+    if(box) A('input[type="checkbox"]',box).forEach(function(i){ if(i.checked) ids.push(i.value); });
+    if(ids.length) return unique(ids);
+    return unique(window.__twV183SelectedDriverIds || []);
+  }
+  function setMemory(ids){ window.__twV183SelectedDriverIds = unique((ids||[]).map(String)); }
+  function namesFromIds(ids){
+    var names=[];
+    unique(ids).forEach(function(id){ var u=byIdOrName(id); var n=u ? userName(u) : T(id); if(n && names.indexOf(n)<0) names.push(n); });
+    return names;
+  }
+  function updateHiddenSelect(ids){
+    var sel=E('orderDriver'); if(!sel) return;
+    var ds=driverUsers();
+    // Houd de oude select technisch gevuld voor oude code, maar verberg hem visueel.
+    var html='<option value="">Geen</option>'+ds.map(function(u){ return '<option value="'+H(userKey(u))+'">'+H(userName(u))+'</option>'; }).join('');
+    if(sel.innerHTML!==html) sel.innerHTML=html;
+    var first=(ids && ids[0]) || '';
+    sel.value = first;
+    try{ sel.dataset.twV183Multi = namesFromIds(ids).join(', '); }catch(e){}
+  }
+  function ensureCss(){
+    if(E('twV183DriverCss')) return;
+    var st=document.createElement('style'); st.id='twV183DriverCss';
+    st.textContent =
+      '#orderDriver{display:none!important}'+
+      '#bnsV83DriverBox{border:2px solid #dbe3ef!important;border-radius:18px!important;background:#fff!important;padding:14px!important;margin:12px 0!important;box-shadow:none!important}'+
+      '#bnsV83DriverBox h4{margin:0 0 10px!important;font-size:18px!important;font-weight:900!important;color:#111827!important}'+
+      '#bnsV83DriverBox .tw-v183-help{margin:0 0 12px!important;color:#475569!important;font-weight:800!important}'+
+      '#bnsV83DriverBox .grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important;gap:10px!important}'+
+      '#bnsV83DriverBox label{display:flex!important;align-items:center!important;gap:10px!important;border:1px solid #cbd5e1!important;border-radius:14px!important;padding:12px!important;font-weight:900!important;background:#f8fafc!important;color:#111827!important;cursor:pointer!important}'+
+      '#bnsV83DriverBox label.tw-v183-on{background:#dbeafe!important;border-color:#2563eb!important;color:#0f172a!important}'+
+      '#bnsV83DriverBox input[type=checkbox]{width:22px!important;height:22px!important;min-width:22px!important;accent-color:#2563eb!important}'+
+      '#bnsV183Selected{margin-top:12px!important;padding:10px 12px!important;border-radius:12px!important;background:#ecfdf5!important;color:#065f46!important;font-weight:900!important}';
+    document.head.appendChild(st);
+  }
+  function ensureChooser(){
+    var sel=E('orderDriver'); if(!sel) return;
+    ensureCss();
+    var box=E('bnsV83DriverBox');
+    if(!box){ box=document.createElement('div'); box.id='bnsV83DriverBox'; sel.insertAdjacentElement('afterend', box); }
+    var ids=checkedIds();
+    if(!ids.length){
+      var mem=unique(window.__twV183SelectedDriverIds||[]);
+      if(mem.length) ids=mem;
+    }
+    if(!ids.length){
+      var fromOrder=idsFromOrder(currentOrder());
+      if(fromOrder.length) ids=fromOrder;
+    }
+    if(!ids.length && sel.value){ var u=byIdOrName(sel.value); if(u) ids=[userKey(u)]; }
+    setMemory(ids);
+
+    var ds=driverUsers();
+    var idset={}; ids.forEach(function(id){ idset[String(id)]=true; });
+    box.innerHTML = '<h4>Bezorgers voor deze opdracht</h4><div class="tw-v183-help">Meerdere bezorgers tegelijk kiezen. De oude enkele-keuze balk is uitgeschakeld.</div>'+
+      '<div class="grid">'+(ds.length ? ds.map(function(u){
+        var key=userKey(u), on=!!idset[String(key)];
+        return '<label class="'+(on?'tw-v183-on':'')+'"><input type="checkbox" value="'+H(key)+'" '+(on?'checked':'')+'> <span>'+H(userName(u))+'</span></label>';
+      }).join('') : '<small>Geen bezorgers aangemaakt.</small>')+'</div><div id="bnsV183Selected">Gekozen: '+H(namesFromIds(ids).join(', ') || 'geen')+'</div>';
+    A('input[type="checkbox"]', box).forEach(function(inp){
+      inp.onchange=function(){
+        var now=[]; A('input[type="checkbox"]', box).forEach(function(i){ if(i.checked) now.push(i.value); });
+        setMemory(now); updateHiddenSelect(now);
+        ensureChooser();
+        try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+      };
+    });
+    updateHiddenSelect(ids);
+  }
+  function applyDriversTo(o, ids){
+    if(!o) return o;
+    ids=unique((ids||checkedIds()).map(String));
+    var ds=ids.map(byIdOrName).filter(Boolean);
+    var names=ds.map(userName).filter(Boolean);
+    o.driverIds=ds.map(function(u){ return userKey(u); });
+    o.bezorgerIds=o.driverIds.slice();
+    o.driverNames=names.slice();
+    o.bezorgerNames=names.slice();
+    o.drivers=ds.map(function(u){ return {id:userKey(u), name:userName(u), role:u.role || 'Bezorger'}; });
+    o.driver=names.join(', '); o.driverName=o.driver; o.bezorger=o.driver;
+    return o;
+  }
+  function applyCurrentSaved(ids, nr){
+    nr=nr || (E('orderNumber') ? T(E('orderNumber').value) : '');
+    var o=null;
+    if(nr) o=orders().find(function(x){ return String(x.number||'')===String(nr); });
+    if(!o){ var list=orders(); o=list[list.length-1] || null; }
+    if(!o) return;
+    applyDriversTo(o, ids);
+    saveLocal(); syncOrder(o);
+    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+  }
+  function patchSave(){
+    var btn=E('saveOrder');
+    if(btn && btn.dataset.twV183Save!=='1'){
+      btn.dataset.twV183Save='1';
+      btn.addEventListener('click', function(){
+        var ids=checkedIds(); setMemory(ids);
+        var nr=E('orderNumber') ? T(E('orderNumber').value) : '';
+        setTimeout(function(){ applyCurrentSaved(ids,nr); }, 250);
+        setTimeout(function(){ applyCurrentSaved(ids,nr); }, 900);
+      }, true);
+    }
+    if(!window.__twV183DocSaveCapture){
+      window.__twV183DocSaveCapture=true;
+      document.addEventListener('click', function(ev){
+        var b=ev.target && ev.target.closest && ev.target.closest('button'); if(!b) return;
+        if(T(b.textContent).toLowerCase()!=='opslaan') return;
+        if(!E('bnsV83DriverBox')) return;
+        var ids=checkedIds(); setMemory(ids);
+        var nr=E('orderNumber') ? T(E('orderNumber').value) : '';
+        setTimeout(function(){ applyCurrentSaved(ids,nr); }, 300);
+        setTimeout(function(){ applyCurrentSaved(ids,nr); }, 1000);
+      }, true);
+    }
+  }
+  function patchEditClear(){
+    var oldEdit=window.editOrder || (typeof editOrder==='function'?editOrder:null);
+    if(oldEdit && !oldEdit.__twV183){
+      var ne=function(id){ var r=oldEdit.apply(this, arguments); setTimeout(function(){ var o=orders().find(function(x){return String(x.id)===String(id);}); setMemory(idsFromOrder(o)); ensureChooser(); },250); return r; };
+      ne.__twV183=true; window.editOrder=ne; try{ editOrder=ne; }catch(e){}
+    }
+    var oldClear=window.clearOrder || (typeof clearOrder==='function'?clearOrder:null);
+    if(oldClear && !oldClear.__twV183){
+      var nc=function(){ var r=oldClear.apply(this,arguments); setMemory([]); setTimeout(ensureChooser,120); return r; };
+      nc.__twV183=true; window.clearOrder=nc; try{ clearOrder=nc; }catch(e){}
+    }
+  }
+  function patchSummary(){
+    var old=window.summaryRender || (typeof summaryRender==='function'?summaryRender:null);
+    if(old && !old.__twV183){
+      var ns=function(){
+        var r; try{ r=old.apply(this,arguments); }catch(e){}
+        try{
+          var sum=E('summary');
+          if(sum){
+            var names=namesFromIds(checkedIds()).join(', ') || 'Nog niet gekozen';
+            A('.summary-card',sum).forEach(function(c){
+              var b=c.querySelector('b'); if(b && L(b.textContent)==='bezorger'){
+                // Houd het label staan en vervang alleen de tekst na de kop.
+                c.innerHTML='<b>Bezorger</b>'+H(names);
+              }
+            });
+          }
+        }catch(e){}
+        return r;
+      };
+      ns.__twV183=true; window.summaryRender=ns; try{ summaryRender=ns; }catch(e){}
+    }
+  }
+  function tick(){ patchEditClear(); patchSave(); patchSummary(); ensureChooser(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,200); }); else setTimeout(tick,100);
+  setTimeout(tick,700); setTimeout(tick,1500); setInterval(tick,2500);
+})();
