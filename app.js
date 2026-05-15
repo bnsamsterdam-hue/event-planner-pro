@@ -3543,6 +3543,24 @@ setInterval(install,1500);
     }).join(" ");
   }
 
+
+  function bnsOrderStatusInfo(status){
+    var raw = String(status || '').trim();
+    var key = raw.toLowerCase();
+    if(!raw) return {label:'Offerte', icon:'📄', cls:'bns-order-status-offerte'};
+    if(key === 'opdrachtbevestiging' || key === 'opdracht bevestigd' || key === 'bevestigd' || key === 'opdracht') return {label:'Bevestigd', icon:'✅', cls:'bns-order-status-bevestigd'};
+    if(key === 'optie 14 dagen' || key === 'optie14' || key === 'optie') return {label:'Optie 14 dagen', icon:'⏳', cls:'bns-order-status-optie'};
+    if(key === 'geannuleerd' || key === 'verwijderd' || key === 'annulering') return {label:(key === 'verwijderd' ? 'Verwijderd' : 'Geannuleerd'), icon:(key === 'verwijderd' ? '🗑️' : '❌'), cls:(key === 'verwijderd' ? 'bns-order-status-verwijderd' : 'bns-order-status-geannuleerd')};
+    if(key === 'uitgevoerd' || key === 'afgerond' || key === 'voltooid') return {label:'Uitgevoerd', icon:'✔️', cls:'bns-order-status-uitgevoerd'};
+    if(key === 'offerte') return {label:'Offerte', icon:'📄', cls:'bns-order-status-offerte'};
+    return {label:raw, icon:'●', cls:'bns-order-status-overig'};
+  }
+
+  function bnsOrderStatusBadge(status){
+    var info = bnsOrderStatusInfo(status);
+    return '<span class="bns-order-status-badge '+esc(info.cls)+'" title="Status: '+esc(info.label)+'"><span class="bns-order-status-icon">'+esc(info.icon)+'</span>'+esc(info.label)+'</span>';
+  }
+
   function bnsCard(order){
     var loc = order.location || {};
     var addr = [loc.name, loc.street, loc.city].filter(Boolean).join(" ");
@@ -3554,8 +3572,8 @@ setInterval(install,1500);
       '<div class="order-card" data-bns-order-id="' + esc(order.id) + '">' +
         '<div class="date-tile">' + esc(nice2(order.start)) + '</div>' +
         '<div>' +
-          '<div class="order-title">' + esc(order.number || "") + ' - ' + esc(order.title || "") +
-            ' <span class="status status-' + esc(status) + '">' + esc(status) + '</span></div>' +
+          '<div class="order-title bns-order-title-with-status">' + esc(order.number || "") + ' - ' + esc(order.title || "") +
+            ' ' + bnsOrderStatusBadge(status) + '</div>' +
           '<div><b>Datum:</b> ' + esc(dateRange(order)) + '</div>' +
           '<div>Klant: ' + esc(order.customer && order.customer.name || "") + '</div>' +
           '<div>Locatie: ' + esc(addr) + '</div>' +
@@ -14075,8 +14093,9 @@ setInterval(install,1500);
       });
     }
     var wanted=['Offerte','Opdrachtbevestiging','optie 14 dagen','geannuleerd'];
+    var labels={'Offerte':'Offerte','Opdrachtbevestiging':'Bevestigd','optie 14 dagen':'Optie 14 dagen','geannuleerd':'Geannuleerd'};
     var current=normalizeStatusValue(sel.value);
-    sel.innerHTML=wanted.map(function(v){ return '<option value="'+v+'">'+v+'</option>'; }).join('');
+    sel.innerHTML=wanted.map(function(v){ return '<option value="'+v+'">'+(labels[v]||v)+'</option>'; }).join('');
     if(current === 'Verwijderd') current='geannuleerd';
     sel.value = wanted.indexOf(current)>=0 ? current : 'Offerte';
   }
@@ -14346,4 +14365,34 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(bind,250); }); else setTimeout(bind,250);
   [800,1600,3000,6000].forEach(function(ms){ setTimeout(bind,ms); });
   window.BNS_V164_refreshAddressBook=function(){ bind(); };
+})();
+
+
+/* ===== V170: duidelijke status-badges, veilig zonder render-loop ===== */
+(function(){
+  function addStatusBadgeCss(){
+    if(document.getElementById('bnsV170StatusBadgeCss')) return;
+    var st=document.createElement('style');
+    st.id='bnsV170StatusBadgeCss';
+    st.textContent =
+      '.order-card{position:relative!important;border-left-width:8px!important;}'+
+      '.order-card:has(.bns-order-status-bevestigd){border-left-color:#16a34a!important;}'+
+      '.order-card:has(.bns-order-status-offerte){border-left-color:#64748b!important;}'+
+      '.order-card:has(.bns-order-status-optie){border-left-color:#f59e0b!important;}'+
+      '.order-card:has(.bns-order-status-geannuleerd){border-left-color:#dc2626!important;}'+
+      '.order-card:has(.bns-order-status-verwijderd){border-left-color:#7f1d1d!important;}'+
+      '.order-card:has(.bns-order-status-uitgevoerd){border-left-color:#2563eb!important;}'+
+      '.bns-order-title-with-status{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;}'+
+      '.bns-order-status-badge{display:inline-flex!important;align-items:center!important;gap:6px!important;border-radius:999px!important;padding:5px 10px!important;font-size:13px!important;font-weight:900!important;line-height:1!important;border:2px solid transparent!important;box-shadow:0 1px 2px rgba(15,23,42,.18)!important;white-space:nowrap!important;}'+
+      '.bns-order-status-icon{font-size:15px!important;line-height:1!important;}'+
+      '.bns-order-status-offerte{background:#e2e8f0!important;color:#0f172a!important;border-color:#94a3b8!important;}'+
+      '.bns-order-status-bevestigd{background:#dcfce7!important;color:#14532d!important;border-color:#16a34a!important;}'+
+      '.bns-order-status-optie{background:#fef3c7!important;color:#78350f!important;border-color:#f59e0b!important;}'+
+      '.bns-order-status-geannuleerd{background:#fee2e2!important;color:#7f1d1d!important;border-color:#dc2626!important;}'+
+      '.bns-order-status-verwijderd{background:#fecaca!important;color:#450a0a!important;border-color:#7f1d1d!important;}'+
+      '.bns-order-status-uitgevoerd{background:#dbeafe!important;color:#1e3a8a!important;border-color:#2563eb!important;}'+
+      '.bns-order-status-overig{background:#f3f4f6!important;color:#111827!important;border-color:#9ca3af!important;}';
+    document.head.appendChild(st);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', addStatusBadgeCss, {once:true}); else addStatusBadgeCss();
 })();
