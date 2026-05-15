@@ -14165,7 +14165,7 @@ setInterval(install,1500);
   [500,1200,2500,5000].forEach(function(ms){ setTimeout(install,ms); });
 })();
 
-/* ===== V165: duidelijk adresboek dropdown boven formulier ===== */
+/* ===== V166: adresboek dropdown maximale leesbaarheid ===== */
 (function(){
   function E(id){ return document.getElementById(id); }
   function T(v){ return String(v == null ? '' : v).trim(); }
@@ -14234,20 +14234,20 @@ setInterval(install,1500);
   function ensureStyle(){
     if(E('bnsV164AddressBookStyle')) return;
     var st=document.createElement('style'); st.id='bnsV164AddressBookStyle';
-    st.textContent='.bns-v164-suggest{position:fixed;z-index:2147483647;background:#ffffff!important;color:#0f172a!important;border:2px solid #2563eb;border-radius:16px;box-shadow:0 20px 60px rgba(15,23,42,.35);max-height:260px;overflow:auto;display:none;padding:8px;box-sizing:border-box;opacity:1!important}.bns-v164-row{display:block;width:100%;text-align:left;border:0;background:#ffffff!important;border-radius:12px;padding:13px 14px;cursor:pointer;color:#0f172a!important;min-height:58px;border-bottom:1px solid #e2e8f0}.bns-v164-row:hover,.bns-v164-row.active{background:#dbeafe!important}.bns-v164-row b{display:block;font-size:17px;font-weight:900;color:#0f172a!important;line-height:1.2}.bns-v164-row small{display:block;color:#334155!important;margin-top:5px;line-height:1.25;font-size:13px;font-weight:700}.bns-v164-empty{padding:13px 14px;color:#334155!important;font-size:14px;background:#fff!important;font-weight:800}.bns-v164-head{padding:8px 12px 10px;color:#1d4ed8;font-weight:900;border-bottom:1px solid #bfdbfe;margin-bottom:4px;background:#eff6ff;border-radius:10px}';
+    st.textContent='.bns-v164-suggest{position:fixed!important;z-index:2147483647!important;background:#ffffff!important;color:#000000!important;border:4px solid #111827!important;border-radius:14px!important;box-shadow:0 18px 70px rgba(0,0,0,.55)!important;max-height:360px!important;overflow:auto!important;display:none;padding:10px!important;box-sizing:border-box!important;opacity:1!important;filter:none!important;backdrop-filter:none!important}.bns-v164-row{display:block!important;width:100%!important;text-align:left!important;border:2px solid #d1d5db!important;background:#ffffff!important;border-radius:10px!important;padding:16px 18px!important;cursor:pointer!important;color:#000000!important;min-height:72px!important;margin:0 0 8px 0!important;box-sizing:border-box!important;opacity:1!important;filter:none!important;text-shadow:none!important}.bns-v164-row:hover,.bns-v164-row.active{background:#fff7cc!important;border-color:#f59e0b!important;color:#000000!important}.bns-v164-row b,.bns-v164-row .bns-v164-title{display:block!important;font-size:22px!important;font-weight:1000!important;color:#000000!important;line-height:1.2!important;opacity:1!important;text-shadow:none!important}.bns-v164-row small,.bns-v164-row .bns-v164-sub{display:block!important;color:#111827!important;margin-top:8px!important;line-height:1.3!important;font-size:17px!important;font-weight:800!important;opacity:1!important;text-shadow:none!important}.bns-v164-empty{padding:16px 18px!important;color:#000000!important;font-size:18px!important;background:#fff!important;font-weight:900!important}.bns-v164-head{padding:12px 14px!important;color:#ffffff!important;font-size:20px!important;font-weight:1000!important;border-bottom:2px solid #111827!important;margin-bottom:10px!important;background:#111827!important;border-radius:8px!important}.bns-v164-close{float:right;background:#dc2626!important;color:#fff!important;border:0!important;border-radius:8px!important;padding:5px 10px!important;font-weight:1000!important;font-size:16px!important}';
     document.head.appendChild(st);
   }
   function box(id){ var b=E(id); if(!b){ b=document.createElement('div'); b.id=id; b.className='bns-v164-suggest'; document.body.appendChild(b); } return b; }
   function placeBox(input,b){
     var r=input.getBoundingClientRect();
-    var width=Math.min(Math.max(r.width,420), Math.max(320, window.innerWidth-24));
+    var width=Math.min(Math.max(r.width,720), Math.max(340, window.innerWidth-24));
     var left=Math.max(12, Math.min(r.left, window.innerWidth-width-12));
-    var wanted=260;
+    var wanted=360;
     var spaceBelow=window.innerHeight-r.bottom-14;
     var spaceAbove=r.top-14;
     var maxH=Math.max(130, Math.min(wanted, Math.max(spaceBelow, spaceAbove)));
     var top;
-    if(spaceBelow>=150 || spaceBelow>=spaceAbove){ top=Math.min(r.bottom+8, window.innerHeight-maxH-12); }
+    if(spaceBelow>=220 || spaceBelow>=spaceAbove){ top=Math.min(r.bottom+8, window.innerHeight-maxH-12); }
     else { top=Math.max(12, r.top-maxH-8); }
     b.style.left=left+'px';
     b.style.top=top+'px';
@@ -14300,12 +14300,12 @@ setInterval(install,1500);
   }
   function renderCustomerBox(input){
     var rows=customerMatches(input.value), b=box('bnsV164CustomerBox'); placeBox(input,b);
-    b.innerHTML=rows.length?'<div class="bns-v164-head">Kies klant uit adresboek</div>'+rows.map(function(c,i){ return '<button type="button" class="bns-v164-row" data-kind="customer" data-i="'+i+'"><b>'+H(c.name)+'</b><small>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+(c.phone?' - '+H(c.phone):'')+'</small></button>'; }).join(''):'<div class="bns-v164-empty">Geen klant gevonden</div>';
+    b.innerHTML=rows.length?'<div class="bns-v164-head">Kies klant uit adresboek <button type="button" class="bns-v164-close" data-close="1">X</button></div>'+rows.map(function(c,i){ var sub=H([c.street,c.zip,c.city].filter(Boolean).join(' '))+(c.phone?' - '+H(c.phone):''); return '<div role="button" tabindex="0" class="bns-v164-row" data-kind="customer" data-i="'+i+'" style="background:#fff!important;color:#000!important;border:2px solid #d1d5db!important;opacity:1!important"><span class="bns-v164-title" style="color:#000!important;font-size:22px!important;font-weight:1000!important">'+H(c.name)+'</span><span class="bns-v164-sub" style="color:#111827!important;font-size:17px!important;font-weight:800!important">'+sub+'</span></div>'; }).join(''):'<div class="bns-v164-empty">Geen klant gevonden</div>';
     b._rows=rows; b.style.display='block';
   }
   function renderLocationBox(input){
     var rows=locationMatches(input.value), b=box('bnsV164LocationBox'); placeBox(input,b);
-    b.innerHTML=rows.length?'<div class="bns-v164-head">Kies locatie uit adresboek</div>'+rows.map(function(l,i){ return '<button type="button" class="bns-v164-row" data-kind="location" data-i="'+i+'"><b>'+H(l.name)+'</b><small>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+(l.phone?' - '+H(l.phone):'')+'</small></button>'; }).join(''):'<div class="bns-v164-empty">Geen locatie gevonden</div>';
+    b.innerHTML=rows.length?'<div class="bns-v164-head">Kies locatie uit adresboek <button type="button" class="bns-v164-close" data-close="1">X</button></div>'+rows.map(function(l,i){ var sub=H([l.street,l.zip,l.city].filter(Boolean).join(' '))+(l.phone?' - '+H(l.phone):''); return '<div role="button" tabindex="0" class="bns-v164-row" data-kind="location" data-i="'+i+'" style="background:#fff!important;color:#000!important;border:2px solid #d1d5db!important;opacity:1!important"><span class="bns-v164-title" style="color:#000!important;font-size:22px!important;font-weight:1000!important">'+H(l.name)+'</span><span class="bns-v164-sub" style="color:#111827!important;font-size:17px!important;font-weight:800!important">'+sub+'</span></div>'; }).join(''):'<div class="bns-v164-empty">Geen locatie gevonden</div>';
     b._rows=rows; b.style.display='block';
   }
   function bind(){
@@ -14326,6 +14326,7 @@ setInterval(install,1500);
     }
   }
   document.addEventListener('mousedown',function(ev){
+    if(ev.target && ev.target.closest && ev.target.closest('.bns-v164-close')){ ev.preventDefault(); ev.stopPropagation(); hideAll(); return; }
     var row=ev.target && ev.target.closest && ev.target.closest('.bns-v164-row');
     if(row){
       ev.preventDefault(); ev.stopPropagation();
