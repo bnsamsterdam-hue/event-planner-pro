@@ -15158,3 +15158,168 @@ setInterval(install,1500);
   setTimeout(tick, 250); setTimeout(tick, 700); setTimeout(tick, 1500); setTimeout(tick, 3000);
   setInterval(tick, 250);
 })();
+
+/* =========================================================
+   V181 - systeemmeldingen eigen stabiele knop
+   - Verbergt de oude alertsBtn zodat oude renderlagen hem niet meer rood/1 kunnen zetten.
+   - Maakt een nieuwe zichtbare knop met eigen teller.
+   - Eerste start na upload markeert bestaande restmeldingen als oud voor de teller.
+   - Wist geen data en verandert geen Firebase.
+   ========================================================= */
+(function BNS_V181_STABLE_VISIBLE_ALERT_BUTTON(){
+  'use strict';
+  if (window.__BNS_V181_STABLE_VISIBLE_ALERT_BUTTON__) return;
+  window.__BNS_V181_STABLE_VISIBLE_ALERT_BUTTON__ = true;
+
+  var STYLE_ID = 'bnsV181StableVisibleAlertButtonStyle';
+  var VISIBLE_ID = 'alertsBtnStableV181';
+  var CLOSED_BEFORE_KEY = 'bns_v179_closed_before_iso';
+  var CLOSED_IDS_KEY = 'bns_v178_closed_alert_ids';
+  var INIT_KEY = 'bns_v181_initialized_at';
+  var legacySeq = 0;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(s){ return T(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return {alerts:[]}; }
+  function alerts(){ var s=S(); return Array.isArray(s.alerts) ? s.alerts : []; }
+  function nowIso(){ return new Date().toISOString(); }
+  function parseTime(v){ var t=Date.parse(T(v)); return isNaN(t) ? 0 : t; }
+  function getJson(key){ try{ return JSON.parse(localStorage.getItem(key)||'{}') || {}; }catch(e){ return {}; } }
+
+  // Belangrijk: bij eerste start van V181 tellen bestaande Firebase-restmeldingen niet meer mee.
+  // Nieuwe meldingen die na upload gemaakt worden, komen wel terug in de teller.
+  try{
+    if(!localStorage.getItem(INIT_KEY)){
+      var n = nowIso();
+      localStorage.setItem(INIT_KEY, n);
+      localStorage.setItem(CLOSED_BEFORE_KEY, n);
+    }
+  }catch(e){}
+
+  function textOf(a){ return L([a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text,a&&a.source,a&&a.status,a&&a.kind].join(' ')); }
+  function alertTimeMs(a){ return parseTime(a && (a.createdAt || a.time || a.date || a.updatedAt || a.resolvedAt)); }
+  function isPhotoOrSignature(a){ return /foto|photo|handtekening|signature/.test(textOf(a)); }
+  function isClosed(a){
+    if(!a) return true;
+    var id = T(a.id || a.alertId || a.key);
+    if(id && getJson(CLOSED_IDS_KEY)[id]) return true;
+    if(a.resolved || a.deleted || a.removed || a.closed || a.hidden || a.archived) return true;
+    var st = L(a.status || a.state || '');
+    if(st === 'opgelost' || st === 'afgehandeld' || st === 'verwijderd' || st === 'closed' || st === 'deleted' || st === 'resolved') return true;
+    var cb = parseTime(localStorage.getItem(CLOSED_BEFORE_KEY) || '');
+    var at = alertTimeMs(a);
+    if(cb && (!at || at <= cb)) return true;
+    return false;
+  }
+  function isAllowedOpen(a){
+    if(isClosed(a) || isPhotoOrSignature(a)) return false;
+    var t = textOf(a);
+    if(/vermissing|missing|vermist/.test(t)) return false;
+    return /storing|schade/.test(t) || /(^|\s)melding(\s|$)/.test(t) || /bezorger melding/.test(t);
+  }
+  function openList(){ return alerts().filter(isAllowedOpen); }
+
+  function style(){
+    if(E(STYLE_ID)) return;
+    var st=document.createElement('style'); st.id=STYLE_ID;
+    st.textContent =
+      '#alertsBtnStableV181{border:0;border-radius:14px;padding:12px 20px;font-weight:900;cursor:pointer;color:#fff!important;box-shadow:none!important;animation:none!important;filter:none!important;transform:none!important;white-space:nowrap}'+
+      '#alertsBtnStableV181.zero{background:#16a34a!important;border:2px solid #16a34a!important}'+
+      '#alertsBtnStableV181.open{background:#dc2626!important;border:2px solid #dc2626!important}'+
+      '.bns-v181-hidden-legacy-alerts{display:none!important;visibility:hidden!important;pointer-events:none!important;position:absolute!important;left:-99999px!important;top:-99999px!important;width:1px!important;height:1px!important;overflow:hidden!important}'+
+      '.bns-v181-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999999;display:grid;place-items:center}.bns-v181-box{background:#fff;color:#111827;border-radius:18px;box-shadow:0 18px 60px rgba(0,0,0,.35);padding:22px;max-width:min(900px,94vw);max-height:86vh;overflow:auto}.bns-v181-top{display:flex;justify-content:space-between;align-items:center;gap:16px}.bns-v181-row{border:1px solid #d1d5db;border-radius:14px;padding:12px;margin:10px 0;background:#f9fafb}.bns-v181-box button{border:0;border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}.bns-v181-close{background:#2563eb;color:#fff}.bns-v181-clean{background:#0f766e;color:#fff}.bns-v181-ok{background:#16a34a;color:#fff}.bns-v181-danger{background:#dc2626;color:#fff}';
+    document.head.appendChild(st);
+  }
+
+  function hideLegacyButtons(){
+    A('#alertsBtn').forEach(function(old){
+      if(old.id === VISIBLE_ID) return;
+      if(!old.dataset.bnsV181LegacyId){
+        legacySeq += 1;
+        old.dataset.bnsV181LegacyId = 'alertsBtnLegacyV181_' + legacySeq;
+      }
+      old.id = old.dataset.bnsV181LegacyId;
+      old.classList.add('bns-v181-hidden-legacy-alerts');
+      old.setAttribute('aria-hidden','true');
+      old.tabIndex = -1;
+    });
+  }
+
+  function ensureVisibleButton(){
+    style();
+    hideLegacyButtons();
+    var btn = E(VISIBLE_ID);
+    if(btn) return btn;
+    var anchor = document.querySelector('[data-bns-v181-anchor]') || document.querySelector('.topbar, header, .toolbar, body');
+    var legacy = document.querySelector('.bns-v181-hidden-legacy-alerts');
+    btn = document.createElement('button');
+    btn.id = VISIBLE_ID;
+    btn.type = 'button';
+    btn.dataset.bnsV181 = '1';
+    btn.addEventListener('click', openModal, true);
+    if(legacy && legacy.parentNode){
+      legacy.parentNode.insertBefore(btn, legacy.nextSibling);
+    }else if(anchor){
+      anchor.insertBefore(btn, anchor.firstChild || null);
+    }else{
+      document.body.appendChild(btn);
+    }
+    return btn;
+  }
+
+  function update(){
+    var btn = ensureVisibleButton();
+    if(!btn) return;
+    var n = openList().length;
+    btn.textContent = n ? '🚨 Systeemmeldingen (' + n + ')' : 'Systeemmeldingen (0)';
+    btn.classList.toggle('open', n > 0);
+    btn.classList.toggle('zero', n === 0);
+  }
+
+  function save(){ try{ if(typeof saveLocal === 'function') saveLocal(); else if(typeof saveState === 'function') saveState(); else if(typeof saveBns === 'function') saveBns(); }catch(e){} }
+  function markLocal(id, deleted){
+    var s=S(); if(!Array.isArray(s.alerts)) return;
+    s.alerts = s.alerts.map(function(a){
+      if(String(a.id || a.alertId || a.key) !== String(id)) return a;
+      a.resolved = true; a.status = deleted ? 'verwijderd' : 'opgelost'; a.resolvedAt = new Date().toISOString();
+      if(deleted) a.deleted = true;
+      return a;
+    });
+    save();
+    try{ var ids=getJson(CLOSED_IDS_KEY); ids[String(id)] = true; localStorage.setItem(CLOSED_IDS_KEY, JSON.stringify(ids)); }catch(e){}
+  }
+  function closeAll(){
+    var list=openList();
+    alerts().forEach(function(a){ if(isAllowedOpen(a)){ a.resolved=true; a.status='opgelost'; a.resolvedAt=new Date().toISOString(); } });
+    try{ localStorage.setItem(CLOSED_BEFORE_KEY, nowIso()); }catch(e){}
+    save(); update(); openModal();
+  }
+
+  function openModal(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    style();
+    var old=E('bnsV181Modal'); if(old) old.remove();
+    var list=openList();
+    var m=document.createElement('div'); m.id='bnsV181Modal'; m.className='bns-v181-modal';
+    m.innerHTML = '<div class="bns-v181-box"><div class="bns-v181-top"><h2>🚨 Systeemmeldingen</h2><button class="bns-v181-close" type="button" data-close="1">Sluiten</button></div>'+
+      '<p>Alleen open meldingen van bezorger: <b>Storing</b>, <b>Schade</b> en <b>Melding</b>. Foto\'s en handtekeningen tellen niet mee.</p>'+
+      '<p><button class="bns-v181-clean" type="button" data-clean="1">Alle open systeemmeldingen afsluiten</button></p>'+
+      (list.length ? list.map(function(a){ var id=H(a.id||a.alertId||a.key||''); return '<div class="bns-v181-row"><b>'+H(a.type||a.title||'Melding')+'</b><br><small>'+H(a.time||a.createdAt||'')+'</small><div><b>Opdracht:</b> '+H(a.orderNumber||a.linkedOrderNumber||'')+' '+H(a.orderTitle||'')+'</div><div><b>Klant:</b> '+H(a.customerName||a.klant||'')+'</div><p>'+H(a.note||a.message||a.text||'')+'</p><button class="bns-v181-ok" data-resolve="'+id+'">Afmelden</button> <button class="bns-v181-danger" data-delete="'+id+'">Verwijderen</button></div>'; }).join('') : '<p>Geen open systeemmeldingen.</p>')+
+      '</div>';
+    document.body.appendChild(m);
+    A('[data-close]',m).forEach(function(b){ b.onclick=function(){ m.remove(); update(); }; });
+    A('[data-clean]',m).forEach(function(b){ b.onclick=closeAll; });
+    A('[data-resolve]',m).forEach(function(b){ b.onclick=function(){ markLocal(b.getAttribute('data-resolve'), false); update(); openModal(); }; });
+    A('[data-delete]',m).forEach(function(b){ b.onclick=function(){ markLocal(b.getAttribute('data-delete'), true); update(); openModal(); }; });
+    update();
+    return false;
+  }
+
+  function tick(){ update(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,50); }); else setTimeout(tick,50);
+  setTimeout(tick,250); setTimeout(tick,900); setTimeout(tick,2200);
+  setInterval(tick, 350);
+})();
