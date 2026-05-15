@@ -16271,3 +16271,166 @@ setInterval(install,1500);
   setTimeout(normalizeAll,600); setTimeout(normalizeAll,1400); setInterval(normalizeAll,1800);
   try{ new MutationObserver(function(){ clearTimeout(window.__twV189MoTimer); window.__twV189MoTimer=setTimeout(normalizeAll,120); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
 })();
+
+
+
+/* ===== V194 Tapwagen: ALLEEN overzicht bestelling Wis-knop repareren =====
+   Basis: V189 zoals aangeleverd.
+   Doel: niets anders aanpassen; alleen Wis in Overzicht bestelling moet echt blijven wissen.
+*/
+(function(){
+  if(window.__twV194OverviewWisOnlyFix) return;
+  window.__twV194OverviewWisOnlyFix = true;
+
+  var HIDDEN_KEY = 'tw_v194_hidden_overview_media_ids';
+
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
+  function alerts(){ var s=S(); return s && Array.isArray(s.alerts) ? s.alerts : []; }
+  function saveLocal(){
+    try{ if(typeof save === 'function') save(); }catch(e){}
+    try{ if(typeof saveState === 'function') saveState(); }catch(e){}
+    try{ var s=S(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); localStorage.setItem('eventPlannerProState', JSON.stringify(s)); } }catch(e){}
+  }
+  function toast(t){ try{ if(typeof toastMsg === 'function') return toastMsg(t); }catch(e){} try{ console.log(t); }catch(e){} }
+  function hiddenMap(){ try{ return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '{}') || {}; }catch(e){ return {}; } }
+  function rememberHidden(id){ if(!id) return; try{ var m=hiddenMap(); m[String(id)] = new Date().toISOString(); localStorage.setItem(HIDDEN_KEY, JSON.stringify(m)); }catch(e){} }
+  function isRememberedHidden(id){ var m=hiddenMap(); return !!(id && m[String(id)]); }
+  function isHiddenAlert(a){
+    if(!a) return true;
+    if(isRememberedHidden(a.id)) return true;
+    return !!(a.hidden || a.deleted || a.removed || a._hiddenFromOverview || L(a.status) === 'verwijderd');
+  }
+  function alertById(id){ return alerts().find(function(a){ return String(a && a.id) === String(id); }); }
+
+  async function writeAlertRemote(a){
+    if(!a || !a.id) return;
+    try{ if(typeof writeAlert === 'function') writeAlert(a); }catch(e){}
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.db){
+        var fs = window.BNS.fs;
+        var data = Object.assign({}, a, {
+          hidden:true,
+          deleted:true,
+          removed:true,
+          resolved:true,
+          status:'verwijderd',
+          updatedAt:new Date().toISOString()
+        });
+        if(fs.setDoc && fs.doc){
+          await fs.setDoc(fs.doc(window.BNS.db, 'alerts', String(a.id)), data, {merge:true});
+        }
+      }
+    }catch(e){}
+  }
+
+  function extractIdFromCard(card){
+    if(!card) return '';
+    var b = card.querySelector('[data-tw-v188-delete]');
+    if(b) return b.getAttribute('data-tw-v188-delete') || '';
+    var candidates = A('button,a', card);
+    for(var i=0;i<candidates.length;i++){
+      var oc = candidates[i].getAttribute('onclick') || '';
+      var m = oc.match(/TapwagenV141(?:ShareAlert|PrintAlert|DeleteAlert|ResolveAlert)\(['"]([^'"]+)['"]\)/i);
+      if(m) return m[1];
+    }
+    return '';
+  }
+
+  function markAndHide(id, card){
+    if(!id) return false;
+    rememberHidden(id);
+    var a = alertById(id);
+    if(a){
+      a.hidden = true;
+      a.deleted = true;
+      a.removed = true;
+      a.resolved = true;
+      a._hiddenFromOverview = true;
+      a.status = 'verwijderd';
+      a.deletedAt = a.deletedAt || new Date().toISOString();
+      a.resolvedAt = a.resolvedAt || new Date().toISOString();
+      a.updatedAt = new Date().toISOString();
+      writeAlertRemote(a);
+    }
+    saveLocal();
+    if(card && card.parentNode) card.parentNode.removeChild(card);
+    toast('Item uit overzicht gewist');
+    return true;
+  }
+
+  function ensureOneWis(card){
+    if(!card) return;
+    var id = extractIdFromCard(card);
+    if(id && isHiddenAlert(alertById(id))){
+      if(card.parentNode) card.parentNode.removeChild(card);
+      return;
+    }
+    var actions = card.querySelector('.tw-v141-actions');
+    if(!actions || !id) return;
+
+    var wis = A('button', actions).filter(function(b){ return L(b.textContent) === 'wis' || b.classList.contains('tw-v188-delete-media') || b.classList.contains('tw-v194-wis'); });
+    var keep = wis[0];
+
+    wis.slice(1).forEach(function(b){ try{ b.remove(); }catch(e){} });
+
+    if(!keep){
+      keep = document.createElement('button');
+      keep.type = 'button';
+      keep.textContent = 'Wis';
+      actions.appendChild(keep);
+    }
+
+    keep.className = (keep.className ? keep.className + ' ' : '') + 'tw-v194-wis';
+    keep.setAttribute('data-tw-v194-delete', id);
+    keep.style.background = '#dc2626';
+    keep.style.color = '#fff';
+    keep.style.border = '0';
+    keep.style.borderRadius = '10px';
+    keep.style.padding = '8px 11px';
+    keep.style.fontWeight = '900';
+    keep.style.cursor = 'pointer';
+
+    keep.onclick = function(ev){
+      if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+      markAndHide(id, card);
+      return false;
+    };
+  }
+
+  function patchOverviewWis(){
+    var modal = document.getElementById('bnsOrderOverviewModal');
+    if(!modal) return;
+    A('.tw-v141-card', modal).forEach(ensureOneWis);
+  }
+
+  document.addEventListener('click', function(ev){
+    var btn = ev.target && ev.target.closest && ev.target.closest('.tw-v194-wis,.tw-v188-delete-media');
+    if(!btn) return;
+    var card = btn.closest('.tw-v141-card');
+    if(!card || !document.getElementById('bnsOrderOverviewModal')) return;
+    var id = btn.getAttribute('data-tw-v194-delete') || btn.getAttribute('data-tw-v188-delete') || extractIdFromCard(card);
+    if(!id) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    markAndHide(id, card);
+    return false;
+  }, true);
+
+  var oldShow = window.BNS_V128_SHOW_ORDER_OVERVIEW;
+  if(typeof oldShow === 'function' && !oldShow.__twV194WisPatch){
+    var wrapped = function(){
+      var r = oldShow.apply(this, arguments);
+      setTimeout(patchOverviewWis, 60);
+      setTimeout(patchOverviewWis, 250);
+      return r;
+    };
+    wrapped.__twV194WisPatch = true;
+    window.BNS_V128_SHOW_ORDER_OVERVIEW = wrapped;
+  }
+
+  setInterval(patchOverviewWis, 1200);
+})();
