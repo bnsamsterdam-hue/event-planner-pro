@@ -14949,3 +14949,124 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 250); }); else setTimeout(install, 100);
   setTimeout(install, 900); setTimeout(install, 2400); setInterval(install, 3000);
 })();
+
+/* =========================================================
+   V179 - rustige systeemmelding teller + oude Firebase restmelding negeren
+   - Voorkomt flikkeren tussen 0 en 1 na opschonen.
+   - Bestaande oude meldingen bij upload worden als oud gezien en niet meer als open geteld.
+   - Nieuwe Storing/Schade/Melding na dit moment blijven wel zichtbaar.
+   ========================================================= */
+(function BNS_V179_STABLE_ALERT_COUNTER(){
+  'use strict';
+  if (window.__BNS_V179_STABLE_ALERT_COUNTER__) return;
+  window.__BNS_V179_STABLE_ALERT_COUNTER__ = true;
+
+  var CLOSED_IDS_KEY = 'bns_v178_closed_alert_ids';
+  var CLOSED_BEFORE_KEY = 'bns_v179_closed_before_iso';
+  var INIT_KEY = 'bns_v179_initialized_at';
+  var STYLE_ID = 'bnsV179StableAlertCounterStyle';
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return {alerts:[]}; }
+  function alerts(){ var s=S(); if(!Array.isArray(s.alerts)) s.alerts=[]; return s.alerts; }
+  function getJson(key){ try{ return JSON.parse(localStorage.getItem(key)||'{}') || {}; }catch(e){ return {}; } }
+  function closedIds(){ return getJson(CLOSED_IDS_KEY); }
+  function nowIso(){ return new Date().toISOString(); }
+  function parseTime(v){ var t=Date.parse(T(v)); return isNaN(t) ? 0 : t; }
+
+  // Eerste keer na upload: alles wat al in Firebase staat is ouder werk en mag niet opnieuw de teller rood maken.
+  // Nieuwe meldingen die daarna worden gemaakt blijven wel zichtbaar.
+  try{
+    if(!localStorage.getItem(INIT_KEY)){
+      var n = nowIso();
+      localStorage.setItem(INIT_KEY, n);
+      localStorage.setItem(CLOSED_BEFORE_KEY, n);
+    }
+  }catch(e){}
+
+  function closedBeforeMs(){ return parseTime(localStorage.getItem(CLOSED_BEFORE_KEY) || ''); }
+  function setClosedBeforeNow(){ try{ localStorage.setItem(CLOSED_BEFORE_KEY, nowIso()); }catch(e){} }
+
+  function txt(a){ return L([a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text,a&&a.source,a&&a.status,a&&a.kind].join(' ')); }
+  function alertTimeMs(a){ return parseTime(a && (a.createdAt || a.time || a.date || a.updatedAt)); }
+  function isPhotoOrSignature(a){ return /foto|photo|handtekening|signature/.test(txt(a)); }
+  function isClosed(a){
+    if(!a) return true;
+    var id = T(a.id || a.alertId || a.key);
+    if(id && closedIds()[id]) return true;
+    if(a.resolved || a.deleted || a.removed || a.closed || a.hidden || a.archived) return true;
+    var st = L(a.status || a.state || '');
+    if(st === 'opgelost' || st === 'afgehandeld' || st === 'verwijderd' || st === 'closed' || st === 'deleted' || st === 'resolved') return true;
+    var cb = closedBeforeMs();
+    var at = alertTimeMs(a);
+    // Als een oude Firebase melding geen goede datum heeft, behandel hem na opschonen als oud.
+    if(cb && (!at || at <= cb)) return true;
+    return false;
+  }
+  function isAllowedOpen(a){
+    if(isClosed(a) || isPhotoOrSignature(a)) return false;
+    var t = txt(a);
+    if(/vermissing|missing|vermist/.test(t)) return false;
+    return /storing|schade/.test(t) || /(^|\s)melding(\s|$)/.test(t) || /bezorger melding/.test(t);
+  }
+  function openCount(){ return alerts().filter(isAllowedOpen).length; }
+
+  function style(){
+    if(E(STYLE_ID)) return;
+    var st=document.createElement('style'); st.id=STYLE_ID;
+    st.textContent = '#alertsBtn.bns-v179-zero{background:#16a34a!important;color:#fff!important;border-color:#16a34a!important;box-shadow:none!important;animation:none!important;filter:none!important}#alertsBtn.bns-v179-open{background:#dc2626!important;color:#fff!important;border-color:#dc2626!important;animation:none!important;filter:none!important}';
+    document.head.appendChild(st);
+  }
+
+  var lastText = '';
+  function applyButton(){
+    style();
+    var b = E('alertsBtn');
+    if(!b) return;
+    var n = openCount();
+    var text = n ? '🚨 Systeemmeldingen ('+n+')' : 'Systeemmeldingen (0)';
+    if(b.textContent !== text) b.textContent = text;
+    b.classList.toggle('bns-v179-open', n > 0);
+    b.classList.toggle('bns-v179-zero', n === 0);
+    b.classList.remove('bns-v176-alert-open','bns-v178-alert-open');
+    if(n === 0){
+      b.style.setProperty('background', '#16a34a', 'important');
+      b.style.setProperty('color', '#ffffff', 'important');
+      b.style.setProperty('border-color', '#16a34a', 'important');
+    }else{
+      b.style.setProperty('background', '#dc2626', 'important');
+      b.style.setProperty('color', '#ffffff', 'important');
+      b.style.setProperty('border-color', '#dc2626', 'important');
+    }
+    b.style.setProperty('animation', 'none', 'important');
+    b.style.setProperty('filter', 'none', 'important');
+    lastText = text;
+  }
+
+  // Als beheer een melding sluit of alle meldingen afsluit, zet ook de tijdgrens zodat oude Firebase snapshots niet terugflikkeren.
+  document.addEventListener('click', function(ev){
+    var el = ev.target && ev.target.closest && ev.target.closest('[data-v178-clean],[data-v178-resolve],[data-v178-delete],[data-v176-resolve],[data-v176-delete]');
+    if(el) setClosedBeforeNow();
+    setTimeout(applyButton, 80);
+    setTimeout(applyButton, 500);
+    setTimeout(applyButton, 1400);
+  }, true);
+
+  ['BNS_V178_CLOSE_ALL_ALERTS','BNS_V178_RESOLVE_ALERT','BNS_V178_DELETE_ALERT','BNS_V176_RESOLVE_ALERT','BNS_V176_DELETE_ALERT','resolveAlert','deleteAlert'].forEach(function(name){
+    try{
+      var old = window[name];
+      if(typeof old === 'function' && !old.__bnsV179Wrapped){
+        var wrapped = function(){ setClosedBeforeNow(); var r = old.apply(this, arguments); setTimeout(applyButton, 100); setTimeout(applyButton, 900); return r; };
+        wrapped.__bnsV179Wrapped = true;
+        window[name] = wrapped;
+      }
+    }catch(e){}
+  });
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(applyButton, 200); }); else setTimeout(applyButton, 100);
+  setTimeout(applyButton, 800);
+  setTimeout(applyButton, 2200);
+  setInterval(applyButton, 700);
+})();
