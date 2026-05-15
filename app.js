@@ -14048,7 +14048,7 @@ setInterval(install,1500);
     if(!s) return 'Offerte';
     var l=L(s);
     if(l === 'optie') return 'optie 14 dagen';
-    if(l === 'opdracht' || l === 'bevestigd' || l === 'opdracht bevestigd' || l === 'opdrachtbevestiging') return 'Bevestigd';
+    if(l === 'opdracht' || l === 'bevestigd' || l === 'opdracht bevestigd') return 'Opdrachtbevestiging';
     if(l === 'geannuleerd' || l === 'geannuleerde' || l === 'annulering') return 'Verwijderd';
     if(l === 'optie 14 dagen' || l === 'optie14') return 'optie 14 dagen';
     if(l === 'offerte') return 'Offerte';
@@ -14074,7 +14074,7 @@ setInterval(install,1500);
         setTimeout(function(){ try{ if(typeof renderMaterials==='function') renderMaterials(window.currentCat || 'TW'); }catch(e){} },30);
       });
     }
-    var wanted=['Offerte','Bevestigd','optie 14 dagen','geannuleerd'];
+    var wanted=['Offerte','Opdrachtbevestiging','optie 14 dagen','geannuleerd'];
     var current=normalizeStatusValue(sel.value);
     sel.innerHTML=wanted.map(function(v){ return '<option value="'+v+'">'+v+'</option>'; }).join('');
     if(current === 'Verwijderd') current='geannuleerd';
@@ -14089,7 +14089,7 @@ setInterval(install,1500);
     if(ns !== old){ o.status=ns; changed=true; }
     if(isDoneStatus(o) && isFutureOrToday(o)){
       o._oldStatus = o.status;
-      o.status = 'Bevestigd';
+      o.status = 'Opdrachtbevestiging';
       o.reopenedBecauseEndDate = new Date().toISOString();
       changed=true;
     }
@@ -14348,130 +14348,99 @@ setInterval(install,1500);
   window.BNS_V164_refreshAddressBook=function(){ bind(); };
 })();
 
-
-/* ===== V167: duidelijke opdrachtstatus badges + Opdrachtbevestiging wordt Bevestigd ===== */
+/* ===== V168: veilige status-badges zonder render-loop ===== */
 (function(){
   'use strict';
-  if(window.__bnsV167StatusBadges) return;
-  window.__bnsV167StatusBadges = true;
+  if(window.__BNS_V168_STATUS_BADGES_SAFE__) return;
+  window.__BNS_V168_STATUS_BADGES_SAFE__ = true;
 
-  function E(id){ return document.getElementById(id); }
-  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function T(v){ return String(v == null ? '' : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
-  function orders(){ var s=S(); if(!s) return []; s.orders = Array.isArray(s.orders) ? s.orders : []; return s.orders; }
-  function saveLocal(){
-    try{ if(typeof save === 'function') save(); }catch(e){}
-    try{ if(typeof saveState === 'function') saveState(); }catch(e){}
-    try{ var s=S(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); localStorage.setItem('eventPlannerProState', JSON.stringify(s)); localStorage.setItem('plannerState', JSON.stringify(s)); localStorage.setItem('eventPlannerPro', JSON.stringify(s)); } }catch(e){}
+  function txt(v){ return String(v == null ? '' : v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function esc(v){ return txt(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function all(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+
+  function info(status){
+    var s = low(status);
+    if(!s || s === 'offerte') return {key:'offerte', label:'Offerte', icon:'📄'};
+    if(s.indexOf('opdrachtbevestiging') >= 0 || s.indexOf('opdracht bevestigd') >= 0 || s.indexOf('bevestigd') >= 0) return {key:'bevestigd', label:'Bevestigd', icon:'✅'};
+    if(s.indexOf('optie 14') >= 0 || s.indexOf('optie14') >= 0) return {key:'optie14', label:'Optie 14 dagen', icon:'⏳'};
+    if(s.indexOf('geannuleerd') >= 0 || s.indexOf('annulering') >= 0) return {key:'geannuleerd', label:'Geannuleerd', icon:'❌'};
+    if(s.indexOf('verwijderd') >= 0) return {key:'verwijderd', label:'Verwijderd', icon:'🗑️'};
+    if(s.indexOf('uitgevoerd') >= 0 || s.indexOf('afgerond') >= 0 || s.indexOf('klaar') >= 0) return {key:'uitgevoerd', label:'Uitgevoerd', icon:'✔️'};
+    return {key:'overig', label:txt(status)||'Status', icon:'ℹ️'};
   }
-  function syncOrder(o){
-    try{
-      if(o && o.id && window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc){
-        window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'orders',String(o.id)), Object.assign({}, o, {updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){});
-      }
-    }catch(e){}
-  }
-  function statusInfo(st){
-    var raw=T(st), s=L(raw);
-    if(!s || s==='offerte') return {key:'offerte', label:'Offerte', icon:'📄'};
-    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|confirmed/.test(s)) return {key:'bevestigd', label:'Bevestigd', icon:'✅'};
-    if(/optie 14|optie14/.test(s)) return {key:'optie14', label:'Optie 14 dagen', icon:'⏳'};
-    if(/geannuleerd|cancel|annulering/.test(s)) return {key:'geannuleerd', label:'Geannuleerd', icon:'❌'};
-    if(/verwijderd|deleted/.test(s)) return {key:'verwijderd', label:'Verwijderd', icon:'🗑️'};
-    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return {key:'uitgevoerd', label:'Uitgevoerd', icon:'✔️'};
-    return {key:'overig', label: raw || 'Status onbekend', icon:'ℹ️'};
-  }
-  function canonicalStorageStatus(st){
-    var i=statusInfo(st);
-    if(i.key==='bevestigd') return 'Bevestigd';
-    if(i.key==='optie14') return 'optie 14 dagen';
-    if(i.key==='geannuleerd') return 'geannuleerd';
-    if(i.key==='verwijderd') return 'Verwijderd';
-    if(i.key==='uitgevoerd') return 'Uitgevoerd';
-    if(i.key==='offerte') return 'Offerte';
-    return i.label;
-  }
-  function ensureStyle(){
-    if(E('bnsV167StatusStyle')) return;
-    var st=document.createElement('style'); st.id='bnsV167StatusStyle';
+
+  function addStyle(){
+    if(document.getElementById('bnsV168StatusStyle')) return;
+    var st = document.createElement('style');
+    st.id = 'bnsV168StatusStyle';
     st.textContent = ''+
-      '.bns-order-status-badge,.status{display:inline-flex!important;align-items:center!important;gap:7px!important;border-radius:999px!important;padding:7px 12px!important;font-size:13px!important;font-weight:1000!important;line-height:1!important;letter-spacing:.2px!important;text-transform:none!important;border:2px solid transparent!important;box-shadow:0 2px 8px rgba(0,0,0,.12)!important;margin-left:8px!important;vertical-align:middle!important;white-space:nowrap!important}'+
-      '.bns-status-offerte,.status-Offerte,.status-offerte{background:#e5e7eb!important;color:#111827!important;border-color:#9ca3af!important}'+
-      '.bns-status-bevestigd,.status-Bevestigd,.status-Opdrachtbevestiging,.status-opdrachtbevestiging{background:#16a34a!important;color:#ffffff!important;border-color:#15803d!important}'+
-      '.bns-status-optie14,.status-optie\ 14\ dagen,.status-optie14{background:#f59e0b!important;color:#111827!important;border-color:#d97706!important}'+
-      '.bns-status-geannuleerd,.status-geannuleerd{background:#dc2626!important;color:#ffffff!important;border-color:#991b1b!important}'+
-      '.bns-status-verwijderd,.status-Verwijderd,.status-verwijderd{background:#7f1d1d!important;color:#ffffff!important;border-color:#450a0a!important}'+
-      '.bns-status-uitgevoerd,.status-Uitgevoerd,.status-uitgevoerd{background:#1d4ed8!important;color:#ffffff!important;border-color:#1e40af!important}'+
-      '.bns-status-overig{background:#334155!important;color:#ffffff!important;border-color:#0f172a!important}'+
-      '.order-card.bns-card-status-bevestigd,.v95order.bns-card-status-bevestigd,.bns-v83-phone-card.bns-card-status-bevestigd{border-left:8px solid #16a34a!important}'+
-      '.order-card.bns-card-status-offerte,.v95order.bns-card-status-offerte,.bns-v83-phone-card.bns-card-status-offerte{border-left:8px solid #9ca3af!important}'+
-      '.order-card.bns-card-status-optie14,.v95order.bns-card-status-optie14,.bns-v83-phone-card.bns-card-status-optie14{border-left:8px solid #f59e0b!important}'+
-      '.order-card.bns-card-status-geannuleerd,.order-card.bns-card-status-verwijderd{border-left:8px solid #dc2626!important}'+
-      '.order-card.bns-card-status-uitgevoerd{border-left:8px solid #1d4ed8!important}'+
-      '#orderStatus.bns-v167-status-select{font-weight:1000!important;border-width:3px!important}';
+      '.bns-v168-status-badge{display:inline-flex!important;align-items:center!important;gap:6px!important;border-radius:999px!important;padding:5px 10px!important;font-size:12px!important;font-weight:900!important;line-height:1.1!important;border:2px solid transparent!important;box-shadow:0 2px 6px rgba(0,0,0,.16)!important;margin-left:7px!important;white-space:nowrap!important;vertical-align:middle!important}'+
+      '.bns-v168-offerte{background:#e5e7eb!important;color:#111827!important;border-color:#9ca3af!important}'+
+      '.bns-v168-bevestigd{background:#16a34a!important;color:#fff!important;border-color:#15803d!important}'+
+      '.bns-v168-optie14{background:#f59e0b!important;color:#111827!important;border-color:#d97706!important}'+
+      '.bns-v168-geannuleerd{background:#dc2626!important;color:#fff!important;border-color:#991b1b!important}'+
+      '.bns-v168-verwijderd{background:#7f1d1d!important;color:#fff!important;border-color:#450a0a!important}'+
+      '.bns-v168-uitgevoerd{background:#1d4ed8!important;color:#fff!important;border-color:#1e40af!important}'+
+      '.bns-v168-overig{background:#334155!important;color:#fff!important;border-color:#0f172a!important}'+
+      '.order-card.bns-v168-card-bevestigd,.bns-v126-order-card.bns-v168-card-bevestigd{border-left:8px solid #16a34a!important}'+
+      '.order-card.bns-v168-card-offerte,.bns-v126-order-card.bns-v168-card-offerte{border-left:8px solid #9ca3af!important}'+
+      '.order-card.bns-v168-card-optie14,.bns-v126-order-card.bns-v168-card-optie14{border-left:8px solid #f59e0b!important}'+
+      '.order-card.bns-v168-card-geannuleerd,.bns-v126-order-card.bns-v168-card-geannuleerd{border-left:8px solid #dc2626!important}'+
+      '.order-card.bns-v168-card-verwijderd,.bns-v126-order-card.bns-v168-card-verwijderd{border-left:8px solid #7f1d1d!important}'+
+      '.order-card.bns-v168-card-uitgevoerd,.bns-v126-order-card.bns-v168-card-uitgevoerd{border-left:8px solid #1d4ed8!important}'+
+      '#orderStatus option[value="Opdrachtbevestiging"]{font-weight:900!important}';
     document.head.appendChild(st);
   }
+
+  function badgeHTML(i){
+    return '<span class="bns-v168-status-badge bns-v168-'+esc(i.key)+'" data-bns-v168-status="1">'+esc(i.icon+' '+i.label)+'</span>';
+  }
+
   function patchSelect(){
-    var sel=E('orderStatus'); if(!sel) return;
-    var cur=canonicalStorageStatus(sel.value);
-    var wanted=['Offerte','Bevestigd','optie 14 dagen','geannuleerd'];
-    var html=wanted.map(function(v){ var i=statusInfo(v); return '<option value="'+H(v)+'">'+H(i.icon+' '+i.label)+'</option>'; }).join('');
-    if(sel.dataset.bnsV167Options !== html){ sel.innerHTML=html; sel.dataset.bnsV167Options=html; }
-    sel.value = wanted.indexOf(cur)>=0 ? cur : 'Offerte';
-    var info=statusInfo(sel.value);
-    sel.classList.add('bns-v167-status-select');
-    sel.style.background = info.key==='bevestigd' ? '#dcfce7' : info.key==='optie14' ? '#fef3c7' : info.key==='geannuleerd' ? '#fee2e2' : '#f3f4f6';
-    sel.style.color = '#111827';
-    if(!sel.dataset.bnsV167Change){
-      sel.dataset.bnsV167Change='1';
-      sel.addEventListener('change', function(){ sel.value=canonicalStorageStatus(sel.value); patchSelect(); }, true);
-    }
-  }
-  function normalizeState(doSync){
-    var changed=[];
-    orders().forEach(function(o){
-      if(!o) return;
-      var old=T(o.status), neu=canonicalStorageStatus(old);
-      if(neu && neu!==old){ o.status=neu; changed.push(o); }
+    var sel = document.getElementById('orderStatus');
+    if(!sel || sel.dataset.bnsV168Done) return;
+    all('option', sel).forEach(function(opt){
+      var i = info(opt.value || opt.textContent);
+      if(i.key === 'bevestigd') opt.textContent = '✅ Bevestigd';
+      else if(i.key === 'offerte') opt.textContent = '📄 Offerte';
+      else if(i.key === 'optie14') opt.textContent = '⏳ Optie 14 dagen';
+      else if(i.key === 'geannuleerd') opt.textContent = '❌ Geannuleerd';
     });
-    if(changed.length){ saveLocal(); if(doSync) changed.slice(0,25).forEach(syncOrder); }
+    sel.dataset.bnsV168Done = '1';
   }
-  function makeBadge(info){ return '<span class="bns-order-status-badge bns-status-'+H(info.key)+'" data-bns-v167-status="1">'+H(info.icon+' '+info.label)+'</span>'; }
-  function patchStatusSpans(){
-    A('span.status, .order-title span[class*="status"]').forEach(function(sp){
-      var info=statusInfo(sp.textContent || sp.getAttribute('data-status') || '');
-      sp.textContent=info.icon+' '+info.label;
-      sp.className='status bns-order-status-badge bns-status-'+info.key;
-      sp.setAttribute('data-bns-v167-status','1');
-      var card=sp.closest && sp.closest('.order-card,.v95order,.bns-v83-phone-card');
-      if(card){ card.className = card.className.replace(/\bbns-card-status-\S+/g,'').trim()+' bns-card-status-'+info.key; }
-    });
-  }
-  function patchTitleTextBadges(){
-    A('.order-title,.v95title,.bns-v83-phone-title').forEach(function(el){
-      if(el.querySelector('[data-bns-v167-status]')) return;
-      var txt=el.textContent || '';
-      var m=txt.match(/\b(Opdrachtbevestiging|Bevestigd|Offerte|optie 14 dagen|geannuleerd|Verwijderd|Uitgevoerd)\b/i);
-      if(!m) return;
-      var info=statusInfo(m[1]);
-      el.innerHTML = H(txt.replace(m[0],'').trim()) + ' ' + makeBadge(info);
-      var card=el.closest && el.closest('.order-card,.v95order,.bns-v83-phone-card');
-      if(card){ card.className = card.className.replace(/\bbns-card-status-\S+/g,'').trim()+' bns-card-status-'+info.key; }
+
+  function patchCards(){
+    addStyle();
+    patchSelect();
+    all('.order-card,.bns-v126-order-card').forEach(function(card){
+      var sp = card.querySelector('span.status');
+      var i = null;
+      if(sp){
+        i = info(sp.textContent || sp.className || '');
+        sp.outerHTML = badgeHTML(i);
+      } else if(!card.querySelector('[data-bns-v168-status]')) {
+        var title = card.querySelector('.order-title, b');
+        if(title){
+          var html = title.innerHTML;
+          var m = title.textContent.match(/\b(Opdrachtbevestiging|Bevestigd|Offerte|optie 14 dagen|geannuleerd|Verwijderd|Uitgevoerd)\b/i);
+          if(m){
+            i = info(m[1]);
+            title.innerHTML = esc(title.textContent.replace(m[0], '').trim()) + ' ' + badgeHTML(i);
+          }
+        }
+      } else {
+        var existing = card.querySelector('[data-bns-v168-status]');
+        i = info(existing ? existing.textContent : '');
+      }
+      if(i){
+        card.className = card.className.replace(/\bbns-v168-card-\S+/g,'').trim() + ' bns-v168-card-' + i.key;
+      }
     });
   }
-  function install(){ ensureStyle(); patchSelect(); patchStatusSpans(); patchTitleTextBadges(); }
-  document.addEventListener('click', function(ev){
-    var b=ev.target && ev.target.closest && ev.target.closest('button');
-    if(!b) return;
-    var t=L(b.textContent);
-    if(t.indexOf('opslaan')>=0){ patchSelect(); setTimeout(function(){ normalizeState(true); install(); },300); setTimeout(function(){ normalizeState(true); install(); },1200); }
-    if(t.indexOf('nieuwe opdracht')>=0 || t.indexOf('wijzigen')>=0 || t.indexOf('open')>=0){ setTimeout(install,120); setTimeout(install,500); }
-  }, true);
-  document.addEventListener('change', function(ev){ if(ev.target && ev.target.id==='orderStatus'){ setTimeout(install,30); } }, true);
-  try{ new MutationObserver(function(){ install(); }).observe(document.documentElement||document.body,{childList:true,subtree:true}); }catch(e){}
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ normalizeState(false); install(); },250); }); else setTimeout(function(){ normalizeState(false); install(); },150);
-  [600,1500,3000,6000].forEach(function(ms){ setTimeout(function(){ normalizeState(false); install(); },ms); });
+
+  function schedule(){ setTimeout(patchCards, 60); setTimeout(patchCards, 350); setTimeout(patchCards, 1000); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule); else schedule();
+  document.addEventListener('click', function(){ schedule(); }, true);
+  document.addEventListener('change', function(e){ if(e.target && e.target.id === 'orderStatus'){ delete e.target.dataset.bnsV168Done; schedule(); } }, true);
 })();
