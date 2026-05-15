@@ -14399,3 +14399,222 @@ setInterval(install,1500);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', addStatusBadgeCss, {once:true}); else addStatusBadgeCss();
 })();
+
+
+/* =========================================================
+   BNS V173 AUTOMATISCHE DAGBACKUP
+   - maakt maximaal 1 automatische backup per dag
+   - overschrijft steeds dezelfde Firebase backup: backups/daily_latest
+   - grote backups worden in vaste chunks opgeslagen, zodat Firebase documentlimiet niet snel breekt
+   - werkt lokaal door als Firebase niet klaar is en probeert later opnieuw
+   - raakt opdrachten/materialen/klanten NIET aan
+========================================================= */
+(function bnsV173AutoDailyBackup(){
+  "use strict";
+
+  var LOCAL_DATE_KEY = "bns_auto_backup_local_date_v1";
+  var FIREBASE_DATE_KEY = "bns_auto_backup_firebase_date_v1";
+  var LOCAL_JSON_KEY = "bns_auto_backup_latest_json_v1";
+  var LOCAL_STATUS_KEY = "bns_auto_backup_status_v1";
+  var CHUNK_SIZE = 650000; // ruim onder Firestore doclimiet
+
+  window.BNS = window.BNS || {};
+  window.BNS.autoBackup = window.BNS.autoBackup || {};
+
+  function todayKey(){
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+
+  function nowIso(){
+    try{ return new Date().toISOString(); }catch(e){ return String(Date.now()); }
+  }
+
+  function getStateObject(){
+    try{
+      if(typeof state !== "undefined" && state) return state;
+    }catch(e){}
+    try{
+      var raw = localStorage.getItem("event-planner-pro-v87");
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return {};
+  }
+
+  function setStatus(text){
+    var status = String(text || "");
+    try{ localStorage.setItem(LOCAL_STATUS_KEY, status); }catch(e){}
+    window.BNS.autoBackup.status = status;
+    try{
+      var el = document.getElementById("bnsAutoBackupStatus");
+      if(el) el.textContent = status;
+    }catch(e){}
+  }
+
+  function jsonChunks(str){
+    var out = [];
+    for(var i=0;i<str.length;i+=CHUNK_SIZE){
+      out.push(str.slice(i, i + CHUNK_SIZE));
+    }
+    return out.length ? out : [""];
+  }
+
+  async function saveLocalBackup(json, day){
+    try{
+      localStorage.setItem(LOCAL_JSON_KEY, json);
+      localStorage.setItem(LOCAL_DATE_KEY, day);
+      setStatus("Lokale dagbackup gemaakt: " + day);
+      return true;
+    }catch(e){
+      console.warn("[BNS backup] lokale backup mislukt", e);
+      setStatus("Lokale dagbackup mislukt");
+      return false;
+    }
+  }
+
+  function firebaseReady(){
+    return !!(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db);
+  }
+
+  async function saveFirebaseBackup(json, day){
+    if(!firebaseReady()) return false;
+
+    var fs = window.BNS.fs;
+    var db = window.BNS.db;
+    var chunks = jsonChunks(json);
+    var meta = {
+      type: "eventplanner-daily-latest",
+      date: day,
+      updatedAt: nowIso(),
+      chunkCount: chunks.length,
+      size: json.length,
+      note: "Automatische dagbackup. Deze overschrijft steeds dezelfde backup en groeit dus niet per dag."
+    };
+
+    try{
+      await fs.setDoc(fs.doc(db, "backups", "daily_latest"), meta, {merge:false});
+      for(var i=0;i<chunks.length;i++){
+        await fs.setDoc(
+          fs.doc(db, "backups", "daily_latest", "chunks", String(i).padStart(4,"0")),
+          { index:i, data:chunks[i], updatedAt:meta.updatedAt },
+          { merge:false }
+        );
+      }
+      localStorage.setItem(FIREBASE_DATE_KEY, day);
+      setStatus("Firebase dagbackup gemaakt: " + day + " (" + chunks.length + " deel" + (chunks.length===1?"":"en") + ")");
+      return true;
+    }catch(e){
+      console.warn("[BNS backup] Firebase backup mislukt", e);
+      setStatus("Firebase dagbackup mislukt; lokale backup blijft beschikbaar");
+      return false;
+    }
+  }
+
+  var running = false;
+  async function runDailyBackup(opts){
+    opts = opts || {};
+    if(running) return false;
+    running = true;
+
+    var day = todayKey();
+    try{
+      var stateObj = getStateObject();
+      var payload = {
+        backupVersion: "V173",
+        app: "Eventplanner Pro",
+        date: day,
+        createdAt: nowIso(),
+        source: location.href,
+        state: stateObj
+      };
+      var json = JSON.stringify(payload);
+
+      if(opts.force || localStorage.getItem(LOCAL_DATE_KEY) !== day){
+        await saveLocalBackup(json, day);
+      }
+
+      if(opts.force || localStorage.getItem(FIREBASE_DATE_KEY) !== day){
+        var ok = await saveFirebaseBackup(json, day);
+        if(!ok && firebaseReady() === false){
+          setStatus("Dagbackup lokaal klaar; Firebase nog niet verbonden");
+        }
+      }
+      return true;
+    }catch(e){
+      console.warn("[BNS backup] dagbackup fout", e);
+      setStatus("Dagbackup fout");
+      return false;
+    }finally{
+      running = false;
+    }
+  }
+
+  function scheduleDailyBackup(delay){
+    setTimeout(function(){ runDailyBackup({force:false}); }, delay || 1000);
+  }
+
+  function installAdminPanel(){
+    try{
+      if(document.getElementById("bnsAutoBackupPanel")) return;
+      var buttons = Array.prototype.slice.call(document.querySelectorAll("button"));
+      var anchor = buttons.find(function(b){
+        return /Backup JSON downloaden/i.test(String(b.textContent||""));
+      });
+      if(!anchor || !anchor.parentNode) return;
+
+      var box = document.createElement("div");
+      box.id = "bnsAutoBackupPanel";
+      box.style.cssText = "margin-top:14px;padding:14px;border:2px solid #1f2937;border-radius:14px;background:#fff;color:#111;font-weight:700;max-width:720px;";
+      box.innerHTML =
+        '<div style="font-size:18px;margin-bottom:8px;">Automatische dagbackup</div>'+
+        '<div id="bnsAutoBackupStatus" style="margin-bottom:10px;">'+
+          (localStorage.getItem(LOCAL_STATUS_KEY) || "Nog geen status")+
+        '</div>'+
+        '<button type="button" id="bnsAutoBackupNow" style="background:#16a34a;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:900;cursor:pointer;">Backup nu naar Firebase</button>'+
+        '<div style="font-size:13px;margin-top:8px;color:#374151;">Maakt maximaal 1 automatische backup per dag en overschrijft dezelfde backup: backups/daily_latest.</div>';
+
+      anchor.parentNode.insertBefore(box, anchor.nextSibling);
+
+      var btn = document.getElementById("bnsAutoBackupNow");
+      if(btn){
+        btn.onclick = function(ev){
+          if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+          setStatus("Backup wordt gemaakt...");
+          runDailyBackup({force:true});
+        };
+      }
+    }catch(e){}
+  }
+
+  window.BNS.autoBackup.runNow = function(){ return runDailyBackup({force:true}); };
+  window.BNS.autoBackup.runDaily = function(){ return runDailyBackup({force:false}); };
+
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", function(){
+      scheduleDailyBackup(8000);
+      scheduleDailyBackup(30000);
+      setTimeout(installAdminPanel, 1200);
+      setInterval(installAdminPanel, 4000);
+    });
+  }else{
+    scheduleDailyBackup(8000);
+    scheduleDailyBackup(30000);
+    setTimeout(installAdminPanel, 1200);
+    setInterval(installAdminPanel, 4000);
+  }
+
+  window.addEventListener("online", function(){ scheduleDailyBackup(2000); });
+  document.addEventListener("visibilitychange", function(){
+    if(!document.hidden) scheduleDailyBackup(2000);
+  });
+
+  try{
+    var oldSave = save;
+    save = function(){
+      var r = oldSave.apply(this, arguments);
+      scheduleDailyBackup(5000);
+      return r;
+    };
+  }catch(e){}
+})();
+
