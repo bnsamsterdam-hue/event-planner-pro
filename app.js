@@ -16129,3 +16129,145 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(patchAll,150); }); else setTimeout(patchAll,100);
   setTimeout(patchAll,700); setTimeout(patchAll,1600); setInterval(patchAll,1800);
 })();
+
+/* ===== V189 Tapwagen: laatste fix Verwijder opdracht knop stabiel en enkel =====
+   Doel:
+   - Geen dubbele Verwijder opdracht knoppen meer bij laden/render.
+   - Knop blijft zichtbaar en komt niet pas/weer door oude renderlagen terug.
+   - Eigen nette planner-melding blijft gebruikt worden.
+   - Verwijderen blijft soft-delete: naar Verwijderde opdrachten + verborgen voor telefoon.
+   - Geen Amsterdam PIN, geen reset/wis-bedrijf functie.
+*/
+(function(){
+  if(window.__twV189StableSingleDeleteButton) return;
+  window.__twV189StableSingleDeleteButton = true;
+
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>\"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]; }); }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
+  function orders(){ var s=stateObj(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function findOrder(id){ return orders().find(function(o){ return String(o && o.id)===String(id); }); }
+  function saveLocal(){
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof saveState==='function') saveState(); }catch(e){}
+    try{ var s=stateObj(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); localStorage.setItem('eventPlannerProState', JSON.stringify(s)); } }catch(e){}
+  }
+  function toast(t){ try{ if(typeof toastMsg==='function') toastMsg(t); else if(typeof toast==='function') toast(t); else console.log(t); }catch(e){} }
+  function rerender(){
+    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    try{ if(typeof renderOrdersFinal==='function') renderOrdersFinal(); }catch(e){}
+  }
+  function extractOrderIdFromCard(card){
+    if(!card) return '';
+    var did=card.getAttribute('data-order-id')||card.getAttribute('data-bns-order-id'); if(did) return did;
+    var b=card.querySelector('button[onclick*="editOrder"],button[onclick*="cancel"],button[onclick*="restore"],button[onclick*="delete"]');
+    if(b){ var oc=b.getAttribute('onclick')||''; var m=oc.match(/(?:editOrder|cancel|restore|deleteOrder)\(['\"]([^'\"]+)['\"]\)/i); if(m) return m[1]; }
+    var txt=T(card.textContent); var num=(txt.match(/\b20\d{2}-\d+\b/)||[])[0];
+    if(num){ var o=orders().find(function(x){ return String(x.number||'')===num; }); if(o) return o.id; }
+    return '';
+  }
+  function ensureOrderId(card){ var id=extractOrderIdFromCard(card); if(id) card.setAttribute('data-order-id', id); return id; }
+  function isDeleteLikeButton(b){
+    if(!b) return false;
+    var txt=L(b.textContent);
+    return txt==='annuleren' || txt==='verwijderen' || txt==='verwijder opdracht' || txt.indexOf('verwijder opdracht')>=0 || b.classList.contains('tw-v187-delete-order') || b.classList.contains('tw-v188-delete-order') || b.classList.contains('tw-v189-delete-order');
+  }
+  async function ensureFirebase(){
+    try{ if(window.BNS && typeof window.BNS.flushPending==='function') await window.BNS.flushPending(); }catch(e){}
+    try{ return !!(window.BNS && window.BNS.fs && window.BNS.db); }catch(e){ return false; }
+  }
+  async function writeOrderFirebase(o){
+    if(!o || !o.id) return false;
+    var ok=false;
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function'){ await window.BNS.syncOrder(o); ok=true; } }catch(e){}
+    try{
+      if(await ensureFirebase()){
+        var fs=window.BNS.fs;
+        await fs.setDoc(fs.doc(window.BNS.db,'orders',String(o.id)), Object.assign({}, o, {updatedAt:new Date().toISOString()}), {merge:true});
+        ok=true;
+      }
+    }catch(e){ console.warn('[V189] Firebase delete write later', e); }
+    try{ if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase==='function') window.BNSFirebaseSync.uploadLocalToFirebase('delete-order-v189'); }catch(e){}
+    return ok;
+  }
+  function markDeleted(o){
+    var now=new Date().toISOString();
+    o._oldStatus = o._oldStatus || o.status || '';
+    o.status = 'Verwijderd';
+    o.deleted = true;
+    o.removed = true;
+    o.hidden = true;
+    o.active = false;
+    o.cancelled = false;
+    o.isDeleted = true;
+    o.deletedAt = o.deletedAt || now;
+    o.removedAt = o.removedAt || now;
+    o.updatedAt = now;
+    return o;
+  }
+  function closeModal(){ var m=E('twV189DeleteModal'); if(m) m.remove(); }
+  function showModal(o){
+    if(!o) return;
+    closeModal();
+    var m=document.createElement('div');
+    m.id='twV189DeleteModal';
+    m.innerHTML='<div class="tw-v189-card">'+
+      '<h2>Opdracht verwijderen</h2>'+
+      '<p>Weet je zeker dat je opdracht <b>'+H(o.number||o.title||o.id)+'</b> wilt verwijderen?</p>'+
+      '<p>De opdracht gaat naar <b>Verwijderde opdrachten</b> en verdwijnt ook van de telefoon. Er wordt niets definitief gewist.</p>'+
+      '<div class="tw-v189-actions"><button type="button" class="tw-v189-ok">Ja, verwijderen</button><button type="button" class="tw-v189-cancel">Annuleren</button></div>'+
+      '</div>';
+    document.body.appendChild(m);
+    m.querySelector('.tw-v189-cancel').onclick=closeModal;
+    m.querySelector('.tw-v189-ok').onclick=async function(){
+      markDeleted(o);
+      saveLocal();
+      closeModal();
+      toast('Opdracht verplaatst naar Verwijderde opdrachten');
+      rerender();
+      await writeOrderFirebase(o);
+      setTimeout(function(){ writeOrderFirebase(o); }, 700);
+      setTimeout(function(){ writeOrderFirebase(o); normalizeAll(); }, 1800);
+    };
+  }
+  function installCss(){
+    if(E('twV189Css')) return;
+    var s=document.createElement('style'); s.id='twV189Css';
+    s.textContent=''+
+      '.tw-v189-delete-order{display:inline-flex!important;align-items:center!important;justify-content:center!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;background:#dc2626!important;color:#fff!important;border:0!important;border-radius:10px!important;padding:9px 12px!important;font-weight:900!important;cursor:pointer!important;white-space:nowrap!important}.tw-v189-delete-order:hover{filter:brightness(.9)!important;transform:translateY(-1px)!important}'+
+      '.tw-v187-delete-order:not(.tw-v189-delete-order),.tw-v188-delete-order:not(.tw-v189-delete-order){display:none!important}'+
+      '#twV189DeleteModal{position:fixed!important;inset:0!important;background:rgba(15,23,42,.58)!important;z-index:2147483647!important;display:grid!important;place-items:center!important;padding:20px!important}#twV189DeleteModal .tw-v189-card{background:#fff!important;color:#111827!important;border:3px solid #111827!important;border-radius:22px!important;box-shadow:0 22px 70px rgba(0,0,0,.42)!important;max-width:min(620px,94vw)!important;padding:24px!important;font-family:Arial,Helvetica,sans-serif!important}#twV189DeleteModal h2{margin:0 0 12px!important;font-size:26px!important}#twV189DeleteModal p{font-size:17px!important;line-height:1.45!important}#twV189DeleteModal .tw-v189-actions{display:flex!important;gap:12px!important;flex-wrap:wrap!important;margin-top:18px!important}#twV189DeleteModal button{border:0!important;border-radius:14px!important;padding:13px 18px!important;font-size:17px!important;font-weight:900!important;cursor:pointer!important}.tw-v189-ok{background:#dc2626!important;color:#fff!important}.tw-v189-cancel{background:#334155!important;color:#fff!important}';
+    document.head.appendChild(s);
+  }
+  function normalizeCard(card){
+    var actions=card.querySelector('.actions'); if(!actions) return;
+    var id=ensureOrderId(card); if(!id) return;
+    var deleteButtons=A('button',actions).filter(isDeleteLikeButton);
+    // Verwijder alle oude/dubbele delete-buttons. V189 maakt steeds exact 1 knop terug.
+    deleteButtons.forEach(function(b){ try{ b.remove(); }catch(e){} });
+    if(actions.querySelector('.tw-v189-delete-order')) return;
+    var b=document.createElement('button');
+    b.type='button'; b.textContent='Verwijder opdracht'; b.className='danger tw-v189-delete-order'; b.setAttribute('data-order-id', id);
+    b.onclick=function(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } var o=findOrder(id); if(o) showModal(o); return false; };
+    actions.appendChild(b);
+  }
+  function normalizeAll(){
+    installCss();
+    A('.order-card').forEach(normalizeCard);
+  }
+  document.addEventListener('click',function(ev){
+    var btn=ev.target && ev.target.closest && ev.target.closest('.tw-v189-delete-order');
+    if(!btn) return;
+    ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    var id=btn.getAttribute('data-order-id') || extractOrderIdFromCard(btn.closest('.order-card'));
+    var o=findOrder(id); if(o) showModal(o);
+    return false;
+  },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(normalizeAll,150); }); else setTimeout(normalizeAll,100);
+  setTimeout(normalizeAll,600); setTimeout(normalizeAll,1400); setInterval(normalizeAll,1800);
+  try{ new MutationObserver(function(){ clearTimeout(window.__twV189MoTimer); window.__twV189MoTimer=setTimeout(normalizeAll,120); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
+})();
