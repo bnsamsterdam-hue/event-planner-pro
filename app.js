@@ -14618,3 +14618,180 @@ setInterval(install,1500);
   }catch(e){}
 })();
 
+
+/* =========================================================
+   V176 - Bezorger/systeemmeldingen Firebase afmeld-fix
+   - Alleen Storing, Schade en Melding tellen als open systeemmelding.
+   - Foto's en handtekeningen blijven alleen bij opdracht/klantmap, geen systeemmelding.
+   - Afmelden/Verwijderen schrijft ook naar Firebase, zodat oude meldingen niet terugkomen.
+   - Schade meldingen tab blijft als overzicht/backup; systeemknop toont alleen open acties.
+   ========================================================= */
+(function BNS_V176_DRIVER_ALERT_FIREBASE_FIX(){
+  "use strict";
+  if (window.__BNS_V176_DRIVER_ALERT_FIREBASE_FIX__) return;
+  window.__BNS_V176_DRIVER_ALERT_FIREBASE_FIX__ = true;
+
+  var MODAL_ID = "bnsV176SystemAlertModal";
+  var STYLE_ID = "bnsV176SystemAlertStyle";
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+
+  function S(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    try { if (window.state) return window.state; } catch(e) {}
+    return {orders:[], alerts:[]};
+  }
+  function ensure(){ var s = S(); if(!Array.isArray(s.orders)) s.orders=[]; if(!Array.isArray(s.alerts)) s.alerts=[]; return s; }
+  function saveLocal(){
+    try { if (typeof save === "function") save(); } catch(e) {}
+    try { if (typeof saveState === "function") saveState(); } catch(e) {}
+    try { if (typeof saveBns === "function") saveBns(); } catch(e) {}
+    try { localStorage.setItem("bns_state", JSON.stringify(ensure())); } catch(e) {}
+    try { localStorage.setItem("bns_app_state", JSON.stringify(ensure())); } catch(e) {}
+  }
+  function fbReady(){ return !!(window.BNS && window.BNS.fs && window.BNS.db); }
+  function fs(){ return window.BNS && window.BNS.fs; }
+  function db(){ return window.BNS && window.BNS.db; }
+  function writeRemoteAlert(a){
+    try {
+      if (!fbReady() || !a || !a.id || !fs().setDoc || !fs().doc) return;
+      fs().setDoc(fs().doc(db(), "alerts", String(a.id)), Object.assign({}, a, {updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){});
+    } catch(e) {}
+  }
+  function deleteRemoteAlert(id){
+    try { if (fbReady() && id && fs().deleteDoc && fs().doc) fs().deleteDoc(fs().doc(db(), "alerts", String(id))).catch(function(){}); } catch(e) {}
+  }
+
+  function alertText(a){ return L([a && a.type, a && a.title, a && a.note, a && a.message, a && a.text, a && a.source].join(" ")); }
+  function isPhotoOrSignature(a){ return /foto|photo|handtekening|signature/.test(alertText(a)); }
+  function isAllowedSystemAlert(a){
+    if (!a || a.resolved || a.deleted || a.removed || a.hidden) return false;
+    if (isPhotoOrSignature(a)) return false;
+    var txt = alertText(a);
+    if (txt.indexOf("vermissing") >= 0 || txt.indexOf("missing") >= 0) return false;
+    return txt.indexOf("storing") >= 0 || txt.indexOf("schade") >= 0 || /(^|\s)melding(\s|$)/.test(txt) || txt.indexOf("bezorger melding") >= 0;
+  }
+  function openSystemAlerts(){ return (ensure().alerts || []).filter(isAllowedSystemAlert); }
+  function findOrder(a){
+    var s = ensure();
+    var oid = T(a && (a.orderId || a.linkedOrder));
+    var nr = T(a && (a.orderNumber || a.linkedOrderNumber));
+    return (s.orders || []).find(function(o){ return (oid && T(o.id) === oid) || (nr && T(o.number) === nr); }) || null;
+  }
+
+  function markLocalAndRemote(id, action, text){
+    var s = ensure();
+    var found = null;
+    s.alerts = (s.alerts || []).map(function(a){
+      if (String(a && a.id) !== String(id)) return a;
+      found = a;
+      var now = new Date().toISOString();
+      a.resolved = true;
+      a.closed = true;
+      a.status = action === "delete" ? "verwijderd" : "opgelost";
+      if (action === "delete") { a.deleted = true; a.deletedAt = now; }
+      else { a.resolvedAt = now; a.resolveText = text || a.resolveText || "Afgehandeld"; }
+      a.updatedAt = now;
+      return a;
+    });
+    if (found) {
+      writeRemoteAlert(found);
+      if (action === "delete") setTimeout(function(){ deleteRemoteAlert(id); }, 450);
+    }
+    // lokaal uit open lijst houden, maar de informatie blijft via Firebase/backup bewaard als resolved/deleted zolang delete niet lukt
+    saveLocal();
+    updateButton();
+    openModal();
+  }
+
+  function resolveAlert(id){
+    var txt = prompt("Afmelding / oplossing:", "Opgelost");
+    if (txt === null) return;
+    markLocalAndRemote(id, "resolve", txt || "Opgelost");
+  }
+  function deleteAlert(id){
+    if (!confirm("Deze melding verwijderen/afsluiten? Hij komt daarna niet meer terug uit Firebase.")) return;
+    markLocalAndRemote(id, "delete", "Verwijderd");
+  }
+
+  function style(){
+    if (E(STYLE_ID)) return;
+    var st = document.createElement("style"); st.id = STYLE_ID;
+    st.textContent = "#"+MODAL_ID+"{position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.58);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:22px}#"+MODAL_ID+" .box{background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:880px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.28)}#"+MODAL_ID+" .close{float:right;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:11px 18px;font-weight:900}#"+MODAL_ID+" .row{border:1px solid #d8dee9;border-radius:16px;padding:14px;margin:12px 0;background:#f8fafc}#"+MODAL_ID+" .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}#"+MODAL_ID+" button.ok{background:#16a34a;color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:900}#"+MODAL_ID+" button.danger{background:#dc2626;color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:900}.bns-v176-alert-open{background:#dc2626!important;color:#fff!important}.bns-v176-alert-zero{background:#16a34a!important;color:#fff!important}";
+    document.head.appendChild(st);
+  }
+
+  function row(a){
+    var o = findOrder(a) || {};
+    var orderLine = T(a.orderNumber || o.number || "") + (T(a.orderTitle || o.title || "") ? " - " + T(a.orderTitle || o.title || "") : "");
+    var klant = T(a.customerName || a.klant || (o.customer && o.customer.name) || o.customerName || "");
+    var msg = T(a.note || a.message || a.text || "");
+    return '<div class="row"><b>'+H(a.type || a.title || "Melding")+'</b><br>'+ 
+      '<small>'+H(a.time || a.createdAt || "")+'</small>'+ 
+      (orderLine ? '<div><b>Opdracht:</b> '+H(orderLine)+'</div>' : '')+
+      (klant ? '<div><b>Klant:</b> '+H(klant)+'</div>' : '')+
+      (msg ? '<p style="white-space:pre-wrap">'+H(msg)+'</p>' : '')+
+      '<div class="actions"><button class="ok" type="button" data-v176-resolve="'+H(a.id)+'">Afmelden</button><button class="danger" type="button" data-v176-delete="'+H(a.id)+'">Verwijderen</button></div></div>';
+  }
+  function openModal(ev){
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    style();
+    var old = E(MODAL_ID); if (old) old.remove();
+    var rows = openSystemAlerts();
+    var m = document.createElement("div"); m.id = MODAL_ID;
+    m.innerHTML = '<div class="box"><button type="button" class="close" data-v176-close="1">Sluiten</button><h2>🚨 Systeemmeldingen / storingen</h2><p style="margin-top:-6px;color:#475569">Alleen open meldingen van bezorger: storing, schade en melding. Foto\'s en handtekeningen blijven bij de opdracht/klantmap.</p>'+(rows.length ? rows.map(row).join("") : '<p>Geen open systeemmeldingen.</p>')+'</div>';
+    document.body.appendChild(m);
+    A('[data-v176-close]', m).forEach(function(b){ b.onclick=function(){ m.remove(); }; });
+    A('[data-v176-resolve]', m).forEach(function(b){ b.onclick=function(){ resolveAlert(b.getAttribute('data-v176-resolve')); }; });
+    A('[data-v176-delete]', m).forEach(function(b){ b.onclick=function(){ deleteAlert(b.getAttribute('data-v176-delete')); }; });
+    return false;
+  }
+  function updateButton(){
+    var b = E("alertsBtn"); if (!b) return;
+    var n = openSystemAlerts().length;
+    b.textContent = n ? "🚨 Systeemmeldingen (" + n + ")" : "Systeemmeldingen (0)";
+    b.classList.toggle("bns-v176-alert-open", n > 0);
+    b.classList.toggle("bns-v176-alert-zero", n === 0);
+    b.style.animation = "none";
+  }
+  function installButton(){
+    style();
+    var old = E("alertsBtn"); if (!old) return;
+    if (old.dataset.bnsV176AlertButton !== "1") {
+      var b = old.cloneNode(true);
+      b.id = old.id;
+      b.dataset.bnsV176AlertButton = "1";
+      old.parentNode.replaceChild(b, old);
+      b.addEventListener("click", openModal, true);
+    }
+    updateButton();
+  }
+
+  window.BNS_V176_RESOLVE_ALERT = resolveAlert;
+  window.BNS_V176_DELETE_ALERT = deleteAlert;
+  window.TapwagenV141ResolveAlert = resolveAlert;
+  window.TapwagenV141DeleteAlert = deleteAlert;
+  window.BNS_A12_ALERT_RESOLVE = resolveAlert;
+  window.BNS_A12_ALERT_DELETE = deleteAlert;
+  window.BNS_V125_RESOLVE_ALERT = resolveAlert;
+  window.BNS_V125_DELETE_ALERT = deleteAlert;
+  window.resolveAlert = resolveAlert;
+  window.deleteAlert = deleteAlert;
+  window.openAlerts = openModal;
+  window.openAlertsV91 = openModal;
+
+  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+  if (oldRenderAll && !oldRenderAll.__bnsV176AlertFix) {
+    var wrapped = function(){ var r = oldRenderAll.apply(this, arguments); setTimeout(installButton, 0); return r; };
+    wrapped.__bnsV176AlertFix = true;
+    window.renderAll = wrapped; try { renderAll = wrapped; } catch(e) {}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(installButton, 250); }); else setTimeout(installButton, 100);
+  setTimeout(installButton, 900);
+  setTimeout(installButton, 2200);
+  setInterval(installButton, 4000);
+})();
