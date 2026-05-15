@@ -3503,10 +3503,13 @@ setInterval(install,1500);
   }
 
   function group(order){
-    var status = String(order && order.status || "").toLowerCase();
+    var status = String(order && order.status || "").toLowerCase().trim();
 
-    if (status === "geannuleerd") return "cancelled";
-    if (status === "uitgevoerd") return "done";
+    // V171: verwijderde/geannuleerde opdrachten mogen nooit in Actieve opdrachten blijven staan.
+    // Ze worden door de bestaande Verwijderde opdrachten-map getoond.
+    if (status === "verwijderd" || status === "gewist" || status === "deleted" || status === "trash") return "deleted";
+    if (status === "geannuleerd" || status === "geannuleerde" || status === "annulering" || status === "cancelled" || status === "canceled") return "deleted";
+    if (status === "uitgevoerd" || status === "afgerond" || status === "voltooid" || status === "done" || status === "klaar") return "done";
     if (isPastEnd(order)) return "done";
 
     return "active";
