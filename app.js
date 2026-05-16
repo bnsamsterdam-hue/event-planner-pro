@@ -16272,165 +16272,158 @@ setInterval(install,1500);
   try{ new MutationObserver(function(){ clearTimeout(window.__twV189MoTimer); window.__twV189MoTimer=setTimeout(normalizeAll,120); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
 })();
 
-
-
-/* ===== V194 Tapwagen: ALLEEN overzicht bestelling Wis-knop repareren =====
-   Basis: V189 zoals aangeleverd.
-   Doel: niets anders aanpassen; alleen Wis in Overzicht bestelling moet echt blijven wissen.
+/* ===== V191 Tapwagen: terug naar goede klantkaart-meldingen + Powered by Tapwagen.nl =====
+   Basis = V189. V190-overzichtfilter is NIET meegenomen, omdat die bezorger meldingen
+   uit de klantkaart/overzicht bestelling wegfilterde. Deze patch wijzigt alleen de tekst
+   Powered by Tapwagen.nl en raakt alerts/meldingen/Firebase niet aan.
 */
 (function(){
-  if(window.__twV194OverviewWisOnlyFix) return;
-  window.__twV194OverviewWisOnlyFix = true;
+  if(window.__twV191RestoreCustomerAlertFlowPowered) return;
+  window.__twV191RestoreCustomerAlertFlowPowered = true;
+  function addPowered(){
+    try{
+      var boxes = Array.prototype.slice.call(document.querySelectorAll('div,section,main'));
+      boxes.forEach(function(el){
+        var txt = (el.textContent||'').trim();
+        if(!txt || txt.indexOf('Overzicht bestelling') < 0) return;
+        if(txt.indexOf('Powered by Tapwagen.nl') >= 0) return;
+        if(!el.querySelector || el.querySelector('.tw-v191-powered')) return;
+        var p = document.createElement('div');
+        p.className = 'tw-v191-powered';
+        p.textContent = 'Powered by Tapwagen.nl';
+        p.style.cssText = 'text-align:center;margin:14px 0 2px;color:#64748b;font-weight:900;font-size:12px;';
+        el.appendChild(p);
+      });
+    }catch(e){}
+  }
+  function css(){
+    if(document.getElementById('twV191Css')) return;
+    var s=document.createElement('style');
+    s.id='twV191Css';
+    s.textContent='.tw-v191-powered{display:block!important;visibility:visible!important;}';
+    document.head.appendChild(s);
+  }
+  function tick(){ css(); addPowered(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,150); }); else setTimeout(tick,100);
+  setTimeout(tick,800); setTimeout(tick,1800); setInterval(tick,3000);
+})();
 
-  var HIDDEN_KEY = 'tw_v194_hidden_overview_media_ids';
+/* ===== V192 Tapwagen: overzicht bestelling Wis echt verwijderen zonder meldingenflow te breken =====
+   Basis = V191/V189. Doel:
+   - Bezorger meldingen/foto/handtekening blijven in klantkaart/overzicht zichtbaar.
+   - De knop Wis in Overzicht bestelling verwijdert alleen dat kaartje echt uit het overzicht.
+   - Gewiste items worden lokaal en in Firebase als hidden/deleted gemarkeerd.
+   - Geen V190-overzichtfilter terugzetten, dus geen blokkade op nieuwe telefoonmeldingen.
+   - Geen Amsterdam PIN, geen reset/wis-bedrijf functie.
+*/
+(function(){
+  if(window.__twV192OverviewWisRealFix) return;
+  window.__twV192OverviewWisRealFix = true;
 
-  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function T(v){ return String(v == null ? '' : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
-  function alerts(){ var s=S(); return s && Array.isArray(s.alerts) ? s.alerts : []; }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function H(v){ return T(v).replace(/[&<>\"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]; }); }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
+  function alerts(){ var s=stateObj(); return s && Array.isArray(s.alerts) ? s.alerts : []; }
   function saveLocal(){
-    try{ if(typeof save === 'function') save(); }catch(e){}
-    try{ if(typeof saveState === 'function') saveState(); }catch(e){}
-    try{ var s=S(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); localStorage.setItem('eventPlannerProState', JSON.stringify(s)); } }catch(e){}
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof saveState==='function') saveState(); }catch(e){}
+    try{ var s=stateObj(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); localStorage.setItem('eventPlannerProState', JSON.stringify(s)); } }catch(e){}
   }
-  function toast(t){ try{ if(typeof toastMsg === 'function') return toastMsg(t); }catch(e){} try{ console.log(t); }catch(e){} }
-  function hiddenMap(){ try{ return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '{}') || {}; }catch(e){ return {}; } }
-  function rememberHidden(id){ if(!id) return; try{ var m=hiddenMap(); m[String(id)] = new Date().toISOString(); localStorage.setItem(HIDDEN_KEY, JSON.stringify(m)); }catch(e){} }
-  function isRememberedHidden(id){ var m=hiddenMap(); return !!(id && m[String(id)]); }
-  function isHiddenAlert(a){
-    if(!a) return true;
-    if(isRememberedHidden(a.id)) return true;
-    return !!(a.hidden || a.deleted || a.removed || a._hiddenFromOverview || L(a.status) === 'verwijderd');
+  function toast(msg){ try{ if(typeof toastMsg==='function') toastMsg(msg); else if(typeof window.toast==='function') window.toast(msg); else console.log(msg); }catch(e){} }
+  function hiddenIds(){ try{ return JSON.parse(localStorage.getItem('twV192HiddenOverviewAlertIds')||'[]').map(String); }catch(e){ return []; } }
+  function rememberHidden(id){
+    if(!id) return;
+    try{ var rows=hiddenIds(); if(rows.indexOf(String(id))<0) rows.push(String(id)); localStorage.setItem('twV192HiddenOverviewAlertIds', JSON.stringify(rows.slice(-1500))); }catch(e){}
   }
-  function alertById(id){ return alerts().find(function(a){ return String(a && a.id) === String(id); }); }
-
+  function alertById(id){ return alerts().find(function(a){ return String(a && a.id)===String(id); }); }
+  function isHiddenAlertId(id){
+    if(!id) return false;
+    if(hiddenIds().indexOf(String(id))>=0) return true;
+    var a=alertById(id);
+    return !!(a && (a.deleted || a.hidden || a.removed || String(a.status||'').toLowerCase()==='verwijderd'));
+  }
   async function writeAlertRemote(a){
     if(!a || !a.id) return;
-    try{ if(typeof writeAlert === 'function') writeAlert(a); }catch(e){}
+    try{ if(typeof writeAlert==='function') writeAlert(a); }catch(e){}
     try{
       if(window.BNS && window.BNS.fs && window.BNS.db){
-        var fs = window.BNS.fs;
-        var data = Object.assign({}, a, {
-          hidden:true,
-          deleted:true,
-          removed:true,
-          resolved:true,
-          status:'verwijderd',
-          updatedAt:new Date().toISOString()
-        });
-        if(fs.setDoc && fs.doc){
-          await fs.setDoc(fs.doc(window.BNS.db, 'alerts', String(a.id)), data, {merge:true});
-        }
+        var fs=window.BNS.fs;
+        await fs.setDoc(fs.doc(window.BNS.db,'alerts',String(a.id)), Object.assign({},a,{updatedAt:new Date().toISOString()}), {merge:true});
       }
     }catch(e){}
   }
-
-  function extractIdFromCard(card){
-    if(!card) return '';
-    var b = card.querySelector('[data-tw-v188-delete]');
-    if(b) return b.getAttribute('data-tw-v188-delete') || '';
-    var candidates = A('button,a', card);
-    for(var i=0;i<candidates.length;i++){
-      var oc = candidates[i].getAttribute('onclick') || '';
-      var m = oc.match(/TapwagenV141(?:ShareAlert|PrintAlert|DeleteAlert|ResolveAlert)\(['"]([^'"]+)['"]\)/i);
-      if(m) return m[1];
-    }
-    return '';
-  }
-
-  function markAndHide(id, card){
-    if(!id) return false;
+  function markDeleted(id){
     rememberHidden(id);
-    var a = alertById(id);
+    var a=alertById(id);
     if(a){
-      a.hidden = true;
-      a.deleted = true;
-      a.removed = true;
-      a.resolved = true;
-      a._hiddenFromOverview = true;
-      a.status = 'verwijderd';
-      a.deletedAt = a.deletedAt || new Date().toISOString();
-      a.resolvedAt = a.resolvedAt || new Date().toISOString();
-      a.updatedAt = new Date().toISOString();
+      var now=new Date().toISOString();
+      a.hidden=true; a.deleted=true; a.removed=true; a.resolved=true; a.status='verwijderd';
+      a.deletedAt=a.deletedAt||now; a.resolvedAt=a.resolvedAt||now; a.updatedAt=now;
       writeAlertRemote(a);
+    } else {
+      writeAlertRemote({id:String(id), hidden:true, deleted:true, removed:true, resolved:true, status:'verwijderd', deletedAt:new Date().toISOString(), updatedAt:new Date().toISOString()});
     }
     saveLocal();
-    if(card && card.parentNode) card.parentNode.removeChild(card);
-    toast('Item uit overzicht gewist');
-    return true;
   }
-
-  function ensureOneWis(card){
+  function extractIdFromCard(card){
+    if(!card) return '';
+    var b=card.querySelector('[data-tw-v192-delete],[data-tw-v188-delete]');
+    if(b) return b.getAttribute('data-tw-v192-delete') || b.getAttribute('data-tw-v188-delete') || '';
+    var btn=card.querySelector('button[onclick*="TapwagenV141ShareAlert"],button[onclick*="TapwagenV141PrintAlert"],button[onclick*="TapwagenV141DeleteAlert"],button[onclick*="TapwagenV141ResolveAlert"]');
+    var oc=btn ? (btn.getAttribute('onclick')||'') : '';
+    var m=oc.match(/TapwagenV141(?:ShareAlert|PrintAlert|DeleteAlert|ResolveAlert)\(['\"]([^'\"]+)['\"]\)/i);
+    return m ? m[1] : '';
+  }
+  function removeCard(card){
     if(!card) return;
-    var id = extractIdFromCard(card);
-    if(id && isHiddenAlert(alertById(id))){
-      if(card.parentNode) card.parentNode.removeChild(card);
-      return;
-    }
-    var actions = card.querySelector('.tw-v141-actions');
-    if(!actions || !id) return;
-
-    var wis = A('button', actions).filter(function(b){ return L(b.textContent) === 'wis' || b.classList.contains('tw-v188-delete-media') || b.classList.contains('tw-v194-wis'); });
-    var keep = wis[0];
-
-    wis.slice(1).forEach(function(b){ try{ b.remove(); }catch(e){} });
-
-    if(!keep){
-      keep = document.createElement('button');
-      keep.type = 'button';
-      keep.textContent = 'Wis';
-      actions.appendChild(keep);
-    }
-
-    keep.className = (keep.className ? keep.className + ' ' : '') + 'tw-v194-wis';
-    keep.setAttribute('data-tw-v194-delete', id);
-    keep.style.background = '#dc2626';
-    keep.style.color = '#fff';
-    keep.style.border = '0';
-    keep.style.borderRadius = '10px';
-    keep.style.padding = '8px 11px';
-    keep.style.fontWeight = '900';
-    keep.style.cursor = 'pointer';
-
-    keep.onclick = function(ev){
-      if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-      markAndHide(id, card);
-      return false;
-    };
+    try{ card.style.transition='opacity .18s ease, transform .18s ease'; card.style.opacity='0'; card.style.transform='scale(.98)'; }catch(e){}
+    setTimeout(function(){ try{ card.remove(); }catch(e){} cleanupEmptySections(); },190);
   }
-
-  function patchOverviewWis(){
-    var modal = document.getElementById('bnsOrderOverviewModal');
-    if(!modal) return;
-    A('.tw-v141-card', modal).forEach(ensureOneWis);
+  function cleanupEmptySections(){
+    A('.tw-v141-order-media').forEach(function(box){
+      if(!box.querySelector('.tw-v141-card')){ try{ box.remove(); }catch(e){} }
+    });
   }
-
-  document.addEventListener('click', function(ev){
-    var btn = ev.target && ev.target.closest && ev.target.closest('.tw-v194-wis,.tw-v188-delete-media');
+  function patchOverviewCards(){
+    A('.tw-v141-card,.tw-v141-alert').forEach(function(card){
+      var id=extractIdFromCard(card);
+      if(!id) return;
+      if(isHiddenAlertId(id)){ removeCard(card); return; }
+      var actions=card.querySelector('.tw-v141-actions');
+      if(!actions) return;
+      // Verwijder oude v188 Wis-knoppen zodat er exact 1 betrouwbare Wis-knop overblijft.
+      A('[data-tw-v188-delete],.tw-v188-delete-media,[data-tw-v192-delete]', actions).forEach(function(x){ try{ x.remove(); }catch(e){} });
+      var b=document.createElement('button');
+      b.type='button'; b.textContent='Wis'; b.className='danger tw-v192-delete-media'; b.setAttribute('data-tw-v192-delete', id);
+      b.onclick=function(ev){
+        if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+        markDeleted(id);
+        removeCard(card);
+        toast('Item uit overzicht verwijderd');
+        return false;
+      };
+      actions.appendChild(b);
+    });
+  }
+  function css(){
+    if(document.getElementById('twV192Css')) return;
+    var s=document.createElement('style'); s.id='twV192Css';
+    s.textContent=''+
+      '.tw-v192-delete-media{display:inline-flex!important;align-items:center!important;justify-content:center!important;background:#dc2626!important;color:#fff!important;border:0!important;border-radius:10px!important;padding:8px 11px!important;font-weight:900!important;cursor:pointer!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important}.tw-v192-delete-media:hover{filter:brightness(.92)!important;transform:translateY(-1px)!important}';
+    document.head.appendChild(s);
+  }
+  function tick(){ css(); patchOverviewCards(); }
+  document.addEventListener('click',function(ev){
+    var btn=ev.target && ev.target.closest && ev.target.closest('.tw-v192-delete-media');
     if(!btn) return;
-    var card = btn.closest('.tw-v141-card');
-    if(!card || !document.getElementById('bnsOrderOverviewModal')) return;
-    var id = btn.getAttribute('data-tw-v194-delete') || btn.getAttribute('data-tw-v188-delete') || extractIdFromCard(card);
-    if(!id) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    markAndHide(id, card);
+    ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    var id=btn.getAttribute('data-tw-v192-delete');
+    var card=btn.closest('.tw-v141-card,.tw-v141-alert');
+    if(id){ markDeleted(id); removeCard(card); toast('Item uit overzicht verwijderd'); }
     return false;
-  }, true);
-
-  var oldShow = window.BNS_V128_SHOW_ORDER_OVERVIEW;
-  if(typeof oldShow === 'function' && !oldShow.__twV194WisPatch){
-    var wrapped = function(){
-      var r = oldShow.apply(this, arguments);
-      setTimeout(patchOverviewWis, 60);
-      setTimeout(patchOverviewWis, 250);
-      return r;
-    };
-    wrapped.__twV194WisPatch = true;
-    window.BNS_V128_SHOW_ORDER_OVERVIEW = wrapped;
-  }
-
-  setInterval(patchOverviewWis, 1200);
+  },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,150); }); else setTimeout(tick,100);
+  setTimeout(tick,700); setTimeout(tick,1600); setInterval(tick,1400);
+  try{ new MutationObserver(function(){ clearTimeout(window.__twV192MoTimer); window.__twV192MoTimer=setTimeout(tick,80); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
 })();
