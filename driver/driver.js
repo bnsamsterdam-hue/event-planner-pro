@@ -353,24 +353,14 @@ function pickPhoto(){
 async function sendPhoto(order,type){
   const file=await pickPhoto(); if(!file)return;
   const data=await fileToDataUrl(file);
-  const item={
-    id:"media_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),
-    type:type,
-    data:data,
-    photoData:data,
-    note:"Foto toegevoegd",
-    createdAt:new Date().toISOString(),
-    time:new Date().toLocaleString("nl-NL"),
-    driverName:BNS.user.name||"",
-    from:BNS.user.name||"",
-    userId:BNS.user.id||""
-  };
-  order.media=Array.isArray(order.media)?order.media:[];
-  order.photos=Array.isArray(order.photos)?order.photos:[];
-  order.media.push(item);
-  order.photos.push(item);
-  await updateOrder(order);
-  toast(type+" opgeslagen bij opdracht");
+  await addAlert({
+    id:"alert_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),
+    source:"telefoon", orderId:order.id||"", orderNumber:order.number||"", linkedOrder:order.id||"", linkedOrderNumber:order.number||"",
+    orderTitle:order.title||"", customerName:customerName(order)||"", driverName:BNS.user.name||"", from:BNS.user.name||"", userId:BNS.user.id||"",
+    title:type, type:type, text:"Foto toegevoegd", note:"Foto toegevoegd", message:"Foto toegevoegd", photoData:data,
+    resolved:false, createdAt:new Date().toISOString(), time:new Date().toLocaleString("nl-NL")
+  });
+  toast(type+" verstuurd");
 }
 function openSignatureModal(order){
   const wrap=document.createElement("div");
@@ -383,7 +373,7 @@ function openSignatureModal(order){
   function start(e){e.preventDefault();down=true;last=pos(e)} function move(e){if(!down)return;e.preventDefault();const p=pos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p} function end(){down=false;last=null}
   ["mousedown","touchstart"].forEach(ev=>c.addEventListener(ev,start,{passive:false})); ["mousemove","touchmove"].forEach(ev=>c.addEventListener(ev,move,{passive:false})); ["mouseup","mouseleave","touchend","touchcancel"].forEach(ev=>c.addEventListener(ev,end));
   wrap.querySelector("#sigClear").onclick=()=>ctx.clearRect(0,0,c.width,c.height); wrap.querySelector("#sigCancel").onclick=()=>wrap.remove();
-  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); const item={id:"sig_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),type:"Handtekening klant",data:data,signatureData:data,note:"Handtekening toegevoegd",createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL"),driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||""}; order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedAt=new Date().toISOString(); order.customerSignedBy=BNS.user.name||""; await updateOrder(order); wrap.remove(); toast("Handtekening opgeslagen bij opdracht");};
+  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); await addAlert({id:"alert_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),source:"telefoon",orderId:order.id||"",orderNumber:order.number||"",linkedOrder:order.id||"",linkedOrderNumber:order.number||"",orderTitle:order.title||"",customerName:customerName(order)||"",driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||"",title:"Handtekening klant",type:"Handtekening klant",text:"Handtekening toegevoegd",note:"Handtekening toegevoegd",message:"Handtekening toegevoegd",signatureData:data,resolved:false,createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL")}); wrap.remove(); toast("Handtekening verstuurd");};
 }
 function enhanceDriverButtons(){
   qsa(".order-card").forEach(card=>{
@@ -442,28 +432,3 @@ async function boot(){
   }catch(e){console.error(e);setStatus("Fout: "+e.message)}
 }
 boot();
-
-/* ===== V187 telefoon: verwijderde/verborgen opdrachten nooit tonen ===== */
-(function(){
-  function lower2(v){ return String(v==null?'':v).trim().toLowerCase(); }
-  function deletedFlag(o){
-    if(!o) return false;
-    var st=lower2(o.status);
-    return o.deleted===true || o.removed===true || o.hidden===true || o.active===false || o.isDeleted===true || ['verwijderd','gewist','deleted','trash','removed'].indexOf(st)>=0;
-  }
-  try{
-    var oldIsDeleted = isDeleted;
-    isDeleted = function(o){ return deletedFlag(o) || (typeof oldIsDeleted==='function' && oldIsDeleted(o)); };
-    window.isDeleted = isDeleted;
-  }catch(e){}
-  try{
-    var oldVisible = visibleOrder;
-    visibleOrder = function(o){ if(deletedFlag(o)) return false; return oldVisible(o); };
-    window.visibleOrder = visibleOrder;
-  }catch(e){}
-  try{
-    var oldFind = findOrder;
-    findOrder = function(id){ var o=oldFind(id); if(deletedFlag(o)) return null; return o; };
-    window.findOrder = findOrder;
-  }catch(e){}
-})();
