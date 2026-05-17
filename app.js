@@ -16434,3 +16434,115 @@ setInterval(install,1500);
 
   setInterval(patchOverviewWis, 1200);
 })();
+
+/* =========================================================
+   BNS V195 FIREBASE USERS HOTFIX
+   - Laadt users uit Firestore terug naar de planner
+   - Negeert demo/INITIAL_STATE zodra Firebase users bestaan
+   - Wacht met PIN niet onnodig op oude localStorage
+   - Filtert deletedUsers uit
+   ========================================================= */
+(function bnsV195FirebaseUsersHotfix(){
+  'use strict';
+  var FIREBASE_VERSION = '10.12.5';
+  var doneOnce = false;
+
+  function log(){ try{ console.log.apply(console, ['[BNS users hotfix]'].concat([].slice.call(arguments))); }catch(e){} }
+  function toast(t){ try{ if(typeof toastMsg==='function') toastMsg(t); }catch(e){} }
+  function normRole(u){
+    var r = String((u && u.role) || '').trim().toLowerCase();
+    if(r === 'admin' || r === 'beheerder') return 'Admin';
+    if(r === 'planner' || r === 'planning') return 'Planner';
+    if(r === 'bezorger' || r === 'driver' || r === 'chauffeur') return 'Bezorger';
+    var rights = (u && u.rights) || {};
+    if(rights.admin === true) return 'Admin';
+    if(rights.agenda === true && rights.afmelden !== true && rights.complete !== true) return 'Planner';
+    if(String((u && u.name) || '').toLowerCase().includes('admin')) return 'Admin';
+    if(String((u && u.name) || '').toLowerCase().includes('planner')) return 'Planner';
+    return 'Bezorger';
+  }
+  function cleanUser(u, id){
+    u = Object.assign({}, u || {});
+    u.id = String(u.id || id || ('u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8)));
+    u.name = String(u.name || u.displayName || u.naam || '').trim() || u.id;
+    u.pin = String(u.pin || '').trim();
+    u.phone = String(u.phone || u.telefoon || '').trim();
+    u.role = normRole(u);
+    u.rights = (u.rights && typeof u.rights === 'object') ? u.rights : {};
+    if(u.role === 'Admin') u.rights.admin = true;
+    if(u.role === 'Bezorger') {
+      if(u.rights.afmelden !== false) u.rights.afmelden = true;
+      if(u.rights.complete !== false) u.rights.complete = true;
+      if(u.rights.storing !== false) u.rights.storing = true;
+      if(u.rights.bellen !== false) u.rights.bellen = true;
+      if(u.rights.belKlant !== false) u.rights.belKlant = true;
+    }
+    return u;
+  }
+  async function firebaseDb(){
+    if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN') throw new Error('Firebase config ontbreekt');
+    var appMod = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-app.js');
+    var fsMod = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-firestore.js');
+    var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+    return { db: fsMod.getFirestore(app), fs: fsMod };
+  }
+  async function readColl(fs, db, name){
+    var snap = await fs.getDocs(fs.collection(db, name));
+    return snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data() || {}); });
+  }
+  function isDemoOnly(list){
+    list = Array.isArray(list) ? list : [];
+    var ids = list.map(function(u){return String(u.id||'');}).sort().join('|');
+    return list.length <= 3 && ids.indexOf('u_admin') >= 0 && ids.indexOf('u_driver') >= 0 && ids.indexOf('u_planner') >= 0;
+  }
+  function applyUsers(users){
+    if(!Array.isArray(users) || !users.length) return false;
+    try{ state.users = users; }catch(e){ try{ window.state.users = users; }catch(_e){} }
+    try{ if(typeof save === 'function') save(); }catch(e){}
+    try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
+    try{ if(typeof adminRender === 'function') adminRender(); }catch(e){}
+    try{ if(typeof renderUserList === 'function') renderUserList(); }catch(e){}
+    try{
+      var sel = document.getElementById('orderDriver');
+      if(sel){
+        sel.innerHTML = '<option value="">Geen</option>' + users.filter(function(u){return String(u.role).toLowerCase()==='bezorger';}).map(function(u){return '<option>' + String(u.name||'').replace(/</g,'&lt;') + '</option>';}).join('');
+      }
+    }catch(e){}
+    return true;
+  }
+  async function loadUsers(){
+    var conn = await firebaseDb();
+    var users = await readColl(conn.fs, conn.db, 'users');
+    var deleted = [];
+    try{ deleted = await readColl(conn.fs, conn.db, 'deletedUsers'); }catch(e){}
+    var deletedIds = new Set((deleted || []).map(function(x){ return String(x.id || ''); }));
+    users = (users || []).filter(function(u){ return !deletedIds.has(String(u.id || '')); }).map(function(u){ return cleanUser(u, u.id); });
+    if(users.length){
+      applyUsers(users);
+      window.BNS = window.BNS || {};
+      window.BNS.firebaseUsersLoaded = true;
+      window.BNS.firebaseUsers = users;
+      doneOnce = true;
+      log('users geladen:', users.length);
+      return true;
+    }
+    return false;
+  }
+  function schedule(){
+    var tries = 0;
+    function tick(){
+      tries++;
+      loadUsers().catch(function(e){ log('users laden mislukt', e && e.message ? e.message : e); }).finally(function(){
+        var current = [];
+        try{ current = state.users || []; }catch(e){}
+        if(!doneOnce && tries < 15) setTimeout(tick, 700);
+        else if(doneOnce && isDemoOnly(current)) setTimeout(tick, 1000);
+      });
+    }
+    setTimeout(tick, 250);
+    setTimeout(tick, 1500);
+    setTimeout(tick, 3500);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule);
+  else schedule();
+})();
