@@ -1,4 +1,23 @@
 
+/* ===== V199 RUSTIG/STABIEL: minder automatische her-render en geen verspringen ===== */
+(function(){
+  if(window.__BNS_V199_CALM_INSTALLED__) return;
+  window.__BNS_V199_CALM_INSTALLED__ = true;
+  window.__BNS_NATIVE_SET_INTERVAL__ = window.setInterval.bind(window);
+  window.__BNS_CALM_INTERVAL__ = function(fn, ms){
+    try{
+      var src = String(fn || '');
+      var interval = Number(ms || 0);
+      // Veel oude patches draaien elke seconde opnieuw install/render/patch en veroorzaken verspringen.
+      // Die laten we nog 1 keer draaien, niet eindeloos.
+      if(interval <= 3500 || /install|refresh|renderMaterials|renderOrders|renderDashboard|adminRender|scrub|clean|patch|tick|addButtons|normalize|applyOrderChipColors|fixModalContrast|updateAlertButton|bindAdmin|reducePasswordPopup|removeCopy|oneDeleteOrder/i.test(src)){
+        return window.setTimeout(function(){ try{ fn(); }catch(e){} }, Math.max(250, interval || 500));
+      }
+      return window.__BNS_NATIVE_SET_INTERVAL__(fn, ms);
+    }catch(e){ return window.__BNS_NATIVE_SET_INTERVAL__(fn, ms); }
+  };
+})();
+
 
 // ===== V9.1 safety fixes =====
 function safePrint(){ window.print(); }
@@ -256,7 +275,7 @@ function openOverview(){
   if(!box) return;
   confirmationText.value = makeConfirmationText();
   box.classList.remove('hidden');
-  box.scrollIntoView({behavior:'smooth',block:'start'});
+  /* V199: geen automatische scroll/jump */
 }
 
 setTimeout(()=>{
@@ -500,7 +519,7 @@ function backToEditV92(){
   const box=document.getElementById('confirmationBox');
   if(box) box.classList.add('hidden');
   const materialPanel=document.getElementById('materialPanel');
-  if(materialPanel) materialPanel.scrollIntoView({behavior:'smooth',block:'start'});
+  /* V199: geen automatische scroll/jump */
 }
 
 function clearMatAdminV92(){
@@ -1245,7 +1264,7 @@ setTimeout(()=>{
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(run,80)); else setTimeout(run,80);
   setTimeout(run,250);
-  setInterval(run,1500);
+  window.__BNS_CALM_INTERVAL__(run,1500);
 })();
 
 // ===== BNS V10.5: echte zichtbare fixes basis =====
@@ -1407,7 +1426,7 @@ setTimeout(()=>{
   }
   function refresh(){ cleanAllStorage(); cleanAlerts(); forceReadable(); patchTitleBar(); patchSystemButtons(); patchRenderMaterials(); patchRenderOrders(); patchAdminRender(); addPlanningLegend(); scrubDOM(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(refresh,80)); else setTimeout(refresh,80);
-  setTimeout(refresh,300); setTimeout(refresh,1200); setInterval(()=>{cleanAlerts();scrubDOM();},1000);
+  setTimeout(refresh,300); setTimeout(refresh,1200); window.__BNS_CALM_INTERVAL__(()=>{cleanAlerts();scrubDOM();},1000);
   const oldRender=window.renderAll; if(typeof oldRender==='function' && !oldRender.__bnsV106){ const patched=function(){ const r=oldRender.apply(this,arguments); setTimeout(refresh,0); return r; }; patched.__bnsV106=true; window.renderAll=patched; try{renderAll=patched;}catch(e){} }
   try{ new MutationObserver(()=>scrubDOM()).observe(document.documentElement,{childList:true,subtree:true,characterData:true}); }catch(e){}
 })();
@@ -1503,7 +1522,7 @@ setTimeout(()=>{
     try{ if(typeof renderMaterials==='function') renderMaterials(window.currentCat||'TW'); }catch(e){}
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',refresh); else refresh();
-  setTimeout(refresh,300); setTimeout(refresh,1200); setInterval(()=>{cleanAlerts(); scrubDOM();},2500);
+  setTimeout(refresh,300); setTimeout(refresh,1200); window.__BNS_CALM_INTERVAL__(()=>{cleanAlerts(); scrubDOM();},2500);
 })();
 
 // ===== BNS V10.8: echte kleur-rondjes + knipperende systeemmeldingen + GitHub tekst verwijderen =====
@@ -1598,7 +1617,7 @@ setTimeout(()=>{
   }
   function refresh(){document.body.classList.add('bns-v108'); removeGithubEverywhere(); applyCatCss(); injectColorDots(); patchRenderMaterials(); patchCards(); patchAdminRender(); patchAlerts(); scrubDOM(); try{if(typeof renderOrders==='function')renderOrders(); if(typeof renderDashboard==='function')renderDashboard(); if(typeof renderMaterials==='function')renderMaterials((typeof currentCat!=='undefined'&&currentCat)||'TW'); if(typeof adminRender==='function')adminRender();}catch(e){} updateAlertButton();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(refresh,100)); else setTimeout(refresh,100);
-  setTimeout(refresh,500); setTimeout(refresh,1500); setInterval(()=>{removeGithubEverywhere();scrubDOM();updateAlertButton();},1500);
+  setTimeout(refresh,500); setTimeout(refresh,1500); window.__BNS_CALM_INTERVAL__(()=>{removeGithubEverywhere();scrubDOM();updateAlertButton();},1500);
   const oldRenderAll=(typeof renderAll==='function')?renderAll:null; if(oldRenderAll&&!oldRenderAll.__bnsV108){const rr=function(){const r=oldRenderAll.apply(this,arguments);setTimeout(refresh,0);return r};rr.__bnsV108=true;try{renderAll=rr;window.renderAll=rr;}catch(e){}}
 })();
 
@@ -1640,7 +1659,7 @@ setTimeout(()=>{
   function enableSortables(){['.tabs','.admin-tabs','.summary','.order-head','.side','#dashboardGrid'].forEach(sel=>{qsa(sel).forEach(box=>{if(box.dataset.bnsDrag109)return;box.dataset.bnsDrag109='1';box.addEventListener('dragstart',e=>{if(!document.body.classList.contains('drag-mode'))return e.preventDefault();const it=e.target.closest('button,label,.summary-card,.dash-widget,.nav');if(!it||!box.contains(it))return e.preventDefault();it.classList.add('bns-dragging');e.dataTransfer.effectAllowed='move';});box.addEventListener('dragend',e=>{qsa('.bns-dragging,.bns-drop-target').forEach(x=>x.classList.remove('bns-dragging','bns-drop-target'));});box.addEventListener('dragover',e=>{if(!document.body.classList.contains('drag-mode'))return;const dragging=document.querySelector('.bns-dragging');if(!dragging)return;e.preventDefault();const after=Array.from(box.children).find(ch=>ch!==dragging&&e.clientY<ch.getBoundingClientRect().top+ch.getBoundingClientRect().height/2);if(after)box.insertBefore(dragging,after);else box.appendChild(dragging);});});});qsa('.tabs button,.admin-tabs button,.summary>*,.order-head>label,.side .nav,#dashboardGrid .dash-widget').forEach(x=>x.draggable=true);}
   function fixThemeStuck(){const ts=$('globalThemeSelect');if(ts&&!ts.dataset.bns109){ts.dataset.bns109='1';ts.addEventListener('change',()=>{document.body.className=document.body.className.replace(/theme-\w+/g,'');if(ts.value&&ts.value!=='blue')document.body.classList.add('theme-'+ts.value);},true)}}
   function refresh(){document.body.classList.add('bns-v109');removeGithubEverywhere();patchMaterialRender();saveOriginalAdminLists();patchAdminRender();injectAdminColorChooser();patchAlerts();setupDrag();enableSortables();fixThemeStuck();scrubDOM();updateAlertButton();try{renderMaterials(window.currentCat||'TW')}catch(e){}try{adminRender()}catch(e){}try{if(typeof renderOrders==='function')renderOrders()}catch(e){}}
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(refresh,500));setTimeout(refresh,1000);setTimeout(refresh,2000);setInterval(()=>{removeGithubEverywhere();scrubDOM();updateAlertButton();enableSortables();},1200);
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(refresh,500));setTimeout(refresh,1000);setTimeout(refresh,2000);window.__BNS_CALM_INTERVAL__(()=>{removeGithubEverywhere();scrubDOM();updateAlertButton();enableSortables();},1200);
 })();
 
 // ===== BNS V11 DEFINITIEVE BASIS: datum gelijk, materiaal exact, geen browser/GitHub meldingen =====
@@ -1750,7 +1769,7 @@ setTimeout(()=>{
   function init(){
     patchOrderHead(); patchLegend(); patchAlerts(); patchTabs();
     try{ if(window.currentCat) window.renderMaterials(window.currentCat); else if($('materialCats')){ const active=$('materialCats').querySelector('button.active'); window.renderMaterials(active?active.textContent:'TW'); } }catch(e){}
-    setInterval(()=>{scrubAll(); patchAlerts();},2500);
+    window.__BNS_CALM_INTERVAL__(()=>{scrubAll(); patchAlerts();},2500);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(init,200)); else setTimeout(init,200);
 })();
@@ -1793,7 +1812,7 @@ setTimeout(()=>{
     patchLegend();
   };
   function cleanAlerts(){const s=getState(); if(Array.isArray(s.alerts)){s.alerts=s.alerts.map(a=>{Object.keys(a).forEach(k=>{if(typeof a[k]==='string')a[k]=clean(a[k]);}); if(!a.title)a.title='Systeemmelding'; return a;}); saveStateObj(s);} document.querySelectorAll('body *').forEach(el=>{if(el.childNodes.length===1&&el.childNodes[0].nodeType===3&&/github|gitup|git\s*hub/i.test(el.textContent))el.textContent=clean(el.textContent);});}
-  function init(){patchFields();patchLegend();cleanAlerts();try{window.renderMaterials(window.currentCat||'TW')}catch(e){} setInterval(cleanAlerts,2000);}
+  function init(){patchFields();patchLegend();cleanAlerts();try{window.renderMaterials(window.currentCat||'TW')}catch(e){} window.__BNS_CALM_INTERVAL__(cleanAlerts,2000);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,250));else setTimeout(init,250);
 })();
 
@@ -1905,7 +1924,7 @@ setTimeout(()=>{
     const search = $('materialSearch');
     if (search && !search.dataset.v112) { search.dataset.v112='1'; search.addEventListener('input', () => window.renderMaterials(window.currentCat || 'TW')); }
     removeGithubText();
-    setInterval(removeGithubText, 1500);
+    window.__BNS_CALM_INTERVAL__(removeGithubText, 1500);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 350)); else setTimeout(init, 350);
 })();
@@ -2614,7 +2633,7 @@ setTimeout(()=>{
     setTimeout(install, 700);
   }
 
-  setInterval(install, 2000);
+  window.__BNS_CALM_INTERVAL__(install, 2000);
 })();
 
 
@@ -2958,7 +2977,7 @@ setTimeout(()=>{
     setTimeout(install, 500);
   }
 
-  setInterval(install, 1000);
+  window.__BNS_CALM_INTERVAL__(install, 1000);
 })();
 
 
@@ -3357,7 +3376,7 @@ setTimeout(()=>{
     setTimeout(install, 700);
   }
 
-  setInterval(install, 1500);
+  window.__BNS_CALM_INTERVAL__(install, 1500);
 })();
 
 
@@ -3414,7 +3433,7 @@ function afterRender(){installCopy();patchRows()}
 function install(){css();installCopy();patchAdd();patchRenderAll();let list=E("materialList");if(list&&!list.dataset.bnsStabielClick){list.dataset.bnsStabielClick="1";list.addEventListener("click",intercept,true)}let search=E("materialSearch");if(search&&!search.dataset.bnsStabielSearch){search.dataset.bnsStabielSearch="1";search.addEventListener("input",()=>setTimeout(patchRows,0))}afterRender()}
 window.BNS_STABIEL_close=closeModal;window.BNS_STABIEL_freeMaterial=freeMat;window.BNS_STABIEL_markStatus=mark;window.BNS_STABIEL_forceAdd=forceAdd;window.BNS_STABIEL_openOrder=openOrder;
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(install,800));else setTimeout(install,800);
-setInterval(install,1500);
+window.__BNS_CALM_INTERVAL__(install,1500);
 })();
 
 
@@ -5408,7 +5427,7 @@ setInterval(install,1500);
   else tick();
   setTimeout(tick, 500);
   setTimeout(tick, 1500);
-  setInterval(tick, 4000);
+  window.__BNS_CALM_INTERVAL__(tick, 4000);
 })();
 
 
@@ -5664,7 +5683,7 @@ setInterval(install,1500);
 
   function tick(){ addTemplateUpload(); ensurePdokVisible(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
-  setTimeout(tick, 500); setTimeout(tick, 1500); setInterval(tick, 4000);
+  setTimeout(tick, 500); setTimeout(tick, 1500); window.__BNS_CALM_INTERVAL__(tick, 4000);
 })();
 
 // ===== BNS PATCH 2026-05-03: klant postcode + annuleren + systeemmeldingen overal =====
@@ -5991,7 +6010,7 @@ setInterval(install,1500);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install); else install();
   setTimeout(install, 800);
-  setInterval(updateAlertButton, 1200);
+  window.__BNS_CALM_INTERVAL__(updateAlertButton, 1200);
 })();
 
 /* =========================================================
@@ -6208,7 +6227,7 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
   setTimeout(install,300);
   setTimeout(install,1200);
-  setInterval(function(){
+  window.__BNS_CALM_INTERVAL__(function(){
     var n=stableAlertCount();
     if(n!==LAST_ALERT_COUNT) updateAlertsStable();
     hidePinForNonAdmin();
@@ -6335,7 +6354,7 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
   setTimeout(install,400);
   setTimeout(install,1400);
-  setInterval(function(){fixModalContrast(); patchAdminSearch();},1000);
+  window.__BNS_CALM_INTERVAL__(function(){fixModalContrast(); patchAdminSearch();},1000);
 })();
 
 /* =========================================================
@@ -6449,7 +6468,7 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
   setTimeout(install,400);
   setTimeout(install,1300);
-  setInterval(addButtons,2000);
+  window.__BNS_CALM_INTERVAL__(addButtons,2000);
 })();
 
 
@@ -6894,7 +6913,7 @@ setInterval(install,1500);
   }
 
   setTimeout(install, 1200);
-  setInterval(install, 2000);
+  window.__BNS_CALM_INTERVAL__(install, 2000);
 })();
 
 
@@ -7285,7 +7304,7 @@ setInterval(install,1500);
   }
 
   setTimeout(install, 1200);
-  setInterval(install, 2000);
+  window.__BNS_CALM_INTERVAL__(install, 2000);
 })();
 
 
@@ -7423,7 +7442,7 @@ setInterval(install,1500);
 
   setTimeout(install, 500);
   setTimeout(install, 1500);
-  setInterval(install, 1000);
+  window.__BNS_CALM_INTERVAL__(install, 1000);
 })();
 
 
@@ -7836,7 +7855,7 @@ setInterval(install,1500);
   function bindViews(){qsa("button").forEach(function(b){var v=detect(b);if(!v||b.dataset.bnsViewBound==="1")return;b.dataset.bnsViewBound="1";b.addEventListener("click",function(e){selectedYear=null;view=v;qsa("button").forEach(function(x){x.classList.remove("bns-tab-active")});b.classList.add("bns-tab-active");if(v==="cancelled"||v==="future"||v==="deleted"){e.preventDefault();e.stopImmediatePropagation();setTimeout(function(){render(v)},60);return false}if(v==="done")setTimeout(function(){render("done")},150)},true)})}
   function install(){css();addDeleted();bindViews();bindDelete()}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){setTimeout(install,300)});else setTimeout(install,300);
-  setTimeout(install,1200);setTimeout(install,2500);setInterval(install,3000)
+  setTimeout(install,1200);setTimeout(install,2500);window.__BNS_CALM_INTERVAL__(install,3000)
 })();
 
 
@@ -8533,7 +8552,7 @@ setInterval(install,1500);
   }
 
   setTimeout(install, 1500);
-  setInterval(function () {
+  window.__BNS_CALM_INTERVAL__(function () {
     if (isDriverMode()) render();
   }, 30000);
 })();
@@ -9041,7 +9060,7 @@ setInterval(install,1500);
 
   setTimeout(install, 900);
   setTimeout(install, 1800);
-  setInterval(install, 2000);
+  window.__BNS_CALM_INTERVAL__(install, 2000);
 
   window.BNS_driverRightsAdminOnly = function(){
     normalizeUsers();
@@ -9402,7 +9421,7 @@ setInterval(install,1500);
   setTimeout(install, 1800);
 
   // Alleen opnieuw koppelen als een oudere patch de functie terugzet. Geen continue her-render, dus geen verspringen.
-  setInterval(function(){
+  window.__BNS_CALM_INTERVAL__(function(){
     if (window.renderMaterials !== renderMaterialsV45 || window.addMat !== addMatV45) install();
     updateAlertButtonStable();
   }, 2500);
@@ -9462,7 +9481,7 @@ setInterval(install,1500);
   }
 
   var oldAdd = window.addMat;
-  setInterval(function(){
+  window.__BNS_CALM_INTERVAL__(function(){
     // Als een oude patch addMat terugzet, zet hem weer terug naar V45 versie.
     if (window.BNS_V45_PLANNING_DEBUG && window.addMat !== oldAdd && typeof oldAdd === "function") {
       window.addMat = oldAdd;
@@ -9744,7 +9763,7 @@ setInterval(install,1500);
   else setTimeout(install, 100);
   setTimeout(install, 800);
   setTimeout(install, 1800);
-  setInterval(function(){
+  window.__BNS_CALM_INTERVAL__(function(){
     removeCopyFromMaterials();
     quietMaterialStatus();
     preventPasswordPopup();
@@ -9904,7 +9923,7 @@ setInterval(install,1500);
   function install(){ installStyle(); relabelAdmin(); bindColor(); patchAdminSearchRender(); removeCopy(); addUpButton(); renderCatsV49(); renderMaterialsV49(); bindMaterialClicks(); afterAdminSaveWatcher(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,100);
   setTimeout(install,700); setTimeout(install,1600);
-  setInterval(function(){ removeCopy(); addUpButton(); },2500);
+  window.__BNS_CALM_INTERVAL__(function(){ removeCopy(); addUpButton(); },2500);
 })();
 
 /* =========================================================
@@ -10480,7 +10499,7 @@ setInterval(install,1500);
   function addUp(){ var b=E('bnsOmhoogBtn'); if(!b){b=document.createElement('button'); b.id='bnsOmhoogBtn'; b.textContent='Omhoog'; b.type='button'; document.body.appendChild(b);} b.onclick=function(){try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);} A('.page,.workpanel,.adminPane,#materialList,#bnsV56AdminList,main,section').forEach(function(x){try{x.scrollTop=0;}catch(e){}});}; }
   function install(){ style(); cleanOld(); renderCats(); renderMaterials(); bindMaterial(); buildAdmin(); oneDeleteOrder(); addUp(); window.renderCats=renderCats; window.renderMaterials=renderMaterials; window.adminRender=function(){buildAdmin();}; try{ renderCats=window.renderCats; renderMaterials=window.renderMaterials; adminRender=window.adminRender; }catch(e){} }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,250);}); else setTimeout(install,150);
-  setTimeout(install,800); setTimeout(install,1800); setInterval(function(){cleanOld(); oneDeleteOrder();},4000);
+  setTimeout(install,800); setTimeout(install,1800); window.__BNS_CALM_INTERVAL__(function(){cleanOld(); oneDeleteOrder();},4000);
 })();
 
 /* ==========================================================
@@ -10638,7 +10657,7 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,150);
   setTimeout(install,900);
   setTimeout(install,1800);
-  setInterval(install,2500);
+  window.__BNS_CALM_INTERVAL__(install,2500);
 })();
 
 /* ==========================================================
@@ -10748,7 +10767,7 @@ setInterval(install,1500);
 
   function install(){ensureStyle();ensureAdminActions();ensureFavDelete();ensureOrderDelete();}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,150);
-  setTimeout(install,800); setTimeout(install,1800); setInterval(install,2500);
+  setTimeout(install,800); setTimeout(install,1800); window.__BNS_CALM_INTERVAL__(install,2500);
 })();
 
 /* ==========================================================
@@ -10839,7 +10858,7 @@ setInterval(install,1500);
   }
   function install(){wrapRender();applyOrderChipColors();}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);}); else setTimeout(install,120);
-  setTimeout(install,700); setTimeout(install,1600); setInterval(applyOrderChipColors,1500);
+  setTimeout(install,700); setTimeout(install,1600); window.__BNS_CALM_INTERVAL__(applyOrderChipColors,1500);
 })();
 
 /* ==========================================================
@@ -11011,7 +11030,7 @@ setInterval(install,1500);
 
   function install(){ensureStyle();bindAdmin();reducePasswordPopup();ensureOverviewOverride();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,300);});else setTimeout(install,150);
-  setTimeout(install,800);setTimeout(install,1800);setInterval(function(){bindAdmin();reducePasswordPopup();},2500);
+  setTimeout(install,800);setTimeout(install,1800);window.__BNS_CALM_INTERVAL__(function(){bindAdmin();reducePasswordPopup();},2500);
 })();
 
 /* =========================================================
@@ -11255,7 +11274,7 @@ setInterval(install,1500);
   function init(){css();patchMaterial(); if(phoneMode()){setTimeout(function(){pullAll(renderPhone);},50);setTimeout(renderPhone,500);} }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else setTimeout(init,50);
   ['input','change','click'].forEach(function(t){document.addEventListener(t,function(ev){if(ev.target&&/^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){setTimeout(function(){matKey='';renderMaterials95(window.currentCat||lastCat,true);},20);}},true);});
-  setInterval(function(){try{patchMaterial();}catch(e){}},3000);
+  window.__BNS_CALM_INTERVAL__(function(){try{patchMaterial();}catch(e){}},3000);
 })();
 
 
@@ -11279,12 +11298,12 @@ setInterval(install,1500);
     } catch(e) {}
   }
   document.addEventListener('click', function(){ setTimeout(cleanPlannerDashboard,80); }, true);
-  setInterval(cleanPlannerDashboard, 1500);
+  window.__BNS_CALM_INTERVAL__(cleanPlannerDashboard, 1500);
   setTimeout(cleanPlannerDashboard, 500);
 })();
 
 /* BNS V140 - telefoon read-only veiligheidsfix */
-(function(){function fix(){try{document.querySelectorAll('h1').forEach(function(h){if(/BNS Bezorger/i.test(h.textContent||''))h.textContent='Bezorger Tapwagen.nl';});}catch(e){}} if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fix);else setTimeout(fix,50);setInterval(fix,5000);}());
+(function(){function fix(){try{document.querySelectorAll('h1').forEach(function(h){if(/BNS Bezorger/i.test(h.textContent||''))h.textContent='Bezorger Tapwagen.nl';});}catch(e){}} if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fix);else setTimeout(fix,50);window.__BNS_CALM_INTERVAL__(fix,5000);}());
 
 
 /* =========================================================
@@ -11650,7 +11669,7 @@ setInterval(install,1500);
   function install(){ css(); applyOverrides(); window.renderMaterials=renderMaterials; window.renderCats=renderCats; window.addMat=addMatStable; window.BNS_V72_renderMaterials=renderMaterials; try{renderMaterials=renderMaterials;}catch(e){} try{renderCats=renderCats;}catch(e){} try{addMat=addMatStable;}catch(e){} bindButton("adminSaveMat",saveMaterial,"bnsV72"); bindButton("adminDeleteMat",deleteMaterial,"bnsV72"); var list=E("materialList"); if(list&&!list.dataset.bnsV72Click){list.dataset.bnsV72Click="1"; list.addEventListener("click",function(ev){var r=ev.target.closest&&ev.target.closest("[data-material-id]"); if(!r||!list.contains(r))return; ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation(); addMatStable(r.getAttribute("data-material-id")); return false;},true);} var catsBox=E("materialCats"); if(catsBox&&!catsBox.dataset.bnsV72){catsBox.dataset.bnsV72="1"; catsBox.addEventListener("click",function(ev){var b=ev.target.closest&&ev.target.closest("[data-bns-v72-cat]"); if(!b)return; ev.preventDefault();ev.stopPropagation(); window.currentCat=catKey(b.getAttribute("data-bns-v72-cat")); try{currentCat=window.currentCat;}catch(e){} var ms=E("materialSearch"); if(ms) ms.value=""; lastRenderKey=""; renderCats(); renderMaterials(window.currentCat);},true);} var ms=E("materialSearch"); if(ms&&!ms.dataset.bnsV72){ms.dataset.bnsV72="1"; ms.addEventListener("input",function(){lastRenderKey=""; renderMaterials(currentCat());});} ["dateStart","dateEnd","orderStatus"].forEach(function(id){var el=E(id); if(el&&!el.dataset.bnsV72){el.dataset.bnsV72="1"; el.addEventListener("change",function(){lastRenderKey=""; renderMaterials(currentCat());}); el.addEventListener("input",function(){lastRenderKey=""; renderMaterials(currentCat());});}}); var rows=document.querySelectorAll("[data-bns-v67-edit],[data-v61-edit]"); rows.forEach(function(btn){ if(!btn.dataset.bnsV72Edit){btn.dataset.bnsV72Edit="1"; btn.addEventListener("click",function(){fillMaterial(btn.getAttribute("data-bns-v67-edit")||btn.getAttribute("data-v61-edit"));},true);}}); if(E("materialCats")) renderCats(); if(E("materialList")) renderMaterials(currentCat()); }
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",function(){setTimeout(install,400);}); else setTimeout(install,200);
   setTimeout(install,1200); setTimeout(install,2600);
-  setInterval(function(){ try{ applyOverrides(); window.renderMaterials=renderMaterials; window.renderCats=renderCats; window.addMat=addMatStable; }catch(e){} },6000);
+  window.__BNS_CALM_INTERVAL__(function(){ try{ applyOverrides(); window.renderMaterials=renderMaterials; window.renderCats=renderCats; window.addMat=addMatStable; }catch(e){} },6000);
 })();
 
 
@@ -11785,7 +11804,7 @@ setInterval(install,1500);
   function install(){ bindSaves(); pinFix(); if(E("materialList")) forceRenderMaterials(currentCat()); }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){setTimeout(install,500);}); else setTimeout(install,300);
   setTimeout(install,1300); setTimeout(install,3000);
-  setInterval(function(){ bindSaves(); pinFix(); },2000);
+  window.__BNS_CALM_INTERVAL__(function(){ bindSaves(); pinFix(); },2000);
 })();
 
 
@@ -11959,7 +11978,7 @@ setInterval(install,1500);
   }
   function install(){ensureDocumentsBox();wrapSaveEdit();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,700);});else setTimeout(install,500);
-  setTimeout(install,1500);setInterval(install,3000);
+  setTimeout(install,1500);window.__BNS_CALM_INTERVAL__(install,3000);
 })();
 
 
@@ -12847,7 +12866,7 @@ setInterval(install,1500);
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(bind,600); }); else setTimeout(bind,350);
   setTimeout(bind,1400); setTimeout(bind,3200); setTimeout(bind,5200);
-  setInterval(function(){ try{ patchAdminPin(); patchInvoiceButtons(); ensureDriverChooser(); patchOrderSave(); patchGlobalLogin(); /* V158: no Firebase pull listener */ }catch(e){} },8000);
+  window.__BNS_CALM_INTERVAL__(function(){ try{ patchAdminPin(); patchInvoiceButtons(); ensureDriverChooser(); patchOrderSave(); patchGlobalLogin(); /* V158: no Firebase pull listener */ }catch(e){} },8000);
 })();
 
 
@@ -13433,7 +13452,7 @@ setInterval(install,1500);
   setTimeout(install,700);
   setTimeout(install,1800);
   setTimeout(install,3800);
-  setInterval(function(){ try{ patchAdminPin(); patchMainLogin(); bindButtons(); applyLatestOverrides(); flushPending(); }catch(e){} },5000);
+  window.__BNS_CALM_INTERVAL__(function(){ try{ patchAdminPin(); patchMainLogin(); bindButtons(); applyLatestOverrides(); flushPending(); }catch(e){} },5000);
 
   window.BNS_V85_SAVE_ADMIN_MATERIAL_NOW = saveAdminMaterialNow;
   window.BNS_V85_APPLY_MATERIAL_OVERRIDES = applyLatestOverrides;
@@ -14038,7 +14057,7 @@ setInterval(install,1500);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,200); }); else setTimeout(install,120);
   setTimeout(install,800);
   setTimeout(install,1800);
-  setInterval(install, 5000);
+  window.__BNS_CALM_INTERVAL__(install, 5000);
 })();
 
 
@@ -14608,13 +14627,13 @@ setInterval(install,1500);
       scheduleDailyBackup(8000);
       scheduleDailyBackup(30000);
       setTimeout(installAdminPanel, 1200);
-      setInterval(installAdminPanel, 4000);
+      window.__BNS_CALM_INTERVAL__(installAdminPanel, 4000);
     });
   }else{
     scheduleDailyBackup(8000);
     scheduleDailyBackup(30000);
     setTimeout(installAdminPanel, 1200);
-    setInterval(installAdminPanel, 4000);
+    window.__BNS_CALM_INTERVAL__(installAdminPanel, 4000);
   }
 
   window.addEventListener("online", function(){ scheduleDailyBackup(2000); });
@@ -14807,7 +14826,7 @@ setInterval(install,1500);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(installButton, 250); }); else setTimeout(installButton, 100);
   setTimeout(installButton, 900);
   setTimeout(installButton, 2200);
-  setInterval(installButton, 4000);
+  window.__BNS_CALM_INTERVAL__(installButton, 4000);
 })();
 
 
@@ -14961,7 +14980,7 @@ setInterval(install,1500);
   window.openAlertsV91 = openModal;
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 250); }); else setTimeout(install, 100);
-  setTimeout(install, 900); setTimeout(install, 2400); setInterval(install, 3000);
+  setTimeout(install, 900); setTimeout(install, 2400); window.__BNS_CALM_INTERVAL__(install, 3000);
 })();
 
 /* =========================================================
@@ -15082,7 +15101,7 @@ setInterval(install,1500);
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(applyButton, 200); }); else setTimeout(applyButton, 100);
   setTimeout(applyButton, 800);
   setTimeout(applyButton, 2200);
-  setInterval(applyButton, 700);
+  window.__BNS_CALM_INTERVAL__(applyButton, 700);
 })();
 
 /* =========================================================
@@ -15170,7 +15189,7 @@ setInterval(install,1500);
   function tick(){ apply(); startObserver(); }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick, 50); }); else setTimeout(tick, 50);
   setTimeout(tick, 250); setTimeout(tick, 700); setTimeout(tick, 1500); setTimeout(tick, 3000);
-  setInterval(tick, 250);
+  window.__BNS_CALM_INTERVAL__(tick, 250);
 })();
 
 /* =========================================================
@@ -15335,7 +15354,7 @@ setInterval(install,1500);
   function tick(){ update(); }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,50); }); else setTimeout(tick,50);
   setTimeout(tick,250); setTimeout(tick,900); setTimeout(tick,2200);
-  setInterval(tick, 350);
+  window.__BNS_CALM_INTERVAL__(tick, 350);
 })();
 
 /* =========================================================
@@ -15530,7 +15549,7 @@ setInterval(install,1500);
   }
   function tick(){ patchDocumentButtons(); makeSaveGreen(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick, 300); }); else setTimeout(tick, 100);
-  setTimeout(tick, 800); setTimeout(tick, 1800); setInterval(tick, 2500);
+  setTimeout(tick, 800); setTimeout(tick, 1800); window.__BNS_CALM_INTERVAL__(tick, 2500);
 })();
 
 /* ===== V183: meerdere bezorgers betrouwbaar, oude enkele select niet leidend ===== */
@@ -15735,7 +15754,7 @@ setInterval(install,1500);
   }
   function tick(){ patchEditClear(); patchSave(); patchSummary(); ensureChooser(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,200); }); else setTimeout(tick,100);
-  setTimeout(tick,700); setTimeout(tick,1500); setInterval(tick,2500);
+  setTimeout(tick,700); setTimeout(tick,1500); window.__BNS_CALM_INTERVAL__(tick,2500);
 })();
 
 /* ===== V184 Tapwagen: opdrachtkaart Annuleren -> Verwijderen met bevestiging ===== */
@@ -15826,7 +15845,7 @@ setInterval(install,1500);
   }, true);
   function tick(){ css(); patchButtons(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,150); }); else setTimeout(tick,100);
-  setTimeout(tick,500); setTimeout(tick,1200); setInterval(tick,2000);
+  setTimeout(tick,500); setTimeout(tick,1200); window.__BNS_CALM_INTERVAL__(tick,2000);
 })();
 
 /* ===== V187 Tapwagen: eigen verwijder-modal + Firebase/telefoon echt verbergen =====
@@ -15964,7 +15983,7 @@ setInterval(install,1500);
   }catch(e){}
   function tick(){ installCss(); patchButtons(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,100); }); else setTimeout(tick,80);
-  setTimeout(tick,500); setTimeout(tick,1200); setInterval(tick,2000);
+  setTimeout(tick,500); setTimeout(tick,1200); window.__BNS_CALM_INTERVAL__(tick,2000);
 })();
 
 /* ===== V188 Tapwagen: stabiele wis-knoppen media/order + eigen deelmenu =====
@@ -16141,7 +16160,7 @@ setInterval(install,1500);
     if(del){ var id=del.getAttribute('data-tw-v188-delete'); if(id){ ev.preventDefault(); ev.stopPropagation(); removeAlertStable(id); return false; } }
   },true);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(patchAll,150); }); else setTimeout(patchAll,100);
-  setTimeout(patchAll,700); setTimeout(patchAll,1600); setInterval(patchAll,1800);
+  setTimeout(patchAll,700); setTimeout(patchAll,1600); window.__BNS_CALM_INTERVAL__(patchAll,1800);
 })();
 
 /* ===== V189 Tapwagen: laatste fix Verwijder opdracht knop stabiel en enkel =====
@@ -16282,7 +16301,7 @@ setInterval(install,1500);
     return false;
   },true);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(normalizeAll,150); }); else setTimeout(normalizeAll,100);
-  setTimeout(normalizeAll,600); setTimeout(normalizeAll,1400); setInterval(normalizeAll,1800);
+  setTimeout(normalizeAll,600); setTimeout(normalizeAll,1400); window.__BNS_CALM_INTERVAL__(normalizeAll,1800);
   try{ new MutationObserver(function(){ clearTimeout(window.__twV189MoTimer); window.__twV189MoTimer=setTimeout(normalizeAll,120); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
 })();
 
@@ -16446,7 +16465,7 @@ setInterval(install,1500);
     window.BNS_V128_SHOW_ORDER_OVERVIEW = wrapped;
   }
 
-  setInterval(patchOverviewWis, 1200);
+  window.__BNS_CALM_INTERVAL__(patchOverviewWis, 1200);
 })();
 
 
@@ -16641,7 +16660,7 @@ setInterval(install,1500);
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,150); }); else setTimeout(install,100);
   [400,1000,2500,5000].forEach(function(ms){ setTimeout(install,ms); });
-  setInterval(function(){ try{ install(); }catch(e){} },7000);
+  window.__BNS_CALM_INTERVAL__(function(){ try{ install(); }catch(e){} },7000);
 })();
 
 /* =========================================================
@@ -16902,5 +16921,55 @@ setInterval(install,1500);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', () => setTimeout(install, 200)); else setTimeout(install, 100);
   [700,1600,3500,7000].forEach(ms => setTimeout(install, ms));
-  setInterval(function(){ try{ install(); }catch(e){} }, 8000);
+  window.__BNS_CALM_INTERVAL__(function(){ try{ install(); }catch(e){} }, 8000);
+})();
+
+
+/* ===== V199 extra stabiliteit: scrollpositie behouden en geen focus-jump ===== */
+(function(){
+  if(window.__BNS_V199_STABLE_SCROLL__) return;
+  window.__BNS_V199_STABLE_SCROLL__ = true;
+  function byId(id){ return document.getElementById(id); }
+  function remember(){
+    return {
+      x: window.scrollX || 0,
+      y: window.scrollY || 0,
+      materialTop: byId('materialList') ? byId('materialList').scrollTop : null,
+      ordersTop: byId('ordersList') ? byId('ordersList').scrollTop : null,
+      active: document.activeElement && document.activeElement.id ? document.activeElement.id : ''
+    };
+  }
+  function restore(pos){
+    if(!pos) return;
+    try{ if(byId('materialList') && pos.materialTop !== null) byId('materialList').scrollTop = pos.materialTop; }catch(e){}
+    try{ if(byId('ordersList') && pos.ordersTop !== null) byId('ordersList').scrollTop = pos.ordersTop; }catch(e){}
+    try{ window.scrollTo(pos.x, pos.y); }catch(e){}
+  }
+  function wrap(name){
+    var fn = window[name] || (typeof globalThis[name] === 'function' ? globalThis[name] : null);
+    if(!fn || fn.__bnsV199Stable) return;
+    var wrapped = function(){
+      var pos = remember();
+      var r = fn.apply(this, arguments);
+      setTimeout(function(){ restore(pos); }, 0);
+      setTimeout(function(){ restore(pos); }, 80);
+      return r;
+    };
+    wrapped.__bnsV199Stable = true;
+    window[name] = wrapped;
+    try{ eval(name + ' = window["' + name + '"]'); }catch(e){}
+  }
+  function install(){
+    ['renderMaterials','renderOrders','renderDashboard','adminRender','renderAll','summaryRender'].forEach(wrap);
+    var st = document.getElementById('bnsV199StableStyle');
+    if(!st){
+      st = document.createElement('style');
+      st.id = 'bnsV199StableStyle';
+      st.textContent = '*{scroll-behavior:auto!important} #materialList,#ordersList{overflow-anchor:none!important;} .material-row,.order-card,.admin-row{transition:none!important;animation:none!important;}';
+      document.head.appendChild(st);
+    }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 200); }); else setTimeout(install, 100);
+  setTimeout(install, 800);
+  setTimeout(install, 1800);
 })();
