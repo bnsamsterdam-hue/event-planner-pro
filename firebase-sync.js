@@ -5,7 +5,7 @@ if(window.__bnsFirebaseAutoSyncV2)return; window.__bnsFirebaseAutoSyncV2=true;
 
 const STORAGE_KEYS=["event-planner-pro-v87","event-planner-pro-v8","event-planner-pro","bns_event_planner"];
 const COLLECTIONS=["users","orders","materials","customers","locations","alerts","settings"];
-const UPLOAD_COLLECTIONS=["orders","materials","customers","locations","alerts","settings"]; // V197: users nooit massaal uploaden; alleen gericht via app.js
+const UPLOAD_COLLECTIONS=["orders","materials","customers","locations","alerts","settings"]; // V197: users nooit massaal uploaden vanuit localStorage/INITIAL_STATE
 const AUTO_KEY="bns_firebase_auto_sync_on";
 let tools=null, uploading=false, downloading=false, started=false, timer=null, lastJson="";
 
@@ -170,12 +170,10 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
 }
 async function start(){
   if(started)return; started=true;
-  addTools();
+  patchStorage(); patchSave(); addTools(); lastJson=json();
   const t=await fb(); if(!t)return;
-  await download(); // V197: eerst Firebase downloaden, nooit lokale/demo-data eerst uploaden
-  patchStorage(); patchSave(); lastJson=json();
   await live();
-  status("Firebase veilig actief");
+  status("Firebase automatisch actief");
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(start,1000)); else setTimeout(start,1000);
 setInterval(patchSave,3000);
