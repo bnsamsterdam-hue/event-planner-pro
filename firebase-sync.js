@@ -1,24 +1,20 @@
-/* BNS FIREBASE AUTO SYNC V196 - VEILIG
-   Doel:
-   - Eerst Firebase downloaden, daarna pas opslaan/uploaden.
-   - Voorkomt dat INITIAL_STATE/localStorage demo-users terug naar Firebase worden geschreven.
-   - User-verwijderingen in de site worden ook uit Firestore users verwijderd.
-*/
+/* BNS FIREBASE AUTO SYNC V2 */
 (function(){
 "use strict";
-if(window.__bnsFirebaseAutoSyncV196)return; window.__bnsFirebaseAutoSyncV196=true;
+if(window.__bnsFirebaseAutoSyncV2)return; window.__bnsFirebaseAutoSyncV2=true;
 
 const STORAGE_KEYS=["event-planner-pro-v87","event-planner-pro-v8","event-planner-pro","bns_event_planner"];
-const COLLECTIONS=["users","orders","materials","customers","locations","alerts"];
+const COLLECTIONS=["users","orders","materials","customers","locations","alerts","settings"];
+const UPLOAD_COLLECTIONS=["orders","materials","customers","locations","alerts","settings"]; // V197: users nooit massaal uploaden; alleen gericht via app.js
 const AUTO_KEY="bns_firebase_auto_sync_on";
-let tools=null, uploading=false, downloading=false, started=false, ready=false, timer=null, lastJson="";
+let tools=null, uploading=false, downloading=false, started=false, timer=null, lastJson="";
 
 function status(t){
   let e=document.getElementById("bnsFirebaseStatus");
   if(!e){
     e=document.createElement("div");
     e.id="bnsFirebaseStatus";
-    e.style.cssText="position:fixed;right:10px;bottom:10px;z-index:99999;background:#fff;color:#111;border:2px solid #0ea5e9;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900;box-shadow:0 8px 24px rgba(15,23,42,.22);opacity:.9;pointer-events:none";
+    e.style.cssText="position:fixed;right:10px;bottom:10px;z-index:99999;background:#fff;color:#111;border:2px solid #0ea5e9;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900;box-shadow:0 8px 24px rgba(15,23,42,.22);opacity:.85;pointer-events:none";
     document.body.appendChild(e);
   }
   e.textContent=t;
@@ -29,7 +25,7 @@ function loadLocal(){
     try{const r=localStorage.getItem(k); if(r){const p=JSON.parse(r); if(p&&typeof p==="object")return p}}catch(e){}
   }
   try{if(window.state&&typeof window.state==="object")return window.state}catch(e){}
-  return {};
+  return null;
 }
 function saveLocal(s){
   if(!s)return;
@@ -37,36 +33,10 @@ function saveLocal(s){
   try{window.state=s}catch(e){}
 }
 function arr(s,k){s[k]=Array.isArray(s[k])?s[k]:[]}
-function makeId(p){return p+"_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8)}
-function ensureId(x,p){if(!x.id)x.id=makeId(p);return x}
-function normRole(u){
-  const r=String(u.role||u.type||u.functie||"").trim().toLowerCase();
-  if(r==="admin") return "Admin";
-  if(r==="planner") return "Planner";
-  if(r==="bezorger"||r==="driver"||r==="chauffeur") return "Bezorger";
-  if(u.rights&&u.rights.admin===true) return "Admin";
-  if(u.rights&&u.rights.agenda===true&&u.rights.admin!==false) return "Planner";
-  return "Bezorger";
-}
-function normUser(u){
-  u=Object.assign({},u||{});
-  ensureId(u,"u");
-  u.name=String(u.name||u.naam||"").trim();
-  u.pin=String(u.pin||"").trim();
-  u.role=normRole(u);
-  u.rights=Object.assign({},u.rights||{});
-  return u;
-}
+function id(x,p){if(!x.id)x.id=p+"_"+Math.random().toString(36).slice(2,10);return x}
 function norm(s){
-  s=s||{};
-  ["users","orders","materials","customers","locations","alerts"].forEach(k=>arr(s,k));
-  s.settings=s.settings||{};
-  s.users=s.users.map(normUser).filter(u=>u.name||u.pin||u.id);
-  s.orders.forEach(x=>ensureId(x,"o"));
-  s.materials.forEach(x=>ensureId(x,"m"));
-  s.customers.forEach(x=>ensureId(x,"c"));
-  s.locations.forEach(x=>ensureId(x,"l"));
-  s.alerts.forEach(x=>ensureId(x,"a"));
+  s=s||{}; ["users","orders","materials","customers","locations","alerts"].forEach(k=>arr(s,k)); s.settings=s.settings||{};
+  s.users.forEach(x=>id(x,"u")); s.orders.forEach(x=>id(x,"o")); s.materials.forEach(x=>id(x,"m")); s.customers.forEach(x=>id(x,"c")); s.locations.forEach(x=>id(x,"l")); s.alerts.forEach(x=>id(x,"a"));
   return s;
 }
 function json(){try{return JSON.stringify(loadLocal()||{})}catch(e){return""}}
@@ -80,76 +50,41 @@ async function fb(){
   tools={fsMod,db};
   return tools;
 }
-async function getCollection(col){
-  const t=await fb(); if(!t)return [];
-  const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
-  return snap.docs.map(d=>({id:d.id,...d.data()}));
+async function remoteDoc(col,docid){
+  const t=await fb(); if(!t||!docid)return null;
+  const s=await t.fsMod.getDoc(t.fsMod.doc(t.db,col,String(docid)));
+  return s.exists()?s.data():null;
 }
-async function getSettings(){
-  const t=await fb(); if(!t)return {};
-  const snap=await t.fsMod.getDoc(t.fsMod.doc(t.db,"settings","main"));
-  return snap.exists() ? (snap.data()||{}) : {};
+function keep(local,remote,k){
+  if(!remote)return;
+  if((local[k]===undefined||local[k]===null||local[k]==="")&&remote[k]!==undefined&&remote[k]!==null&&remote[k]!=="")local[k]=remote[k];
 }
-function rerender(){
-  try{ if(typeof renderAll==="function") renderAll(); }catch(e){}
-  try{ if(typeof renderOrders==="function") renderOrders(); }catch(e){}
-  try{ if(typeof renderMaterials==="function") renderMaterials(window.currentCat||"EXTRA"); }catch(e){}
-  try{ if(typeof adminRender==="function") adminRender(); }catch(e){}
-}
-async function download(reason){
-  if(uploading||downloading)return;
-  const t=await fb(); if(!t)return;
-  downloading=true; status("Firebase laden...");
-  try{
-    const s=norm(loadLocal()||{});
-    for(const col of COLLECTIONS){
-      const rows=await getCollection(col);
-      if(col==="users"){
-        s.users=rows.map(normUser).filter(u=>u.name||u.pin||u.id);
-      }else{
-        s[col]=rows;
-      }
-    }
-    s.settings=await getSettings();
-
-    /* Als Firebase users heeft, is Firebase leidend. Geen demo-users uit INITIAL_STATE terugzetten. */
-    saveLocal(s);
-    lastJson=json();
-    status("Firebase geladen");
-    rerender();
-    ready=true;
-  }catch(e){console.error(e);status("Firebase download fout")}
-  finally{downloading=false}
-}
-async function mirrorUsersToFirebase(t, localUsers){
-  const localIds=new Set(localUsers.map(u=>String(u.id)));
-  const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,"users"));
-  for(const d of snap.docs){
-    if(!localIds.has(String(d.id))){
-      await t.fsMod.deleteDoc(t.fsMod.doc(t.db,"users",String(d.id)));
-    }
-  }
+function preserveOrder(local,remote){
+  ["driverId","bezorgerId","userId","driverName","driver","bezorger"].forEach(k=>keep(local,remote,k));
+  return local;
 }
 async function upload(reason){
-  if(uploading||downloading||!ready)return;
+  if(uploading||downloading)return;
   const t=await fb(); if(!t)return;
-  const s=norm(loadLocal());
-  if(!s)return;
+  const s=norm(loadLocal()); if(!s)return;
   uploading=true; status("Firebase opslaan...");
   try{
-    for(const col of COLLECTIONS){
-      const rows=Array.isArray(s[col])?s[col]:[];
-      if(col==="users"){
-        await mirrorUsersToFirebase(t, rows);
+    for(const col of UPLOAD_COLLECTIONS){
+      if(col==="settings"){
+        await t.fsMod.setDoc(t.fsMod.doc(t.db,"settings","main"),s.settings||{},{merge:true});
+        continue;
       }
+      const rows=Array.isArray(s[col])?s[col]:[];
       for(const row of rows){
-        ensureId(row,col.slice(0,1));
-        if(col==="users") Object.assign(row,normUser(row));
+        id(row,col.slice(0,1));
+        if(col==="orders"){
+          const rem=await remoteDoc("orders",row.id);
+          preserveOrder(row,rem);
+        }
         row.updatedAt=row.updatedAt||new Date().toISOString();
         await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row,{merge:true});
       }
     }
-    await t.fsMod.setDoc(t.fsMod.doc(t.db,"settings","main"),s.settings||{},{merge:true});
     localStorage.setItem(AUTO_KEY,"1");
     saveLocal(s);
     lastJson=json();
@@ -157,23 +92,43 @@ async function upload(reason){
   }catch(e){console.error(e);status("Firebase upload fout")}
   finally{uploading=false}
 }
+async function download(){
+  if(uploading||downloading)return;
+  const t=await fb(); if(!t)return;
+  downloading=true; status("Firebase laden...");
+  try{
+    const s=norm(loadLocal()||{});
+    for(const col of UPLOAD_COLLECTIONS){
+      if(col==="settings"){
+        const snap=await t.fsMod.getDoc(t.fsMod.doc(t.db,"settings","main"));
+        if(snap.exists())s.settings=snap.data()||{};
+        continue;
+      }
+      const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
+      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+    }
+    saveLocal(s); lastJson=json(); status("Firebase geladen");
+    try{if(typeof renderOrders==="function")renderOrders(); if(typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA"); if(typeof adminRender==="function")adminRender()}catch(e){}
+  }catch(e){console.error(e);status("Firebase download fout")}
+  finally{downloading=false}
+}
 function schedule(reason){
-  if(!started||!ready||downloading)return;
+  if(!started||downloading)return;
   clearTimeout(timer);
-  timer=setTimeout(()=>{const j=json(); if(j&&j!==lastJson)upload(reason||"auto")},1200);
+  timer=setTimeout(()=>{const j=json(); if(j&&j!==lastJson)upload(reason||"auto")},1800);
 }
 function patchStorage(){
-  if(localStorage.__bnsFbAutoV196)return;
-  localStorage.__bnsFbAutoV196="1";
+  if(localStorage.__bnsFbAutoV2)return;
+  localStorage.__bnsFbAutoV2="1";
   const old=localStorage.setItem.bind(localStorage);
   localStorage.setItem=function(k,v){const r=old(k,v); if(STORAGE_KEYS.includes(k))schedule("localStorage"); return r};
 }
 function patchSave(){
   try{
-    if(typeof window.save==="function"&&!window.save.__bnsFbAutoV196){
+    if(typeof window.save==="function"&&!window.save.__bnsFbAutoV2){
       const old=window.save;
       window.save=function(){const r=old.apply(this,arguments); schedule("save"); return r};
-      window.save.__bnsFbAutoV196=true;
+      window.save.__bnsFbAutoV2=true;
     }
   }catch(e){}
 }
@@ -187,20 +142,42 @@ function addTools(){
   b.innerHTML='<button id="bnsFbUpload" style="background:#16a34a;color:white;border:0;border-radius:10px;padding:10px;font-weight:900">Upload Firebase</button><button id="bnsFbDownload" style="background:#0ea5e9;color:white;border:0;border-radius:10px;padding:10px;font-weight:900">Download Firebase</button>';
   document.body.appendChild(b);
   document.getElementById("bnsFbUpload").onclick=()=>upload("manual");
-  document.getElementById("bnsFbDownload").onclick=()=>download("manual");
+  document.getElementById("bnsFbDownload").onclick=download;
+}
+async function live(){
+  return;
+
+  const t = await fb(); if(!t)return;
+  COLLECTIONS.forEach(col=>{
+    if(col==="settings"){
+t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
+        if(uploading)return;
+        const s=norm(loadLocal()||{}); if(snap.exists())s.settings=snap.data()||{};
+        downloading=true; saveLocal(s); downloading=false; lastJson=json();
+      });
+      return;
+    }
+t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
+      if(uploading)return;
+      const s=norm(loadLocal()||{});
+      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      downloading=true; saveLocal(s); downloading=false; lastJson=json();
+      try{if(col==="orders"&&typeof renderOrders==="function")renderOrders(); if(col==="materials"&&typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA"); if(col==="users"&&typeof adminRender==="function")adminRender()}catch(e){}
+    });
+  });
+  localStorage.setItem(AUTO_KEY,"1");
+  status("Firebase live actief");
 }
 async function start(){
   if(started)return; started=true;
   addTools();
   const t=await fb(); if(!t)return;
-  /* Eerst downloaden. Pas daarna save/localStorage patchen, zodat lokale/demo-data niet naar Firebase wordt teruggeschreven. */
-  await download("start");
-  patchStorage();
-  patchSave();
-  lastJson=json();
+  await download(); // V197: eerst Firebase downloaden, nooit lokale/demo-data eerst uploaden
+  patchStorage(); patchSave(); lastJson=json();
+  await live();
   status("Firebase veilig actief");
 }
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(start,700)); else setTimeout(start,700);
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(start,1000)); else setTimeout(start,1000);
 setInterval(patchSave,3000);
-window.BNSFirebaseSync={uploadLocalToFirebase:upload,downloadFirebaseToLocal:download,startRealtimeSync:download};
+window.BNSFirebaseSync={uploadLocalToFirebase:upload,downloadFirebaseToLocal:download,startRealtimeSync:live};
 })();
