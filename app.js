@@ -21,7 +21,7 @@ function toastMsg(t){toast.textContent=t;toast.className='toast';setTimeout(()=>
 
 function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(p).classList.add('active');document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));renderAll();}
 function init(){
- document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{if(pin.length<4)pin+=b.dataset.pin;pinView.textContent=(pin.split('').map(x=>'•').join(' ')+' - - - -').split(' ').slice(0,4).join(' ');if(pin.length===4)doLogin();});
+ document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{if(pin.length<4)pin+=b.dataset.pin;pinView.textContent=(pin.split('').map(x=>'•').join(' ')+' - - - -').split(' ').slice(0,24).join(' ');if(pin.length===4)doLogin();});
  pinClear.onclick=()=>{pin='';pinView.textContent='- - - -'}; pinOk.onclick=doLogin; logout.onclick=()=>location.reload();
  document.querySelectorAll('.nav').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
  document.querySelectorAll('.worktab').forEach(b=>b.onclick=()=>workTab(b.dataset.tab));
@@ -9581,7 +9581,7 @@ setInterval(install,1500);
     if (!cat || !code || !name) return;
 
     cat.placeholder = "Rubriek bv TW / TO";
-    cat.maxLength = 4;
+    cat.maxLength = 32;
     code.placeholder = "Product nr bv 17";
     name.placeholder = "Product omschrijving bv Tapwagen XXL";
     if (price) price.placeholder = "Prijs / vrije tekst";
@@ -9771,7 +9771,7 @@ setInterval(install,1500);
   function S(){ try { if (typeof state !== "undefined" && state) return state; } catch(e){} return window.state || {materials:[],settings:{}}; }
   function esc(v){ return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c];}); }
   function norm(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
-  function catKey(v){ return String(v || "EXTRA").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,4) || "EXTRA"; }
+  function catKey(v){ return String(v || "EXTRA").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,24) || "EXTRA"; }
   function saveAny(){ try { if (typeof save === "function") save(); } catch(e){} }
   function chosenList(){ try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e){} return window.chosen || []; }
 
@@ -9928,7 +9928,7 @@ setInterval(install,1500);
   function saveNow(){ try { if (typeof save === "function") save(); } catch(e){} }
   function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function norm(v){ return String(v == null ? "" : v).toLowerCase().trim(); }
-  function catKey(v){ return String(v || "EXTRA").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,4) || "EXTRA"; }
+  function catKey(v){ return String(v || "EXTRA").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,24) || "EXTRA"; }
   function rgbToHex(c){
     c = String(c || "").trim();
     if (/^#[0-9a-f]{6}$/i.test(c)) return c.toLowerCase();
@@ -10127,7 +10127,7 @@ setInterval(install,1500);
     var product = ensureProductInput();
     removeOldAdminNoise();
 
-    cat.maxLength = 4; cat.placeholder = "TW"; cat.autocomplete = "off";
+    cat.maxLength = 32; cat.placeholder = "TW"; cat.autocomplete = "off";
     nr.placeholder = "Nr"; nr.autocomplete = "off";
     if (product) { product.placeholder = "Product / zoeknaam"; product.autocomplete = "off"; }
     name.placeholder = "Product omschrijving"; name.autocomplete = "off";
@@ -10165,7 +10165,7 @@ setInterval(install,1500);
     }
     if (cat && !cat.dataset.bnsV50Color) {
       cat.dataset.bnsV50Color = "1";
-      cat.addEventListener("input", function(){ cat.value = cat.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,4); updateColorPreview(); }, true);
+      cat.addEventListener("input", function(){ cat.value = cat.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,24); updateColorPreview(); }, true);
       cat.addEventListener("change", updateColorPreview, true);
     }
     updateColorPreview();
@@ -10321,7 +10321,7 @@ setInterval(install,1500);
   function S(){ try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){} try{ if(state && Array.isArray(state.materials)) return state; }catch(e){} return {materials:[],orders:[]}; }
   function save(){ try{ if(typeof window.save === 'function') window.save(); else if(typeof save === 'function') save(); }catch(e){} try{ if(typeof window.saveApp === 'function') window.saveApp(); }catch(e){} }
   function toast(t){ try{ if(typeof window.toastMsg === 'function') window.toastMsg(t); else if(typeof window.toast === 'function') window.toast(t); }catch(e){} }
-  function cat(v){ return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4) || 'EXTRA'; }
+  function cat(v){ return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,24) || 'EXTRA'; }
   function code(m){ return T(m.code || m.productCode || '').trim(); }
   function nr(m){ var c=cat(m.cat||m.rubriek||m.category); var n=T(m.productNr||m.nr||'').trim(); if(n) return n.replace(new RegExp('^'+c,'i'),''); return code(m).replace(new RegExp('^'+c,'i'),''); }
   function product(m){ return T(m.product || m.searchName || m.type || '').trim(); }
@@ -10497,7 +10497,7 @@ setInterval(install,1500);
   function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
   function T(v){ return String(v == null ? '' : v); }
   function N(v){ return T(v).toLowerCase().trim(); }
-  function cat(v){ return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4) || 'EXTRA'; }
+  function cat(v){ return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,24) || 'EXTRA'; }
   function hex(v){
     v=T(v).trim();
     if(/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
@@ -10858,7 +10858,7 @@ setInterval(install,1500);
   function T(v){return String(v==null?'':v);} 
   function N(v){return T(v).toLowerCase().trim();}
   function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-  function cat(v){return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4)||'EXTRA';}
+  function cat(v){return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,24)||'EXTRA';}
   function S(){try{if(window.state&&Array.isArray(window.state.materials))return window.state;}catch(e){} try{if(state&&Array.isArray(state.materials))return state;}catch(e){} return {materials:[],orders:[]};}
   function saveApp(){try{if(typeof window.save==='function')window.save();else if(typeof save==='function')save();}catch(e){} try{if(typeof window.saveApp==='function')window.saveApp();}catch(e){}}
   function toast(t){try{if(typeof window.toastMsg==='function')window.toastMsg(t);else if(typeof window.toast==='function')window.toast(t);}catch(e){}}
@@ -16881,4 +16881,137 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,100); setTimeout(dailyBackup,5000); }); else { setTimeout(install,100); setTimeout(dailyBackup,5000); }
   [300,900,2000,5000].forEach(function(ms){ setTimeout(install,ms); });
   setInterval(function(){ patchAdd(); markRows(); cleanupWisButtons(); patchCategoryAdmin(); },2500);
+})();
+
+
+/* =========================================================
+   BNS V202 - rustige herstelpatch
+   Doel: GEEN nieuwe functies, alleen herstel van gemelde punten:
+   - dubbele PDOK-postcodebox op nieuwe opdracht/locatie verbergen
+   - admin rubriekveld langer dan 4 letters + keuzehulp met bestaande rubrieken
+   - defect/storing niet meer knipperen, alleen kleur
+   - linker menu/rubrieken niet meer wegvallen door animatie/overlay
+   ========================================================= */
+(function bnsV202RustigHerstel(){
+  'use strict';
+  if (window.__bnsV202RustigHerstel) return;
+  window.__bnsV202RustigHerstel = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function S(){ try { if (typeof state !== 'undefined' && state) return state; } catch(e){} return window.state || {}; }
+  function catClean(v){ return String(v || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,24) || 'EXTRA'; }
+
+  function addStyle(){
+    if (E('bns-v202-rustig-style')) return;
+    var st = document.createElement('style');
+    st.id = 'bns-v202-rustig-style';
+    st.textContent = [
+      /* De oude losse PDOK-box gaf dubbel postcode zoeken; de bestaande klant/locatie-zoeker blijft staan. */
+      '#bnsPostcodeBox{display:none!important}',
+      /* Geen knipperingen meer op defect/storing/status. */
+      '.defect,.storing,.status-defect,.status-storing,.mat-defect,.mat-status-badge.defect,.mat-status-badge.status-defect,.bns-v45-pill.defect,.bns-status-pill.defect,.badge.defect,[class*="defect"],[class*="storing"]{animation:none!important;transition:none!important;filter:none!important;transform:none!important}',
+      '[data-status="defect"],[data-status="storing"],[title*="Defect"],[title*="Storing"]{animation:none!important;transition:none!important;filter:none!important;transform:none!important}',
+      /* Linker menu/hoofdrubrieken altijd klikbaar/zichtbaar houden. */
+      '#sideMenu,#leftMenu,#mainMenu,#menu,.side-menu,.sidebar,.app-sidebar,.left-menu,.main-nav,.nav,.tabs,.worktabs,#workTabs,#topTabs,#sectionTabs{visibility:visible!important;opacity:1!important;pointer-events:auto!important;animation:none!important;transition:none!important}',
+      '#sideMenu button,#leftMenu button,#mainMenu button,#menu button,.side-menu button,.sidebar button,.main-nav button,.tabs button,.worktab,.tab{pointer-events:auto!important;animation:none!important;transition:none!important;filter:none!important;transform:none!important}',
+      /* Admin rubriekveld ruim genoeg maken. */
+      '#adminMatCat{max-width:260px!important;min-width:140px!important;text-transform:uppercase!important}',
+      '.bns-v202-rubriek-help{font-size:12px;color:#475569;font-weight:800;margin:4px 0 8px 0}',
+      '.bns-v202-rubriek-help code{background:#eef2ff;border-radius:6px;padding:2px 5px;margin-right:3px}'
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+
+  function removeDoublePdok(){
+    A('#bnsPostcodeBox').forEach(function(x){ try { x.remove(); } catch(e){ x.style.display='none'; } });
+  }
+
+  function normalizeRubrieken(){
+    var s = S();
+    var mats = Array.isArray(s.materials) ? s.materials : [];
+    mats.forEach(function(m){
+      if (!m) return;
+      var c = String(m.cat || m.rubriek || m.category || '').trim().toUpperCase();
+      if (c === 'EXTR') c = 'EXTRA';
+      if (c) { m.cat = c; m.rubriek = c; m.category = c; }
+    });
+  }
+
+  function installRubriekChoice(){
+    var cat = E('adminMatCat');
+    if (!cat) return;
+    cat.maxLength = 32;
+    cat.removeAttribute('maxlength');
+    cat.setAttribute('autocomplete','off');
+    cat.placeholder = 'Rubriek bv TW / TO / EXTRA';
+
+    var s = S();
+    var cats = Array.from(new Set((Array.isArray(s.materials)?s.materials:[]).map(function(m){
+      return catClean(m && (m.cat || m.rubriek || m.category));
+    }).filter(Boolean))).sort();
+    ['TW','TO','KW','KA','BT','HN','EXTRA'].forEach(function(c){ if (cats.indexOf(c) < 0) cats.push(c); });
+
+    var dl = E('bnsV202RubriekDatalist');
+    if (!dl) {
+      dl = document.createElement('datalist');
+      dl.id = 'bnsV202RubriekDatalist';
+      document.body.appendChild(dl);
+    }
+    dl.innerHTML = cats.map(function(c){ return '<option value="'+String(c).replace(/"/g,'&quot;')+'"></option>'; }).join('');
+    cat.setAttribute('list','bnsV202RubriekDatalist');
+
+    if (!cat.dataset.bnsV202Rubriek) {
+      cat.dataset.bnsV202Rubriek = '1';
+      cat.addEventListener('input', function(){
+        var v = cat.value;
+        if (String(v).toUpperCase() === 'EXTR') cat.value = 'EXTRA';
+      });
+    }
+
+    if (!E('bnsV202RubriekHelp')) {
+      var help = document.createElement('div');
+      help.id = 'bnsV202RubriekHelp';
+      help.className = 'bns-v202-rubriek-help';
+      help.innerHTML = 'Rubriek: kies bestaand of typ nieuw, bv <code>TW</code><code>TO</code><code>KW</code><code>EXTRA</code>. Meer dan 4 letters is toegestaan.';
+      cat.insertAdjacentElement('afterend', help);
+    }
+  }
+
+  function stopDefectBlink(){
+    A('[class*="defect"],[class*="storing"],.mat-status-badge,.bns-status-pill,.badge').forEach(function(el){
+      el.style.animation = 'none';
+      el.style.transition = 'none';
+      el.style.filter = 'none';
+      el.style.transform = 'none';
+    });
+  }
+
+  function keepMenuVisible(){
+    var words = /^(admin|afsluiten|bezorger|meldingen|systeemmeldingen)$/i;
+    A('button,a,.tab,.worktab').forEach(function(el){
+      var t = String(el.textContent || '').trim();
+      if (words.test(t)) {
+        el.style.visibility = 'visible';
+        el.style.opacity = '1';
+        el.style.pointerEvents = 'auto';
+        el.style.animation = 'none';
+        el.style.transition = 'none';
+      }
+    });
+  }
+
+  function run(){
+    addStyle();
+    removeDoublePdok();
+    normalizeRubrieken();
+    installRubriekChoice();
+    stopDefectBlink();
+    keepMenuVisible();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run,100); }); else setTimeout(run,50);
+  setTimeout(run,500);
+  setTimeout(run,1500);
+  setInterval(run,1500);
 })();
