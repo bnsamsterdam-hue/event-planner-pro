@@ -4648,7 +4648,7 @@ setInterval(install,1500);
   function orderEnd(o){ return parseDate(o && (o.end || o.start)); }
   function orderActive(o){
     var st = String(o && o.status || "").toLowerCase();
-    if (st === "geannuleerd" || st === "uitgevoerd") return false;
+    if (st.indexOf("geannuleerd") >= 0 || st.indexOf("cancel") >= 0 || st.indexOf("verwijderd") >= 0 || st.indexOf("deleted") >= 0 || st.indexOf("uitgevoerd") >= 0 || st.indexOf("afgerond") >= 0) return false;
     var e = orderEnd(o); return !e || e >= today();
   }
   function editingId(){ try { return editing || null; } catch(e) { return null; } }
@@ -9131,14 +9131,14 @@ setInterval(install,1500);
   function ymd(d){ return d ? d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0") : ""; }
   function niceDate(d){ return d ? String(d.getDate()).padStart(2,"0")+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+d.getFullYear() : ""; }
 
-  // Periode is [start, end). Einddatum is dus alweer vrij.
+  // Periode is [start, end+1). Einddatum telt mee als bezet; dag erna vrij.
   function makePeriod(startValue,endValue){
     var s = parseDate(startValue);
     var e = parseDate(endValue);
     if (!s && e) s = e;
     if (!s) return null;
-    if (!e || e.getTime() <= s.getTime()) e = addDays(s, 1);
-    return { start:s, end:e };
+    if (!e || e.getTime() < s.getTime()) e = s;
+    return { start:s, end:addDays(e, 1) };
   }
 
   function wantedPeriod(){
@@ -9158,9 +9158,9 @@ setInterval(install,1500);
   function statusBlocksOrder(o){
     var s = norm(o && o.status);
     if (!s) return false;
-    if (s.indexOf("geannuleerd") >= 0 || s.indexOf("cancel") >= 0 || s.indexOf("uitgevoerd") >= 0 || s.indexOf("afgerond") >= 0 || s.indexOf("verwijderd") >= 0) return false;
-    if (s.indexOf("offerte") >= 0) return false;
-    return s.indexOf("bevestigd") >= 0 || s.indexOf("opdracht") >= 0 || s.indexOf("optie 14") >= 0 || s === "optie14";
+    // V197: materiaal blijft bezet voor elke niet-geannuleerde opdracht; ook Offerte en Optie 14 dagen.
+    if (s.indexOf("geannuleerd") >= 0 || s.indexOf("cancel") >= 0 || s.indexOf("uitgevoerd") >= 0 || s.indexOf("afgerond") >= 0 || s.indexOf("verwijderd") >= 0 || s.indexOf("deleted") >= 0) return false;
+    return true;
   }
 
   function materialKey(m){
@@ -11598,11 +11598,11 @@ setInterval(install,1500);
   function mk(y,m,d){ var x=new Date(y,m-1,d); if(x.getFullYear()!==y||x.getMonth()!==m-1||x.getDate()!==d) return null; x.setHours(0,0,0,0); return x; }
   function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); x.setHours(0,0,0,0); return x; }
   function nice(d){ return d?String(d.getDate()).padStart(2,"0")+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+d.getFullYear():""; }
-  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e) s=e; if(!s) return null; if(!e||e.getTime()<=s.getTime()) e=addDays(s,1); return {start:s,end:e}; }
+  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e) s=e; if(!s) return null; if(!e||e.getTime()<s.getTime()) e=s; return {start:s,end:addDays(e,1)}; }
   function wantedPeriod(){ return period((E("dateStart")||{}).value,(E("dateEnd")||{}).value); }
   function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
   function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<b.end.getTime()&&b.start.getTime()<a.end.getTime()); }
-  function blocksOrder(o){ var s=lower(o&&o.status); if(!s) return false; if(s.indexOf("geannuleerd")>=0||s.indexOf("cancel")>=0||s.indexOf("uitgevoerd")>=0||s.indexOf("afgerond")>=0||s.indexOf("verwijderd")>=0) return false; if(s.indexOf("offerte")>=0) return false; return s.indexOf("bevestigd")>=0||s.indexOf("opdracht")>=0||s.indexOf("optie 14")>=0||s==="optie14"; }
+  function blocksOrder(o){ var s=lower(o&&o.status); if(!s) return false; if(s.indexOf("geannuleerd")>=0||s.indexOf("cancel")>=0||s.indexOf("uitgevoerd")>=0||s.indexOf("afgerond")>=0||s.indexOf("verwijderd")>=0||s.indexOf("deleted")>=0) return false; return true; }
   function editingId(){ try{ if(typeof editing!=="undefined"&&editing) return String(editing); }catch(e){} return window.editing?String(window.editing):""; }
   function reservationFor(m){ var w=wantedPeriod(); if(!w) return null; var edit=editingId(); for(var i=0;i<orders().length;i++){ var o=orders()[i]; if(!o||!blocksOrder(o)) continue; if(edit&&String(o.id||"")===edit) continue; var ml=Array.isArray(o.materials)?o.materials:[]; if(!ml.some(function(x){return sameMaterial(x,m);} )) continue; var op=orderPeriod(o); if(overlaps(w,op)) return {order:o,period:op,wanted:w}; } return null; }
   function matStatus(m){
@@ -11711,11 +11711,11 @@ setInterval(install,1500);
   function parseDate(v){ var s=T(v),m=s.match(/^(\d{4})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/); if(m)return mk(+m[1],+m[2],+m[3]); m=s.match(/^(\d{1,2})[-\.\/](\d{1,2})[-\.\/](\d{4})/); if(m)return mk(+m[3],+m[2],+m[1]); var d=new Date(s); return isNaN(d.getTime())?null:mk(d.getFullYear(),d.getMonth()+1,d.getDate()); }
   function mk(y,m,d){ var x=new Date(y,m-1,d); if(x.getFullYear()!==y||x.getMonth()!==m-1||x.getDate()!==d)return null; x.setHours(0,0,0,0); return x; }
   function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); x.setHours(0,0,0,0); return x; }
-  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e)s=e; if(!s)return null; if(!e||e.getTime()<=s.getTime())e=addDays(s,1); return {start:s,end:e}; }
+  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e)s=e; if(!s)return null; if(!e||e.getTime()<s.getTime())e=s; return {start:s,end:addDays(e,1)}; }
   function wantedPeriod(){ return period((E("dateStart")||{}).value,(E("dateEnd")||{}).value); }
   function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
   function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<b.end.getTime()&&b.start.getTime()<a.end.getTime()); }
-  function blocksOrder(o){ var s=T(o&&o.status).toLowerCase(); if(!s)return false; if(/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd/.test(s))return false; if(s.indexOf("offerte")>=0)return false; return /bevestigd|opdracht|optie 14|optie14/.test(s); }
+  function blocksOrder(o){ var s=T(o&&o.status).toLowerCase(); if(!s)return false; if(/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd|deleted/.test(s))return false; return true; }
   function editingId(){ try{ if(typeof editing!=="undefined"&&editing) return String(editing); }catch(e){} return window.editing?String(window.editing):""; }
   function reservationFor(m){ var w=wantedPeriod(); if(!w)return null; var edit=editingId(); for(var i=0;i<orders().length;i++){ var o=orders()[i]; if(!o||!blocksOrder(o))continue; if(edit&&String(o.id||"")===edit)continue; var ml=Array.isArray(o.materials)?o.materials:[]; if(!ml.some(function(x){return sameMaterial(x,m);} ))continue; var op=orderPeriod(o); if(overlaps(w,op))return {order:o,period:op,wanted:w}; } return null; }
   function matStatus(m){ var raw=T(m&&m.status).toLowerCase(); if(chosenList().some(function(x){return sameMaterial(x,m);} ))return {key:"chosen",label:"Toegevoegd",blocked:false}; if(/inactive|niet actief|niet beschikbaar|defect|damage|schade|missing|vermist|vermissing/.test(raw))return {key:"defect",label:"Niet inzetbaar",blocked:true}; var r=reservationFor(m); if(r)return {key:"reserved",label:"Gereserveerd",blocked:true,reservation:r}; return {key:"free",label:"Vrij",blocked:false}; }
@@ -12199,6 +12199,7 @@ setInterval(install,1500);
     setSelected(user.id);
 
     persist();
+    try{ if(user && user.id) syncDoc('users', user.id, user); }catch(e){}
     renderList();
     updateDriverSelects();
     toast("Gebruiker opgeslagen");
@@ -12226,6 +12227,7 @@ setInterval(install,1500);
     s.users = s.users.filter(function(x){ return String(x.id) !== String(id); });
     if (String(selectedUserId) === String(id)) { setSelected(""); setForm(null); }
     persist();
+    try{ if(id) deleteDoc('users', id); }catch(e){}
     renderList();
     updateDriverSelects();
     toast("Gebruiker verwijderd");
@@ -12591,11 +12593,9 @@ setInterval(install,1500);
     try{ if(!id || !window.BNS || !window.BNS.firebaseReady || !window.BNS.fs || !window.BNS.db) return; var fs=window.BNS.fs; fs.deleteDoc(fs.doc(window.BNS.db,collection,String(id))).catch(function(){}); }catch(e){}
   }
   function syncAllUsers(){
-    var us=users(); var ids=us.map(function(u){ return String(u.id); }).filter(Boolean);
-    var old=[]; try{ old=JSON.parse(localStorage.getItem(knownUserKey)||'[]'); }catch(e){}
-    us.forEach(function(u){ if(u && u.id) syncDoc('users',u.id,u); });
-    old.forEach(function(id){ if(ids.indexOf(String(id))<0) deleteDoc('users',id); });
-    try{ localStorage.setItem(knownUserKey,JSON.stringify(ids)); }catch(e){}
+    // V196 HOTFIX: nooit lokale/INITIAL_STATE gebruikers terugschrijven naar Firebase.
+    // Firebase users zijn leidend. Opslaan/verwijderen gebeurt alleen gericht per gebruiker.
+    return;
   }
   function loadUsersOnce(){
     return new Promise(function(resolve){
@@ -12604,7 +12604,21 @@ setInterval(install,1500);
         var fs=window.BNS.fs;
         fs.getDocs(fs.collection(window.BNS.db,'users')).then(function(snap){
           var rows=snap.docs.map(function(d){ return Object.assign({id:d.id},d.data()); });
-          if(rows.length){ var by={}; users().forEach(function(u){ if(u&&u.id) by[String(u.id)]=u; }); rows.forEach(function(u){ by[String(u.id)]=Object.assign({},by[String(u.id)]||{},u); }); S().users=Object.keys(by).map(function(k){ return by[k]; }); saveLocal(); }
+          if(rows.length){
+            rows = rows.filter(function(u){ return u && u.id; }).map(function(u){
+              var r = String(u.role||'').toLowerCase();
+              if(!u.role){
+                if(u.rights && u.rights.admin) u.role='Admin';
+                else if(u.rights && (u.rights.agenda || u.rights.customers || u.rights.materials)) u.role='Planner';
+                else u.role='Bezorger';
+              } else if(r==='driver' || r==='bezorger' || r==='chauffeur') u.role='Bezorger';
+              else if(r==='admin') u.role='Admin';
+              else if(r==='planner') u.role='Planner';
+              return u;
+            });
+            S().users = rows;
+            saveLocal();
+          }
           resolve(true);
         }).catch(function(){ resolve(false); });
       }catch(e){ resolve(false); }
@@ -12826,7 +12840,7 @@ setInterval(install,1500);
     var ml=E('materialList'); if(ml && ml.dataset.bnsV83Click!=='1'){ ml.dataset.bnsV83Click='1'; ml.addEventListener('click',function(ev){ var row=ev.target.closest&&ev.target.closest('[data-material-id]'); if(!row||!ml.contains(row)) return; ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); return addMat83(row.getAttribute('data-material-id')); },true); }
     var cats=E('materialCats'); if(cats && cats.dataset.bnsV83Click!=='1'){ cats.dataset.bnsV83Click='1'; cats.addEventListener('click',function(ev){ var b=ev.target.closest&&ev.target.closest('[data-v83-cat]'); if(!b) return; ev.preventDefault(); activeCat=catKey(b.getAttribute('data-v83-cat')); var ms=E('materialSearch'); if(ms) ms.value=''; lastMatRenderKey=''; renderCats83(); renderMaterials83(activeCat,true); },true); }
     ['bnsV56AdminSearch','adminMatSearch'].forEach(function(id){ var el=E(id); if(el&&el.dataset.bnsV83AdminSearch!=='1'){ el.dataset.bnsV83AdminSearch='1'; el.addEventListener('input',function(){ renderAdminMaterials83(true); }); } });
-    A('[data-bns-v74-delete], [data-bns-v74-edit], #bnsV74UserList button, button').forEach(function(b){ if(b.dataset.bnsV83UserSync)return; var t=L(b.textContent); if(/gebruiker|verwijder|opslaan|telefoon reset|reset/.test(t)){ b.dataset.bnsV83UserSync='1'; b.addEventListener('click',function(){ setTimeout(function(){ syncAllUsers(); renderPhone83(); },350); },true); } });
+    A('[data-bns-v74-delete], [data-bns-v74-edit], #bnsV74UserList button, button').forEach(function(b){ if(b.dataset.bnsV83UserSync)return; var t=L(b.textContent); if(/gebruiker|verwijder|opslaan|telefoon reset|reset/.test(t)){ b.dataset.bnsV83UserSync='1'; b.addEventListener('click',function(){ setTimeout(function(){ renderPhone83(); },350); },true); } });
     if(E('materialCats')) renderCats83(); if(E('materialList')) renderMaterials83(activeCat||window.currentCat||'TW',true); if(E('bnsV56AdminList')||E('adminMatList')) renderAdminMaterials83(true);
     /* V158: telefoon blijft 200/V148 stabiel; geen V83 phone render */
   }
@@ -13481,12 +13495,12 @@ setInterval(install,1500);
   function parseDate(v){ var s=T(v); if(!s) return null; var m=s.match(/^(\d{4})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/); if(m) return mk(+m[1],+m[2],+m[3]); m=s.match(/^(\d{1,2})[-\.\/](\d{1,2})[-\.\/](\d{4})/); if(m) return mk(+m[3],+m[2],+m[1]); var d=new Date(s); return isNaN(d.getTime())?null:mk(d.getFullYear(),d.getMonth()+1,d.getDate()); }
   function mk(y,m,d){ var x=new Date(y,m-1,d); x.setHours(0,0,0,0); return x; }
   function addDays(d,n){ var x=new Date(d.getTime()); x.setDate(x.getDate()+n); x.setHours(0,0,0,0); return x; }
-  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e) s=e; if(!s) return null; if(!e) e=s; return {start:s,end:e}; }
+  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e) s=e; if(!s) return null; if(!e||e.getTime()<s.getTime()) e=s; return {start:s,end:addDays(e,1)}; }
   function overlapsInclusive(a,b){ return !!(a&&b&&a.start.getTime()<=b.end.getTime() && b.start.getTime()<=a.end.getTime()); }
   function wantedPeriod(){ return period(val('dateStart'), val('dateEnd') || val('dateStart')); }
   function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
   function editingId(){ try{ if(typeof editing!=='undefined' && editing) return String(editing); }catch(e){} return T(window.editing); }
-  function blocksOrder(o){ var s=L(o&&o.status); if(!o || o.deleted===true || /geannuleerd|cancel|verwijderd|deleted|uitgevoerd|afgerond/.test(s)) return false; if(/offerte/.test(s)) return false; return /opdrachtbevestiging|opdracht bevestigd|bevestigd|optie 14|optie14/.test(s); }
+  function blocksOrder(o){ var s=L(o&&o.status); if(!o || o.deleted===true || /geannuleerd|cancel|verwijderd|deleted|uitgevoerd|afgerond/.test(s)) return false; return true; }
   function nice(d){ return d?String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear():''; }
   function reservationFor(m){
     var w=wantedPeriod(), edit=editingId();
@@ -13622,7 +13636,7 @@ setInterval(install,1500);
   function productName(m){ return T(m && (m.product || m.searchName || m.zoeknaam || m.type || m.name || m.description || m.beschrijving)); }
   function parseDate(v){ var s=T(v); if(!s) return null; var m=s.match(/^(\d{4})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/); if(m) return mk(+m[1],+m[2],+m[3]); m=s.match(/^(\d{1,2})[-\.\/](\d{1,2})[-\.\/](\d{4})/); if(m) return mk(+m[3],+m[2],+m[1]); var d=new Date(s); return isNaN(d.getTime()) ? null : mk(d.getFullYear(), d.getMonth()+1, d.getDate()); }
   function mk(y,m,d){ var x=new Date(y,m-1,d); x.setHours(0,0,0,0); return x; }
-  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s && e) s=e; if(!s) return null; if(!e) e=s; return {start:s,end:e}; }
+  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s && e) s=e; if(!s) return null; if(!e||e.getTime()<s.getTime()) e=s; return {start:s,end:addDays(e,1)}; }
   function wantedPeriod(){ return period(val('dateStart'), val('dateEnd') || val('dateStart')); }
   function orderPeriod(o){ return period(o && (o.start || o.dateStart || o.startDate || o.datumStart || o.date || o.datum), o && (o.end || o.dateEnd || o.endDate || o.datumEnd || o.start || o.dateStart || o.startDate || o.date || o.datum)); }
   function overlaps(a,b){ return !!(a && b && a.start.getTime() <= b.end.getTime() && b.start.getTime() <= a.end.getTime()); }
@@ -14080,8 +14094,10 @@ setInterval(install,1500);
 
   function statusBlocksMaterials(status){
     var l=L(status);
-    if(!l || /offerte|geannuleerd|cancel|verwijderd|deleted|uitgevoerd|afgerond/.test(l)) return false;
-    return /opdrachtbevestiging|opdracht bevestigd|bevestigd|optie 14|optie14/.test(l);
+    // V197: alleen geannuleerd/verwijderd/uitgevoerd geeft materiaal vrij. Offerte en Optie blokkeren ook.
+    if(!l) return true;
+    if(/geannuleerd|cancel|verwijderd|deleted|uitgevoerd|afgerond/.test(l)) return false;
+    return true;
   }
   window.BNS_V162_STATUS_BLOCKS_MATERIALS = statusBlocksMaterials;
 
@@ -16435,114 +16451,131 @@ setInterval(install,1500);
   setInterval(patchOverviewWis, 1200);
 })();
 
-/* =========================================================
-   BNS V195 FIREBASE USERS HOTFIX
-   - Laadt users uit Firestore terug naar de planner
-   - Negeert demo/INITIAL_STATE zodra Firebase users bestaan
-   - Wacht met PIN niet onnodig op oude localStorage
-   - Filtert deletedUsers uit
-   ========================================================= */
-(function bnsV195FirebaseUsersHotfix(){
-  'use strict';
-  var FIREBASE_VERSION = '10.12.5';
-  var doneOnce = false;
 
-  function log(){ try{ console.log.apply(console, ['[BNS users hotfix]'].concat([].slice.call(arguments))); }catch(e){} }
-  function toast(t){ try{ if(typeof toastMsg==='function') toastMsg(t); }catch(e){} }
-  function normRole(u){
-    var r = String((u && u.role) || '').trim().toLowerCase();
-    if(r === 'admin' || r === 'beheerder') return 'Admin';
-    if(r === 'planner' || r === 'planning') return 'Planner';
-    if(r === 'bezorger' || r === 'driver' || r === 'chauffeur') return 'Bezorger';
-    var rights = (u && u.rights) || {};
-    if(rights.admin === true) return 'Admin';
-    if(rights.agenda === true && rights.afmelden !== true && rights.complete !== true) return 'Planner';
-    if(String((u && u.name) || '').toLowerCase().includes('admin')) return 'Admin';
-    if(String((u && u.name) || '').toLowerCase().includes('planner')) return 'Planner';
-    return 'Bezorger';
+
+/* =========================================================
+   V197 - Strenge materiaalblokkade + Optie 14 dagen waarschuwing
+   - Materiaal in een bestaande niet-geannuleerde opdracht blokkeert altijd bij overlappende datum.
+   - Offerte / Bevestigd / Opdrachtbevestiging / Optie 14 dagen blokkeren allemaal.
+   - Alleen Geannuleerd / Verwijderd / Uitgevoerd / Afgerond geeft materiaal vrij.
+   - Einddatum telt mee als bezet; dag erna is materiaal weer vrij.
+   - Optie 14 dagen: na 13 dagen eigen systeemmelding "optie verloopt morgen".
+   ========================================================= */
+(function BNS_V197_STRICT_RESERVATION_AND_OPTION_ALERT(){
+  "use strict";
+  if (window.__BNS_V197_STRICT_RESERVATION_AND_OPTION_ALERT__) return;
+  window.__BNS_V197_STRICT_RESERVATION_AND_OPTION_ALERT__ = true;
+
+  function S(){ try { if (typeof state !== "undefined" && state) return state; } catch(e) {} return window.state || {}; }
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function saveLocal(){ try{ if(typeof save==="function") save(); }catch(e){} try{ if(typeof saveState==="function") saveState(); }catch(e){} }
+  function fbReady(){ return !!(window.BNS && window.BNS.fs && window.BNS.db); }
+  function fs(){ return window.BNS && window.BNS.fs; }
+  function db(){ return window.BNS && window.BNS.db; }
+
+  function parseDate(v){
+    var s=T(v); if(!s) return null;
+    var m=s.match(/^(\d{4})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/); if(m) return mk(+m[1],+m[2],+m[3]);
+    m=s.match(/^(\d{1,2})[-\.\/](\d{1,2})[-\.\/](\d{4})/); if(m) return mk(+m[3],+m[2],+m[1]);
+    var d=new Date(s); return isNaN(d.getTime()) ? null : mk(d.getFullYear(), d.getMonth()+1, d.getDate());
   }
-  function cleanUser(u, id){
-    u = Object.assign({}, u || {});
-    u.id = String(u.id || id || ('u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8)));
-    u.name = String(u.name || u.displayName || u.naam || '').trim() || u.id;
-    u.pin = String(u.pin || '').trim();
-    u.phone = String(u.phone || u.telefoon || '').trim();
-    u.role = normRole(u);
-    u.rights = (u.rights && typeof u.rights === 'object') ? u.rights : {};
-    if(u.role === 'Admin') u.rights.admin = true;
-    if(u.role === 'Bezorger') {
-      if(u.rights.afmelden !== false) u.rights.afmelden = true;
-      if(u.rights.complete !== false) u.rights.complete = true;
-      if(u.rights.storing !== false) u.rights.storing = true;
-      if(u.rights.bellen !== false) u.rights.bellen = true;
-      if(u.rights.belKlant !== false) u.rights.belKlant = true;
-    }
-    return u;
-  }
-  async function firebaseDb(){
-    if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN') throw new Error('Firebase config ontbreekt');
-    var appMod = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-app.js');
-    var fsMod = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-firestore.js');
-    var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
-    return { db: fsMod.getFirestore(app), fs: fsMod };
-  }
-  async function readColl(fs, db, name){
-    var snap = await fs.getDocs(fs.collection(db, name));
-    return snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data() || {}); });
-  }
-  function isDemoOnly(list){
-    list = Array.isArray(list) ? list : [];
-    var ids = list.map(function(u){return String(u.id||'');}).sort().join('|');
-    return list.length <= 3 && ids.indexOf('u_admin') >= 0 && ids.indexOf('u_driver') >= 0 && ids.indexOf('u_planner') >= 0;
-  }
-  function applyUsers(users){
-    if(!Array.isArray(users) || !users.length) return false;
-    try{ state.users = users; }catch(e){ try{ window.state.users = users; }catch(_e){} }
-    try{ if(typeof save === 'function') save(); }catch(e){}
-    try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
-    try{ if(typeof adminRender === 'function') adminRender(); }catch(e){}
-    try{ if(typeof renderUserList === 'function') renderUserList(); }catch(e){}
-    try{
-      var sel = document.getElementById('orderDriver');
-      if(sel){
-        sel.innerHTML = '<option value="">Geen</option>' + users.filter(function(u){return String(u.role).toLowerCase()==='bezorger';}).map(function(u){return '<option>' + String(u.name||'').replace(/</g,'&lt;') + '</option>';}).join('');
-      }
-    }catch(e){}
-    return true;
-  }
-  async function loadUsers(){
-    var conn = await firebaseDb();
-    var users = await readColl(conn.fs, conn.db, 'users');
-    var deleted = [];
-    try{ deleted = await readColl(conn.fs, conn.db, 'deletedUsers'); }catch(e){}
-    var deletedIds = new Set((deleted || []).map(function(x){ return String(x.id || ''); }));
-    users = (users || []).filter(function(u){ return !deletedIds.has(String(u.id || '')); }).map(function(u){ return cleanUser(u, u.id); });
-    if(users.length){
-      applyUsers(users);
-      window.BNS = window.BNS || {};
-      window.BNS.firebaseUsersLoaded = true;
-      window.BNS.firebaseUsers = users;
-      doneOnce = true;
-      log('users geladen:', users.length);
+  function mk(y,m,d){ var x=new Date(y,m-1,d); x.setHours(0,0,0,0); return x; }
+  function daysBetween(a,b){ var MS=86400000; var aa=mk(a.getFullYear(),a.getMonth()+1,a.getDate()); var bb=mk(b.getFullYear(),b.getMonth()+1,b.getDate()); return Math.floor((bb-aa)/MS); }
+  function today(){ var n=new Date(); n.setHours(0,0,0,0); return n; }
+
+  function isOption(o){ return /optie\s*14|optie14/.test(L(o && o.status)); }
+  function isClosed(o){ var s=L(o && o.status); return /geannuleerd|cancel|verwijderd|deleted|uitgevoerd|afgerond/.test(s) || (o && (o.deleted || o.removed)); }
+
+  function orderTitle(o){ return T(o && (o.number || o.title || o.id)); }
+  function customerName(o){ return T(o && (o.customerName || o.klant || (o.customer && o.customer.name) || "")); }
+
+  function ensureOptionSetAt(o){
+    if(!o || !isOption(o)) return false;
+    if(!T(o.optionSetAt) && !T(o.optionStartAt)){
+      o.optionSetAt = T(o.statusChangedAt || o.updatedAt || o.createdAt) || new Date().toISOString();
       return true;
     }
     return false;
   }
-  function schedule(){
-    var tries = 0;
-    function tick(){
-      tries++;
-      loadUsers().catch(function(e){ log('users laden mislukt', e && e.message ? e.message : e); }).finally(function(){
-        var current = [];
-        try{ current = state.users || []; }catch(e){}
-        if(!doneOnce && tries < 15) setTimeout(tick, 700);
-        else if(doneOnce && isDemoOnly(current)) setTimeout(tick, 1000);
-      });
-    }
-    setTimeout(tick, 250);
-    setTimeout(tick, 1500);
-    setTimeout(tick, 3500);
+
+  function alertIdFor(o){ return "optie13_" + T(o && (o.id || o.number || "")); }
+  function hasOpenAlert(id){
+    var s=S(); var arr=Array.isArray(s.alerts) ? s.alerts : [];
+    return arr.some(function(a){ return T(a && a.id)===id && !a.resolved && !a.deleted && !a.closed; });
   }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule);
-  else schedule();
+  function writeAlertRemote(a){
+    try{ if(fbReady() && a && a.id && fs().setDoc && fs().doc) fs().setDoc(fs().doc(db(),"alerts",String(a.id)), Object.assign({}, a, {updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){}); }catch(e){}
+  }
+  function createAlert(o){
+    var s=S(); if(!Array.isArray(s.alerts)) s.alerts=[];
+    var id=alertIdFor(o); if(!id || hasOpenAlert(id)) return false;
+    var a={
+      id:id,
+      type:"Optie 14 dagen",
+      title:"Systeemmelding - optie verloopt morgen",
+      note:"Let op: optie verloopt morgen" + (orderTitle(o) ? " voor opdracht " + orderTitle(o) : "") + (customerName(o) ? " - klant: " + customerName(o) : ""),
+      orderId:T(o.id),
+      orderNumber:T(o.number),
+      orderTitle:T(o.title),
+      customerName:customerName(o),
+      source:"systeem",
+      time:new Date().toLocaleString(),
+      createdAt:new Date().toISOString(),
+      resolved:false
+    };
+    s.alerts.unshift(a);
+    writeAlertRemote(a);
+    return true;
+  }
+
+  function checkOptionAlerts(showPopup){
+    var s=S(); if(!Array.isArray(s.orders)) return;
+    var changed=false, made=[];
+    s.orders.forEach(function(o){
+      if(!o || isClosed(o) || !isOption(o)) return;
+      if(ensureOptionSetAt(o)) changed=true;
+      var start=parseDate(o.optionSetAt || o.optionStartAt || o.updatedAt || o.createdAt);
+      if(!start) return;
+      var age=daysBetween(start, today());
+      if(age >= 13){
+        if(createAlert(o)) { made.push(o); changed=true; }
+      }
+    });
+    if(changed) saveLocal();
+    if(showPopup && made.length){
+      var msg=made.map(function(o){ return "Let op: optie verloopt morgen\n" + (orderTitle(o)||"Opdracht") + (customerName(o) ? "\nKlant: " + customerName(o) : ""); }).join("\n\n");
+      setTimeout(function(){ try{ alert(msg); }catch(e){} }, 350);
+    }
+    try{ if(typeof renderAll==="function") renderAll(); }catch(e){}
+  }
+
+  function patchSaveForOptionDate(){
+    var btn=E("saveOrder");
+    if(!btn || btn.dataset.bnsV197OptionDate==="1") return;
+    btn.dataset.bnsV197OptionDate="1";
+    btn.addEventListener("click", function(){
+      setTimeout(function(){
+        var s=S(); var nr=T((E("orderNumber")||{}).value), id="";
+        try{ if(typeof editing!=="undefined" && editing) id=T(editing); }catch(e){}
+        var o=(s.orders||[]).find(function(x){ return (id && T(x.id)===id) || (nr && T(x.number)===nr); });
+        if(o && isOption(o) && ensureOptionSetAt(o)){
+          saveLocal();
+          try{ if(fbReady() && fs().setDoc && fs().doc) fs().setDoc(fs().doc(db(),"orders",String(o.id)), Object.assign({}, o, {updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){}); }catch(e){}
+        }
+        checkOptionAlerts(false);
+      }, 700);
+    }, false);
+  }
+
+  function install(){
+    patchSaveForOptionDate();
+    checkOptionAlerts(true);
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 1200); });
+  else setTimeout(install, 1200);
+  setInterval(function(){ checkOptionAlerts(false); }, 10*60*1000);
 })();
+
