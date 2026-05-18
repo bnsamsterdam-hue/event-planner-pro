@@ -17436,3 +17436,61 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   [700,1500,3000,6000].forEach(function(ms){setTimeout(install,ms);});
   try{window.__BNS_CALM_INTERVAL__(install,5000);}catch(e){setInterval(install,5000);} 
 })();
+
+
+/* =========================================================
+   V206 FIX4 - telefoonmeldingen/planner/systeemstatus stabiel
+   - Pushmelding-knop is uit firebase-push-client gehaald; telefoon mag nooit blokkeren op serviceworker 404.
+   - Planner haalt Firebase alerts opnieuw op en zet Systeemmeldingen direct rood bij nieuwe bezorger-melding.
+   - Overzicht bestelling toont meldingen/foto/handtekening weer per opdracht.
+   - Locatie: rechter postcodehulp en tekst via PDOK weg; 1 rustige zoeker links.
+   ========================================================= */
+(function TW_V206_FIX4_ALERTS_AND_LOCATION(){
+  'use strict';
+  if(window.__TW_V206_FIX4_ALERTS_AND_LOCATION__) return;
+  window.__TW_V206_FIX4_ALERTS_AND_LOCATION__ = true;
+  function E(id){return document.getElementById(id)}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel))}
+  function T(v){return String(v==null?'':v).trim()}
+  function L(v){return T(v).toLowerCase()}
+  function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function S(){try{if(typeof state!=='undefined'&&state)return state}catch(e){} if(window.state)return window.state; window.state={orders:[],alerts:[]}; return window.state}
+  function save(){try{if(typeof saveLocal==='function')saveLocal()}catch(e){} try{if(typeof save==='function')save()}catch(e){} try{localStorage.setItem('event-planner-pro-v87',JSON.stringify(S()))}catch(e){}}
+  function orders(){var s=S(); s.orders=Array.isArray(s.orders)?s.orders:[]; return s.orders}
+  function alerts(){var s=S(); s.alerts=Array.isArray(s.alerts)?s.alerts:[]; return s.alerts}
+  function alertText(a){return L([a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text,a&&a.source,a&&a.status,a&&a.kind].join(' '))}
+  function isMedia(a){return /foto|photo|handtekening|signature/.test(alertText(a))}
+  function isClosed(a){return !!(a&&(a.resolved||a.deleted||a.removed||a.closed||a.hidden||a.archived||/opgelost|afgehandeld|verwijderd|closed|deleted|resolved/.test(L(a.status||a.state||''))))}
+  function isOpenSystem(a){if(!a||isClosed(a)||isMedia(a))return false; var t=alertText(a); return /storing|schade/.test(t)||/(^|\s)melding(\s|$)/.test(t)||/bezorger/.test(t)||/telefoon/.test(t)}
+  function openSystem(){return alerts().filter(isOpenSystem)}
+  function normalize(a){a=a||{}; if(!a.id)a.id='a_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); if(!a.createdAt)a.createdAt=new Date().toISOString(); if(!a.time)a.time=new Date(a.createdAt).toLocaleString('nl-NL'); if(!a.note&&a.message)a.note=a.message; if(!a.message&&a.note)a.message=a.note; if(!a.text&&(a.note||a.message))a.text=a.note||a.message; if(!a.type&&a.title)a.type=a.title; if(!a.title&&a.type)a.title=a.type; return a}
+  function merge(rows){var map={}; alerts().forEach(function(a){if(a&&a.id)map[String(a.id)]=normalize(a)}); (rows||[]).forEach(function(a){if(a&&a.id)map[String(a.id)]=normalize(a)}); S().alerts=Object.keys(map).map(function(k){return map[k]}).sort(function(a,b){return String(b.createdAt||'').localeCompare(String(a.createdAt||''))}); save(); updateButton(); try{if(typeof renderOrders==='function')renderOrders()}catch(e){} }
+  function updateButton(){var n=openSystem().length; A('#alertsBtn,#alertsBtnStableV181,[data-alerts],.alertsBtn').forEach(function(b){if(!b)return; b.textContent=n?'🚨 Systeemmeldingen ('+n+')':'Systeemmeldingen (0)'; b.style.setProperty('background',n?'#dc2626':'#16a34a','important'); b.style.setProperty('color','#fff','important'); b.style.setProperty('border-color',n?'#dc2626':'#16a34a','important'); b.style.setProperty('animation','none','important'); b.style.setProperty('filter','none','important'); b.classList.toggle('open',n>0); b.classList.toggle('zero',n===0);});}
+  async function ensureFirebase(){
+    try{
+      if(window.BNS&&window.BNS.fs&&window.BNS.db) return true;
+      if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==='VUL_HIER_IN') return false;
+      var appMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+      var fs=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+      window.BNS=window.BNS||{}; window.BNS.app=appMod.getApps().length?appMod.getApp():appMod.initializeApp(window.BNS_FIREBASE_CONFIG); window.BNS.fs=fs; window.BNS.db=fs.getFirestore(window.BNS.app); return true;
+    }catch(e){return false;}
+  }
+  async function pullAlerts(){try{if(!(await ensureFirebase()))return; var fs=window.BNS.fs; var snap=await fs.getDocs(fs.collection(window.BNS.db,'alerts')); var rows=[]; snap.forEach(function(d){rows.push(normalize(Object.assign({id:d.id},d.data())))}); merge(rows);}catch(e){console.warn('[FIX4 alerts] laden mislukt',e)}}
+  function orderMatch(a,o){if(!a||!o)return false; var id=T(o.id),nr=T(o.number); return (id&&T(a.orderId||a.linkedOrder)===id)||(nr&&T(a.orderNumber||a.linkedOrderNumber)===nr)}
+  function orderAlerts(o){return alerts().filter(function(a){return orderMatch(a,o)})}
+  function mediaHtml(a){var img=a.photoData||a.photo||a.image||(a.media&&a.media.data)||a.data||''; var sig=a.signatureData||a.signature||''; var h=''; if(img&&/^data:image|^https?:/i.test(img))h+='<div style="margin-top:8px"><b>Foto</b><br><img src="'+H(img)+'" style="max-width:260px;border:1px solid #ddd;border-radius:10px"></div>'; if(sig&&/^data:image|^https?:/i.test(sig))h+='<div style="margin-top:8px"><b>Handtekening</b><br><img src="'+H(sig)+'" style="max-width:260px;border:1px solid #ddd;border-radius:10px"></div>'; return h}
+  function alertRowsHtml(o){var rows=orderAlerts(o); if(!rows.length)return '<p><b>Meldingen/foto\'s:</b> geen meldingen opgeslagen bij deze opdracht.</p>'; return '<h3>Meldingen / foto\'s / handtekeningen</h3>'+rows.map(function(a){return '<div style="border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:8px 0;background:#f8fafc"><b>'+H(a.type||a.title||'Melding')+'</b> <small>'+H(a.time||a.createdAt||'')+'</small><br><b>Van:</b> '+H(a.driverName||a.from||'')+'<p style="white-space:pre-wrap;margin:6px 0">'+H(a.note||a.message||a.text||'')+'</p>'+mediaHtml(a)+'</div>'}).join('')}
+  function findOrder(id){return orders().find(function(o){return T(o.id)===T(id)})}
+  function modal(title,body){var old=E('twFix4Modal')||E('twFix2Modal'); if(old)old.remove(); var w=document.createElement('div'); w.id='twFix4Modal'; w.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.60);display:grid;place-items:center;padding:18px'; w.innerHTML='<div style="width:min(980px,96vw);max-height:92vh;overflow:auto;background:#fff;color:#172033;border-radius:22px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.40)"><h2>'+H(title)+'</h2>'+body+'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button id="twFix4Close" style="background:#2563eb;color:white;border:0;border-radius:12px;padding:10px 16px;font-weight:900">Terug</button></div></div>'; document.body.appendChild(w); E('twFix4Close').onclick=function(){w.remove()}; return w}
+  window.TW_FIX4_OVERVIEW=function(id){var o=findOrder(id); if(!o)return; var base=''; try{ if(typeof docHtml==='function') base=docHtml(o,'Overzicht bestelling'); }catch(e){} if(!base){var c=o.customer||{},l=o.location||{}; base='<div><b>Opdracht:</b> '+H(o.number||'')+' '+H(o.title||'')+'</div><div><b>Klant:</b> '+H(c.name||o.customerName||'')+'</div><div><b>Locatie:</b> '+H([l.name,l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div>';} modal('Overzicht bestelling',base+alertRowsHtml(o));};
+  function patchOverviewButtons(){A('button').forEach(function(b){var t=L(b.textContent); if(t==='overzicht bestelling'&&!b.dataset.twFix4Overview){var id=''; var card=b.closest&&b.closest('[data-tw-fix3-id],[data-tw-fix2-id],[data-id],.order-card'); if(card)id=card.getAttribute('data-tw-fix3-id')||card.getAttribute('data-tw-fix2-id')||card.getAttribute('data-id')||''; if(id){b.dataset.twFix4Overview=id; b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();TW_FIX4_OVERVIEW(id);return false;};}}});}
+  function cleanupPostcode(){
+    A('b,small,div,label,p').forEach(function(x){var t=L(x.textContent||''); if(/via pdok|rustige postcodehulp|postcodehulp postcode/.test(t)){var p=x.closest&&x.closest('.bns-postcode-inline,#bnsPostcodeBox,#twFix2LocationPostcode'); if(p)p.style.display='none'; else x.style.display='none';}});
+    A('.bns-postcode-inline,#bnsPostcodeBox,#twFix2LocationPostcode').forEach(function(x){x.style.display='none'});
+    var loc=E('locationPanel'); if(loc && !E('twFix4LocationBox')){var box=document.createElement('div'); box.id='twFix4LocationBox'; box.style.cssText='display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0'; box.innerHTML='<input id="twFix4LocPostcode" placeholder="Postcode" style="max-width:150px"><input id="twFix4LocHuisnr" placeholder="Huisnr" style="max-width:110px"><button id="twFix4LocBtn" type="button" style="background:#2563eb;color:#fff;border:0;border-radius:10px;padding:9px 12px;font-weight:900">Zoek adres</button><small id="twFix4LocStatus"></small>'; loc.insertBefore(box,loc.firstChild); E('twFix4LocBtn').onclick=async function(){var pc=T(E('twFix4LocPostcode').value).replace(/\s+/g,'').toUpperCase(),nr=T(E('twFix4LocHuisnr').value); if(!pc||!nr){alert('Vul postcode en huisnummer in.');return;} E('twFix4LocStatus').textContent='Zoeken...'; try{var r=await fetch('https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q='+encodeURIComponent(pc+' '+nr)+'&rows=1'); var j=await r.json(); var d=j&&j.response&&j.response.docs&&j.response.docs[0]; if(!d)throw new Error('Niet gevonden'); var straat=d.straatnaam||((d.weergavenaam||'').split(',')[0])||''; var plaats=d.woonplaatsnaam||''; [['locationZip',pc],['locationStreet',(straat+' '+nr).trim()],['locationCity',plaats]].forEach(function(p){var e=E(p[0]); if(e)e.value=p[1];}); E('twFix4LocStatus').textContent='Adres ingevuld';}catch(e){E('twFix4LocStatus').textContent='Niet gevonden'; alert('Postcode niet gevonden.');}};}
+  }
+  function install(){updateButton();patchOverviewButtons();cleanupPostcode();}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,200);setTimeout(pullAlerts,1000)});else{setTimeout(install,100);setTimeout(pullAlerts,800)}
+  [800,1800,3500,7000].forEach(function(ms){setTimeout(function(){install();pullAlerts()},ms)});
+  try{window.__BNS_CALM_INTERVAL__(function(){install();pullAlerts()},5000)}catch(e){setInterval(function(){install();pullAlerts()},5000)}
+})();
