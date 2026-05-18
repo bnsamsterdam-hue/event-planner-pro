@@ -17230,3 +17230,201 @@ setInterval(install,1500);
   [100,300,800,1500,3000].forEach(function(ms){setTimeout(install,ms);});
   setInterval(install,700);
 })();
+
+/* =========================================================
+   BNS V204 - Opdracht documenten + klant naar locatie + zoeken
+   Doel: geen bestaande functies verwijderen; alleen knoppen en documentlaag toevoegen.
+   ========================================================= */
+(function bnsV204OrderDocsAndCustomerLocation(){
+  "use strict";
+  var VERSION = "V204";
+
+  function $(id){ return document.getElementById(id); }
+  function qsa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function S(){ try{ if(typeof state !== "undefined" && state) return state; }catch(e){} return window.state || null; }
+  function orders(){ var s=S(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function saveLocal(){ try{ if(typeof save === "function") save(); }catch(e){} }
+  function syncOrder(o){ try{ if(window.BNS && typeof window.BNS.syncOrder === "function") window.BNS.syncOrder(o); }catch(e){} try{ if(typeof syncDoc === "function") syncDoc("orders", o.id, o); }catch(e){} }
+  function money(n){ n=Number(n||0); return "€ " + n.toFixed(2).replace(".",","); }
+  function nice(d){ if(!d) return ""; var p=String(d).split("-"); return p.length===3 ? p[2]+"-"+p[1]+"-"+p[0] : String(d); }
+  function val(id){ var el=$(id); return el ? String(el.value || "").trim() : ""; }
+  function setVal(id,v){ var el=$(id); if(!el) return; el.value = v || ""; try{ el.dispatchEvent(new Event("input",{bubbles:true})); }catch(e){} try{ el.dispatchEvent(new Event("change",{bubbles:true})); }catch(e){} }
+  function notify(txt){ try{ if(typeof toastMsg === "function") return toastMsg(txt); }catch(e){} var t=$("toast"); if(t){ t.textContent=txt; t.className="toast"; setTimeout(function(){t.textContent="";},2200); return; } console.log(txt); }
+
+  function invoiceSettings(){
+    var s=S() || {};
+    var inv = (s.settings && s.settings.invoice) || {};
+    var fromLocal = null;
+    try{ fromLocal = JSON.parse(localStorage.getItem("bnsInvoiceSettingsV122") || "null"); }catch(e){}
+    if(fromLocal) inv = Object.assign({}, inv, fromLocal);
+    return Object.assign({
+      companyName:"Tapwagen.nl",
+      title:"Opdrachtbevestiging / Factuur",
+      accent:"#0f766e",
+      intro:"Bedankt voor uw aanvraag bij Tapwagen.nl.",
+      footer:"Prijzen zijn exclusief btw tenzij anders vermeld. Tapwagen.nl",
+      logo:"assets/tapwagen-logo.jpg",
+      website:"Tapwagen.nl"
+    }, inv || {});
+  }
+
+  function findOrderById(id){ return orders().find(function(o){ return String(o.id||"") === String(id||""); }); }
+  function findOrderByNumber(nr){ return orders().find(function(o){ return String(o.number||"") === String(nr||""); }); }
+  function findOrderFromCard(card){
+    if(!card) return null;
+    var id = card.getAttribute("data-bns-order-id") || card.getAttribute("data-order-id") || (card.dataset && (card.dataset.bnsOrderId || card.dataset.orderId)) || "";
+    if(id){ var byId=findOrderById(id); if(byId) return byId; }
+    var text = card.textContent || "";
+    return orders().find(function(o){ return o && o.number && text.indexOf(String(o.number)) !== -1; }) || null;
+  }
+  function orderAddress(o){ var l=o.location||{}; return [l.name,l.street,[l.zip,l.city].filter(Boolean).join(" ")].filter(Boolean).join("<br>"); }
+  function customerBlock(o){ var c=o.customer||{}; return [c.name,c.street,[c.zip,c.city].filter(Boolean).join(" "),c.phone,c.email].filter(Boolean).join("<br>"); }
+  function matRows(o){
+    var list = Array.isArray(o.materials) ? o.materials : [];
+    if(!list.length) return '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
+    return list.map(function(m){ return '<tr><td>'+esc(m.cat||"")+'</td><td><b>'+esc(m.code||"")+'</b></td><td>'+esc(m.name||"")+'</td><td>'+esc(m.price||"")+'</td></tr>'; }).join("");
+  }
+  function nextInvoiceNumber(){
+    var y = new Date().getFullYear();
+    var nums = orders().map(function(o){
+      var v = (o.invoiceNumber || (o.invoice && o.invoice.invoiceNumber) || "");
+      var m = String(v).match(new RegExp("^F"+y+"-(\\d+)$"));
+      return m ? Number(m[1]) : 0;
+    }).filter(Boolean);
+    return "F" + y + "-" + String(nums.length ? Math.max.apply(null, nums)+1 : 1).padStart(4,"0");
+  }
+  function ensureInvoiceNumber(o){
+    if(!o) return "";
+    if(!o.invoiceNumber && !(o.invoice && o.invoice.invoiceNumber)){
+      o.invoiceNumber = nextInvoiceNumber();
+      o.invoice = o.invoice || {};
+      o.invoice.invoiceNumber = o.invoiceNumber;
+      o.invoice.createdAt = new Date().toISOString();
+      saveLocal(); syncOrder(o);
+    }
+    return o.invoiceNumber || (o.invoice && o.invoice.invoiceNumber) || "";
+  }
+  function docHtml(type, o){
+    var inv=invoiceSettings();
+    var isInvoice = /factuur/i.test(type);
+    var invoiceNr = isInvoice ? ensureInvoiceNumber(o) : (o.invoiceNumber || (o.invoice && o.invoice.invoiceNumber) || "");
+    var total = (o.pricing && (o.pricing.grand != null ? o.pricing.grand : o.pricing.incl)) || o.amount || 0;
+    var deposit = (o.pricing && o.pricing.deposit) || 0;
+    var title = isInvoice ? "Factuur" : "Opdrachtbevestiging";
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+' '+esc(o.number||"")+'</title>'+
+      '<style>body{font-family:Arial,sans-serif;margin:0;background:#f3f6fb;color:#172033}.page{max-width:940px;margin:24px auto;background:#fff;padding:34px;border-radius:18px;box-shadow:0 8px 30px rgba(15,23,42,.12)}.top{display:flex;gap:20px;align-items:center;border-bottom:4px solid '+esc(inv.accent||"#0f766e")+';padding-bottom:18px;margin-bottom:22px}.logo{max-width:180px;max-height:95px;object-fit:contain}.title h1{margin:0;color:#0f172a}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.box{border:1px solid #dbe3ef;border-radius:14px;padding:14px;margin:12px 0;background:#fff}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border-bottom:1px solid #e5e7eb;text-align:left;padding:9px}th{background:#f8fafc}.totals{text-align:right;font-size:17px}.actions{margin:0 auto 16px;max-width:940px}.actions button{background:#0f766e;color:white;border:0;border-radius:10px;padding:11px 16px;font-weight:800;margin-right:8px}.muted{color:#64748b}.footer{margin-top:28px;border-top:1px solid #e5e7eb;padding-top:14px;white-space:pre-wrap}@media print{body{background:#fff}.page{box-shadow:none;margin:0;max-width:none}.actions{display:none}}</style>'+
+      '</head><body><div class="actions"><button onclick="window.print()">Print</button><button onclick="navigator.share?navigator.share({title:document.title,text:document.body.innerText}):location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Delen</button></div><div class="page">'+
+      '<div class="top">'+(inv.logo?'<img class="logo" src="'+esc(inv.logo)+'" onerror="this.style.display=\'none\'">':'')+'<div class="title"><h1>'+esc(title)+'</h1><b>'+esc(inv.companyName||"Tapwagen.nl")+'</b><div class="muted">'+esc(inv.website||"Tapwagen.nl")+'</div></div></div>'+
+      '<div class="grid"><div class="box"><b>Opdracht</b><br>Opdrachtnr: '+esc(o.number||"")+(invoiceNr?'<br>Factuurnr: '+esc(invoiceNr):'')+'<br>Status: '+esc(o.status||"")+'<br>Datum: '+esc(nice(o.start))+(o.end&&o.end!==o.start?' t/m '+esc(nice(o.end)):'')+'</div><div class="box"><b>Onderwerp</b><br>'+esc(o.title||"")+'<br>Merk: '+esc(o.brand||"")+'</div></div>'+
+      '<div class="grid"><div class="box"><b>Klant</b><br>'+customerBlock(o)+'</div><div class="box"><b>Locatie bezorging</b><br>'+orderAddress(o)+'</div></div>'+
+      '<div class="box"><b>Materialen</b><table><thead><tr><th>Rubriek</th><th>Code</th><th>Naam</th><th>Prijs</th></tr></thead><tbody>'+matRows(o)+'</tbody></table></div>'+
+      '<div class="box"><b>Bezorger:</b> '+esc(o.driver||o.driverName||o.bezorger||"")+'<br><b>Voertuig:</b> '+esc(o.vehicle||"")+'<br><b>Bijzonderheden:</b><br><div style="white-space:pre-wrap">'+esc(o.extra||"")+'</div></div>'+
+      '<div class="totals"><b>Totaal:</b> '+esc(money(total))+'<br><b>Borg:</b> '+esc(money(deposit))+'</div>'+
+      '<div class="footer">'+esc((isInvoice?"":(inv.intro||"")) + (inv.footer?"\n\n"+inv.footer:""))+'</div>'+
+      '</div></body></html>';
+  }
+  function openDoc(type, o){ if(!o) return notify("Geen opdracht gevonden"); var w=window.open("","_blank"); var html=docHtml(type,o); if(!w){ var blob=new Blob([html],{type:"text/html"}); var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=(type+"-"+(o.number||"opdracht")+".html").replace(/\s+/g,"-"); a.click(); return; } w.document.open(); w.document.write(html); w.document.close(); }
+  function shareDoc(type,o){
+    if(!o) return notify("Geen opdracht gevonden");
+    var isInvoice=/factuur/i.test(type), nr=isInvoice?ensureInvoiceNumber(o):"";
+    var txt=(isInvoice?"Factuur":"Opdrachtbevestiging")+"\nOpdracht: "+(o.number||"")+(nr?"\nFactuur: "+nr:"")+"\nKlant: "+((o.customer&&o.customer.name)||"")+"\nDatum: "+nice(o.start)+(o.end&&o.end!==o.start?" t/m "+nice(o.end):"")+"\nMaterialen: "+(o.materials||[]).map(function(m){return m.code||m.name||"";}).join(", ");
+    if(navigator.share){ navigator.share({title:(isInvoice?"Factuur ":"Opdrachtbevestiging ")+(o.number||""), text:txt}).catch(function(){}); }
+    else { location.href="mailto:?subject="+encodeURIComponent((isInvoice?"Factuur ":"Opdrachtbevestiging ")+(o.number||""))+"&body="+encodeURIComponent(txt); }
+  }
+  window.bnsV204OpenOrderDoc = function(id,type){ openDoc(type, findOrderById(id)); };
+  window.bnsV204ShareOrderDoc = function(id,type){ shareDoc(type, findOrderById(id)); };
+
+  function addOrderDocButtons(){
+    qsa(".order-card").forEach(function(card){
+      if(card.querySelector(".bns-v204-doc-actions")) return;
+      var o=findOrderFromCard(card); if(!o) return;
+      if(o.invoiceNumber || (o.invoice && o.invoice.invoiceNumber)){
+        var title=card.querySelector(".order-title, b") || card.firstElementChild;
+        if(title && !card.querySelector(".bns-v204-invoice-tag")){
+          var tag=document.createElement("div"); tag.className="bns-v204-invoice-tag"; tag.textContent="Factuur: "+(o.invoiceNumber || o.invoice.invoiceNumber); title.insertAdjacentElement("afterend", tag);
+        }
+      }
+      var box=document.createElement("div"); box.className="bns-v204-doc-actions";
+      box.innerHTML='<button type="button" data-bns-doc="confirm">Opdrachtbevestiging</button><button type="button" data-bns-doc="invoice">Factuur</button><button type="button" data-bns-doc="print">Print</button><button type="button" data-bns-doc="share">Deel</button>';
+      box.addEventListener("click", function(e){
+        var b=e.target.closest("button"); if(!b) return; e.preventDefault(); e.stopPropagation();
+        var kind=b.getAttribute("data-bns-doc");
+        if(kind==="invoice") openDoc("Factuur", o);
+        if(kind==="confirm") openDoc("Opdrachtbevestiging", o);
+        if(kind==="print") openDoc("Opdrachtbevestiging", o);
+        if(kind==="share") shareDoc("Opdrachtbevestiging", o);
+      });
+      var actions=card.querySelector(".actions") || card.lastElementChild || card;
+      actions.appendChild(box);
+    });
+  }
+
+  function copyCustomerToLocation(){
+    setVal("locationName", val("customerName"));
+    setVal("locationStreet", val("customerStreet"));
+    setVal("locationZip", val("customerZip"));
+    setVal("locationCity", val("customerCity"));
+    if(!val("locationPhone")) setVal("locationPhone", val("customerPhone"));
+    if(!val("locationContact")) setVal("locationContact", val("customerName"));
+    try{ if(typeof summaryRender === "function") summaryRender(); }catch(e){}
+    notify("Klantgegevens overgezet naar locatie");
+  }
+  window.bnsV204CopyCustomerToLocation = copyCustomerToLocation;
+  function addCopyCustomerButton(){
+    if($("bnsV204CopyCustomerToLocation")) return;
+    var panel=$("locationPanel") || $("customerPanel") || $("newOrder"); if(!panel) return;
+    var b=document.createElement("button"); b.type="button"; b.id="bnsV204CopyCustomerToLocation"; b.className="bns-v204-copy-location"; b.textContent="Klant = locatie"; b.onclick=copyCustomerToLocation;
+    var anchor=$("locationName") || panel.querySelector("input,select,textarea");
+    if(anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor.nextSibling); else panel.prepend(b);
+  }
+
+  function orderMatches(o,q){
+    q=String(q||"").toLowerCase().trim(); if(!q) return false;
+    var inv=o.invoiceNumber || (o.invoice && o.invoice.invoiceNumber) || "";
+    var hay=[o.number, inv, o.id, o.title, o.status, o.customer&&o.customer.name, o.location&&o.location.name, o.location&&o.location.city].join(" ").toLowerCase();
+    return hay.indexOf(q)!==-1;
+  }
+  function renderSearchIfNeeded(){
+    var input=$("ordersSearch"), list=$("ordersList"); if(!input||!list) return false;
+    var q=String(input.value||"").trim(); if(!q) return false;
+    var hits=orders().filter(function(o){ return orderMatches(o,q); });
+    if(!hits.length) return false;
+    // Alleen ingrijpen als huidige render niets toont of als er op factuur/opdrachtnummer gezocht wordt.
+    var looksNumber=/^(f?\d{4}[- ]?\d+|\d{4}-\d+)/i.test(q);
+    if(!looksNumber && list.textContent.indexOf("Niets gevonden")===-1) return false;
+    list.innerHTML=hits.map(function(o){
+      var inv=o.invoiceNumber || (o.invoice && o.invoice.invoiceNumber) || "";
+      var mats=(o.materials||[]).map(function(m){return m.code||m.name||"";}).join(", ");
+      return '<div class="order-card" data-bns-order-id="'+esc(o.id||"")+'"><div class="date-tile">'+esc(nice(o.start))+'</div><div><div class="order-title">'+esc(o.number||"")+' - '+esc(o.title||"")+' <span class="status">'+esc(o.status||"")+'</span></div>'+(inv?'<div class="bns-v204-invoice-tag">Factuur: '+esc(inv)+'</div>':'')+'<div>Klant: '+esc(o.customer&&o.customer.name||"")+'</div><div>Locatie: '+esc([o.location&&o.location.name,o.location&&o.location.street,o.location&&o.location.city].filter(Boolean).join(" "))+'</div><div>Materialen: '+esc(mats)+'</div></div><div class="actions"><button type="button" onclick="editOrder(\''+esc(o.id||"")+'\')">Wijzigen</button></div></div>';
+    }).join("");
+    addOrderDocButtons();
+    return true;
+  }
+
+  function wrapRender(){
+    try{
+      var old=window.renderOrders || (typeof renderOrders === "function" ? renderOrders : null);
+      if(typeof old === "function" && !old.__bnsV204){
+        var wrapped=function(){ var r=old.apply(this,arguments); setTimeout(function(){ renderSearchIfNeeded(); addOrderDocButtons(); },20); return r; };
+        wrapped.__bnsV204=true; window.renderOrders=wrapped; try{ renderOrders=wrapped; }catch(e){};
+      }
+    }catch(e){}
+    try{
+      var oldAll=window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+      if(typeof oldAll === "function" && !oldAll.__bnsV204){
+        var wrappedAll=function(){ var r=oldAll.apply(this,arguments); setTimeout(function(){ addCopyCustomerButton(); addOrderDocButtons(); },40); return r; };
+        wrappedAll.__bnsV204=true; window.renderAll=wrappedAll; try{ renderAll=wrappedAll; }catch(e){};
+      }
+    }catch(e){}
+  }
+  function css(){
+    if($("bns-v204-css")) return;
+    var st=document.createElement("style"); st.id="bns-v204-css";
+    st.textContent=".bns-v204-doc-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.bns-v204-doc-actions button,.bns-v204-copy-location{border:0;border-radius:10px;background:#0f766e!important;color:#fff!important;font-weight:900;padding:8px 10px;cursor:pointer}.bns-v204-doc-actions button:nth-child(2){background:#2563eb!important}.bns-v204-doc-actions button:nth-child(3){background:#334155!important}.bns-v204-doc-actions button:nth-child(4){background:#f97316!important}.bns-v204-copy-location{margin:6px 0 10px 8px;background:#16a34a!important}.bns-v204-invoice-tag{display:inline-flex;margin:5px 0;padding:4px 8px;border-radius:999px;background:#e0f2fe;color:#075985;font-weight:900;font-size:12px}";
+    document.head.appendChild(st);
+  }
+  function install(){ css(); wrapRender(); addCopyCustomerButton(); addOrderDocButtons(); var s=$("ordersSearch"); if(s && !s.dataset.bnsV204){ s.dataset.bnsV204="1"; s.addEventListener("input", function(){ setTimeout(function(){ renderSearchIfNeeded(); addOrderDocButtons(); },30); }); } }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install,200); }); else setTimeout(install,100);
+  setTimeout(install,800); setInterval(function(){ addCopyCustomerButton(); addOrderDocButtons(); },2500);
+})();
