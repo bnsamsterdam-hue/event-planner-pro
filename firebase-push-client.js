@@ -98,7 +98,7 @@
     fs = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
     msg = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js");
 
-    app = appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+    app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
     db = fs.getFirestore(app);
     messaging = msg.getMessaging(app);
 
@@ -139,15 +139,14 @@
         return;
       }
 
-      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js")
-   
-      });
-const token = await msg.getToken(messaging, {
-  vapidKey: window.BNS_PUSH_VAPID_KEY,
-  serviceWorkerRegistration: registration
-});
+      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
 
-console.log("PUSH TOKEN:", token);
+      const token = await msg.getToken(messaging, {
+        vapidKey: window.BNS_PUSH_VAPID_KEY,
+        serviceWorkerRegistration: registration
+      });
+
+      console.log("PUSH TOKEN:", token);
 
       if (!token) {
         toast("Geen push-token gekregen.");
