@@ -473,3 +473,32 @@ boot();
     window.findOrder = findOrder;
   }catch(e){}
 })();
+
+
+/* V206 FIX4 telefoon: meldingen blijven via Firebase alerts werken, push is niet nodig */
+(function(){
+  if(window.__driverFix4Alerts) return; window.__driverFix4Alerts=true;
+  function T(v){return String(v==null?'':v).trim()}
+  async function ensureAlertWritten(a){
+    try{
+      if(!a) return;
+      if(!a.id) a.id='a_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
+      if(!a.createdAt) a.createdAt=new Date().toISOString();
+      a.source=a.source||'telefoon';
+      a.resolved=false;
+      if(window.BNS&&BNS.firebase&&BNS.db){
+        await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,'alerts',String(a.id)),a,{merge:true});
+      }
+      if(window.BNS&&BNS.state){BNS.state.alerts=Array.isArray(BNS.state.alerts)?BNS.state.alerts:[]; if(!BNS.state.alerts.some(function(x){return T(x.id)===T(a.id)}))BNS.state.alerts.unshift(a);}
+      try{localStorage.setItem('tapwagen_last_driver_alert',JSON.stringify(a));}catch(e){}
+    }catch(e){console.warn('[driver fix4] melding later opnieuw',e);}
+  }
+  try{
+    var oldAdd=window.addAlert || (typeof addAlert==='function' ? addAlert : null);
+    if(typeof oldAdd==='function'){
+      var wrapped=function(a){return Promise.resolve(oldAdd(a)).then(function(r){return ensureAlertWritten(a).then(function(){return r})}).catch(function(e){return ensureAlertWritten(a).then(function(){throw e})});};
+      try{addAlert=wrapped}catch(e){} window.addAlert=wrapped;
+    }
+  }catch(e){}
+  window.addEventListener('error',function(e){try{var st=document.getElementById('status'); if(st)st.textContent='Telefoon fout: '+(e.message||'onbekend') }catch(x){}},true);
+})();
