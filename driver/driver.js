@@ -37,7 +37,7 @@ async function initFirebase(){
   const appMod=await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`);
   const fsMod=await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
   BNS.firebase=fsMod;
-  BNS.app=appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+  BNS.app=appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
   BNS.db=fsMod.getFirestore(BNS.app);
   setStatus("Firebase verbonden");
 }
@@ -49,6 +49,7 @@ async function loadInitial(){
   setStatus("Data laden...");
   BNS.state.users=await loadCollection("users");
   BNS.state.orders=await loadCollection("orders");
+  try{ BNS.state.alerts=await loadCollection("alerts"); }catch(e){}
   setStatus("Data geladen");
 }
 async function loadOrdersOnly(){
@@ -64,6 +65,7 @@ async function loadUsersOnly(){
 async function loadPhoneData(){
   BNS.state.users=await loadCollection("users");
   BNS.state.orders=await loadCollection("orders");
+  try{ BNS.state.alerts=await loadCollection("alerts"); }catch(e){}
   if(BNS.user){
     const fresh=(BNS.state.users||[]).find(u=>String(u.id)===String(BNS.user.id));
     if(fresh) BNS.user=fresh;
@@ -78,7 +80,11 @@ async function addAlert(a){
   const id=a.id||("a_"+Math.random().toString(36).slice(2,10));
   a.id=id;
   await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"alerts",id),a,{merge:true});
+  BNS.state.alerts = Array.isArray(BNS.state.alerts) ? BNS.state.alerts : [];
+  const ix = BNS.state.alerts.findIndex(x => String(x.id) === String(id));
+  if(ix >= 0) BNS.state.alerts[ix] = a; else BNS.state.alerts.unshift(a);
 }
+
 function populateUsers(f){
   let users=(BNS.state.users||[]).filter(f);
   try{
@@ -466,25 +472,4 @@ boot();
     findOrder = function(id){ var o=oldFind(id); if(deletedFlag(o)) return null; return o; };
     window.findOrder = findOrder;
   }catch(e){}
-})();
-
-/* BNS V195 driver users hotfix: filter deletedUsers + normalize role */
-(function(){
-  if(!window.BNS_DRIVER_V195_PATCHED){ window.BNS_DRIVER_V195_PATCHED = true; }
-  function normRole(u){var r=String((u&&u.role)||'').trim().toLowerCase(); if(r==='admin'||r==='beheerder')return 'Admin'; if(r==='planner'||r==='planning')return 'Planner'; if(r==='bezorger'||r==='driver'||r==='chauffeur')return 'Bezorger'; var rights=(u&&u.rights)||{}; if(rights.admin===true)return 'Admin'; if(rights.agenda===true&&rights.afmelden!==true&&rights.complete!==true)return 'Planner'; return 'Bezorger';}
-  function cleanUser(u){u=Object.assign({},u||{});u.role=normRole(u);u.pin=String(u.pin||'');u.rights=(u.rights&&typeof u.rights==='object')?u.rights:{};return u;}
-  if(typeof loadCollection==='function'){
-    var oldLoadCollection = loadCollection;
-    loadCollection = async function(n){
-      var rows = await oldLoadCollection(n);
-      if(n === 'users'){
-        try{
-          var del = await oldLoadCollection('deletedUsers');
-          var ids = new Set((del||[]).map(function(x){return String(x.id||'');}));
-          rows = (rows||[]).filter(function(u){return !ids.has(String(u.id||''));}).map(cleanUser);
-        }catch(e){ rows = (rows||[]).map(cleanUser); }
-      }
-      return rows;
-    };
-  }
 })();
