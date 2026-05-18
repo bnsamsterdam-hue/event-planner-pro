@@ -1946,6 +1946,10 @@ setTimeout(()=>{
    ========================================================= */
 (function(){
   'use strict';
+
+/* V206 FIX8 bootstrap: voorkom harde startcrash als oude patch css() aanroept. */
+try{ if(typeof window.css !== 'function'){ window.css=function(){}; } }catch(e){}
+
   var COLOR_KEY = 'bns_rubriek_kleuren_v12_pro';
   var DEFAULT_COLORS = {TW:'#1683d8',TO:'#f97316',KW:'#22c55e',KA:'#a855f7',SL:'#eab308',EXTRA:'#334155'};
   function byId(id){ return document.getElementById(id); }
@@ -10646,7 +10650,7 @@ window.__BNS_CALM_INTERVAL__(install,1500);
       btn.className='danger';
       btn.textContent='Verwijder opdracht';
       btn.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} return deleteCurrentOrder(); };
-      if(cancelBtn && cancelBtn.parentNode===parent) parent.insertBefore(btn,cancelBtn); else parent.appendChild(btn);
+      try{ if(cancelBtn && cancelBtn.parentNode===parent) parent.insertBefore(btn,cancelBtn); else parent.appendChild(btn); }catch(_e){ try{parent.appendChild(btn);}catch(__e){} }
     }
   }
   function installStyle(){
@@ -11280,11 +11284,11 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   function orderCard(o,u){var ad=phoneAddress(o),ph=T((o.customer&&o.customer.phone)||o.phone||''),enc=encodeURIComponent(ad),id=H(o.id||'');var priceInfo=canPrices(u)?'<div><b>Totaal:</b> '+H(o.total||o.totaal||o.amount||o.bedrag||'')+' <b>Borg:</b> '+H(o.deposit||o.borg||'')+'</div>':'';var acts='';if(canRoute(u))acts+='<a class="green" target="_blank" href="https://waze.com/ul?q='+enc+'&navigate=yes">Waze</a><a target="_blank" href="https://www.google.com/maps/search/?api=1&query='+enc+'">Maps</a>';if(canCall(u))acts+=(ph?'<a href="tel:'+H(ph)+'">Bel klant</a>':'<button type="button">Geen tel.</button>');if(canReport(u))acts+='<button class="dark" data-v95-report="'+id+'" data-type="Bezorger melding">Melding</button>';if(canStoring(u))acts+='<button class="dark" data-v95-report="'+id+'" data-type="Storing">Storing</button>';if(canSchade(u))acts+='<button class="red" data-v95-report="'+id+'" data-type="Schade">Schade</button>';if(canVermissing(u))acts+='<button class="dark" data-v95-report="'+id+'" data-type="Vermissing">Vermissing</button>';if(canPhotoBefore(u))acts+='<button class="dark" data-v95-photo="'+id+'" data-type="Foto voor levering">Foto voor</button>';if(canPhotoAfter(u))acts+='<button class="dark" data-v95-photo="'+id+'" data-type="Foto na levering">Foto na</button>';if(canSignature(u))acts+='<button class="dark" data-v95-sign="'+id+'">Handtekening</button>';if(canOffer(u))acts+='<button class="dark" data-v95-offer="'+id+'">Offerte</button>';if(canPrices(u))acts+='<button class="dark" data-v95-offer="'+id+'">Prijzen</button>';return '<div class="v95order"><div class="v95title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="v95meta"><div><b>Datum:</b> '+H(dateNice(o.start))+(o.end&&o.end!==o.start?' t/m '+H(dateNice(o.end)):'')+'</div><div><b>Klant:</b> '+H(cust(o))+'</div><div><b>Adres:</b> '+H(ad||'Geen adres')+'</div><div><b>Materiaal:</b> '+H(phoneMats(o)||'Geen materialen')+'</div>'+priceInfo+'</div><div class="v95acts">'+acts+'</div></div>';}
 
   function renderPhoneApp(u){var q='';var rows=orders().filter(function(o){return activeOrder(o)&&belongs(o,u);});rows.sort(function(a,b){return T(a.start).localeCompare(T(b.start));});phoneHtml('<div class="v95head"><h1>Bezorger Tapwagen.nl</h1><small>'+H(u.name)+' - Bezorger</small></div><div class="v95topmsg">Data geladen</div><div class="v95tools"><button id="v95refresh" class="v95btn" type="button">Verversen</button><button id="v95logout" class="v95btn dark" type="button">Uitloggen</button></div>'+(rows.length?rows.map(function(o){return orderCard(o,u);}).join(''):'<div class="v95empty">Geen opdrachten voor deze gebruiker.</div>'));var r=E('v95refresh'),l=E('v95logout');if(r)r.onclick=function(){pullAll(function(){renderPhoneApp(curUser()||u);});};if(l)l.onclick=function(){clearUser();renderLogin();};A('[data-v95-report]').forEach(function(b){b.onclick=function(){openReport(b.getAttribute('data-v95-report'),u,b.getAttribute('data-type')||'Bezorger melding');};});A('[data-v95-photo]').forEach(function(b){b.onclick=function(){openPhoto(b.getAttribute('data-v95-photo'),u,b.getAttribute('data-type')||'Foto bezorger');};});A('[data-v95-sign]').forEach(function(b){b.onclick=function(){openSign(b.getAttribute('data-v95-sign'),u);};});A('[data-v95-offer]').forEach(function(b){b.onclick=function(){openOffer(b.getAttribute('data-v95-offer'),u);};});}
-  function renderPhone(){if(!phoneMode())return;css();var u=curUser();if(!u){renderLogin();return;}var linked=T(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==device()){clearUser();renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}renderPhoneApp(u);}
+  function renderPhone(){if(!phoneMode())return;try{installStyle();}catch(e){try{if(typeof window.css==="function")window.css();}catch(_){}}var u=curUser();if(!u){renderLogin();return;}var linked=T(u.deviceId||u.phoneDeviceId||u.mobileDeviceId);if(linked&&linked!==device()){clearUser();renderLogin('Deze bezorger is aan een andere telefoon gekoppeld. Vraag admin om telefoon reset.');return;}renderPhoneApp(u);}
 
-  function init(){css();patchMaterial(); if(phoneMode()){setTimeout(function(){pullAll(renderPhone);},50);setTimeout(renderPhone,500);} }
+  function init(){try{installStyle();}catch(e){try{if(typeof window.css==="function")window.css();}catch(_){}}patchMaterial(); if(phoneMode()){setTimeout(function(){pullAll(renderPhone);},50);setTimeout(renderPhone,500);} }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else setTimeout(init,50);
-  ['input','change','click'].forEach(function(t){document.addEventListener(t,function(ev){if(ev.target&&/^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){setTimeout(function(){matKey='';renderMaterials95(window.currentCat||lastCat,true);},20);}},true);});
+  ['input','change','click'].forEach(function(t){document.addEventListener(t,function(ev){if(ev.target&&/^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){setTimeout(function(){matKey='';renderMaterials95((typeof window.currentCat==="function"?window.currentCat():window.currentCat)||lastCat,true);},20);}},true);});
   window.__BNS_CALM_INTERVAL__(function(){try{patchMaterial();}catch(e){}},3000);
 })();
 
@@ -11812,7 +11816,7 @@ window.__BNS_CALM_INTERVAL__(install,1500);
     p.setAttribute("autocomplete","new-password"); p.setAttribute("inputmode","numeric");
     if(!p.dataset.bnsV73Cleared && document.activeElement!==p){p.value="";p.dataset.bnsV73Cleared="1";}
   }
-  function install(){ bindSaves(); pinFix(); if(E("materialList")) forceRenderMaterials(currentCat()); }
+  function install(){ bindSaves(); pinFix(); if(E("materialList")){ var __cat=(typeof currentCat==="function")?currentCat():(window.currentCat||localStorage.getItem("bnsV56Cat")||"TW"); forceRenderMaterials(__cat); } }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){setTimeout(install,500);}); else setTimeout(install,300);
   setTimeout(install,1300); setTimeout(install,3000);
   window.__BNS_CALM_INTERVAL__(function(){ bindSaves(); pinFix(); },2000);
@@ -17490,3 +17494,23 @@ window.__BNS_CALM_INTERVAL__(install,1500);
 
 
 /* V206 FIX7: herstel wit scherm na pin - currentCat en insertBefore crash verholpen. */
+
+
+/* =========================================================
+   V206 FIX8 - startcrash herstel
+   - css is not defined opgelost
+   - insertBefore crash op verwijderknop veilig gemaakt
+   - currentCat() veilig gemaakt bij materiaalrender
+   ========================================================= */
+(function TW_V206_FIX8_STARTCRASH(){
+  'use strict';
+  if(window.__TW_V206_FIX8_STARTCRASH__) return;
+  window.__TW_V206_FIX8_STARTCRASH__ = true;
+  try{ if(typeof window.css !== 'function') window.css=function(){}; }catch(e){}
+  window.addEventListener('error', function(e){
+    var m=String((e&&e.message)||'');
+    if(/css is not defined|currentCat is not a function|insertBefore/.test(m)){
+      try{ console.warn('[V206 FIX8 veilig opgevangen]', m); }catch(_e){}
+    }
+  });
+})();
