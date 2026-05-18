@@ -16973,3 +16973,293 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   setTimeout(install, 800);
   setTimeout(install, 1800);
 })();
+
+/* ===== V206 TAPWAGEN HERSTEL OP HOOFD-BASIS =====
+   Doel: alleen stabiliteit/functieherstel; geen grote layout-verbouwing.
+   - harde materiaalblokkering bij datum-overlap
+   - systeemstatus rood bij open melding
+   - 1 postcodezoeker: extra PDOK-boxen weg
+   - admin rubriek met keuzelijst en meer dan 4 letters
+   - klant = locatie klein vinkje bij klant
+   - documentknoppen rustig in opdrachtkaart
+   - defect/storing niet knipperen
+*/
+(function(){
+  if (window.__BNS_V206_HOOFD_HERSTEL__) return;
+  window.__BNS_V206_HOOFD_HERSTEL__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v); }
+  function L(v){ return T(v).trim().toLowerCase(); }
+  function esc(v){ return T(v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function todayIso(){ return new Date().toISOString().slice(0,10); }
+  function iso(d){ if(!d) return ''; var s=T(d).trim(); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; var m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/); if(m){ var y=m[3].length===2?'20'+m[3]:m[3]; return y+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0'); } return s; }
+  function nice(d){ d=iso(d); if(!d) return ''; var p=d.split('-'); return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:d; }
+  function S(){ try { return window.state || state; } catch(e){ return window.state; } }
+  function saveAny(){ try{ if(typeof save === 'function') save(); }catch(e){} try{ if(window.BNS && typeof window.BNS.syncAll === 'function') window.BNS.syncAll(S()); }catch(e){} }
+  function orderStart(){ return iso(E('dateStart') && E('dateStart').value) || todayIso(); }
+  function orderEnd(){ return iso(E('dateEnd') && E('dateEnd').value) || orderStart(); }
+  function currentEditingId(){ try { return editing || ''; } catch(e){ return ''; } }
+  function currentOrderNumber(){ return E('orderNumber') ? E('orderNumber').value : ''; }
+  function activeStatus(st){ var s=L(st); return !(s.indexOf('geannuleerd')>=0 || s.indexOf('verwijderd')>=0 || s.indexOf('uitgevoerd')>=0 || s.indexOf('afgerond')>=0); }
+  function overlap(a1,a2,b1,b2){ a1=iso(a1); a2=iso(a2)||a1; b1=iso(b1); b2=iso(b2)||b1; if(!a1||!b1) return false; return a1 <= b2 && b1 <= a2; }
+  function mid(m){ return T(m && (m.id || m.materialId || m.code || m.name)); }
+  function selectedList(){ try{ return chosen || []; }catch(e){ return []; } }
+  function setSelected(list){ try{ chosen = list; }catch(e){} }
+  function materialById(id){ var s=S(); return (s && s.materials || []).find(function(m){ return String(m.id)===String(id) || String(m.code)===String(id); }); }
+  function materialCode(m){ return T(m && (m.code || m.nr || m.productNr || '')); }
+  function materialName(m){ return T(m && (m.name || m.product || m.desc || m.description || '')); }
+  function orderHasMaterial(o, wantedId){
+    var wanted = materialById(wantedId) || {id:wantedId, code:wantedId};
+    var wId = T(wanted.id), wCode = materialCode(wanted);
+    return (o.materials || []).some(function(m){ return T(m.id)===wId || (wCode && materialCode(m)===wCode); });
+  }
+  function reservationFor(id, start, end){
+    var s=S(); if(!s) return null;
+    start = start || orderStart(); end = end || orderEnd();
+    var editId = currentEditingId(), editNr = currentOrderNumber();
+    var orders = s.orders || [];
+    for(var i=0;i<orders.length;i++){
+      var o = orders[i];
+      if(!o) continue;
+      if(editId && String(o.id)===String(editId)) continue;
+      if(editNr && String(o.number||'')===String(editNr)) continue;
+      if(!activeStatus(o.status)) continue;
+      if(!overlap(o.start, o.end || o.start, start, end)) continue;
+      if(orderHasMaterial(o, id)) return o;
+    }
+    return null;
+  }
+  function statusKind(m){
+    var st = L(m && m.status);
+    if(st==='inactive' || st==='niet actief' || st==='niet beschikbaar') return 'inactive';
+    if(st==='defect' || st==='storing' || st==='damage' || st==='schade' || st==='vermist' || st==='missing') return 'defect';
+    if(st==='reserved' || st==='gereserveerd') return 'reserved';
+    return 'free';
+  }
+  function blockedInfo(id){
+    var m = materialById(id); if(!m) return {blocked:true, kind:'missing', material:null};
+    var res = reservationFor(id);
+    if(res) return {blocked:true, kind:'reserved', material:m, order:res};
+    var k = statusKind(m);
+    if(k !== 'free') return {blocked:true, kind:k, material:m};
+    return {blocked:false, kind:'free', material:m};
+  }
+  function modal(title, body, buttons){
+    var old = E('bnsV206Modal'); if(old) old.remove();
+    var div = document.createElement('div');
+    div.id = 'bnsV206Modal';
+    div.className = 'bns-v206-modal';
+    div.innerHTML = '<div class="bns-v206-card"><h2>'+esc(title||'Tapwagen.nl')+'</h2><div class="bns-v206-body">'+body+'</div><div class="bns-v206-actions"></div></div>';
+    document.body.appendChild(div);
+    var actions = div.querySelector('.bns-v206-actions');
+    (buttons || [{text:'Sluiten', cls:'primary', fn:function(){div.remove();}}]).forEach(function(b){
+      var btn = document.createElement('button'); btn.type='button'; btn.textContent=b.text||'Sluiten'; btn.className=b.cls||''; btn.onclick=function(){ try{ if(b.fn) b.fn(); }finally{ if(b.keep!==true) div.remove(); } }; actions.appendChild(btn);
+    });
+    return div;
+  }
+  function showBlocked(info){
+    var m=info.material || {};
+    var html = '<div class="bns-v206-alert"><b>'+esc(materialCode(m)+' '+materialName(m))+'</b><br>';
+    if(info.kind==='reserved'){
+      var o=info.order||{};
+      html += 'Dit materiaal is al gereserveerd en kan niet worden toegevoegd.<br><br>'+
+        '<b>Klant:</b> '+esc(o.customer && o.customer.name || 'Onbekend')+'<br>'+
+        '<b>Opdracht:</b> '+esc(o.number || '')+' '+esc(o.title || '')+'<br>'+
+        '<b>Gereserveerd:</b> '+esc(nice(o.start))+' t/m '+esc(nice(o.end || o.start))+'<br>'+
+        '<b>Nieuwe datum:</b> '+esc(nice(orderStart()))+' t/m '+esc(nice(orderEnd()));
+    } else {
+      html += 'Dit materiaal heeft status <b>'+esc(info.kind==='inactive'?'Niet actief':'Defect / storing')+'</b> en kan niet worden toegevoegd.';
+    }
+    html += '</div>';
+    modal('Tapwagen.nl materiaalmelding', html);
+  }
+  function cloneMaterial(m){ try{ return structuredClone(m); }catch(e){ return JSON.parse(JSON.stringify(m)); } }
+  function hardAddMat(id){
+    var info = blockedInfo(id);
+    if(info.blocked){ showBlocked(info); return false; }
+    var list = selectedList();
+    if(!list.some(function(x){ return String(x.id)===String(info.material.id); })){
+      var c = cloneMaterial(info.material); c.status = 'reserved';
+      if(c.qty == null) c.qty = 1;
+      list.push(c); setSelected(list);
+    }
+    try{ renderChosen(); }catch(e){}
+    try{ renderMaterials(currentCat); }catch(e){}
+    try{ summaryRender(); }catch(e){}
+    return true;
+  }
+  window.addMat = hardAddMat;
+  try{ addMat = hardAddMat; }catch(e){}
+
+  window.BNS_V206_VALIDATE_MATERIALS = function(){
+    var bad = [];
+    selectedList().forEach(function(m){
+      var info = reservationFor(m.id || m.code);
+      if(info) bad.push({material:m, order:info});
+    });
+    if(bad.length){
+      var html = '<p>Opslaan is geblokkeerd. Deze materialen zijn al bezet:</p>' + bad.map(function(x){
+        var o=x.order||{}, m=x.material||{};
+        return '<div class="bns-v206-alert"><b>'+esc(materialCode(m)+' '+materialName(m))+'</b><br>Klant: '+esc(o.customer&&o.customer.name||'Onbekend')+'<br>Opdracht: '+esc(o.number||'')+'<br>Datum: '+esc(nice(o.start))+' t/m '+esc(nice(o.end||o.start))+'</div>';
+      }).join('');
+      modal('Tapwagen.nl reservering geblokkeerd', html);
+      return false;
+    }
+    return true;
+  };
+
+  function renderMaterialRows(cat){
+    var s=S(), box=E('materialList'); if(!s||!box) return false;
+    var q=L(E('materialSearch')&&E('materialSearch').value);
+    var rows=(s.materials||[]).filter(function(m){ return L(m.cat||'EXTRA')===L(cat||currentCat||m.cat); }).filter(function(m){ return !q || L(JSON.stringify(m)).indexOf(q)>=0; });
+    box.innerHTML = rows.map(function(m){
+      var info=blockedInfo(m.id), sel=selectedList().some(function(x){return String(x.id)===String(m.id);});
+      var kind= sel?'now':(info.blocked?info.kind:'free');
+      var label = sel?'Nu toegevoegd':(kind==='reserved'?'Gereserveerd':kind==='inactive'?'Niet actief':kind==='defect'?'Defect / storing':'Vrij');
+      var hint = kind==='reserved'?'Klik voor klant/datum':(kind==='free'?(m.price||''):'Klik voor status');
+      return '<div class="material-row bns-v206-material '+kind+'" data-material-id="'+esc(m.id)+'" style="--cat-color:'+esc((typeof catColor==='function'?catColor(m.cat):'#0f766e'))+'">'+
+        '<div class="catbar cat-'+esc(m.cat||'EXTRA')+'"></div><div><b>'+esc(materialCode(m))+'</b> '+esc(materialName(m))+'<br><small>'+esc(hint)+'</small></div><div><span class="badge '+kind+'">'+esc(label)+'</span></div></div>';
+    }).join('') || '<p>Geen materiaal</p>';
+    A('[data-material-id]',box).forEach(function(row){
+      ['click','mousedown','touchstart','pointerdown'].forEach(function(ev){
+        row.addEventListener(ev,function(e){
+          var id=row.getAttribute('data-material-id'); var info=blockedInfo(id);
+          if(info.blocked){ e.preventDefault(); e.stopImmediatePropagation(); showBlocked(info); return false; }
+          if(ev==='click'){ e.preventDefault(); e.stopImmediatePropagation(); hardAddMat(id); return false; }
+        },true);
+      });
+    });
+    return true;
+  }
+  var oldRenderMaterials = window.renderMaterials || (typeof renderMaterials==='function'?renderMaterials:null);
+  window.renderMaterials = function(cat){ return renderMaterialRows(cat) || (oldRenderMaterials && oldRenderMaterials.apply(this,arguments)); };
+  try{ renderMaterials = window.renderMaterials; }catch(e){}
+
+  var oldSaveOrder = window.saveCurrentOrder || (typeof saveCurrentOrder==='function'?saveCurrentOrder:null);
+  if(oldSaveOrder && !oldSaveOrder.__bnsV206){
+    var newSave = function(){
+      if(!window.BNS_V206_VALIDATE_MATERIALS()) return false;
+      syncCustomerLocationBeforeSave();
+      return oldSaveOrder.apply(this,arguments);
+    };
+    newSave.__bnsV206 = true;
+    window.saveCurrentOrder = newSave;
+    try{ saveCurrentOrder = newSave; }catch(e){}
+  }
+
+  function openAlertsCount(){
+    var s=S(); if(!s) return 0;
+    var arr=[];
+    ['alerts','systemAlerts','notifications','plannerAlerts'].forEach(function(k){ if(Array.isArray(s[k])) arr=arr.concat(s[k]); });
+    return arr.filter(function(a){ return !a.resolved && !a.done && !a.seen && !a.deleted; }).length;
+  }
+  function patchStatusButton(){
+    var n=openAlertsCount();
+    var btns=A('button, .nav, [data-page], [id]').filter(function(el){ return /systeemmeldingen|meldingen/i.test(el.textContent||el.id||''); });
+    btns.forEach(function(b){ b.classList.toggle('bns-v206-alert-red', n>0); });
+    var ab=E('alertsBtn'); if(ab){ ab.textContent='Systeemmeldingen ('+n+')'; ab.classList.toggle('bns-v206-alert-red', n>0); }
+  }
+
+  function removePdokDuplicates(){
+    A('.bns-postcode-inline, #bnsPostcodeInput, #bnsHouseNumberInput, #bnsPostcodeSearchBtn, #bnsPostcodeStatus').forEach(function(el){
+      var wrap = el.closest && el.closest('.bns-postcode-inline');
+      var t = (wrap||el).textContent || '';
+      if(/PDOK/i.test(t) || el.id==='bnsPostcodeInput' || el.id==='bnsPostcodeSearchBtn') (wrap||el).remove();
+    });
+  }
+
+  function patchAdminCat(){
+    var input = E('adminMatCat') || E('bnsV56Cat') || E('bnsV206Cat');
+    if(!input || input.dataset.bnsV206Cat) return;
+    input.dataset.bnsV206Cat='1';
+    input.removeAttribute('maxlength');
+    input.setAttribute('list','bnsV206CatList');
+    input.placeholder='TW, TO, KW, EXTRA...';
+    var dl=E('bnsV206CatList') || document.createElement('datalist');
+    dl.id='bnsV206CatList'; document.body.appendChild(dl);
+    function refresh(){
+      var s=S(); var cats=[].concat((s&&s.materials||[]).map(function(m){ return T(m.cat||'').toUpperCase(); })).filter(Boolean);
+      cats = Array.from(new Set(cats.concat(['TW','TO','KW','EXTRA']))).sort();
+      dl.innerHTML = cats.map(function(c){ return '<option value="'+esc(c)+'"></option>'; }).join('');
+    }
+    input.addEventListener('focus',refresh); input.addEventListener('input',function(){ if(L(input.value)==='extr') input.value='EXTRA'; refresh(); }); refresh();
+  }
+
+  function patchCustomerLocationCheck(){
+    if(E('bnsV206CustomerIsLocation')) return;
+    var customerPanel = E('customerPanel') || (E('customerName') && E('customerName').closest('.workpanel')) || (E('customerName') && E('customerName').parentElement);
+    var ref = E('customerName'); if(!customerPanel || !ref) return;
+    var line=document.createElement('label'); line.id='bnsV206CustomerIsLocation'; line.className='bns-v206-check';
+    line.innerHTML='<input type="checkbox" id="bnsV206CustomerIsLocationBox"> klant is ook locatie';
+    ref.parentNode.insertBefore(line, ref.nextSibling);
+    E('bnsV206CustomerIsLocationBox').addEventListener('change',function(){ if(this.checked) copyCustomerToLocation(); });
+  }
+  function copyCustomerToLocation(){
+    [['customerName','locationName'],['customerStreet','locationStreet'],['customerZip','locationZip'],['customerCity','locationCity'],['customerPhone','locationPhone']].forEach(function(p){ var a=E(p[0]),b=E(p[1]); if(a&&b) b.value=a.value; });
+    var ce=E('customerEmail'), lc=E('locationContact'); if(ce&&lc&&!lc.value) lc.value=ce.value;
+    try{ summaryRender(); }catch(e){}
+  }
+  function syncCustomerLocationBeforeSave(){ var box=E('bnsV206CustomerIsLocationBox'); if(box&&box.checked) copyCustomerToLocation(); }
+
+  function patchCards(){
+    // Alleen als kaartfunctie bestaat, rustig knoppen toevoegen zonder overzicht vol te maken.
+    A('.order-card').forEach(function(card){
+      if(card.dataset.bnsV206Docs) return;
+      var txt=card.textContent||''; var m=txt.match(/(20\d{2}-\d{4})/); if(!m) return;
+      var s=S(); var o=(s&&s.orders||[]).find(function(x){return String(x.number||'')===m[1];}); if(!o) return;
+      card.dataset.bnsV206Docs='1';
+      var actions=card.querySelector('.actions') || card;
+      var btn=document.createElement('button'); btn.type='button'; btn.textContent='Overzicht / documenten'; btn.onclick=function(){ openDocs(o.id); };
+      actions.appendChild(btn);
+    });
+  }
+  function docSettings(){
+    var s=S(); var d=(s&&s.settings&&s.settings.documents)||{};
+    return {logo:d.logo||d.logoUrl||'assets/tapwagen-logo.jpg', company:d.company||'Tapwagen.nl', website:d.website||'www.tapwagen.nl', phone:d.phone||'', email:d.email||'', address:d.address||'', footer:d.footer||'Bedankt voor uw opdracht.'};
+  }
+  function ensureInvoice(o){ if(!o.invoiceNumber){ var y=new Date().getFullYear(); var n=(S().orders||[]).filter(function(x){return T(x.invoiceNumber).indexOf('F'+y+'-')===0;}).length+1; o.invoiceNumber='F'+y+'-'+String(n).padStart(4,'0'); saveAny(); try{ if(window.firebaseSync&&firebaseSync.saveOrder) firebaseSync.saveOrder(o); }catch(e){} } }
+  function openDocs(id){
+    var o=(S().orders||[]).find(function(x){return String(x.id)===String(id);}); if(!o) return;
+    var d=docSettings();
+    var html='<div class="bns-v206-doc-head"><img src="'+esc(d.logo)+'" onerror="this.style.display=\'none\'"><div><h3>'+esc(d.company)+'</h3><small>'+esc([d.address,d.phone,d.email,d.website].filter(Boolean).join(' | '))+'</small></div></div>'+
+      '<p><b>Opdracht:</b> '+esc(o.number||'')+'<br><b>Klant:</b> '+esc(o.customer&&o.customer.name||'')+'<br><b>Datum:</b> '+esc(nice(o.start))+' t/m '+esc(nice(o.end||o.start))+'</p>'+
+      '<p><b>Materialen:</b> '+esc((o.materials||[]).map(function(m){return materialCode(m)+' '+materialName(m);}).join(', '))+'</p>'+
+      '<div class="bns-v206-actions-inline"><button id="bnsV206Confirm">Opdrachtbevestiging</button><button id="bnsV206Invoice">Factuur</button><button id="bnsV206Print">Print</button><button id="bnsV206Share">Deel</button></div><div id="bnsV206DocOut"></div>';
+    var m=modal('Overzicht bestelling / documenten',html,[{text:'Terug',cls:'primary'}]);
+    function write(kind){ if(kind==='Factuur') ensureInvoice(o); var out=m.querySelector('#bnsV206DocOut'); out.innerHTML='<hr><h2>'+esc(kind)+'</h2><p><b>Opdracht nr:</b> '+esc(o.number||'')+(kind==='Factuur'?'<br><b>Factuur nr:</b> '+esc(o.invoiceNumber||''):'')+'</p><p>'+esc(o.confirmationText||o.extra||'')+'</p><p>'+esc(d.footer)+'</p>'; }
+    m.querySelector('#bnsV206Confirm').onclick=function(){write('Opdrachtbevestiging');};
+    m.querySelector('#bnsV206Invoice').onclick=function(){write('Factuur');};
+    m.querySelector('#bnsV206Print').onclick=function(){ window.print(); };
+    m.querySelector('#bnsV206Share').onclick=function(){ var text='Opdracht '+(o.number||'')+' - '+(o.customer&&o.customer.name||''); if(navigator.share) navigator.share({title:'Tapwagen.nl',text:text}); else safeMail(text,'Tapwagen.nl opdracht '+(o.number||'')); };
+    write('Opdrachtbevestiging');
+  }
+
+  function autoBackup(){
+    var s=S(); if(!s) return;
+    var key='bnsV206BackupDate'; var d=todayIso();
+    try{ if(localStorage.getItem(key)===d) return; localStorage.setItem(key,d); }catch(e){}
+    var payload={id:'auto-'+['zondag','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag'][new Date().getDay()], date:new Date().toISOString(), state:s};
+    s.backups=s.backups||{}; s.backups[payload.id]=payload; s.backups['laatste-auto-backup']=payload;
+    saveAny();
+    try{ if(window.firebaseSync && typeof window.firebaseSync.saveBackup==='function') window.firebaseSync.saveBackup(payload.id,payload); }catch(e){}
+  }
+
+  function installStyle(){
+    if(E('bnsV206Style')) return;
+    var st=document.createElement('style'); st.id='bnsV206Style';
+    st.textContent = '.bns-v206-alert-red{background:#dc2626!important;color:#fff!important;border-color:#991b1b!important}.badge.defect,.v112-pill.v112-defect,.bns-a12-pill.damage,#materialList .badge.defect{animation:none!important}.bns-v206-material{cursor:pointer}.bns-v206-material.reserved,.bns-v206-material.defect,.bns-v206-material.inactive{opacity:.95}.bns-v206-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.58);display:grid;place-items:center;padding:18px}.bns-v206-card{background:#fff;color:#172033;border-radius:20px;box-shadow:0 22px 65px rgba(0,0,0,.35);width:min(760px,96vw);max-height:90vh;overflow:auto;padding:22px}.bns-v206-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}.bns-v206-actions button,.bns-v206-actions-inline button{border:0;border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer;background:#0f766e;color:#fff}.bns-v206-actions button.primary{background:#2563eb}.bns-v206-alert{border:1px solid #fecaca;background:#fff1f2;border-radius:14px;padding:12px;margin:10px 0}.bns-v206-check{display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:800}.bns-v206-check input{width:18px;height:18px}.bns-v206-doc-head{display:flex;gap:14px;align-items:center;border-bottom:1px solid #e5e7eb;margin-bottom:12px;padding-bottom:12px}.bns-v206-doc-head img{max-width:145px;max-height:80px;object-fit:contain}.bns-v206-actions-inline{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.bns-postcode-inline{display:none!important}.nav,.side button,[data-page]{opacity:1!important;pointer-events:auto!important;animation:none!important;transition:none!important}';
+    document.head.appendChild(st);
+  }
+
+  function patchAll(){
+    installStyle(); removePdokDuplicates(); patchAdminCat(); patchCustomerLocationCheck(); patchStatusButton(); patchCards();
+    try{ if(E('materialList')) renderMaterialRows(currentCat); }catch(e){}
+  }
+  var mo=new MutationObserver(function(){ patchAll(); });
+  try{ mo.observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+  ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev,function(){ setTimeout(patchAll,80); setTimeout(patchAll,600); }); });
+  setTimeout(function(){ patchAll(); autoBackup(); },200);
+  setTimeout(patchAll,1200);
+})();
