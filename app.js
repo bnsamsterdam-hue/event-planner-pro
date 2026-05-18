@@ -17428,3 +17428,141 @@ setInterval(install,1500);
   if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install,200); }); else setTimeout(install,100);
   setTimeout(install,800); setInterval(function(){ addCopyCustomerButton(); addOrderDocButtons(); },2500);
 })();
+
+/* ===== V205 Tapwagen stabilisatie: klant=locatie, factuur, menu, pin, meldingen ===== */
+(function(){
+  if(window.__BNS_V205_FIX__) return; window.__BNS_V205_FIX__=true;
+  var D=document;
+  function A(sel,root){return Array.prototype.slice.call((root||D).querySelectorAll(sel));}
+  function E(id){return D.getElementById(id);}
+  function T(v){return String(v==null?'':v);}
+  function L(v){return T(v).toLowerCase();}
+  function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function stateObj(){try{return (typeof state!=='undefined'&&state)||window.state||{};}catch(e){return window.state||{};}}
+  function orders(){var s=stateObj(); return Array.isArray(s.orders)?s.orders:[];}
+  function saveState(){try{if(typeof save==='function')save();}catch(e){} try{localStorage.setItem('event-planner-pro-v87',JSON.stringify(stateObj()));}catch(e){}}
+  function toast(msg){try{if(typeof toastMsg==='function')return toastMsg(msg);}catch(e){} var t=E('toast'); if(t){t.textContent=msg;t.className='toast show';clearTimeout(t._v205);t._v205=setTimeout(function(){t.classList.remove('show');},2600);} else console.log(msg);}
+  function val(id){var e=E(id); return e?T(e.value).trim():'';}
+  function setVal(id,v){var e=E(id); if(!e)return; e.value=T(v||''); try{e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}catch(x){}}
+
+  function css(){
+    if(E('bns-v205-style')) return;
+    var s=D.createElement('style'); s.id='bns-v205-style';
+    s.textContent=[
+      'html{scroll-behavior:auto!important}',
+      'body *{animation-duration:0s!important}',
+      '.defect,.storing,.status-defect,.status-storing,.mat-defect,[class*="defect"],[class*="storing"]{animation:none!important;transition:none!important;filter:none!important;transform:none!important}',
+      '#bnsV204CopyCustomerToLocation.bns-v204-copy-location{display:none!important}',
+      '.bns-v205-copy-customer{display:inline-flex!important;align-items:center;gap:7px;margin:6px 0 8px 0;padding:6px 9px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#0f172a;font-size:13px;font-weight:800;line-height:1.2;cursor:pointer}',
+      '.bns-v205-copy-customer input{width:16px!important;height:16px!important;accent-color:#16a34a!important;margin:0!important}',
+      'input[type="password"],input[id*="Pin"],input[id*="pin"],input[name*="pin" i]{font-family:Arial,sans-serif!important;letter-spacing:0!important;font-variant-numeric:normal!important;-webkit-text-security:disc;unicode-bidi:plaintext!important}',
+      '.bns-pdok,.pdok,.pdok-box,.pdok-search,.bns-postcode-inline[data-bns-v203-pdok="1"],[data-pdok],[id*="pdok" i],[class*="pdok" i]{display:none!important;visibility:hidden!important;opacity:0!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important}',
+      '#alertsBtn.bns-v205-open,.bns-system-status.bns-v205-open,#bnsFirebaseStatus.bns-v205-open{background:#dc2626!important;color:#fff!important;border-color:#991b1b!important}',
+      '.sidebar,.side,.left-menu,.nav,.menu,aside{transition:none!important;animation:none!important}',
+      '.sidebar button,.side button,.left-menu button,.nav button,.menu button,aside button{transition:none!important;animation:none!important;pointer-events:auto!important}',
+      '.bns-v204-doc-actions button{cursor:pointer!important}',
+      '.bns-v205-nojump{scroll-margin-top:0!important}'
+    ].join('\n');
+    D.head.appendChild(s);
+  }
+
+  function copyCustomerToLocation(){
+    setVal('locationName', val('customerName'));
+    setVal('locationStreet', val('customerStreet'));
+    setVal('locationZip', val('customerZip'));
+    setVal('locationCity', val('customerCity'));
+    if(!val('locationPhone')) setVal('locationPhone', val('customerPhone'));
+    if(!val('locationContact')) setVal('locationContact', val('customerName'));
+    try{ if(typeof summaryRender==='function')summaryRender(); }catch(e){}
+    toast('Klantgegevens overgezet naar locatie');
+  }
+  window.bnsV205CopyCustomerToLocation=copyCustomerToLocation;
+
+  function addCustomerLocationCheckbox(){
+    if(E('bnsV205CopyCustomerAtCustomer')) return;
+    var anchor=E('customerName')||E('customerStreet')||E('customerZip'); if(!anchor) return;
+    var label=D.createElement('label'); label.id='bnsV205CopyCustomerAtCustomer'; label.className='bns-v205-copy-customer';
+    label.innerHTML='<input type="checkbox" aria-label="Klant is locatie"><span>Klant = locatie</span>';
+    label.addEventListener('click',function(ev){ ev.stopPropagation(); });
+    label.querySelector('input').addEventListener('change',function(){ if(this.checked){ copyCustomerToLocation(); var cb=this; setTimeout(function(){cb.checked=false;},500); } });
+    var wrap=anchor.closest('label,.field,.form-row,.grid,div')||anchor.parentNode;
+    if(wrap&&wrap.parentNode) wrap.parentNode.insertBefore(label, wrap.nextSibling); else anchor.insertAdjacentElement('afterend',label);
+  }
+
+  function hidePdokDuplicates(){
+    A('button,input,div,section,label,span').forEach(function(el){
+      var tx=L(el.textContent||el.placeholder||el.value||'');
+      var idc=L((el.id||'')+' '+(el.className||'')+' '+(el.getAttribute('data-source')||''));
+      if((tx.indexOf('pdok')>=0 || idc.indexOf('pdok')>=0) && !el.closest('#adminArea')){
+        el.classList.add('bns-pdok');
+        try{el.setAttribute('aria-hidden','true');}catch(e){}
+      }
+    });
+  }
+
+  function cleanPinFields(){
+    A('input[type="password"],input[id*="Pin"],input[id*="pin"],input[name*="pin" i]').forEach(function(inp){
+      if(inp.dataset.v205pin==='1') return; inp.dataset.v205pin='1';
+      inp.setAttribute('inputmode','numeric'); inp.setAttribute('autocomplete','one-time-code');
+      inp.addEventListener('input',function(){ var p=this.selectionStart; var v=this.value.replace(/[^0-9]/g,''); if(this.value!==v){this.value=v; try{this.setSelectionRange(Math.min(p,v.length),Math.min(p,v.length));}catch(e){}} });
+    });
+  }
+
+  function stabilizeLeftMenu(){
+    var wanted=/^(admin|afsluiten|bezorger|meldingen|systeemmeldingen)$/i;
+    A('button,a,[role="button"]').forEach(function(b){
+      var txt=T(b.textContent).trim(); if(!wanted.test(txt)) return;
+      b.style.visibility='visible'; b.style.opacity='1'; b.style.pointerEvents='auto'; b.style.transform='none'; b.style.animation='none';
+      var p=b.parentElement; for(var i=0;p&&i<3;i++,p=p.parentElement){ p.style.visibility='visible'; p.style.opacity='1'; p.style.pointerEvents='auto'; p.style.transform='none'; p.style.animation='none'; }
+    });
+  }
+
+  function openAlertsCount(){
+    var s=stateObj(); var list=[];
+    ['alerts','systemAlerts','meldingen'].forEach(function(k){ if(Array.isArray(s[k])) list=list.concat(s[k]); });
+    return list.filter(function(a){ var st=L(a.status||a.state||''); return !(a.resolved||a.closed||a.deleted||a.hidden||/opgelost|verwijderd|gesloten/.test(st)); }).length;
+  }
+  function updateSystemStatus(){
+    var n=openAlertsCount();
+    A('#alertsBtn,#bnsFirebaseStatus,.bns-system-status,[data-system-status]').forEach(function(el){ el.classList.toggle('bns-v205-open',n>0); });
+  }
+
+  function findOrderFromCard(card){
+    if(!card) return null; var id=card.getAttribute('data-bns-order-id')||card.getAttribute('data-order-id')||(card.dataset&&(card.dataset.bnsOrderId||card.dataset.orderId));
+    if(id){ var o=orders().find(function(x){return T(x.id)===T(id);}); if(o) return o; }
+    var text=card.textContent||''; return orders().find(function(o){return o&&o.number&&text.indexOf(T(o.number))>=0;})||null;
+  }
+  function nextInvoiceNumber(){
+    var y=new Date().getFullYear(); var nums=orders().map(function(o){var v=T(o.invoiceNumber||(o.invoice&&o.invoice.invoiceNumber)||''); var m=v.match(new RegExp('^F'+y+'-(\\d+)$')); return m?Number(m[1]):0;}).filter(Boolean);
+    return 'F'+y+'-'+String(nums.length?Math.max.apply(null,nums)+1:1).padStart(4,'0');
+  }
+  function ensureInvoice(o){ if(!o)return''; if(!o.invoiceNumber&&!(o.invoice&&o.invoice.invoiceNumber)){ o.invoiceNumber=nextInvoiceNumber(); o.invoice=o.invoice||{}; o.invoice.invoiceNumber=o.invoiceNumber; o.invoice.createdAt=new Date().toISOString(); saveState(); try{if(window.BNS&&typeof window.BNS.syncOrder==='function')window.BNS.syncOrder(o);}catch(e){} try{if(typeof syncDoc==='function')syncDoc('orders',o.id,o);}catch(e){} } return o.invoiceNumber||(o.invoice&&o.invoice.invoiceNumber)||''; }
+  function nice(d){d=T(d).slice(0,10);var p=d.split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:d;}
+  function money(v){var n=Number(v||0);return '€ '+n.toFixed(2).replace('.',',');}
+  function logo(){return 'assets/tapwagen-logo.jpg';}
+  function docHtml(kind,o){
+    var inv=/factuur/i.test(kind); var nr=inv?ensureInvoice(o):(o.invoiceNumber||(o.invoice&&o.invoice.invoiceNumber)||'');
+    var mats=Array.isArray(o.materials)?o.materials:[]; var total=(o.pricing&&(o.pricing.grand||o.pricing.incl))||o.amount||0;
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(kind)+' '+H(o.number||'')+'</title><style>body{font-family:Arial,sans-serif;background:#f4f7fb;margin:0;color:#172033}.page{max-width:940px;margin:24px auto;background:white;border-radius:18px;padding:34px;box-shadow:0 8px 28px rgba(15,23,42,.14)}.top{display:flex;gap:18px;align-items:center;border-bottom:4px solid #0f766e;padding-bottom:18px}.logo{max-width:185px;max-height:95px;object-fit:contain}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.box{border:1px solid #dbe3ef;border-radius:14px;padding:14px;margin:14px 0}table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid #e5e7eb;text-align:left}.actions{max-width:940px;margin:12px auto}.actions button{background:#0f766e;color:white;border:0;border-radius:10px;padding:11px 16px;font-weight:900;margin-right:8px}@media print{body{background:white}.actions{display:none}.page{box-shadow:none;margin:0;max-width:none}}</style></head><body><div class="actions"><button onclick="window.print()">Print</button><button onclick="navigator.share?navigator.share({title:document.title,text:document.body.innerText}):location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Deel</button></div><main class="page"><div class="top"><img class="logo" src="'+H(logo())+'" onerror="this.style.display=\'none\'"><div><h1>'+H(inv?'Factuur':'Opdrachtbevestiging')+'</h1><b>Tapwagen.nl</b><br>'+H('Tapwagen.nl')+'</div></div><div class="grid"><div class="box"><b>Opdracht</b><br>Opdrachtnr: '+H(o.number||'')+(nr?'<br>Factuurnr: '+H(nr):'')+'<br>Status: '+H(o.status||'')+'<br>Datum: '+H(nice(o.start))+(o.end&&o.end!==o.start?' t/m '+H(nice(o.end)):'')+'</div><div class="box"><b>Klant</b><br>'+H((o.customer&&o.customer.name)||'')+'<br>'+H((o.customer&&o.customer.street)||'')+'<br>'+H([(o.customer&&o.customer.zip),(o.customer&&o.customer.city)].filter(Boolean).join(' '))+'<br>'+H((o.customer&&o.customer.phone)||'')+'</div></div><div class="box"><b>Locatie bezorging</b><br>'+H([(o.location&&o.location.name),(o.location&&o.location.street),(o.location&&o.location.zip),(o.location&&o.location.city)].filter(Boolean).join(' - '))+'</div><div class="box"><b>Materialen</b><table><thead><tr><th>Rubriek</th><th>Code</th><th>Naam</th><th>Prijs</th></tr></thead><tbody>'+mats.map(function(m){return '<tr><td>'+H(m.cat||'')+'</td><td><b>'+H(m.code||'')+'</b></td><td>'+H(m.name||'')+'</td><td>'+H(m.price||'')+'</td></tr>';}).join('')+'</tbody></table></div><div class="box"><b>Bijzonderheden</b><br><div style="white-space:pre-wrap">'+H(o.extra||'')+'</div></div><div style="text-align:right;font-size:18px"><b>Totaal:</b> '+H(money(total))+'</div></main></body></html>';
+  }
+  function safeOpenDoc(kind,o){ if(!o){toast('Geen opdracht gevonden');return;} var html=docHtml(kind,o); var w=null; try{w=window.open('','_blank');}catch(e){} if(w){w.document.open();w.document.write(html);w.document.close();try{w.focus();}catch(e){} } else { var blob=new Blob([html],{type:'text/html'}); var a=D.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(kind+'-'+(o.number||'opdracht')+'.html').replace(/\s+/g,'-'); a.click(); } }
+  window.bnsV205OpenDoc=safeOpenDoc;
+  function patchDocButtons(){
+    D.addEventListener('click',function(ev){
+      var b=ev.target.closest&&ev.target.closest('[data-bns-doc]'); if(!b) return;
+      var card=b.closest('.order-card,[data-bns-order-id],[data-order-id]'); var o=findOrderFromCard(card); if(!o) return;
+      var k=b.getAttribute('data-bns-doc');
+      if(k==='invoice'||k==='confirm'||k==='print'||k==='share'){
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        if(k==='invoice') safeOpenDoc('Factuur',o); else safeOpenDoc('Opdrachtbevestiging',o);
+      }
+    },true);
+  }
+
+  function tick(){ css(); addCustomerLocationCheckbox(); hidePdokDuplicates(); cleanPinFields(); stabilizeLeftMenu(); updateSystemStatus(); }
+  patchDocButtons();
+  if(D.readyState==='loading') D.addEventListener('DOMContentLoaded',tick); else tick();
+  var mo=new MutationObserver(function(){ clearTimeout(window.__bnsV205Timer); window.__bnsV205Timer=setTimeout(tick,120); });
+  try{ mo.observe(D.documentElement,{childList:true,subtree:true}); }catch(e){}
+  setInterval(tick,2000);
+})();
