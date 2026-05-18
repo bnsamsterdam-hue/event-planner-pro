@@ -160,7 +160,7 @@ async function initFirebase(){
   const fsMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
 
   BNS.firebase = fsMod;
-  BNS.app = appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+  BNS.app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
   BNS.db = fsMod.getFirestore(BNS.app);
 
   setStatus("Firebase verbonden");
@@ -338,6 +338,7 @@ function orderCard(o){
   `;
 }
 
+let __twPlannerAutoRefreshStarted = false;
 function showApp(){
   $("loginBox").classList.add("hidden");
   $("appBox").classList.remove("hidden");
@@ -345,6 +346,20 @@ function showApp(){
   $("who").textContent = BNS.user
     ? `${BNS.user.name} - ${BNS.user.role || "Planner"}`
     : "";
+
+  if(!__twPlannerAutoRefreshStarted){
+    __twPlannerAutoRefreshStarted = true;
+    setInterval(async () => {
+      try{
+        if(BNS.user){
+          await loadAll();
+          render();
+        }
+      }catch(e){
+        console.error(e);
+      }
+    }, 10000);
+  }
 
   render();
 }
