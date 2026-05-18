@@ -45,7 +45,7 @@ async function fb(){
   if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){status("Firebase config ontbreekt");return null}
   const appMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
   const fsMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
-  const app=appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+  const app=appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
   const db=fsMod.getFirestore(app);
   tools={fsMod,db};
   return tools;
