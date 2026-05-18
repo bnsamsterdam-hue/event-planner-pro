@@ -17455,7 +17455,12 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   function L(v){return T(v).toLowerCase()}
   function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
   function S(){try{if(typeof state!=='undefined'&&state)return state}catch(e){} if(window.state)return window.state; window.state={orders:[],alerts:[]}; return window.state}
-  function save(){try{if(typeof saveLocal==='function')saveLocal()}catch(e){} try{if(typeof save==='function')save()}catch(e){} try{localStorage.setItem('event-planner-pro-v87',JSON.stringify(S()))}catch(e){}}
+  function save(){
+    try{ if(typeof window.saveLocal==='function') window.saveLocal(); }catch(e){}
+    try{ if(typeof window.save==='function' && window.save !== save) window.save(); }catch(e){}
+    try{ if(typeof window.saveState==='function') window.saveState(); }catch(e){}
+    try{ localStorage.setItem('event-planner-pro-v87',JSON.stringify(S())); }catch(e){}
+  }
   function orders(){var s=S(); s.orders=Array.isArray(s.orders)?s.orders:[]; return s.orders}
   function alerts(){var s=S(); s.alerts=Array.isArray(s.alerts)?s.alerts:[]; return s.alerts}
   function alertText(a){return L([a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text,a&&a.source,a&&a.status,a&&a.kind].join(' '))}
