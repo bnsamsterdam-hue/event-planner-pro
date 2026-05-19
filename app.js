@@ -17674,3 +17674,95 @@ window.__BNS_CALM_INTERVAL__(install,1500);
     new MutationObserver(function(){ cleanup(); }).observe(document.documentElement,{childList:true,subtree:true});
   }catch(e){}
 })();
+
+
+/* =========================================================
+   V207V - VEILIGE LAAG VANAF BASIS V207M
+   Doel: geen layout-herbouw. Alleen:
+   - telefoon/driver alerts live in planner lezen
+   - systeemmeldingen knop rood/groen
+   - bezorger meldingen = alleen storings/probleem-inbox
+   - boekhouding modal met klikbare betaalstatus
+   - wis-knop bij meldingen in overzicht/modal waar mogelijk
+   ========================================================= */
+(function V207VSafeLayer(){
+  'use strict';
+  if(window.__V207V_SAFE_LAYER__) return;
+  window.__V207V_SAFE_LAYER__ = true;
+
+  function $(id){ return document.getElementById(id); }
+  function all(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function txt(v){ return String(v==null?'':v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return {}; }
+  function ensure(){ var s=stateObj(); if(!Array.isArray(s.orders)) s.orders=[]; if(!Array.isArray(s.alerts)) s.alerts=[]; if(!s.accounting) s.accounting={documents:[]}; if(!Array.isArray(s.accounting.documents)) s.accounting.documents=[]; return s; }
+  function saveSafe(){ try{ if(typeof save==='function') save(); }catch(e){} try{ if(typeof saveState==='function') saveState(); }catch(e){} try{ localStorage.setItem('bns_state',JSON.stringify(ensure())); }catch(e){} }
+  function findOrder(id){ var s=ensure(); return (s.orders||[]).find(function(o){ return txt(o.id)===txt(id)||txt(o.number)===txt(id); }); }
+  function orderNumber(o){ return txt(o&&o.number)||txt(o&&o.id); }
+  function orderTitle(o){ return txt(o&&o.title)||txt(o&&o.name)||''; }
+  function custName(o){ var c=o&&o.customer; return txt((c&&c.name)||o.customerName||o.klant||o.clientName||''); }
+  function invoiceNo(o){ var a=(o&&o.accounting)||{}; var n=a.invoiceNumber||o.invoiceNumber||o.factuurNr||''; if(typeof n==='object') n=n.number||n.nr||n.id||''; return txt(n); }
+  function total(o){ var v=(o&&o.total)||(o&&o.amount)||(o&&o.price)||0; if(typeof v==='object') v=v.total||v.amount||0; var n=Number(String(v).replace(',','.')); return isFinite(n)?('€ '+n.toFixed(2).replace('.',',')):txt(v||'€ 0,00'); }
+  function isPaid(o){ var a=(o&&o.accounting)||{}; return !!(o&& (o.paid===true || o.paymentStatus==='paid' || a.paid===true || a.paymentStatus==='paid')); }
+  function setPaid(o, paid){ if(!o) return; o.accounting=o.accounting||{}; o.paid=!!paid; o.paymentStatus=paid?'paid':'open'; o.accounting.paid=!!paid; o.accounting.paymentStatus=paid?'paid':'open'; if(!o.accounting.invoiceNumber && invoiceNo(o)) o.accounting.invoiceNumber=invoiceNo(o); saveSafe(); try{ if(window.firebaseSync&&typeof window.firebaseSync.saveOrder==='function') window.firebaseSync.saveOrder(o); }catch(e){} syncOrderRemote(o); updatePayLabels(); }
+  function syncOrderRemote(o){ try{ if(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db && o && o.id){ var fs=window.BNS.fs; fs.setDoc(fs.doc(window.BNS.db,'orders',String(o.id)),Object.assign({},o,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){}); } }catch(e){} }
+  function syncAlertDelete(id){ try{ if(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db && id){ var fs=window.BNS.fs; fs.deleteDoc(fs.doc(window.BNS.db,'alerts',String(id))).catch(function(){}); } }catch(e){} }
+  function syncAlertUpdate(a){ try{ if(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db && a && a.id){ var fs=window.BNS.fs; fs.setDoc(fs.doc(window.BNS.db,'alerts',String(a.id)),Object.assign({},a,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){}); } }catch(e){} }
+
+  function normalizeAlert(a){
+    a=a||{}; if(!a.id) a.id='alert_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
+    if(!a.createdAt) a.createdAt=new Date().toISOString(); if(!a.time) a.time=new Date(a.createdAt).toLocaleString('nl-NL');
+    if(!a.note && a.message) a.note=a.message; if(!a.message && a.note) a.message=a.note; if(!a.text && (a.note||a.message)) a.text=a.note||a.message;
+    if(!a.type && a.title) a.type=a.title; if(!a.title && a.type) a.title=a.type;
+    if(a.resolved==null) a.resolved=false;
+    return a;
+  }
+  function isProblemAlert(a){ var t=low([a&&a.source,a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text].join(' ')); return !a.resolved && /(telefoon|driver|bezorger|storing|schade|vermissing|probleem|melding)/.test(t) && !/(foto|handtekening|signature|photo)/.test(t); }
+  function problemAlerts(){ return (ensure().alerts||[]).map(normalizeAlert).filter(isProblemAlert).sort(function(a,b){return txt(b.createdAt||b.time).localeCompare(txt(a.createdAt||a.time));}); }
+  function mergeRemoteAlerts(rows){ var s=ensure(), by={}; (s.alerts||[]).forEach(function(a){ if(a&&a.id) by[String(a.id)]=normalizeAlert(a); }); (rows||[]).forEach(function(a){ if(a&&a.id) by[String(a.id)]=normalizeAlert(a); }); s.alerts=Object.keys(by).map(function(k){return by[k];}).sort(function(a,b){return txt(b.createdAt||b.time).localeCompare(txt(a.createdAt||a.time));}); saveSafe(); updateSystemButton(); }
+
+  var unsubAlerts=null;
+  function startAlertListener(){
+    try{
+      if(unsubAlerts || !window.BNS || !window.BNS.firebaseReady || !window.BNS.fs || !window.BNS.db) return;
+      var fs=window.BNS.fs;
+      if(fs.onSnapshot){
+        unsubAlerts=fs.onSnapshot(fs.collection(window.BNS.db,'alerts'),function(snap){
+          var rows=[]; snap.forEach(function(d){ rows.push(Object.assign({id:d.id},d.data())); }); mergeRemoteAlerts(rows); if(isBezorgerPage()) renderBezorgerInbox();
+        });
+      } else if(fs.getDocs) {
+        fs.getDocs(fs.collection(window.BNS.db,'alerts')).then(function(snap){ var rows=[]; snap.forEach(function(d){rows.push(Object.assign({id:d.id},d.data()));}); mergeRemoteAlerts(rows); }).catch(function(){});
+      }
+    }catch(e){}
+  }
+
+  function installStyle(){ if($('v207v-style')) return; var st=document.createElement('style'); st.id='v207v-style'; st.textContent='body{background:var(--bg,#f3f6fb)!important}.v207v-red{background:#dc2626!important;color:#fff!important}.v207v-green{background:#16a34a!important;color:#fff!important}.v207v-paid{display:inline-flex;align-items:center;gap:5px;border:1px solid #86efac;background:#dcfce7;color:#166534;border-radius:999px;padding:4px 9px;font-weight:900;font-size:12px;margin-left:6px}.v207v-open{display:inline-flex;align-items:center;gap:5px;border:1px solid #fecaca;background:#fee2e2;color:#991b1b;border-radius:999px;padding:4px 9px;font-weight:900;font-size:12px;margin-left:6px}.v207v-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.55);display:grid;place-items:center;padding:18px}.v207v-card{background:#fff;color:#111827;border-radius:18px;box-shadow:0 20px 80px rgba(0,0,0,.32);width:min(1100px,96vw);max-height:90vh;overflow:auto;padding:18px}.v207v-card table{width:100%;border-collapse:collapse}.v207v-card th,.v207v-card td{border-bottom:1px solid #e5e7eb;padding:9px;text-align:left;vertical-align:top}.v207v-card input,.v207v-card select{border:1px solid #cbd5e1;border-radius:10px;padding:9px;width:100%;box-sizing:border-box}.v207v-card button,.v207v-btn{border:0;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer;background:#2563eb;color:#fff}.v207v-danger{background:#dc2626!important}.v207v-dark{background:#111827!important}.v207v-pay{background:#16a34a!important}.v207v-alert-card{border:1px solid #e5e7eb;border-left:6px solid #f97316;border-radius:14px;margin:10px 0;padding:12px;background:#fff}.v207v-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}'; document.head.appendChild(st); }
+
+  function updateSystemButton(){ var n=problemAlerts().length; var b=$('alertsBtn') || all('button').find(function(x){ return /systeemmeldingen/i.test(x.textContent||''); }); if(!b) return; b.textContent='Systeemmeldingen ('+n+')'; b.classList.remove('v207v-red','v207v-green'); b.classList.add(n?'v207v-red':'v207v-green'); b.onclick=function(e){ if(e){e.preventDefault();e.stopPropagation();} openSystemModal(); return false; }; }
+  function openSystemModal(){ var rows=problemAlerts(); var old=$('v207v-system-modal'); if(old) old.remove(); var m=document.createElement('div'); m.id='v207v-system-modal'; m.className='v207v-modal'; m.innerHTML='<div class="v207v-card"><button class="v207v-dark" style="float:right" onclick="this.closest(\'.v207v-modal\').remove()">Terug</button><h2>Systeemmeldingen</h2>'+(rows.length?rows.map(alertHtml).join(''):'<p>Geen open systeemmeldingen.</p>')+'</div>'; document.body.appendChild(m); }
+  function alertHtml(a){ var o=findOrder(a.orderId||a.linkedOrder||a.orderNumber||a.linkedOrderNumber); return '<div class="v207v-alert-card" data-alert-id="'+esc(a.id)+'"><b>'+esc(a.type||a.title||'Melding')+'</b><br><small>'+esc(a.time||'')+'</small><div><b>Opdracht:</b> '+esc((o&&orderNumber(o))||a.orderNumber||'')+' '+esc((o&&orderTitle(o))||a.orderTitle||'')+'</div><div><b>Klant:</b> '+esc((o&&custName(o))||a.customerName||'')+'</div><div>'+esc(a.note||a.message||a.text||'')+'</div><div class="v207v-actions"><button onclick="V207V_resolveAlert(\''+esc(a.id)+'\')">Afmelden</button><button class="v207v-danger" onclick="V207V_deleteAlert(\''+esc(a.id)+'\')">Wis melding</button></div></div>'; }
+  window.V207V_resolveAlert=function(id){ var s=ensure(); var a=(s.alerts||[]).find(function(x){return txt(x.id)===txt(id);}); if(a){a.resolved=true; a.resolvedAt=new Date().toLocaleString('nl-NL'); syncAlertUpdate(a); saveSafe();} updateSystemButton(); var m=$('v207v-system-modal'); if(m)m.remove(); openSystemModal(); if(isBezorgerPage()) renderBezorgerInbox(); };
+  window.V207V_deleteAlert=function(id){ var s=ensure(); s.alerts=(s.alerts||[]).filter(function(x){return txt(x.id)!==txt(id);}); syncAlertDelete(id); saveSafe(); updateSystemButton(); var m=$('v207v-system-modal'); if(m)m.remove(); openSystemModal(); if(isBezorgerPage()) renderBezorgerInbox(); };
+
+  function mainContainer(){ return $('ordersList') || $('dashOrders') || document.querySelector('main') || document.querySelector('.content') || document.body; }
+  var currentPage='';
+  function isBezorgerPage(){ return currentPage==='bezorger' || /bezorger meldingen/i.test((document.querySelector('h1,h2')||{}).textContent||''); }
+  function renderBezorgerInbox(){ var box=mainContainer(); if(!box) return; currentPage='bezorger'; var rows=problemAlerts(); var html='<h2>Bezorger meldingen</h2>'+(rows.length?rows.map(function(a){return alertHtml(a);}).join(''):'<p>Geen bezorger storingsmeldingen.</p>'); box.innerHTML=html; updateSystemButton(); }
+
+  function openBookhouding(){ var s=ensure(); var rows=(s.orders||[]).slice().sort(function(a,b){return txt(b.start||b.date||'').localeCompare(txt(a.start||a.date||''));}); var old=$('v207v-book-modal'); if(old) old.remove(); var m=document.createElement('div'); m.id='v207v-book-modal'; m.className='v207v-modal'; m.innerHTML='<div class="v207v-card"><button class="v207v-dark" style="float:right" onclick="this.closest(\'.v207v-modal\').remove()">Terug</button><h2>Boekhouding / facturen</h2><div style="display:grid;grid-template-columns:1fr 210px;gap:10px;margin:10px 0"><input id="v207vBookSearch" placeholder="Zoek factuur, klant, opdracht, titel"><select id="v207vBookFilter"><option value="all">Alles</option><option value="open">Openstaand</option><option value="paid">Betaald</option></select></div><div id="v207vBookList"></div></div>'; document.body.appendChild(m); function draw(){ var q=low($('v207vBookSearch').value), f=$('v207vBookFilter').value; var out=rows.filter(function(o){ var p=isPaid(o); if(f==='open'&&p) return false; if(f==='paid'&&!p) return false; var hay=[orderNumber(o),invoiceNo(o),custName(o),orderTitle(o),total(o)].join(' ').toLowerCase(); return !q||hay.indexOf(q)>=0; }); $('v207vBookList').innerHTML='<table><thead><tr><th>Opdracht</th><th>Factuur</th><th>Klant</th><th>Titel</th><th>Status</th><th>Totaal</th><th>Actie</th></tr></thead><tbody>'+(out.map(function(o){ return '<tr><td>'+esc(orderNumber(o))+'</td><td>'+esc(invoiceNo(o)||'-')+'</td><td>'+esc(custName(o)||'-')+'</td><td>'+esc(orderTitle(o)||'-')+'</td><td>'+(isPaid(o)?'<span class="v207v-paid">☑ Betaald</span>':'<span class="v207v-open">Openstaande factuur</span>')+'</td><td>'+esc(total(o))+'</td><td><button class="'+(isPaid(o)?'v207v-danger':'v207v-pay')+'" onclick="V207V_setPaid(\''+esc(o.id||o.number)+'\','+(!isPaid(o)) +')">'+(isPaid(o)?'Zet openstaand':'Zet betaald')+'</button></td></tr>'; }).join('')||'<tr><td colspan="7">Geen resultaten.</td></tr>')+'</tbody></table>'; } $('v207vBookSearch').oninput=draw; $('v207vBookFilter').onchange=draw; draw(); }
+  window.V207V_setPaid=function(orderId, paid){ var o=findOrder(orderId); if(o) setPaid(o, paid); var m=$('v207v-book-modal'); if(m){ m.remove(); openBookhouding(); } };
+
+  function bindNavigation(){
+    all('button,a,.nav-item,.menu button,.sidebar button').forEach(function(el){ var t=low(el.textContent||'');
+      if(t==='boekhouding / facturen' || t==='boekhouding' || /boekhouding\s*\/\s*facturen/.test(t)){ if(!el.dataset.v207vBook){ el.dataset.v207vBook='1'; el.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();openBookhouding();return false;},true); } }
+      if(/bezorger meldingen/.test(t)){ if(!el.dataset.v207vBez){ el.dataset.v207vBez='1'; el.addEventListener('click',function(e){ setTimeout(renderBezorgerInbox,80); setTimeout(renderBezorgerInbox,300); },true); } }
+    });
+  }
+  function updatePayLabels(){ var s=ensure(); all('.order-card').forEach(function(card){ var text=card.textContent||''; var o=s.orders.find(function(x){ return orderNumber(x) && text.indexOf(orderNumber(x))>=0; }); if(!o) return; all('.v207v-paid,.v207v-open',card).forEach(function(x){x.remove();}); var anchor=all('span,div,b',card).find(function(x){ return /bevestigd|offerte|opdrachtbevestiging/i.test(x.textContent||''); }) || card.querySelector('b') || card; var lab=document.createElement('span'); lab.className=isPaid(o)?'v207v-paid':'v207v-open'; lab.textContent=isPaid(o)?'☑ Betaald':'Openstaande factuur'; if(anchor.parentNode) anchor.parentNode.insertBefore(lab, anchor.nextSibling); }); all('button').forEach(function(b){ if(/^zet betaald$/i.test(txt(b.textContent)) || /^zet openstaand$/i.test(txt(b.textContent))){ var inBook=b.closest('#v207v-book-modal'); if(!inBook) b.style.display='none'; } }); }
+  function patchOverviewWis(){ all('button').forEach(function(b){ if(b.dataset.v207vWis) return; var t=low(b.textContent||''); if(t==='print' || t==='delen' || t==='deel'){ var card=b.closest('.v207v-alert-card,.photo-card,.media-card,.bns-alert-item,.bns-v141-alert-card,div'); if(card && !card.querySelector('.v207v-wis-local')){ var btn=document.createElement('button'); btn.type='button'; btn.className='v207v-danger v207v-wis-local'; btn.textContent='Wis'; btn.onclick=function(e){ e.preventDefault(); e.stopPropagation(); var id=(card.getAttribute('data-alert-id')||''); if(id) window.V207V_deleteAlert(id); else card.remove(); return false; }; b.insertAdjacentElement('afterend',btn); } b.dataset.v207vWis='1'; } }); }
+
+  function tick(){ installStyle(); startAlertListener(); bindNavigation(); updateSystemButton(); updatePayLabels(); patchOverviewWis(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(tick,300);}); else setTimeout(tick,300);
+  setInterval(tick,3000);
+})();
