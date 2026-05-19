@@ -17674,3 +17674,200 @@ window.__BNS_CALM_INTERVAL__(install,1500);
     new MutationObserver(function(){ cleanup(); }).observe(document.documentElement,{childList:true,subtree:true});
   }catch(e){}
 })();
+
+/* =========================================================
+   BNS V207N - telefoonmeldingen live naar planner + rode systeemmelding
+   Basis: V207M werkt. Alleen meldingensync/inbox, geen opdrachten/boekhouding ombouw.
+   ========================================================= */
+(function(){
+  'use strict';
+  if (window.__BNS_V207N_ALERT_SYNC__) return;
+  window.__BNS_V207N_ALERT_SYNC__ = true;
+
+  var FIREBASE_VERSION = '10.12.5';
+  var fbTools = null;
+  var unsubAlerts = null;
+  var lastSync = 0;
+
+  function $(id){ return document.getElementById(id); }
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function norm(v){ return String(v == null ? '' : v).trim().toLowerCase(); }
+  function stateObj(){
+    try { if (typeof state !== 'undefined' && state && typeof state === 'object') return state; } catch(e) {}
+    try { if (window.state && typeof window.state === 'object') return window.state; } catch(e) {}
+    var keys = ['event-planner-pro-v87','eventPlannerProV91','eventPlannerPro','plannerState','eventPlannerState'];
+    for (var i=0;i<keys.length;i++) {
+      try { var raw = localStorage.getItem(keys[i]); if (raw) { var s = JSON.parse(raw); if (s && typeof s === 'object') return s; } } catch(e) {}
+    }
+    return {orders:[], alerts:[], users:[]};
+  }
+  function saveState(s){
+    s = s || stateObj();
+    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+    try { if (typeof state !== 'undefined' && state && typeof state === 'object') Object.assign(state, s); } catch(e) {}
+    try { if (window.state && typeof window.state === 'object') Object.assign(window.state, s); } catch(e) {}
+    try { localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); } catch(e) {}
+    try { localStorage.setItem('eventPlannerProV91', JSON.stringify(s)); } catch(e) {}
+    try { if (typeof save === 'function') save(); } catch(e) {}
+  }
+  function orderIdOf(a){ return String(a && (a.orderId || a.linkedOrder || a.order_id || a.opdrachtId || a.opdracht_id || '') || ''); }
+  function orderNumberOf(a){ return String(a && (a.orderNumber || a.linkedOrderNumber || a.opdrachtNummer || a.number || '') || ''); }
+  function findOrder(a){
+    var s = stateObj();
+    var oid = orderIdOf(a);
+    var onr = orderNumberOf(a);
+    return (s.orders || []).find(function(o){
+      return (oid && String(o.id) === oid) || (onr && String(o.number || '') === onr);
+    }) || null;
+  }
+  function isOpen(a){ return a && !a.resolved && !a.done && !a.deleted; }
+  function isPhoneAlert(a){
+    var src = norm(a && (a.source || a.origin || a.portal || ''));
+    if (src === 'telefoon' || src === 'driver' || src === 'bezorger') return true;
+    if ((a && (a.driverName || a.from || a.userId)) && orderIdOf(a)) return true;
+    return false;
+  }
+  function alertTitle(a){ return a.title || a.type || 'Bezorger melding'; }
+  function alertText(a){ return a.note || a.message || a.text || a.description || ''; }
+  function mergeAlerts(remoteAlerts){
+    if (!Array.isArray(remoteAlerts)) return;
+    var s = stateObj();
+    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+    var byId = {};
+    s.alerts.forEach(function(a){ if (a && a.id) byId[String(a.id)] = a; });
+    remoteAlerts.forEach(function(a){
+      if (!a) return;
+      if (!a.id) a.id = 'alert_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+      var old = byId[String(a.id)] || {};
+      byId[String(a.id)] = Object.assign({}, old, a);
+    });
+    s.alerts = Object.keys(byId).map(function(k){ return byId[k]; }).sort(function(a,b){
+      return String(b.createdAt || b.time || '').localeCompare(String(a.createdAt || a.time || ''));
+    });
+    saveState(s);
+    updateSystemButton();
+    renderDriverInbox();
+  }
+  function openCount(){ return (stateObj().alerts || []).filter(isOpen).length; }
+  function updateSystemButton(){
+    var b = $('alertsBtn');
+    if (!b) return;
+    var n = openCount();
+    b.textContent = '🚨 Systeemmeldingen (' + n + ')';
+    if (n > 0) {
+      b.classList.add('bns-v207n-red');
+      b.style.setProperty('background', '#dc2626', 'important');
+      b.style.setProperty('color', '#fff', 'important');
+      b.style.setProperty('border', '2px solid #991b1b', 'important');
+    } else {
+      b.classList.remove('bns-v207n-red');
+      b.style.removeProperty('background');
+      b.style.removeProperty('color');
+      b.style.removeProperty('border');
+    }
+  }
+  function renderDriverInbox(){
+    var box = $('driverList');
+    if (!box) return;
+    var alerts = (stateObj().alerts || []).filter(isOpen).filter(isPhoneAlert).sort(function(a,b){
+      return String(b.createdAt || b.time || '').localeCompare(String(a.createdAt || a.time || ''));
+    });
+    if (!alerts.length) {
+      box.innerHTML = '<div class="order-card"><b>Geen bezorger meldingen</b><br><small>Deze pagina blijft leeg tot een bezorger vanaf de telefoon een melding verstuurt.</small></div>';
+      return;
+    }
+    box.innerHTML = alerts.map(function(a){
+      var o = findOrder(a);
+      var title = alertTitle(a);
+      var text = alertText(a);
+      return '<div class="order-card bns-driver-alert" data-alert-id="'+esc(a.id)+'">' +
+        '<div class="date-tile">'+esc(String(a.time || a.createdAt || '').split(',')[0])+'</div>' +
+        '<div>' +
+          '<b>'+esc(title)+'</b> <span class="status" style="background:#dc2626;color:#fff">Open</span><br>' +
+          '<small>'+esc(a.time || a.createdAt || '')+'</small>' +
+          '<div><b>Bezorger:</b> '+esc(a.driverName || a.from || '')+'</div>' +
+          '<div><b>Opdracht:</b> '+esc(o ? ((o.number || '') + ' - ' + (o.title || '')) : (orderNumberOf(a) || 'Niet gekoppeld'))+'</div>' +
+          '<div><b>Klant:</b> '+esc((o && o.customer && o.customer.name) || a.customerName || '')+'</div>' +
+          (text ? '<p style="white-space:pre-wrap;margin:8px 0">'+esc(text)+'</p>' : '') +
+        '</div>' +
+        '<div class="actions"><button type="button" onclick="BNS_V207N_resolveAlert(\''+esc(a.id)+'\')">Afmelden</button></div>' +
+      '</div>';
+    }).join('');
+  }
+  window.BNS_V207N_resolveAlert = async function(alertId){
+    var s = stateObj();
+    var item = (s.alerts || []).find(function(a){ return String(a.id) === String(alertId); });
+    if (!item) return;
+    item.resolved = true;
+    item.resolvedAt = new Date().toISOString();
+    saveState(s);
+    updateSystemButton();
+    renderDriverInbox();
+    try {
+      var t = await firebaseTools();
+      if (t) await t.fs.setDoc(t.fs.doc(t.db, 'alerts', String(alertId)), item, {merge:true});
+    } catch(e) { console.warn('[V207N] alert resolve firebase fout', e); }
+  };
+  async function firebaseTools(){
+    if (fbTools) return fbTools;
+    if (!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN') return null;
+    var app = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-app.js');
+    var fs = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-firestore.js');
+    var firebaseApp = app.getApps().length ? app.getApp() : app.initializeApp(window.BNS_FIREBASE_CONFIG);
+    fbTools = {app: app, fs: fs, db: fs.getFirestore(firebaseApp)};
+    return fbTools;
+  }
+  async function syncAlertsOnce(){
+    try {
+      var t = await firebaseTools();
+      if (!t) return;
+      var snap = await t.fs.getDocs(t.fs.collection(t.db, 'alerts'));
+      mergeAlerts(snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data() || {}); }));
+      lastSync = Date.now();
+    } catch(e) { console.warn('[V207N] alerts laden fout', e); }
+  }
+  async function startLive(){
+    try {
+      var t = await firebaseTools();
+      if (!t || unsubAlerts) return;
+      unsubAlerts = t.fs.onSnapshot(t.fs.collection(t.db, 'alerts'), function(snap){
+        mergeAlerts(snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data() || {}); }));
+        lastSync = Date.now();
+      }, function(err){ console.warn('[V207N] live alerts fout', err); });
+    } catch(e) { console.warn('[V207N] live start fout', e); }
+  }
+  function installCss(){
+    if ($('bnsV207NAlertCss')) return;
+    var st = document.createElement('style');
+    st.id = 'bnsV207NAlertCss';
+    st.textContent = '.bns-v207n-red{background:#dc2626!important;color:#fff!important;border-color:#991b1b!important}.bns-driver-alert{border-left:7px solid #dc2626!important}';
+    document.head.appendChild(st);
+  }
+  function install(){
+    installCss();
+    updateSystemButton();
+    renderDriverInbox();
+  }
+  var oldRenderAll = window.renderAll || (typeof renderAll === 'function' ? renderAll : null);
+  if (oldRenderAll && !oldRenderAll.__bnsV207NAlerts) {
+    var wrapped = function(){
+      var r;
+      try { r = oldRenderAll.apply(this, arguments); } catch(e) { throw e; }
+      setTimeout(install, 0);
+      return r;
+    };
+    wrapped.__bnsV207NAlerts = true;
+    window.renderAll = wrapped;
+    try { renderAll = wrapped; } catch(e) {}
+  }
+  var oldRenderDriver = window.renderDriver || (typeof renderDriver === 'function' ? renderDriver : null);
+  if (oldRenderDriver && !oldRenderDriver.__bnsV207NInbox) {
+    var driverWrapped = function(){ renderDriverInbox(); };
+    driverWrapped.__bnsV207NInbox = true;
+    window.renderDriver = driverWrapped;
+    try { renderDriver = driverWrapped; } catch(e) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 300); setTimeout(syncAlertsOnce, 800); setTimeout(startLive, 1100); });
+  else { setTimeout(install, 300); setTimeout(syncAlertsOnce, 800); setTimeout(startLive, 1100); }
+  setInterval(function(){ updateSystemButton(); renderDriverInbox(); if (Date.now() - lastSync > 20000) syncAlertsOnce(); }, 15000);
+})();
