@@ -17253,13 +17253,43 @@ window.__BNS_CALM_INTERVAL__(install,1500);
     document.head.appendChild(st);
   }
 
-  function patchAll(){
-    installStyle(); removePdokDuplicates(); patchAdminCat(); patchCustomerLocationCheck(); patchStatusButton(); patchCards();
-    try{ if(E('materialList')) renderMaterialRows(currentCat); }catch(e){}
+  var __v206LastRenderKey = '';
+  var __v206PatchTimer = null;
+  function materialRenderKey(){
+    var s=S()||{};
+    var m=(s.materials||[]).length, o=(s.orders||[]).length, c=T(window.currentCat||'');
+    var q=E('materialSearch')?E('materialSearch').value:'';
+    var ds=E('dateStart')?E('dateStart').value:'';
+    var de=E('dateEnd')?E('dateEnd').value:'';
+    return [m,o,c,q,ds,de,selectedList().length].join('|');
   }
-  var mo=new MutationObserver(function(){ patchAll(); });
+  function patchAll(force){
+    installStyle(); removePdokDuplicates(); patchAdminCat(); patchCustomerLocationCheck(); patchStatusButton(); patchCards();
+    try{
+      if(E('materialList')){
+        var key=materialRenderKey();
+        if(force || key !== __v206LastRenderKey){
+          __v206LastRenderKey = key;
+          renderMaterialRows(window.currentCat || currentCat || 'TW');
+        }
+      }
+    }catch(e){}
+  }
+  function schedulePatch(force){
+    clearTimeout(__v206PatchTimer);
+    __v206PatchTimer = setTimeout(function(){ patchAll(!!force); }, 120);
+  }
+  var mo=new MutationObserver(function(muts){
+    for(var i=0;i<muts.length;i++){
+      var t=muts[i].target;
+      if(t && (t.id==='materialList' || (t.closest && t.closest('#materialList')))) continue;
+      schedulePatch(false);
+      break;
+    }
+  });
   try{ mo.observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
-  ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev,function(){ setTimeout(patchAll,80); setTimeout(patchAll,600); }); });
-  setTimeout(function(){ patchAll(); autoBackup(); },200);
-  setTimeout(patchAll,1200);
+  ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev,function(){ setTimeout(function(){patchAll(true);},80); setTimeout(function(){patchAll(false);},600); }); });
+  ['materialSearch','dateStart','dateEnd'].forEach(function(id){ var el=E(id); if(el&&!el.dataset.bnsV206Watch){ el.dataset.bnsV206Watch='1'; ['input','change'].forEach(function(ev){ el.addEventListener(ev,function(){ __v206LastRenderKey=''; schedulePatch(true); },true); }); } });
+  setTimeout(function(){ patchAll(true); autoBackup(); },200);
+  setTimeout(function(){ patchAll(false); },1200);
 })();
