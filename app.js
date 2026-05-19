@@ -17426,3 +17426,133 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,300); }); else setTimeout(install,150);
   [900,2200,5000].forEach(function(ms){ setTimeout(install,ms); });
 })();
+
+/* ===== V207E veilige Firebase personeel-lezer: alleen app.js, geen driver/push wijziging ===== */
+(function(){
+  if(window.__twV207E_FIREBASE_USERS_ADMIN__) return;
+  window.__twV207E_FIREBASE_USERS_ADMIN__ = true;
+
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} window.state = window.state || {}; return window.state; }
+  function esc(v){ return T(v).replace(/[&<>\"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]; }); }
+  function saveLocal(){ try{ if(typeof save === 'function') save(); }catch(e){} try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(S())); }catch(e){} }
+
+  function normalizeUser(raw,id){
+    raw = raw || {};
+    var u = Object.assign({}, raw);
+    u.id = String(u.id || id || u.uid || u.userId || u.docId || ('user_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)));
+    u.name = T(u.name || u.naam || u.displayName || u.fullName || u.username || u.email || u.id);
+    u.pin = T(u.pin || u.pincode || u.code || u.passcode || '');
+    u.phone = T(u.phone || u.telefoon || u.mobile || u.tel || '');
+    u.rights = (u.rights && typeof u.rights === 'object') ? u.rights : {};
+    var r = L(u.role || u.rol || u.type || u.function || u.functie);
+    if(!r){
+      if(u.rights.admin) r = 'admin';
+      else if(u.rights.planner || u.rights.agenda || u.rights.orders || u.rights.customers || u.rights.materials) r = 'planner';
+      else r = 'bezorger';
+    }
+    if(/admin|beheer/.test(r)) u.role = 'Admin';
+    else if(/planner|planning/.test(r)) u.role = 'Planner';
+    else u.role = 'Bezorger';
+    if(u.active === undefined && u.enabled === undefined && u.disabled === undefined) u.active = true;
+    if(u.disabled === true) u.active = false;
+    return u;
+  }
+
+  function mergeUsers(rows){
+    if(!rows || !rows.length) return false;
+    var s = S();
+    s.users = Array.isArray(s.users) ? s.users : [];
+    var by = {};
+    s.users.forEach(function(u){ if(u && u.id) by[String(u.id)] = u; });
+    rows.forEach(function(u){ if(u && u.id) by[String(u.id)] = Object.assign({}, by[String(u.id)] || {}, u); });
+    s.users = Object.keys(by).map(function(k){ return by[k]; }).filter(function(u){ return u && u.name; });
+    saveLocal();
+    return true;
+  }
+
+  function isFirebaseReady(){ return !!(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db); }
+  async function ensureFirebaseReady(){
+    if(isFirebaseReady()) return true;
+    try{ if(window.BNS && typeof window.BNS.reloadFromFirebase === 'function') await window.BNS.reloadFromFirebase(); }catch(e){}
+    if(isFirebaseReady()) return true;
+    for(var i=0;i<8;i++){
+      await new Promise(function(resolve){ setTimeout(resolve, 350); });
+      if(isFirebaseReady()) return true;
+    }
+    return false;
+  }
+
+  async function loadFirebaseUsers(){
+    try{
+      if(!(await ensureFirebaseReady())) return false;
+      var fs = window.BNS.fs;
+      var snap = await fs.getDocs(fs.collection(window.BNS.db, 'users'));
+      var rows = snap.docs.map(function(d){ return normalizeUser(d.data(), d.id); });
+      if(!rows.length) return false;
+      mergeUsers(rows);
+      refreshAdminAndDriverSelects();
+      return true;
+    }catch(e){ try{ console.warn('[V207E] Firebase gebruikers laden mislukt', e); }catch(_e){} return false; }
+  }
+
+  function driverNames(){
+    var s=S(); s.users = Array.isArray(s.users) ? s.users : [];
+    return s.users.filter(function(u){
+      if(!u) return false;
+      if(u.active === false || u.disabled === true) return false;
+      return /bezorger|driver|chauffeur/i.test(u.role || '') || (u.rights && (u.rights.resolve || u.rights.driver || u.rights.phoneDone));
+    }).map(function(u){ return T(u.name); }).filter(Boolean);
+  }
+
+  function refreshDriverSelects(){
+    var names = driverNames();
+    if(!names.length) return;
+    A('select').forEach(function(sel){
+      var label = L((sel.id||'') + ' ' + (sel.name||'') + ' ' + (sel.closest('label') ? sel.closest('label').textContent : ''));
+      var looksDriver = /bezorger|chauffeur|driver/.test(label) || sel.id === 'orderDriver';
+      if(!looksDriver) return;
+      var current = sel.value;
+      names.forEach(function(n){
+        var exists = A('option', sel).some(function(o){ return T(o.value) === n || T(o.textContent) === n; });
+        if(!exists){ var opt=document.createElement('option'); opt.value=n; opt.textContent=n; sel.appendChild(opt); }
+      });
+      if(current) sel.value=current;
+    });
+  }
+
+  function renderFallbackAdminList(){
+    var list = document.getElementById('bnsV74UserList');
+    var s = S();
+    if(!list || !s || !Array.isArray(s.users)) return;
+    if(list.children && list.children.length) return;
+    list.innerHTML = s.users.map(function(u){
+      return '<div class="bns-v74-user-row" data-bns-v207e-user="'+esc(u.id)+'"><span><b>'+esc(u.name)+'</b><small>'+esc(u.role||'')+(u.pin?' - PIN '+esc(u.pin):'')+'</small></span></div>';
+    }).join('');
+  }
+
+  function refreshAdminAndDriverSelects(){
+    try{ refreshDriverSelects(); }catch(e){}
+    try{ if(typeof window.BNS_V74_adminPersoneelInstall === 'function') window.BNS_V74_adminPersoneelInstall(); }catch(e){}
+    setTimeout(function(){ try{ renderFallbackAdminList(); refreshDriverSelects(); }catch(e){} }, 80);
+    setTimeout(function(){ try{ if(typeof renderAll === 'function') renderAll(); }catch(e){} try{ refreshDriverSelects(); }catch(e){} }, 160);
+  }
+
+  window.TapwagenReloadUsersFromFirebase = function(){ return loadFirebaseUsers(); };
+
+  function install(){
+    loadFirebaseUsers();
+    document.addEventListener('click', function(ev){
+      var t = L(ev.target && ev.target.textContent || '');
+      if(/admin|personeel|gebruiker|gebruikers|bezorger|nieuwe opdracht|opdracht/.test(t)){
+        setTimeout(loadFirebaseUsers, 250);
+      }
+    }, true);
+    [1200,3000,7000].forEach(function(ms){ setTimeout(loadFirebaseUsers, ms); });
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
+  else setTimeout(install, 250);
+})();
