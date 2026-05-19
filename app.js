@@ -17556,3 +17556,133 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else setTimeout(install, 250);
 })();
+
+/* ===== V207H: veilige bezorger-meldingen inbox, alleen app.js ===== */
+(function(){
+  if (window.__tapwagenV207HDriverInbox) return;
+  window.__tapwagenV207HDriverInbox = true;
+
+  function $(id){ return document.getElementById(id); }
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>\"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]; }); }
+  function txt(v){ return String(v == null ? '' : v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function getState(){
+    try { if (typeof state !== 'undefined' && state && typeof state === 'object') return state; } catch(e) {}
+    try { if (window.state && typeof window.state === 'object') return window.state; } catch(e) {}
+    var keys = ['eventPlannerProV91','eventPlannerPro','eventPlannerState','plannerState','event-planner-pro-v87'];
+    for (var i=0;i<keys.length;i++) {
+      try { var raw = localStorage.getItem(keys[i]); if (raw) { var s = JSON.parse(raw); if (s && typeof s === 'object') return s; } } catch(e) {}
+    }
+    return {orders:[],alerts:[]};
+  }
+  function saveState(){ try { if (typeof save === 'function') { save(); return; } } catch(e) {} try { localStorage.setItem('eventPlannerProV91', JSON.stringify(getState())); } catch(e) {} }
+  function orders(){ var s=getState(); return Array.isArray(s.orders) ? s.orders : []; }
+  function alerts(){ var s=getState(); return Array.isArray(s.alerts) ? s.alerts : []; }
+  function findOrder(id){ id=String(id||''); return orders().find(function(o){ return String(o.id||'')===id || String(o.number||'')===id || String(o.oldId||'')===id; }) || null; }
+  function nice(v){ try { if (typeof niceDate === 'function') return niceDate(v); } catch(e) {} try { if (typeof nice === 'function') return nice(v); } catch(e) {} return txt(v); }
+
+  function isDriverAlert(a){
+    if (!a || a.resolved) return false;
+    var source = low(a.source || a.origin || a.fromApp || '');
+    if (/telefoon|bezorger|driver/.test(source)) return true;
+    // Driver-app zet vrijwel altijd orderId + driverName/from/userId op meldingen.
+    if ((a.orderId || a.linkedOrder || a.orderNumber || a.linkedOrderNumber) && (a.driverName || a.from || a.userId) && !/systeem|planner|admin/.test(source)) return true;
+    return false;
+  }
+  function driverAlerts(){
+    return alerts().filter(isDriverAlert).sort(function(a,b){ return String(b.createdAt || b.time || '').localeCompare(String(a.createdAt || a.time || '')); });
+  }
+  function titleOf(a){ return txt(a.title || a.type || 'Bezorger melding'); }
+  function msgOf(a){ return txt(a.message || a.note || a.text || a.description || ''); }
+  function orderLabel(a){ var o = findOrder(a.orderId || a.linkedOrder || a.orderNumber || a.linkedOrderNumber); if (o) return txt((o.number||'') + ' - ' + (o.title||'')); return txt((a.orderNumber||a.linkedOrderNumber||'') + (a.orderTitle ? ' - ' + a.orderTitle : '')) || 'Onbekende opdracht'; }
+  function customerLabel(a){ var o = findOrder(a.orderId || a.linkedOrder || a.orderNumber || a.linkedOrderNumber); return txt((o && o.customer && o.customer.name) || a.customerName || a.customer || ''); }
+
+  function card(a){
+    var type = titleOf(a);
+    var date = txt(a.time || a.createdAt || '');
+    return ''+
+      '<div class="order-card bns207h-driver-alert" data-alert-id="'+esc(a.id||'')+'">'+
+        '<div class="date-tile">'+esc(date.split(',')[0] || '')+'</div>'+
+        '<div style="min-width:260px;flex:1">'+
+          '<div class="order-title">'+esc(type)+' <span class="status" style="background:#fee2e2;color:#991b1b;border-color:#fecaca">Open</span></div>'+
+          '<div><b>Opdracht:</b> '+esc(orderLabel(a))+'</div>'+
+          (customerLabel(a) ? '<div><b>Klant:</b> '+esc(customerLabel(a))+'</div>' : '')+
+          '<div><b>Bezorger:</b> '+esc(a.driverName || a.from || '')+'</div>'+
+          '<div><b>Melding:</b> '+esc(msgOf(a))+'</div>'+
+          '<small>Gemeld: '+esc(date)+'</small>'+
+        '</div>'+
+        '<div class="actions">'+
+          '<button type="button" onclick="TapwagenDriverAlertDone(\''+esc(a.id||'')+'\')">Afmelden</button>'+
+          '<button type="button" onclick="TapwagenDriverAlertOpenOrder(\''+esc(a.orderId || a.linkedOrder || '')+'\')">Open opdracht</button>'+
+        '</div>'+
+      '</div>';
+  }
+
+  function renderDriverInbox(){
+    var box = $('driverList') || $('ordersList');
+    if (!box) return;
+    var list = driverAlerts();
+    var search = $('ordersSearch');
+    var q = low(search && search.value || '');
+    if (q) list = list.filter(function(a){ return low(JSON.stringify(a) + ' ' + orderLabel(a) + ' ' + customerLabel(a)).indexOf(q) >= 0; });
+    box.innerHTML = list.length ? list.map(card).join('') : '<div class="order-card"><b>Geen bezorger meldingen.</b><br><small>Deze pagina blijft leeg totdat een bezorger via de telefoon een melding verstuurt.</small></div>';
+    updateAlertButton();
+  }
+
+  window.TapwagenDriverAlertDone = function(id){
+    var s = getState();
+    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+    var a = s.alerts.find(function(x){ return String(x.id||'') === String(id||''); });
+    if (a) { a.resolved = true; a.resolvedAt = new Date().toLocaleString('nl-NL'); }
+    saveState();
+    renderDriverInbox();
+    updateAlertButton();
+  };
+  window.TapwagenDriverAlertOpenOrder = function(orderId){
+    if (!orderId) return;
+    try { if (typeof editOrder === 'function') editOrder(orderId); } catch(e) {}
+  };
+
+  function updateAlertButton(){
+    var b = $('alertsBtn');
+    if (!b) return;
+    var open = driverAlerts().length;
+    b.textContent = 'Systeemmeldingen (' + open + ')';
+    if (open > 0) {
+      b.style.setProperty('background', '#dc2626', 'important');
+      b.style.setProperty('color', '#fff', 'important');
+      b.style.setProperty('border-color', '#991b1b', 'important');
+    } else {
+      b.style.removeProperty('background');
+      b.style.removeProperty('color');
+      b.style.removeProperty('border-color');
+    }
+  }
+
+  function installCss(){
+    if ($('bns207hDriverInboxCss')) return;
+    var st = document.createElement('style');
+    st.id = 'bns207hDriverInboxCss';
+    st.textContent = '.bns207h-driver-alert{border-left:7px solid #f97316!important}.bns207h-driver-alert .actions button{white-space:nowrap}';
+    document.head.appendChild(st);
+  }
+
+  function install(){
+    installCss();
+    // Alleen de pagina Bezorger meldingen anders tekenen. Geen login/dashboard/opdrachten overschrijven.
+    window.renderDriver = renderDriverInbox;
+    try { renderDriver = renderDriverInbox; } catch(e) {}
+    var search = $('ordersSearch');
+    if (search && !search.dataset.bns207hDriverInbox) {
+      search.dataset.bns207hDriverInbox = '1';
+      search.addEventListener('input', function(){ try { renderDriverInbox(); } catch(e) {} });
+    }
+    updateAlertButton();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 300); });
+  else setTimeout(install, 200);
+  [1200, 3000].forEach(function(ms){ setTimeout(install, ms); });
+  // Kleine teller-update zonder pagina opnieuw te renderen.
+  try { window.setInterval(updateAlertButton, 4000); } catch(e) {}
+})();
