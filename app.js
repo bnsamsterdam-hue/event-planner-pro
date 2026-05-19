@@ -17675,149 +17675,163 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   }catch(e){}
 })();
 
-/* ==== V207R: ALLEEN systeemmeldingen-knop rood/groen, geen layout/menu/opdracht wijziging ==== */
+
+/* =========================================================
+   V207S - Alleen storingsmeldingen + boekhouding betaalstatus
+   Basis: V207M/V207R. Geen driver/push/firebase-config wijziging.
+   - Bezorger meldingen toont alleen open storings/probleemmeldingen.
+   - Systeemmeldingen knop rood/groen op basis van die meldingen.
+   - Betaald zetten alleen in Boekhouding / facturen.
+   - Opdrachtkaart toont alleen label Betaald/Openstaande factuur; geen betaalknop.
+   ========================================================= */
 (function(){
-  if (window.__TW_V207R_ALERT_BUTTON_ONLY__) return;
-  window.__TW_V207R_ALERT_BUTTON_ONLY__ = true;
+  if(window.__TW_V207S_PROBLEM_ACCOUNTING__) return;
+  window.__TW_V207S_PROBLEM_ACCOUNTING__ = true;
 
-  var STORAGE_KEY = 'event-planner-pro-v87';
-  var fbTools = null;
-  var lastRemoteJson = '';
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>\"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c];}); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} window.state=window.state||{}; return window.state; }
+  function ensure(){ var s=S(); s.orders=Array.isArray(s.orders)?s.orders:[]; s.alerts=Array.isArray(s.alerts)?s.alerts:[]; s.accounting=s.accounting&&typeof s.accounting==='object'?s.accounting:{}; s.accounting.documents=Array.isArray(s.accounting.documents)?s.accounting.documents:[]; return s; }
+  function saveState(){ try{ if(typeof save==='function') save(); }catch(e){} try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(ensure())); }catch(e){} }
+  function now(){ try{return new Date().toLocaleString('nl-NL');}catch(e){return String(new Date());} }
+  function euro(n){ n=Number(n||0); return '€ '+n.toFixed(2).replace('.',','); }
+  function niceDate(v){ if(!v) return ''; var d=new Date(v); if(!isNaN(d)) return d.toLocaleDateString('nl-NL'); return T(v); }
+  function orderNumber(o){ return T(o && (o.number||o.orderNumber||o.nr)); }
+  function orderTitle(o){ return T(o && (o.title||o.name||o.naam||'')); }
+  function customerName(o){ return T((o&&o.customer&&o.customer.name)||o.customerName||o.klant||''); }
+  function orderTotal(o){ return Number((o&&o.pricing&&(o.pricing.total||o.pricing.incl)) || o.total || o.totaal || 0); }
+  function orderHay(o){ return L([orderNumber(o),orderTitle(o),customerName(o),JSON.stringify(o||{})].join(' ')); }
+  function findOrderRef(ref){ var s=ensure(); ref=T(ref); return s.orders.find(function(o){ return T(o.id)===ref || orderNumber(o)===ref; }); }
+  function isPaid(o){ if(!o) return false; var st=L(o.paymentStatus||o.payStatus||o.betaalStatus||o.payment||''); return o.paid===true || o.betaald===true || st==='paid' || st==='betaald'; }
+  function setPaid(o, paid){
+    if(!o) return;
+    o.paid=!!paid; o.betaald=!!paid; o.paymentStatus=paid?'paid':'open'; o.betaalStatus=paid?'Betaald':'Openstaand';
+    var s=ensure(), num=orderNumber(o), oid=T(o.id);
+    s.accounting.documents.forEach(function(d){ if((num && T(d.orderNumber)===num) || (oid && T(d.orderId)===oid)){ d.paymentStatus=paid?'paid':'open'; d.paid=!!paid; d.updatedAt=new Date().toISOString(); } });
+    saveState(); refresh();
+  }
 
-  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function readState(){
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch(e){ return {}; }
+  function alertText(a){ return L([a&&a.type,a&&a.title,a&&a.note,a&&a.message,a&&a.text,a&&a.category,a&&a.source,a&&a.from].join(' ')); }
+  function isResolved(a){ return !!(a && (a.resolved===true || a.done===true || a.closed===true || a.status==='resolved' || a.status==='closed' || a.status==='afgemeld')); }
+  function isProblemAlert(a){
+    if(!a || isResolved(a)) return false;
+    var t=alertText(a);
+    if(/foto|photo|handtekening|signature|prijs|agenda|route|opdrachtbevestiging|bevestiging|factuur gemaakt/.test(t)) return false;
+    return /storing|schade|vermissing|probleem|defect|melding|kapot|fout|klacht/.test(t) || /telefoon|driver|bezorger/.test(L(a.source||''));
   }
-  function writeState(st){
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st || {})); } catch(e){}
-  }
-  function isOpenAlert(a){
-    if(!a) return false;
-    var status = String(a.status || a.state || '').toLowerCase();
-    if(a.resolved === true || a.done === true || a.closed === true || a.deleted === true) return false;
-    if(/opgelost|afgehandeld|gesloten|resolved|done|closed|deleted|verwijderd/.test(status)) return false;
-    return true;
-  }
-  function openAlerts(){
-    var st = readState();
-    var rows = Array.isArray(st.alerts) ? st.alerts.filter(isOpenAlert) : [];
-    rows.sort(function(a,b){ return String(b.createdAt || b.time || '').localeCompare(String(a.createdAt || a.time || '')); });
-    return rows;
-  }
-  function findButton(){
-    return document.getElementById('alertsBtn') || Array.prototype.slice.call(document.querySelectorAll('button,a,[role="button"]')).find(function(b){ return /systeemmeldingen/i.test(b.textContent || ''); });
-  }
+  function problemAlerts(){ return ensure().alerts.filter(isProblemAlert).sort(function(a,b){return String(b.createdAt||b.time||'').localeCompare(String(a.createdAt||a.time||''));}); }
+  function alertOrder(a){ var s=ensure(), oid=T(a.orderId||a.linkedOrder), num=T(a.orderNumber||a.linkedOrderNumber); return s.orders.find(function(o){ return (oid && T(o.id)===oid) || (num && orderNumber(o)===num); }); }
+  function alertTitle(a){ return T(a.type||a.title||'Melding'); }
+
   function installStyle(){
-    if(document.getElementById('twV207RAlertStyle')) return;
-    var st = document.createElement('style');
-    st.id = 'twV207RAlertStyle';
-    st.textContent = [
-      '#alertsBtn.tw-v207r-open,.tw-v207r-alert-btn.tw-v207r-open{background:#dc2626!important;color:#fff!important;border-color:#b91c1c!important;box-shadow:none!important;animation:none!important}',
-      '#alertsBtn.tw-v207r-zero,.tw-v207r-alert-btn.tw-v207r-zero{background:#16a34a!important;color:#fff!important;border-color:#15803d!important;box-shadow:none!important;animation:none!important}',
-      '#twV207RAlertModal{position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:22px}',
-      '#twV207RAlertModal .box{background:#fff;color:#111827;border-radius:20px;padding:20px;max-width:860px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.28)}',
-      '#twV207RAlertModal .row{border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc}',
-      '#twV207RAlertModal button{border:0;border-radius:10px;padding:9px 12px;font-weight:900;cursor:pointer;margin-right:8px}',
-      '#twV207RAlertModal .close{float:right;background:#2563eb;color:#fff}',
-      '#twV207RAlertModal .ok{background:#16a34a;color:#fff}',
-      '#twV207RAlertModal .danger{background:#dc2626;color:#fff}'
-    ].join('\n');
+    if(E('twV207SStyle')) return;
+    var st=document.createElement('style'); st.id='twV207SStyle';
+    st.textContent = ''+
+      '#alertsBtn.tw-v207s-open{background:#dc2626!important;color:#fff!important;border-color:#991b1b!important;animation:none!important;box-shadow:none!important}'+
+      '#alertsBtn.tw-v207s-zero{background:#16a34a!important;color:#fff!important;border-color:#16a34a!important;animation:none!important;box-shadow:none!important}'+
+      '.tw-v207s-paylabel{display:inline-flex!important;align-items:center!important;gap:6px!important;border:1px solid!important;border-radius:999px!important;padding:5px 10px!important;font-weight:900!important;font-size:13px!important;margin:3px 6px!important;vertical-align:middle!important}'+
+      '.tw-v207s-paid{background:#dcfce7!important;color:#166534!important;border-color:#16a34a!important}.tw-v207s-openpay{background:#fee2e2!important;color:#991b1b!important;border-color:#f87171!important}'+
+      '.tw-v207s-modal{position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.58);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:22px}.tw-v207s-box{background:#fff;color:#111827;border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.28);padding:22px;width:min(1100px,96vw);max-height:90vh;overflow:auto}.tw-v207s-top{display:flex;justify-content:space-between;align-items:center;gap:12px}.tw-v207s-row{border:1px solid #dbe3ef;border-radius:16px;padding:13px;margin:10px 0;background:#f8fafc}.tw-v207s-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.tw-v207s-actions button,.tw-v207s-box button,.tw-v207s-bookbtn{border:0;border-radius:12px;padding:9px 13px;font-weight:900;cursor:pointer;background:#2563eb;color:#fff}.tw-v207s-actions .ok,.tw-v207s-ok{background:#16a34a!important}.tw-v207s-actions .danger,.tw-v207s-danger{background:#dc2626!important}.tw-v207s-bookbar{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.tw-v207s-bookbar input,.tw-v207s-bookbar select{border:1px solid #cbd5e1;border-radius:10px;padding:9px;min-width:170px}.tw-v207s-table{width:100%;border-collapse:collapse}.tw-v207s-table th,.tw-v207s-table td{border-bottom:1px solid #e5e7eb;padding:9px;text-align:left}.tw-v207s-empty{padding:18px;border:1px dashed #cbd5e1;border-radius:14px;background:#fff;color:#475569;font-weight:800}'+
+      '.tw-v207s-inbox .order-card,.tw-v207s-inbox [class*=order-card]{max-width:100%!important}.tw-v207s-hidden{display:none!important}';
     document.head.appendChild(st);
   }
-  function updateButton(){
+
+  function unred(){
+    // Als oude patches rood op de hele pagina hebben gezet, haal alleen die globale roodtint weg.
+    [document.documentElement, document.body, E('app'), document.querySelector('main'), document.querySelector('.top')].forEach(function(el){
+      if(!el) return;
+      var bg = getComputedStyle(el).backgroundColor || '';
+      if(/rgb\(?(220,\s*38,\s*38|239,\s*68,\s*68|185,\s*28,\s*28)/.test(bg) || /red|#dc2626|#ef4444|#b91c1c/i.test(el.getAttribute('style')||'')){
+        el.style.removeProperty('background'); el.style.removeProperty('background-color');
+      }
+    });
+  }
+
+  function updateAlertsButton(){
+    var b=E('alertsBtn') || A('button').find(function(x){return /systeemmeldingen/i.test(T(x.textContent));}); if(!b) return;
+    var n=problemAlerts().length;
+    b.textContent = n ? 'Systeemmeldingen ('+n+')' : 'Systeemmeldingen (0)';
+    b.classList.toggle('tw-v207s-open', n>0); b.classList.toggle('tw-v207s-zero', n===0);
+    if(!b.dataset.twV207S){ b.dataset.twV207S='1'; b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); openAlertsModal(); }, true); }
+  }
+  function openAlertsModal(){
+    installStyle(); var old=E('twV207SAlertsModal'); if(old) old.remove();
+    var rows=problemAlerts();
+    var html=rows.length?rows.map(function(a){ var o=alertOrder(a); return '<div class="tw-v207s-row"><b>'+H(alertTitle(a))+'</b><br><small>'+H(a.time||a.createdAt||now())+'</small><div><b>Opdracht:</b> '+H((o&&orderNumber(o))||a.orderNumber||'')+' '+H((o&&orderTitle(o))||a.orderTitle||'')+'</div><div><b>Klant:</b> '+H((o&&customerName(o))||a.customerName||'')+'</div><div>'+H(a.note||a.message||a.text||'')+'</div><div class="tw-v207s-actions"><button class="ok" data-tw207s-resolve="'+H(a.id)+'">Afmelden</button><button class="danger" data-tw207s-delete="'+H(a.id)+'">Wissen</button></div></div>'; }).join(''):'<div class="tw-v207s-empty">Geen open systeemmeldingen.</div>';
+    var m=document.createElement('div'); m.id='twV207SAlertsModal'; m.className='tw-v207s-modal'; m.innerHTML='<div class="tw-v207s-box"><div class="tw-v207s-top"><h2>Tapwagen.nl systeemmeldingen</h2><button data-tw207s-close>Sluiten</button></div>'+html+'</div>'; document.body.appendChild(m);
+  }
+
+  function resolveAlert(id, del){ var s=ensure(); var a=s.alerts.find(function(x){return T(x.id)===T(id);}); if(!a) return; if(del){ s.alerts=s.alerts.filter(function(x){return T(x.id)!==T(id);}); } else { a.resolved=true; a.status='afgemeld'; a.resolvedAt=new Date().toISOString(); } saveState(); try{ if(window.BNS&&window.BNS.fs&&window.BNS.db&&id){ var fs=window.BNS.fs; if(del&&fs.deleteDoc) fs.deleteDoc(fs.doc(window.BNS.db,'alerts',String(id))).catch(function(){}); else if(fs.setDoc) fs.setDoc(fs.doc(window.BNS.db,'alerts',String(id)), del?{}:Object.assign({},a), {merge:true}).catch(function(){}); } }catch(e){} refresh(); var m=E('twV207SAlertsModal'); if(m) openAlertsModal(); }
+
+  function renderDriverInbox(){
+    var box=E('driverList'); if(!box) return;
     installStyle();
-    var b = findButton();
-    if(!b) return;
-    var n = openAlerts().length;
-    b.textContent = n ? ('Systeemmeldingen ('+n+')') : 'Systeemmeldingen (0)';
-    b.classList.add('tw-v207r-alert-btn');
-    b.classList.toggle('tw-v207r-open', n > 0);
-    b.classList.toggle('tw-v207r-zero', n === 0);
-    // belangrijk: alleen de knop krijgt rood/groen, nooit de pagina.
-    document.body.classList.remove('bns-v176-alert-open','bns-v178-alert-open','bns-v179-open','bns-alert-open','alarm-red');
-    if(document.body.style && /rgb\(220,\s*38,\s*38\)|#dc2626|red/i.test(document.body.style.background || '')) document.body.style.background = '';
+    var rows=problemAlerts();
+    box.classList.add('tw-v207s-inbox');
+    if(!rows.length){ box.innerHTML='<div class="tw-v207s-empty">Geen bezorger storingsmeldingen.</div>'; return; }
+    box.innerHTML=rows.map(function(a){ var o=alertOrder(a); return '<div class="tw-v207s-row"><div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap"><div><b>'+H((o&&orderNumber(o))||a.orderNumber||'')+' - '+H((o&&orderTitle(o))||a.orderTitle||'')+'</b><br><small>'+H(a.time||a.createdAt||now())+'</small></div><span class="tw-v207s-paylabel tw-v207s-openpay">'+H(alertTitle(a))+'</span></div><div><b>Klant:</b> '+H((o&&customerName(o))||a.customerName||'')+'</div><div>'+H(a.note||a.message||a.text||'')+'</div><div class="tw-v207s-actions"><button data-tw207s-openorder="'+H((o&&(o.id||o.number))||a.orderId||a.orderNumber||'')+'">Open opdracht</button><button class="ok" data-tw207s-resolve="'+H(a.id)+'">Afmelden</button><button class="danger" data-tw207s-delete="'+H(a.id)+'">Wissen</button></div></div>'; }).join('');
   }
-  function orderLabel(a){
-    return [a.orderNumber || a.orderNo || '', a.orderTitle || a.titleOrder || '', a.customerName || a.customer || ''].filter(Boolean).join(' - ');
+
+  function findCardOrder(card){ var text=orderHay({number:T(card.textContent)}); var raw=L(card.textContent||''); var s=ensure(); return s.orders.find(function(o){ var num=orderNumber(o), title=L(orderTitle(o)); return (num && raw.indexOf(L(num))>=0) || (title && raw.indexOf(title)>=0 && title.length>4); }); }
+  function orderCards(){ return A('div,article,section,li').filter(function(el){ var t=L(el.textContent||''); return t.length>80 && t.indexOf('datum:')>=0 && (t.indexOf('klant:')>=0 || t.indexOf('materialen:')>=0); }).filter(function(el,idx,arr){ return !arr.some(function(other){return other!==el && other.contains(el);}); }); }
+  function patchOrderCards(){
+    orderCards().forEach(function(card){
+      var o=findCardOrder(card); if(!o) return;
+      // Betaalknoppen weg van opdrachtkaart.
+      A('button,a,[role="button"]',card).forEach(function(b){ var t=L(b.textContent); if(t==='zet betaald'||t==='zet openstaand') b.classList.add('tw-v207s-hidden'); });
+      // Bestaande betaal-labels verwijderen om dubbele te voorkomen.
+      A('.tw-v207s-paylabel',card).forEach(function(x){ x.remove(); });
+      var label=document.createElement('span'); label.className='tw-v207s-paylabel '+(isPaid(o)?'tw-v207s-paid':'tw-v207s-openpay'); label.textContent=isPaid(o)?'☑ Betaald':'Openstaande factuur';
+      var confirmed=A('span,div,button,label',card).find(function(x){ return /bevestigd|offerte|opdrachtbevestiging/i.test(T(x.textContent)); });
+      if(confirmed && confirmed.parentNode) confirmed.parentNode.insertBefore(label, confirmed.nextSibling); else card.insertBefore(label, card.firstChild);
+    });
   }
-  function openModal(){
-    updateButton();
-    var rows = openAlerts();
-    var old = document.getElementById('twV207RAlertModal'); if(old) old.remove();
-    var m = document.createElement('div');
-    m.id = 'twV207RAlertModal';
-    m.innerHTML = '<div class="box"><button class="close" type="button" data-close="1">Sluiten</button><h2>Systeemmeldingen</h2>'+
-      (rows.length ? rows.map(function(a){
-        return '<div class="row"><b>'+esc(a.type || a.title || 'Melding')+'</b><br><small>'+esc(a.time || a.createdAt || '')+'</small>'+
-          '<div>'+esc(orderLabel(a))+'</div><div>'+esc(a.note || a.message || a.text || '')+'</div>'+
-          '<p><button class="ok" type="button" data-resolve="'+esc(a.id)+'">Afmelden</button><button class="danger" type="button" data-delete="'+esc(a.id)+'">Wis</button></p></div>';
-      }).join('') : '<p>Geen open systeemmeldingen.</p>') + '</div>';
-    document.body.appendChild(m);
+
+  function ensureAccountingDocs(){
+    var s=ensure(); var docs=s.accounting.documents;
+    var have={}; docs.forEach(function(d){ if(d.orderNumber) have[String(d.orderNumber)] = true; });
+    s.orders.forEach(function(o){ var num=orderNumber(o); if(!num || have[num]) return; docs.push({id:'doc_'+num, orderId:o.id||'', orderNumber:num, invoiceNumber:(o.invoiceNumber||''), customer:customerName(o), title:orderTitle(o), type:'factuur', documentType:'factuur', paymentStatus:isPaid(o)?'paid':'open', paid:isPaid(o), total:orderTotal(o), date:new Date().toISOString()}); });
   }
-  async function firebase(){
-    if(fbTools) return fbTools;
-    if(!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN') return null;
-    try{
-      var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
-      var fsMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
-      var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
-      fbTools = { fs: fsMod, db: fsMod.getFirestore(app) };
-      return fbTools;
-    }catch(e){ return null; }
+  function openAccounting(){
+    installStyle(); ensureAccountingDocs(); var old=E('twV207SBookModal'); if(old) old.remove();
+    var m=document.createElement('div'); m.id='twV207SBookModal'; m.className='tw-v207s-modal';
+    m.innerHTML='<div class="tw-v207s-box"><div class="tw-v207s-top"><h2>Boekhouding / facturen</h2><button data-tw207s-close>Terug</button></div><div class="tw-v207s-bookbar"><input id="twV207SBookQ" placeholder="Zoek factuur, klant, opdracht, titel"><select id="twV207SBookStatus"><option value="">Alles</option><option value="open">Openstaand</option><option value="paid">Betaald</option></select></div><div id="twV207SBookList"></div></div>';
+    document.body.appendChild(m); renderAccountingList();
+    E('twV207SBookQ').oninput=renderAccountingList; E('twV207SBookStatus').onchange=renderAccountingList;
   }
-  function mergeAlerts(remote){
-    if(!Array.isArray(remote)) return false;
-    var st = readState();
-    st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
-    var by = Object.create(null);
-    st.alerts.forEach(function(a){ if(a && a.id) by[String(a.id)] = a; });
-    remote.forEach(function(a){ if(a && a.id) by[String(a.id)] = Object.assign({}, by[String(a.id)] || {}, a); });
-    var next = Object.keys(by).map(function(k){ return by[k]; });
-    var oldJson = JSON.stringify(st.alerts || []);
-    var newJson = JSON.stringify(next || []);
-    if(oldJson === newJson) return false;
-    st.alerts = next;
-    writeState(st);
-    return true;
+  function renderAccountingList(){
+    var s=ensure(); var q=L(E('twV207SBookQ')&&E('twV207SBookQ').value||''); var filter=T(E('twV207SBookStatus')&&E('twV207SBookStatus').value||'');
+    var rows=s.orders.slice().map(function(o){ var docs=(s.accounting.documents||[]).filter(function(d){ return (orderNumber(o)&&T(d.orderNumber)===orderNumber(o)) || (o.id&&T(d.orderId)===T(o.id)); }); var d=docs[0]||{}; return {order:o, doc:d}; });
+    rows=rows.filter(function(r){ var hay=L([orderNumber(r.order),orderTitle(r.order),customerName(r.order),r.doc.invoiceNumber,r.doc.documentType,r.doc.type].join(' ')); return (!q||hay.indexOf(q)>=0) && (!filter || (isPaid(r.order)?'paid':'open')===filter); });
+    var html='<table class="tw-v207s-table"><thead><tr><th>Opdracht</th><th>Factuur</th><th>Klant</th><th>Titel</th><th>Status</th><th>Totaal</th><th>Actie</th></tr></thead><tbody>'+(rows.length?rows.map(function(r){ var o=r.order; return '<tr><td>'+H(orderNumber(o))+'</td><td>'+H(r.doc.invoiceNumber||o.invoiceNumber||'')+'</td><td>'+H(customerName(o))+'</td><td>'+H(orderTitle(o))+'</td><td>'+(isPaid(o)?'<span class="tw-v207s-paylabel tw-v207s-paid">☑ Betaald</span>':'<span class="tw-v207s-paylabel tw-v207s-openpay">Openstaande factuur</span>')+'</td><td>'+euro(orderTotal(o))+'</td><td><button class="'+(isPaid(o)?'tw-v207s-danger':'tw-v207s-ok')+'" data-tw207s-pay="'+H(o.id||orderNumber(o))+'">'+(isPaid(o)?'Zet openstaand':'Zet betaald')+'</button></td></tr>'; }).join(''):'<tr><td colspan="7">Geen facturen gevonden.</td></tr>')+'</tbody></table>';
+    var list=E('twV207SBookList'); if(list) list.innerHTML=html;
   }
-  async function loadRemoteAlerts(){
-    var t = await firebase();
-    if(!t) { updateButton(); return; }
-    try{
-      var snap = await t.fs.getDocs(t.fs.collection(t.db, 'alerts'));
-      var rows = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data() || {}); });
-      var json = JSON.stringify(rows.map(function(x){ return [x.id,x.resolved,x.done,x.closed,x.status,x.updatedAt,x.createdAt,x.time,x.note,x.message,x.text]; }));
-      if(json !== lastRemoteJson){ lastRemoteJson = json; mergeAlerts(rows); }
-      updateButton();
-    }catch(e){ updateButton(); }
+
+  function hookBookButton(){
+    var buttons=A('button,a,[role="button"]').filter(function(b){ return /boekhouding\s*\/\s*facturen/i.test(T(b.textContent)); });
+    buttons.forEach(function(b,idx){ if(idx>0) b.classList.add('tw-v207s-hidden'); if(!b.dataset.twV207SBook){ b.dataset.twV207SBook='1'; b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); openAccounting(); }, true); } });
   }
-  async function setRemoteResolved(id, remove){
-    var st = readState();
-    st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
-    if(remove){ st.alerts = st.alerts.filter(function(a){ return String(a.id) !== String(id); }); }
-    else { st.alerts.forEach(function(a){ if(String(a.id) === String(id)){ a.resolved = true; a.resolvedAt = new Date().toISOString(); } }); }
-    writeState(st);
-    updateButton();
-    var t = await firebase();
-    if(!t || !id) return;
-    try{
-      if(remove) await t.fs.deleteDoc(t.fs.doc(t.db, 'alerts', String(id)));
-      else await t.fs.setDoc(t.fs.doc(t.db, 'alerts', String(id)), { resolved:true, resolvedAt:new Date().toISOString() }, { merge:true });
-    }catch(e){}
+
+  document.addEventListener('click',function(ev){
+    var t=ev.target;
+    if(t.closest && t.closest('[data-tw207s-close]')){ var m=t.closest('.tw-v207s-modal'); if(m) m.remove(); return; }
+    var p=t.closest && t.closest('[data-tw207s-pay]'); if(p){ ev.preventDefault(); var o=findOrderRef(p.getAttribute('data-tw207s-pay')); if(o){ setPaid(o,!isPaid(o)); renderAccountingList(); } return; }
+    var r=t.closest && t.closest('[data-tw207s-resolve]'); if(r){ ev.preventDefault(); resolveAlert(r.getAttribute('data-tw207s-resolve'), false); return; }
+    var d=t.closest && t.closest('[data-tw207s-delete]'); if(d){ ev.preventDefault(); resolveAlert(d.getAttribute('data-tw207s-delete'), true); return; }
+    var op=t.closest && t.closest('[data-tw207s-openorder]'); if(op){ ev.preventDefault(); var val=op.getAttribute('data-tw207s-openorder'); var o=findOrderRef(val); if(o && typeof editOrder==='function') editOrder(o.id||o.number); return; }
+  }, true);
+
+  function refresh(){
+    installStyle(); unred(); updateAlertsButton(); hookBookButton(); patchOrderCards();
+    var driverPage=E('driver'); if(driverPage && driverPage.classList.contains('active')) renderDriverInbox();
   }
-  function bind(){
-    document.addEventListener('click', function(ev){
-      var target = ev.target && ev.target.closest && ev.target.closest('button,a,[role="button"]');
-      if(!target) return;
-      if(target.matches('#twV207RAlertModal [data-close]')){ ev.preventDefault(); target.closest('#twV207RAlertModal').remove(); return; }
-      var rid = target.getAttribute('data-resolve');
-      if(rid){ ev.preventDefault(); setRemoteResolved(rid, false).then(openModal); return; }
-      var did = target.getAttribute('data-delete');
-      if(did){ ev.preventDefault(); setRemoteResolved(did, true).then(openModal); return; }
-      if(/systeemmeldingen/i.test(target.textContent || '')){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); openModal(); }
-    }, true);
-  }
-  function loop(){ loadRemoteAlerts(); setTimeout(loop, 10000); }
-  function start(){ installStyle(); bind(); updateButton(); setTimeout(loadRemoteAlerts, 800); setTimeout(loadRemoteAlerts, 2500); loop(); }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else setTimeout(start, 80);
+
+  function wrap(name){ var old=window[name]; if(typeof old!=='function' || old.__twV207S) return; var w=function(){ var r=old.apply(this,arguments); setTimeout(refresh,60); return r; }; w.__twV207S=true; window[name]=w; try{ eval(name+'=window["'+name+'"]'); }catch(e){} }
+  function install(){ try{ window.renderDriver=renderDriverInbox; renderDriver=renderDriverInbox; }catch(e){ window.renderDriver=renderDriverInbox; } wrap('renderAll'); wrap('renderOrders'); wrap('renderDashboard'); refresh(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,250); }); else setTimeout(install,150);
+  [800,2000,5000].forEach(function(ms){ setTimeout(install,ms); });
+  try{ new MutationObserver(function(){ clearTimeout(window.__twV207STimer); window.__twV207STimer=setTimeout(refresh,120); }).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
 })();
