@@ -17556,3 +17556,90 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else setTimeout(install, 250);
 })();
+
+/* ==== V207L rustige cleanup: alleen dubbele knoppen verbergen, geen render/startcode wijzigen ==== */
+(function(){
+  if (window.__TW_V207L_CLEANUP__) return;
+  window.__TW_V207L_CLEANUP__ = true;
+
+  function norm(s){ return String(s||'').replace(/\s+/g,' ').trim().toLowerCase(); }
+  function visible(el){ return !!(el && el.offsetParent !== null && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden'); }
+  function textOf(el){ return norm(el && (el.innerText || el.textContent || el.value)); }
+  function hide(el){
+    if (!el || el.dataset.tw207lHidden === '1') return;
+    el.dataset.tw207lHidden = '1';
+    el.style.display = 'none';
+  }
+  function nearestCard(el){
+    var cur = el;
+    for (var i=0; cur && i<9; i++, cur=cur.parentElement){
+      var t = norm(cur.innerText || cur.textContent || '');
+      if ((t.indexOf('datum:') >= 0 || t.indexOf('klant:') >= 0 || t.indexOf('materialen:') >= 0) && t.length > 80) return cur;
+      if (cur.className && /card|order|opdracht|item|row/i.test(String(cur.className)) && t.length > 50) return cur;
+    }
+    return el.parentElement || document.body;
+  }
+  function isActionEl(el){ return el && (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' || /btn|button/i.test(String(el.className||''))); }
+
+  function cleanupBookButtons(){
+    var found = [];
+    document.querySelectorAll('button,a,[role="button"]').forEach(function(el){
+      if (textOf(el) === 'boekhouding / facturen') found.push(el);
+    });
+    found.forEach(function(el, idx){ if (idx > 0) hide(el); });
+  }
+
+  function cleanupWithinCards(){
+    var groups = new Map();
+    document.querySelectorAll('button,a,[role="button"],span.badge,span,label').forEach(function(el){
+      if (!visible(el)) return;
+      var t = textOf(el);
+      if (!t) return;
+      var keyName = null;
+      if (t === 'opdrachtbevestiging' || t === 'opdracht bevestiging') keyName = 'opdrachtbevestiging';
+      else if (t === 'factuur') keyName = 'factuur';
+      else if (t === 'openstaande factuur') keyName = 'openstaande factuur';
+      else if (t === 'boekhouding / facturen') keyName = 'boekhouding / facturen';
+      else return;
+
+      var card = nearestCard(el);
+      var key = keyName + '::' + (card.dataset.tw207lCardId || (card.dataset.tw207lCardId = Math.random().toString(36).slice(2)));
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(el);
+    });
+    groups.forEach(function(list, key){
+      // Keep the first visible instance in each opdracht/document block; hide the rest.
+      list.forEach(function(el, idx){ if (idx > 0) hide(el); });
+    });
+  }
+
+  function cleanupDocumentPanel(){
+    var panels = Array.prototype.slice.call(document.querySelectorAll('section,div,main')).filter(function(el){
+      var t = norm(el.innerText || el.textContent || '');
+      return t.indexOf('facturen / documenten') >= 0 || t.indexOf('opdracht documenten') >= 0 || t.indexOf('documenten voor klant') >= 0;
+    });
+    panels.forEach(function(panel){
+      ['factuur maken','opdrachtbevestiging','opdracht bevestiging','printen','mailen','delen','whatsapp'].forEach(function(label){
+        var items = [];
+        panel.querySelectorAll('button,a,[role="button"]').forEach(function(el){ if (visible(el) && textOf(el) === label) items.push(el); });
+        items.forEach(function(el, idx){ if (idx > 0) hide(el); });
+      });
+    });
+  }
+
+  function cleanup(){
+    try{
+      cleanupBookButtons();
+      cleanupWithinCards();
+      cleanupDocumentPanel();
+    }catch(e){ console.warn('[V207L cleanup]', e); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cleanup, {once:true});
+  else cleanup();
+  var runs = 0;
+  var timer = setInterval(function(){
+    runs += 1;
+    cleanup();
+    if (runs >= 20) clearInterval(timer);
+  }, 1000);
+})();
