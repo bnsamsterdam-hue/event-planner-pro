@@ -17871,3 +17871,178 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   else { setTimeout(install, 300); setTimeout(syncAlertsOnce, 800); setTimeout(startLive, 1100); }
   setInterval(function(){ updateSystemButton(); renderDriverInbox(); if (Date.now() - lastSync > 20000) syncAlertsOnce(); }, 15000);
 })();
+
+/* =========================================================
+   BNS V207O - herstel rood scherm + systeemmelding knop
+   Basis: V207N. Driver/telefoon ongemoeid.
+   ========================================================= */
+(function(){
+  'use strict';
+  if (window.__BNS_V207O_RED_FIX__) return;
+  window.__BNS_V207O_RED_FIX__ = true;
+
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function norm(v){ return String(v == null ? '' : v).trim().toLowerCase(); }
+  function all(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function txt(el){ return norm(el && (el.innerText || el.textContent || '')); }
+  function stateObj(){
+    try { if (typeof state !== 'undefined' && state && typeof state === 'object') return state; } catch(e) {}
+    try { if (window.state && typeof window.state === 'object') return window.state; } catch(e) {}
+    var keys = ['event-planner-pro-v87','eventPlannerProV91','eventPlannerPro','plannerState','eventPlannerState'];
+    for (var i=0;i<keys.length;i++) { try { var raw=localStorage.getItem(keys[i]); if(raw){ var s=JSON.parse(raw); if(s && typeof s === 'object') return s; } } catch(e){} }
+    return {alerts:[], orders:[], materials:[]};
+  }
+  function isOpen(a){ return a && !a.resolved && !a.done && !a.deleted; }
+  function isPhoneAlert(a){
+    var src = norm(a && (a.source || a.origin || a.portal || ''));
+    if (src === 'telefoon' || src === 'driver' || src === 'bezorger') return true;
+    if (a && (a.driverName || a.from || a.userId) && (a.orderId || a.orderNumber || a.opdrachtId || a.opdrachtNummer)) return true;
+    return false;
+  }
+  function openPhoneAlerts(){ return ((stateObj().alerts || [])).filter(isOpen).filter(isPhoneAlert); }
+  function openAllAlerts(){ return ((stateObj().alerts || [])).filter(isOpen); }
+  function findSystemButtons(){
+    var found = [];
+    all('button,a,[role="button"],.btn').forEach(function(el){
+      if (/systeemmeldingen/i.test(el.textContent || '')) found.push(el);
+    });
+    var byId = document.getElementById('alertsBtn');
+    if (byId && found.indexOf(byId) < 0) found.push(byId);
+    return found.filter(function(el){ return el && el.nodeType === 1; });
+  }
+  function installCss(){
+    if (document.getElementById('bnsV207ORedFixCss')) return;
+    var st = document.createElement('style');
+    st.id = 'bnsV207ORedFixCss';
+    st.textContent = [
+      'html,body{background:#eef6ff!important;}',
+      'main,#app,.app,.content,.main,.page,.planner,.screen,.container{background-color:transparent!important;}',
+      'body.bns-v207n-red,main.bns-v207n-red,#app.bns-v207n-red,.app.bns-v207n-red,.content.bns-v207n-red,.main.bns-v207n-red,.page.bns-v207n-red{background:#eef6ff!important;color:inherit!important;border-color:inherit!important;}',
+      '.bns-v207o-system-open{background:#dc2626!important;color:#fff!important;border:2px solid #991b1b!important;}',
+      '.bns-v207o-system-zero{background:#16a34a!important;color:#fff!important;border:2px solid #15803d!important;}',
+      '.bns-v207o-driver-alert{border-left:7px solid #dc2626!important;background:#fff!important;color:#111827!important;}',
+      '.bns-v207o-cat-pill{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;margin:2px 6px 2px 0;font-weight:900;color:#fff;font-size:12px;}',
+      '.bns-v207o-own-alert{position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.55);display:grid;place-items:center;padding:18px}.bns-v207o-own-alert .card{background:#fff;color:#111827;border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.32);padding:22px;width:min(560px,94vw)}.bns-v207o-own-alert button{border:0;border-radius:12px;padding:10px 14px;font-weight:900;margin-left:8px}.bns-v207o-own-alert .ok{background:#dc2626;color:#fff}.bns-v207o-own-alert .cancel{background:#e5e7eb;color:#111827}',
+      '#tw207mDriverHint{display:none!important}'
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+  function removeBadRedClasses(){
+    all('.bns-v207n-red').forEach(function(el){
+      // Alleen echte systeemmeldingknoppen mogen rood worden; containers niet.
+      if (!/systeemmeldingen/i.test(el.textContent || '') || !/^(BUTTON|A)$/i.test(el.tagName)) {
+        el.classList.remove('bns-v207n-red');
+        el.style.removeProperty('background');
+        el.style.removeProperty('color');
+        el.style.removeProperty('border');
+        el.style.removeProperty('border-color');
+      }
+    });
+  }
+  function removeTopBanner(){
+    all('div,section,p,span').forEach(function(el){
+      if (txt(el) === 'bezorger meldingen: alleen telefoonmeldingen worden hier getoond.') {
+        el.remove();
+      }
+    });
+  }
+  function updateSystemButton(){
+    var n = openAllAlerts().length;
+    var buttons = findSystemButtons();
+    buttons.forEach(function(b){
+      // Als dit per ongeluk een grote container is, niet kleuren.
+      var r = b.getBoundingClientRect ? b.getBoundingClientRect() : {width:0,height:0};
+      var isHuge = r.width > Math.max(460, window.innerWidth * 0.55) || r.height > 90;
+      if (isHuge && !/^(BUTTON|A)$/i.test(b.tagName)) return;
+      b.textContent = 'Systeemmeldingen (' + n + ')';
+      b.classList.remove('bns-v207n-red','bns-v207o-system-open','bns-v207o-system-zero');
+      b.classList.add(n > 0 ? 'bns-v207o-system-open' : 'bns-v207o-system-zero');
+      b.style.removeProperty('background');
+      b.style.removeProperty('color');
+      b.style.removeProperty('border');
+    });
+  }
+  function renderDriverInboxClean(){
+    var page = txt(document.body);
+    if (page.indexOf('bezorger meldingen') < 0) return;
+    var box = document.getElementById('driverList');
+    if (!box) return;
+    var alerts = openPhoneAlerts().sort(function(a,b){ return String(b.createdAt || b.time || '').localeCompare(String(a.createdAt || a.time || '')); });
+    if (!alerts.length) {
+      box.innerHTML = '<div class="order-card"><b>Geen bezorger meldingen</b><br><small>Alleen meldingen vanaf de telefoon komen hier te staan.</small></div>';
+      return;
+    }
+    box.innerHTML = alerts.map(function(a){
+      var title = a.title || a.type || 'Bezorger melding';
+      var msg = a.note || a.message || a.text || a.description || '';
+      return '<div class="order-card bns-v207o-driver-alert">' +
+        '<b>'+esc(title)+'</b> <span class="status" style="background:#dc2626;color:#fff">Open</span><br>'+
+        '<small>'+esc(a.time || a.createdAt || '')+'</small><br>'+
+        '<b>Bezorger:</b> '+esc(a.driverName || a.from || '')+'<br>'+
+        '<b>Opdracht:</b> '+esc(a.orderNumber || a.opdrachtNummer || a.orderId || a.opdrachtId || '')+
+        (msg ? '<p style="white-space:pre-wrap;margin:8px 0">'+esc(msg)+'</p>' : '')+
+        '</div>';
+    }).join('');
+  }
+  function restoreMaterialStatusColors(){
+    var colors = {TW:'#1683d8',TO:'#f97316',KW:'#22c55e',EXTRA:'#7c3aed'};
+    all('#materialList [class*=material], #materials [class*=material], .material-card, .material-row').forEach(function(row){
+      if (row.dataset.bns207oColor) return;
+      var text = row.textContent || '';
+      var mats = (stateObj().materials || []);
+      var mat = mats.find(function(m){ return m && m.code && text.indexOf(String(m.code)) >= 0; });
+      var cat = mat && (mat.cat || mat.rubriek || mat.category || mat.code && String(mat.code).replace(/[0-9].*$/,''));
+      cat = String(cat || '').trim().toUpperCase();
+      if (!cat) return;
+      var color = colors[cat] || '#64748b';
+      row.dataset.bns207oColor = '1';
+      row.style.borderLeft = '8px solid ' + color;
+      if (!row.querySelector('.bns-v207o-cat-pill')) {
+        var pill = document.createElement('span');
+        pill.className = 'bns-v207o-cat-pill';
+        pill.textContent = cat;
+        pill.style.background = color;
+        var target = row.querySelector('b,strong') || row.firstElementChild || row;
+        if (target && target.parentNode) target.parentNode.insertBefore(pill, target);
+        else row.insertBefore(pill, row.firstChild);
+      }
+    });
+  }
+  function ownConfirm(message){
+    return new Promise(function(resolve){
+      var wrap = document.createElement('div');
+      wrap.className = 'bns-v207o-own-alert';
+      wrap.innerHTML = '<div class="card"><h2>Tapwagen.nl</h2><p>'+esc(message || 'Weet je dit zeker?')+'</p><div style="text-align:right"><button class="cancel">Annuleren</button><button class="ok">Verwijderen</button></div></div>';
+      document.body.appendChild(wrap);
+      wrap.querySelector('.cancel').onclick = function(){ wrap.remove(); resolve(false); };
+      wrap.querySelector('.ok').onclick = function(){ wrap.remove(); resolve(true); };
+    });
+  }
+  function patchConfirmOnce(){
+    if (window.__BNS_V207O_CONFIRM_PATCHED__) return;
+    window.__BNS_V207O_CONFIRM_PATCHED__ = true;
+    var nativeConfirm = window.confirm.bind(window);
+    window.confirm = function(message){
+      // Alleen duidelijke verwijder/wis-acties krijgen eigen melding; overige confirms blijven browser-eigen.
+      if (/verwijder|wissen|wis|delete|gebruiker verwijderen|materiaal verwijderen/i.test(String(message || ''))) {
+        // window.confirm is sync; voor oude code geven we true pas na expliciete klik niet mogelijk.
+        // Daarom tonen we hier geen async popup maar vervangen we de tekst door nette Tapwagen-prefix.
+        return nativeConfirm('Tapwagen.nl\n\n' + (message || 'Weet je dit zeker?'));
+      }
+      return nativeConfirm(message);
+    };
+  }
+  function cleanup(){
+    installCss();
+    removeBadRedClasses();
+    removeTopBanner();
+    updateSystemButton();
+    renderDriverInboxClean();
+    restoreMaterialStatusColors();
+    patchConfirmOnce();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(cleanup, 100); });
+  else setTimeout(cleanup, 100);
+  setInterval(cleanup, 1500);
+  try { new MutationObserver(function(){ setTimeout(cleanup, 50); }).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['class','style']}); } catch(e) {}
+})();
