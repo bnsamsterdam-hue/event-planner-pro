@@ -17557,404 +17557,267 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   else setTimeout(install, 250);
 })();
 
-
-/* V207M zichtbare opruiming verwijderd in V207P: veroorzaakte flikkeren/banners. */
-/* =========================================================
-   BNS V207N - telefoonmeldingen live naar planner + rode systeemmelding
-   Basis: V207M werkt. Alleen meldingensync/inbox, geen opdrachten/boekhouding ombouw.
-   ========================================================= */
+/* ==== V207M zichtbare opruiming vanaf V207E: geen start/render-overname, alleen bestaande knoppen opruimen ==== */
 (function(){
-  'use strict';
-  if (window.__BNS_V207N_ALERT_SYNC__) return;
-  window.__BNS_V207N_ALERT_SYNC__ = true;
+  if (window.__TW_V207M_VISIBLE_CLEANUP__) return;
+  window.__TW_V207M_VISIBLE_CLEANUP__ = true;
 
-  var FIREBASE_VERSION = '10.12.5';
-  var fbTools = null;
-  var unsubAlerts = null;
-  var lastSync = 0;
+  function txt(el){ return String((el && (el.innerText || el.textContent || el.value)) || '').replace(/\s+/g,' ').trim(); }
+  function low(el){ return txt(el).toLowerCase(); }
+  function all(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function isBtn(el){ return el && (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' || /\b(btn|button)\b/i.test(String(el.className||''))); }
+  function hide(el){ if(!el) return; el.style.setProperty('display','none','important'); el.setAttribute('data-tw207m-hidden','1'); }
+  function show(el){ if(!el || el.getAttribute('data-tw207m-hidden')==='1') return; }
+  function pageText(){ return String(document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase(); }
 
-  function $(id){ return document.getElementById(id); }
-  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-  function norm(v){ return String(v == null ? '' : v).trim().toLowerCase(); }
-  function stateObj(){
-    try { if (typeof state !== 'undefined' && state && typeof state === 'object') return state; } catch(e) {}
-    try { if (window.state && typeof window.state === 'object') return window.state; } catch(e) {}
-    var keys = ['event-planner-pro-v87','eventPlannerProV91','eventPlannerPro','plannerState','eventPlannerState'];
-    for (var i=0;i<keys.length;i++) {
-      try { var raw = localStorage.getItem(keys[i]); if (raw) { var s = JSON.parse(raw); if (s && typeof s === 'object') return s; } } catch(e) {}
+  function findOrderCard(el){
+    var cur = el;
+    for(var i=0; cur && i<12; i++, cur=cur.parentElement){
+      var t = low(cur);
+      if((t.indexOf('datum:') >= 0 && (t.indexOf('klant:') >= 0 || t.indexOf('materialen:') >= 0)) || /order-card|opdracht/i.test(String(cur.className||''))) return cur;
     }
-    return {orders:[], alerts:[], users:[]};
-  }
-  function saveState(s){
-    s = s || stateObj();
-    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
-    try { if (typeof state !== 'undefined' && state && typeof state === 'object') Object.assign(state, s); } catch(e) {}
-    try { if (window.state && typeof window.state === 'object') Object.assign(window.state, s); } catch(e) {}
-    try { localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); } catch(e) {}
-    try { localStorage.setItem('eventPlannerProV91', JSON.stringify(s)); } catch(e) {}
-    try { if (typeof save === 'function') save(); } catch(e) {}
-  }
-  function orderIdOf(a){ return String(a && (a.orderId || a.linkedOrder || a.order_id || a.opdrachtId || a.opdracht_id || '') || ''); }
-  function orderNumberOf(a){ return String(a && (a.orderNumber || a.linkedOrderNumber || a.opdrachtNummer || a.number || '') || ''); }
-  function findOrder(a){
-    var s = stateObj();
-    var oid = orderIdOf(a);
-    var onr = orderNumberOf(a);
-    return (s.orders || []).find(function(o){
-      return (oid && String(o.id) === oid) || (onr && String(o.number || '') === onr);
-    }) || null;
-  }
-  function isOpen(a){ return a && !a.resolved && !a.done && !a.deleted; }
-  function isPhoneAlert(a){
-    var src = norm(a && (a.source || a.origin || a.portal || ''));
-    if (src === 'telefoon' || src === 'driver' || src === 'bezorger') return true;
-    if ((a && (a.driverName || a.from || a.userId)) && orderIdOf(a)) return true;
-    return false;
-  }
-  function alertTitle(a){ return a.title || a.type || 'Bezorger melding'; }
-  function alertText(a){ return a.note || a.message || a.text || a.description || ''; }
-  function mergeAlerts(remoteAlerts){
-    if (!Array.isArray(remoteAlerts)) return;
-    var s = stateObj();
-    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
-    var byId = {};
-    s.alerts.forEach(function(a){ if (a && a.id) byId[String(a.id)] = a; });
-    remoteAlerts.forEach(function(a){
-      if (!a) return;
-      if (!a.id) a.id = 'alert_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
-      var old = byId[String(a.id)] || {};
-      byId[String(a.id)] = Object.assign({}, old, a);
-    });
-    s.alerts = Object.keys(byId).map(function(k){ return byId[k]; }).sort(function(a,b){
-      return String(b.createdAt || b.time || '').localeCompare(String(a.createdAt || a.time || ''));
-    });
-    saveState(s);
-    updateSystemButton();
-    renderDriverInbox();
-  }
-  function openCount(){ return (stateObj().alerts || []).filter(isOpen).length; }
-  function updateSystemButton(){
-    var b = $('alertsBtn');
-    if (!b) return;
-    var n = openCount();
-    b.textContent = '🚨 Systeemmeldingen (' + n + ')';
-    if (n > 0) {
-      b.classList.add('bns-v207n-red');
-      b.style.setProperty('background', '#dc2626', 'important');
-      b.style.setProperty('color', '#fff', 'important');
-      b.style.setProperty('border', '2px solid #991b1b', 'important');
-    } else {
-      b.classList.remove('bns-v207n-red');
-      b.style.removeProperty('background');
-      b.style.removeProperty('color');
-      b.style.removeProperty('border');
-    }
-  }
-  function renderDriverInbox(){
-    var box = $('driverList');
-    if (!box) return;
-    var alerts = (stateObj().alerts || []).filter(isOpen).filter(isPhoneAlert).sort(function(a,b){
-      return String(b.createdAt || b.time || '').localeCompare(String(a.createdAt || a.time || ''));
-    });
-    if (!alerts.length) {
-      box.innerHTML = '<div class="order-card"><b>Geen bezorger meldingen</b><br><small>Deze pagina blijft leeg tot een bezorger vanaf de telefoon een melding verstuurt.</small></div>';
-      return;
-    }
-    box.innerHTML = alerts.map(function(a){
-      var o = findOrder(a);
-      var title = alertTitle(a);
-      var text = alertText(a);
-      return '<div class="order-card bns-driver-alert" data-alert-id="'+esc(a.id)+'">' +
-        '<div class="date-tile">'+esc(String(a.time || a.createdAt || '').split(',')[0])+'</div>' +
-        '<div>' +
-          '<b>'+esc(title)+'</b> <span class="status" style="background:#dc2626;color:#fff">Open</span><br>' +
-          '<small>'+esc(a.time || a.createdAt || '')+'</small>' +
-          '<div><b>Bezorger:</b> '+esc(a.driverName || a.from || '')+'</div>' +
-          '<div><b>Opdracht:</b> '+esc(o ? ((o.number || '') + ' - ' + (o.title || '')) : (orderNumberOf(a) || 'Niet gekoppeld'))+'</div>' +
-          '<div><b>Klant:</b> '+esc((o && o.customer && o.customer.name) || a.customerName || '')+'</div>' +
-          (text ? '<p style="white-space:pre-wrap;margin:8px 0">'+esc(text)+'</p>' : '') +
-        '</div>' +
-        '<div class="actions"><button type="button" onclick="BNS_V207N_resolveAlert(\''+esc(a.id)+'\')">Afmelden</button></div>' +
-      '</div>';
-    }).join('');
-  }
-  window.BNS_V207N_resolveAlert = async function(alertId){
-    var s = stateObj();
-    var item = (s.alerts || []).find(function(a){ return String(a.id) === String(alertId); });
-    if (!item) return;
-    item.resolved = true;
-    item.resolvedAt = new Date().toISOString();
-    saveState(s);
-    updateSystemButton();
-    renderDriverInbox();
-    try {
-      var t = await firebaseTools();
-      if (t) await t.fs.setDoc(t.fs.doc(t.db, 'alerts', String(alertId)), item, {merge:true});
-    } catch(e) { console.warn('[V207N] alert resolve firebase fout', e); }
-  };
-  async function firebaseTools(){
-    if (fbTools) return fbTools;
-    if (!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN') return null;
-    var app = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-app.js');
-    var fs = await import('https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-firestore.js');
-    var firebaseApp = app.getApps().length ? app.getApp() : app.initializeApp(window.BNS_FIREBASE_CONFIG);
-    fbTools = {app: app, fs: fs, db: fs.getFirestore(firebaseApp)};
-    return fbTools;
-  }
-  async function syncAlertsOnce(){
-    try {
-      var t = await firebaseTools();
-      if (!t) return;
-      var snap = await t.fs.getDocs(t.fs.collection(t.db, 'alerts'));
-      mergeAlerts(snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data() || {}); }));
-      lastSync = Date.now();
-    } catch(e) { console.warn('[V207N] alerts laden fout', e); }
-  }
-  async function startLive(){
-    try {
-      var t = await firebaseTools();
-      if (!t || unsubAlerts) return;
-      unsubAlerts = t.fs.onSnapshot(t.fs.collection(t.db, 'alerts'), function(snap){
-        mergeAlerts(snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data() || {}); }));
-        lastSync = Date.now();
-      }, function(err){ console.warn('[V207N] live alerts fout', err); });
-    } catch(e) { console.warn('[V207N] live start fout', e); }
-  }
-  function installCss(){
-    if ($('bnsV207NAlertCss')) return;
-    var st = document.createElement('style');
-    st.id = 'bnsV207NAlertCss';
-    st.textContent = '.bns-v207n-red{background:#dc2626!important;color:#fff!important;border-color:#991b1b!important}.bns-driver-alert{border-left:7px solid #dc2626!important}';
-    document.head.appendChild(st);
-  }
-  function install(){
-    installCss();
-    updateSystemButton();
-    renderDriverInbox();
-  }
-  var oldRenderAll = window.renderAll || (typeof renderAll === 'function' ? renderAll : null);
-  if (oldRenderAll && !oldRenderAll.__bnsV207NAlerts) {
-    var wrapped = function(){
-      var r;
-      try { r = oldRenderAll.apply(this, arguments); } catch(e) { throw e; }
-      setTimeout(install, 0);
-      return r;
-    };
-    wrapped.__bnsV207NAlerts = true;
-    window.renderAll = wrapped;
-    try { renderAll = wrapped; } catch(e) {}
-  }
-  var oldRenderDriver = window.renderDriver || (typeof renderDriver === 'function' ? renderDriver : null);
-  if (oldRenderDriver && !oldRenderDriver.__bnsV207NInbox) {
-    var driverWrapped = function(){ renderDriverInbox(); };
-    driverWrapped.__bnsV207NInbox = true;
-    window.renderDriver = driverWrapped;
-    try { renderDriver = driverWrapped; } catch(e) {}
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 300); setTimeout(syncAlertsOnce, 800); setTimeout(startLive, 1100); });
-  else { setTimeout(install, 300); setTimeout(syncAlertsOnce, 800); setTimeout(startLive, 1100); }
-  setInterval(function(){ updateSystemButton(); renderDriverInbox(); if (Date.now() - lastSync > 20000) syncAlertsOnce(); }, 15000);
-})();
-
-
-/* =========================================================
-   BNS V207P - STABIEL: meldingenknop rood, geen rode pagina,
-   postcode klant/locatie zichtbaar, betaald-label naast bevestigd.
-   Alleen app.js. Geen driver/push wijziging. Geen herbouw opdrachtkaarten.
-   ========================================================= */
-(function(){
-  'use strict';
-  if (window.__BNS_V207P_STABLE_FIX__) return;
-  window.__BNS_V207P_STABLE_FIX__ = true;
-
-  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function T(v){ return String(v == null ? '' : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function E(id){ return document.getElementById(id); }
-  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-  function S(){
-    try { if (typeof state !== 'undefined' && state && typeof state === 'object') return state; } catch(e) {}
-    if (window.state && typeof window.state === 'object') return window.state;
-    try { var raw=localStorage.getItem('event-planner-pro-v87') || localStorage.getItem('eventPlannerProV91'); if(raw) return JSON.parse(raw); } catch(e) {}
-    return {orders:[], alerts:[]};
-  }
-  function orders(){ var s=S(); return Array.isArray(s.orders) ? s.orders : []; }
-  function alerts(){ var s=S(); return Array.isArray(s.alerts) ? s.alerts : []; }
-  function isOpen(a){ return a && !a.resolved && !a.done && !a.deleted && !a.closed; }
-  function isActionTypeText(t){
-    t = L(t);
-    if (!t) return false;
-    if (/foto|handtekening|signature/.test(t)) return false;
-    return /storing|schade|vermissing|vermist|melding|bezorger/.test(t);
-  }
-  function alertText(a){ return [a && a.type, a && a.title, a && a.note, a && a.message, a && a.text, a && a.description, a && a.source, a && a.origin].map(T).join(' '); }
-  function openSystemItems(){
-    var items = [];
-    alerts().forEach(function(a){ if (isOpen(a) && isActionTypeText(alertText(a))) items.push(a); });
-    orders().forEach(function(o){
-      ['media','alerts','messages','driverAlerts','photos','signatures'].forEach(function(k){
-        var arr = Array.isArray(o && o[k]) ? o[k] : [];
-        arr.forEach(function(m){ if (isOpen(m) && isActionTypeText(alertText(m))) items.push(m); });
-      });
-    });
-    // simpele dedupe op id/tijd/tekst
-    var seen = Object.create(null);
-    return items.filter(function(x){ var key=T(x.id||'')+'|'+T(x.createdAt||x.time||'')+'|'+alertText(x).slice(0,80); if(seen[key]) return false; seen[key]=1; return true; });
-  }
-  function systemButtons(){
-    var out=[];
-    var b=E('alertsBtn'); if(b) out.push(b);
-    A('button,a,[role="button"],.btn').forEach(function(el){ if(/systeemmeldingen/i.test(el.textContent||'') && out.indexOf(el)<0) out.push(el); });
-    return out;
-  }
-  function updateSystemButton(){
-    var n = openSystemItems().length;
-    systemButtons().forEach(function(b){
-      // Alleen de knop kleuren, nooit containers of body.
-      if (!/^(BUTTON|A)$/i.test(b.tagName) && b.getAttribute('role') !== 'button') return;
-      b.textContent = 'Systeemmeldingen (' + n + ')';
-      b.style.setProperty('background', n ? '#dc2626' : '#16a34a', 'important');
-      b.style.setProperty('color', '#fff', 'important');
-      b.style.setProperty('border', '2px solid ' + (n ? '#991b1b' : '#15803d'), 'important');
-      b.classList.remove('bns-v207n-red','bns-v207o-system-open','bns-v207o-system-zero');
-    });
-  }
-  function resetBadRed(){
-    document.documentElement.style.removeProperty('background');
-    document.body.style.removeProperty('background');
-    A('body,main,#app,.app,.content,.main,.page,.planner,.screen,.container').forEach(function(el){
-      el.classList.remove('bns-v207n-red','bns-v207o-system-open','bns-v207o-system-zero');
-      // Alleen verwijderen als de achtergrond echt rood/oranje is.
-      var bg = (el.style && el.style.background) || '';
-      if (/dc2626|991b1b|red|orangered|orange/i.test(bg)) el.style.removeProperty('background');
-      el.style.removeProperty('border-color');
-    });
-    A('div,section,p,span').forEach(function(el){
-      var t=L(el.textContent||'');
-      if (t === 'bezorger meldingen: alleen telefoonmeldingen worden hier getoond.') el.remove();
-    });
-  }
-  function patchConfirm(){
-    if (window.__BNS_V207P_CONFIRM__) return;
-    window.__BNS_V207P_CONFIRM__ = true;
-    var nativeConfirm = window.confirm ? window.confirm.bind(window) : null;
-    if (!nativeConfirm) return;
-    window.confirm = function(msg){
-      msg = T(msg || 'Weet je dit zeker?');
-      if (!/^Tapwagen\.nl/i.test(msg) && /verwijder|wissen|wis|delete|gebruiker verwijderen/i.test(msg)) msg = 'Tapwagen.nl\n\n' + msg;
-      return nativeConfirm(msg);
-    };
+    return null;
   }
 
-  function cardText(el){ return L(el && (el.innerText || el.textContent || '')); }
-  function likelyOrderCard(el){
-    var t=cardText(el);
-    return t.length>30 && t.indexOf('datum:')>=0 && (t.indexOf('klant:')>=0 || t.indexOf('materialen:')>=0);
-  }
   function orderCards(){
-    var cards=[];
-    A('div,article,section,li').forEach(function(el){
-      if(likelyOrderCard(el) && !cards.some(function(c){ return c.contains(el); })) cards.push(el);
+    var cards = [];
+    all('div,article,section,li').forEach(function(el){
+      var t = low(el);
+      if(t.length > 40 && t.length < 2500 && t.indexOf('datum:') >= 0 && (t.indexOf('klant:') >= 0 || t.indexOf('materialen:') >= 0)){
+        if(!cards.some(function(c){ return c.contains(el); })) cards.push(el);
+      }
     });
     return cards;
   }
-  function isPaidOrderFromText(t){ return /\bbetaald\b/.test(t) && !/openstaande factuur|niet betaald/.test(t); }
-  function installPaidLabels(){
+
+  function cleanupBookButtons(){
+    var buttons = all('button,a,[role="button"]').filter(function(el){ return low(el).indexOf('boekhouding / facturen') >= 0; });
+    buttons.forEach(function(el, idx){ if(idx > 0) hide(el); });
+  }
+
+  function cleanupOrderButtons(){
     orderCards().forEach(function(card){
-      if (card.querySelector('[data-bns-v207p-paid-label]')) return;
-      var t=cardText(card);
-      var paid=isPaidOrderFromText(t);
-      // openstaand label alleen als er iets met factuur/betaling is, anders niet forceren
-      var hasPay=/factuur|betaald|betaling/.test(t);
-      if(!paid && !hasPay) return;
-      var lab=document.createElement('span');
-      lab.setAttribute('data-bns-v207p-paid-label','1');
-      lab.textContent = paid ? '☑ Betaald' : 'Openstaande factuur';
-      lab.style.cssText='display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 12px;margin:4px 6px;font-weight:900;font-size:13px;border:2px solid '+(paid?'#15803d':'#fecaca')+';background:'+(paid?'#dcfce7':'#fee2e2')+';color:'+(paid?'#166534':'#991b1b')+';';
-      var confirmed=A('span,button,b,strong',card).find(function(x){ return /bevestigd/i.test(x.textContent||''); });
-      if(confirmed && confirmed.parentNode) confirmed.parentNode.insertBefore(lab, confirmed.nextSibling);
-      else card.insertBefore(lab, card.firstChild);
+      // Verberg de extra V207 rij die de kaarten druk maakte. De originele basis-knoppen blijven staan.
+      all('.bns-v207-row', card).forEach(hide);
+
+      var seen = Object.create(null);
+      all('button,a,[role="button"],span,label', card).forEach(function(el){
+        var t = low(el);
+        if(!t) return;
+        // Betaalknop hoort niet op de opdrachtkaart.
+        if(t === 'zet betaald' || t === 'zet openstaand') { hide(el); return; }
+        // Dubbele labels/knoppen verminderen.
+        var key = '';
+        if(t === 'openstaande factuur' || t === 'betaald') key = 'paylabel';
+        else if(t === 'opdrachtbevestiging' || t === 'opdracht bevestiging') key = 'confirm';
+        else if(t === 'factuur') key = 'invoice';
+        else if(t === 'boekhouding / facturen') key = 'book';
+        else return;
+        seen[key] = seen[key] || [];
+        seen[key].push(el);
+      });
+      Object.keys(seen).forEach(function(key){
+        seen[key].forEach(function(el, idx){
+          // In opdrachtkaart: houd max 1 betaalstatuslabel, maar verberg factuur/opdrachtknoppen als ze vaker dan 1 keer staan.
+          if(idx > 0) hide(el);
+        });
+      });
     });
   }
 
-  function findPanel(name){
-    name=L(name);
-    var best=null;
-    A('section,div,main,form').forEach(function(el){
-      var t=cardText(el);
-      if(t.indexOf(name)>=0 && t.length<3500){ if(!best || t.length<cardText(best).length) best=el; }
+  function cleanupDriverInbox(){
+    var t = pageText();
+    if(t.indexOf('bezorger meldingen') < 0) return;
+    // Op deze pagina horen planner-acties niet.
+    all('button,a,[role="button"]').forEach(function(el){
+      var v = low(el);
+      if(v === 'storing' || v === 'schade' || v === 'vermissing' || v === 'factuur' || v === 'opdrachtbevestiging' || v === 'opdracht bevestiging' || v === 'zet betaald' || v === 'zet openstaand') hide(el);
     });
-    return best;
+    // Als de pagina geen echte tekst als melding bevat maar alleen opdrachten, zet een hint bovenaan.
+    if(!document.getElementById('tw207mDriverHint')){
+      var h = document.createElement('div');
+      h.id = 'tw207mDriverHint';
+      h.textContent = 'Bezorger meldingen: alleen telefoonmeldingen worden hier getoond.';
+      h.style.cssText = 'margin:10px 0;padding:10px 14px;border-radius:12px;background:#eef6ff;border:1px solid #bfdbfe;font-weight:800;color:#0f172a;';
+      var main = document.querySelector('main') || document.body;
+      main.insertBefore(h, main.firstChild);
+    }
   }
-  function inputByPlaceholder(root, words){
-    words=words.map(L);
-    return A('input,textarea',root).find(function(i){ var p=L(i.placeholder||i.name||i.id||''); return words.some(function(w){ return p.indexOf(w)>=0; }); });
-  }
-  function setIfEmptyOrAlways(input, value){ if(input) { input.value=value || ''; input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); } }
-  function installPostcode(kind){
-    var panel = findPanel(kind === 'customer' ? 'klant' : 'locatie');
-    if(!panel || panel.querySelector('[data-bns-v207p-postcode="'+kind+'"]')) return;
-    var box=document.createElement('div');
-    box.setAttribute('data-bns-v207p-postcode',kind);
-    box.style.cssText='margin:12px 0;padding:12px;border:1px solid #dbe3ef;border-radius:14px;background:#fff;display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
-    box.innerHTML='<b style="width:100%">Postcode zoeken</b><input placeholder="Postcode" style="width:135px"><input placeholder="Huisnr" style="width:95px"><button type="button">Adres zoeken</button><small style="width:100%"></small>';
-    var title=A('h2,h3,h4,b,strong,label',panel).find(function(x){ return L(x.textContent||'').indexOf(kind==='customer'?'klant':'locatie')>=0; });
-    if(title && title.parentNode) title.parentNode.insertBefore(box, title.nextSibling); else panel.insertBefore(box, panel.firstChild);
-    var pc=box.querySelector('input[placeholder="Postcode"]');
-    var hn=box.querySelector('input[placeholder="Huisnr"]');
-    var btn=box.querySelector('button');
-    var status=box.querySelector('small');
-    btn.onclick=async function(){
-      var p=T(pc.value), h=T(hn.value); if(!p||!h){ status.textContent='Vul postcode en huisnummer in.'; return; }
-      status.textContent='Zoeken...';
-      try{
-        var url='https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q='+encodeURIComponent(p+' '+h)+'&rows=1';
-        var res=await fetch(url); var json=await res.json(); var doc=json && json.response && json.response.docs && json.response.docs[0];
-        if(!doc){ status.textContent='Geen adres gevonden.'; return; }
-        var straat=doc.straatnaam || doc.weergavenaam || '';
-        var plaats=doc.woonplaatsnaam || '';
-        var postcode=(doc.postcode || p).toUpperCase();
-        // vul dichtstbijzijnde velden in binnen paneel
-        setIfEmptyOrAlways(inputByPlaceholder(panel,['straat','adres']), straat + ' ' + h);
-        setIfEmptyOrAlways(inputByPlaceholder(panel,['huisnr','huisnummer']), h);
-        setIfEmptyOrAlways(inputByPlaceholder(panel,['postcode','post code','zip']), postcode);
-        setIfEmptyOrAlways(inputByPlaceholder(panel,['plaats','stad','city']), plaats);
-        status.textContent='Adres ingevuld.';
-      }catch(e){ status.textContent='Postcode zoeken lukt nu niet.'; }
-    };
-  }
-  function hideBrokenPdok(){
-    A('div,section,p,span,b,strong,label').forEach(function(el){
-      var t=L(el.textContent||'');
-      if(t==='postcode zoeken via pdok' || t==='rustige postcodehulp postcode + huisnummer blijven zichtbaar.') el.style.setProperty('display','none','important');
+
+  function cleanupDocumentsPanel(){
+    var panels = all('div,section,main').filter(function(el){
+      var t = low(el);
+      return t.indexOf('facturen / documenten') >= 0 || t.indexOf('documenten voor klant') >= 0 || t.indexOf('opdracht documenten') >= 0;
+    });
+    panels.forEach(function(panel){
+      ['factuur maken','opdrachtbevestiging','opdracht bevestiging','printen','mailen','delen','whatsapp'].forEach(function(label){
+        var list = all('button,a,[role="button"]', panel).filter(function(el){ return low(el) === label; });
+        list.forEach(function(el, idx){ if(idx > 0) hide(el); });
+      });
     });
   }
-  function statusColors(){
-    A('#materialList [class*=material], .material-card, .material-row, [data-material-id]').forEach(function(row){
-      if(row.dataset.bnsV207PColor) return;
-      var t=cardText(row); var color='';
-      if(/gereserveerd|reserved/.test(t)) color='#f97316';
-      else if(/defect|storing|schade/.test(t)) color='#dc2626';
-      else if(/niet actief|inactive/.test(t)) color='#64748b';
-      else if(/vrij|free/.test(t)) color='#16a34a';
-      if(color){ row.dataset.bnsV207PColor='1'; row.style.borderLeft='8px solid '+color; }
-    });
+
+  function cleanup(){
+    try{
+      cleanupBookButtons();
+      cleanupOrderButtons();
+      cleanupDriverInbox();
+      cleanupDocumentsPanel();
+    }catch(e){ try{ console.warn('[V207M cleanup]', e); }catch(_e){} }
   }
-  function runLight(){
-    resetBadRed();
-    updateSystemButton();
-    installPaidLabels();
-    hideBrokenPdok();
-    installPostcode('customer');
-    installPostcode('location');
-    statusColors();
-    patchConfirm();
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cleanup);
+  else setTimeout(cleanup, 50);
+  var count = 0;
+  var timer = setInterval(function(){ cleanup(); if(++count > 120) clearInterval(timer); }, 500);
+  try{
+    new MutationObserver(function(){ cleanup(); }).observe(document.documentElement,{childList:true,subtree:true});
+  }catch(e){}
+})();
+
+/* ==== V207R: ALLEEN systeemmeldingen-knop rood/groen, geen layout/menu/opdracht wijziging ==== */
+(function(){
+  if (window.__TW_V207R_ALERT_BUTTON_ONLY__) return;
+  window.__TW_V207R_ALERT_BUTTON_ONLY__ = true;
+
+  var STORAGE_KEY = 'event-planner-pro-v87';
+  var fbTools = null;
+  var lastRemoteJson = '';
+
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function readState(){
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch(e){ return {}; }
   }
-  function schedule(){ clearTimeout(window.__BNS_V207P_TIMER__); window.__BNS_V207P_TIMER__=setTimeout(runLight,120); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(runLight,300); setTimeout(runLight,1200); });
-  else { setTimeout(runLight,200); setTimeout(runLight,1200); }
-  document.addEventListener('click', function(){ schedule(); }, true);
-  document.addEventListener('input', function(){ schedule(); }, true);
-  // Geen snelle interval; alleen rustige refresh voor systeemknop.
-  setInterval(function(){ try{ resetBadRed(); updateSystemButton(); }catch(e){} }, 10000);
+  function writeState(st){
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st || {})); } catch(e){}
+  }
+  function isOpenAlert(a){
+    if(!a) return false;
+    var status = String(a.status || a.state || '').toLowerCase();
+    if(a.resolved === true || a.done === true || a.closed === true || a.deleted === true) return false;
+    if(/opgelost|afgehandeld|gesloten|resolved|done|closed|deleted|verwijderd/.test(status)) return false;
+    return true;
+  }
+  function openAlerts(){
+    var st = readState();
+    var rows = Array.isArray(st.alerts) ? st.alerts.filter(isOpenAlert) : [];
+    rows.sort(function(a,b){ return String(b.createdAt || b.time || '').localeCompare(String(a.createdAt || a.time || '')); });
+    return rows;
+  }
+  function findButton(){
+    return document.getElementById('alertsBtn') || Array.prototype.slice.call(document.querySelectorAll('button,a,[role="button"]')).find(function(b){ return /systeemmeldingen/i.test(b.textContent || ''); });
+  }
+  function installStyle(){
+    if(document.getElementById('twV207RAlertStyle')) return;
+    var st = document.createElement('style');
+    st.id = 'twV207RAlertStyle';
+    st.textContent = [
+      '#alertsBtn.tw-v207r-open,.tw-v207r-alert-btn.tw-v207r-open{background:#dc2626!important;color:#fff!important;border-color:#b91c1c!important;box-shadow:none!important;animation:none!important}',
+      '#alertsBtn.tw-v207r-zero,.tw-v207r-alert-btn.tw-v207r-zero{background:#16a34a!important;color:#fff!important;border-color:#15803d!important;box-shadow:none!important;animation:none!important}',
+      '#twV207RAlertModal{position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:22px}',
+      '#twV207RAlertModal .box{background:#fff;color:#111827;border-radius:20px;padding:20px;max-width:860px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.28)}',
+      '#twV207RAlertModal .row{border:1px solid #d8dee9;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc}',
+      '#twV207RAlertModal button{border:0;border-radius:10px;padding:9px 12px;font-weight:900;cursor:pointer;margin-right:8px}',
+      '#twV207RAlertModal .close{float:right;background:#2563eb;color:#fff}',
+      '#twV207RAlertModal .ok{background:#16a34a;color:#fff}',
+      '#twV207RAlertModal .danger{background:#dc2626;color:#fff}'
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+  function updateButton(){
+    installStyle();
+    var b = findButton();
+    if(!b) return;
+    var n = openAlerts().length;
+    b.textContent = n ? ('Systeemmeldingen ('+n+')') : 'Systeemmeldingen (0)';
+    b.classList.add('tw-v207r-alert-btn');
+    b.classList.toggle('tw-v207r-open', n > 0);
+    b.classList.toggle('tw-v207r-zero', n === 0);
+    // belangrijk: alleen de knop krijgt rood/groen, nooit de pagina.
+    document.body.classList.remove('bns-v176-alert-open','bns-v178-alert-open','bns-v179-open','bns-alert-open','alarm-red');
+    if(document.body.style && /rgb\(220,\s*38,\s*38\)|#dc2626|red/i.test(document.body.style.background || '')) document.body.style.background = '';
+  }
+  function orderLabel(a){
+    return [a.orderNumber || a.orderNo || '', a.orderTitle || a.titleOrder || '', a.customerName || a.customer || ''].filter(Boolean).join(' - ');
+  }
+  function openModal(){
+    updateButton();
+    var rows = openAlerts();
+    var old = document.getElementById('twV207RAlertModal'); if(old) old.remove();
+    var m = document.createElement('div');
+    m.id = 'twV207RAlertModal';
+    m.innerHTML = '<div class="box"><button class="close" type="button" data-close="1">Sluiten</button><h2>Systeemmeldingen</h2>'+
+      (rows.length ? rows.map(function(a){
+        return '<div class="row"><b>'+esc(a.type || a.title || 'Melding')+'</b><br><small>'+esc(a.time || a.createdAt || '')+'</small>'+
+          '<div>'+esc(orderLabel(a))+'</div><div>'+esc(a.note || a.message || a.text || '')+'</div>'+
+          '<p><button class="ok" type="button" data-resolve="'+esc(a.id)+'">Afmelden</button><button class="danger" type="button" data-delete="'+esc(a.id)+'">Wis</button></p></div>';
+      }).join('') : '<p>Geen open systeemmeldingen.</p>') + '</div>';
+    document.body.appendChild(m);
+  }
+  async function firebase(){
+    if(fbTools) return fbTools;
+    if(!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN') return null;
+    try{
+      var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+      var fsMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+      var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+      fbTools = { fs: fsMod, db: fsMod.getFirestore(app) };
+      return fbTools;
+    }catch(e){ return null; }
+  }
+  function mergeAlerts(remote){
+    if(!Array.isArray(remote)) return false;
+    var st = readState();
+    st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
+    var by = Object.create(null);
+    st.alerts.forEach(function(a){ if(a && a.id) by[String(a.id)] = a; });
+    remote.forEach(function(a){ if(a && a.id) by[String(a.id)] = Object.assign({}, by[String(a.id)] || {}, a); });
+    var next = Object.keys(by).map(function(k){ return by[k]; });
+    var oldJson = JSON.stringify(st.alerts || []);
+    var newJson = JSON.stringify(next || []);
+    if(oldJson === newJson) return false;
+    st.alerts = next;
+    writeState(st);
+    return true;
+  }
+  async function loadRemoteAlerts(){
+    var t = await firebase();
+    if(!t) { updateButton(); return; }
+    try{
+      var snap = await t.fs.getDocs(t.fs.collection(t.db, 'alerts'));
+      var rows = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data() || {}); });
+      var json = JSON.stringify(rows.map(function(x){ return [x.id,x.resolved,x.done,x.closed,x.status,x.updatedAt,x.createdAt,x.time,x.note,x.message,x.text]; }));
+      if(json !== lastRemoteJson){ lastRemoteJson = json; mergeAlerts(rows); }
+      updateButton();
+    }catch(e){ updateButton(); }
+  }
+  async function setRemoteResolved(id, remove){
+    var st = readState();
+    st.alerts = Array.isArray(st.alerts) ? st.alerts : [];
+    if(remove){ st.alerts = st.alerts.filter(function(a){ return String(a.id) !== String(id); }); }
+    else { st.alerts.forEach(function(a){ if(String(a.id) === String(id)){ a.resolved = true; a.resolvedAt = new Date().toISOString(); } }); }
+    writeState(st);
+    updateButton();
+    var t = await firebase();
+    if(!t || !id) return;
+    try{
+      if(remove) await t.fs.deleteDoc(t.fs.doc(t.db, 'alerts', String(id)));
+      else await t.fs.setDoc(t.fs.doc(t.db, 'alerts', String(id)), { resolved:true, resolvedAt:new Date().toISOString() }, { merge:true });
+    }catch(e){}
+  }
+  function bind(){
+    document.addEventListener('click', function(ev){
+      var target = ev.target && ev.target.closest && ev.target.closest('button,a,[role="button"]');
+      if(!target) return;
+      if(target.matches('#twV207RAlertModal [data-close]')){ ev.preventDefault(); target.closest('#twV207RAlertModal').remove(); return; }
+      var rid = target.getAttribute('data-resolve');
+      if(rid){ ev.preventDefault(); setRemoteResolved(rid, false).then(openModal); return; }
+      var did = target.getAttribute('data-delete');
+      if(did){ ev.preventDefault(); setRemoteResolved(did, true).then(openModal); return; }
+      if(/systeemmeldingen/i.test(target.textContent || '')){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); openModal(); }
+    }, true);
+  }
+  function loop(){ loadRemoteAlerts(); setTimeout(loop, 10000); }
+  function start(){ installStyle(); bind(); updateButton(); setTimeout(loadRemoteAlerts, 800); setTimeout(loadRemoteAlerts, 2500); loop(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else setTimeout(start, 80);
 })();
