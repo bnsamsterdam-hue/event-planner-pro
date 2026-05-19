@@ -17557,72 +17557,102 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   else setTimeout(install, 250);
 })();
 
-/* ==== V207L rustige cleanup: alleen dubbele knoppen verbergen, geen render/startcode wijzigen ==== */
+/* ==== V207M zichtbare opruiming vanaf V207E: geen start/render-overname, alleen bestaande knoppen opruimen ==== */
 (function(){
-  if (window.__TW_V207L_CLEANUP__) return;
-  window.__TW_V207L_CLEANUP__ = true;
+  if (window.__TW_V207M_VISIBLE_CLEANUP__) return;
+  window.__TW_V207M_VISIBLE_CLEANUP__ = true;
 
-  function norm(s){ return String(s||'').replace(/\s+/g,' ').trim().toLowerCase(); }
-  function visible(el){ return !!(el && el.offsetParent !== null && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden'); }
-  function textOf(el){ return norm(el && (el.innerText || el.textContent || el.value)); }
-  function hide(el){
-    if (!el || el.dataset.tw207lHidden === '1') return;
-    el.dataset.tw207lHidden = '1';
-    el.style.display = 'none';
-  }
-  function nearestCard(el){
+  function txt(el){ return String((el && (el.innerText || el.textContent || el.value)) || '').replace(/\s+/g,' ').trim(); }
+  function low(el){ return txt(el).toLowerCase(); }
+  function all(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function isBtn(el){ return el && (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' || /\b(btn|button)\b/i.test(String(el.className||''))); }
+  function hide(el){ if(!el) return; el.style.setProperty('display','none','important'); el.setAttribute('data-tw207m-hidden','1'); }
+  function show(el){ if(!el || el.getAttribute('data-tw207m-hidden')==='1') return; }
+  function pageText(){ return String(document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase(); }
+
+  function findOrderCard(el){
     var cur = el;
-    for (var i=0; cur && i<9; i++, cur=cur.parentElement){
-      var t = norm(cur.innerText || cur.textContent || '');
-      if ((t.indexOf('datum:') >= 0 || t.indexOf('klant:') >= 0 || t.indexOf('materialen:') >= 0) && t.length > 80) return cur;
-      if (cur.className && /card|order|opdracht|item|row/i.test(String(cur.className)) && t.length > 50) return cur;
+    for(var i=0; cur && i<12; i++, cur=cur.parentElement){
+      var t = low(cur);
+      if((t.indexOf('datum:') >= 0 && (t.indexOf('klant:') >= 0 || t.indexOf('materialen:') >= 0)) || /order-card|opdracht/i.test(String(cur.className||''))) return cur;
     }
-    return el.parentElement || document.body;
+    return null;
   }
-  function isActionEl(el){ return el && (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' || /btn|button/i.test(String(el.className||''))); }
+
+  function orderCards(){
+    var cards = [];
+    all('div,article,section,li').forEach(function(el){
+      var t = low(el);
+      if(t.length > 40 && t.length < 2500 && t.indexOf('datum:') >= 0 && (t.indexOf('klant:') >= 0 || t.indexOf('materialen:') >= 0)){
+        if(!cards.some(function(c){ return c.contains(el); })) cards.push(el);
+      }
+    });
+    return cards;
+  }
 
   function cleanupBookButtons(){
-    var found = [];
-    document.querySelectorAll('button,a,[role="button"]').forEach(function(el){
-      if (textOf(el) === 'boekhouding / facturen') found.push(el);
-    });
-    found.forEach(function(el, idx){ if (idx > 0) hide(el); });
+    var buttons = all('button,a,[role="button"]').filter(function(el){ return low(el).indexOf('boekhouding / facturen') >= 0; });
+    buttons.forEach(function(el, idx){ if(idx > 0) hide(el); });
   }
 
-  function cleanupWithinCards(){
-    var groups = new Map();
-    document.querySelectorAll('button,a,[role="button"],span.badge,span,label').forEach(function(el){
-      if (!visible(el)) return;
-      var t = textOf(el);
-      if (!t) return;
-      var keyName = null;
-      if (t === 'opdrachtbevestiging' || t === 'opdracht bevestiging') keyName = 'opdrachtbevestiging';
-      else if (t === 'factuur') keyName = 'factuur';
-      else if (t === 'openstaande factuur') keyName = 'openstaande factuur';
-      else if (t === 'boekhouding / facturen') keyName = 'boekhouding / facturen';
-      else return;
+  function cleanupOrderButtons(){
+    orderCards().forEach(function(card){
+      // Verberg de extra V207 rij die de kaarten druk maakte. De originele basis-knoppen blijven staan.
+      all('.bns-v207-row', card).forEach(hide);
 
-      var card = nearestCard(el);
-      var key = keyName + '::' + (card.dataset.tw207lCardId || (card.dataset.tw207lCardId = Math.random().toString(36).slice(2)));
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(el);
-    });
-    groups.forEach(function(list, key){
-      // Keep the first visible instance in each opdracht/document block; hide the rest.
-      list.forEach(function(el, idx){ if (idx > 0) hide(el); });
+      var seen = Object.create(null);
+      all('button,a,[role="button"],span,label', card).forEach(function(el){
+        var t = low(el);
+        if(!t) return;
+        // Betaalknop hoort niet op de opdrachtkaart.
+        if(t === 'zet betaald' || t === 'zet openstaand') { hide(el); return; }
+        // Dubbele labels/knoppen verminderen.
+        var key = '';
+        if(t === 'openstaande factuur' || t === 'betaald') key = 'paylabel';
+        else if(t === 'opdrachtbevestiging' || t === 'opdracht bevestiging') key = 'confirm';
+        else if(t === 'factuur') key = 'invoice';
+        else if(t === 'boekhouding / facturen') key = 'book';
+        else return;
+        seen[key] = seen[key] || [];
+        seen[key].push(el);
+      });
+      Object.keys(seen).forEach(function(key){
+        seen[key].forEach(function(el, idx){
+          // In opdrachtkaart: houd max 1 betaalstatuslabel, maar verberg factuur/opdrachtknoppen als ze vaker dan 1 keer staan.
+          if(idx > 0) hide(el);
+        });
+      });
     });
   }
 
-  function cleanupDocumentPanel(){
-    var panels = Array.prototype.slice.call(document.querySelectorAll('section,div,main')).filter(function(el){
-      var t = norm(el.innerText || el.textContent || '');
-      return t.indexOf('facturen / documenten') >= 0 || t.indexOf('opdracht documenten') >= 0 || t.indexOf('documenten voor klant') >= 0;
+  function cleanupDriverInbox(){
+    var t = pageText();
+    if(t.indexOf('bezorger meldingen') < 0) return;
+    // Op deze pagina horen planner-acties niet.
+    all('button,a,[role="button"]').forEach(function(el){
+      var v = low(el);
+      if(v === 'storing' || v === 'schade' || v === 'vermissing' || v === 'factuur' || v === 'opdrachtbevestiging' || v === 'opdracht bevestiging' || v === 'zet betaald' || v === 'zet openstaand') hide(el);
+    });
+    // Als de pagina geen echte tekst als melding bevat maar alleen opdrachten, zet een hint bovenaan.
+    if(!document.getElementById('tw207mDriverHint')){
+      var h = document.createElement('div');
+      h.id = 'tw207mDriverHint';
+      h.textContent = 'Bezorger meldingen: alleen telefoonmeldingen worden hier getoond.';
+      h.style.cssText = 'margin:10px 0;padding:10px 14px;border-radius:12px;background:#eef6ff;border:1px solid #bfdbfe;font-weight:800;color:#0f172a;';
+      var main = document.querySelector('main') || document.body;
+      main.insertBefore(h, main.firstChild);
+    }
+  }
+
+  function cleanupDocumentsPanel(){
+    var panels = all('div,section,main').filter(function(el){
+      var t = low(el);
+      return t.indexOf('facturen / documenten') >= 0 || t.indexOf('documenten voor klant') >= 0 || t.indexOf('opdracht documenten') >= 0;
     });
     panels.forEach(function(panel){
       ['factuur maken','opdrachtbevestiging','opdracht bevestiging','printen','mailen','delen','whatsapp'].forEach(function(label){
-        var items = [];
-        panel.querySelectorAll('button,a,[role="button"]').forEach(function(el){ if (visible(el) && textOf(el) === label) items.push(el); });
-        items.forEach(function(el, idx){ if (idx > 0) hide(el); });
+        var list = all('button,a,[role="button"]', panel).filter(function(el){ return low(el) === label; });
+        list.forEach(function(el, idx){ if(idx > 0) hide(el); });
       });
     });
   }
@@ -17630,16 +17660,17 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   function cleanup(){
     try{
       cleanupBookButtons();
-      cleanupWithinCards();
-      cleanupDocumentPanel();
-    }catch(e){ console.warn('[V207L cleanup]', e); }
+      cleanupOrderButtons();
+      cleanupDriverInbox();
+      cleanupDocumentsPanel();
+    }catch(e){ try{ console.warn('[V207M cleanup]', e); }catch(_e){} }
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cleanup, {once:true});
-  else cleanup();
-  var runs = 0;
-  var timer = setInterval(function(){
-    runs += 1;
-    cleanup();
-    if (runs >= 20) clearInterval(timer);
-  }, 1000);
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cleanup);
+  else setTimeout(cleanup, 50);
+  var count = 0;
+  var timer = setInterval(function(){ cleanup(); if(++count > 120) clearInterval(timer); }, 500);
+  try{
+    new MutationObserver(function(){ cleanup(); }).observe(document.documentElement,{childList:true,subtree:true});
+  }catch(e){}
 })();
