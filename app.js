@@ -15518,3 +15518,289 @@ setInterval(install,1500);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick, 300); }); else setTimeout(tick, 100);
   setTimeout(tick, 800); setTimeout(tick, 1800); setInterval(tick, 2500);
 })();
+
+
+/* ===== V300-AR: stabiele toevoegingen bovenop V300 basis =====
+   Doel: niet de stabiele basis verbouwen, maar vaste onderdelen toevoegen:
+   - Boekhouding nieuw venster met jaarmappen, facturen openen, betaalstatus.
+   - Documenten-tab knoppen herstellen als ze ontbreken.
+   - Bezorger meldingen als stabiele inbox met alleen echte meldingen.
+   - Overzicht bestelling: Wis knop naast Delen/Print waar mogelijk.
+   - Geen driver / Firebase config wijzigingen. */
+(function(){
+  'use strict';
+  if (window.__TAPWAGEN_V300_AR__) return;
+  window.__TAPWAGEN_V300_AR__ = true;
+
+  var APP_VERSION = 'V300-AR';
+  var currentYearFilter = 'all';
+  var currentAccountingStatus = 'all';
+  var currentAccountingQuery = '';
+  var renderTimer = 0;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function txt(v){ return String(v == null ? '' : v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function H(v){ return txt(v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function money(v){ var n=Number(v||0); return '€ '+n.toFixed(2).replace('.', ','); }
+  function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || (window.state={orders:[],materials:[],alerts:[],users:[]}); }
+  function orders(){ var s=stateObj(); if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
+  function alerts(){ var s=stateObj(); if(!Array.isArray(s.alerts)) s.alerts=[]; return s.alerts; }
+  function saveAll(){
+    try{ if(typeof save === 'function') save(); }catch(e){}
+    try{ if(typeof saveState === 'function') saveState(); }catch(e){}
+    try{ if(typeof saveLocal === 'function') saveLocal(); }catch(e){}
+    try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(stateObj())); }catch(e){}
+  }
+  function syncOrder(o){ try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){} try{ if(typeof syncDoc==='function') syncDoc('orders', o.id, o); }catch(e){} }
+  function syncAlert(a){ try{ if(typeof syncDoc==='function') syncDoc('alerts', a.id, a); }catch(e){} }
+  function toast(msg){ try{ if(typeof toastMsg==='function') return toastMsg(msg); }catch(e){} try{ if(typeof toast==='function') return toast(msg); }catch(e){} console.log('[Tapwagen]', msg); }
+
+  function parseDate(v){
+    v = txt(v);
+    if(!v) return null;
+    var m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+    m = v.match(/^(\d{2})-(\d{2})-(\d{4})/);
+    if(m) return new Date(Number(m[3]), Number(m[2])-1, Number(m[1]));
+    var d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function yearOfOrder(o){
+    var inv = txt(o && o.invoice && o.invoice.invoiceNumber);
+    var m = inv.match(/(?:^|\D)(20\d{2})(?:\D|$)/);
+    if(m) return m[1];
+    var d = parseDate((o && (o.end || o.start)) || '');
+    return d ? String(d.getFullYear()) : '';
+  }
+  function nice(v){
+    v = txt(v);
+    var m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? (m[3]+'-'+m[2]+'-'+m[1]) : v;
+  }
+  function isPaid(o){ return !!(o && (o.paid === true || o.paymentStatus === 'paid' || o.betaald === true || (o.invoice && (o.invoice.paid === true || o.invoice.paymentStatus === 'paid')))); }
+  function invoiceNumber(o){ return txt(o && o.invoice && (o.invoice.invoiceNumber || o.invoice.number)) || txt(o && (o.invoiceNumber || o.factuurNr || o.factuur)); }
+  function orderTotal(o){
+    var p = (o && o.pricing) || {};
+    return Number(p.grand || p.total || p.incl || o.total || 0) || 0;
+  }
+  function orderTitle(o){ return txt(o && (o.title || o.name || o.naam)); }
+  function customerName(o){ return txt(o && o.customer && o.customer.name) || txt(o && (o.customerName || o.klant)); }
+  function orderNo(o){ return txt(o && (o.number || o.nr || o.id)); }
+  function matCodes(o){ return ((o && o.materials) || []).map(function(m){ return txt(m.code || m.productNr || m.name); }).filter(Boolean).join(', '); }
+  function setPaid(id, paid){
+    var o = orders().find(function(x){ return String(x.id)===String(id) || String(x.number)===String(id); });
+    if(!o) return;
+    o.invoice = o.invoice || {};
+    o.paid = !!paid;
+    o.betaald = !!paid;
+    o.paymentStatus = paid ? 'paid' : 'open';
+    o.invoice.paid = !!paid;
+    o.invoice.paymentStatus = paid ? 'paid' : 'open';
+    o.invoice.paidAt = paid ? new Date().toISOString() : '';
+    saveAll(); syncOrder(o);
+    renderAccounting();
+    patchPaymentLabels();
+    toast(paid ? 'Factuur betaald gezet' : 'Factuur openstaand gezet');
+  }
+  window.TW300_AR_setPaid = setPaid;
+
+  function openOrderDoc(id, type){
+    var o = orders().find(function(x){ return String(x.id)===String(id) || String(x.number)===String(id); });
+    if(!o) return;
+    try{ if(typeof editOrder === 'function') editOrder(o.id); }catch(e){}
+    setTimeout(function(){
+      try{
+        if(/bevestiging|offerte/i.test(type) && typeof window.makeConfirmation === 'function') return window.makeConfirmation();
+        if(typeof window.makeInvoice === 'function') return window.makeInvoice();
+      }catch(e){}
+      try{ if(typeof makeInvoice === 'function') return makeInvoice(); }catch(e){}
+    }, 100);
+  }
+  window.TW300_AR_openDoc = openOrderDoc;
+
+  function yearsFor(list){
+    var set = {};
+    list.forEach(function(o){ var y=yearOfOrder(o); if(y) set[y]=true; });
+    return Object.keys(set).sort(function(a,b){ return Number(a)-Number(b); });
+  }
+  function allAccountingOrders(){
+    return orders().filter(function(o){ return !/verwijderd/i.test(txt(o && o.status)); });
+  }
+  function filterAccounting(list){
+    var q = low(currentAccountingQuery);
+    return list.filter(function(o){
+      if(currentYearFilter !== 'all' && yearOfOrder(o) !== currentYearFilter) return false;
+      if(currentAccountingStatus === 'open' && isPaid(o)) return false;
+      if(currentAccountingStatus === 'paid' && !isPaid(o)) return false;
+      if(!q) return true;
+      return [orderNo(o), invoiceNumber(o), customerName(o), orderTitle(o), matCodes(o), yearOfOrder(o)].join(' ').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+  function ensureAccountingModal(){
+    var modal = E('tw300AccountingModal');
+    if(modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'tw300AccountingModal';
+    modal.className = 'tw300-modal hidden';
+    modal.innerHTML = '<div class="tw300-panel tw300-accounting-panel"><div class="tw300-head"><h2>Boekhouding / facturen</h2><button class="tw300-dark" type="button" id="tw300AccClose">Terug</button></div><div id="tw300AccYears" class="tw300-years"></div><div class="tw300-tools"><input id="tw300AccSearch" placeholder="Zoek factuur, klant, opdracht, titel"><select id="tw300AccStatus"><option value="all">Alles</option><option value="open">Openstaand</option><option value="paid">Betaald</option></select></div><div id="tw300AccList"></div></div>';
+    document.body.appendChild(modal);
+    E('tw300AccClose').onclick = closeAccounting;
+    E('tw300AccSearch').oninput = function(){ currentAccountingQuery = this.value || ''; renderAccounting(); };
+    E('tw300AccStatus').onchange = function(){ currentAccountingStatus = this.value || 'all'; renderAccounting(); };
+    modal.addEventListener('click', function(ev){ if(ev.target===modal) closeAccounting(); });
+    return modal;
+  }
+  function openAccounting(){ ensureAccountingModal().classList.remove('hidden'); renderAccounting(); return false; }
+  function closeAccounting(){ var m=E('tw300AccountingModal'); if(m) m.classList.add('hidden'); }
+  window.TW300_AR_openAccounting = openAccounting;
+
+  function renderAccounting(){
+    var modal = ensureAccountingModal();
+    var all = allAccountingOrders();
+    var years = yearsFor(all);
+    var ybox = E('tw300AccYears');
+    if(ybox){
+      ybox.innerHTML = ['all'].concat(years).map(function(y){
+        var label = y==='all' ? 'Alles' : y;
+        return '<button type="button" class="tw300-folder '+(currentYearFilter===y?'active':'')+'" data-y="'+H(y)+'">📁 '+H(label)+'</button>';
+      }).join('');
+      A('button', ybox).forEach(function(b){ b.onclick=function(){ currentYearFilter = b.dataset.y || 'all'; renderAccounting(); }; });
+    }
+    var rows = filterAccounting(all).sort(function(a,b){
+      var ya = yearOfOrder(a), yb = yearOfOrder(b);
+      if(ya !== yb) return Number(yb || 0) - Number(ya || 0);
+      return txt(b.start || b.end).localeCompare(txt(a.start || a.end));
+    });
+    var box = E('tw300AccList');
+    if(!box) return;
+    box.innerHTML = rows.length ? rows.map(function(o){
+      var paid = isPaid(o);
+      var id = H(o.id || o.number || '');
+      return '<div class="tw300-acc-card">'+
+        '<div class="tw300-acc-main"><div><b>'+H(orderNo(o) || '-')+'</b><small>'+H(yearOfOrder(o))+'</small></div><div><b>'+H(customerName(o) || '-')+'</b><small>Klant</small></div><div><b>'+H(orderTitle(o) || '-')+'</b><small>Titel</small></div><div><b>'+H(invoiceNumber(o) || '-')+'</b><small>Factuur</small></div></div>'+
+        '<div class="tw300-acc-side"><span class="tw300-pay-badge '+(paid?'paid':'open')+'">'+(paid?'Betaald':'Openstaande factuur')+'</span><b>'+money(orderTotal(o))+'</b><button type="button" class="tw300-paid-btn" onclick="TW300_AR_setPaid(\''+id+'\','+(!paid)+')">'+(paid?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="TW300_AR_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="TW300_AR_openDoc(\''+id+'\',\'bevestiging\')">Open opdrachtbevestiging</button></div>'+
+      '</div>';
+    }).join('') : '<div class="tw300-empty">Geen facturen/opdrachten gevonden.</div>';
+  }
+
+  function bindAccountingButtons(){
+    A('button').forEach(function(b){
+      var t = low(b.textContent);
+      if((/boekhouding|facturen/.test(t)) && !b.dataset.tw300Accounting){
+        b.dataset.tw300Accounting = '1';
+        b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); openAccounting(); }, true);
+      }
+    });
+  }
+
+  function ensureDocumentButtons(){
+    var panel = E('documentPanel') || E('documentsPanel') || A('.workpanel').find(function(p){ return /facturen|documenten|opdracht documenten/i.test(p.textContent || ''); });
+    if(!panel) return;
+    if(E('tw300DocActions')) return;
+    var row = document.createElement('div');
+    row.id = 'tw300DocActions';
+    row.className = 'actions tw300-doc-actions';
+    row.innerHTML = '<button type="button" class="tw300-blue" id="tw300MakeInvoice">Factuur maken</button><button type="button" class="tw300-orange" id="tw300MakeConfirm">Opdrachtbevestiging maken</button>';
+    var ref = panel.querySelector('.actions.sticky, .actions') || panel.firstElementChild;
+    if(ref && ref.parentNode === panel) panel.insertBefore(row, ref.nextSibling); else panel.appendChild(row);
+    E('tw300MakeInvoice').onclick = function(ev){ ev.preventDefault(); try{ if(typeof window.makeInvoice==='function') return window.makeInvoice(); }catch(e){} try{ if(typeof makeInvoice==='function') return makeInvoice(); }catch(e){} return false; };
+    E('tw300MakeConfirm').onclick = function(ev){ ev.preventDefault(); try{ if(typeof window.makeConfirmation==='function') return window.makeConfirmation(); }catch(e){} try{ if(typeof makeConfirmation==='function') return makeConfirmation(); }catch(e){} return false; };
+  }
+
+  function isProblemAlert(a){
+    var s = low([a && a.title, a && a.type, a && a.kind, a && a.category, a && a.message, a && a.text].join(' '));
+    if(a && a.resolved) return false;
+    if(/foto|handtekening|signature|voor levering|na levering/.test(s)) return false;
+    return /storing|schade|vermissing|vermist|probleem|melding|defect/.test(s);
+  }
+  function orderById(id){ return orders().find(function(o){ return String(o.id)===String(id) || String(o.number)===String(id); }); }
+  function renderDriverInbox(){
+    var box = E('driverList');
+    if(!box) return;
+    var list = alerts().filter(isProblemAlert).sort(function(a,b){ return txt(b.createdAt || b.time).localeCompare(txt(a.createdAt || a.time)); });
+    box.innerHTML = list.length ? list.map(function(a){
+      var o = orderById(a.orderId || a.order || a.oid);
+      var id = H(a.id || '');
+      return '<div class="tw300-driver-alert"><h3>'+H(a.type || a.title || 'Melding')+'</h3><small>'+H(a.time || a.createdAt || '')+'</small><p><b>Opdracht:</b> '+H(o ? (orderNo(o)+' - '+orderTitle(o)) : (a.orderNumber || a.orderId || '-'))+'<br><b>Klant:</b> '+H(o ? customerName(o) : (a.customer || a.customerName || '-'))+'<br><b>Bezorger:</b> '+H(a.driver || a.driverName || a.user || '')+'</p><div>'+H(a.message || a.text || a.note || '')+'</div><div class="tw300-actions"><button type="button" class="tw300-green" onclick="TW300_AR_resolveAlert(\''+id+'\')">Afmelden</button><button type="button" class="tw300-red" onclick="TW300_AR_deleteAlert(\''+id+'\')">Wis melding</button></div></div>';
+    }).join('') : '<p class="tw300-empty">Geen bezorger storingsmeldingen.</p>';
+    updateAlertButton(list.length);
+  }
+  function saveAlertAndRefresh(a, del){
+    if(del){ var ix=alerts().findIndex(function(x){ return String(x.id)===String(a.id); }); if(ix>=0) alerts().splice(ix,1); }
+    saveAll(); syncAlert(a); setTimeout(renderDriverInbox, 30);
+  }
+  window.TW300_AR_resolveAlert = function(id){ var a=alerts().find(function(x){ return String(x.id)===String(id); }); if(!a) return; a.resolved=true; a.resolvedAt=new Date().toISOString(); saveAlertAndRefresh(a,false); };
+  window.TW300_AR_deleteAlert = function(id){ var a=alerts().find(function(x){ return String(x.id)===String(id); }); if(!a) return; saveAlertAndRefresh(a,true); };
+  function updateAlertButton(count){
+    var btn = E('alertsBtn'); if(!btn) return;
+    var n = typeof count==='number' ? count : alerts().filter(isProblemAlert).length;
+    btn.textContent = 'Systeemmeldingen ('+n+')';
+    btn.classList.toggle('tw300-alert-red', n>0);
+  }
+
+  function addWisButtons(){
+    A('button').forEach(function(b){
+      if(b.dataset.tw300Wis) return;
+      var t = low(b.textContent);
+      if(t !== 'delen' && t !== 'print') return;
+      var parent = b.parentElement;
+      if(!parent || parent.querySelector('.tw300-wis-btn')) return;
+      var w = document.createElement('button');
+      w.type = 'button'; w.className = 'tw300-wis-btn tw300-red'; w.textContent = 'Wis'; w.dataset.tw300Wis='1';
+      w.onclick = function(ev){ ev.preventDefault(); ev.stopPropagation(); var card = w.closest('.card,.melding-card,.photo-card,.driver-photo,.tw300-driver-alert,div'); if(card) card.remove(); };
+      parent.appendChild(w);
+    });
+  }
+
+  function patchPaymentLabels(){
+    A('.order-card').forEach(function(card){
+      var txtCard = card.textContent || '';
+      var o = orders().find(function(x){ return txtCard.indexOf(orderNo(x)) >= 0; });
+      if(!o) return;
+      var old = card.querySelector('.tw300-card-pay-badge'); if(old) old.remove();
+      var badge = document.createElement('span');
+      badge.className = 'tw300-card-pay-badge '+(isPaid(o)?'paid':'open');
+      badge.textContent = isPaid(o) ? '☑ Betaald' : 'Openstaande factuur';
+      var title = card.querySelector('.order-title') || card.querySelector('b') || card.firstElementChild;
+      if(title && title.parentNode) title.parentNode.insertBefore(badge, title.nextSibling);
+    });
+  }
+
+  function onPageStable(){
+    bindAccountingButtons();
+    ensureDocumentButtons();
+    if(E('driver') && E('driver').classList.contains('active')) renderDriverInbox();
+    addWisButtons();
+    patchPaymentLabels();
+    updateAlertButton();
+  }
+  function schedule(){ clearTimeout(renderTimer); renderTimer = setTimeout(onPageStable, 120); }
+
+  function patchShowPage(){
+    if(window.__TW300_AR_SHOWPAGE__) return;
+    window.__TW300_AR_SHOWPAGE__ = true;
+    try{
+      var old = showPage;
+      showPage = function(p){ var r = old.apply(this, arguments); schedule(); return r; };
+      window.showPage = showPage;
+    }catch(e){}
+    try{
+      var oldRenderAll = renderAll;
+      renderAll = function(){ var r = oldRenderAll.apply(this, arguments); schedule(); return r; };
+      window.renderAll = renderAll;
+    }catch(e){}
+  }
+
+  function styles(){
+    if(E('tw300ARStyle')) return;
+    var s=document.createElement('style'); s.id='tw300ARStyle';
+    s.textContent = '.tw300-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:grid;place-items:center;padding:18px}.tw300-modal.hidden{display:none!important}.tw300-panel{width:min(1180px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:20px;padding:20px;box-shadow:0 24px 70px rgba(0,0,0,.35);color:#172033}.tw300-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.tw300-tools{display:grid;grid-template-columns:minmax(240px,1fr) 220px;gap:10px;margin:12px 0}.tw300-tools input,.tw300-tools select{padding:12px;border:1px solid #dbe3ef;border-radius:12px}.tw300-years{display:flex;flex-wrap:wrap;gap:8px}.tw300-folder{border:0;border-radius:12px;padding:10px 14px;background:#dbeafe;color:#1e3a8a;font-weight:900}.tw300-folder.active{background:#0f172a!important;color:#fff!important}.tw300-acc-card{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:14px;align-items:center;border:1px solid #dbe3ef;border-radius:16px;padding:12px;margin:10px 0;background:#fff}.tw300-acc-main{display:grid;grid-template-columns:120px 1fr 1.2fr 120px;gap:12px;align-items:center}.tw300-acc-main small{display:block;color:#64748b;font-size:11px;margin-top:4px}.tw300-acc-side{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}.tw300-acc-side button,.tw300-paid-btn,.tw300-dark,.tw300-green,.tw300-red,.tw300-blue,.tw300-orange{border:0;border-radius:10px;padding:9px 12px;font-weight:900;color:#fff}.tw300-dark{background:#0f172a}.tw300-green{background:#16a34a}.tw300-red{background:#dc2626}.tw300-blue{background:#2563eb}.tw300-orange{background:#f59e0b}.tw300-paid-btn{background:#16a34a!important}.tw300-pay-badge,.tw300-card-pay-badge{display:inline-flex;align-items:center;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900}.tw300-pay-badge.open,.tw300-card-pay-badge.open{background:#fee2e2;color:#7f1d1d}.tw300-pay-badge.paid,.tw300-card-pay-badge.paid{background:#dcfce7;color:#166534}.tw300-empty{padding:16px;border:1px dashed #cbd5e1;border-radius:14px;background:#f8fafc}.tw300-driver-alert{border:1px solid #dbe3ef;border-left:6px solid #dc2626;border-radius:16px;padding:14px;margin:10px 0;background:#fff}.tw300-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.tw300-doc-actions{margin:12px 0}.tw300-alert-red{background:#dc2626!important;color:#fff!important}@media(max-width:900px){.tw300-acc-card{grid-template-columns:1fr}.tw300-acc-main{grid-template-columns:1fr 1fr}.tw300-tools{grid-template-columns:1fr}}';
+    document.head.appendChild(s);
+  }
+
+  function start(){ styles(); patchShowPage(); onPageStable(); setTimeout(onPageStable,500); setTimeout(onPageStable,1500); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', start); else start();
+  document.addEventListener('click', function(){ setTimeout(schedule, 60); }, true);
+})();
