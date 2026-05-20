@@ -18233,3 +18233,64 @@ window.__BNS_CALM_INTERVAL__(install,1500);
     }
   }, true);
 })();
+
+/* ===== V207AE - rustige eigen meldingen + wis + boekhouding knop (alleen app.js) ===== */
+(function(){
+  if(window.__TW_V207AE_INSTALLED__) return;
+  window.__TW_V207AE_INSTALLED__ = true;
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function txt(e){return String(e && e.textContent || '').replace(/\s+/g,' ').trim()}
+  function css(){
+    if(q('#tw207ae-css')) return;
+    var st=document.createElement('style'); st.id='tw207ae-css'; st.textContent = `
+      *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+      .tw207ae-hide{display:none!important}
+      .tw207ae-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:999999;display:flex;align-items:center;justify-content:center;padding:18px}
+      .tw207ae-box{background:#fff;color:#172033;border-radius:20px;box-shadow:0 22px 70px rgba(0,0,0,.28);max-width:1100px;width:min(1100px,96vw);max-height:88vh;overflow:auto;padding:22px;font-family:inherit}
+      .tw207ae-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.tw207ae-head h2{margin:0;font-size:24px}
+      .tw207ae-actions{display:flex;gap:8px;flex-wrap:wrap}.tw207ae-btn{border:0;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;background:#2563eb;color:white}.tw207ae-btn.dark{background:#172033}.tw207ae-btn.green{background:#15803d}.tw207ae-btn.red{background:#dc2626}.tw207ae-btn.gray{background:#64748b}
+      .tw207ae-search{width:100%;box-sizing:border-box;border:1px solid #d8dee9;border-radius:12px;padding:12px 14px;font-size:16px;margin:8px 0 12px}
+      .tw207ae-years{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.tw207ae-year{border:0;border-radius:999px;padding:9px 13px;background:#e2e8f0;color:#172033;font-weight:800}.tw207ae-year.active{background:#2563eb;color:#fff}
+      .tw207ae-row{display:grid;grid-template-columns:110px 130px 1fr 1fr 130px 120px;gap:10px;align-items:center;border-bottom:1px solid #e2e8f0;padding:10px 0}.tw207ae-row.head{font-weight:900;color:#475569}.tw207ae-status{display:inline-block;border-radius:999px;padding:6px 10px;font-weight:900;font-size:13px;background:#fee2e2;color:#991b1b}.tw207ae-status.paid{background:#dcfce7;color:#166534}
+      .tw207ae-confirm .tw207ae-box{max-width:520px}.tw207ae-card-wis{margin-left:8px;background:#dc2626!important;color:#fff!important;border:0!important;border-radius:8px!important;padding:8px 12px!important;font-weight:800!important}
+      @media(max-width:900px){.tw207ae-row{grid-template-columns:1fr 1fr}.tw207ae-row.head{display:none}}
+    `; document.head.appendChild(st);
+  }
+  function S(){return window.state || window.appState || (typeof state!=='undefined'?state:null)}
+  function orders(){var s=S(); return s && Array.isArray(s.orders) ? s.orders : []}
+  function safe(v){ if(v==null) return ''; if(typeof v==='object') return v.name || v.title || v.number || v.id || ''; return String(v); }
+  function saveState(){ try{ if(typeof save==='function') save(); else if(window.save) window.save(); }catch(e){} try{ if(typeof renderAll==='function') renderAll(); else if(window.renderAll) window.renderAll(); }catch(e){} try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} }
+  function isPaid(o){ var v=o.paid || o.isPaid || o.betaald || o.paymentStatus==='paid' || o.invoiceStatus==='paid' || o.factuurBetaald===true || o.paidStatus==='paid'; return !!v; }
+  function setPaid(o, paid){ if(!o) return; o.paid=!!paid; o.isPaid=!!paid; o.betaald=!!paid; o.factuurBetaald=!!paid; o.paymentStatus=paid?'paid':'open'; o.invoiceStatus=paid?'paid':'open'; o.paidAt=paid?new Date().toISOString():''; saveState(); }
+  function yearOf(o){ var s=String(o.date||o.start||o.startDate||o.from||o.begin||o.number||''); var m=s.match(/(20\d{2})/); return m?m[1]:'Onbekend'; }
+  function totalOf(o){ var n=Number(o.total||o.totaal||o.totalIncl||o.amount||0); return isFinite(n)?('€ '+n.toFixed(2).replace('.',',')):'€ 0,00'; }
+  function openBook(){ css(); var old=q('#tw207ae-book'); if(old) old.remove(); var all=orders().slice(); var years=['Alles'].concat(Array.from(new Set(all.map(yearOf).filter(Boolean))).sort().reverse()); var active='Alles'; var search='';
+    var m=document.createElement('div'); m.id='tw207ae-book'; m.className='tw207ae-backdrop'; document.body.appendChild(m);
+    function draw(){ var list=all.filter(function(o){ if(active!=='Alles' && yearOf(o)!==active) return false; var hay=[o.number,o.invoiceNumber,o.factuurNr,o.customer,o.client,o.title,o.name,o.location,o.status].map(safe).join(' ').toLowerCase(); return !search || hay.indexOf(search.toLowerCase())>=0; });
+      m.innerHTML='<div class="tw207ae-box"><div class="tw207ae-head"><h2>Boekhouding / facturen</h2><button class="tw207ae-btn dark" data-close>Terug</button></div><input class="tw207ae-search" placeholder="Zoek factuur, klant, opdracht, titel" value="'+search.replace(/"/g,'&quot;')+'"><div class="tw207ae-years">'+years.map(function(y){return '<button class="tw207ae-year '+(y===active?'active':'')+'" data-year="'+y+'">📁 '+y+'</button>'}).join('')+'</div><div class="tw207ae-row head"><div>Opdracht</div><div>Factuur</div><div>Klant</div><div>Titel</div><div>Status</div><div>Actie</div></div>'+(list.length?list.map(function(o,i){ var paid=isPaid(o), id=o.id||o.number||i; return '<div class="tw207ae-row"><div><b>'+safe(o.number||o.nr||o.id)+'</b></div><div>'+safe(o.invoiceNumber||o.factuurNr||o.invoice||'-')+'</div><div>'+safe(o.customer||o.client||o.klant||o.customerName)+'</div><div>'+safe(o.title||o.name||o.description)+'</div><div><span class="tw207ae-status '+(paid?'paid':'')+'">'+(paid?'☑ Betaald':'Openstaande factuur')+'</span></div><div><button class="tw207ae-btn '+(paid?'gray':'green')+'" data-pay="'+id+'">'+(paid?'Zet openstaand':'Zet betaald')+'</button></div></div>'; }).join(''):'<p>Geen facturen gevonden.</p>')+'</div>';
+      q('[data-close]',m).onclick=function(){m.remove()}; q('.tw207ae-search',m).oninput=function(){search=this.value; draw()}; qa('[data-year]',m).forEach(function(b){b.onclick=function(){active=b.getAttribute('data-year'); draw()}}); qa('[data-pay]',m).forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-pay'); var o=all.find(function(x,i){return String(x.id||x.number||i)===String(id)}); setPaid(o,!isPaid(o)); draw(); }});
+    } draw(); return false;
+  }
+  function interceptBookButtons(){ qa('button,a').forEach(function(b){ if(b.dataset.tw207aeBook) return; if(!/Boekhouding\s*\/\s*facturen/i.test(txt(b))) return; b.dataset.tw207aeBook='1'; b.addEventListener('click',function(ev){ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation(); openBook(); return false;},true); }); }
+  function ownConfirm(message, onYes){ css(); var old=q('#tw207ae-confirm'); if(old) old.remove(); var m=document.createElement('div'); m.id='tw207ae-confirm'; m.className='tw207ae-backdrop tw207ae-confirm'; m.innerHTML='<div class="tw207ae-box"><h2>Tapwagen.nl</h2><p style="font-size:17px">'+safe(message)+'</p><div class="tw207ae-actions"><button class="tw207ae-btn gray" data-no>Annuleren</button><button class="tw207ae-btn red" data-yes>Verwijderen</button></div></div>'; document.body.appendChild(m); q('[data-no]',m).onclick=function(){m.remove()}; q('[data-yes]',m).onclick=function(){m.remove(); onYes&&onYes();}; }
+  var nativeConfirm=window.confirm;
+  window.confirm=function(msg){
+    if(window.__tw207aeConfirmBypass) return true;
+    if(/Gebruiker verwijderen|Materiaal verwijderen|Opdracht.*wissen|verwijderen|wissen/i.test(String(msg||''))){
+      try{ setTimeout(function(){ownConfirm(msg,function(){})},0); }catch(e){}
+      return nativeConfirm ? nativeConfirm.call(window, 'Tapwagen.nl\n\n'+String(msg||'')) : true;
+    }
+    return nativeConfirm ? nativeConfirm.call(window,msg) : true;
+  };
+  function interceptDeleteButtons(){ qa('button,a').forEach(function(b){ if(b.dataset.tw207aeDel) return; var t=txt(b); if(!/^(Wis|Verwijder|Wis materiaal|Verwijder opdracht)$/i.test(t) && !/verwijder/i.test(t)) return; b.dataset.tw207aeDel='1'; b.addEventListener('click',function(ev){ if(window.__tw207aeConfirmBypass) return true; var msg='Weet je zeker dat je dit wilt verwijderen?'; ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation(); ownConfirm(msg,function(){ window.__tw207aeConfirmBypass=1; try{ b.click(); }finally{ setTimeout(function(){window.__tw207aeConfirmBypass=0},100); } }); return false;},true); }); }
+  function addWisToOverview(){ qa('div,section,article').forEach(function(card){ if(card.dataset.tw207aeWis) return; var text=txt(card); if(!/(Schade|Storing|Melding|Foto|Handtekening)/i.test(text)) return; var buttons=qa('button',card).map(txt).join(' '); if(!/Delen|Print/i.test(buttons) || /Wis/i.test(buttons)) return; card.dataset.tw207aeWis='1'; var btn=document.createElement('button'); btn.type='button'; btn.className='tw207ae-card-wis'; btn.textContent='Wis'; btn.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); ownConfirm('Deze melding/foto uit dit overzicht wissen?', function(){ card.remove(); }); return false; }; card.appendChild(btn); }); }
+  function cleanupNoise(){
+    qa('body *').forEach(function(el){ var t=txt(el); if(t==='Bezorger meldingen: alleen telefoonmeldingen worden hier getoond.' || t==='Bezorger meldingen: alleen telefoonmeldingen worden hier getoond. Wis'){ el.classList.add('tw207ae-hide'); } });
+    qa('button').forEach(function(b){ var t=txt(b); if(t==='Wis' && b.closest('.tw207ae-box')) return; if(t==='Wis' && !b.closest('[class*=card]') && !b.closest('[id*=Modal]')){ b.classList.add('tw207ae-hide'); } });
+  }
+  function tick(){ css(); interceptBookButtons(); interceptDeleteButtons(); addWisToOverview(); cleanupNoise(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',tick); else tick();
+  setInterval(tick,2500);
+})();
+/* ===== einde V207AE ===== */
