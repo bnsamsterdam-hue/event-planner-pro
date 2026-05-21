@@ -17701,3 +17701,72 @@ setInterval(install,1500);
     mo.observe(document.body,{childList:true,subtree:true});
   }catch(e){}
 })();
+
+/* ===== V35: Bezorger meldingen map uit planner-menu ===== */
+(function(){
+  if (window.__twV35RemoveDriverMenu) return;
+  window.__twV35RemoveDriverMenu = true;
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function isDriverUser(){
+    try { return /bezorger|driver|chauffeur/.test(L(user && user.role)); } catch(e) {}
+    try { return /bezorger|driver|chauffeur/.test(L(window.user && window.user.role)); } catch(e) {}
+    return false;
+  }
+  function addStyle(){
+    if (document.getElementById('tw-v35-remove-driver-menu-style')) return;
+    var st=document.createElement('style');
+    st.id='tw-v35-remove-driver-menu-style';
+    st.textContent='.tw-v35-hidden-driver-menu{display:none!important;visibility:hidden!important;pointer-events:none!important}';
+    document.head.appendChild(st);
+  }
+  function hideDriverMenu(){
+    addStyle();
+    if (isDriverUser()) return;
+    var nodes = Array.prototype.slice.call(document.querySelectorAll('button,a,.nav,[data-page],li'));
+    nodes.forEach(function(el){
+      var txt=L(el.textContent || '');
+      var page=L(el.getAttribute && el.getAttribute('data-page'));
+      var id=L(el.id || '');
+      var cls=L(el.className || '');
+      var isDriverMenu = false;
+      if (txt === 'bezorger meldingen' || txt.indexOf('bezorger meldingen') >= 0) isDriverMenu = true;
+      if (page === 'driver' && txt.indexOf('bezorger') >= 0) isDriverMenu = true;
+      if ((id.indexOf('driver') >= 0 || cls.indexOf('driver') >= 0) && txt.indexOf('bezorger meldingen') >= 0) isDriverMenu = true;
+      if (isDriverMenu) {
+        el.classList.add('tw-v35-hidden-driver-menu');
+        el.setAttribute('aria-hidden','true');
+        try { el.tabIndex = -1; } catch(e) {}
+      }
+    });
+    try {
+      var driverPage = document.getElementById('driver');
+      if (driverPage && driverPage.classList.contains('active')) {
+        if (typeof showPage === 'function') showPage(document.getElementById('orders') ? 'orders' : 'dashboard');
+      }
+    } catch(e) {}
+  }
+  function scheduleClean(){ requestAnimationFrame(function(){ hideDriverMenu(); setTimeout(hideDriverMenu,120); }); }
+  try {
+    if (typeof showPage === 'function' && !showPage.__twV35NoDriverMenu) {
+      var oldShowPage = showPage;
+      showPage = function(p){
+        if (!isDriverUser() && String(p) === 'driver') p = document.getElementById('orders') ? 'orders' : 'dashboard';
+        var r = oldShowPage.apply(this, arguments.length ? [p].concat(Array.prototype.slice.call(arguments,1)) : arguments);
+        scheduleClean();
+        return r;
+      };
+      showPage.__twV35NoDriverMenu = true;
+    }
+  } catch(e) {}
+  try {
+    if (typeof renderAll === 'function' && !renderAll.__twV35NoDriverMenu) {
+      var oldRenderAll = renderAll;
+      renderAll = function(){ var r=oldRenderAll.apply(this, arguments); scheduleClean(); return r; };
+      renderAll.__twV35NoDriverMenu = true;
+    }
+  } catch(e) {}
+  document.addEventListener('DOMContentLoaded', scheduleClean);
+  setTimeout(scheduleClean, 300);
+  setTimeout(scheduleClean, 1000);
+})();
