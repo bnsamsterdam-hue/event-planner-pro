@@ -17770,3 +17770,144 @@ setInterval(install,1500);
   setTimeout(scheduleClean, 300);
   setTimeout(scheduleClean, 1000);
 })();
+
+/* ==========================================================
+   Tapwagen V36 - Nieuwe opdracht: routeknoppen rustig en uniek
+   Basis: V35. Alleen dubbele Routenet/Streetview in Nieuwe opdracht.
+========================================================== */
+(function tapwagenV36NieuweOpdrachtRoutes(){
+  'use strict';
+  if (window.__tapwagenV36NieuweOpdrachtRoutes) return;
+  window.__tapwagenV36NieuweOpdrachtRoutes = true;
+
+  var STYLE_ID='tapwagen-v36-route-buttons-style';
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function E(id){ return document.getElementById(id); }
+  function val(id){ var x=E(id); return x ? T(x.value) : ''; }
+
+  function addStyle(){
+    if (E(STYLE_ID)) return;
+    var st=document.createElement('style'); st.id=STYLE_ID;
+    st.textContent=[
+      '.tap-v36-routebox{display:flex!important;gap:10px!important;align-items:center!important;flex-wrap:wrap!important;margin:10px 0!important;padding:10px 0!important}',
+      '.tap-v36-routebox button{border:0!important;border-radius:12px!important;padding:12px 18px!important;min-width:145px!important;min-height:44px!important;font-size:14px!important;font-weight:900!important;line-height:1.15!important;cursor:pointer!important;box-shadow:0 2px 5px rgba(15,23,42,.12)!important}',
+      '.tap-v36-routenet{background:#0ea5e9!important;color:#fff!important}',
+      '.tap-v36-streetview{background:#7c3aed!important;color:#fff!important}',
+      '.tap-v36-route-hidden{display:none!important;visibility:hidden!important;pointer-events:none!important}',
+      '#tapV36AgendaRoutenet,#tapV36AgendaStreetview{display:inline-flex!important;align-items:center!important;justify-content:center!important}'
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+
+  function locationAddressFromForm(){
+    // Alleen locatie-adres gebruiken. Geen klantadres fallback, zodat de route altijd de afleverlocatie pakt.
+    var street = val('locationStreet') || val('locatieStraat') || val('locationAddress') || val('locatieAdres');
+    var house  = val('locationHouseNumber') || val('locatieHuisnummer') || val('houseNumberLocation') || val('locationNr') || val('locatieNr');
+    var zip    = val('locationZip') || val('locationPostcode') || val('locatiePostcode') || val('locatieZip');
+    var city   = val('locationCity') || val('locationPlace') || val('locatiePlaats') || val('locatieCity');
+    var parts=[];
+    [street,house,zip,city].forEach(function(p){ p=T(p); if(p && parts.indexOf(p)<0) parts.push(p); });
+    return parts.join(' ').replace(/\s+/g,' ').trim();
+  }
+
+  function routeUrl(kind,addr){
+    var q=encodeURIComponent(addr||'');
+    if(kind==='streetview') return 'https://www.google.com/maps?q=' + q + '&layer=c';
+    return 'https://www.routenet.nl/routeplanner?locatie=' + q;
+  }
+
+  function openRoute(kind){
+    var addr=locationAddressFromForm();
+    if(!addr){
+      try{
+        if(typeof window.tapToast==='function') window.tapToast('Vul eerst het locatie-adres in.');
+        else alert('Vul eerst het locatie-adres in.');
+      }catch(e){}
+      return false;
+    }
+    window.open(routeUrl(kind,addr),'_blank');
+    return false;
+  }
+
+  function isRouteButton(el){
+    if(!el) return '';
+    var txt=L(el.textContent || '');
+    var id=L(el.id || '');
+    var cls=L(el.className || '');
+    if(txt==='routenet' || id.indexOf('routenet')>=0 || cls.indexOf('routenet')>=0) return 'routenet';
+    if(txt==='streetview' || txt==='street view' || id.indexOf('streetview')>=0 || id.indexOf('street')>=0 || cls.indexOf('streetview')>=0 || cls.indexOf('street')>=0) return 'streetview';
+    return '';
+  }
+
+  function newOrderRoot(){
+    return E('newOrder') || E('newOrderPage') || E('orderForm') || E('locationPanel') || E('customerPanel') || document;
+  }
+
+  function sameRouteArea(el){
+    if(!el) return false;
+    if(el.id==='tapV36AgendaRoutenet' || el.id==='tapV36AgendaStreetview') return true;
+    // Nieuwe opdracht / planner snelknoppen / locatie-paneel, maar niet opdrachtkaarten.
+    if(el.closest && el.closest('.order-card,.bns-v126-order-card,.v95order,.bns-v83-phone-card')) return false;
+    var root = newOrderRoot();
+    if(root && root!==document && root.contains(el)) return true;
+    if(el.closest && (el.closest('#bnsPlannerTools') || el.closest('#locationPanel') || el.closest('#newOrder'))) return true;
+    return false;
+  }
+
+  function hideDuplicateRoutes(root){
+    A('button,a', root||document).forEach(function(el){
+      var kind=isRouteButton(el); if(!kind) return;
+      if(el.id==='tapV36AgendaRoutenet' || el.id==='tapV36AgendaStreetview') return;
+      if(!sameRouteArea(el)) return;
+      el.classList.add('tap-v36-route-hidden');
+      el.setAttribute('aria-hidden','true');
+      try{ el.tabIndex=-1; }catch(e){}
+    });
+  }
+
+  function ensureRouteButtons(){
+    addStyle();
+    var anchor = E('bnsAgendaPickupBtn') || E('bnsAgendaOrderBtn') || E('bnsMapsPlannerBtn') || E('bnsWazePlannerBtn');
+    var loc = E('locationName') || E('locationStreet') || E('locationZip') || E('locationCity');
+    var host = null;
+    if(anchor) host = anchor.parentElement;
+    if(!host && loc) host = (loc.closest && loc.closest('.card,section,fieldset,form,.panel,.box,div')) || loc.parentElement;
+    if(!host) return;
+
+    var box=E('tapV36RouteBox');
+    if(!box){
+      box=document.createElement('div'); box.id='tapV36RouteBox'; box.className='tap-v36-routebox';
+      var r=document.createElement('button'); r.type='button'; r.id='tapV36AgendaRoutenet'; r.className='tap-v36-routenet'; r.textContent='Routenet';
+      var s=document.createElement('button'); s.type='button'; s.id='tapV36AgendaStreetview'; s.className='tap-v36-streetview'; s.textContent='Streetview';
+      box.appendChild(r); box.appendChild(s);
+      if(anchor && anchor.parentElement){ anchor.parentElement.appendChild(box); }
+      else { host.appendChild(box); }
+    } else if(box.parentElement !== host && anchor && anchor.parentElement){
+      anchor.parentElement.appendChild(box);
+    }
+
+    var rb=E('tapV36AgendaRoutenet');
+    var sb=E('tapV36AgendaStreetview');
+    if(rb){ rb.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();} return openRoute('routenet'); }; }
+    if(sb){ sb.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();} return openRoute('streetview'); }; }
+
+    hideDuplicateRoutes(newOrderRoot());
+    hideDuplicateRoutes(host);
+  }
+
+  function schedule(){
+    if(window.__tapV36RouteTimer) clearTimeout(window.__tapV36RouteTimer);
+    window.__tapV36RouteTimer=setTimeout(ensureRouteButtons,90);
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(ensureRouteButtons,250); });
+  else setTimeout(ensureRouteButtons,120);
+  [500,1200,2500].forEach(function(ms){ setTimeout(ensureRouteButtons,ms); });
+  document.addEventListener('click',function(){ schedule(); },true);
+  document.addEventListener('input',function(ev){
+    var id=ev.target && ev.target.id || '';
+    if(/location|locatie/i.test(id)) schedule();
+  },true);
+})();
