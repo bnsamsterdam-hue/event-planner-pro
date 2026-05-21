@@ -16588,3 +16588,235 @@ setInterval(install,1500);
   setTimeout(install,1600);
   setTimeout(install,3500);
 })();
+
+/* === V300AY harde materiaalblokkering uit oud werkend bestand overgezet === */
+(function(){
+  if (window.__tw300ayHardReservationInstalled) return;
+  window.__tw300ayHardReservationInstalled = true;
+  var STYLE_ID='tw300ay-hard-reservation-css';
+  var MODAL_ID='tw300ay-hard-reservation-modal';
+  var lastPopup=0, markTimer=0;
+  function E(id){return document.getElementById(id)}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel))}
+  function T(v){return String(v == null ? '' : v).trim()}
+  function L(v){return T(v).toLowerCase()}
+  function U(v){return T(v).toUpperCase()}
+  function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function readState(){
+    try{ if(window.state && typeof window.state==='object') return window.state; }catch(e){}
+    var keys=['eventPlannerStateV91','eventPlannerProV91','tapwagenState','appState'];
+    for(var i=0;i<keys.length;i++){ try{ var s=JSON.parse(localStorage.getItem(keys[i])||'null'); if(s && typeof s==='object') return s; }catch(e){} }
+    return {};
+  }
+  function persistState(){
+    try{ if(window.saveState && typeof window.saveState==='function') window.saveState(); }catch(e){}
+    try{ if(window.saveData && typeof window.saveData==='function') window.saveData(); }catch(e){}
+    try{ localStorage.setItem('eventPlannerStateV91',JSON.stringify(readState())); }catch(e){}
+  }
+  function mats(){ var s=readState(); return (Array.isArray(s.materials)&&s.materials) || (Array.isArray(window.materials)&&window.materials) || []; }
+  function orders(){ var s=readState(); return (Array.isArray(s.orders)&&s.orders) || (Array.isArray(window.orders)&&window.orders) || []; }
+  function chosenList(){
+    try{ if(Array.isArray(window.chosen)) return window.chosen; }catch(e){}
+    try{ if(Array.isArray(window.selectedMaterials)) return window.selectedMaterials; }catch(e){}
+    try{ if(window.currentOrder && Array.isArray(window.currentOrder.materials)) return window.currentOrder.materials; }catch(e){}
+    var s=readState(); if(Array.isArray(s.chosen)) return s.chosen;
+    return [];
+  }
+  function setChosen(arr){
+    try{ if(Array.isArray(window.chosen)){ window.chosen.length=0; arr.forEach(function(x){window.chosen.push(x)}); } }catch(e){}
+    try{ if(Array.isArray(window.selectedMaterials)){ window.selectedMaterials.length=0; arr.forEach(function(x){window.selectedMaterials.push(x)}); } }catch(e){}
+  }
+  function val(id){ var x=E(id); return T(x && x.value); }
+  function key(v){ return U(v).replace(/[^A-Z0-9]/g,''); }
+  function cat(v){ return key(v)||'EXTRA'; }
+  function codeOf(m){
+    if(!m) return '';
+    var direct=m.code||m.productNr||m.nr||m.materialCode||m.artikel||m.number||'';
+    var c=key(direct); if(c) return c;
+    var cv=cat(m.cat||m.rubriek||m.category);
+    var n=key(m.productNr||m.nr||m.type||m.name||'');
+    return (cv+n)||'';
+  }
+  function nameOf(m){ return T(m && (m.product||m.searchName||m.zoeknaam||m.type||m.name||m.description||m.beschrijving)); }
+  function idOf(m){ return T(m && (m.id||m.materialId||m.uid||m.oldId)); }
+  function parseDate(v){
+    var s=T(v); if(!s) return null;
+    var m=s.match(/^(\d{4})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/); if(m) return mk(+m[1],+m[2],+m[3]);
+    m=s.match(/^(\d{1,2})[-\.\/](\d{1,2})[-\.\/](\d{4})/); if(m) return mk(+m[3],+m[2],+m[1]);
+    var d=new Date(s); return isNaN(d.getTime())?null:mk(d.getFullYear(),d.getMonth()+1,d.getDate());
+  }
+  function mk(y,m,d){ var x=new Date(y,m-1,d); x.setHours(0,0,0,0); return x; }
+  function nice(d){ return d ? String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear() : ''; }
+  function period(a,b){ var s=parseDate(a), e=parseDate(b); if(!s&&e)s=e; if(!s)return null; if(!e)e=s; return {start:s,end:e}; }
+  function wantedPeriod(){
+    return period(val('dateStart')||val('startDate')||val('orderStart')||val('fromDate'), val('dateEnd')||val('endDate')||val('orderEnd')||val('toDate')||val('dateStart')||val('startDate')||val('orderStart'));
+  }
+  function orderPeriod(o){
+    return period(o && (o.start||o.dateStart||o.startDate||o.datumStart||o.from||o.date||o.datum), o && (o.end||o.dateEnd||o.endDate||o.datumEnd||o.to||o.start||o.dateStart||o.startDate||o.date||o.datum));
+  }
+  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<=b.end.getTime()&&b.start.getTime()<=a.end.getTime()); }
+  function editingId(){
+    try{ if(typeof editing!=='undefined' && editing) return String(editing); }catch(e){}
+    return T(window.editing||window.__editingOrderId||window.currentOrderId||'');
+  }
+  function currentNumber(){ return val('orderNumber')||val('orderNo')||val('number'); }
+  function orderBlocks(o){
+    if(!o || o.deleted===true || o.removed===true) return false;
+    var st=L(o.status||o.state||'');
+    if(/geannuleerd|gecancel|cancel|verwijderd|deleted|vervallen|niet door|niet-door/.test(st)) return false;
+    return true;
+  }
+  function sameMat(a,b){
+    if(!a||!b) return false;
+    var ia=idOf(a), ib=idOf(b); if(ia&&ib&&ia===ib) return true;
+    var ca=codeOf(a), cb=codeOf(b); if(ca&&cb&&ca===cb) return true;
+    var cata=cat(a.cat||a.rubriek||a.category), catb=cat(b.cat||b.rubriek||b.category);
+    var na=key(a.productNr||a.nr||a.code), nb=key(b.productNr||b.nr||b.code);
+    if(cata&&catb&&cata===catb&&na&&nb&&na===nb) return true;
+    var n1=key(nameOf(a)), n2=key(nameOf(b));
+    return !!(cata&&catb&&cata===catb&&n1&&n2&&n1===n2);
+  }
+  function byId(id){ id=T(id); if(!id) return null; return mats().find(function(m){ return idOf(m)===id || String(m.id||'')===id || codeOf(m)===key(id); }) || null; }
+  function byText(txt){ var k=key(txt); if(!k) return null; return mats().find(function(m){ var c=codeOf(m); return c && (k.indexOf(c)>=0 || c.indexOf(k)>=0); }) || null; }
+  function materialFromRow(row){
+    if(!row) return null;
+    var id=row.getAttribute('data-material-id')||row.getAttribute('data-bns-material-id')||(row.dataset&&(row.dataset.materialId||row.dataset.bnsMaterialId))||'';
+    if(id && byId(id)) return byId(id);
+    var oc=row.getAttribute('onclick')||'';
+    var mm=oc.match(/addMat\(['"]([^'"]+)['"]\)/i)||oc.match(/addMaterial\(['"]([^'"]+)['"]\)/i)||oc.match(/selectMaterial\(['"]([^'"]+)['"]\)/i);
+    if(mm && byId(mm[1])) return byId(mm[1]);
+    return byText(row.textContent||'');
+  }
+  function reservationFor(m){
+    if(!m) return null;
+    var raw=L(m.status);
+    var w=wantedPeriod();
+    if(!w && /reserved|gereserveerd/.test(raw)) return {manual:true,order:null,period:null,wanted:null};
+    if(!w) return null;
+    var edit=editingId(), num=currentNumber();
+    for(var i=0;i<orders().length;i++){
+      var o=orders()[i]; if(!orderBlocks(o)) continue;
+      if(edit && String(o.id||'')===edit) continue;
+      if(num && String(o.number||'')===String(num)) continue;
+      var p=orderPeriod(o); if(!p || !overlaps(w,p)) continue;
+      var ml=Array.isArray(o.materials)?o.materials:[];
+      for(var j=0;j<ml.length;j++) if(sameMat(ml[j],m)) return {order:o,period:p,wanted:w};
+    }
+    return null;
+  }
+  function blockedMaterial(m){
+    if(!m) return null;
+    var raw=L(m.status);
+    if(/inactive|niet actief|niet beschikbaar|niet inzetbaar|defect|storing|damage|schade|missing|vermist|vermissing/.test(raw)) return {type:'inactive',material:m};
+    var r=reservationFor(m); if(r) return {type:'reserved',material:m,reservation:r};
+    return null;
+  }
+  function rowCandidates(){ return A('#materialList [data-material-id],#materialList [data-bns-material-id],#materialList .mat-card,#materialList .material-card,#materialList .material-row,#materialList .bns-v198-matrow,#materialList .bns-v93-mat,#materialList button,#materialList .card,#materialList li'); }
+  function rowForTarget(t){ return t && t.closest && t.closest('#materialList [data-material-id],#materialList [data-bns-material-id],#materialList .mat-card,#materialList .material-card,#materialList .material-row,#materialList .bns-v198-matrow,#materialList .bns-v93-mat,#materialList button,#materialList .card,#materialList li'); }
+  function blockedRow(row){
+    var m=materialFromRow(row); var info=blockedMaterial(m); if(info) return info;
+    var txt=L(row && row.textContent);
+    if(/gereserveerd|niet inzetbaar|defect|storing|niet actief/.test(txt)) return {type:/gereserveerd/.test(txt)?'reserved':'inactive',material:m||{code:'',name:T(row&&row.textContent).slice(0,80)},reservation:null,fromRow:true};
+    return null;
+  }
+  function addStyle(){
+    if(E(STYLE_ID)) return;
+    var st=document.createElement('style'); st.id=STYLE_ID;
+    st.textContent=[
+      '#materialList [data-tw300ay-blocked="1"]{background:#fff7f7!important;border-color:#ef4444!important;cursor:not-allowed!important;animation:none!important;transition:none!important;transform:none!important;filter:none!important}',
+      '#materialList [data-tw300ay-blocked="1"] *{cursor:not-allowed!important}',
+      '#materialList [data-tw300ay-blocked="1"] .badge,#materialList [data-tw300ay-blocked="1"] .mat-status-badge,#materialList [data-tw300ay-blocked="1"] .bns-status-pill,#materialList [data-tw300ay-blocked="1"] .bns-v93-pill,#materialList [data-tw300ay-blocked="1"] .bns-v198-pill{background:#fee2e2!important;color:#991b1b!important;font-weight:1000!important;animation:none!important}',
+      '#materialList [data-tw300ay-blocked="1"] .tw300ay-res-pill{display:inline-flex;margin-left:8px;border-radius:999px;padding:6px 10px;background:#fee2e2;color:#991b1b;font-weight:1000}',
+      '.defect,.storing,.status-defect,.status-storing,.mat-defect,[class*="defect"],[class*="storing"]{animation:none!important;transition:none!important;filter:none!important;transform:none!important}',
+      '#'+MODAL_ID+'{position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px}',
+      '#'+MODAL_ID+'.hidden{display:none!important}',
+      '#'+MODAL_ID+' .tw-card{background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:760px;width:100%;box-shadow:0 20px 60px rgba(15,23,42,.35);font-family:system-ui,-apple-system,Segoe UI,sans-serif}',
+      '#'+MODAL_ID+' h2{margin:0 0 12px;font-size:24px}',
+      '#'+MODAL_ID+' .tw-box{border:1px solid #dbe3ef;border-radius:14px;padding:14px;margin:12px 0;line-height:1.55}',
+      '#'+MODAL_ID+' button{border:0;border-radius:12px;background:#111827;color:#fff;padding:10px 14px;font-weight:900;cursor:pointer}'
+    ].join('\n'); document.head.appendChild(st);
+  }
+  function showBlocked(info){
+    var now=Date.now(); if(now-lastPopup<350) return; lastPopup=now; addStyle();
+    var m=(info&&info.material)||{}, r=(info&&info.reservation)||{}, o=r.order||{}, p=r.period, w=r.wanted;
+    var body='<div class="tw-box"><b>'+H(m.code||codeOf(m)||'Materiaal')+'</b> '+H(nameOf(m)||m.name||'')+'<br><br>';
+    if(info && info.type==='reserved'){
+      body+='<b>Status:</b> Gereserveerd<br><b>Klant:</b> '+H((o.customer&&o.customer.name)||o.customerName||'Onbekend')+'<br><b>Opdracht:</b> '+H(o.number||'')+' '+H(o.title||'')+'<br><b>Datum reservering:</b> '+H(p?nice(p.start):'bekend')+' tot '+H(p?nice(p.end):'bekend')+(w?'<br><b>Jouw datum:</b> '+H(nice(w.start))+' tot '+H(nice(w.end)):'')+'<br><br><b>Dit materiaal is geblokkeerd en wordt niet toegevoegd.</b>';
+    } else {
+      body+='<b>Status:</b> Niet inzetbaar / storing<br><br><b>Dit materiaal is geblokkeerd en wordt niet toegevoegd.</b>';
+    }
+    body+='</div>';
+    var modal=E(MODAL_ID); if(!modal){ modal=document.createElement('div'); modal.id=MODAL_ID; document.body.appendChild(modal); }
+    modal.innerHTML='<div class="tw-card"><h2>Tapwagen.nl systeemmelding</h2>'+body+'<button type="button" data-close>Sluiten</button></div>';
+    modal.className=''; var b=modal.querySelector('[data-close]'); if(b) b.onclick=function(){ modal.className='hidden'; };
+  }
+  function markRows(){
+    addStyle();
+    rowCandidates().forEach(function(row){
+      if(!row || row.closest('#'+MODAL_ID)) return;
+      var info=blockedRow(row);
+      if(info){
+        row.setAttribute('data-tw300ay-blocked','1'); row.setAttribute('aria-disabled','true'); row.setAttribute('title','Gereserveerd / geblokkeerd'); row.classList.add('blocked','reserved','tw300ay-blocked');
+        var txt=L(row.textContent||'');
+        if(txt.indexOf('gereserveerd')<0 && txt.indexOf('niet inzetbaar')<0){
+          var pill=row.querySelector('.badge,.mat-status-badge,.bns-status-pill,.bns-v93-pill,.bns-v198-pill');
+          if(pill) pill.textContent = info.type==='reserved'?'Gereserveerd':'Niet inzetbaar';
+          else { var sp=document.createElement('span'); sp.className='tw300ay-res-pill'; sp.textContent=info.type==='reserved'?'Gereserveerd':'Niet inzetbaar'; row.appendChild(sp); }
+        }
+      }else if(row.getAttribute('data-tw300ay-blocked')==='1'){
+        row.removeAttribute('data-tw300ay-blocked'); row.removeAttribute('aria-disabled'); row.removeAttribute('title'); row.classList.remove('blocked','reserved','tw300ay-blocked');
+        A('.tw300ay-res-pill',row).forEach(function(x){x.remove()});
+      }
+    });
+  }
+  function scheduleMark(delay){ clearTimeout(markTimer); markTimer=setTimeout(markRows, delay==null?60:delay); }
+  function clickGuard(ev){
+    var row=rowForTarget(ev.target); if(!row) return;
+    var info=blockedRow(row); if(!info) return;
+    ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); markRows(); showBlocked(info); return false;
+  }
+  function patchAdd(fnName){
+    var cur=window[fnName]; if(cur && cur.__tw300ayGuard) return;
+    if(typeof cur!=='function') return;
+    var prev=cur;
+    var guarded=function(id){
+      var m=byId(id)||byText(id); var info=blockedMaterial(m);
+      if(info){ markRows(); showBlocked(info); return false; }
+      var res=prev.apply(this,arguments); setTimeout(markRows,40); return res;
+    };
+    guarded.__tw300ayGuard=true; window[fnName]=guarded; try{ if(fnName==='addMat') addMat=guarded; }catch(e){};
+  }
+  function removeBlockedChosen(){
+    var arr=chosenList(); if(!arr||!arr.length) return null;
+    var bad=null, keep=[];
+    arr.forEach(function(x){ var m=byId(x&&x.id)||x; var info=blockedMaterial(m); if(info&&!bad) bad=info; if(!info) keep.push(x); });
+    if(bad){ setChosen(keep); try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){} try{ if(typeof renderMaterials==='function') renderMaterials(window.currentCat||'TW'); }catch(e){} markRows(); }
+    return bad;
+  }
+  function saveGuard(ev){
+    var btn=ev.target && ev.target.closest && ev.target.closest('button,#saveOrder,input[type="submit"]'); if(!btn) return;
+    var txt=L(btn.textContent||btn.value||''); if(btn.id!=='saveOrder' && txt.indexOf('opslaan')<0 && txt.indexOf('bewaren')<0) return;
+    var bad=removeBlockedChosen(); if(bad){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); showBlocked(bad); return false; }
+  }
+  function patchSave(fnName){
+    var cur=window[fnName]; if(cur && cur.__tw300aySaveGuard) return;
+    if(typeof cur!=='function') return;
+    var prev=cur;
+    var guarded=function(){ var bad=removeBlockedChosen(); if(bad){ showBlocked(bad); return false; } return prev.apply(this,arguments); };
+    guarded.__tw300aySaveGuard=true; window[fnName]=guarded; try{ if(fnName==='saveCurrentOrder') saveCurrentOrder=guarded; if(fnName==='saveOrder') saveOrder=guarded; }catch(e){};
+  }
+  function cleanPdok(){
+    var el=E('bnsPostcodeBox'); if(el){ try{ el.remove(); }catch(e){ el.style.display='none'; } }
+    A('.bns-postcode-inline,div,section,fieldset').forEach(function(x){ if(!x || x.closest('#'+MODAL_ID)) return; var tx=L(x.textContent); if(tx.indexOf('postcode zoeken via pdok')>=0 || tx==='via pdok' || /\bvia\s+pdok\b/.test(tx)){ try{x.remove()}catch(e){x.style.display='none'} } });
+  }
+  function install(){ addStyle(); cleanPdok(); patchAdd('addMat'); patchAdd('addMaterial'); patchAdd('selectMaterial'); patchSave('saveCurrentOrder'); patchSave('saveOrder'); markRows(); }
+  ['pointerdown','mousedown','touchstart','click'].forEach(function(t){ document.addEventListener(t,clickGuard,true); });
+  document.addEventListener('click',saveGuard,true); document.addEventListener('submit',saveGuard,true);
+  ['dateStart','dateEnd','startDate','endDate','orderStart','orderEnd','materialSearch'].forEach(function(id){ document.addEventListener('input',function(ev){ if(ev.target && ev.target.id===id) scheduleMark(40); },true); document.addEventListener('change',function(ev){ if(ev.target && ev.target.id===id) scheduleMark(40); },true); });
+  ['renderMaterials','renderAll','renderChosen'].forEach(function(fn){ var cur=window[fn]; if(typeof cur==='function' && !cur.__tw300ayWrap){ var prev=cur; var wrapped=function(){ var r=prev.apply(this,arguments); scheduleMark(30); return r; }; wrapped.__tw300ayWrap=true; window[fn]=wrapped; try{ if(fn==='renderMaterials') renderMaterials=wrapped; if(fn==='renderAll') renderAll=wrapped; if(fn==='renderChosen') renderChosen=wrapped; }catch(e){} } });
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,80); }); else setTimeout(install,80);
+  setTimeout(install,400); setTimeout(install,1200);
+  var list=E('materialList');
+  function observeList(){ var l=E('materialList'); if(l && !l.__tw300ayObserver){ l.__tw300ayObserver=new MutationObserver(function(){ scheduleMark(80); }); l.__tw300ayObserver.observe(l,{childList:true,subtree:true,attributes:true,attributeFilter:['class','onclick','data-material-id','data-bns-material-id']}); } }
+  setTimeout(observeList,500); setTimeout(observeList,1500);
+})();
