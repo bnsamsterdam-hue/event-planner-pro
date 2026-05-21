@@ -17215,3 +17215,171 @@ setInterval(install,1500);
   document.addEventListener('click',function(){ setTimeout(install,120); },true);
   document.addEventListener('input',function(ev){ if(ev.target && ev.target.id==='orderNumber') ensureOrderNumberLines(); },true);
 })();
+
+/* ==========================================================
+   Tapwagen V32 - locatie/routenet rustig + ordernummer velden leeg
+   Basis: V31. Geen wijziging aan materiaal/offerte/optie-blokkering.
+========================================================== */
+(function tapwagenV32LocationRouteQuietFix(){
+  'use strict';
+  if (window.__tapwagenV32LocationRouteQuietFix) return;
+  window.__tapwagenV32LocationRouteQuietFix = true;
+
+  var STYLE_ID='tapwagen-v32-location-route-quiet-style';
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function val(id){ var el=E(id); return el ? T(el.value||el.textContent).trim() : ''; }
+
+  function style(){
+    if(E(STYLE_ID)) return;
+    var s=document.createElement('style'); s.id=STYLE_ID;
+    s.textContent = [
+      /* V31 zette hier automatisch opdrachtnummertekst neer; V32 vervangt dit door lege eigen invoervelden. */
+      '.tap-v31-order-no-line{display:none!important}',
+      '.tap-v32-order-ref-line{display:flex!important;align-items:center!important;gap:8px!important;margin:8px 0 10px!important;padding:8px 11px!important;border:1px solid #dbe3ef!important;border-radius:12px!important;background:#f8fafc!important;color:#172033!important;font-weight:900!important}',
+      '.tap-v32-order-ref-line span{white-space:nowrap!important}',
+      '.tap-v32-order-ref-line input{flex:1!important;min-width:120px!important;border:1px solid #cbd5e1!important;border-radius:9px!important;padding:7px 9px!important;background:#fff!important;color:#111827!important;font-weight:800!important}',
+      '.tap-v32-check,label.tap-v32-check{display:inline-flex!important;align-items:center!important;gap:8px!important;margin:8px 0!important;padding:8px 12px!important;border:1px solid #bbf7d0!important;border-radius:12px!important;background:#f0fdf4!important;color:#14532d!important;font-weight:900!important;line-height:1.2!important}',
+      '.tap-v32-check input,label.tap-v32-check input{width:18px!important;height:18px!important;accent-color:#16a34a!important}',
+      /* Routeknoppen klein en gelijk aan agenda/Waze: oude inline stijlen worden hiermee overschreven. */
+      'button.tap-v31-route,button.tap-v31-street,button.tap-v31-small-route,.bns-routenet-btn,.tap-v32-route-btn,button[class*="routenet"],a[class*="routenet"]{font-size:12px!important;padding:6px 9px!important;min-height:0!important;min-width:0!important;max-width:120px!important;width:auto!important;border-radius:9px!important;line-height:1.2!important;white-space:nowrap!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}',
+      '.tap-v32-route-btn{border:0!important;font-weight:900!important;cursor:pointer!important;margin-left:6px!important}',
+      '.tap-v32-routenet{background:#0ea5e9!important;color:#fff!important}',
+      '.tap-v32-street{background:#7c3aed!important;color:#fff!important}',
+      /* Locatie rustig: oude dubbele/flikkerende PDOK-hulp weg, maar normale velden blijven staan. */
+      '.bns-pdok-box,#pdokBox,.pdok-box,[data-bns-pdok="1"],.bns-postcode-inline[data-tw300av-pdok="1"],[data-tw300av-pdok="1"]{display:none!important}',
+      '.tap-v32-quiet-location *{animation:none!important}',
+      '.tap-v32-quiet-location{scroll-margin-top:90px}'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  function locationAddress(){
+    var parts=[
+      val('locationStreet') || val('locatieStraat') || val('locationAddress'),
+      val('locationHouseNumber') || val('locatieHuisnummer') || val('houseNumberLocation'),
+      val('locationZip') || val('locatiePostcode') || val('locationPostcode'),
+      val('locationCity') || val('locatiePlaats') || val('locationPlace')
+    ].filter(Boolean);
+    var joined=[];
+    parts.forEach(function(p){ if(joined.indexOf(p)<0) joined.push(p); });
+    var a=joined.join(' ').replace(/\s+/g,' ').trim();
+    if(a) return a;
+    /* Alleen als locatie echt leeg is, terugvallen op klant. */
+    return [val('customerStreet'),val('customerZip'),val('customerCity')].filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+  }
+  function openRoute(kind){
+    var a=locationAddress();
+    if(!a){ try{ alert('Geen locatieadres gevonden. Vul eerst locatie straat/postcode/plaats in.'); }catch(e){} return false; }
+    var q=encodeURIComponent(a);
+    var url = kind==='streetview'
+      ? ('https://www.google.com/maps?q=' + q + '&layer=c')
+      : ('https://www.routenet.nl/routeplanner?locatie=' + q);
+    window.open(url,'_blank');
+    return false;
+  }
+
+  function ensureEmptyOrderReferenceLines(){
+    style();
+    var targets=[['customerName','tapV32CustomerOrderRef'],['locationName','tapV32LocationOrderRef']];
+    targets.forEach(function(pair){
+      var inp=E(pair[0]); if(!inp) return;
+      var host=inp.closest('.card,section,fieldset,.grid > div,div') || inp.parentElement; if(!host) return;
+      if(host.querySelector('#'+pair[1])) return;
+      var line=document.createElement('label');
+      line.className='tap-v32-order-ref-line';
+      line.innerHTML='<span>Opdracht nr / order nr:</span><input id="'+pair[1]+'" type="text" value="" placeholder="zelf invullen">';
+      host.insertBefore(line, inp);
+    });
+  }
+
+  function ensureLocationOnDocumentCheckbox(){
+    style();
+    var loc=E('locationName'); if(!loc) return;
+    var section=loc.closest('.card,section,fieldset,.grid > div,div') || loc.parentElement; if(!section) return;
+    section.classList.add('tap-v32-quiet-location');
+    if(E('tapV32ShowLocationOnDocs')) return;
+    var label=document.createElement('label');
+    label.className='tap-v32-check';
+    label.innerHTML='<input type="checkbox" id="tapV32ShowLocationOnDocs" checked> <span>Locatie tonen op factuur / opdrachtbon</span>';
+    /* plaats rustig onder/bij locatienaam, niet tussen postcodehulp */
+    var after=E('locationPhone') || E('locationCity') || loc;
+    if(after && after.parentNode){
+      var p=after.closest('label,div') || after;
+      if(p.nextSibling) p.parentNode.insertBefore(label,p.nextSibling); else p.parentNode.appendChild(label);
+    } else section.appendChild(label);
+  }
+
+  function makeRouteButton(id, text, kind, cls){
+    var b=E(id);
+    if(!b){ b=document.createElement('button'); b.type='button'; b.id=id; }
+    b.textContent=text;
+    b.className='tap-v32-route-btn '+cls;
+    b.onclick=function(ev){ if(ev){ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();} return openRoute(kind); };
+    return b;
+  }
+
+  function ensureAgendaButtons(){
+    style();
+    var anchor=E('bnsAgendaPickupBtn') || E('bnsAgendaOrderBtn') || E('bnsMapsPlannerBtn') || E('bnsWazePlannerBtn') || E('tapV31AgendaRoutenet');
+    if(!anchor) return;
+    var wrap=anchor.parentElement || anchor.closest('.card') || anchor.parentNode; if(!wrap) return;
+    var r=makeRouteButton('tapV32AgendaRoutenet','Routenet','routenet','tap-v32-routenet');
+    var sv=makeRouteButton('tapV32AgendaStreetview','Streetview','streetview','tap-v32-street');
+    if(!r.parentNode) wrap.insertBefore(r, anchor.nextSibling);
+    if(!sv.parentNode) wrap.insertBefore(sv, r.nextSibling);
+    /* oude V31 knoppen verbergen zodat er niet dubbel/onrustig wordt getekend */
+    ['tapV31AgendaRoutenet','tapV31AgendaStreetview'].forEach(function(id){ var x=E(id); if(x) x.style.display='none'; });
+  }
+
+  function shrinkRouteButtons(){
+    style();
+    A('button,a').forEach(function(el){
+      var txt=L(el.textContent).trim();
+      if(txt==='routenet' || txt==='streetview'){
+        el.classList.add('tap-v31-small-route');
+        el.style.fontSize='12px'; el.style.padding='6px 9px'; el.style.minHeight='0'; el.style.minWidth='0'; el.style.width='auto';
+      }
+    });
+  }
+
+  /* Intercept alle route/streetview kliks en gebruik altijd locatieadres. */
+  document.addEventListener('click',function(ev){
+    var el=ev.target && ev.target.closest && ev.target.closest('button,a');
+    if(!el) return;
+    var txt=L(el.textContent).trim();
+    var id=L(el.id||'');
+    var cls=L(el.className||'');
+    if(txt==='routenet' || id.indexOf('routenet')>=0 || cls.indexOf('routenet')>=0){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); openRoute('routenet'); return false;
+    }
+    if(txt==='streetview' || id.indexOf('streetview')>=0 || cls.indexOf('street')>=0){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); openRoute('streetview'); return false;
+    }
+  },true);
+
+  function removeExtraPdokNoise(){
+    A('.bns-pdok-box,#pdokBox,.pdok-box,[data-bns-pdok="1"],.bns-postcode-inline[data-tw300av-pdok="1"],[data-tw300av-pdok="1"]').forEach(function(el){ el.style.display='none'; });
+    A('span,small,div,b').forEach(function(el){
+      var txt=L(el.textContent).trim();
+      if(txt==='via pdok' || txt==='postcode zoeken via pdok') el.style.display='none';
+    });
+  }
+
+  function apply(){
+    style();
+    ensureEmptyOrderReferenceLines();
+    ensureLocationOnDocumentCheckbox();
+    ensureAgendaButtons();
+    shrinkRouteButtons();
+    removeExtraPdokNoise();
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(apply,250); }); else setTimeout(apply,150);
+  [600,1400,2600].forEach(function(ms){ setTimeout(apply,ms); });
+  document.addEventListener('click',function(){ setTimeout(apply,180); },true);
+  document.addEventListener('input',function(ev){ if(ev.target && /location|customer|postcode|zip|street|city/i.test(ev.target.id||'')) setTimeout(apply,120); },true);
+})();
