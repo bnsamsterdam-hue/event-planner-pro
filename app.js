@@ -16986,3 +16986,232 @@ setInterval(install,1500);
   document.addEventListener('click',function(ev){ var b=ev.target&&ev.target.closest&&ev.target.closest('button,[data-tab]'); if(b) setTimeout(install,180); },true);
   document.addEventListener('change',function(ev){ if(ev.target && /dateStart|dateEnd|orderStatus/.test(ev.target.id||'')) setTimeout(function(){ lastMatKey=''; install(); },80); },true);
 })();
+
+/* ==========================================================
+   Tapwagen V31 - opdrachtknoppen, routes, overzicht wis, opdrachtnummerregels
+   Basis: V30 optie/offerte harde reservering. Geen wijziging aan materiaalblokkering.
+========================================================== */
+(function tapwagenV31OrderRouteOverviewFix(){
+  'use strict';
+  if (window.__tapwagenV31OrderRouteOverviewFix) return;
+  window.__tapwagenV31OrderRouteOverviewFix = true;
+
+  var STYLE_ID = 'tapwagen-v31-order-route-overview-style';
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function S(){ try{ if(window.state && Array.isArray(window.state.orders)) return window.state; }catch(e){} try{ if(state && Array.isArray(state.orders)) return state; }catch(e){} return {orders:[],alerts:[]}; }
+  function saveApp(){ try{ if(typeof window.save==='function') window.save(); else if(typeof save==='function') save(); }catch(e){} try{ if(typeof window.saveLocal==='function') window.saveLocal(); else if(typeof saveLocal==='function') saveLocal(); }catch(e){} }
+  function val(id){ var el=E(id); return el ? T(el.value).trim() : ''; }
+  function setVal(id,v){ var el=E(id); if(el) el.value=T(v); }
+  function orderNum(){ return val('orderNumber') || val('orderNo') || val('opdrachtNummer') || val('opdrachtNumber'); }
+  function addrFromForm(){
+    return [val('locationStreet') || val('customerStreet'), val('locationZip') || val('customerZip'), val('locationCity') || val('customerCity')].filter(Boolean).join(' ');
+  }
+  function orderAddress(o){
+    o=o||{}; var l=o.location||{}, c=o.customer||{};
+    return [l.street||o.locationStreet||c.street||o.customerStreet, l.zip||o.locationZip||c.zip||o.customerZip, l.city||o.locationCity||c.city||o.customerCity].filter(Boolean).join(' ');
+  }
+  function orderTitle(o){ return [o && o.number || '', o && o.title || ''].filter(Boolean).join(' - ') || 'Opdracht'; }
+  function findOrderByIdOrNumber(id){
+    var rows=(S().orders||[]); var key=T(id);
+    return rows.find(function(o){ return T(o.id)===key || T(o.number)===key; }) || null;
+  }
+  function findOrderFromCard(card){
+    if(!card) return null;
+    var id = card.getAttribute('data-order-id') || card.getAttribute('data-bns-order-id') || card.getAttribute('data-id') || '';
+    var num = card.getAttribute('data-order-number') || card.getAttribute('data-number') || '';
+    var rows=(S().orders||[]);
+    var o = id && rows.find(function(x){ return T(x.id)===T(id); });
+    if(o) return o;
+    o = num && rows.find(function(x){ return T(x.number)===T(num); });
+    if(o) return o;
+    var txt = T(card.textContent);
+    return rows.find(function(x){ return x && x.number && txt.indexOf(T(x.number)) >= 0; }) || null;
+  }
+
+  function style(){
+    if(E(STYLE_ID)) return;
+    var s=document.createElement('style'); s.id=STYLE_ID;
+    s.textContent = [
+      '.tap-v31-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}',
+      '.tap-v31-actions button,.tap-v31-actions a{border:0;border-radius:10px;padding:7px 10px!important;font-size:12px!important;line-height:1.2!important;font-weight:900!important;text-decoration:none!important;cursor:pointer}',
+      '.tap-v31-overview{background:#0f172a!important;color:#fff!important}',
+      '.tap-v31-route{background:#0ea5e9!important;color:#fff!important}',
+      '.tap-v31-street{background:#7c3aed!important;color:#fff!important}',
+      '.bns-routenet-btn,.tap-v31-small-route{font-size:12px!important;padding:6px 9px!important;min-height:0!important;min-width:0!important;border-radius:9px!important;line-height:1.2!important;white-space:nowrap!important}',
+      '.tap-v31-order-no-line{display:flex;align-items:center;gap:8px;margin:8px 0 10px;padding:9px 12px;border:1px solid #dbe3ef;border-radius:12px;background:#f8fafc;color:#172033;font-weight:900}',
+      '.tap-v31-order-no-line b{color:#0f172a}',
+      '.tap-v31-check,label.tap-v31-check{display:inline-flex!important;align-items:center!important;gap:8px!important;margin:8px 0!important;padding:8px 12px!important;border:1px solid #bbf7d0!important;border-radius:12px!important;background:#f0fdf4!important;color:#14532d!important;font-weight:900!important}',
+      '.tap-v31-check input,label.tap-v31-check input{width:18px!important;height:18px!important;accent-color:#16a34a!important}',
+      '.tap-v31-media-block{border:2px solid #dbeafe;border-radius:18px;padding:14px;margin-top:16px;background:#f8fbff}',
+      '.tap-v31-media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}',
+      '.tap-v31-media-card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff}',
+      '.tap-v31-media-card img{max-width:100%;max-height:190px;border:1px solid #e5e7eb;border-radius:10px;display:block;margin-top:6px}',
+      '.tap-v31-media-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}',
+      '.tap-v31-media-actions button{border:0;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff}',
+      '.tap-v31-media-actions .danger{background:#dc2626!important;color:#fff!important}'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  function makeRouteUrl(kind,address){
+    var q=encodeURIComponent(address || '');
+    if(kind==='routenet') return 'https://www.routenet.nl/routeplanner?locatie=' + q;
+    if(kind==='streetview') return 'https://www.google.com/maps?q=&layer=c&cbll=' + q;
+    return 'https://www.google.com/maps/search/?api=1&query=' + q;
+  }
+  function openRoute(kind,address){
+    address = address || addrFromForm();
+    if(!address){ try{ alert('Geen locatie/adres gevonden.'); }catch(e){} return false; }
+    window.open(makeRouteUrl(kind,address),'_blank');
+    return false;
+  }
+
+  function ensureOrderCardButtons(){
+    style();
+    var cards = A('.order-card,.bns-card,.bns-v126-order-card,[data-order-id],[data-bns-order-id]').filter(function(card){
+      var txt=L(card.textContent); return txt && !/boekhouding|facturen|admin materiaal/.test(txt) && (card.querySelector('button') || card.getAttribute('data-order-id') || card.getAttribute('data-bns-order-id'));
+    });
+    cards.forEach(function(card){
+      var o=findOrderFromCard(card); if(!o) return;
+      var actions = card.querySelector('.actions,.bns-v126-card-actions,.card-actions,.bns-card-actions,.tap-v31-actions') || card.querySelector('div:last-child') || card;
+      if(!card.querySelector('.tap-v31-overview')){
+        var b=document.createElement('button'); b.type='button'; b.className='tap-v31-overview'; b.textContent='Overzicht bestelling';
+        b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW==='function') window.BNS_V128_SHOW_ORDER_OVERVIEW(o.id||o.number); return false; },true);
+        actions.appendChild(b);
+      }
+      var address=orderAddress(o);
+      if(address && !card.querySelector('.tap-v31-routenet-card')){
+        var r=document.createElement('button'); r.type='button'; r.className='tap-v31-route tap-v31-small-route tap-v31-routenet-card'; r.textContent='Routenet';
+        r.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); openRoute('routenet',address); return false; },true);
+        actions.appendChild(r);
+      }
+    });
+    // Maak eventuele bestaande Routenet-knoppen kleiner.
+    A('button,a').forEach(function(el){ if(/^\s*routenet\s*$/i.test(T(el.textContent))){ el.classList.add('tap-v31-small-route'); } });
+  }
+
+  function ensureAgendaRouteButtons(){
+    style();
+    var anchor = E('bnsAgendaPickupBtn') || E('bnsAgendaOrderBtn') || E('bnsMapsPlannerBtn') || E('bnsWazePlannerBtn');
+    if(!anchor) return;
+    var wrap = anchor.parentElement || anchor.closest('.card') || anchor.parentNode;
+    if(!wrap || E('tapV31AgendaRoutenet')) return;
+    var r=document.createElement('button'); r.type='button'; r.id='tapV31AgendaRoutenet'; r.className='tap-v31-route tap-v31-small-route'; r.textContent='Routenet';
+    r.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} return openRoute('routenet'); };
+    var sv=document.createElement('button'); sv.type='button'; sv.id='tapV31AgendaStreetview'; sv.className='tap-v31-street tap-v31-small-route'; sv.textContent='Streetview';
+    sv.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} return openRoute('streetview'); };
+    anchor.insertAdjacentElement('afterend', sv);
+    anchor.insertAdjacentElement('afterend', r);
+  }
+
+  function ensureOrderNumberLines(){
+    style();
+    var nr = orderNum() || 'nog niet opgeslagen';
+    [['customerName','Klant'],['locationName','Locatie']].forEach(function(pair){
+      var inp=E(pair[0]); if(!inp) return;
+      var host = inp.closest('.card,section,fieldset,.grid > div,div') || inp.parentElement;
+      if(!host) return;
+      var id='tapV31OrderNo'+pair[1];
+      var line=E(id);
+      if(!line){
+        line=document.createElement('div'); line.id=id; line.className='tap-v31-order-no-line';
+        line.innerHTML='<span>Opdracht nummer:</span> <b></b>';
+        host.insertBefore(line, inp);
+      }
+      var b=line.querySelector('b'); if(b) b.textContent=nr;
+    });
+  }
+
+  function styleLocationCheckbox(){
+    style();
+    var loc=E('locationName'); if(!loc) return;
+    var section=loc.closest('.card,section,fieldset,.grid > div,div') || document;
+    A('label', section).forEach(function(lab){
+      var txt=L(lab.textContent); if(lab.querySelector('input[type="checkbox"]') && (/locatie|zelfde|klant/.test(txt))) lab.classList.add('tap-v31-check');
+    });
+    A('input[type="checkbox"]', section).forEach(function(cb){
+      var p=cb.parentElement; if(p && /locatie|zelfde|klant/.test(L(p.textContent))) p.classList.add('tap-v31-check');
+    });
+  }
+
+  function mediaForOrder(o){
+    var s=S(), rows=[];
+    (s.alerts||[]).forEach(function(a){
+      if(!a) return;
+      var oid=T(o.id), num=T(o.number);
+      if((oid && (T(a.orderId)===oid || T(a.linkedOrder)===oid)) || (num && (T(a.orderNumber)===num || T(a.linkedOrderNumber)===num))) rows.push({kind:'alert',item:a,id:a.id});
+    });
+    ['media','photos','signatures'].forEach(function(k){
+      (Array.isArray(o[k])?o[k]:[]).forEach(function(x,i){ rows.push({kind:k,item:x,id:x.id||x.mediaId||x.signatureId||k+'_'+i}); });
+    });
+    var seen={};
+    rows=rows.filter(function(r){ var key=r.kind+'_'+T(r.id); if(seen[key]) return false; seen[key]=1; return true; });
+    rows.sort(function(a,b){ return T((b.item||{}).createdAt||(b.item||{}).time).localeCompare(T((a.item||{}).createdAt||(a.item||{}).time)); });
+    return rows;
+  }
+  function itemLabel(r){ var x=r.item||{}; return T(x.type||x.title||x.kind||r.kind||'Melding'); }
+  function itemText(r){ var x=r.item||{}; return T(x.note||x.message||x.text||x.customerName||x.driverName||''); }
+  function itemImage(r){ var x=r.item||{}; return T(x.data||x.photoData||x.photo||x.image||x.signatureData||x.signature||''); }
+  function deleteMedia(orderId, kind, id){
+    var s=S(), o=findOrderByIdOrNumber(orderId); if(!o) return false;
+    if(kind==='alert'){
+      s.alerts=(s.alerts||[]).filter(function(a){ return T(a.id)!==T(id); });
+      try{ if(typeof window.TapwagenV141DeleteAlert==='function') window.TapwagenV141DeleteAlert(id); }catch(e){}
+    } else {
+      o[kind]=(Array.isArray(o[kind])?o[kind]:[]).filter(function(x,i){ return T(x.id||x.mediaId||x.signatureId||kind+'_'+i)!==T(id); });
+      if(kind==='media'){
+        o.photos=(Array.isArray(o.photos)?o.photos:[]).filter(function(x,i){ return T(x.id||x.mediaId||'photos_'+i)!==T(id); });
+        o.signatures=(Array.isArray(o.signatures)?o.signatures:[]).filter(function(x,i){ return T(x.id||x.signatureId||'signatures_'+i)!==T(id); });
+      }
+    }
+    saveApp();
+    if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW==='function') setTimeout(function(){ window.BNS_V128_SHOW_ORDER_OVERVIEW(orderId); },50);
+    return false;
+  }
+  window.TapwagenV31DeleteMedia=deleteMedia;
+
+  function buildMediaBlock(o){
+    var rows=mediaForOrder(o); if(!rows.length) return '';
+    return '<div class="tap-v31-media-block"><h3>Foto\'s / handtekeningen / bezorger meldingen</h3><div class="tap-v31-media-grid">'+rows.map(function(r){
+      var img=itemImage(r);
+      return '<div class="tap-v31-media-card"><b>'+H(itemLabel(r))+'</b><br><small>'+H((r.item||{}).time||(r.item||{}).createdAt||'')+'</small><div>'+H(itemText(r))+'</div>'+(img?'<img src="'+H(img)+'" alt="Bijlage">':'')+'<div class="tap-v31-media-actions"><button type="button" onclick="TapwagenV31ShareMedia && TapwagenV31ShareMedia(\''+H(r.kind)+'\',\''+H(r.id)+'\')">Delen</button><button type="button" onclick="window.print()">Print</button><button type="button" class="danger" onclick="TapwagenV31DeleteMedia(\''+H(o.id||o.number)+'\',\''+H(r.kind)+'\',\''+H(r.id)+'\')">Wis</button></div></div>';
+    }).join('')+'</div></div>';
+  }
+  window.TapwagenV31ShareMedia=function(kind,id){
+    var s=S(), found=null;
+    if(kind==='alert') found=(s.alerts||[]).find(function(a){return T(a.id)===T(id);});
+    var txt=found ? [found.type||found.title||'Melding', found.orderNumber||'', found.customerName||'', found.note||found.message||found.text||''].filter(Boolean).join('\n') : 'Tapwagen.nl melding';
+    if(navigator.share) navigator.share({title:'Tapwagen.nl',text:txt}).catch(function(){}); else { try{ navigator.clipboard.writeText(txt); alert('Gekopieerd.'); }catch(e){ alert(txt); } }
+  };
+
+  function patchOverview(){
+    if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW!=='function') return;
+    if(window.BNS_V128_SHOW_ORDER_OVERVIEW.__tapV31) return;
+    var old=window.BNS_V128_SHOW_ORDER_OVERVIEW;
+    var wrapped=function(id){
+      var r=old.apply(this, arguments);
+      setTimeout(function(){
+        var modal=E('bnsOrderOverviewModal'); if(!modal) return;
+        var o=findOrderByIdOrNumber(id); if(!o) return;
+        A('.tw-v141-order-media,.tap-v31-media-block', modal).forEach(function(x){ x.remove(); });
+        var card=modal.querySelector('.bns-order-overview-card') || modal.firstElementChild || modal;
+        var html=buildMediaBlock(o); if(html) card.insertAdjacentHTML('beforeend', html);
+      },100);
+      return r;
+    };
+    wrapped.__tapV31=true;
+    window.BNS_V128_SHOW_ORDER_OVERVIEW=wrapped;
+  }
+
+  function install(){
+    style(); patchOverview(); ensureOrderCardButtons(); ensureAgendaRouteButtons(); ensureOrderNumberLines(); styleLocationCheckbox();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,250); }); else setTimeout(install,160);
+  [600,1400,2600].forEach(function(ms){ setTimeout(install,ms); });
+  document.addEventListener('click',function(){ setTimeout(install,120); },true);
+  document.addEventListener('input',function(ev){ if(ev.target && ev.target.id==='orderNumber') ensureOrderNumberLines(); },true);
+})();
