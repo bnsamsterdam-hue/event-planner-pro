@@ -17264,179 +17264,229 @@ window.__BNS_CALM_INTERVAL__(install,1500);
   setTimeout(patchAll,1200);
 })();
 
-/* ===== V207 TAPWAGEN HARDE RESERVERINGS-SLOT + RONDJE =====
-   Alleen extra veiligheid bovenop de HOOFD-basis/V206.
-   Doel: gereserveerd materiaal mag NOOIT gekozen of opgeslagen worden.
-*/
+/* =========================================================
+   V208 TAPWAGEN - VEILIG RESERVERINGSSLOT
+   Basis: V206. Alleen harde materiaalblokkering, zonder
+   start/PIN/menu te raken.
+   ========================================================= */
 (function(){
-  if (window.__BNS_V207_HARD_RESERVATION_LOCK__) return;
-  window.__BNS_V207_HARD_RESERVATION_LOCK__ = true;
+  "use strict";
+  if (window.__BNS_V208_SAFE_RESERVATION_LOCK__) return;
+  window.__BNS_V208_SAFE_RESERVATION_LOCK__ = true;
+
+  var STYLE_ID = "bns_v208_reservation_lock_style";
+  var MODAL_ID = "bns_v208_reservation_lock_modal";
 
   function E(id){ return document.getElementById(id); }
-  function Q(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function T(v){ return String(v == null ? '' : v); }
-  function low(v){ return T(v).trim().toLowerCase(); }
-  function esc(v){ return T(v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-  function stateObj(){ try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){} try{ if(typeof state !== 'undefined' && state && Array.isArray(state.materials)) return state; }catch(e){} return window.state || {}; }
-  function mats(){ var s=stateObj(); return Array.isArray(s.materials) ? s.materials : []; }
-  function orders(){ var s=stateObj(); return Array.isArray(s.orders) ? s.orders : []; }
-  function selected(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} try{ if(Array.isArray(window.chosen)) return window.chosen; }catch(e){} return []; }
-  function setSelected(list){ try{ chosen=list; }catch(e){} try{ window.chosen=list; }catch(e){} }
-  function iso(d){
-    var s=T(d).trim(); if(!s) return '';
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function txt(v){ return String(v == null ? "" : v); }
+  function low(v){ return txt(v).trim().toLowerCase(); }
+  function esc(v){ return txt(v).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function S(){ try { if (typeof state !== "undefined" && state && Array.isArray(state.materials)) return state; } catch(e) {} try { if (window.state && Array.isArray(window.state.materials)) return window.state; } catch(e) {} return {orders:[], materials:[]}; }
+  function orders(){ var s=S(); return Array.isArray(s.orders) ? s.orders : []; }
+  function materials(){ var s=S(); return Array.isArray(s.materials) ? s.materials : []; }
+  function selected(){ try { if (typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; } catch(e) {} try { if (Array.isArray(window.chosen)) return window.chosen; } catch(e) {} return []; }
+  function setSelected(next){ try { chosen = next; } catch(e) {} try { window.chosen = next; } catch(e) {} }
+  function currentEditId(){ try { if (typeof editing !== "undefined" && editing) return txt(editing); } catch(e) {} try { if (window.editing) return txt(window.editing); } catch(e) {} return ""; }
+  function val(ids){ for (var i=0;i<ids.length;i++){ var el=E(ids[i]); if (el && el.value) return el.value; } return ""; }
+  function iso(v){
+    var s=txt(v).trim(); if(!s) return "";
     if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
     var m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
-    if(m){ var y=m[3].length===2?'20'+m[3]:m[3]; return y+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0'); }
-    var dt=new Date(s); if(!isNaN(dt)) return dt.toISOString().slice(0,10);
+    if(m){ var y=m[3].length===2 ? "20"+m[3] : m[3]; return y+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[1]).padStart(2,"0"); }
+    var d=new Date(s); if(!isNaN(d.getTime())) return d.toISOString().slice(0,10);
     return s;
   }
-  function nice(d){ d=iso(d); var p=d.split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : d; }
-  function inputVal(ids){ for(var i=0;i<ids.length;i++){ var x=E(ids[i]); if(x && x.value) return x.value; } return ''; }
-  function startDate(){ return iso(inputVal(['dateStart','startDate','orderStart','orderDate','fromDate','start'])) || new Date().toISOString().slice(0,10); }
-  function endDate(){ return iso(inputVal(['dateEnd','endDate','orderEnd','toDate','end'])) || startDate(); }
-  function currentEditId(){ try{ if(typeof editing !== 'undefined' && editing) return T(editing); }catch(e){} try{ if(window.editing) return T(window.editing); }catch(e){} return T(inputVal(['orderId','currentOrderId'])); }
-  function currentNr(){ return T(inputVal(['orderNumber','number','orderNr'])); }
-  function activeStatus(st){ var s=low(st); return !(s.indexOf('geannuleerd')>=0 || s.indexOf('verwijderd')>=0 || s.indexOf('deleted')>=0 || s.indexOf('cancel')>=0 || s.indexOf('uitgevoerd')>=0 || s.indexOf('afgerond')>=0); }
-  function overlap(a1,a2,b1,b2){ a1=iso(a1); a2=iso(a2)||a1; b1=iso(b1); b2=iso(b2)||b1; if(!a1||!b1) return false; return a1 <= b2 && b1 <= a2; }
-  function code(m){ return T(m && (m.code || m.nr || m.productNr || m.materialCode || '')); }
-  function name(m){ return T(m && (m.name || m.product || m.desc || m.description || '')); }
-  function idOf(m){ return T(m && (m.id || m.materialId || m.oldId || code(m) || name(m))); }
+  function nice(v){ var d=iso(v); var p=d.split("-"); return p.length===3 ? p[2]+"-"+p[1]+"-"+p[0] : d; }
+  function formStart(){ return iso(val(["dateStart","startDate","orderStart","orderDate","fromDate","start"])) || new Date().toISOString().slice(0,10); }
+  function formEnd(){ return iso(val(["dateEnd","endDate","orderEnd","toDate","end"])) || formStart(); }
+  function overlap(a1,a2,b1,b2){ a1=iso(a1); a2=iso(a2)||a1; b1=iso(b1); b2=iso(b2)||b1; if(!a1 || !b1) return false; return a1 <= b2 && b1 <= a2; }
+  function matCode(m){ return txt(m && (m.code || m.materialCode || m.nr)); }
+  function matName(m){ return txt(m && (m.name || m.product || m.description || m.desc)); }
+  function matId(m){ return txt(m && (m.id || m.materialId || m.oldId || matCode(m) || matName(m))); }
   function sameMat(a,b){
-    var ai=idOf(a), bi=idOf(b); if(ai && bi && ai===bi) return true;
-    var ac=code(a), bc=code(b); if(ac && bc && ac===bc) return true;
+    var ai=matId(a), bi=matId(b); if(ai && bi && ai===bi) return true;
+    var ac=matCode(a), bc=matCode(b); if(ac && bc && ac===bc) return true;
     return false;
   }
-  function matById(id){ id=T(id); return mats().find(function(m){ return T(m.id)===id || T(m.oldId)===id || code(m)===id || name(m)===id; }) || null; }
-  function matFromRow(row){
-    if(!row) return null;
-    var id=row.getAttribute('data-material-id') || row.getAttribute('data-id') || row.dataset.materialId || row.dataset.id || '';
-    if(!id){ var oc=row.getAttribute('onclick')||''; var m=oc.match(/addMat\(['"]([^'"]+)['"]\)/); if(m) id=m[1]; }
-    if(id) return matById(id);
-    var txt=row.textContent||'';
-    return mats().find(function(m){ return code(m) && txt.indexOf(code(m))>=0; }) || null;
+  function matById(id){
+    id=txt(id);
+    return materials().find(function(m){ return txt(m.id)===id || txt(m.materialId)===id || txt(m.oldId)===id || matCode(m)===id || matName(m)===id; }) || null;
   }
-  function orderHasMaterial(o,m){
-    return Array.isArray(o && o.materials) && o.materials.some(function(x){ return sameMat(x,m); });
+  function idFromRow(row){
+    if(!row) return "";
+    var id = row.getAttribute("data-material-id") || row.getAttribute("data-id") || row.dataset.materialId || row.dataset.id || "";
+    if(id) return id;
+    var oc=row.getAttribute("onclick") || "";
+    var m=oc.match(/addMat\(['\"]([^'\"]+)['\"]\)/);
+    if(m) return m[1];
+    var text=row.textContent || "";
+    var found=materials().find(function(mat){ return matCode(mat) && text.indexOf(matCode(mat)) >= 0; });
+    return found ? matId(found) : "";
   }
+  function matFromRow(row){ return matById(idFromRow(row)); }
+  function activeStatus(st){
+    var s=low(st);
+    return !(s.indexOf("geannuleerd")>=0 || s.indexOf("verwijderd")>=0 || s.indexOf("deleted")>=0 || s.indexOf("cancel")>=0 || s.indexOf("uitgevoerd")>=0 || s.indexOf("afgerond")>=0);
+  }
+  function orderHasMat(o,m){ return Array.isArray(o && o.materials) && o.materials.some(function(x){ return sameMat(x,m); }); }
   function reservationFor(m){
     if(!m) return null;
-    var s=startDate(), e=endDate(), edit=currentEditId(), nr=currentNr();
-    var list=orders();
-    for(var i=0;i<list.length;i++){
-      var o=list[i]; if(!o) continue;
-      if(edit && T(o.id)===edit) continue;
-      if(nr && T(o.number||o.nr)===nr) continue;
+    var s=formStart(), e=formEnd(), edit=currentEditId(), nr=txt(val(["orderNumber","number","orderNr"]));
+    for(var i=0;i<orders().length;i++){
+      var o=orders()[i]; if(!o) continue;
+      if(edit && txt(o.id)===edit) continue;
+      if(nr && txt(o.number || o.nr)===nr) continue;
       if(!activeStatus(o.status)) continue;
       if(!overlap(o.start || o.dateStart || o.orderStart, o.end || o.dateEnd || o.orderEnd || o.start, s, e)) continue;
-      if(orderHasMaterial(o,m)) return o;
+      if(orderHasMat(o,m)) return o;
     }
     return null;
   }
   function baseBlocked(m){
     var st=low(m && m.status);
-    if(/inactive|niet actief|niet beschikbaar|niet inzetbaar/.test(st)) return {blocked:true, kind:'inactive'};
-    if(/defect|storing|damage|schade|missing|vermist|vermissing/.test(st)) return {blocked:true, kind:'defect'};
-    if(/reserved|gereserveerd/.test(st)) return {blocked:true, kind:'reservedStatus'};
-    return {blocked:false, kind:'free'};
+    if(st.indexOf("reserved")>=0 || st.indexOf("gereserveerd")>=0) return "reservedStatus";
+    if(st.indexOf("defect")>=0 || st.indexOf("storing")>=0 || st.indexOf("schade")>=0 || st.indexOf("damage")>=0 || st.indexOf("vermist")>=0 || st.indexOf("missing")>=0) return "defect";
+    if(st.indexOf("inactive")>=0 || st.indexOf("niet actief")>=0 || st.indexOf("niet beschikbaar")>=0 || st.indexOf("niet inzetbaar")>=0) return "inactive";
+    return "free";
   }
   function blockInfo(m){
-    if(!m) return {blocked:true, kind:'missing', material:m};
-    var r=reservationFor(m); if(r) return {blocked:true, kind:'reserved', material:m, order:r};
-    var b=baseBlocked(m); if(b.blocked){ b.material=m; return b; }
-    return {blocked:false, kind:'free', material:m};
+    if(!m) return {blocked:true, kind:"missing", material:m};
+    var r=reservationFor(m); if(r) return {blocked:true, kind:"reserved", material:m, order:r};
+    var b=baseBlocked(m); if(b!=="free") return {blocked:true, kind:b, material:m};
+    return {blocked:false, kind:"free", material:m};
   }
-  function popup(info){
-    var m=info.material||{}, o=info.order||{};
-    var old=E('bnsV207LockModal'); if(old) old.remove();
-    var div=document.createElement('div'); div.id='bnsV207LockModal'; div.className='bns-v207-modal';
-    var body='';
-    if(info.kind==='reserved' || info.kind==='reservedStatus'){
-      body='<div class="bns-v207-danger"><div class="bns-v207-big">⛔</div><div><b>'+esc(code(m)+' '+name(m))+'</b><br>Dit materiaal is geblokkeerd en kan niet toegevoegd worden.</div></div>';
-      if(info.order){
-        body+='<p><b>Klant:</b> '+esc(o.customer&&o.customer.name||'Onbekend')+'<br><b>Opdracht:</b> '+esc(o.number||'')+' '+esc(o.title||'')+'<br><b>Gereserveerd:</b> '+esc(nice(o.start))+' t/m '+esc(nice(o.end||o.start))+'<br><b>Nieuwe datum:</b> '+esc(nice(startDate()))+' t/m '+esc(nice(endDate()))+'</p>';
-      }
-    } else {
-      body='<div class="bns-v207-danger"><div class="bns-v207-big">⛔</div><div><b>'+esc(code(m)+' '+name(m))+'</b><br>Dit materiaal is niet inzetbaar.</div></div>';
-    }
-    div.innerHTML='<div class="bns-v207-card"><h2>Tapwagen.nl reserveringsslot</h2>'+body+'<button type="button" id="bnsV207Close">Sluiten</button></div>';
-    document.body.appendChild(div);
-    E('bnsV207Close').onclick=function(){ div.remove(); };
-  }
-  function removeIfBlockedSelected(m, info){
+  function removeSelectedMaterial(m){
     var list=selected();
     var next=list.filter(function(x){ return !sameMat(x,m); });
-    if(next.length!==list.length){ setSelected(next); try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){} }
-  }
-  function hardAdd(id){
-    var m=matById(id); var info=blockInfo(m);
-    if(info.blocked){ removeIfBlockedSelected(m, info); popup(info); try{ markRows(); }catch(e){} return false; }
-    var old=window.__BNS_V207_OLD_ADDMAT__;
-    if(typeof old==='function') return old.apply(this, arguments);
+    if(next.length !== list.length){
+      setSelected(next);
+      try { if(typeof renderChosen === "function") renderChosen(); } catch(e) {}
+      try { if(typeof summaryRender === "function") summaryRender(); } catch(e) {}
+      return true;
+    }
     return false;
   }
-  if(!window.__BNS_V207_OLD_ADDMAT__){ window.__BNS_V207_OLD_ADDMAT__ = window.addMat || (typeof addMat==='function'?addMat:null); }
-  window.addMat = hardAdd; try{ addMat = hardAdd; }catch(e){}
-
-  function rowForEvent(target){ return target && target.closest && target.closest('[data-material-id], .material-row, .bns-material-row, .v111-material-row, .v112-material-row, .bns-v198-matrow'); }
-  function guardEvent(ev){
-    var row=rowForEvent(ev.target); if(!row) return;
-    var m=matFromRow(row); if(!m) return;
-    var info=blockInfo(m);
-    if(info.blocked){ ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation(); removeIfBlockedSelected(m, info); popup(info); markRows(); return false; }
+  function ownMessage(info, removed){
+    var m=info.material || {};
+    var o=info.order || {};
+    var old=E(MODAL_ID); if(old) old.remove();
+    var div=document.createElement("div"); div.id=MODAL_ID; div.className="bns-v208-modal";
+    var html='<div class="bns-v208-card"><h2>Tapwagen.nl reserveringsslot</h2>';
+    html+='<div class="bns-v208-danger"><div class="bns-v208-icon">!</div><div><b>'+esc(matCode(m)+" "+matName(m))+'</b><br>Dit materiaal is geblokkeerd en kan niet toegevoegd worden.</div></div>';
+    if(info.kind==="reserved" && info.order){
+      html+='<p><b>Klant:</b> '+esc((o.customer && o.customer.name) || "Onbekend")+'<br><b>Opdracht:</b> '+esc(o.number || "")+' '+esc(o.title || "")+'<br><b>Gereserveerd:</b> '+esc(nice(o.start))+' t/m '+esc(nice(o.end || o.start))+'<br><b>Nieuwe datum:</b> '+esc(nice(formStart()))+' t/m '+esc(nice(formEnd()))+'</p>';
+    } else if(info.kind==="reservedStatus") {
+      html+='<p>Dit materiaal staat op status <b>Gereserveerd</b>.</p>';
+    } else {
+      html+='<p>Dit materiaal is niet inzetbaar door status: <b>'+esc(info.kind)+ '</b>.</p>';
+    }
+    if(removed) html+='<p><b>Let op:</b> het materiaal stond al in gekozen materialen en is direct verwijderd.</p>';
+    html+='<div class="actions"><button type="button" id="bnsV208Close">Sluiten</button></div></div>';
+    div.innerHTML=html;
+    document.body.appendChild(div);
+    var c=E("bnsV208Close"); if(c) c.onclick=function(){ div.remove(); };
   }
-  ['pointerdown','mousedown','touchstart','click','dblclick'].forEach(function(ev){ document.addEventListener(ev, guardEvent, true); });
-
-  function validateSelected(){
+  function hardAdd(id){
+    var m=matById(id);
+    var info=blockInfo(m);
+    if(info.blocked){
+      var removed=removeSelectedMaterial(m);
+      ownMessage(info, removed);
+      markRows();
+      return false;
+    }
+    if(typeof window.__BNS_V208_OLD_ADDMAT__ === "function") return window.__BNS_V208_OLD_ADDMAT__.apply(this, arguments);
+    return false;
+  }
+  function validateBeforeSave(){
     var bad=[];
-    selected().forEach(function(x){ var m=matById(idOf(x)) || x; var info=blockInfo(m); if(info.blocked) bad.push(info); });
+    selected().forEach(function(x){ var m=matById(matId(x)) || x; var info=blockInfo(m); if(info.blocked) bad.push(info); });
     if(!bad.length) return true;
-    var first=bad[0]; popup(first);
-    try{ bad.forEach(function(info){ removeIfBlockedSelected(info.material, info); }); }catch(e){}
+    var first=bad[0];
+    var removed=false;
+    bad.forEach(function(info){ if(removeSelectedMaterial(info.material)) removed=true; });
+    ownMessage(first, removed);
     markRows();
     return false;
   }
-  if(!window.__BNS_V207_OLD_SAVE_CURRENT_ORDER__){ window.__BNS_V207_OLD_SAVE_CURRENT_ORDER__ = window.saveCurrentOrder || (typeof saveCurrentOrder==='function'?saveCurrentOrder:null); }
-  if(typeof window.__BNS_V207_OLD_SAVE_CURRENT_ORDER__ === 'function'){
-    var saveWrap=function(){ if(!validateSelected()) return false; return window.__BNS_V207_OLD_SAVE_CURRENT_ORDER__.apply(this, arguments); };
-    window.saveCurrentOrder=saveWrap; try{ saveCurrentOrder=saveWrap; }catch(e){}
-  }
-  var saveBtn=E('saveOrder'); if(saveBtn && !saveBtn.dataset.bnsV207){ saveBtn.dataset.bnsV207='1'; saveBtn.addEventListener('click', function(e){ if(!validateSelected()){ e.preventDefault(); e.stopImmediatePropagation(); return false; } }, true); }
-
-  function markRows(){
-    Q('[data-material-id], .material-row, .bns-material-row, .v111-material-row, .v112-material-row, .bns-v198-matrow').forEach(function(row){
-      var m=matFromRow(row); if(!m) return;
-      var info=blockInfo(m);
-      row.classList.toggle('bns-v207-locked', !!info.blocked);
-      row.setAttribute('data-bns-v207-lock', info.blocked ? '1' : '0');
-      if(info.blocked){
-        if(!row.querySelector('.bns-v207-lock-dot')){
-          var dot=document.createElement('span'); dot.className='bns-v207-lock-dot'; dot.textContent='⛔'; dot.title='Geblokkeerd'; row.appendChild(dot);
-        }
-      } else {
-        Q('.bns-v207-lock-dot', row).forEach(function(d){ d.remove(); });
-      }
-    });
-  }
-  function installStyle(){
-    if(E('bnsV207Style')) return;
-    var st=document.createElement('style'); st.id='bnsV207Style';
-    st.textContent='.bns-v207-locked{position:relative!important;cursor:not-allowed!important;background:#fff1f2!important;border:2px solid #ef4444!important;box-shadow:0 0 0 2px rgba(239,68,68,.12)!important}.bns-v207-lock-dot{display:inline-grid;place-items:center;min-width:30px;height:30px;border-radius:999px;background:#dc2626;color:#fff;font-weight:900;margin-left:8px;box-shadow:0 4px 10px rgba(220,38,38,.25)}.bns-v207-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999999;display:grid;place-items:center;padding:18px}.bns-v207-card{background:#fff;color:#172033;width:min(620px,96vw);border-radius:22px;box-shadow:0 25px 80px rgba(0,0,0,.35);padding:24px}.bns-v207-card h2{margin:0 0 14px}.bns-v207-card button{float:right;border:0;border-radius:14px;background:#0f766e;color:#fff;font-weight:900;padding:11px 18px}.bns-v207-danger{display:flex;gap:13px;align-items:center;background:#fff1f2;border:1px solid #fecaca;border-radius:16px;padding:14px;margin-bottom:12px}.bns-v207-big{font-size:34px;line-height:1}';
-    document.head.appendChild(st);
-  }
-  function patchRender(){
-    if(!window.__BNS_V207_RENDER_PATCHED__){
-      var oldR=window.renderMaterials || (typeof renderMaterials==='function'?renderMaterials:null);
-      if(typeof oldR==='function'){
-        var wrap=function(){ var r=oldR.apply(this, arguments); setTimeout(markRows,0); setTimeout(markRows,120); return r; };
-        window.renderMaterials=wrap; try{ renderMaterials=wrap; }catch(e){}
-      }
-      window.__BNS_V207_RENDER_PATCHED__=true;
+  function rowHandler(ev){
+    var list=E("materialList"); if(!list || !list.contains(ev.target)) return;
+    var row=ev.target.closest && ev.target.closest(".material-row,.v111-material-row,.v112-material-row,.bns-material-row,[data-material-id]");
+    if(!row) return;
+    var m=matFromRow(row); if(!m) return;
+    var info=blockInfo(m);
+    if(info.blocked){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      var removed=removeSelectedMaterial(m);
+      ownMessage(info, removed);
+      markRows();
+      return false;
     }
   }
-  function tick(){ installStyle(); patchRender(); markRows(); }
-  var mo=new MutationObserver(function(){ tick(); });
-  try{ mo.observe(document.documentElement,{childList:true,subtree:true,attributes:false}); }catch(e){}
-  ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev,function(){ setTimeout(tick,50); setTimeout(tick,300); setTimeout(tick,1000); }); });
-  setInterval(markRows, 1500);
-  setTimeout(tick,100); setTimeout(tick,600); setTimeout(tick,1500);
+  function style(){
+    if(E(STYLE_ID)) return;
+    var st=document.createElement("style"); st.id=STYLE_ID;
+    st.textContent = '.bns-v208-locked{position:relative!important;cursor:not-allowed!important;background:#fff1f2!important;border:2px solid #ef4444!important;box-shadow:0 0 0 2px rgba(239,68,68,.12)!important}.bns-v208-lock-dot{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:999px;background:#dc2626;color:#fff;font-weight:900;margin-left:8px;box-shadow:0 4px 10px rgba(220,38,38,.25);font-size:16px}.bns-v208-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999999;display:grid;place-items:center;padding:18px}.bns-v208-card{background:#fff;color:#172033;width:min(620px,96vw);border-radius:22px;box-shadow:0 25px 80px rgba(0,0,0,.35);padding:24px}.bns-v208-card h2{margin:0 0 14px}.bns-v208-card button{border:0;border-radius:14px;background:#0f766e;color:#fff;font-weight:900;padding:11px 18px}.bns-v208-danger{display:flex;gap:13px;align-items:center;background:#fff1f2;border:1px solid #fecaca;border-radius:16px;padding:14px;margin-bottom:12px}.bns-v208-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:999px;background:#dc2626;color:#fff;font-weight:900;font-size:24px;line-height:1}';
+    document.head.appendChild(st);
+  }
+  function markRows(){
+    var list=E("materialList"); if(!list) return;
+    A(".material-row,.v111-material-row,.v112-material-row,.bns-material-row,[data-material-id]", list).forEach(function(row){
+      var m=matFromRow(row); if(!m) return;
+      var info=blockInfo(m);
+      row.classList.toggle("bns-v208-locked", !!info.blocked);
+      row.setAttribute("data-bns-v208-lock", info.blocked ? "1" : "0");
+      var dots=A(".bns-v208-lock-dot", row);
+      if(info.blocked){
+        if(!dots.length){ var dot=document.createElement("span"); dot.className="bns-v208-lock-dot"; dot.textContent="!"; dot.title="Geblokkeerd"; row.appendChild(dot); }
+      } else dots.forEach(function(d){ d.remove(); });
+    });
+  }
+  function wrapAdd(){
+    if(!window.__BNS_V208_OLD_ADDMAT__){
+      window.__BNS_V208_OLD_ADDMAT__ = window.addMat || (typeof addMat === "function" ? addMat : null);
+    }
+    window.addMat = hardAdd;
+    try { addMat = hardAdd; } catch(e) {}
+  }
+  function wrapRender(){
+    if(window.__BNS_V208_RENDER_WRAPPED__) return;
+    var old = window.renderMaterials || (typeof renderMaterials === "function" ? renderMaterials : null);
+    if(typeof old === "function"){
+      var wrapped=function(){ var r=old.apply(this, arguments); setTimeout(markRows, 0); setTimeout(markRows, 80); return r; };
+      window.renderMaterials=wrapped;
+      try { renderMaterials=wrapped; } catch(e) {}
+    }
+    window.__BNS_V208_RENDER_WRAPPED__=true;
+  }
+  function wrapSave(){
+    if(!window.__BNS_V208_OLD_SAVE_CURRENT_ORDER__){
+      window.__BNS_V208_OLD_SAVE_CURRENT_ORDER__ = window.saveCurrentOrder || (typeof saveCurrentOrder === "function" ? saveCurrentOrder : null);
+    }
+    if(typeof window.__BNS_V208_OLD_SAVE_CURRENT_ORDER__ === "function" && !window.__BNS_V208_SAVE_WRAPPED__){
+      var wrapped=function(){ if(!validateBeforeSave()) return false; return window.__BNS_V208_OLD_SAVE_CURRENT_ORDER__.apply(this, arguments); };
+      window.saveCurrentOrder=wrapped;
+      try { saveCurrentOrder=wrapped; } catch(e) {}
+      window.__BNS_V208_SAVE_WRAPPED__=true;
+    }
+    var btn=E("saveOrder");
+    if(btn && !btn.dataset.bnsV208Save){
+      btn.dataset.bnsV208Save="1";
+      btn.addEventListener("click", function(ev){ if(!validateBeforeSave()){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); return false; } }, true);
+    }
+  }
+  function install(){
+    style(); wrapAdd(); wrapRender(); wrapSave();
+    var list=E("materialList");
+    if(list && !list.dataset.bnsV208Guard){
+      list.dataset.bnsV208Guard="1";
+      list.addEventListener("click", rowHandler, true);
+      list.addEventListener("pointerdown", rowHandler, true);
+      list.addEventListener("touchstart", rowHandler, true);
+    }
+    markRows(); setTimeout(markRows, 200); setTimeout(markRows, 800);
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(install, 700); });
+  else setTimeout(install, 700);
 })();
