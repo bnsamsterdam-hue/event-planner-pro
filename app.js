@@ -13,7 +13,7 @@ let state=load(); ensure();
 let pin='', user=null, chosen=[], editing=null, currentCat='TW', mode='active';
 
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(INITIAL_STATE)}catch(e){return structuredClone(INITIAL_STATE)}}
-function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){try{console.warn('[Tapwagen] lokale opslag vol, Firebase blijft leidend',e)}catch(_){}}}
 function ensure(){state.users??=[];state.orders??=[];state.materials??=[];state.customers??=[];state.locations??=[];state.alerts??=[];state.adminPin??='1111';}
 function id(){return Math.random().toString(36).slice(2,10)}
 function $(id){return document.getElementById(id)}
@@ -10616,7 +10616,7 @@ setInterval(install,1500);
       btn.className='danger';
       btn.textContent='Verwijder opdracht';
       btn.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} return deleteCurrentOrder(); };
-      if(cancelBtn) parent.insertBefore(btn,cancelBtn); else parent.appendChild(btn);
+      if(cancelBtn && cancelBtn.parentNode===parent) parent.insertBefore(btn,cancelBtn); else parent.appendChild(btn);
     }
   }
   function installStyle(){
@@ -11530,6 +11530,7 @@ setInterval(install,1500);
   "use strict";
   if (window.__bnsV72MaterialStableOnly) return;
   window.__bnsV72MaterialStableOnly = true;
+  return; // V301B stabiel: oude V72 patch uitgeschakeld, veroorzaakte currentCat-fouten
 
   var OVERRIDE_KEY = "bns_material_overrides_v72";
   var STYLE_ID = "bns-v72-material-stable-style";
@@ -11667,6 +11668,7 @@ setInterval(install,1500);
   "use strict";
   if (window.__bnsV73MaterialAdminToPlannerFinal) return;
   window.__bnsV73MaterialAdminToPlannerFinal = true;
+  return; // V301B stabiel: oude V73 patch uitgeschakeld, veroorzaakte currentCat-fouten
 
   var OVERRIDE_KEY = "bns_material_overrides_v72";
 
@@ -15614,4 +15616,87 @@ setInterval(install,1500);
   function start(){ styles(); wrapDocs(); wrapRender(); refresh(); setTimeout(refresh,500); setTimeout(refresh,1500); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
   document.addEventListener('click',function(){ setTimeout(refresh,120); },true);
+})();
+
+
+/* =========================================================
+   V301B STABIEL - herstel zonder telefoon/driver te raken
+   Basis: app(3).js / V301A noodherstel.
+   - Geen driver/Firebase-config wijzigingen.
+   - Maakt lokale opslagfouten niet fataal.
+   - Verbergt Bezorger meldingen menu in planner.
+   - Eén rustige set Routenet/Streetview in Nieuwe opdracht, locatieadres.
+   ========================================================= */
+(function tapwagenV301BStableSmall(){
+  "use strict";
+  if(window.__tapwagenV301BStableSmall) return;
+  window.__tapwagenV301BStableSmall = true;
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function isVisible(el){ return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length)); }
+  function field(ids){ for(var i=0;i<ids.length;i++){ var el=E(ids[i]); if(el && T(el.value)) return T(el.value); } return ''; }
+  function locationAddress(){
+    return [
+      [field(['locationStreet','locatieStraat','locationAddress','locatieAdres']), field(['locationHouseNumber','locatieHuisnummer','houseNumberLocation','locationNr','locatieNr'])].filter(Boolean).join(' '),
+      field(['locationZip','locationPostcode','locatiePostcode','locatieZip']),
+      field(['locationCity','locationPlace','locatiePlaats','locatieCity'])
+    ].filter(Boolean).join(' ');
+  }
+  function openRoute(kind){
+    var addr=locationAddress();
+    if(!addr){ try{ if(typeof toastMsg==='function') toastMsg('Vul eerst het locatieadres in.'); else alert('Vul eerst het locatieadres in.'); }catch(e){} return; }
+    var q=encodeURIComponent(addr + ' Nederland');
+    var url = kind==='streetview' ? ('https://www.google.com/maps?q='+q+'&layer=c') : ('https://www.routenet.nl/routeplanner?locatie='+q);
+    window.open(url,'_blank','noopener');
+  }
+  function style(){
+    if(E('tapV301BStableStyle')) return;
+    var s=document.createElement('style'); s.id='tapV301BStableStyle';
+    s.textContent='\
+      .tap-v301b-routebox{display:flex!important;gap:10px!important;flex-wrap:wrap!important;margin:10px 0!important;align-items:center!important}\
+      .tap-v301b-routebox button{min-width:150px!important;height:46px!important;border:0!important;border-radius:14px!important;background:#166534!important;color:white!important;font-weight:900!important;font-size:15px!important;box-shadow:0 2px 8px rgba(0,0,0,.10)!important;cursor:pointer!important}\
+      .tap-v301b-hidden{display:none!important}\
+    ';
+    document.head.appendChild(s);
+  }
+  function hideDriverMenu(){
+    A('button,a,.nav,.worktab').forEach(function(el){
+      var txt=T(el.textContent).toLowerCase();
+      if(txt==='bezorger meldingen' || txt==='bezorgermeldingen') el.classList.add('tap-v301b-hidden');
+    });
+  }
+  function findRouteAnchor(){
+    var ids=['locationPanel','locatiePanel','agendaPanel','newOrder','work','orderForm'];
+    for(var i=0;i<ids.length;i++){ var x=E(ids[i]); if(x && isVisible(x)) return x; }
+    var labels=A('h2,h3,legend,b,label,button').filter(function(x){return /locatie|agenda/i.test(T(x.textContent));});
+    if(labels[0]) return labels[0].closest('.card,.panel,section,fieldset,div') || labels[0].parentElement;
+    return null;
+  }
+  function removeOldRouteButtons(root){
+    A('button,a', root||document).forEach(function(el){
+      if(el.id==='tapV301BRoutenet' || el.id==='tapV301BStreetview') return;
+      var txt=T(el.textContent).toLowerCase();
+      if(txt==='routenet' || txt==='streetview' || txt==='street view') el.classList.add('tap-v301b-hidden');
+    });
+  }
+  function ensureRoutes(){
+    style();
+    hideDriverMenu();
+    var anchor=findRouteAnchor();
+    if(!anchor) return;
+    removeOldRouteButtons(anchor);
+    var box=E('tapV301BRouteBox');
+    if(!box){
+      box=document.createElement('div'); box.id='tapV301BRouteBox'; box.className='tap-v301b-routebox';
+      var r=document.createElement('button'); r.type='button'; r.id='tapV301BRoutenet'; r.textContent='Routenet'; r.onclick=function(e){e.preventDefault(); openRoute('routenet');};
+      var st=document.createElement('button'); st.type='button'; st.id='tapV301BStreetview'; st.textContent='Streetview'; st.onclick=function(e){e.preventDefault(); openRoute('streetview');};
+      box.appendChild(r); box.appendChild(st);
+    }
+    if(!box.parentNode || !anchor.contains(box)) anchor.appendChild(box);
+  }
+  function safeRun(){ try{ ensureRoutes(); }catch(e){ try{ console.warn('[V301B stable]',e); }catch(_){ } } }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(safeRun,700); }); else setTimeout(safeRun,700);
+  document.addEventListener('click', function(){ setTimeout(safeRun,80); }, true);
+  document.addEventListener('change', function(){ setTimeout(safeRun,80); }, true);
 })();
