@@ -18067,216 +18067,201 @@ setInterval(install,1500);
   }catch(e){}
 })();
 
-/* =========================================================
-   Tapwagen V302 - app(4) stabilisatie
-   Basis: app(4).js (gisteren bijna klaar)
+/* ============================================================
+   V304 - App4 basis: rust + routeknoppen Nieuwe opdracht
    Doel:
-   - geen functies verwijderen;
-   - telefoon -> planner alerts opnieuw live lezen;
-   - oude dubbele Routenet/Streetview in Nieuwe opdracht verbergen;
-   - een set grote routeknoppen plaatsen met locatieadres;
-   - bekende late patch-errors niet laten doorrollen in wit scherm.
-   Geen driver.js, firebase-config.js of data.js wijziging.
-========================================================= */
-(function TapwagenV302App4Stabilisatie(){
-  'use strict';
-  if(window.__tapwagenV302App4Stabilisatie) return;
-  window.__tapwagenV302App4Stabilisatie = true;
+   - app(4).js blijft basis
+   - geen driver/firebase-config/data wijzigen
+   - oude dubbele Routenet/Streetview in Nieuwe opdracht verbergen
+   - 1 rustige set knoppen terug, zelfde formaat als Agenda
+   - locatieadres gebruiken
+   ============================================================ */
+(function tapV304RustRoutes(){
+  if (window.__tapV304RustRoutesInstalled) return;
+  window.__tapV304RustRoutesInstalled = true;
 
-  function E(id){ return document.getElementById(id); }
-  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function T(v){ return String(v == null ? '' : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} window.state = window.state || {orders:[],alerts:[],users:[],materials:[]}; return window.state; }
-  function ensure(){ var s=stateObj(); if(!Array.isArray(s.orders)) s.orders=[]; if(!Array.isArray(s.alerts)) s.alerts=[]; if(!Array.isArray(s.users)) s.users=[]; return s; }
-  function safeSave(){ try{ if(typeof save === 'function') save(); }catch(e){} try{ if(typeof saveState === 'function') saveState(); }catch(e){} try{ if(typeof saveBns === 'function') saveBns(); }catch(e){} }
-  function safeRender(){ try{ if(typeof renderAll === 'function') renderAll(); }catch(e){} try{ if(typeof renderOrders === 'function') renderOrders(); }catch(e){} updateSystemButton(); }
+  function byId(id){ return document.getElementById(id); }
+  function text(el){ return ((el && el.textContent) || '').replace(/\s+/g,' ').trim().toLowerCase(); }
+  function val(id){ var el=byId(id); return el ? String(el.value || '').trim() : ''; }
 
-  // Voorkom dat bekende oude patchfouten de app blijven platleggen.
-  window.addEventListener('error', function(ev){
-    var msg = String((ev && ev.message) || '');
-    if(/currentCat is not a function|insertBefore.*not a child|css is not defined/i.test(msg)){
-      try{ ev.preventDefault(); }catch(e){}
-      return false;
-    }
-  }, true);
-  window.addEventListener('unhandledrejection', function(ev){
-    var msg = String((ev && ev.reason && (ev.reason.message || ev.reason)) || '');
-    if(/QuotaExceededError|currentCat is not a function|insertBefore.*not a child|css is not defined/i.test(msg)){
-      try{ ev.preventDefault(); }catch(e){}
-      return false;
-    }
-  }, true);
-
-  function addStyle(){
-    if(E('tapwagen-v302-style')) return;
-    var st=document.createElement('style'); st.id='tapwagen-v302-style';
+  function injectCss(){
+    if (byId('tap-v304-css')) return;
+    var st=document.createElement('style');
+    st.id='tap-v304-css';
     st.textContent = [
-      '.tap-v302-hidden-route{display:none!important;visibility:hidden!important;pointer-events:none!important;width:0!important;height:0!important;min-width:0!important;min-height:0!important;padding:0!important;margin:0!important;overflow:hidden!important}',
-      '#tapV302RouteBox{display:flex!important;gap:10px!important;align-items:center!important;flex-wrap:wrap!important;margin:10px 0!important;padding:0!important}',
-      '#tapV302RouteBox button{display:inline-flex!important;align-items:center!important;justify-content:center!important;border:0!important;border-radius:12px!important;padding:11px 18px!important;min-height:44px!important;min-width:135px!important;font-size:15px!important;font-weight:900!important;line-height:1.15!important;box-sizing:border-box!important;box-shadow:0 2px 6px rgba(15,23,42,.15)!important;cursor:pointer!important}',
-      '#tapV302Routenet{background:#0ea5e9!important;color:#fff!important}',
-      '#tapV302Streetview{background:#7c3aed!important;color:#fff!important}',
-      '#alertsBtn.tap-v302-open{background:#dc2626!important;color:#fff!important;border-color:#991b1b!important}',
-      '#alertsBtn.tap-v302-ok{background:#16a34a!important;color:#fff!important;border-color:#166534!important}',
-      '.tap-v302-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:18px}',
-      '.tap-v302-card{width:min(760px,96vw);max-height:90vh;overflow:auto;background:white;color:#172033;border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(15,23,42,.35)}',
-      '.tap-v302-alert{border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin:10px 0;background:#fff}',
-      '.tap-v302-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.tap-v302-actions button{border:0;border-radius:10px;padding:9px 12px;font-weight:900;cursor:pointer}.tap-v302-danger{background:#dc2626!important;color:white!important}.tap-v302-done{background:#16a34a!important;color:white!important}'
+      '.tap-v304-routebox{display:flex!important;gap:10px!important;align-items:center!important;flex-wrap:wrap!important;margin:10px 0!important;padding:0!important;clear:both!important}',
+      '.tap-v304-routebtn{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:42px!important;min-width:132px!important;padding:10px 18px!important;border-radius:12px!important;border:0!important;font-weight:800!important;font-size:15px!important;line-height:1.15!important;box-sizing:border-box!important;cursor:pointer!important;color:#fff!important;box-shadow:none!important;white-space:nowrap!important}',
+      '.tap-v304-routenet{background:#0284c7!important}',
+      '.tap-v304-streetview{background:#7c3aed!important}',
+      '.tap-v304-hidden-route{display:none!important;visibility:hidden!important;pointer-events:none!important;opacity:0!important;width:0!important;height:0!important;min-width:0!important;min-height:0!important;padding:0!important;margin:0!important;overflow:hidden!important}',
+      '.tap-v304-stable{animation:none!important;transition:none!important}',
+      '.tap-v304-quiet *{animation:none!important}',
+      '.tap-v304-routebox + .tap-v304-routebox{display:none!important}'
     ].join('\n');
-    document.head.appendChild(st);
+    (document.head || document.documentElement).appendChild(st);
   }
 
-  function inputVal(ids){
-    for(var i=0;i<ids.length;i++){ var el=E(ids[i]); if(el && T(el.value)) return T(el.value); }
-    return '';
-  }
-  function locatieAdres(){
-    var street=inputVal(['locationStreet','locatieStraat','locationAddress','locatieAdres','orderLocationStreet']);
-    var house=inputVal(['locationHouseNumber','locatieHuisnummer','houseNumberLocation','locationNr','locatieNr','orderLocationHouseNumber']);
-    var zip=inputVal(['locationZip','locationPostcode','locatiePostcode','locatieZip','orderLocationZip']);
-    var city=inputVal(['locationCity','locationPlace','locatiePlaats','locatieCity','orderLocationCity']);
-    var parts=[]; [street,house,zip,city].forEach(function(p){ p=T(p); if(p && parts.indexOf(p)<0) parts.push(p); });
-    return parts.join(' ').replace(/\s+/g,' ').trim();
-  }
-  function isRouteText(el){
-    if(!el) return false;
-    var txt=L(el.textContent||''), id=L(el.id||''), cls=L(el.className||'');
-    return /routenet|streetview|street view/.test(txt+' '+id+' '+cls);
-  }
-  function newOrderArea(el){
-    if(!el || !el.closest) return false;
-    if(el.id==='tapV302Routenet' || el.id==='tapV302Streetview' || el.id==='tapV302RouteBox') return false;
-    if(el.closest('.order-card,.bns-v126-order-card,.v95order,.bns-v83-phone-card,.tap-document-window,.tap-doc-window')) return false;
-    if(el.closest('#newOrder,#newOrderPage,#orderForm,#locationPanel,#customerPanel,#bnsPlannerTools')) return true;
-    var loc=E('locationName')||E('locationStreet')||E('locationZip')||E('locationCity');
-    if(loc){ var block=loc.closest('.card,section,fieldset,form,.panel,.box,div'); if(block && block.contains(el)) return true; }
-    var ag=E('bnsAgendaPickupBtn')||E('bnsAgendaOrderBtn')||E('bnsMapsPlannerBtn')||E('bnsWazePlannerBtn');
-    if(ag && ag.parentElement && ag.parentElement.contains(el)) return true;
-    return false;
-  }
-  function removeOldRoutes(){
-    var known=['tapV31AgendaRoutenet','tapV31AgendaStreetview','tapV32AgendaRoutenet','tapV32AgendaStreetview','tapV33AgendaRoutenet','tapV33AgendaStreetview','tapV36AgendaRoutenet','tapV36AgendaStreetview','tapV37Routenet','tapV37Streetview'];
-    known.forEach(function(id){ var el=E(id); if(el){ el.classList.add('tap-v302-hidden-route'); el.setAttribute('aria-hidden','true'); }});
-    A('button,a').forEach(function(el){ if(isRouteText(el) && newOrderArea(el)){ el.classList.add('tap-v302-hidden-route'); el.setAttribute('aria-hidden','true'); try{ el.tabIndex=-1; }catch(e){} }});
-  }
-  function openRoute(kind){
-    var addr=locatieAdres();
-    if(!addr){ try{ if(typeof toastMsg==='function') toastMsg('Vul eerst het locatie-adres in.'); else alert('Vul eerst het locatie-adres in.'); }catch(e){} return false; }
-    var q=encodeURIComponent(addr);
-    var url = kind==='streetview' ? ('https://www.google.com/maps?q='+q+'&layer=c') : ('https://www.routenet.nl/routeplanner?locatie='+q);
-    window.open(url,'_blank');
-    return false;
-  }
-  function ensureRoutes(){
-    addStyle();
-    removeOldRoutes();
-    var anchor=E('bnsAgendaPickupBtn')||E('bnsAgendaOrderBtn')||E('bnsMapsPlannerBtn')||E('bnsWazePlannerBtn');
-    var loc=E('locationName')||E('locationStreet')||E('locationZip')||E('locationCity');
-    var host=anchor&&anchor.parentElement?anchor.parentElement:null;
-    if(!host && loc) host=(loc.closest&&loc.closest('.card,section,fieldset,form,.panel,.box,div'))||loc.parentElement;
-    if(!host) return;
-    var box=E('tapV302RouteBox');
-    if(!box){
-      box=document.createElement('div'); box.id='tapV302RouteBox';
-      var r=document.createElement('button'); r.type='button'; r.id='tapV302Routenet'; r.textContent='Routenet';
-      var s=document.createElement('button'); s.type='button'; s.id='tapV302Streetview'; s.textContent='Streetview';
-      box.appendChild(r); box.appendChild(s);
-      if(anchor && anchor.nextSibling) host.insertBefore(box, anchor.nextSibling); else host.appendChild(box);
-    } else if(box.parentElement !== host){ host.appendChild(box); }
-    var rb=E('tapV302Routenet'), sb=E('tapV302Streetview');
-    if(rb) rb.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();} return openRoute('routenet'); };
-    if(sb) sb.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();} return openRoute('streetview'); };
+  function isRouteElement(el){
+    if (!el || !el.matches) return false;
+    if (!el.matches('button,a,input[type="button"],input[type="submit"],.btn,[role="button"]')) return false;
+    if (el.id === 'tapV304Routenet' || el.id === 'tapV304Streetview') return false;
+    var t = text(el);
+    var id = String(el.id || '').toLowerCase();
+    var cls = String(el.className || '').toLowerCase();
+    var v = String(el.value || '').toLowerCase();
+    return t === 'routenet' || t === 'streetview' || t === 'street view' || v === 'routenet' || v === 'streetview' || id.indexOf('routenet') >= 0 || id.indexOf('streetview') >= 0 || cls.indexOf('routenet') >= 0 || cls.indexOf('streetview') >= 0 || cls.indexOf('tap-v31') >= 0 || cls.indexOf('tap-v32') >= 0 || cls.indexOf('tap-v33') >= 0 || cls.indexOf('tap-v36') >= 0 || cls.indexOf('tap-v37') >= 0;
   }
 
-  function normalizeAlert(a){
-    a=a||{};
-    if(!a.id) a.id='alert_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
-    if(!a.createdAt) a.createdAt=new Date().toISOString();
-    if(!a.time) { try{ a.time=new Date(a.createdAt).toLocaleString('nl-NL'); }catch(e){ a.time=new Date().toLocaleString('nl-NL'); } }
-    if(!a.note && a.message) a.note=a.message;
-    if(!a.message && a.note) a.message=a.note;
-    if(!a.text && (a.note||a.message)) a.text=a.note||a.message;
-    if(!a.title) a.title=a.type || 'Systeemmelding';
-    if(a.resolved == null) a.resolved=false;
-    return a;
+  function getNewOrderRoot(){
+    var root = byId('newOrder') || byId('newOrderPage') || byId('newOrderForm') || byId('orderForm');
+    if (root) return root;
+    var loc = byId('locationStreet') || byId('locationZip') || byId('locationCity');
+    if (!loc) return null;
+    return loc.closest('section,.page,.panel,.card,main,body') || document.body;
   }
-  function mergeAlerts(rows){
-    var s=ensure(), map={};
-    (s.alerts||[]).forEach(function(a){ if(a && a.id) map[String(a.id)]=normalizeAlert(a); });
-    (rows||[]).forEach(function(a){ if(a && a.id) map[String(a.id)]=Object.assign({}, map[String(a.id)]||{}, normalizeAlert(a)); });
-    s.alerts=Object.keys(map).map(function(k){ return map[k]; }).sort(function(a,b){ return String(b.createdAt||'').localeCompare(String(a.createdAt||'')); });
-    safeSave();
-    updateSystemButton();
+
+  function addressParts(){
+    var street = val('locationStreet');
+    var house = val('locationHouse') || val('locationHouseNumber') || val('locationNr') || val('locationNumber');
+    var zip = val('locationZip') || val('locationPostcode');
+    var city = val('locationCity') || val('locationPlace');
+    return [street, house, zip, city].filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
   }
-  function activeAlerts(){
-    var s=ensure();
-    return (s.alerts||[]).filter(function(a){
-      if(a.resolved) return false;
-      var t=L([a.title,a.type,a.note,a.message,a.text,a.source].join(' '));
-      if(/foto|photo|handtekening|signature/.test(t)) return false;
-      return /storing|schade|vermissing|melding|bezorger|telefoon/.test(t) || a.system===true;
-    });
-  }
-  function updateSystemButton(){
-    var b=E('alertsBtn'); if(!b) return;
-    var n=activeAlerts().length;
-    b.textContent='Systeemmeldingen ('+n+')';
-    b.classList.toggle('tap-v302-open', n>0);
-    b.classList.toggle('tap-v302-ok', n===0);
-    if(!b.dataset.tapV302){
-      b.dataset.tapV302='1';
-      b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); openAlertModal(); }, true);
+
+  function routeUrl(kind){
+    var addr = addressParts();
+    if (!addr) {
+      alert('Tapwagen.nl\nVul eerst het locatieadres in.');
+      return null;
     }
-  }
-  function remoteSetAlert(a){
-    try{ if(window.BNS&&window.BNS.fs&&window.BNS.db&&window.BNS.fs.setDoc&&window.BNS.fs.doc&&a&&a.id){ window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'alerts',String(a.id)),Object.assign({},a,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){}); } }catch(e){}
-  }
-  function remoteDeleteAlert(id){
-    try{ if(window.BNS&&window.BNS.fs&&window.BNS.db&&window.BNS.fs.deleteDoc&&window.BNS.fs.doc&&id){ window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'alerts',String(id))).catch(function(){}); } }catch(e){}
-  }
-  window.TapwagenV302ResolveAlert=function(id){ var s=ensure(); var a=(s.alerts||[]).find(function(x){return String(x.id)===String(id);}); if(a){a.resolved=true; remoteSetAlert(a);} safeSave(); updateSystemButton(); openAlertModal(); };
-  window.TapwagenV302DeleteAlert=function(id){ var s=ensure(); s.alerts=(s.alerts||[]).filter(function(x){return String(x.id)!==String(id);}); remoteDeleteAlert(id); safeSave(); updateSystemButton(); openAlertModal(); };
-  window.TapwagenV302ClearAlerts=function(){ var s=ensure(); (s.alerts||[]).forEach(function(a){ if(!a.resolved){ a.resolved=true; remoteSetAlert(a); } }); safeSave(); updateSystemButton(); openAlertModal(); };
-  function openAlertModal(){
-    addStyle(); var old=E('tapV302AlertModal'); if(old) old.remove();
-    var rows=activeAlerts();
-    var m=document.createElement('div'); m.id='tapV302AlertModal'; m.className='tap-v302-modal';
-    m.innerHTML='<div class="tap-v302-card"><h2>Tapwagen.nl systeemmeldingen</h2><p>'+rows.length+' open melding(en)</p><div class="tap-v302-actions"><button type="button" onclick="document.getElementById(\'tapV302AlertModal\').remove()">Terug</button><button type="button" class="tap-v302-danger" onclick="TapwagenV302ClearAlerts()">Alles wissen</button></div>'+(rows.length?rows.map(function(a){return '<div class="tap-v302-alert"><b>'+esc(a.title||a.type||'Systeemmelding')+'</b><br><small>'+esc(a.time||a.createdAt||'')+'</small><div>'+esc(a.note||a.message||a.text||'')+'</div><div class="tap-v302-actions"><button type="button" class="tap-v302-done" onclick="TapwagenV302ResolveAlert(\''+esc(a.id)+'\')">Gezien door planner</button><button type="button" class="tap-v302-danger" onclick="TapwagenV302DeleteAlert(\''+esc(a.id)+'\')">Verwijderen</button></div></div>';}).join(''):'<p>Geen open systeemmeldingen.</p>')+'</div>';
-    document.body.appendChild(m);
+    var q = encodeURIComponent(addr);
+    if (kind === 'streetview') return 'https://www.google.com/maps?q=' + q + '&layer=c';
+    return 'https://www.routenet.nl/routeplanner?locatie=' + q;
   }
 
-  var alertsUnsub=null;
-  function startAlertsListener(){
-    if(alertsUnsub) return;
-    try{
-      if(!(window.BNS && window.BNS.fs && window.BNS.db)) return;
-      var fs=window.BNS.fs, db=window.BNS.db;
-      if(fs.onSnapshot && fs.collection){
-        alertsUnsub=fs.onSnapshot(fs.collection(db,'alerts'), function(snap){
-          var rows=[]; snap.forEach(function(d){ rows.push(Object.assign({id:d.id}, d.data())); });
-          mergeAlerts(rows); safeRender();
-        }, function(){ alertsUnsub=null; });
-      } else if(fs.getDocs && fs.collection){
-        fs.getDocs(fs.collection(db,'alerts')).then(function(snap){ var rows=[]; snap.forEach(function(d){ rows.push(Object.assign({id:d.id}, d.data())); }); mergeAlerts(rows); safeRender(); }).catch(function(){});
+  function openRoute(kind){
+    var url = routeUrl(kind);
+    if (!url) return false;
+    window.open(url, '_blank');
+    return false;
+  }
+
+  function makeButton(id,label,kind,cls){
+    var b=document.createElement('button');
+    b.type='button';
+    b.id=id;
+    b.className='tap-v304-routebtn ' + cls;
+    b.textContent=label;
+    b.addEventListener('click',function(ev){
+      if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+      return openRoute(kind);
+    },true);
+    return b;
+  }
+
+  function findRouteAnchor(root){
+    var ids=['bnsAgendaPickupBtn','bnsAgendaOrderBtn','bnsMapsPlannerBtn','bnsWazePlannerBtn','agendaBtn','agendaButton'];
+    for (var i=0;i<ids.length;i++) { var el=byId(ids[i]); if (el && root.contains(el)) return el; }
+    var buttons = Array.prototype.slice.call(root.querySelectorAll('button,a,[role="button"]'));
+    for (var j=0;j<buttons.length;j++) {
+      var t=text(buttons[j]);
+      if (t === 'agenda' || t.indexOf('agenda') >= 0 || t === 'waze') return buttons[j];
+    }
+    var loc = byId('locationCity') || byId('locationZip') || byId('locationStreet');
+    return loc && root.contains(loc) ? loc : null;
+  }
+
+  function hideOldRoutes(root){
+    if (!root) return;
+    var all = Array.prototype.slice.call(root.querySelectorAll('button,a,input[type="button"],input[type="submit"],[role="button"],.btn'));
+    all.forEach(function(el){
+      if (!isRouteElement(el)) return;
+      el.classList.add('tap-v304-hidden-route');
+      el.setAttribute('aria-hidden','true');
+      el.setAttribute('tabindex','-1');
+      try { el.disabled = true; } catch(e){}
+    });
+    // oude routeboxen uit eerdere patches wegdrukken als ze geen V304-box zijn
+    Array.prototype.slice.call(root.querySelectorAll('[class*="routebox"],[id*="Route"],[id*="route"],[class*="routenet"],[class*="streetview"]')).forEach(function(el){
+      if (!el || el.id === 'tapV304RouteBox' || el.id === 'tapV304Routenet' || el.id === 'tapV304Streetview') return;
+      if (el.closest && el.closest('#tapV304RouteBox')) return;
+      var tx=text(el);
+      var cls=String(el.className||'').toLowerCase();
+      var id=String(el.id||'').toLowerCase();
+      if (tx === 'routenet' || tx === 'streetview' || tx.indexOf('routenet') >= 0 || tx.indexOf('streetview') >= 0 || cls.indexOf('routenet') >= 0 || cls.indexOf('streetview') >= 0 || id.indexOf('routenet') >= 0 || id.indexOf('streetview') >= 0) {
+        el.classList.add('tap-v304-hidden-route');
       }
-    }catch(e){ alertsUnsub=null; }
-  }
-
-  function hideBezorgerMenu(){
-    A('button,a,.nav').forEach(function(el){
-      var t=L(el.textContent||'');
-      if(t.indexOf('bezorger meldingen')>=0){ el.style.display='none'; el.setAttribute('aria-hidden','true'); }
     });
   }
 
-  function tick(){
-    try{ addStyle(); ensureRoutes(); updateSystemButton(); startAlertsListener(); hideBezorgerMenu(); }catch(e){}
+  function ensureRouteBox(){
+    injectCss();
+    var root=getNewOrderRoot();
+    if (!root || !byId('locationStreet')) return;
+    root.classList.add('tap-v304-quiet');
+    hideOldRoutes(root);
+
+    var box=byId('tapV304RouteBox');
+    if (!box) {
+      box=document.createElement('div');
+      box.id='tapV304RouteBox';
+      box.className='tap-v304-routebox tap-v304-stable';
+      box.appendChild(makeButton('tapV304Routenet','Routenet','routenet','tap-v304-routenet'));
+      box.appendChild(makeButton('tapV304Streetview','Streetview','streetview','tap-v304-streetview'));
+    }
+    if (!root.contains(box)) {
+      var anchor=findRouteAnchor(root);
+      if (anchor && anchor.parentNode) {
+        if (anchor.parentNode.tagName && /^(DIV|SECTION|ARTICLE|FORM|FIELDSET)$/i.test(anchor.parentNode.tagName)) {
+          anchor.parentNode.insertBefore(box, anchor.nextSibling);
+        } else {
+          anchor.insertAdjacentElement('afterend', box);
+        }
+      } else {
+        root.appendChild(box);
+      }
+    }
+    hideOldRoutes(root);
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,250); }); else setTimeout(tick,120);
-  [700,1500,3000,6000].forEach(function(ms){ setTimeout(tick, ms); });
-  document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
-  document.addEventListener('input', function(ev){ var id=(ev.target&&ev.target.id)||''; if(/loc|location|straat|postcode|plaats|city/i.test(id)) setTimeout(tick,80); }, true);
-  setInterval(tick, 4000);
+
+  // Rust: voorkom dat route-opruiming elke klik zwaar opnieuw tekent.
+  var scheduled=false;
+  function schedule(){
+    if (scheduled) return;
+    scheduled=true;
+    setTimeout(function(){ scheduled=false; try{ ensureRouteBox(); }catch(e){ console.warn('[Tapwagen V304 routes]',e); } },120);
+  }
+
+  // Vang routekliks af, ook als oude knoppen nog even in de DOM verschijnen.
+  document.addEventListener('click',function(ev){
+    var target = ev.target && ev.target.closest && ev.target.closest('button,a,input,[role="button"],.btn');
+    if (!target) return;
+    if (target.id === 'tapV304Routenet' || target.id === 'tapV304Streetview') return;
+    var root=getNewOrderRoot();
+    if (root && root.contains(target) && isRouteElement(target)) {
+      ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      target.classList.add('tap-v304-hidden-route');
+      return false;
+    }
+    schedule();
+  },true);
+
+  ['input','change'].forEach(function(evt){
+    document.addEventListener(evt,function(ev){
+      if (ev.target && /location|postcode|zip|street|city|house/i.test(ev.target.id||'')) schedule();
+    },true);
+  });
+
+  if (window.MutationObserver) {
+    var mo=new MutationObserver(function(muts){
+      for (var i=0;i<muts.length;i++) {
+        if (muts[i].addedNodes && muts[i].addedNodes.length) { schedule(); break; }
+      }
+    });
+    try { mo.observe(document.body || document.documentElement,{childList:true,subtree:true}); } catch(e){}
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',schedule);
+  else schedule();
+  [300,900,1800,3500].forEach(function(ms){ setTimeout(schedule,ms); });
 })();
