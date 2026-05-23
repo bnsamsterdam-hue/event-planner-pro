@@ -15743,20 +15743,26 @@ setInterval(install,1500);
   function isDoneStatus(st){ st=normStatus(st); return st==='uitgevoerd' || st==='afgerond' || st==='klaar' || st==='done'; }
   function isBlockStatus(st){
     st=normStatus(st);
-    if(isOfferteStatus(st) || isCancelledStatus(st) || isDoneStatus(st)) return false;
+    // Offerte/aanvraag is vrijblijvend en blokkeert nooit materiaal voor anderen.
+    if(isOfferteStatus(st) || isCancelledStatus(st)) return false;
+    // Uitgevoerd/afgerond wordt door orderBlocks() op datum beoordeeld.
+    if(isDoneStatus(st)) return true;
     if(isOptionStatus(st)) return true;
-    return st==='bevestigd' || st==='opdracht' || st==='actief' || st==='gereserveerd' || st==='reserved' || st==='active';
+    return st==='bevestigd' || st==='actief' || st==='gereserveerd' || st==='reserved' || st==='active';
   }
   function orderStart(o){ return parseDate(o && (o.start || o.dateStart || o.startDate || o.date)); }
   function orderEnd(o){ return parseDate(o && (o.end || o.dateEnd || o.endDate || o.start || o.date)); }
+  function endDateIsPast(o){
+    var e=orderEnd(o);
+    if(!e) return false; // geen einddatum = veilig blokkeren
+    return e < today();  // einddatum telt mee; dag erna pas vrij
+  }
   function orderBlocks(o){
     if(!o) return false;
     var st=o.status;
-    if(isDoneStatus(st) || isCancelledStatus(st) || isOfferteStatus(st)) return false;
+    if(isOfferteStatus(st) || isCancelledStatus(st)) return false;
+    if(isDoneStatus(st)) return !endDateIsPast(o);
     if(!isBlockStatus(st)) return false;
-    var e=orderEnd(o);
-    // Uitgevoerde/afgeronde afgelopen opdrachten blokkeren niet. Andere bevestigde opdrachten wel tot en met einddatum.
-    if((isDoneStatus(st) || normStatus(st)==='afgerond') && e && e < today()) return false;
     return true;
   }
   function rangesOverlap(a1,a2,b1,b2){
@@ -15771,12 +15777,22 @@ setInterval(install,1500);
     };
   }
   function matKey(m){ return T(m && (m.id || m.materialId || m.code || m.name)); }
+  function normMatText(v){ return L(v).replace(/\s+/g,' ').trim(); }
   function sameMaterial(a,b){
     if(!a || !b) return false;
     var aid=T(a.id||a.materialId), bid=T(b.id||b.materialId);
     if(aid && bid && aid===bid) return true;
-    var ac=T(a.code), bc=T(b.code);
-    return !!(ac && bc && ac.toLowerCase()===bc.toLowerCase());
+    var ao=T(a.oldId), bo=T(b.oldId);
+    if(ao && bo && ao===bo) return true;
+    var ac=normMatText(a.code), bc=normMatText(b.code);
+    var acat=normMatText(a.cat), bcat=normMatText(b.cat);
+    if(ac && bc && ac===bc) return true;
+    // Naam is vangnet voor oude/rommelige data zonder id/code. Met rubriek erbij om onnodig blokkeren te beperken.
+    var an=normMatText(a.name), bn=normMatText(b.name);
+    if(an && bn && an===bn && (!acat || !bcat || acat===bcat)){
+      if(!aid || !bid || !ac || !bc) return true;
+    }
+    return false;
   }
   function findMat(mid){
     var s=getState(); if(!s) return null;
@@ -16368,27 +16384,71 @@ setInterval(install,1500);
   setTimeout(install,700); setTimeout(install,1600); setInterval(install,1500);
 })();
 
+
+
 /* ==========================================================
-   BNS STABILITEIT TEST 1 - geen scroll-patch, geen layout-pseudo
-   Doel: onrust in materiaalrubrieken verminderen zonder data/logica te wijzigen.
-   - Geen aanpassing aan Vrij/Gereserveerd/Niet inzetbaar logica.
-   - Geen aanpassing aan opslaan/admin.
-   - Geen setInterval en geen scroll listener.
+   BNS V329 - Schone testfix zonder scroll-render-loop
+   Basis: app(12).js van gebruiker.
+   Doel:
+   - opdrachtknoppen blijven onderin zichtbaar;
+   - geen scroll-listener, geen render-loop, geen materiaalkaart-render aanpassen;
+   - extra V309 gereserveerd-pseudo-label wordt uitgezet zodat kaarten niet breder/anders worden.
 ========================================================== */
 (function(){
   'use strict';
-  if (window.__bnsStabiliteitTest1) return;
-  window.__bnsStabiliteitTest1 = true;
-  function install(){
-    if(document.getElementById('bnsStabiliteitTest1Style')) return;
-    var st=document.createElement('style');
-    st.id='bnsStabiliteitTest1Style';
+  if(window.__bnsV329CleanButtonFix) return;
+  window.__bnsV329CleanButtonFix = true;
+  var STYLE_ID = 'bnsV329CleanButtonStyle';
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).replace(/\s+/g,' ').trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function visible(el){ try{ var r=el.getBoundingClientRect(); return !!(r.width || r.height); }catch(e){ return false; } }
+  function installStyle(){
+    if(document.getElementById(STYLE_ID)) return;
+    var st=document.createElement('style'); st.id=STYLE_ID;
     st.textContent='\
-      #materialList *,#materialCats *{animation:none!important;transition:none!important}\
+      .tw-v309-blocked-material:after{content:none!important;display:none!important}\
       #materialList .tw-v309-blocked-material:after{content:none!important;display:none!important}\
-      #materialList .material-row:after,#materialList .v111-material-row:after,#materialList .v112-material-row:after,#materialList .bns-material-row:after{animation:none!important;transition:none!important}\
+      #materialList .tw-v309-blocked-material{transform:none!important;transition:none!important;animation:none!important}\
+      .bns-v329-order-bottom{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:auto!important;max-width:none!important;z-index:2147483000!important;display:flex!important;flex-wrap:wrap!important;gap:10px!important;align-items:center!important;justify-content:flex-start!important;background:rgba(245,247,251,.98)!important;border-top:1px solid #dbe3ef!important;padding:10px 12px!important;box-sizing:border-box!important;box-shadow:0 -8px 24px rgba(15,23,42,.10)!important;transform:none!important;animation:none!important;transition:none!important;margin:0!important}\
+      .bns-v329-order-bottom button{margin:0!important}\
+      body,#newOrder,#materialPanel,#materialList{padding-bottom:110px!important}\
+      @media print{.bns-v329-order-bottom{position:static!important;box-shadow:none!important}}\
     ';
     document.head.appendChild(st);
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
+  function isOrderBar(el){
+    if(!el || !visible(el)) return false;
+    var txt=L(el.textContent||'');
+    if(/opslaan materiaal|wis materiaal|nieuw\/leeg|verwijderen|favoriet|gebruiker|layout/.test(txt)) return false;
+    var names=A('button',el).map(function(b){ return L(b.textContent||''); });
+    return names.indexOf('opslaan')>=0 && names.indexOf('annuleren')>=0 && (names.indexOf('afdrukken')>=0 || names.indexOf('overzicht maken')>=0 || txt.indexOf('overzicht maken')>=0);
+  }
+  function findBar(){
+    var fixed=A('#bnsV58OrderActions,#bnsV57OrderActions,#bnsV326OrderActions').filter(isOrderBar);
+    if(fixed.length) return fixed[0];
+    var btns=A('button').filter(function(b){ var t=L(b.textContent||''); return visible(b) && (t==='opslaan'||t==='annuleren'||t==='afdrukken'||t==='overzicht maken'); });
+    for(var i=0;i<btns.length;i++){
+      var p=btns[i].parentElement;
+      while(p && p!==document.body){
+        if(isOrderBar(p)) return p;
+        p=p.parentElement;
+      }
+    }
+    return null;
+  }
+  function apply(){
+    installStyle();
+    var bar=findBar();
+    if(!bar) return;
+    A('.bns-v326-order-bottom').forEach(function(x){ x.classList.remove('bns-v326-order-bottom'); });
+    bar.classList.add('bns-v329-order-bottom');
+  }
+  function schedule(){ setTimeout(apply,80); setTimeout(apply,350); setTimeout(apply,1000); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',schedule); else schedule();
+  document.addEventListener('click',function(){ setTimeout(apply,120); },true);
+  document.addEventListener('change',function(){ setTimeout(apply,120); },true);
 })();
+
+
+/* BNS V330 strict materiaalblokkering: statusregels uit V198-principe toegepast. Offerte blokkeert niet; Bevestigd/Optie/Gereserveerd/Actief blokkeren; Uitgevoerd/Afgerond blokkeren tot einddatum voorbij is. */
