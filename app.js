@@ -16773,7 +16773,7 @@ setInterval(install,1500);
 
 
 /* ==========================================================
-   BNS V336 - App12 basis: opdrachtknoppen blijven onderin + jaarmappen op factuurjaar
+   BNS V338 - App12 basis: opdrachtknoppen blijven onderin + jaarmappen met zoeken en opschonen
    Basis blijft v335/app(12). Geen oude 194/198 basis.
    - Nieuwe opdracht > Materialen: actieknoppen blijven onderin zichtbaar
    - Uitgevoerde opdrachten: mappen op factuurjaar
@@ -16803,11 +16803,11 @@ setInterval(install,1500);
       .bns-v336-orderbar button:active{transform:scale(.96)!important;filter:brightness(.86)!important}\
       body{padding-bottom:var(--bns-v336-space,105px)!important}\
       #newOrder,#materialPanel,#materialList{padding-bottom:var(--bns-v336-space,105px)!important}\
-      .bns-folders336{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.bns-folder336{border:0;border-radius:14px;padding:12px 18px;font-weight:900;cursor:pointer;background:#e2e8f0;color:#172033}.bns-title336{font-size:24px;font-weight:900;margin:16px 0 10px}.bns-toolbar336{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.bns-card336{display:grid;grid-template-columns:118px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px;border-radius:18px;background:var(--panel,#fff);color:var(--text,#172033);border:1px solid var(--border,#dbe3ef);margin-bottom:10px}.bns-date336{background:#111827;color:#fff;border-radius:14px;padding:12px;text-align:center;font-weight:900}.bns-main336 b{font-size:18px}.bns-main336 small{display:block;color:var(--muted,#64748b);font-weight:700;margin-top:3px}.bns-danger336{background:#dc2626!important;color:#fff!important}\
+      .bns-folders336{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.bns-folder336{border:0;border-radius:14px;padding:12px 18px;font-weight:900;cursor:pointer;background:#e2e8f0;color:#172033}.bns-title336{font-size:24px;font-weight:900;margin:16px 0 10px}.bns-toolbar336{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0;align-items:center}.bns-search336{width:min(620px,100%);padding:12px 14px;border-radius:14px;border:1px solid var(--border,#dbe3ef);font-weight:800;background:#fff;color:#172033;box-sizing:border-box}.bns-card336{display:grid;grid-template-columns:118px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px;border-radius:18px;background:var(--panel,#fff);color:var(--text,#172033);border:1px solid var(--border,#dbe3ef);margin-bottom:10px}.bns-date336{background:#111827;color:#fff;border-radius:14px;padding:12px;text-align:center;font-weight:900}.bns-main336 b{font-size:18px}.bns-main336 small{display:block;color:var(--muted,#64748b);font-weight:700;margin-top:3px}.bns-actions336{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.bns-danger336{background:#dc2626!important;color:#fff!important}.bns-warn336{background:#f97316!important;color:#fff!important}.bns-muted336{color:#64748b;font-weight:800;margin:8px 0 14px}\
     ';
     document.head.appendChild(st);
   }
-  function marker(){ if(E('bnsV336Loaded')) return; var d=document.createElement('div'); d.id='bnsV336Loaded'; d.textContent='v336'; document.body.appendChild(d); }
+  function marker(){ if(E('bnsV336Loaded')) return; var d=document.createElement('div'); d.id='bnsV336Loaded'; d.textContent='v338'; document.body.appendChild(d); }
 
   function visible(el){try{var r=el.getBoundingClientRect();return !!(r.width||r.height);}catch(e){return false;}}
   function isAdminText(txt){return /opslaan materiaal|wis materiaal|nieuw\/leeg|verwijder gekozen materiaal|favoriet|rubriek|product nr/i.test(txt||'');}
@@ -16875,31 +16875,54 @@ setInterval(install,1500);
   function cust(o){return T((o&&o.customer&&o.customer.name)||o.customerName||'');}
   function loc(o){return T((o&&o.location&&((o.location.name||'')+' '+(o.location.city||'')))||o.locationName||'');}
   function mats(o){var a=(o&&o.materials)||[]; return Array.isArray(a)?a.map(function(m){return typeof m==='string'?m:(m.code||m.name||'');}).filter(Boolean).join(', '):'';}
-  function card(o){
+  function card(o,type){
     var id=esc(o.id||''), start=o.start||o.dateStart||o.startDate||'', end=o.end||o.dateEnd||o.endDate||'', dl=start&&end&&start!==end?nice(start)+' t/m '+nice(end):nice(start||end||dateVal(o));
-    return '<div class="bns-card336" data-order-id="'+id+'"><div class="bns-date336">'+esc(nice(dateVal(o)))+'</div><div class="bns-main336"><b>'+esc(orderNo(o))+' - '+esc(o.title||'Zonder titel')+'</b><small>Status: '+esc(o.status||'')+'</small><small>Factuurjaar/map: '+esc(invoiceYear(o))+'</small><small>Datum: '+esc(dl)+'</small><small>Klant: '+esc(cust(o))+'</small><small>Locatie: '+esc(loc(o))+'</small><small>Materialen: '+esc(mats(o))+'</small></div><div><button type="button" onclick="editOrder(\''+id+'\')">Open</button></div></div>';
+    var extra=type==='done'?'<button type="button" class="bns-warn336" data-bns-v338-move="'+id+'">Naar verwijderd</button>':'<button type="button" class="bns-danger336" data-bns-v338-delete="'+id+'">Definitief verwijderen</button>';
+    return '<div class="bns-card336" data-order-id="'+id+'"><div class="bns-date336">'+esc(nice(dateVal(o)))+'</div><div class="bns-main336"><b>'+esc(orderNo(o))+' - '+esc(o.title||'Zonder titel')+'</b><small>Status: '+esc(o.status||'')+'</small><small>Factuurjaar/map: '+esc(invoiceYear(o))+'</small><small>Datum: '+esc(dl)+'</small><small>Klant: '+esc(cust(o))+'</small><small>Locatie: '+esc(loc(o))+'</small><small>Materialen: '+esc(mats(o))+'</small></div><div class="bns-actions336"><button type="button" onclick="editOrder(\''+id+'\')">Open</button>'+extra+'</div></div>';
   }
   function listEl(){return E('ordersList')||E('orderList')||E('ordersListV11')||document.querySelector('#orders .list')||document.querySelector('#orders');}
   var selected={done:null,deleted:null};
+  var search={done:'',deleted:''};
   function rows(type){var s=stateObj(); if(!s||!Array.isArray(s.orders))return []; if(type==='done') return s.orders.filter(isDone).sort(newest); if(type==='deleted') return s.orders.filter(function(o){return isDeleted(o)||isCancelled(o);}).sort(newest); return [];}
+  function hay(o){return norm([orderNo(o),o&&o.title,o&&o.status,invoiceYear(o),dateVal(o),cust(o),loc(o),mats(o),invoiceText(o)].join(' '));}
+  function matchSearch(o,q){q=norm(q); if(!q) return true; return q.split(/\s+/).filter(Boolean).every(function(w){return hay(o).indexOf(w)>=0;});}
+  function orderById(id){var s=stateObj(); if(!s||!Array.isArray(s.orders))return null; return s.orders.find(function(o){return String(o.id||'')===String(id);})||null;}
+  function moveToDeleted(id){var o=orderById(id); if(!o) return; if(!confirm('Deze opdracht naar Verwijderde opdrachten verplaatsen?')) return; o.status='Verwijderd'; o.deletedAt=new Date().toISOString(); saveIt(); renderFolders('done'); toast('Opdracht naar Verwijderde opdrachten verplaatst.');}
+  function deletePermanent(id,type){var s=stateObj(); if(!s||!Array.isArray(s.orders)) return; if(!confirm('Deze opdracht definitief verwijderen? Dit kan niet ongedaan worden gemaakt.')) return; s.orders=s.orders.filter(function(o){return String(o.id||'')!==String(id);}); saveIt(); renderFolders(type||'deleted'); toast('Opdracht definitief verwijderd.');}
+  function bindRowActions(type,root){
+    A('[data-bns-v338-move]',root).forEach(function(b){b.onclick=function(){moveToDeleted(b.getAttribute('data-bns-v338-move'));};});
+    A('[data-bns-v338-delete]',root).forEach(function(b){b.onclick=function(){deletePermanent(b.getAttribute('data-bns-v338-delete'),type);};});
+  }
+  function searchBox(type,placeholder){return '<input class="bns-search336" id="bnsV338Search_'+type+'" value="'+esc(search[type]||'')+'" placeholder="'+esc(placeholder)+'">';}
+  function bindSearch(type,root){var inp=E('bnsV338Search_'+type); if(inp) inp.oninput=function(){search[type]=inp.value||''; renderFolders(type);};}
   function renderFolders(type){
     var el=listEl(); if(!el) return false;
     var title=type==='done'?'Uitgevoerde opdrachten':'Verwijderde opdrachten';
     var data=rows(type); var sel=selected[type];
-    var years=Array.from(new Set(data.map(invoiceYear))).sort(function(a,b){return String(b).localeCompare(String(a));});
+    var baseYears=['2023','2024','2025','2026']; var foundYears=data.map(invoiceYear).filter(function(y){return y && y!=='Geen jaar';}); var years=Array.from(new Set(baseYears.concat(foundYears))).sort(function(a,b){return String(b).localeCompare(String(a));});
     if(!sel){
-      el.innerHTML='<div class="bns-title336">'+esc(title)+' per factuurjaar</div><div class="bns-folders336">'+years.map(function(y){var c=data.filter(function(o){return invoiceYear(o)===y;}).length;return '<button type="button" class="bns-folder336" data-bns-v336-year="'+esc(y)+'">📁 '+esc(y)+' ('+c+')</button>';}).join('')+'</div>'+(years.length?'':'<p>Geen opdrachten gevonden.</p>');
+      var filtered=data.filter(function(o){return matchSearch(o,search[type]);});
+      el.innerHTML='<div class="bns-title336">'+esc(title)+' per factuurjaar</div><div class="bns-toolbar336">'+searchBox(type,'Zoek in '+title.toLowerCase()+': opdracht, klant, locatie, materiaal, datum, factuurjaar...')+'</div><div class="bns-folders336">'+years.map(function(y){var c=data.filter(function(o){return invoiceYear(o)===y;}).length;var fc=filtered.filter(function(o){return invoiceYear(o)===y;}).length;return '<button type="button" class="bns-folder336" data-bns-v336-year="'+esc(y)+'">📁 '+esc(y)+' ('+(search[type]?fc:c)+')</button>';}).join('')+'</div>'+(search[type]?'<div class="bns-muted336">Zoekresultaten: '+filtered.length+'</div>'+filtered.slice(0,80).map(function(o){return card(o,type);}).join(''):'');
       A('[data-bns-v336-year]',el).forEach(function(b){b.onclick=function(){selected[type]=b.getAttribute('data-bns-v336-year'); renderFolders(type);};});
+      bindSearch(type,el); bindRowActions(type,el);
       return true;
     }
-    var rr=data.filter(function(o){return invoiceYear(o)===sel;});
-    el.innerHTML='<div class="bns-title336">'+esc(title)+' '+esc(sel)+'</div><div class="bns-toolbar336"><button type="button" id="bnsV336BackYears">Terug naar jaren</button>'+(type==='deleted'?'<button type="button" id="bnsV336EmptyDeleted" class="bns-danger336">Verwijderde map leegmaken</button>':'')+'</div>'+rr.map(card).join('');
+    var allInYear=data.filter(function(o){return invoiceYear(o)===sel;});
+    var rr=allInYear.filter(function(o){return matchSearch(o,search[type]);});
+    el.innerHTML='<div class="bns-title336">'+esc(title)+' '+esc(sel)+'</div><div class="bns-toolbar336"><button type="button" id="bnsV336BackYears">Terug naar jaren</button>'+searchBox(type,'Zoek in map '+sel+': opdracht, klant, locatie, materiaal...')+(type==='done'?'<button type="button" id="bnsV338MoveDoneYear" class="bns-warn336">Map naar verwijderd</button>':'<button type="button" id="bnsV336EmptyDeleted" class="bns-danger336">Verwijderde map definitief leegmaken</button>')+'</div><div class="bns-muted336">Getoond: '+rr.length+' van '+allInYear.length+'</div>'+rr.map(function(o){return card(o,type);}).join('');
     var back=E('bnsV336BackYears'); if(back) back.onclick=function(){selected[type]=null; renderFolders(type);};
+    bindSearch(type,el); bindRowActions(type,el);
+    var moveYear=E('bnsV338MoveDoneYear'); if(moveYear) moveYear.onclick=function(){
+      if(!confirm('Alle uitgevoerde opdrachten in map '+sel+' naar Verwijderde opdrachten verplaatsen?')) return;
+      var s=stateObj(); if(!s||!Array.isArray(s.orders)) return;
+      s.orders.forEach(function(o){ if(isDone(o) && invoiceYear(o)===sel){ o.status='Verwijderd'; o.deletedAt=new Date().toISOString(); }});
+      saveIt(); selected[type]=null; renderFolders(type); toast('Map naar Verwijderde opdrachten verplaatst.');
+    };
     var empty=E('bnsV336EmptyDeleted'); if(empty) empty.onclick=function(){
-      if(!confirm('Weet u zeker dat u deze verwijderde map definitief wilt leegmaken?')) return;
+      if(!confirm('Weet u zeker dat u deze verwijderde map definitief wilt leegmaken? Dit kan niet ongedaan worden gemaakt.')) return;
       var s=stateObj(); if(!s||!Array.isArray(s.orders)) return;
       s.orders=s.orders.filter(function(o){return !((isDeleted(o)||isCancelled(o)) && invoiceYear(o)===sel);});
-      saveIt(); selected[type]=null; renderFolders(type); toast('Verwijderde map leeggemaakt.');
+      saveIt(); selected[type]=null; renderFolders(type); toast('Verwijderde map definitief leeggemaakt.');
     };
     return true;
   }
@@ -16925,3 +16948,6 @@ setInterval(install,1500);
   window.addEventListener('resize',function(){setTimeout(applyOrderBar,100);});
   setTimeout(run,600); setTimeout(run,1600); setInterval(run,1800);
 })();
+
+
+/* BNS V337 marker: jaarmappen + zoeken + opschonen. */
