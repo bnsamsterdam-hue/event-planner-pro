@@ -16770,3 +16770,158 @@ setInterval(install,1500);
   window.addEventListener('resize',function(){setTimeout(run,80);});
   setTimeout(run,500);setTimeout(run,1400);setInterval(run,1500);
 })();
+
+
+/* ==========================================================
+   BNS V336 - App12 basis: opdrachtknoppen blijven onderin + jaarmappen op factuurjaar
+   Basis blijft v335/app(12). Geen oude 194/198 basis.
+   - Nieuwe opdracht > Materialen: actieknoppen blijven onderin zichtbaar
+   - Uitgevoerde opdrachten: mappen op factuurjaar
+   - Verwijderde opdrachten: mappen op factuurjaar
+========================================================== */
+(function(){
+  'use strict';
+  if(window.__BNS_V336_APP12_FIX__) return;
+  window.__BNS_V336_APP12_FIX__=true;
+
+  function E(id){return document.getElementById(id);}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v).trim();}
+  function L(v){return T(v).toLowerCase();}
+  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function stateObj(){try{if(typeof state!=='undefined'&&state)return state;}catch(e){} return window.state||null;}
+  function saveIt(){try{if(typeof save==='function'){save();return;}}catch(e){} try{var s=stateObj(); if(s)localStorage.setItem('event-planner-pro-v87',JSON.stringify(s));}catch(e){}}
+  function toast(msg){try{if(typeof toastMsg==='function'){toastMsg(msg);return;}}catch(e){} try{alert(msg);}catch(e){}}
+
+  function style(){
+    if(E('bnsV336Style')) return;
+    var st=document.createElement('style'); st.id='bnsV336Style';
+    st.textContent='\
+      #bnsV336Loaded{position:fixed!important;right:8px!important;bottom:34px!important;z-index:2147483647!important;background:#0ea5e9!important;color:#fff!important;border-radius:999px!important;padding:4px 8px!important;font:800 10px/1 Arial,sans-serif!important;box-shadow:0 4px 12px rgba(0,0,0,.18)!important;pointer-events:none!important}\
+      .bns-v336-orderbar{position:fixed!important;left:var(--bns-v336-left,0px)!important;right:var(--bns-v336-right,0px)!important;bottom:0!important;top:auto!important;z-index:2147483400!important;display:flex!important;flex-wrap:wrap!important;gap:10px!important;align-items:center!important;justify-content:flex-start!important;background:rgba(245,247,251,.99)!important;border-top:1px solid #dbe3ef!important;padding:10px 12px!important;margin:0!important;box-sizing:border-box!important;box-shadow:0 -8px 24px rgba(15,23,42,.12)!important;transform:none!important;transition:none!important;animation:none!important}\
+      .bns-v336-orderbar button{display:inline-flex!important;align-items:center!important;justify-content:center!important;border-radius:12px!important;font-weight:900!important;white-space:nowrap!important}\
+      .bns-v336-orderbar button:active{transform:scale(.96)!important;filter:brightness(.86)!important}\
+      body{padding-bottom:var(--bns-v336-space,105px)!important}\
+      #newOrder,#materialPanel,#materialList{padding-bottom:var(--bns-v336-space,105px)!important}\
+      .bns-folders336{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.bns-folder336{border:0;border-radius:14px;padding:12px 18px;font-weight:900;cursor:pointer;background:#e2e8f0;color:#172033}.bns-title336{font-size:24px;font-weight:900;margin:16px 0 10px}.bns-toolbar336{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.bns-card336{display:grid;grid-template-columns:118px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px;border-radius:18px;background:var(--panel,#fff);color:var(--text,#172033);border:1px solid var(--border,#dbe3ef);margin-bottom:10px}.bns-date336{background:#111827;color:#fff;border-radius:14px;padding:12px;text-align:center;font-weight:900}.bns-main336 b{font-size:18px}.bns-main336 small{display:block;color:var(--muted,#64748b);font-weight:700;margin-top:3px}.bns-danger336{background:#dc2626!important;color:#fff!important}\
+    ';
+    document.head.appendChild(st);
+  }
+  function marker(){ if(E('bnsV336Loaded')) return; var d=document.createElement('div'); d.id='bnsV336Loaded'; d.textContent='v336'; document.body.appendChild(d); }
+
+  function visible(el){try{var r=el.getBoundingClientRect();return !!(r.width||r.height);}catch(e){return false;}}
+  function isAdminText(txt){return /opslaan materiaal|wis materiaal|nieuw\/leeg|verwijder gekozen materiaal|favoriet|rubriek|product nr/i.test(txt||'');}
+  function isOrderActionBar(el){
+    if(!el || !visible(el)) return false;
+    var txt=T(el.textContent||'');
+    if(isAdminText(txt)) return false;
+    var names=A('button',el).map(function(b){return L(b.textContent||'');});
+    var hasSave=names.indexOf('opslaan')>=0;
+    var hasCancel=names.indexOf('annuleren')>=0;
+    var hasPrint=names.indexOf('afdrukken')>=0;
+    var hasOverview=names.indexOf('overzicht maken')>=0 || L(txt).indexOf('overzicht')>=0;
+    return hasSave && hasCancel && (hasPrint || hasOverview);
+  }
+  function findOrderBar(){
+    var ids=['bnsV58OrderActions','bnsV57OrderActions','bnsV326OrderActions'];
+    for(var i=0;i<ids.length;i++){var el=E(ids[i]); if(isOrderActionBar(el)) return el;}
+    var btns=A('button').filter(function(b){var t=L(b.textContent||'');return ['overzicht maken','opslaan','annuleren','afdrukken'].indexOf(t)>=0;});
+    for(var j=0;j<btns.length;j++){
+      var p=btns[j].parentElement;
+      while(p && p!==document.body){ if(isOrderActionBar(p)) return p; p=p.parentElement; }
+    }
+    return null;
+  }
+  function applyOrderBar(){
+    style(); marker();
+    var bar=findOrderBar(); if(!bar) return;
+    bar.classList.add('bns-v336-orderbar');
+    try{bar.id=bar.id||'bnsV336OrderActions';}catch(e){}
+    var page=E('newOrder') || E('app') || document.body;
+    var left=0,right=0;
+    try{var r=page.getBoundingClientRect(); left=Math.max(0,Math.round(r.left)); right=Math.max(0,Math.round(window.innerWidth-r.right));}catch(e){}
+    document.documentElement.style.setProperty('--bns-v336-left',left+'px');
+    document.documentElement.style.setProperty('--bns-v336-right',right+'px');
+    var h=105; try{h=Math.max(92,Math.ceil(bar.getBoundingClientRect().height+30));}catch(e){}
+    document.documentElement.style.setProperty('--bns-v336-space',h+'px');
+  }
+
+  function norm(v){return L(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
+  function status(o){return norm(o&&o.status);}
+  function isDone(o){var s=status(o); return ['uitgevoerd','afgerond','voltooid','done','klaar'].indexOf(s)>=0;}
+  function isDeleted(o){var s=status(o); return ['verwijderd','gewist','deleted','trash'].indexOf(s)>=0;}
+  function isCancelled(o){var s=status(o); return ['geannuleerd','geannuleerde','annulering','cancelled','canceled'].indexOf(s)>=0;}
+  function dateVal(o){return T((o&&(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||o.startDate||o.date))||'').slice(0,10);}
+  function timeVal(o){var d=new Date(dateVal(o)+'T00:00:00'); return isNaN(d.getTime())?0:d.getTime();}
+  function nice(v){v=T(v).slice(0,10); var p=v.split('-'); return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:v;}
+  function invoiceText(o){
+    var parts=[]; if(!o) return '';
+    ['invoiceYear','factuurJaar','invoiceNo','invoiceNumber','factuurNummer','factuur','invoice','number'].forEach(function(k){
+      var v=o[k];
+      if(v && typeof v==='object'){
+        ['year','invoiceYear','number','invoiceNumber','factuurNummer','no'].forEach(function(kk){ if(v[kk]!=null) parts.push(v[kk]); });
+      } else if(v!=null) parts.push(v);
+    });
+    return parts.join(' ');
+  }
+  function invoiceYear(o){
+    var s=invoiceText(o);
+    var m=s.match(/(20\d{2})/); if(m) return m[1];
+    var d=dateVal(o); m=d.match(/^(20\d{2})/); if(m) return m[1];
+    return 'Geen jaar';
+  }
+  function newest(a,b){return timeVal(b)-timeVal(a);}
+  function orderNo(o){return T(o&&(o.number||o.orderNumber||o.nr||''));}
+  function cust(o){return T((o&&o.customer&&o.customer.name)||o.customerName||'');}
+  function loc(o){return T((o&&o.location&&((o.location.name||'')+' '+(o.location.city||'')))||o.locationName||'');}
+  function mats(o){var a=(o&&o.materials)||[]; return Array.isArray(a)?a.map(function(m){return typeof m==='string'?m:(m.code||m.name||'');}).filter(Boolean).join(', '):'';}
+  function card(o){
+    var id=esc(o.id||''), start=o.start||o.dateStart||o.startDate||'', end=o.end||o.dateEnd||o.endDate||'', dl=start&&end&&start!==end?nice(start)+' t/m '+nice(end):nice(start||end||dateVal(o));
+    return '<div class="bns-card336" data-order-id="'+id+'"><div class="bns-date336">'+esc(nice(dateVal(o)))+'</div><div class="bns-main336"><b>'+esc(orderNo(o))+' - '+esc(o.title||'Zonder titel')+'</b><small>Status: '+esc(o.status||'')+'</small><small>Factuurjaar/map: '+esc(invoiceYear(o))+'</small><small>Datum: '+esc(dl)+'</small><small>Klant: '+esc(cust(o))+'</small><small>Locatie: '+esc(loc(o))+'</small><small>Materialen: '+esc(mats(o))+'</small></div><div><button type="button" onclick="editOrder(\''+id+'\')">Open</button></div></div>';
+  }
+  function listEl(){return E('ordersList')||E('orderList')||E('ordersListV11')||document.querySelector('#orders .list')||document.querySelector('#orders');}
+  var selected={done:null,deleted:null};
+  function rows(type){var s=stateObj(); if(!s||!Array.isArray(s.orders))return []; if(type==='done') return s.orders.filter(isDone).sort(newest); if(type==='deleted') return s.orders.filter(function(o){return isDeleted(o)||isCancelled(o);}).sort(newest); return [];}
+  function renderFolders(type){
+    var el=listEl(); if(!el) return false;
+    var title=type==='done'?'Uitgevoerde opdrachten':'Verwijderde opdrachten';
+    var data=rows(type); var sel=selected[type];
+    var years=Array.from(new Set(data.map(invoiceYear))).sort(function(a,b){return String(b).localeCompare(String(a));});
+    if(!sel){
+      el.innerHTML='<div class="bns-title336">'+esc(title)+' per factuurjaar</div><div class="bns-folders336">'+years.map(function(y){var c=data.filter(function(o){return invoiceYear(o)===y;}).length;return '<button type="button" class="bns-folder336" data-bns-v336-year="'+esc(y)+'">📁 '+esc(y)+' ('+c+')</button>';}).join('')+'</div>'+(years.length?'':'<p>Geen opdrachten gevonden.</p>');
+      A('[data-bns-v336-year]',el).forEach(function(b){b.onclick=function(){selected[type]=b.getAttribute('data-bns-v336-year'); renderFolders(type);};});
+      return true;
+    }
+    var rr=data.filter(function(o){return invoiceYear(o)===sel;});
+    el.innerHTML='<div class="bns-title336">'+esc(title)+' '+esc(sel)+'</div><div class="bns-toolbar336"><button type="button" id="bnsV336BackYears">Terug naar jaren</button>'+(type==='deleted'?'<button type="button" id="bnsV336EmptyDeleted" class="bns-danger336">Verwijderde map leegmaken</button>':'')+'</div>'+rr.map(card).join('');
+    var back=E('bnsV336BackYears'); if(back) back.onclick=function(){selected[type]=null; renderFolders(type);};
+    var empty=E('bnsV336EmptyDeleted'); if(empty) empty.onclick=function(){
+      if(!confirm('Weet u zeker dat u deze verwijderde map definitief wilt leegmaken?')) return;
+      var s=stateObj(); if(!s||!Array.isArray(s.orders)) return;
+      s.orders=s.orders.filter(function(o){return !((isDeleted(o)||isCancelled(o)) && invoiceYear(o)===sel);});
+      saveIt(); selected[type]=null; renderFolders(type); toast('Verwijderde map leeggemaakt.');
+    };
+    return true;
+  }
+  function detectViewButton(b){var t=L(b.textContent||''); if(t.indexOf('uitgevoerde opdrachten')>=0) return 'done'; if(t.indexOf('verwijderde opdrachten')>=0) return 'deleted'; return '';}
+  function ensureDeletedButton(){
+    if(A('button').some(function(b){return L(b.textContent||'').indexOf('verwijderde opdrachten')>=0;})) return;
+    var anchor=A('button').find(function(b){var t=L(b.textContent||''); return t.indexOf('uitgevoerde opdrachten')>=0 || t.indexOf('geannuleerde opdrachten')>=0;});
+    if(!anchor) return;
+    var b=document.createElement('button'); b.type='button'; b.textContent='Verwijderde opdrachten'; anchor.insertAdjacentElement('afterend',b);
+  }
+  function bindFolders(){
+    ensureDeletedButton();
+    A('button').forEach(function(b){
+      var type=detectViewButton(b); if(!type || b.dataset.bnsV336FolderBound==='1') return;
+      b.dataset.bnsV336FolderBound='1';
+      b.addEventListener('click',function(ev){selected[type]=null; ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); A('button').forEach(function(x){x.classList.remove('bns-tab-active');}); b.classList.add('bns-tab-active'); setTimeout(function(){renderFolders(type);},30); return false;},true);
+    });
+  }
+  function run(){style(); marker(); applyOrderBar(); bindFolders();}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(run,120);}); else setTimeout(run,80);
+  document.addEventListener('click',function(){setTimeout(run,100);},true);
+  document.addEventListener('change',function(){setTimeout(run,100);},true);
+  window.addEventListener('resize',function(){setTimeout(applyOrderBar,100);});
+  setTimeout(run,600); setTimeout(run,1600); setInterval(run,1800);
+})();
