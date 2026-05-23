@@ -16369,67 +16369,126 @@ setInterval(install,1500);
 })();
 
 /* ==========================================================
-   BNS V319 - Opdracht materialen knoppen stabiel
-   Doel: alleen de actieknoppen onder Nieuwe opdracht herstellen.
-   - Geen sticky/zwevende knopbalk meer midden over materiaalkaarten.
-   - Knoppen blijven in normale document-flow onder de opdracht staan.
-   - Materiaalkaarten blijven rustig en stabiel tijdens scrollen.
+   BNS V320 - Actieknoppen opdracht echt stabiel
+   Alleen Nieuwe/Wijzig opdracht actieknoppen.
+   - Haalt de actieknoppen uit scroll/kaart-containers zodat sticky niet halverwege stopt.
+   - Knoppen blijven onderin het scherm tot het einde van de pagina.
+   - Geen wijzigingen aan materiaalkaarten/admin/data.
    ========================================================== */
-(function bnsV319OrderButtonsStable(){
-  if (window.__bnsV319OrderButtonsStable) return;
-  window.__bnsV319OrderButtonsStable = true;
+(function bnsV320OrderActionsFixedStable(){
+  if (window.__bnsV320OrderActionsFixedStable) return;
+  window.__bnsV320OrderActionsFixedStable = true;
+
+  function txt(el){ return String((el && el.textContent) || '').toLowerCase().replace(/\s+/g,' ').trim(); }
+  function visible(el){ try{ var s=getComputedStyle(el), r=el.getBoundingClientRect(); return s.display!=='none' && s.visibility!=='hidden' && (r.width||r.height); }catch(e){ return false; } }
+
   function addStyle(){
-    if (document.getElementById('bnsV319OrderButtonsStableStyle')) return;
-    var st = document.createElement('style');
-    st.id = 'bnsV319OrderButtonsStableStyle';
+    if (document.getElementById('bnsV320OrderActionsFixedStyle')) return;
+    var st=document.createElement('style');
+    st.id='bnsV320OrderActionsFixedStyle';
     st.textContent = [
-      '#bnsV58OrderActions{',
-      '  position:static!important;',
-      '  bottom:auto!important;',
+      'body.bns-v320-order-actions-active{padding-bottom:96px!important;}',
+      '#bnsV58OrderActions.bns-v320-fixed,#bnsV57OrderActions.bns-v320-fixed{',
+      '  position:fixed!important;',
+      '  left:var(--bns-v320-left,250px)!important;',
+      '  right:14px!important;',
+      '  bottom:10px!important;',
       '  top:auto!important;',
-      '  left:auto!important;',
-      '  right:auto!important;',
-      '  z-index:auto!important;',
-      '  width:100%!important;',
-      '  clear:both!important;',
+      '  width:auto!important;',
+      '  max-width:none!important;',
+      '  min-height:0!important;',
+      '  z-index:2147483000!important;',
       '  display:flex!important;',
       '  flex-wrap:wrap!important;',
       '  gap:10px!important;',
       '  align-items:center!important;',
       '  justify-content:flex-start!important;',
-      '  background:transparent!important;',
-      '  border-top:0!important;',
-      '  box-shadow:none!important;',
-      '  padding:12px 0 0 0!important;',
-      '  margin:14px 0 0 0!important;',
-      '  backdrop-filter:none!important;',
+      '  background:rgba(245,247,251,.98)!important;',
+      '  border:1px solid #dbe3ef!important;',
+      '  border-radius:16px!important;',
+      '  box-shadow:0 12px 34px rgba(15,23,42,.20)!important;',
+      '  padding:10px!important;',
+      '  margin:0!important;',
+      '  transform:none!important;',
+      '  backdrop-filter:blur(6px)!important;',
+      '  box-sizing:border-box!important;',
       '}',
-      '#bnsV58OrderActions button{position:static!important;transform:none!important;}',
-      '#materialList .bns-v93-row{',
-      '  position:relative!important;',
-      '  grid-template-columns:8px minmax(0,1fr) max-content!important;',
-      '  overflow:visible!important;',
-      '  contain:none!important;',
-      '}',
-      '#materialList .bns-v93-title,#materialList .bns-v93-desc,#materialList .bns-v93-price{overflow-wrap:anywhere!important;}',
-      '#materialList .bns-v93-pill{align-self:center!important;justify-self:end!important;}',
-      '@media (max-width: 900px){#materialList .bns-v93-row{grid-template-columns:8px minmax(0,1fr)!important;}#materialList .bns-v93-pill{justify-self:start!important;margin-top:6px!important;}}'
+      '#bnsV58OrderActions.bns-v320-fixed button,#bnsV57OrderActions.bns-v320-fixed button{position:static!important;transform:none!important;margin:0!important;white-space:nowrap!important;}',
+      '@media(max-width:780px){#bnsV58OrderActions.bns-v320-fixed,#bnsV57OrderActions.bns-v320-fixed{left:8px!important;right:8px!important;bottom:8px!important;}}'
     ].join('\n');
     document.head.appendChild(st);
   }
-  function fixBar(){
-    var bar = document.getElementById('bnsV58OrderActions');
-    if (!bar) return;
-    bar.style.position = 'static';
-    bar.style.bottom = 'auto';
-    bar.style.top = 'auto';
-    bar.style.zIndex = 'auto';
-    bar.style.background = 'transparent';
-    bar.style.boxShadow = 'none';
-    bar.style.backdropFilter = 'none';
+
+  function findSidebarRight(){
+    if (window.innerWidth < 780) return 8;
+    var best=0;
+    var nodes=Array.prototype.slice.call(document.body.querySelectorAll('aside,nav,section,div'));
+    nodes.some(function(el){
+      if(!visible(el)) return false;
+      var t=txt(el);
+      if(t.indexOf('dashboard')<0 || t.indexOf('nieuwe opdracht')<0 || t.indexOf('admin')<0) return false;
+      var r=el.getBoundingClientRect();
+      if(r.left <= 24 && r.width >= 120 && r.width <= 340){ best=Math.round(r.right+12); return true; }
+      return false;
+    });
+    return best || 250;
   }
-  function run(){ addStyle(); fixBar(); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run,100); });
-  else setTimeout(run,50);
-  setTimeout(run,500); setTimeout(run,1500); setInterval(run,2500);
+
+  function isAdminMaterialOpen(){
+    var admin=document.getElementById('bnsV56AdminCard') || document.getElementById('bnsV56AdminList');
+    return admin && visible(admin);
+  }
+
+  function isOrderMaterialOpen(){
+    var list=document.getElementById('materialList');
+    if(!list || !visible(list)) return false;
+    if(isAdminMaterialOpen()) return false;
+    return true;
+  }
+
+  function ensurePlaceholder(bar){
+    if(!bar || bar.dataset.bnsV320Placeholder) return;
+    var ph=document.createElement('span');
+    ph.id='bnsV320Placeholder_'+bar.id;
+    ph.style.display='none';
+    if(bar.parentNode) bar.parentNode.insertBefore(ph, bar);
+    bar.dataset.bnsV320Placeholder=ph.id;
+  }
+
+  function restoreIfNeeded(bar){
+    if(!bar) return;
+    var phId=bar.dataset.bnsV320Placeholder;
+    var ph=phId && document.getElementById(phId);
+    bar.classList.remove('bns-v320-fixed');
+    bar.style.removeProperty('left');
+    bar.style.removeProperty('right');
+    bar.style.removeProperty('bottom');
+    if(ph && ph.parentNode && bar.parentNode===document.body){
+      ph.parentNode.insertBefore(bar, ph.nextSibling);
+    }
+  }
+
+  function getBar(){ return document.getElementById('bnsV58OrderActions') || document.getElementById('bnsV57OrderActions'); }
+
+  function run(){
+    addStyle();
+    var bar=getBar();
+    if(!bar) { document.body.classList.remove('bns-v320-order-actions-active'); return; }
+    if(!isOrderMaterialOpen()){
+      restoreIfNeeded(bar);
+      document.body.classList.remove('bns-v320-order-actions-active');
+      return;
+    }
+    ensurePlaceholder(bar);
+    if(bar.parentNode !== document.body) document.body.appendChild(bar);
+    document.documentElement.style.setProperty('--bns-v320-left', findSidebarRight()+'px');
+    bar.classList.add('bns-v320-fixed');
+    document.body.classList.add('bns-v320-order-actions-active');
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){setTimeout(run,150);});
+  else setTimeout(run,60);
+  window.addEventListener('resize', function(){setTimeout(run,50);}, {passive:true});
+  window.addEventListener('scroll', function(){setTimeout(run,30);}, {passive:true});
+  setTimeout(run,600); setTimeout(run,1600); setInterval(run,1000);
 })();
