@@ -16594,3 +16594,201 @@ setInterval(install,1500);
   else run();
   setTimeout(run,250); setTimeout(run,1000);
 })();
+
+/* ==========================================================
+   BNS V322 - Materialenlijst echt stabiel (alleen Nieuwe opdracht > Materialen)
+   - Laat Opslaan/Admin ongemoeid.
+   - Stabiliseert vooral TW-lijst: vaste kaartopbouw, geen pseudo-status die breedte trekt.
+   - Knoppenbalk blijft onderin, zonder halfweg te stoppen of kaarten weg te duwen.
+   ========================================================== */
+(function bnsV322MaterialListReallyStable(){
+  if (window.__bnsV322MaterialListReallyStable) return;
+  window.__bnsV322MaterialListReallyStable = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function visible(el){ try{ var s=getComputedStyle(el), r=el.getBoundingClientRect(); return !!el && s.display!=='none' && s.visibility!=='hidden' && (r.width>0 || r.height>0); }catch(e){ return false; } }
+  function isAdminOpen(){ var a=E('bnsV56AdminCard') || E('bnsV56AdminList'); return a && visible(a); }
+  function isOrderMaterialOpen(){ var list=E('materialList'); return list && visible(list) && !isAdminOpen(); }
+
+  function addStyle(){
+    if(E('bnsV322MaterialListReallyStableStyle')) return;
+    var st=document.createElement('style');
+    st.id='bnsV322MaterialListReallyStableStyle';
+    st.textContent = [
+      'body.bns-v322-order-materials{padding-bottom:96px!important;}',
+      'body.bns-v322-order-materials #materialList{',
+      '  position:relative!important;',
+      '  overflow-x:hidden!important;',
+      '  overflow-y:visible!important;',
+      '  contain:none!important;',
+      '  padding-bottom:92px!important;',
+      '}',
+      'body.bns-v322-order-materials #materialList .bns-v93-row,',
+      'body.bns-v322-order-materials #materialList [data-material-id]{',
+      '  position:relative!important;',
+      '  display:grid!important;',
+      '  grid-template-columns:10px minmax(0,1fr) 112px!important;',
+      '  grid-template-rows:1fr!important;',
+      '  column-gap:12px!important;',
+      '  align-items:center!important;',
+      '  width:100%!important;',
+      '  min-width:0!important;',
+      '  min-height:86px!important;',
+      '  height:86px!important;',
+      '  max-height:86px!important;',
+      '  margin:8px 0!important;',
+      '  padding:12px 12px!important;',
+      '  border:1px solid #dbe3ef!important;',
+      '  border-left:0!important;',
+      '  border-radius:16px!important;',
+      '  background:#fff!important;',
+      '  box-sizing:border-box!important;',
+      '  overflow:hidden!important;',
+      '  transform:none!important;',
+      '  transition:none!important;',
+      '  animation:none!important;',
+      '}',
+      'body.bns-v322-order-materials #materialList .bns-v93-row:after,',
+      'body.bns-v322-order-materials #materialList [data-material-id]:after,',
+      'body.bns-v322-order-materials #materialList .tw-v309-blocked-material:after{',
+      '  content:none!important;',
+      '  display:none!important;',
+      '}',
+      'body.bns-v322-order-materials #materialList .bns-v93-bar{',
+      '  display:block!important;',
+      '  grid-column:1!important;',
+      '  width:8px!important;',
+      '  height:58px!important;',
+      '  min-height:58px!important;',
+      '  max-height:58px!important;',
+      '  border-radius:999px!important;',
+      '  align-self:center!important;',
+      '}',
+      'body.bns-v322-order-materials #materialList .bns-v93-row>div:nth-child(2){',
+      '  grid-column:2!important;',
+      '  min-width:0!important;',
+      '  max-width:100%!important;',
+      '  overflow:hidden!important;',
+      '}',
+      'body.bns-v322-order-materials #materialList .bns-v93-title,',
+      'body.bns-v322-order-materials #materialList [data-material-id] strong,',
+      'body.bns-v322-order-materials #materialList [data-material-id] b{',
+      '  display:block!important;',
+      '  max-width:100%!important;',
+      '  overflow:hidden!important;',
+      '  text-overflow:ellipsis!important;',
+      '  white-space:nowrap!important;',
+      '  line-height:1.18!important;',
+      '  font-size:16px!important;',
+      '  font-weight:900!important;',
+      '}',
+      'body.bns-v322-order-materials #materialList .bns-v93-title b{display:inline!important;margin-right:5px!important;white-space:nowrap!important;}',
+      'body.bns-v322-order-materials #materialList .bns-v93-desc,',
+      'body.bns-v322-order-materials #materialList .bns-v93-price{',
+      '  display:block!important;',
+      '  max-width:100%!important;',
+      '  overflow:hidden!important;',
+      '  text-overflow:ellipsis!important;',
+      '  white-space:nowrap!important;',
+      '  line-height:1.18!important;',
+      '  max-height:18px!important;',
+      '  font-size:12px!important;',
+      '}',
+      'body.bns-v322-order-materials #materialList .bns-v93-pill,',
+      'body.bns-v322-order-materials #materialList .badge,',
+      'body.bns-v322-order-materials #materialList .mat-status-badge,',
+      'body.bns-v322-order-materials #materialList .bns-status-pill,',
+      'body.bns-v322-order-materials #materialList .bns-v45-pill,',
+      'body.bns-v322-order-materials #materialList .bns-v49-pill,',
+      'body.bns-v322-order-materials #materialList .bns-v50-pill,',
+      'body.bns-v322-order-materials #materialList .bns-v56-pill{',
+      '  grid-column:3!important;',
+      '  position:static!important;',
+      '  transform:none!important;',
+      '  width:112px!important;',
+      '  min-width:112px!important;',
+      '  max-width:112px!important;',
+      '  box-sizing:border-box!important;',
+      '  white-space:nowrap!important;',
+      '  overflow:hidden!important;',
+      '  text-overflow:ellipsis!important;',
+      '  text-align:center!important;',
+      '  justify-self:end!important;',
+      '  align-self:center!important;',
+      '  line-height:1!important;',
+      '  padding:8px 8px!important;',
+      '  margin:0!important;',
+      '  font-size:12px!important;',
+      '  font-weight:900!important;',
+      '  border-radius:999px!important;',
+      '  animation:none!important;',
+      '  transition:none!important;',
+      '}',
+      'body.bns-v322-order-materials #bnsV58OrderActions.bns-v320-fixed,',
+      'body.bns-v322-order-materials #bnsV57OrderActions.bns-v320-fixed{',
+      '  position:fixed!important;',
+      '  left:var(--bns-v320-left,250px)!important;',
+      '  right:12px!important;',
+      '  bottom:10px!important;',
+      '  top:auto!important;',
+      '  width:auto!important;',
+      '  max-width:none!important;',
+      '  min-width:0!important;',
+      '  display:flex!important;',
+      '  flex-wrap:wrap!important;',
+      '  gap:10px!important;',
+      '  align-items:center!important;',
+      '  justify-content:flex-start!important;',
+      '  background:rgba(245,247,251,.98)!important;',
+      '  border:1px solid #dbe3ef!important;',
+      '  border-radius:16px!important;',
+      '  box-shadow:0 12px 34px rgba(15,23,42,.20)!important;',
+      '  padding:10px!important;',
+      '  margin:0!important;',
+      '  transform:none!important;',
+      '  transition:none!important;',
+      '  animation:none!important;',
+      '}',
+      'body.bns-v322-order-materials #bnsV58OrderActions.bns-v320-fixed button,',
+      'body.bns-v322-order-materials #bnsV57OrderActions.bns-v320-fixed button{position:static!important;transform:none!important;margin:0!important;flex:0 0 auto!important;}',
+      '@media(max-width:900px){',
+      '  body.bns-v322-order-materials #materialList .bns-v93-row,',
+      '  body.bns-v322-order-materials #materialList [data-material-id]{grid-template-columns:9px minmax(0,1fr) 96px!important;height:88px!important;max-height:88px!important;min-height:88px!important;column-gap:10px!important;padding:10px!important;}',
+      '  body.bns-v322-order-materials #materialList .bns-v93-pill,body.bns-v322-order-materials #materialList .badge,body.bns-v322-order-materials #materialList .mat-status-badge,body.bns-v322-order-materials #materialList .bns-status-pill,body.bns-v322-order-materials #materialList .bns-v45-pill,body.bns-v322-order-materials #materialList .bns-v49-pill,body.bns-v322-order-materials #materialList .bns-v50-pill,body.bns-v322-order-materials #materialList .bns-v56-pill{width:96px!important;min-width:96px!important;max-width:96px!important;font-size:11px!important;}',
+      '}'
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+
+  function ensureBodyClass(){
+    addStyle();
+    if(isOrderMaterialOpen()) document.body.classList.add('bns-v322-order-materials');
+    else document.body.classList.remove('bns-v322-order-materials');
+  }
+
+  function makeSidebarOffset(){
+    if(window.innerWidth<780){ document.documentElement.style.setProperty('--bns-v320-left','8px'); return; }
+    var left=250;
+    A('aside,nav,section,div').some(function(el){
+      if(!visible(el)) return false;
+      var t=String(el.textContent||'').toLowerCase();
+      if(t.indexOf('dashboard')<0 || t.indexOf('nieuwe opdracht')<0 || t.indexOf('admin')<0) return false;
+      var r=el.getBoundingClientRect();
+      if(r.left<=24 && r.width>=120 && r.width<=360){ left=Math.round(r.right+12); return true; }
+      return false;
+    });
+    document.documentElement.style.setProperty('--bns-v320-left',left+'px');
+  }
+
+  function run(){ ensureBodyClass(); makeSidebarOffset(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(run,100); }); else setTimeout(run,50);
+  window.addEventListener('resize',function(){ setTimeout(run,50); },{passive:true});
+  window.addEventListener('scroll',function(){ setTimeout(run,50); },{passive:true});
+  document.addEventListener('click',function(){ setTimeout(run,80); },true);
+  document.addEventListener('input',function(){ setTimeout(run,80); },true);
+  document.addEventListener('change',function(){ setTimeout(run,80); },true);
+  var mo=null;
+  try{ mo=new MutationObserver(function(){ run(); }); mo.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']}); }catch(e){}
+  [250,800,1600,3000].forEach(function(ms){ setTimeout(run,ms); });
+})();
