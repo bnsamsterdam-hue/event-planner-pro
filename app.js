@@ -16278,6 +16278,7 @@ setInterval(install,1500);
       #bnsV311CustomerIsLocation,.bns-v311-greenbtn{background:#15803d!important;color:#fff!important;border:0!important;border-radius:12px!important;font-weight:900!important;padding:11px 15px!important;box-shadow:0 2px 8px rgba(0,0,0,.18)!important}\
       #twV309CustomerIsLocation{display:none!important}\
       #bnsPostcodeBox{display:none!important}\
+      #bnsV58AdminActions{display:none!important}\
     ';
     document.head.appendChild(st);
   }
@@ -16287,6 +16288,8 @@ setInterval(install,1500);
     hide(E('twV309CustomerIsLocation'));
     // PDOK blok bij locatie verwijderen.
     hide(E('bnsPostcodeBox'));
+    // In materiaalbeheer alleen de bovenste dubbele V58-knoppenrij verwijderen.
+    hide(E('bnsV58AdminActions'));
     // Dubbele locatie-tonen checkboxes: laat de eerste zichtbare staan, verberg de rest.
     var checks=A('label').filter(function(x){ return /locatie tonen op factuur\s*\/\s*opdrachtbon/i.test(T(x.textContent)); });
     checks.forEach(function(lbl,i){ if(i>0) hide(lbl.closest('.tw-v309-minirow,.bns-v311-row,label,div') || lbl); });
@@ -16300,75 +16303,159 @@ setInterval(install,1500);
   setTimeout(cleanup,2500);
 })();
 
-
 /* ==========================================================
-   BNS SERVICE PATCH 2026-05-23 - ADMIN/MATERIAAL ONLY HERSTEL
-   Basis blijft app(10).js. Alleen Admin > Materiaalbeheer:
-   - V58 admin acties div terug zichtbaar zoals in voorbeeld z1
-   - extra V311 noodknoppen verwijderen als de originele V58 rij bestaat
-   - Opslaan/Nieuw-leeg/Verwijder blijven via bestaande V56/V58 functies lopen
+   BNS SERVICE PATCH 2026-05-23 - ADMIN MATERIAAL Z1 HERSTEL
+   Basis: app(10).js blijft intact. Alleen Admin > Materiaalbeheer.
+   Doel:
+   - geen extra/bovenste noodknoppen meer
+   - originele knoppen bij materiaalformulier gebruiken
+   - opslaan werkt zoals voorbeeld z1: state + admin-rubriekenlijst + materiaal kiezen direct bijwerken
 ========================================================== */
-(function bnsAdminMateriaalOnlyHerstel(){
+(function bnsAdminMateriaalZ1Herstel(){
   'use strict';
-  if(window.__bnsAdminMateriaalOnlyHerstel) return;
-  window.__bnsAdminMateriaalOnlyHerstel = true;
+  if(window.__bnsAdminMateriaalZ1Herstel) return;
+  window.__bnsAdminMateriaalZ1Herstel = true;
 
   function E(id){ return document.getElementById(id); }
   function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function show(el){
-    if(!el) return;
-    el.removeAttribute('hidden');
-    el.classList.remove('hidden','bns-v311-hidden');
-    el.style.removeProperty('display');
-    el.style.removeProperty('visibility');
-  }
-  function adminPane(){
-    return E('adminMaterialsPane') || E('adminMaterials') || E('materialPanel') || (E('adminMatCat') && E('adminMatCat').closest('.adminPane,.card,.panel,section,div')) || document;
-  }
-  function restoreAdminMaterialActions(){
-    var bar = E('bnsV58AdminActions');
-    var pane = adminPane();
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} if(!window.state) window.state={orders:[],materials:[],users:[]}; return window.state; }
+  function mats(){ var s=S(); if(!Array.isArray(s.materials)) s.materials=[]; return s.materials; }
+  function cat(v){ return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'') || 'EXTRA'; }
+  function nr(v,c){ var x=T(v).toUpperCase().replace(/[^A-Z0-9]/g,''); c=cat(c); if(x.indexOf(c)===0) x=x.slice(c.length); return x; }
+  function code(c,n){ c=cat(c); n=nr(n,c); return n ? c+n : c; }
+  function product(m){ return T(m && (m.product||m.searchName||m.zoeknaam||m.type||m.name||m.description||m.beschrijving)); }
+  function desc(m){ return T(m && (m.description||m.beschrijving||m.notes||m.name||'')); }
+  function rowCode(m){ return T(m&&m.code) || code(m&&m.cat,m&&m.productNr); }
+  function materialToken(m){ return cat(m&&(m.cat||m.rubriek||m.category))+'|'+code(m&&(m.cat||m.rubriek||m.category),m&&(m.productNr||m.nr||m.code)); }
+  function val(id){ var e=E(id); return e ? T(e.value) : ''; }
+  function set(id,v){ var e=E(id); if(e) e.value = v==null ? '' : v; }
+  function toast(t){ try{ if(typeof toastMsg==='function') return toastMsg(t); }catch(e){} try{ if(typeof toast==='function') return toast(t); }catch(e){} var el=E('toast'); if(el){ el.textContent=t; el.className='toast'; setTimeout(function(){ el.textContent=''; },2200); } }
+  function saveAll(){ var s=S(); try{ if(typeof save==='function') save(); }catch(e){} ['event-planner-pro-v87','eventPlannerProState','plannerState','eventPlannerPro','eventPlannerProV91','bns_state','bns_app_state','bns_v12_state','bns_planner_state'].forEach(function(k){ try{ localStorage.setItem(k,JSON.stringify(s)); }catch(e){} }); }
+  function selectedId(){ var ids=[]; try{ if(window.__bnsSelectedMaterialId) ids.push(window.__bnsSelectedMaterialId); }catch(e){} try{ if(window.bnsSelectedMaterialId) ids.push(window.bnsSelectedMaterialId); }catch(e){} try{ if(typeof selectedMaterialId!=='undefined' && selectedMaterialId) ids.push(selectedMaterialId); }catch(e){} try{ if(typeof editId!=='undefined' && editId) ids.push(editId); }catch(e){} for(var i=0;i<ids.length;i++){ if(T(ids[i])) return T(ids[i]); } return ''; }
+  function setSelected(id){ try{ window.__bnsSelectedMaterialId=String(id||''); window.bnsSelectedMaterialId=String(id||''); }catch(e){} try{ selectedMaterialId=String(id||''); }catch(e){} try{ editId=String(id||''); }catch(e){} }
+  function currentCat(){ return cat(val('bnsV56Cat') || val('adminMatCat') || window.currentCat || 'TW'); }
+  function searchText(m){ return L([m&&m.cat,m&&m.rubriek,m&&m.category,m&&m.code,m&&m.productNr,m&&m.nr,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.name,m&&m.description,m&&m.beschrijving,m&&m.notes,m&&m.price].join(' ')); }
 
-    // Als de originele V58 acties bestaan: die moeten zichtbaar blijven.
-    if(bar){
-      show(bar);
-      bar.style.setProperty('display','flex','important');
-      bar.style.setProperty('gap','10px','important');
-      bar.style.setProperty('flex-wrap','wrap','important');
-      ['bnsV58AdminSave','bnsV58AdminDelete','bnsV58AdminClear','bnsV58AdminCancel'].forEach(function(id){ show(E(id)); });
+  function installStyle(){
+    if(E('bnsAdminMateriaalZ1Style')) return;
+    var st=document.createElement('style'); st.id='bnsAdminMateriaalZ1Style';
+    st.textContent='\
+      #bnsV311AdminMatButtons,#bnsV58AdminActions{display:none!important;visibility:hidden!important;pointer-events:none!important}\
+      #bnsV56Actions{display:flex!important;visibility:visible!important;gap:10px!important;flex-wrap:wrap!important;align-items:center!important;margin:12px 0!important}\
+      #bnsV56Actions button{display:inline-flex!important;visibility:visible!important;align-items:center!important;justify-content:center!important;border:0!important;border-radius:12px!important;padding:11px 15px!important;font-weight:900!important;cursor:pointer!important}\
+      #bnsV56Save{background:#16a34a!important;color:#fff!important}\
+      #bnsV56Delete{background:#dc2626!important;color:#fff!important}\
+      #bnsV56Clear{background:#334155!important;color:#fff!important}\
+      #bnsV56AdminList{max-height:360px!important;overflow-y:auto!important;overflow-x:hidden!important}\
+    ';
+    document.head.appendChild(st);
+  }
 
-      // De later toegevoegde V311 noodrij geeft dubbele/verkeerde knoppen. Weg als V58 rij aanwezig is.
-      var extra = E('bnsV311AdminMatButtons');
-      if(extra && extra.parentNode) extra.parentNode.removeChild(extra);
-      return;
+  function removeTopButtons(){
+    ['bnsV311AdminMatButtons','bnsV58AdminActions'].forEach(function(id){ var el=E(id); if(el && el.parentNode) el.parentNode.removeChild(el); });
+    var actions=E('bnsV56Actions'), card=E('bnsV56AdminCard');
+    if(actions){ actions.removeAttribute('hidden'); actions.classList.remove('hidden','bns-v311-hidden'); actions.style.setProperty('display','flex','important'); }
+    if(card && actions && E('bnsV56Status')){
+      var status=E('bnsV56Status');
+      var row=status.closest('div');
+      if(row && row.parentNode && actions.previousElementSibling!==row){ row.parentNode.insertBefore(actions,row.nextSibling); }
     }
-
-    // Alleen fallback als V58 door timing nog niet bestaat. Geen andere schermen aanpassen.
-    if(!pane || E('bnsV58AdminActions')) return;
-    var save = E('bnsV56Save') || E('adminSaveMat');
-    var del = E('bnsV56Delete') || E('adminDeleteMat');
-    var clear = E('bnsV56Clear') || E('adminNewMat');
-    if(!save && !del && !clear) return;
-    bar = document.createElement('div');
-    bar.id = 'bnsV58AdminActions';
-    bar.style.cssText = 'position:sticky!important;top:0!important;z-index:99999!important;display:flex!important;gap:10px!important;flex-wrap:wrap!important;align-items:center!important;background:rgba(255,255,255,.96)!important;border:1px solid #dbe3ef!important;border-radius:14px!important;padding:10px!important;margin:10px 0!important;box-shadow:0 6px 18px rgba(15,23,42,.08)!important';
-    bar.innerHTML = '<button type="button" id="bnsV58AdminSave">Opslaan materiaal</button><button type="button" id="bnsV58AdminDelete">Wis materiaal</button><button type="button" id="bnsV58AdminClear">Nieuw/leeg</button><button type="button" id="bnsV58AdminCancel">Annuleren</button>';
-    var first = E('adminMatCat') || E('bnsV56Cat') || E('adminMatSearch');
-    if(first && first.parentNode) first.parentNode.insertBefore(bar, first);
-    else pane.insertBefore(bar, pane.firstChild);
-    function click(id){ var b=E(id); if(b){ try{ b.click(); return true; }catch(e){} } return false; }
-    E('bnsV58AdminSave').onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} return click('bnsV56Save') || click('adminSaveMat'), false; };
-    E('bnsV58AdminDelete').onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} return click('bnsV56Delete') || click('adminDeleteMat'), false; };
-    E('bnsV58AdminClear').onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} return click('bnsV56Clear') || click('adminNewMat'), false; };
-    E('bnsV58AdminCancel').onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} return click('bnsV56Clear') || click('adminNewMat'), false; };
   }
 
-  function tick(){
-    restoreAdminMaterialActions();
+  function formData(){
+    var c=currentCat();
+    var n=nr(val('bnsV56Nr') || val('adminMatCode') || val('adminMatNr'), c);
+    var p=val('bnsV56Product') || val('adminMatProduct') || val('productSearchName');
+    var d=val('bnsV56Desc') || val('adminMatName') || val('productDescription');
+    var pr=val('bnsV56Price') || val('adminMatPrice');
+    var st=val('bnsV56Status') || val('adminMatStatus') || 'free';
+    if(!p) p=d || code(c,n);
+    if(!d) d=p;
+    return {cat:c,rubriek:c,category:c,code:code(c,n),productNr:n,nr:n,product:p,searchName:p,zoeknaam:p,type:p,name:p,description:d,beschrijving:d,price:pr,status:st,updatedAt:new Date().toISOString()};
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,500); }); else setTimeout(tick,300);
-  document.addEventListener('click',function(){ setTimeout(tick,120); },true);
-  document.addEventListener('change',function(){ setTimeout(tick,120); },true);
-  setTimeout(tick,1200);
-  setTimeout(tick,2500);
+  function findMaterial(d){
+    var sid=selectedId();
+    var list=mats();
+    var m=sid ? list.find(function(x){ return String(x.id)===String(sid); }) : null;
+    if(!m){ var tok=d.cat+'|'+d.code; m=list.find(function(x){ return materialToken(x)===tok; }); }
+    return m;
+  }
+  function updateOverrideMaps(m){
+    if(!m || !m.id) return;
+    ['bns_material_overrides_v72','bns_v85_material_overrides'].forEach(function(key){
+      try{ var map=JSON.parse(localStorage.getItem(key)||'{}')||{}; map[String(m.id)]=Object.assign({},map[String(m.id)]||{},m,{_savedAt:Date.now()}); localStorage.setItem(key,JSON.stringify(map)); }catch(e){}
+    });
+  }
+  function syncMaterial(m){
+    try{ if(window.BNS&&window.BNS.fs&&window.BNS.db&&window.BNS.fs.setDoc&&window.BNS.fs.doc){ window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'materials',String(m.id)),Object.assign({},m,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){}); } }catch(e){}
+  }
+
+  function renderAdminList(){
+    var list=E('bnsV56AdminList'); if(!list) return;
+    var c=currentCat();
+    var q=L(val('bnsV56AdminSearch') || val('adminMatSearch'));
+    var rows=mats().filter(function(m){ return cat(m.cat||m.rubriek||m.category)===c; });
+    if(q) rows=rows.filter(function(m){ return searchText(m).indexOf(q)>=0; });
+    rows.sort(function(a,b){ return rowCode(a).localeCompare(rowCode(b),undefined,{numeric:true,sensitivity:'base'}); });
+    list.innerHTML=rows.length ? rows.slice(0,300).map(function(m){
+      var cc=cat(m.cat||m.rubriek||m.category);
+      var col=T(m.color)||'#0ea5e9';
+      return '<div class="bns-v56-admin-row" style="--cat-color:'+H(col)+'"><div class="bar"></div><div><b>'+H(rowCode(m))+'</b> '+H(product(m))+'<br><small>'+H(desc(m))+' | rubriek '+H(cc)+'</small></div><button type="button" data-bns-z1-edit="'+H(m.id)+'">Wijzig</button></div>';
+    }).join('') : '<small>Geen materiaal gevonden in rubriek '+H(c)+'.</small>';
+    A('[data-bns-z1-edit]',list).forEach(function(b){ b.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} fillForm(b.getAttribute('data-bns-z1-edit')); return false; }; });
+  }
+  function fillForm(id){
+    var m=mats().find(function(x){ return String(x.id)===String(id); }); if(!m) return false;
+    var c=cat(m.cat||m.rubriek||m.category), n=nr(m.productNr||m.nr||m.code,c);
+    setSelected(m.id);
+    set('bnsV56Cat',c); set('bnsV56Nr',n); set('bnsV56Product',product(m)); set('bnsV56Desc',desc(m)); set('bnsV56Price',m.price||''); set('bnsV56Status',m.status||'free');
+    set('adminMatCat',c); set('adminMatCode',n); set('adminMatProduct',product(m)); set('adminMatName',desc(m)); set('adminMatPrice',m.price||''); set('adminMatStatus',m.status||'free');
+    try{ window.currentCat=c; currentCat=c; }catch(e){}
+    return false;
+  }
+  function renderPickers(c){
+    try{ window.currentCat=c; currentCat=c; }catch(e){}
+    try{ if(typeof window.renderCats==='function') window.renderCats(); }catch(e){}
+    try{ if(typeof renderCats==='function') renderCats(); }catch(e){}
+    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(c,true); }catch(e){}
+    try{ if(typeof renderMaterials==='function') renderMaterials(c,true); }catch(e){}
+  }
+  function saveMaterial(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    var d=formData();
+    if(!d.cat || !d.productNr){ toast('Vul rubriek en productnummer in'); return false; }
+    var m=findMaterial(d); if(!m){ m={id:'mat_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)}; mats().push(m); }
+    Object.assign(m,d,{id:m.id});
+    setSelected(m.id); updateOverrideMaps(m); saveAll(); syncMaterial(m); renderAdminList(); renderPickers(d.cat); toast('Materiaal opgeslagen');
+    return false;
+  }
+  function deleteMaterial(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    var id=selectedId(); if(!id){ toast('Kies eerst materiaal'); return false; }
+    if(!confirm('Weet je zeker dat je dit materiaal wilt verwijderen?')) return false;
+    var s=S(); s.materials=mats().filter(function(m){ return String(m.id)!==String(id); }); setSelected(''); saveAll(); renderAdminList(); renderPickers(currentCat()); toast('Materiaal verwijderd'); return false;
+  }
+  function clearForm(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    setSelected(''); ['bnsV56Nr','bnsV56Product','bnsV56Desc','bnsV56Price','adminMatCode','adminMatProduct','adminMatName','adminMatPrice'].forEach(function(id){ set(id,''); });
+    set('bnsV56Status','free'); set('adminMatStatus','free');
+    set('bnsV56Cat',currentCat()); set('adminMatCat',currentCat());
+    return false;
+  }
+  function bind(){
+    installStyle(); removeTopButtons();
+    var s=E('bnsV56Save'); if(s){ s.onclick=saveMaterial; s.addEventListener('click',saveMaterial,true); }
+    var d=E('bnsV56Delete'); if(d){ d.onclick=deleteMaterial; d.addEventListener('click',deleteMaterial,true); }
+    var c=E('bnsV56Clear'); if(c){ c.onclick=clearForm; c.addEventListener('click',clearForm,true); }
+    var search=E('bnsV56AdminSearch'); if(search && search.dataset.bnsZ1AdminSearch!=='1'){ search.dataset.bnsZ1AdminSearch='1'; search.addEventListener('input',function(){ renderAdminList(); },true); }
+    var catInp=E('bnsV56Cat'); if(catInp && catInp.dataset.bnsZ1Cat!=='1'){ catInp.dataset.bnsZ1Cat='1'; catInp.addEventListener('input',function(){ this.value=cat(this.value); renderAdminList(); },true); catInp.addEventListener('change',renderAdminList,true); }
+    renderAdminList();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(bind,500); }); else setTimeout(bind,250);
+  document.addEventListener('click',function(ev){ if(ev.target && ev.target.closest && ev.target.closest('#bnsV311AdminMatButtons,#bnsV58AdminActions')){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); return false; } setTimeout(bind,80); },true);
+  document.addEventListener('change',function(){ setTimeout(bind,80); },true);
+  setTimeout(bind,1000); setTimeout(bind,2400); setTimeout(bind,4200);
 })();
