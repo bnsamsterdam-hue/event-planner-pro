@@ -16435,84 +16435,112 @@ setInterval(install,1500);
 })();
 
 /* ==========================================================
-   BNS V324 - Werkende generieke materiaal-knoppen en stabiele materiaallijst
-   Basis: rollback met goede Opslaan/admin.
-   Scope: alleen Nieuwe opdracht > Materialen.
-   Niet per rubriek: werkt voor TW, TO, KW, EXTRA en toekomstige rubrieken.
+   BNS V325 - Alleen knoppenbalk + materiaalkaart layout stabiel
+   Scope: Nieuwe opdracht > Materialen.
+   Geen wijzigingen aan opslaan, admin, status of reserveringslogica.
 ========================================================== */
-(function bnsV324MaterialButtonsGenericStable(){
+(function bnsV325StableMaterialScrollAndButtons(){
   'use strict';
-  if (window.__bnsV324MaterialButtonsGenericStable) return;
-  window.__bnsV324MaterialButtonsGenericStable = true;
+  if (window.__bnsV325StableMaterialScrollAndButtons) return;
+  window.__bnsV325StableMaterialScrollAndButtons = true;
 
   function E(id){ return document.getElementById(id); }
-  function Q(sel,root){ return (root||document).querySelector(sel); }
-  function visible(el){
-    try{ var r = el.getBoundingClientRect(); return !!(r.width || r.height); }catch(e){ return false; }
-  }
-  function isMaterialScreen(){
-    var p = E('materialPanel');
-    if (!p) return !!E('materialList');
-    return !p.classList.contains('hidden') && visible(p);
-  }
-  function activePanelLeft(){
-    var panel = E('materialPanel') || Q('.workpanel:not(.hidden)') || Q('.page.active') || Q('main') || Q('.main') || Q('#app') || document.body;
-    try{
-      var r = panel.getBoundingClientRect();
-      if (r.left > 0 && r.width > 100) return Math.max(0, Math.round(r.left));
-    }catch(e){}
-    return 0;
-  }
-
-  function installStyle(){
-    if (E('bnsV324MaterialButtonsStyle')) return;
+  function addStyle(){
+    if (E('bnsV325StableMaterialStyle')) return;
     var st = document.createElement('style');
-    st.id = 'bnsV324MaterialButtonsStyle';
-    st.textContent = '\
-      #materialPanel{padding-bottom:110px!important;}\
-      #materialList{padding-bottom:150px!important;overflow-anchor:none!important;}\
-      #materialList .bns-v93-row{position:relative!important;display:grid!important;grid-template-columns:8px minmax(0,1fr)!important;gap:12px!important;align-items:center!important;min-height:88px!important;height:auto!important;margin:9px 0!important;padding:13px 126px 13px 14px!important;box-sizing:border-box!important;overflow:hidden!important;contain:layout paint!important;animation:none!important;transition:none!important;transform:none!important;}\
-      #materialList .bns-v93-bar{grid-column:1!important;grid-row:1!important;width:8px!important;height:56px!important;align-self:center!important;}\
-      #materialList .bns-v93-row > div:nth-child(2){grid-column:2!important;grid-row:1!important;min-width:0!important;max-width:100%!important;}\
-      #materialList .bns-v93-title,#materialList .bns-v93-desc,#materialList .bns-v93-price{max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;overflow-wrap:normal!important;word-break:normal!important;}\
-      #materialList .bns-v93-title{white-space:normal!important;line-height:1.18!important;}\
-      #materialList .bns-v93-desc,#materialList .bns-v93-price{white-space:normal!important;line-height:1.15!important;}\
-      #materialList .bns-v93-pill{position:absolute!important;right:12px!important;top:50%!important;transform:translateY(-50%)!important;max-width:106px!important;min-width:74px!important;text-align:center!important;white-space:normal!important;line-height:1.1!important;padding:8px 10px!important;box-sizing:border-box!important;z-index:2!important;}\
-      #materialList .material-row,#materialList .bns-v83-mat-row,#materialList .bns-v72-row,#materialList .bns-v56-row{animation:none!important;transition:none!important;transform:none!important;}\
-      #bnsV58OrderActions{display:flex!important;flex-wrap:wrap!important;gap:10px!important;align-items:center!important;justify-content:flex-start!important;background:rgba(245,247,251,.98)!important;border:1px solid #dbe3ef!important;border-radius:16px!important;box-shadow:0 8px 24px rgba(15,23,42,.16)!important;padding:10px!important;box-sizing:border-box!important;backdrop-filter:blur(6px)!important;}\
-      #bnsV58OrderActions button{position:static!important;transform:none!important;flex:0 0 auto!important;}\
-      @media (max-width:900px){#materialList .bns-v93-row{padding-right:112px!important;min-height:96px!important;}#materialList .bns-v93-pill{right:10px!important;max-width:96px!important;font-size:13px!important;}}\
-    ';
+    st.id = 'bnsV325StableMaterialStyle';
+    st.textContent = [
+      'html,body{overflow-anchor:none!important;}',
+      '#materialPanel{padding-bottom:24px!important;overflow:visible!important;}',
+      '#materialList{padding-bottom:30px!important;overflow-anchor:none!important;}',
+
+      /* Materiaalkaarten: vaste rustige grid, status rechts, geen absolute/status overlay */
+      '#materialList .bns-v93-row{',
+      '  position:relative!important;',
+      '  display:grid!important;',
+      '  grid-template-columns:10px minmax(0,1fr) 118px!important;',
+      '  gap:10px!important;',
+      '  align-items:center!important;',
+      '  min-height:82px!important;',
+      '  height:auto!important;',
+      '  margin:8px 0!important;',
+      '  padding:12px 10px!important;',
+      '  box-sizing:border-box!important;',
+      '  overflow:hidden!important;',
+      '  contain:none!important;',
+      '  animation:none!important;',
+      '  transition:none!important;',
+      '  transform:none!important;',
+      '}',
+      '#materialList .bns-v93-bar{grid-column:1!important;width:8px!important;height:54px!important;align-self:center!important;}',
+      '#materialList .bns-v93-row>div:nth-child(2){grid-column:2!important;min-width:0!important;}',
+      '#materialList .bns-v93-title,#materialList .bns-v93-desc,#materialList .bns-v93-price{',
+      '  display:block!important;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;',
+      '  word-break:normal!important;overflow-wrap:normal!important;hyphens:none!important;',
+      '}',
+      '#materialList .bns-v93-title{font-size:16px!important;line-height:1.15!important;}',
+      '#materialList .bns-v93-desc{font-size:13px!important;line-height:1.15!important;}',
+      '#materialList .bns-v93-price{font-size:12px!important;line-height:1.15!important;}',
+      '#materialList .bns-v93-pill{',
+      '  grid-column:3!important;position:static!important;right:auto!important;top:auto!important;bottom:auto!important;',
+      '  transform:none!important;justify-self:end!important;align-self:center!important;',
+      '  width:auto!important;min-width:72px!important;max-width:112px!important;',
+      '  white-space:normal!important;text-align:center!important;line-height:1.05!important;',
+      '  padding:7px 9px!important;box-sizing:border-box!important;z-index:auto!important;',
+      '}',
+
+      /* De actieknoppen: in de pagina houden, niet fixed over de lijst */
+      '#bnsV58OrderActions{',
+      '  position:sticky!important;',
+      '  bottom:0!important;',
+      '  top:auto!important;left:auto!important;right:auto!important;',
+      '  width:100%!important;max-width:100%!important;',
+      '  display:flex!important;flex-wrap:wrap!important;gap:10px!important;',
+      '  align-items:center!important;justify-content:flex-start!important;',
+      '  background:rgba(245,247,251,.98)!important;',
+      '  border:1px solid #dbe3ef!important;border-radius:16px!important;',
+      '  box-shadow:0 -4px 16px rgba(15,23,42,.10)!important;',
+      '  padding:10px!important;margin:14px 0 0 0!important;',
+      '  box-sizing:border-box!important;backdrop-filter:blur(6px)!important;z-index:1000!important;',
+      '}',
+      '#bnsV58OrderActions button{position:static!important;transform:none!important;flex:0 0 auto!important;}',
+      '@media (max-width:900px){',
+      '  #materialList .bns-v93-row{grid-template-columns:10px minmax(0,1fr) 96px!important;min-height:88px!important;}',
+      '  #materialList .bns-v93-pill{max-width:92px!important;font-size:13px!important;padding:7px 8px!important;}',
+      '}'
+    ].join('\n');
     document.head.appendChild(st);
   }
 
-  function fixActionBar(){
-    var bar = E('bnsV58OrderActions');
-    if (!bar) return;
-    if (!isMaterialScreen()) {
-      // Buiten het materiaal-tabblad niet forceren; dit voorkomt bijwerkingen elders.
-      bar.style.removeProperty('position');
-      bar.style.removeProperty('left');
-      bar.style.removeProperty('right');
-      bar.style.removeProperty('bottom');
-      bar.style.removeProperty('width');
-      return;
-    }
-    var left = activePanelLeft();
-    var width = Math.max(280, window.innerWidth - left - 12);
-    bar.style.setProperty('position','fixed','important');
-    bar.style.setProperty('left',left + 'px','important');
-    bar.style.setProperty('right','12px','important');
-    bar.style.setProperty('bottom','10px','important');
-    bar.style.setProperty('width',width + 'px','important');
-    bar.style.setProperty('max-width','calc(100vw - ' + (left + 12) + 'px)','important');
-    bar.style.setProperty('z-index','2147483000','important');
+  function isMaterialTabVisible(){
+    var panel = E('materialPanel');
+    if (!panel) return !!E('materialList');
+    if (panel.classList.contains('hidden')) return false;
+    try { var r = panel.getBoundingClientRect(); return !!(r.width || r.height); } catch(e) { return true; }
   }
 
-  function run(){ installStyle(); fixActionBar(); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run,120); }); else setTimeout(run,60);
+  function fixButtons(){
+    var bar = E('bnsV58OrderActions');
+    var panel = E('materialPanel');
+    if (!bar) return;
+    if (isMaterialTabVisible() && panel && !panel.contains(bar)) {
+      try { panel.appendChild(bar); } catch(e) {}
+    }
+    bar.style.setProperty('position','sticky','important');
+    bar.style.setProperty('bottom','0','important');
+    bar.style.setProperty('left','auto','important');
+    bar.style.setProperty('right','auto','important');
+    bar.style.setProperty('width','100%','important');
+    bar.style.setProperty('max-width','100%','important');
+    bar.style.setProperty('z-index','1000','important');
+  }
+
+  function run(){ addStyle(); fixButtons(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run,120); });
+  else setTimeout(run,60);
   window.addEventListener('resize', function(){ setTimeout(run,80); }, true);
-  window.addEventListener('scroll', function(){ if(isMaterialScreen()) fixActionBar(); }, true);
   document.addEventListener('click', function(){ setTimeout(run,120); }, true);
-  setTimeout(run,500); setTimeout(run,1500); setInterval(run,1200);
+  setTimeout(run,500);
+  setTimeout(run,1400);
+  setInterval(run,1200);
 })();
