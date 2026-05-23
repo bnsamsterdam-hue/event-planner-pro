@@ -16367,3 +16367,69 @@ setInterval(install,1500);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,250);});else setTimeout(install,120);
   setTimeout(install,700); setTimeout(install,1600); setInterval(install,1500);
 })();
+
+/* ==========================================================
+   BNS V319 - Opdracht materialen knoppen stabiel
+   Doel: alleen de actieknoppen onder Nieuwe opdracht herstellen.
+   - Geen sticky/zwevende knopbalk meer midden over materiaalkaarten.
+   - Knoppen blijven in normale document-flow onder de opdracht staan.
+   - Materiaalkaarten blijven rustig en stabiel tijdens scrollen.
+   ========================================================== */
+(function bnsV319OrderButtonsStable(){
+  if (window.__bnsV319OrderButtonsStable) return;
+  window.__bnsV319OrderButtonsStable = true;
+  function addStyle(){
+    if (document.getElementById('bnsV319OrderButtonsStableStyle')) return;
+    var st = document.createElement('style');
+    st.id = 'bnsV319OrderButtonsStableStyle';
+    st.textContent = [
+      '#bnsV58OrderActions{',
+      '  position:static!important;',
+      '  bottom:auto!important;',
+      '  top:auto!important;',
+      '  left:auto!important;',
+      '  right:auto!important;',
+      '  z-index:auto!important;',
+      '  width:100%!important;',
+      '  clear:both!important;',
+      '  display:flex!important;',
+      '  flex-wrap:wrap!important;',
+      '  gap:10px!important;',
+      '  align-items:center!important;',
+      '  justify-content:flex-start!important;',
+      '  background:transparent!important;',
+      '  border-top:0!important;',
+      '  box-shadow:none!important;',
+      '  padding:12px 0 0 0!important;',
+      '  margin:14px 0 0 0!important;',
+      '  backdrop-filter:none!important;',
+      '}',
+      '#bnsV58OrderActions button{position:static!important;transform:none!important;}',
+      '#materialList .bns-v93-row{',
+      '  position:relative!important;',
+      '  grid-template-columns:8px minmax(0,1fr) max-content!important;',
+      '  overflow:visible!important;',
+      '  contain:none!important;',
+      '}',
+      '#materialList .bns-v93-title,#materialList .bns-v93-desc,#materialList .bns-v93-price{overflow-wrap:anywhere!important;}',
+      '#materialList .bns-v93-pill{align-self:center!important;justify-self:end!important;}',
+      '@media (max-width: 900px){#materialList .bns-v93-row{grid-template-columns:8px minmax(0,1fr)!important;}#materialList .bns-v93-pill{justify-self:start!important;margin-top:6px!important;}}'
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+  function fixBar(){
+    var bar = document.getElementById('bnsV58OrderActions');
+    if (!bar) return;
+    bar.style.position = 'static';
+    bar.style.bottom = 'auto';
+    bar.style.top = 'auto';
+    bar.style.zIndex = 'auto';
+    bar.style.background = 'transparent';
+    bar.style.boxShadow = 'none';
+    bar.style.backdropFilter = 'none';
+  }
+  function run(){ addStyle(); fixBar(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run,100); });
+  else setTimeout(run,50);
+  setTimeout(run,500); setTimeout(run,1500); setInterval(run,2500);
+})();
