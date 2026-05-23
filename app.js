@@ -16492,3 +16492,105 @@ setInterval(install,1500);
   window.addEventListener('scroll', function(){setTimeout(run,30);}, {passive:true});
   setTimeout(run,600); setTimeout(run,1600); setInterval(run,1000);
 })();
+
+/* ==========================================================
+   BNS V321 - TW materiaalkaarten stabiel + knoppenbalk rustig
+   Doel: alleen Nieuwe opdracht > Materialen visueel stabiliseren.
+   - Opslaan/admin blijft ongemoeid.
+   - TW-kaarten krijgen vaste rustige hoogte en vaste status-positie.
+   - Knoppenbalk krijgt vaste volledige breedte en verandert niet tijdens scroll.
+   ========================================================== */
+(function bnsV321TwMaterialCardsAndActionsStable(){
+  if (window.__bnsV321TwMaterialCardsAndActionsStable) return;
+  window.__bnsV321TwMaterialCardsAndActionsStable = true;
+
+  function addStyle(){
+    if (document.getElementById('bnsV321TwStableStyle')) return;
+    var st = document.createElement('style');
+    st.id = 'bnsV321TwStableStyle';
+    st.textContent = [
+      '#materialList{overflow-x:hidden!important;}',
+      '#materialList .bns-v93-row{',
+      '  position:relative!important;',
+      '  display:block!important;',
+      '  width:100%!important;',
+      '  min-height:92px!important;',
+      '  height:92px!important;',
+      '  margin:9px 0!important;',
+      '  padding:13px 118px 13px 34px!important;',
+      '  box-sizing:border-box!important;',
+      '  overflow:hidden!important;',
+      '  contain:layout paint!important;',
+      '  animation:none!important;',
+      '  transition:none!important;',
+      '  transform:none!important;',
+      '}',
+      '#materialList .bns-v93-row .bns-v93-bar{',
+      '  position:absolute!important;',
+      '  left:14px!important;',
+      '  top:16px!important;',
+      '  bottom:16px!important;',
+      '  width:8px!important;',
+      '  height:auto!important;',
+      '}',
+      '#materialList .bns-v93-row>div:nth-child(2){min-width:0!important;max-width:100%!important;overflow:hidden!important;}',
+      '#materialList .bns-v93-title{',
+      '  font-size:16px!important;',
+      '  line-height:1.18!important;',
+      '  font-weight:800!important;',
+      '  max-height:38px!important;',
+      '  overflow:hidden!important;',
+      '  word-break:normal!important;',
+      '  overflow-wrap:normal!important;',
+      '}',
+      '#materialList .bns-v93-title b{display:inline!important;margin-right:5px!important;white-space:nowrap!important;}',
+      '#materialList .bns-v93-desc{',
+      '  font-size:13px!important;',
+      '  line-height:1.18!important;',
+      '  max-height:31px!important;',
+      '  overflow:hidden!important;',
+      '  word-break:normal!important;',
+      '  overflow-wrap:normal!important;',
+      '}',
+      '#materialList .bns-v93-price{font-size:12px!important;line-height:1.15!important;max-height:28px!important;overflow:hidden!important;}',
+      '#materialList .bns-v93-pill{',
+      '  position:absolute!important;',
+      '  right:10px!important;',
+      '  top:50%!important;',
+      '  transform:translateY(-50%)!important;',
+      '  width:96px!important;',
+      '  max-width:96px!important;',
+      '  box-sizing:border-box!important;',
+      '  text-align:center!important;',
+      '  justify-content:center!important;',
+      '  white-space:normal!important;',
+      '  line-height:1.05!important;',
+      '  padding:7px 8px!important;',
+      '  font-size:12px!important;',
+      '  animation:none!important;',
+      '  transition:none!important;',
+      '}',
+      '#bnsV58OrderActions.bns-v320-fixed,#bnsV57OrderActions.bns-v320-fixed{',
+      '  left:var(--bns-v320-left,250px)!important;',
+      '  right:12px!important;',
+      '  bottom:10px!important;',
+      '  width:auto!important;',
+      '  max-width:none!important;',
+      '  min-width:0!important;',
+      '  justify-content:flex-start!important;',
+      '  align-items:center!important;',
+      '  animation:none!important;',
+      '  transition:none!important;',
+      '  transform:none!important;',
+      '}',
+      '#bnsV58OrderActions.bns-v320-fixed button,#bnsV57OrderActions.bns-v320-fixed button{flex:0 0 auto!important;position:static!important;transform:none!important;}',
+      '@media(max-width:900px){#materialList .bns-v93-row{height:100px!important;min-height:100px!important;padding-right:108px!important}#materialList .bns-v93-pill{width:88px!important;max-width:88px!important;font-size:11px!important}}'
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+
+  function run(){ addStyle(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+  else run();
+  setTimeout(run,250); setTimeout(run,1000);
+})();
