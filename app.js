@@ -5401,7 +5401,7 @@ setInterval(install,1500);
 
   function tick(){
     bindInvoiceHard();
-    ensurePdokBox();
+    /* PDOK locatieblok verwijderd op verzoek */
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick);
@@ -5662,7 +5662,7 @@ setInterval(install,1500);
     if (btn) btn.onclick = window.bnsLookupPostcodePDOKV123;
   }
 
-  function tick(){ addTemplateUpload(); ensurePdokVisible(); }
+  function tick(){ addTemplateUpload(); /* PDOK locatieblok verwijderd op verzoek */ }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
   setTimeout(tick, 500); setTimeout(tick, 1500); setInterval(tick, 4000);
 })();
@@ -10675,6 +10675,7 @@ setInterval(install,1500);
   }
 
   function ensureAdminActions(){
+    return; // bovenste dubbele materiaalbeheer-knoppen verwijderd op verzoek
     var card=E('bnsV56AdminCard');
     if(!card) return;
     var grid=E('bnsV56AdminGrid') || card.firstElementChild;
@@ -15966,7 +15967,7 @@ setInterval(install,1500);
   function injectClientLocationButtons(){
     installClientLocationButtons();
     var cAnchor=E('customerPanel')||E('customerName')&&E('customerName').closest('.workpanel,.panel,.card,section,div');
-    if(cAnchor && !E('twV309CustomerIsLocation')){
+    if(false && cAnchor && !E('twV309CustomerIsLocation')){
       var row=document.createElement('div'); row.className='tw-v309-minirow'; row.innerHTML='<button type="button" id="twV309CustomerIsLocation">Klant is ook locatie</button>';
       cAnchor.appendChild(row);
       E('twV309CustomerIsLocation').onclick=function(){
@@ -15975,7 +15976,7 @@ setInterval(install,1500);
       };
     }
     var lAnchor=E('locationPanel')||E('locationName')&&E('locationName').closest('.workpanel,.panel,.card,section,div');
-    if(lAnchor && !E('twV309ShowLocationOnDocs')){
+    if(false && lAnchor && !E('twV309ShowLocationOnDocs')){
       var row2=document.createElement('div'); row2.className='tw-v309-minirow'; row2.innerHTML='<label><input type="checkbox" id="twV309ShowLocationOnDocs" checked> Locatie tonen op factuur / opdrachtbon</label>';
       lAnchor.appendChild(row2);
     }
@@ -16067,7 +16068,7 @@ setInterval(install,1500);
     s.textContent='\
       .bns-v311-hidden{display:none!important}\
       .bns-v311-row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;align-items:center}\
-      .bns-v311-greenbtn,.bns-v311-check{border:0!important;border-radius:12px!important;background:#dcfce7!important;color:#14532d!important;font-weight:900!important;padding:10px 13px!important;display:inline-flex!important;align-items:center!important;gap:8px!important;box-shadow:0 1px 4px rgba(0,0,0,.08)!important}\
+      .bns-v311-greenbtn{border:0!important;border-radius:12px!important;background:#15803d!important;color:#fff!important;font-weight:900!important;padding:11px 15px!important;display:inline-flex!important;align-items:center!important;gap:8px!important;box-shadow:0 2px 8px rgba(0,0,0,.18)!important}.bns-v311-check{border:0!important;border-radius:12px!important;background:#dcfce7!important;color:#14532d!important;font-weight:900!important;padding:10px 13px!important;display:inline-flex!important;align-items:center!important;gap:8px!important;box-shadow:0 1px 4px rgba(0,0,0,.08)!important}\
       .bns-v311-check input{transform:scale(1.18)}\
       .bns-v311-admin-row button{border:0!important;border-radius:12px!important;padding:10px 13px!important;font-weight:900!important;background:#0f172a!important;color:#fff!important}\
       .bns-v311-admin-row .green{background:#16a34a!important}.bns-v311-admin-row .red{background:#dc2626!important}\
@@ -16255,177 +16256,49 @@ setInterval(install,1500);
   setTimeout(run,2500);
 })();
 
-/* =========================================================
-   V312 - formulier opschonen klant/locatie/admin materiaal
-   - Verwijdert oude knop: Klant is ook locatie.
-   - Laat alleen de duidelijke knop: Klant is zelfde als bezorg adres.
-   - Laat locatie tonen op factuur/opdrachtbon maar 1x zien.
-   - Verwijdert dubbele PDOK postcodeblokken bij locatie.
-   - Verwijdert dubbele bovenste admin materiaal knoppenrij.
-   ========================================================= */
-(function bnsV312FormulierOpschonen(){
+
+/* ==========================================================
+   BNS SERVICE PATCH 2026-05-23 - Werkende UI opruiming
+   Doel: alleen gevraagde dubbele/ongewenste knoppen verbergen.
+   Geen brede containers verwijderen; voorkomt wit/leeg scherm.
+========================================================== */
+(function bnsServiceWerkendeAanpassingen(){
   'use strict';
-  if (window.__bnsV312FormulierOpschonen) return;
-  window.__bnsV312FormulierOpschonen = true;
-
-  function E(id){ return document.getElementById(id); }
-  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function T(v){ return String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); }
+  if(window.__bnsServiceWerkendeAanpassingen) return;
+  window.__bnsServiceWerkendeAanpassingen = true;
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).replace(/\s+/g,' ').trim(); }
   function L(v){ return T(v).toLowerCase(); }
-  function txt(el){ return L((el && (el.textContent || el.value)) || ''); }
-  function fire(el){ if(!el) return; try{ el.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} try{ el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
-
-  function addStyle(){
-    if (E('bnsV312Style')) return;
-    var s = document.createElement('style');
-    s.id = 'bnsV312Style';
-    s.textContent = [
-      '.bns-v312-hidden{display:none!important}',
-      '#bnsV311CustomerIsLocation,.bns-v312-main-copy-btn{background:#15803d!important;color:#ffffff!important;border:2px solid #166534!important;border-radius:13px!important;font-weight:1000!important;padding:12px 16px!important;box-shadow:0 8px 20px rgba(21,128,61,.28)!important;opacity:1!important}',
-      '#bnsV311CustomerIsLocation:hover,.bns-v312-main-copy-btn:hover{background:#166534!important;color:#ffffff!important}',
-      '.bns-v311-greenbtn{background:#15803d!important;color:#ffffff!important;border:2px solid #166534!important}',
-      '.bns-v312-admin-removed{display:none!important}'
-    ].join('\n');
-    document.head.appendChild(s);
+  function E(id){ return document.getElementById(id); }
+  function hide(el){ if(!el) return; el.style.setProperty('display','none','important'); el.setAttribute('hidden','hidden'); }
+  function installStyle(){
+    if(E('bnsServiceWerkendeStyle')) return;
+    var st=document.createElement('style'); st.id='bnsServiceWerkendeStyle';
+    st.textContent='\
+      #bnsV311CustomerIsLocation,.bns-v311-greenbtn{background:#15803d!important;color:#fff!important;border:0!important;border-radius:12px!important;font-weight:900!important;padding:11px 15px!important;box-shadow:0 2px 8px rgba(0,0,0,.18)!important}\
+      #twV309CustomerIsLocation{display:none!important}\
+      #bnsPostcodeBox{display:none!important}\
+      #bnsV58AdminActions{display:none!important}\
+    ';
+    document.head.appendChild(st);
   }
-
-  function getField(ids){
-    for (var i=0;i<ids.length;i++){ var el=E(ids[i]); if(el) return el; }
-    return null;
+  function cleanup(){
+    installStyle();
+    // Oude lichte/overbodige V309 knop verwijderen; V311 knop blijft staan.
+    hide(E('twV309CustomerIsLocation'));
+    // PDOK blok bij locatie verwijderen.
+    hide(E('bnsPostcodeBox'));
+    // In materiaalbeheer alleen de bovenste dubbele V58-knoppenrij verwijderen.
+    hide(E('bnsV58AdminActions'));
+    // Dubbele locatie-tonen checkboxes: laat de eerste zichtbare staan, verberg de rest.
+    var checks=A('label').filter(function(x){ return /locatie tonen op factuur\s*\/\s*opdrachtbon/i.test(T(x.textContent)); });
+    checks.forEach(function(lbl,i){ if(i>0) hide(lbl.closest('.tw-v309-minirow,.bns-v311-row,label,div') || lbl); });
+    // Extra zekerheid: als de oude V309 checkbox bestaat en de nieuwe V311 ook, oude verbergen.
+    if(E('twV309ShowLocationOnDocs') && E('bnsV311ShowLocationOnDocs')) hide(E('twV309ShowLocationOnDocs').closest('.tw-v309-minirow,label,div'));
   }
-  function getVal(ids){ var el=getField(ids); return el ? el.value : ''; }
-  function setVal(ids, val){ var el=getField(ids); if(el){ el.value = val || ''; fire(el); } }
-  function copyCustomerToLocation(){
-    setVal(['locationName','locatieNaam','locName'], getVal(['customerName','klantNaam','custName']));
-    setVal(['locationStreet','locatieStraat','locStreet'], getVal(['customerStreet','klantStraat','custStreet']));
-    setVal(['locationHouseNumber','locatieHuisnummer','locationNr','locatieNr'], getVal(['customerHouseNumber','klantHuisnummer','customerNr','klantNr']));
-    setVal(['locationZip','locationPostcode','locatiePostcode','locZip'], getVal(['customerZip','customerPostcode','klantPostcode','custZip']));
-    setVal(['locationCity','locationPlace','locatiePlaats','locCity'], getVal(['customerCity','customerPlace','klantPlaats','custCity']));
-    setVal(['locationPhone','locatieTelefoon','locPhone'], getVal(['customerPhone','klantTelefoon','custPhone']));
-    try{ if(typeof summaryRender === 'function') summaryRender(); }catch(e){}
-  }
-
-  function nearestBlock(el){
-    return el && el.closest && (el.closest('.card,.panel,.workpanel,section,fieldset,.form-block,.box,div') || el.parentNode);
-  }
-  function customerBlock(){
-    var f = getField(['customerName','klantNaam','custName']);
-    if (f) return nearestBlock(f);
-    var h = A('h2,h3,legend,b,strong,label,span').find(function(x){ return L(x.textContent).indexOf('klant') >= 0; });
-    return nearestBlock(h);
-  }
-
-  function removeOldCustomerIsLocation(){
-    A('button,input[type="button"],input[type="submit"],a').forEach(function(el){
-      var t = txt(el);
-      if (t === 'klant is ook locatie' || t.indexOf('klant is ook locatie') >= 0) {
-        var row = el.closest && el.closest('.tw-v309-minirow,.bns-v311-row,.bns-v312-row');
-        (row || el).remove();
-      }
-    });
-  }
-
-  function ensureClearCustomerButton(){
-    removeOldCustomerIsLocation();
-    var btn = E('bnsV311CustomerIsLocation');
-    if (!btn) {
-      btn = A('button,input[type="button"],input[type="submit"]').find(function(el){ return /klant is zelfde als bezorg adres|klant is hetzelfde als bezorg adres/.test(txt(el)); });
-    }
-    if (!btn) {
-      var host = customerBlock();
-      if (!host) return;
-      var row = document.createElement('div');
-      row.className = 'bns-v311-row bns-v312-row';
-      row.innerHTML = '<button type="button" id="bnsV311CustomerIsLocation" class="bns-v312-main-copy-btn">Klant is zelfde als bezorg adres</button>';
-      host.appendChild(row);
-      btn = E('bnsV311CustomerIsLocation');
-    }
-    if (btn) {
-      btn.id = 'bnsV311CustomerIsLocation';
-      btn.type = 'button';
-      btn.textContent = 'Klant is zelfde als bezorg adres';
-      btn.classList.add('bns-v312-main-copy-btn');
-      if (btn.dataset.bnsV312Bound !== '1') {
-        btn.dataset.bnsV312Bound = '1';
-        btn.addEventListener('click', function(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); } copyCustomerToLocation(); return false; }, true);
-      }
-    }
-  }
-
-  function removeDuplicateLocationOnDocs(){
-    var items = A('label,button,div,span').filter(function(el){
-      var t = L(el.textContent || '');
-      return t.indexOf('locatie tonen op factuur') >= 0 && t.indexOf('opdracht') >= 0;
-    });
-    var controls = [];
-    items.forEach(function(el){
-      var keep = el.closest && el.closest('label,.tw-v309-minirow,.bns-v311-row,.bns-v312-row,div');
-      if (keep && controls.indexOf(keep) < 0) controls.push(keep);
-    });
-    if (controls.length <= 1) return;
-    controls.forEach(function(el, i){ if (i > 0) el.remove(); });
-  }
-
-  function removeDuplicatePdokBlocks(){
-    var boxes = [];
-    ['bnsPostcodeBox','bnsLocationPostcodeBox'].forEach(function(id){ var el=E(id); if(el && boxes.indexOf(el)<0) boxes.push(el); });
-    A('div,section,fieldset,.card,.panel,.box,.bns-postcode-inline').forEach(function(el){
-      var t = L(el.textContent || '');
-      if ((t.indexOf('postcode zoeken via pdok') >= 0 || t.indexOf('locatie adres zoeken') >= 0) && t.indexOf('adres zoeken') >= 0) {
-        if (boxes.indexOf(el) < 0) boxes.push(el);
-      }
-    });
-    if (boxes.length <= 1) return;
-    var locationBox = boxes.find(function(el){ return el.id === 'bnsLocationPostcodeBox' || L(el.textContent || '').indexOf('locatie adres zoeken') >= 0; });
-    var keep = locationBox || boxes[boxes.length - 1];
-    boxes.forEach(function(el){
-      if (el !== keep && el.parentNode) el.remove();
-    });
-  }
-
-  function buttonTextList(row){
-    return A('button,input[type="button"],input[type="submit"]', row).map(function(b){ return txt(b); });
-  }
-  function isAdminMaterialActionRow(row){
-    if(!row) return false;
-    var all = buttonTextList(row).join(' | ');
-    if (all.indexOf('opslaan') < 0) return false;
-    if (all.indexOf('nieuw') < 0 && all.indexOf('leeg') < 0) return false;
-    if (all.indexOf('verwijder') < 0 && all.indexOf('verwijderen') < 0) return false;
-    var context = L((row.closest && row.closest('.adminPane,.card,.panel,.box,section,div') || row).textContent || '');
-    return context.indexOf('materiaal') >= 0 || context.indexOf('rubriek') >= 0 || context.indexOf('product') >= 0;
-  }
-  function removeDuplicateAdminMaterialActions(){
-    var rows = [];
-    A('div,p,section,fieldset,.row,.bns-v311-row,.tw-v309-minirow').forEach(function(row){
-      if (isAdminMaterialActionRow(row) && rows.indexOf(row) < 0) rows.push(row);
-    });
-    // Ook losse knoppen samenpakken via hun ouder-element.
-    A('button,input[type="button"],input[type="submit"]').forEach(function(b){
-      var p = b.parentNode;
-      if (isAdminMaterialActionRow(p) && rows.indexOf(p) < 0) rows.push(p);
-    });
-    if (rows.length <= 1) return;
-    // De gebruiker wil de bovenste weg: behoud de onderste/laatste rij.
-    rows.slice(0, -1).forEach(function(row){ row.classList.add('bns-v312-admin-removed'); row.remove(); });
-  }
-
-  function run(){
-    addStyle();
-    removeOldCustomerIsLocation();
-    ensureClearCustomerButton();
-    removeDuplicateLocationOnDocs();
-    removeDuplicatePdokBlocks();
-    removeDuplicateAdminMaterialActions();
-  }
-  function soon(){ setTimeout(run, 60); setTimeout(run, 250); }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run, 300); }); else setTimeout(run, 120);
-  document.addEventListener('click', soon, true);
-  document.addEventListener('input', soon, true);
-  document.addEventListener('change', soon, true);
-  setTimeout(run, 900);
-  setTimeout(run, 1800);
-  setTimeout(run, 3200);
-  setInterval(run, 2000);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(cleanup,500); }); else setTimeout(cleanup,300);
+  document.addEventListener('click',function(){ setTimeout(cleanup,100); },true);
+  document.addEventListener('change',function(){ setTimeout(cleanup,100); },true);
+  setTimeout(cleanup,1200);
+  setTimeout(cleanup,2500);
 })();
