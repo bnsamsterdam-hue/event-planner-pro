@@ -16367,3 +16367,78 @@ setInterval(install,1500);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,250);});else setTimeout(install,120);
   setTimeout(install,700); setTimeout(install,1600); setInterval(install,1500);
 })();
+
+/* ==========================================================
+   BNS V326 - Alleen opdrachtknoppen onderin stabiel
+   Basis: door gebruiker aangeleverde stabiele app(11).js.
+   Doel: Overzicht/Opslaan/Annuleren/Afdrukken blijft tot onderaan zichtbaar.
+   Geen wijzigingen aan materiaalkaarten, statussen, admin of opslaglogica.
+========================================================== */
+(function(){
+  'use strict';
+  var STYLE_ID='bnsV326OrderBottomStyle';
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v).trim();}
+  function N(v){return T(v).toLowerCase().replace(/\s+/g,' ');}
+  function visible(el){try{var r=el.getBoundingClientRect();return !!(r.width||r.height);}catch(e){return false;}}
+  function isOrderActionBar(el){
+    if(!el || !visible(el)) return false;
+    var txt=N(el.textContent||'');
+    if(/opslaan materiaal|wis materiaal|verwijder gekozen materiaal|nieuw\/leeg|favoriet opslaan|favoriet wissen|opslaan layout|opslaan gebruiker/.test(txt)) return false;
+    var names=A('button',el).map(function(b){return N(b.textContent||'');});
+    return names.indexOf('opslaan')>=0 && names.indexOf('annuleren')>=0 && (names.indexOf('afdrukken')>=0 || names.indexOf('overzicht maken')>=0 || txt.indexOf('overzicht')>=0);
+  }
+  function findBar(){
+    var direct=A('#bnsV58OrderActions,#bnsV57OrderActions').filter(isOrderActionBar);
+    if(direct.length) return direct[0];
+    var buttons=A('button').filter(function(b){return visible(b) && ['opslaan','annuleren','afdrukken','overzicht maken'].indexOf(N(b.textContent||''))>=0;});
+    var best=null;
+    buttons.some(function(b){
+      var p=b.parentElement;
+      while(p && p!==document.body){
+        if(isOrderActionBar(p)){best=p; return true;}
+        p=p.parentElement;
+      }
+      return false;
+    });
+    return best;
+  }
+  function ensureStyle(){
+    if(document.getElementById(STYLE_ID)) return;
+    var s=document.createElement('style');
+    s.id=STYLE_ID;
+    s.textContent='\
+      #bnsV58OrderActions.bns-v326-order-bottom,#bnsV57OrderActions.bns-v326-order-bottom,.bns-v326-order-bottom{position:fixed!important;left:var(--bns-v326-left,0px)!important;right:var(--bns-v326-right,0px)!important;bottom:0!important;top:auto!important;width:auto!important;max-width:none!important;z-index:2147483000!important;display:flex!important;flex-wrap:wrap!important;gap:10px!important;align-items:center!important;justify-content:flex-start!important;background:rgba(245,247,251,.97)!important;border-top:1px solid #dbe3ef!important;padding:10px 12px!important;box-sizing:border-box!important;box-shadow:0 -8px 24px rgba(15,23,42,.10)!important;backdrop-filter:blur(6px)!important;transform:none!important;animation:none!important;transition:none!important;margin:0!important}\
+      #newOrder,#newOrder.page,.page.active{padding-bottom:var(--bns-v326-space,88px)!important}\
+      #materialList{padding-bottom:var(--bns-v326-space,88px)!important}\
+      @media(max-width:760px){#bnsV58OrderActions.bns-v326-order-bottom,#bnsV57OrderActions.bns-v326-order-bottom,.bns-v326-order-bottom{left:0!important;right:0!important}}\
+      @media print{#bnsV58OrderActions.bns-v326-order-bottom,#bnsV57OrderActions.bns-v326-order-bottom,.bns-v326-order-bottom{position:static!important;box-shadow:none!important}}\
+    ';
+    document.head.appendChild(s);
+  }
+  function apply(){
+    ensureStyle();
+    var bar=findBar();
+    if(!bar) return;
+    if(!bar.id){ bar.id='bnsV326OrderActions'; }
+    bar.classList.add('bns-v326-order-bottom');
+    var page=document.getElementById('newOrder') || bar.closest('.page') || document.querySelector('.page.active');
+    var left=0,right=0;
+    try{
+      if(page){
+        var r=page.getBoundingClientRect();
+        left=Math.max(0,Math.round(r.left));
+        right=Math.max(0,Math.round(window.innerWidth-r.right));
+      }
+    }catch(e){}
+    document.documentElement.style.setProperty('--bns-v326-left',left+'px');
+    document.documentElement.style.setProperty('--bns-v326-right',right+'px');
+    var h=0; try{h=bar.getBoundingClientRect().height||0;}catch(e){}
+    document.documentElement.style.setProperty('--bns-v326-space',Math.max(86,Math.ceil(h+28))+'px');
+  }
+  function schedule(){setTimeout(apply,80);setTimeout(apply,350);setTimeout(apply,900);}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',schedule); else schedule();
+  window.addEventListener('resize',schedule);
+  window.addEventListener('scroll',function(){setTimeout(apply,50);},{passive:true});
+  setInterval(apply,1500);
+})();
