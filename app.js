@@ -16627,3 +16627,146 @@ setInterval(install,1500);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else setTimeout(start,100);
 })();
 
+
+/* ==========================================================
+   BNS V334 - Admin materiaal layout herstel
+   Basis blijft app(12)/v333. Alleen Admin > Materialen layout:
+   - verwijdert oude V311 noodknoppen bij Rubriek
+   - zet originele bnsV56Actions weer horizontaal op juiste plek
+   - verwijdert extra V333 uitlegblok
+========================================================== */
+(function(){
+  'use strict';
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function clickFeedback(b){ if(!b || b.dataset.bnsV334Feedback==='1') return; b.dataset.bnsV334Feedback='1'; b.addEventListener('click',function(){ b.classList.add('bns-v334-clicked'); setTimeout(function(){ b.classList.remove('bns-v334-clicked'); },140); },true); }
+  function style(){
+    if(E('bnsV334AdminLayoutStyle')) return;
+    var st=document.createElement('style'); st.id='bnsV334AdminLayoutStyle';
+    st.textContent='\
+      #bnsV311AdminMatButtons,.bns-v311-admin-row#bnsV311AdminMatButtons{display:none!important;visibility:hidden!important;height:0!important;min-height:0!important;padding:0!important;margin:0!important;overflow:hidden!important}\
+      #bnsV333AdminTip{display:none!important}\
+      #bnsV56AdminCard #bnsV56Actions{position:static!important;display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;gap:10px!important;align-items:center!important;justify-content:flex-start!important;width:auto!important;background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;margin:10px 0 12px!important;float:none!important;clear:both!important;transform:none!important}\
+      #bnsV56AdminCard #bnsV56Actions button{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:auto!important;min-width:0!important;height:auto!important;border:0!important;border-radius:12px!important;padding:11px 15px!important;font-weight:900!important;line-height:1.1!important;white-space:nowrap!important;cursor:pointer!important}\
+      #bnsV56Save{background:#16a34a!important;color:#fff!important}\
+      #bnsV56Delete{background:#dc2626!important;color:#fff!important}\
+      #bnsV56Clear,#bnsV56Cancel{background:#334155!important;color:#fff!important}\
+      .bns-v334-clicked{transform:scale(.96)!important;filter:brightness(.86)!important}\
+    ';
+    document.head.appendChild(st);
+  }
+  function removeWrongRows(){
+    A('#bnsV311AdminMatButtons,.bns-v311-admin-row').forEach(function(row){
+      var txt=T(row.textContent).toLowerCase();
+      if(row.id==='bnsV311AdminMatButtons' || (txt.indexOf('nieuw')>=0 && txt.indexOf('verwijder')>=0 && txt.indexOf('opslaan')>=0)){
+        try{ row.remove(); }catch(e){ row.style.display='none'; }
+      }
+    });
+    var tip=E('bnsV333AdminTip'); if(tip){ try{ tip.remove(); }catch(e){ tip.style.display='none'; } }
+  }
+  function restoreActions(){
+    var card=E('bnsV56AdminCard'), grid=E('bnsV56AdminGrid'), actions=E('bnsV56Actions');
+    if(!card || !grid || !actions) return;
+    removeWrongRows();
+    try{ grid.parentNode.insertBefore(actions, grid.nextSibling); }catch(e){}
+    actions.style.display='flex';
+    var save=E('bnsV56Save'), del=E('bnsV56Delete'), clear=E('bnsV56Clear');
+    if(save) save.textContent='Opslaan materiaal';
+    if(del) del.textContent='Wis materiaal';
+    if(clear) clear.textContent='Nieuw/leeg';
+    if(!E('bnsV56Cancel')){
+      var cancel=document.createElement('button'); cancel.type='button'; cancel.id='bnsV56Cancel'; cancel.textContent='Annuleren';
+      cancel.onclick=function(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); } var c=E('bnsV56Clear'); if(c) c.click(); return false; };
+      actions.appendChild(cancel);
+    }
+    A('#bnsV56Actions button').forEach(clickFeedback);
+  }
+  function run(){ style(); restoreActions(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(run,120); }); else setTimeout(run,80);
+  document.addEventListener('click',function(){ setTimeout(run,120); },true);
+  document.addEventListener('change',function(){ setTimeout(run,120); },true);
+  setTimeout(run,500); setTimeout(run,1300); setInterval(run,1200);
+})();
+
+/* ==========================================================
+   BNS V335 - Controlelabel + harde app12 actieknoppen controle
+   Basis: app(12) + v333/v334. Geen oude 194/198 basis.
+========================================================== */
+(function(){
+  'use strict';
+  if(window.__BNS_V335_CONTROL__) return;
+  window.__BNS_V335_CONTROL__=true;
+  function E(id){return document.getElementById(id);}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v).trim();}
+  function N(v){return T(v).toLowerCase();}
+  function style(){
+    if(E('bnsV335Style')) return;
+    var st=document.createElement('style'); st.id='bnsV335Style';
+    st.textContent='\
+      #bnsV335Loaded{position:fixed!important;right:8px!important;bottom:8px!important;z-index:2147483647!important;background:#16a34a!important;color:#fff!important;border-radius:999px!important;padding:5px 9px!important;font:800 11px/1 Arial,sans-serif!important;box-shadow:0 4px 12px rgba(0,0,0,.18)!important;pointer-events:none!important}\
+      #bnsV58OrderActions,#bnsV57OrderActions,.bns-v333-order-bottom{position:fixed!important;left:var(--bns-v335-left,0px)!important;right:var(--bns-v335-right,0px)!important;bottom:0!important;top:auto!important;z-index:2147483000!important;display:flex!important;flex-wrap:wrap!important;gap:10px!important;align-items:center!important;justify-content:flex-start!important;background:rgba(245,247,251,.98)!important;border-top:1px solid #dbe3ef!important;padding:10px 12px!important;margin:0!important;box-sizing:border-box!important;box-shadow:0 -8px 24px rgba(15,23,42,.10)!important;transform:none!important;transition:none!important;animation:none!important}\
+      body{padding-bottom:var(--bns-v335-space,100px)!important}\
+      #materialList{padding-bottom:var(--bns-v335-space,100px)!important}\
+      #bnsV56Actions button:active,#bnsV58OrderActions button:active,#bnsV57OrderActions button:active,.bns-v333-order-bottom button:active{transform:scale(.96)!important;filter:brightness(.86)!important}\
+    ';
+    document.head.appendChild(st);
+  }
+  function marker(){
+    if(E('bnsV335Loaded')) return;
+    var d=document.createElement('div'); d.id='bnsV335Loaded'; d.textContent='v335 app12'; document.body.appendChild(d);
+  }
+  function findOrderActions(){
+    var direct=E('bnsV58OrderActions')||E('bnsV57OrderActions');
+    if(direct) return direct;
+    var buttons=A('button').filter(function(b){var t=N(b.textContent);return /^(overzicht maken|opslaan|annuleren|afdrukken)$/.test(t);});
+    var best=null;
+    buttons.some(function(b){
+      var p=b.parentElement; if(!p) return false;
+      var txt=N(p.textContent);
+      if(txt.indexOf('opslaan materiaal')>=0 || txt.indexOf('nieuw/leeg')>=0 || txt.indexOf('verwijder gekozen materiaal')>=0 || txt.indexOf('wis materiaal')>=0) return false;
+      var names=A('button',p).map(function(x){return N(x.textContent);}).join('|');
+      if(names.indexOf('opslaan')>=0 && names.indexOf('annuleren')>=0){best=p;return true;}
+      return false;
+    });
+    if(best) best.id='bnsV58OrderActions';
+    return best;
+  }
+  function setDims(bar){
+    try{
+      var app=E('app')||document.body; var r=app.getBoundingClientRect();
+      var left=Math.max(0,Math.round(r.left)); var right=Math.max(0,Math.round(window.innerWidth-r.right));
+      document.documentElement.style.setProperty('--bns-v335-left',left+'px');
+      document.documentElement.style.setProperty('--bns-v335-right',right+'px');
+      var h=Math.max(86,Math.ceil((bar&&bar.getBoundingClientRect().height)||76)+22);
+      document.documentElement.style.setProperty('--bns-v335-space',h+'px');
+    }catch(e){}
+  }
+  function clearAdmin(){
+    ['bnsV56Cat','bnsV56Nr','bnsV56Product','bnsV56Desc','bnsV56Price','bnsV56AdminSearch'].forEach(function(id){var el=E(id); if(el){el.value=''; try{el.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){}}});
+    var st=E('bnsV56Status'); if(st) st.value='free';
+    try{window.adminEditId='';}catch(e){}
+    try{window.bnsV56EditId='';}catch(e){}
+    try{localStorage.removeItem('bnsV56EditId');}catch(e){}
+    var c=E('bnsV56Cat'); if(c){c.focus(); c.placeholder='Nieuwe rubriek bv BAR';}
+    try{ if(typeof toastMsg==='function') toastMsg('Nieuw/leeg actief: vul Rubriek + Product nr in.'); }catch(e){}
+  }
+  function hookAdmin(){
+    var clear=E('bnsV56Clear');
+    if(clear && clear.dataset.bnsV335Clear!=='1'){
+      clear.dataset.bnsV335Clear='1';
+      clear.addEventListener('click',function(ev){ev.preventDefault();ev.stopImmediatePropagation();clearAdmin();return false;},true);
+    }
+    A('#bnsV56Actions button,#bnsV58OrderActions button,#bnsV57OrderActions button,.bns-v333-order-bottom button').forEach(function(b){
+      if(b.dataset.bnsV335Feedback==='1') return; b.dataset.bnsV335Feedback='1';
+      b.addEventListener('click',function(){b.style.filter='brightness(.82)'; setTimeout(function(){b.style.filter='';},160);},true);
+    });
+  }
+  function run(){style();marker();var bar=findOrderActions();if(bar)setDims(bar);hookAdmin();}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(run,100);}); else setTimeout(run,80);
+  document.addEventListener('click',function(){setTimeout(run,80);},true);
+  document.addEventListener('input',function(){setTimeout(run,80);},true);
+  window.addEventListener('resize',function(){setTimeout(run,80);});
+  setTimeout(run,500);setTimeout(run,1400);setInterval(run,1500);
+})();
