@@ -16689,3 +16689,91 @@ setInterval(install,1500);
   window.BNS_V331_materialBlocked = function(id){ return !!blockFor(findMaterial(id), wantedPeriod()).blocked; };
   window.TW_V309_materialIsBlocked = window.BNS_V331_materialBlocked;
 })();
+
+/* ==========================================================
+   BNS V332 - Admin materiaal: nieuwe rubriek + knopfeedback
+   - Geen wijziging aan materiaalbeveiliging / blokkering
+   - Geen wijziging aan opdrachtknoppen / layout materialen
+   - Nieuw/leeg zet formulier echt klaar voor nieuwe rubriek
+   - Knoppen geven zichtbaar klikfeedback
+========================================================== */
+(function(){
+  'use strict';
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function flash(btn, cls){
+    if(!btn) return;
+    btn.classList.remove('bns-v332-click','bns-v332-ok');
+    btn.classList.add(cls || 'bns-v332-click');
+    setTimeout(function(){ try{ btn.classList.remove(cls || 'bns-v332-click'); }catch(e){} }, 450);
+  }
+  function ensureStyle(){
+    if(E('bnsV332Style')) return;
+    var s=document.createElement('style'); s.id='bnsV332Style';
+    s.textContent='\
+      #bnsV58AdminActions button,#bnsV56Actions button,.bns-v56-admin-row button{transition:transform .08s ease,filter .12s ease,box-shadow .12s ease,background .12s ease!important}\
+      #bnsV58AdminActions button:active,#bnsV56Actions button:active,.bns-v56-admin-row button:active{transform:scale(.96)!important;filter:brightness(.88)!important}\
+      .bns-v332-click{outline:4px solid rgba(14,165,233,.35)!important;box-shadow:0 0 0 6px rgba(14,165,233,.18)!important;filter:brightness(1.08)!important}\
+      .bns-v332-ok{outline:4px solid rgba(22,163,74,.35)!important;box-shadow:0 0 0 6px rgba(22,163,74,.18)!important;filter:brightness(1.08)!important}\
+      #bnsV332Hint{margin:8px 0 12px!important;padding:10px 12px!important;border:1px solid #bfdbfe!important;background:#eff6ff!important;color:#1e3a8a!important;border-radius:12px!important;font-weight:800!important;font-size:13px!important}\
+      #bnsV56Cat.bns-v332-focus{outline:4px solid rgba(14,165,233,.28)!important;border-color:#0ea5e9!important;background:#f0f9ff!important}\
+    ';
+    document.head.appendChild(s);
+  }
+  function setVal(id,val){ var x=E(id); if(x){ x.value=val; try{x.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){} } }
+  function clearForNewRubric(){
+    // Eerst bestaande clear-knop laten lopen, zodat interne editId zeker leeg wordt.
+    try{ var old=E('bnsV56Clear'); if(old && old.click) old.click(); }catch(e){}
+    setTimeout(function(){
+      setVal('bnsV56Cat','');
+      setVal('bnsV56Nr','');
+      setVal('bnsV56Product','');
+      setVal('bnsV56Desc','');
+      setVal('bnsV56Price','');
+      setVal('bnsV56Status','free');
+      var cat=E('bnsV56Cat');
+      if(cat){
+        cat.placeholder='Nieuwe rubriek, bv BAR';
+        cat.classList.add('bns-v332-focus');
+        try{ cat.focus(); cat.select(); }catch(e){}
+        setTimeout(function(){ try{ cat.classList.remove('bns-v332-focus'); }catch(e){} }, 1600);
+      }
+      var txt=E('bnsV56ColorText'); if(txt) txt.textContent='Vul nieuwe rubriek in, daarna product nr en opslaan';
+    },30);
+  }
+  function ensureHint(){
+    var grid=E('bnsV56AdminGrid'); if(!grid || E('bnsV332Hint')) return;
+    var h=document.createElement('div'); h.id='bnsV332Hint';
+    h.textContent='Nieuwe rubriek maken: klik Nieuw/leeg, vul bij Rubriek een nieuwe code in (bijv. BAR), vul product nr + naam/omschrijving, klik Opslaan materiaal.';
+    grid.parentNode.insertBefore(h, grid);
+  }
+  function bindButtons(){
+    ensureStyle(); ensureHint();
+    var clear=E('bnsV58AdminClear');
+    if(clear && clear.dataset.bnsV332!=='1'){
+      clear.dataset.bnsV332='1';
+      clear.addEventListener('click',function(ev){ if(ev){ev.preventDefault();ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();} flash(clear); clearForNewRubric(); return false; },true);
+    }
+    var save=E('bnsV58AdminSave');
+    if(save && save.dataset.bnsV332!=='1'){
+      save.dataset.bnsV332='1';
+      save.addEventListener('click',function(){ flash(save,'bns-v332-ok'); },true);
+    }
+    var del=E('bnsV58AdminDelete');
+    if(del && del.dataset.bnsV332!=='1'){
+      del.dataset.bnsV332='1';
+      del.addEventListener('click',function(){ flash(del); },true);
+    }
+    var cancel=E('bnsV58AdminCancel');
+    if(cancel && cancel.dataset.bnsV332!=='1'){
+      cancel.dataset.bnsV332='1';
+      cancel.addEventListener('click',function(){ flash(cancel); },true);
+    }
+    A('.bns-v56-admin-row button').forEach(function(b){
+      if(b.dataset.bnsV332==='1') return; b.dataset.bnsV332='1';
+      b.addEventListener('click',function(){ flash(b); },true);
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(bindButtons,500);}); else setTimeout(bindButtons,300);
+  setTimeout(bindButtons,1200); setTimeout(bindButtons,2500); setInterval(bindButtons,3000);
+})();
