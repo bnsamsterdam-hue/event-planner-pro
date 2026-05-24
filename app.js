@@ -17283,8 +17283,7 @@ setInterval(install,1500);
   window.BNS_V340_RENDER_FOLDERS=render;
 })();
 
-// ===== V341 NOODHERSTEL MASTER-MATERIALEN =====
-// Doel: opdracht-materialen kunnen nog in orders staan terwijl de masterlijst leeg is.
+/* ===== V342 - materiaalguard teruggezet op laatste werkversie ===== */
 // Dit blok raakt orders/klanten/locaties niet aan. Het vult alleen state.materials terug
 // vanuit INITIAL_STATE en vult eventueel ontbrekende materiaal-snapshots uit opdrachten aan.
 (function(){
