@@ -39416,10 +39416,6 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
 
       if (!oid) return; // kaart zonder herleidbaar order-id → skip
 
-      // tw-v309-option-card heeft al een eigen .tw-v309-count teller
-      // met exact dezelfde informatie → niet dubbel toevoegen
-      if (card.classList.contains('tw-v309-option-card')) return;
-
       var o = byId[oid];
       if (!o || !_isOptionStatus(o.status)) {
         // Geen optie-order: verwijder eventuele oude badge (status kan veranderd zijn)
