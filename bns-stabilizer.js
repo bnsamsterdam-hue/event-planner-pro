@@ -29,8 +29,8 @@
     s.textContent = [
       // Materiaallijst: geen animaties, geen transitions, geen flash
       '#materialList *{animation:none!important;transition:none!important;transform:none!important}',
-      // Prevent white flash during innerHTML replace
-      '#materialList{contain:layout style!important;min-height:40px!important}',
+      // Genoeg hoogte voor de materiaallijst - scrollt door heel de kolom
+      '#materialList{min-height:40px!important}',
       // Maar defect badge mag wel zichtbaar zijn (alleen geen blink)
       '#materialList .badge.defect{opacity:1!important}',
       // Materiaalknoppen in de lijst: stabiel
@@ -52,45 +52,48 @@
   //   - de laatste cat-waarde onthoudt zodat flikkeren door cat-mismatch stopt
   var _matRenderPending = false;
   var _matRenderCat = null;
-  var _matDebounced = null;
+  var _matDebounceInstalled = false;
 
   function installMatDebounce() {
-    var _realRender = window.renderMaterials;
-    if (!_realRender) return;
-    // Als al gedebounced EN nog steeds actief als window.renderMaterials: skip
-    if (_matDebounced && window.renderMaterials === _matDebounced) return;
+    // Haal de ECHTE V45 render op via debug object - dan hoeven we nooit te vechten
+    var debug = window.BNS_V45_PLANNING_DEBUG;
+    var _realRender = (debug && debug.renderMaterials && !debug.renderMaterials.__bnsMatDebounced)
+      ? debug.renderMaterials
+      : null;
 
-    // Wrap de huidige renderMaterials met debounce
-    _matDebounced = function(cat) {
+    if (!_realRender) {
+      // Fallback: gebruik huidige window.renderMaterials als die niet al gedebounced is
+      var cur = window.renderMaterials;
+      if (!cur || cur.__bnsMatDebounced) return;
+      _realRender = cur;
+    }
+
+    // Maak de debounce wrapper - wraps altijd de RAW V45 functie
+    var debounced = function(cat) {
       if (cat) _matRenderCat = cat;
       if (_matRenderPending) return;
       _matRenderPending = true;
       requestAnimationFrame(function() {
         _matRenderPending = false;
         var useCat = _matRenderCat || window.currentCat || 'TW';
+        // Alleen renderen als materiaalPanel zichtbaar is
         var panel = document.getElementById('materialPanel');
         if (panel && panel.classList.contains('hidden')) return;
-        if (panel && panel.closest('.page') && !panel.closest('.page').classList.contains('active')) return;
+        if (panel && panel.closest('.page') &&
+            !panel.closest('.page').classList.contains('active')) return;
         try { _realRender(useCat); } catch(e) {}
       });
     };
-    _matDebounced.__bnsMatDebounced = true;
-    _matDebounced.__bnsInner = _realRender;
+    debounced.__bnsMatDebounced = true;
 
-    window.renderMaterials = _matDebounced;
+    // Vervang window.renderMaterials
+    window.renderMaterials = debounced;
+    try { renderMaterials = debounced; } catch(e) {}
 
-    // KRITIEK: V45 watchdog controleert of renderMaterials === renderMaterialsV45
-    // Als we onze wrapper niet registreren als de "echte" V45 functie,
-    // reinstalleert de watchdog elke 2500ms de raw versie -> debounce weg
-    // Oplossing: vervang ook de V45 referentie zodat watchdog tevreden is
-    try {
-      if (window.BNS_V45_PLANNING_DEBUG) {
-        window.BNS_V45_PLANNING_DEBUG.renderMaterials = _matDebounced;
-      }
-    } catch(e) {}
+    // Vervang ook in V45 debug zodat watchdog tevreden is
+    if (debug) debug.renderMaterials = debounced;
 
-    // Sync globale var
-    try { renderMaterials = _matDebounced; } catch(e) {}
+    _matDebounceInstalled = true;
   }
 
   // ── 2. ROUTENET KNIPPEREN — stabiel houden ───────────────────────────────
