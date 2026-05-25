@@ -160,7 +160,24 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       const s=norm(loadLocal()||{});
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
-      try{if(col==="orders"&&typeof renderOrders==="function")renderOrders(); if(col==="materials"&&typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA"); if(col==="users"&&typeof adminRender==="function")adminRender()}catch(e){}
+      try{
+        if(col==="orders"&&typeof renderOrders==="function")renderOrders();
+        if(col==="materials"&&typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA");
+        if(col==="users"&&typeof adminRender==="function")adminRender();
+        if(col==="alerts"){
+          // Bezorger melding binnengekomen: update planner UI direct
+          if(typeof renderDriver==="function")renderDriver();
+          if(typeof renderDriverDashboard==="function")renderDriverDashboard();
+          // Update systeemmeldingen teller
+          var alertBtn=document.getElementById("alertsBtn");
+          if(alertBtn){
+            var openCount=(s.alerts||[]).filter(function(a){return !a.resolved;}).length;
+            alertBtn.textContent=openCount?"Systeemmeldingen ("+openCount+")":"Systeemmeldingen (0)";
+          }
+          // Toast melding zodat planner ziet dat er iets binnenkomt
+          try{if(typeof toastMsg==="function")toastMsg("Nieuwe bezorger melding ontvangen");}catch(e){}
+        }
+      }catch(e){}
     });
   });
   localStorage.setItem(AUTO_KEY,"1");

@@ -17235,7 +17235,10 @@ setTimeout(()=>{
   }
   function addRoutenetButtons(){
     qsa('.order-card,.bns-v126-order-card,[data-bns-order-id]').forEach(function(card){
-      if(card.querySelector('.bns-routenet-btn')) return;
+      if(card.querySelector('.bns-routenet-btn,.bns356-route')) return;
+      // Sla optie 14 dagen en offerte kaarten over — geen actieve levering
+      var cardText=(card.textContent||'').toLowerCase();
+      if(/optie 14|offerte/.test(cardText)) return;
       var waze=qsa('button,a',card).filter(function(b){
         return /waze/i.test(b.textContent||'');
       })[0];
@@ -33963,7 +33966,8 @@ setTimeout(()=>{
   var yearFilter='all';
   var statusFilter='all';
   var searchText='';
-  var tab='facturen';
+  // Tab staat blijft behouden ook na een render-cycle
+  var tab=localStorage.getItem('bns_boekhouding_tab')||'facturen';
   function E(id){
     return document.getElementById(id);
   }
@@ -34234,6 +34238,7 @@ setTimeout(()=>{
     A('.tw-au-tabs button',m).forEach(function(b){
       b.onclick=function(){
         tab=b.dataset.tab;
+        localStorage.setItem('bns_boekhouding_tab', tab);
         A('.tw-au-tabs button',m).forEach(function(x){
           x.classList.toggle('active',x===b);
         });
@@ -34257,6 +34262,10 @@ setTimeout(()=>{
   window.TW300_AU_openAccounting=open;
   function renderAccounting(){
     var m=modal();
+    // Zorg dat de actieve tab knop altijd correct gemarkeerd is
+    A('.tw-au-tabs button',m).forEach(function(b){
+      b.classList.toggle('active', b.dataset.tab===tab);
+    });
     var ybox=E('twAuYears');
     if(ybox){
       var ys=years();
@@ -37949,7 +37958,10 @@ setTimeout(()=>{
     actions.insertBefore(b,actions.firstChild||null);
   }
   function routeFix(cardEl,o){
+    // Verwijder bestaande routenet knoppen
     A('button,a',cardEl).forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||''))b.remove();});
+    // Optie 14 dagen en offertes krijgen GEEN routenet knop — niet actieve levering
+    if(isOpt(o)||isQuote(o))return;
     var w=A('button,a',cardEl).find(function(b){return /^\s*waze\s*$/i.test(b.textContent||'');});
     if(!w||cardEl.querySelector('.bns356-route'))return;
     var a=addr(o); if(!a)return;

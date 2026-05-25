@@ -39,13 +39,33 @@
     document.head.appendChild(s);
   }
 
-  // ── 2. ROUTENET KNIPPEREN — één knop, nooit verwijderd/opnieuw toegevoegd ─
-  // v126 voegt .bns-routenet-btn toe, v357 verwijdert routenet-tekst knoppen.
-  // Oplossing: markeer de v126 knop als .bns356-route zodat v357 hem overslaat.
+  // ── 2. ROUTENET KNIPPEREN — stabiel houden ───────────────────────────────
+  // v126 voegt .bns-routenet-btn toe, v357 verwijdert ze, v126 voegt ze terug.
+  // Fix A: markeer ze als .bns356-route zodat v357 ze overslaat.
+  // Fix B: verwijder routenet volledig van optie/offerte kaarten (geen actieve levering).
   function fixRoutenetButtons() {
+    // Markeer bestaande routenet knoppen zodat v357 ze niet verwijdert
     $('button.bns-routenet-btn').forEach(function(btn) {
       if (!btn.classList.contains('bns356-route')) {
         btn.classList.add('bns356-route');
+      }
+      // Verwijder routenet van optie 14 dagen en offerte kaarten
+      var card = btn.closest('.order-card,.bns-v126-order-card,[data-bns-order-id]');
+      if (card) {
+        var txt = (card.textContent || '').toLowerCase();
+        if (/optie 14|optie.*dag|offerte/.test(txt)) {
+          btn.remove();
+        }
+      }
+    });
+    // Verwijder ook .bns356-route knoppen van optie/offerte kaarten
+    $('button.bns356-route').forEach(function(btn) {
+      var card = btn.closest('.order-card,.bns-v126-order-card,[data-bns-order-id]');
+      if (card) {
+        var txt = (card.textContent || '').toLowerCase();
+        if (/optie 14|optie.*dag|offerte/.test(txt)) {
+          btn.remove();
+        }
       }
     });
   }
