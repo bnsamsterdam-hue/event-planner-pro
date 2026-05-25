@@ -40144,34 +40144,40 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
 // =============================================================================
 
 // =============================================================================
-// BNS PATCH v348b
+
+// =============================================================================
+// BNS PATCH v349
 // Datum: 2026-05-25
 //
-//  1. OPDRACHTEN  — gewone lijst, actief + optie 14 dagen. Alle tab-knoppen
-//     die naar mappenview leiden worden verborgen.
+// STRUCTUUR:
+//   Sidebar:  Opdrachten | Archief | Schade | Admin | Uitloggen
 //
-//  2. ARCHIEF (sidebar) — tabs: Actief | Optie 14 | Uitgevoerd | Geannuleerd
-//     | Verwijderd | Schade. Jaarmappen voor Uitgevoerd/Geannuleerd/Verwijderd.
+//   Opdrachten (tabs):
+//     Alle opdrachten | Actief | Opties 14 dagen | Offertes | Bevestigd
 //
-//  3. SCHADE (sidebar, eigen knop) — eigen pagina met zoekbalk, jaarmappen,
-//     en verwijder-per-melding knop. Bevestiging via eigen overlay (geen
-//     browser confirm/alert), verplicht woord DEFINITIEF voor wissen.
+//   Archief (sidebar):
+//     Uitgevoerd | Geannuleerd | Verwijderd | Opties (terugzoeken)
 //
-//  4. ADMIN → TAB "OPRUIMEN" — jaarknoppen per rubriek. Wissen vereist
-//     eigen bevestigingsoverlay met verplicht invoerveld DEFINITIEF.
-//     Verwijdert uit localStorage én Firebase.
+//   Schade (sidebar): eigen pagina, jaarmappen, verwijder per melding
 //
-//  5. ACTIEVE NAVIGATIEKNOP — klikken op een sidebarknop kleurt hem donker.
-//     Andere knoppen worden dan licht.
+//   Admin → tab Opruimen: wis per jaar, vereist DEFINITIEF
 //
-//  6. GEEN SETINTERVAL voor tabknoppen — installatie via render-hooks en
-//     één opstart-interval dat zichzelf na 10s verlaagt naar passief.
+// OPTIE 14 DAGEN:
+//   - Staat in Opdrachten als eigen tab, niet in Archief
+//   - optionCreatedAt wordt gezet bij opslaan als status = Optie 14 dagen
+//   - Teller dag 1-14, dag 13 = oranje banner, dag 14 = rode banner
+//   - Dag 15+ = verlopen, materiaal vrij, badge "Verlopen"
+//   - Knoppen per kaart: Bevestigen | Niet door | Verlengen
+//   - Archief heeft een "Opties" tab alleen voor terugzoeken (geen actie)
+//
+// BEVESTIGINGSOVERLAY: eigen UI, geen browser confirm/alert
+// ACTIEVE NAV: aangeklikte sidebarknop wordt donker
 // =============================================================================
 
-(function BNS_V348B() {
+(function BNS_V349() {
   'use strict';
-  if (window.__BNS_V348B__) return;
-  window.__BNS_V348B__ = true;
+  if (window.__BNS_V349__) return;
+  window.__BNS_V349__ = true;
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -40185,156 +40191,206 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
     return window.state || null;
   }
   function saveSt() {
+    var s = S(); if (!s) return;
     try { if (typeof save === 'function') save(); } catch(e) {}
-    var s = S();
-    if (s) try { localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); } catch(e) {}
+    try { localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); } catch(e) {}
+    // Firebase sync voor gewijzigd order
+  }
+  function syncO(o) {
+    try {
+      if (window.BNS && typeof window.BNS.syncOrder === 'function') { window.BNS.syncOrder(o); return; }
+      if (window.BNS && window.BNS.fs && window.BNS.db) {
+        var fs = window.BNS.fs;
+        if (fs.setDoc && fs.doc)
+          fs.setDoc(fs.doc(window.BNS.db,'orders',String(o.id)),
+            Object.assign({},o,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){});
+      }
+    } catch(e) {}
   }
   function fbDel(col, id) {
     try {
-      if (!window.BNS || !window.BNS.fs || !window.BNS.db) return;
-      var fs = window.BNS.fs;
-      if (fs.deleteDoc && fs.doc)
-        fs.deleteDoc(fs.doc(window.BNS.db, col, String(id))).catch(function(){});
+      if (!window.BNS||!window.BNS.fs||!window.BNS.db) return;
+      var fs=window.BNS.fs;
+      if (fs.deleteDoc&&fs.doc) fs.deleteDoc(fs.doc(window.BNS.db,col,String(id))).catch(function(){});
     } catch(e) {}
   }
   function fmt(v) {
     if (!v) return '';
     var d = new Date(String(v).slice(0,10)+'T00:00:00');
-    return isNaN(d) ? String(v).slice(0,10) :
-      d.toLocaleDateString('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric'});
+    return isNaN(d)?String(v).slice(0,10):d.toLocaleDateString('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric'});
   }
   function today0() { var d=new Date(); d.setHours(0,0,0,0); return d; }
   function parseD(v) {
     if (!v) return null;
     var d = new Date(String(v).slice(0,10)+'T00:00:00');
-    return isNaN(d.getTime()) ? null : d;
+    return isNaN(d.getTime())?null:d;
   }
   function oYear(o) { return String(o.end||o.start||o.dateEnd||o.dateStart||'').slice(0,4)||'Geen jaar'; }
   function aYear(a) { return String(a.time||a.createdAt||a.date||'').slice(0,4)||'Geen jaar'; }
 
   // ─── Status classificatie ────────────────────────────────────────────────────
 
-  function ns(o)      { return String(o&&o.status||'').toLowerCase(); }
-  function isDel(o)   { return /verwijderd|deleted|gewist|trash/.test(ns(o)); }
-  function isCan(o)   { return /geannuleerd|cancelled|canceled|annulering/.test(ns(o)); }
-  function isOpt(o)   { var s=ns(o); return /optie/.test(s)&&!/verlopen/.test(s); }
-  function isDoneSt(o){ return /uitgevoerd|afgerond|done|klaar|voltooid/.test(ns(o)); }
-  function isPast(o)  {
+  function ns(o)       { return String(o&&o.status||'').toLowerCase(); }
+  function isDel(o)    { return /verwijderd|deleted|gewist|trash/.test(ns(o)); }
+  function isCan(o)    { return /geannuleerd|cancelled|canceled|annulering/.test(ns(o)); }
+  function isOpt(o)    { var s=ns(o); return /optie/.test(s)&&!/verlopen/.test(s); }
+  function isOffer(o)  { return /offerte/.test(ns(o)); }
+  function isConf(o)   { return /bevestigd|opdrachtbevestiging|opdracht bevestigd/.test(ns(o)); }
+  function isDoneSt(o) { return /uitgevoerd|afgerond|done|klaar|voltooid/.test(ns(o)); }
+  function isPast(o)   {
     var e=parseD(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||'');
     return !!e && e < today0();
   }
-  function isDone(o)  { return !isDel(o)&&!isCan(o)&&(isDoneSt(o)||isPast(o)); }
-  function isAct(o)   { return !isDel(o)&&!isCan(o)&&!isDone(o); }
-  function isDmg(a)   { return /schade|storing|foto|damage|vermissing/.test(String(a&&(a.type||a.title||a.note||a.message)||'').toLowerCase()); }
+  function isDone(o)   { return !isDel(o)&&!isCan(o)&&(isDoneSt(o)||isPast(o)); }
+  function isAct(o)    { return !isDel(o)&&!isCan(o)&&!isDone(o)&&!isOpt(o)&&!isOffer(o); }
+  function isDmg(a)    { return /schade|storing|foto|damage|vermissing/.test(String(a&&(a.type||a.title||a.note||a.message)||'').toLowerCase()); }
 
-  // ─── Eigen bevestigingsoverlay (geen browser confirm/alert) ─────────────────
+  // ─── Optie-teller ────────────────────────────────────────────────────────────
 
-  function injectOverlayStyle() {
-    if (document.getElementById('bnsV348bOverlayStyle')) return;
+  function optStart(o) {
+    if (!o) return today0();
+    var raw = o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||'';
+    return parseD(raw) || today0();
+  }
+  function daysLeft(o) {
+    var start = optStart(o);
+    start.setHours(0,0,0,0);
+    return 14 - Math.floor((today0()-start)/86400000);
+  }
+  function isExpiredOpt(o) { return isOpt(o) && daysLeft(o) <= 0; }
+
+  // Zet optionCreatedAt bij eerste keer opslaan als Optie 14 dagen
+  function ensureOptionDate(o) {
+    if (!isOpt(o)) return;
+    if (!o.optionCreatedAt) {
+      o.optionCreatedAt = new Date().toISOString();
+    }
+  }
+
+  // ─── Overlay (eigen UI, geen browser confirm/alert) ──────────────────────────
+
+  function injectBaseStyle() {
+    if (document.getElementById('bnsV349Style')) return;
     var st = document.createElement('style');
-    st.id = 'bnsV348bOverlayStyle';
+    st.id = 'bnsV349Style';
     st.textContent =
-      '#bnsV348bOverlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}'+
-      '#bnsV348bOverlayBox{background:#fff;border-radius:16px;padding:28px 28px 24px;max-width:420px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3)}'+
-      '#bnsV348bOverlayBox h3{margin:0 0 10px;font-size:18px;color:#0f172a}'+
-      '#bnsV348bOverlayBox p{margin:0 0 16px;font-size:14px;color:#475569;line-height:1.5}'+
-      '#bnsV348bOverlayInput{width:100%;box-sizing:border-box;border:2px solid #cbd5e1;border-radius:8px;padding:10px 14px;font-size:15px;font-weight:700;letter-spacing:.05em;margin-bottom:14px;outline:none}'+
-      '#bnsV348bOverlayInput:focus{border-color:#dc2626}'+
-      '#bnsV348bOverlayInput.ok{border-color:#16a34a;background:#f0fdf4}'+
-      '.bnsV348bOvBtn{border:0;border-radius:8px;padding:10px 20px;font-weight:800;font-size:14px;cursor:pointer}'+
-      '.bnsV348bOvConfirm{background:#dc2626;color:#fff;margin-right:8px}'+
-      '.bnsV348bOvConfirm:disabled{opacity:.4;cursor:not-allowed}'+
-      '.bnsV348bOvCancel{background:#f1f5f9;color:#475569}';
+      // Pagina's
+      '.bns-v349-page{display:none;padding:20px 24px}'+
+      '.bns-v349-page.active{display:block}'+
+      // Tabs
+      '.bns-v349-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px}'+
+      '.bns-v349-tab{border:2px solid #e2e8f0;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:700;font-size:13px;background:#fff;color:#475569}'+
+      '.bns-v349-tab:hover{background:#f1f5f9}'+
+      '.bns-v349-active{background:#0f172a!important;color:#fff!important;border-color:#0f172a!important}'+
+      // Kaarten
+      '.bns-v349-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:8px}'+
+      '.bns-v349-card:hover{border-color:#94a3b8;box-shadow:0 2px 8px rgba(0,0,0,.06)}'+
+      // Jaarmappen
+      '.bns-v349-year{display:inline-flex;align-items:center;gap:6px;border:2px solid #bae6fd;border-radius:10px;padding:10px 18px;margin:4px;cursor:pointer;font-weight:700;font-size:14px;background:#e0f2fe;color:#0369a1}'+
+      '.bns-v349-year:hover{background:#bae6fd}'+
+      // Zoek
+      '.bns-v349-search{width:100%;box-sizing:border-box;border:1.5px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:14px;outline:none}'+
+      '.bns-v349-search:focus{border-color:#0369a1}'+
+      // Optie-badges
+      '.bns-v349-badge{display:inline-flex;align-items:center;border-radius:999px;padding:3px 10px;font-weight:900;font-size:11px;margin-left:6px}'+
+      '.bns-v349-ok{background:#dcfce7;color:#166534}'+
+      '.bns-v349-warn{background:#fef3c7;color:#92400e}'+
+      '.bns-v349-urgent{background:#fee2e2;color:#991b1b;animation:bnsV349Pulse .9s infinite alternate}'+
+      '.bns-v349-expired{background:#f1f5f9;color:#64748b}'+
+      '@keyframes bnsV349Pulse{from{opacity:.6}to{opacity:1}}'+
+      // Banner
+      '.bns-v349-banner{position:sticky;top:0;z-index:9998;padding:10px 16px;border-radius:0 0 12px 12px;font-weight:800;font-size:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}'+
+      '.bns-v349-banner-warn{background:#fef3c7;color:#78350f}'+
+      '.bns-v349-banner-urgent{background:#fee2e2;color:#991b1b}'+
+      '.bns-v349-banner button{border:0;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:700;font-size:12px;background:rgba(0,0,0,.1);color:inherit}'+
+      // Overlay
+      '#bnsV349Overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}'+
+      '#bnsV349OverlayBox{background:#fff;border-radius:16px;padding:28px;max-width:420px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3)}'+
+      '#bnsV349OverlayBox h3{margin:0 0 10px;font-size:18px}'+
+      '#bnsV349OverlayBox p{margin:0 0 14px;font-size:14px;color:#475569;line-height:1.5}'+
+      '#bnsV349OverlayInput{width:100%;box-sizing:border-box;border:2px solid #cbd5e1;border-radius:8px;padding:10px 14px;font-size:15px;font-weight:700;letter-spacing:.05em;margin-bottom:14px;outline:none}'+
+      '#bnsV349OverlayInput:focus{border-color:#dc2626}'+
+      '#bnsV349OverlayInput.bns349ok{border-color:#16a34a;background:#f0fdf4}'+
+      '.bns349btn{border:0;border-radius:8px;padding:10px 20px;font-weight:800;font-size:14px;cursor:pointer;margin-right:8px}'+
+      '.bns349confirm{background:#dc2626;color:#fff}'+
+      '.bns349confirm:disabled{opacity:.4;cursor:not-allowed}'+
+      '.bns349cancel{background:#f1f5f9;color:#475569}'+
+      // Admin opruimen
+      '.bns349-del-year{border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:700;font-size:13px;background:#fee2e2;color:#991b1b;margin:4px}'+
+      '.bns349-del-year:hover{background:#fecaca}';
     document.head.appendChild(st);
   }
 
-  /**
-   * Toon eigen bevestigingsoverlay.
-   * @param {string} title
-   * @param {string} body   HTML-tekst
-   * @param {function} onConfirm  Wordt aangeroepen als gebruiker DEFINITIEF typt en bevestigt
-   */
-  function confirmOverlay(title, body, onConfirm) {
-    injectOverlayStyle();
-    var existing = document.getElementById('bnsV348bOverlay');
-    if (existing) existing.remove();
-
-    var ov = document.createElement('div');
-    ov.id = 'bnsV348bOverlay';
+  function showOverlay(title, bodyHtml, needWord, onConfirm) {
+    var ov = document.getElementById('bnsV349Overlay');
+    if (ov) ov.remove();
+    ov = document.createElement('div');
+    ov.id = 'bnsV349Overlay';
     ov.innerHTML =
-      '<div id="bnsV348bOverlayBox">'+
+      '<div id="bnsV349OverlayBox">'+
         '<h3>'+esc(title)+'</h3>'+
-        '<p>'+body+'</p>'+
-        '<p style="font-size:13px;color:#dc2626;font-weight:700;margin:0 0 8px">Typ <b>DEFINITIEF</b> om te bevestigen:</p>'+
-        '<input id="bnsV348bOverlayInput" type="text" placeholder="DEFINITIEF" autocomplete="off" spellcheck="false">'+
-        '<div>'+
-          '<button class="bnsV348bOvBtn bnsV348bOvConfirm" id="bnsV348bOvConfirmBtn" disabled>Definitief verwijderen</button>'+
-          '<button class="bnsV348bOvBtn bnsV348bOvCancel" id="bnsV348bOvCancelBtn">Annuleren</button>'+
-        '</div>'+
+        '<p>'+bodyHtml+'</p>'+
+        (needWord ?
+          '<p style="font-size:13px;color:#dc2626;font-weight:700;margin:0 0 8px">Typ <b>'+esc(needWord)+'</b> om te bevestigen:</p>'+
+          '<input id="bnsV349OverlayInput" type="text" placeholder="'+esc(needWord)+'" autocomplete="off" spellcheck="false">'
+        : '')+
+        '<button class="bns349btn bns349confirm" id="bns349ConfirmBtn"'+(needWord?' disabled':'')+'>Bevestigen</button>'+
+        '<button class="bns349btn bns349cancel" id="bns349CancelBtn">Annuleren</button>'+
       '</div>';
     document.body.appendChild(ov);
-
-    var inp = document.getElementById('bnsV348bOverlayInput');
-    var confirmBtn = document.getElementById('bnsV348bOvConfirmBtn');
-    var cancelBtn  = document.getElementById('bnsV348bOvCancelBtn');
-
-    inp.addEventListener('input', function() {
-      var ok = inp.value.trim() === 'DEFINITIEF';
-      confirmBtn.disabled = !ok;
-      inp.classList.toggle('ok', ok);
-    });
-    inp.focus();
-
+    var confirmBtn = document.getElementById('bns349ConfirmBtn');
+    var cancelBtn  = document.getElementById('bns349CancelBtn');
+    var inp        = document.getElementById('bnsV349OverlayInput');
+    if (inp) {
+      inp.focus();
+      inp.addEventListener('input', function() {
+        var ok = inp.value.trim() === needWord;
+        confirmBtn.disabled = !ok;
+        inp.classList.toggle('bns349ok', ok);
+      });
+    }
     confirmBtn.addEventListener('click', function() {
-      if (inp.value.trim() !== 'DEFINITIEF') return;
-      ov.remove();
-      onConfirm();
+      if (needWord && (!inp || inp.value.trim() !== needWord)) return;
+      ov.remove(); onConfirm();
     });
-    cancelBtn.addEventListener('click', function() { ov.remove(); });
-    ov.addEventListener('click', function(e) { if (e.target===ov) ov.remove(); });
-  }
-
-  // Eenvoudige info-overlay (vervangt alert)
-  function infoOverlay(title, body) {
-    injectOverlayStyle();
-    var existing = document.getElementById('bnsV348bOverlay');
-    if (existing) existing.remove();
-    var ov = document.createElement('div');
-    ov.id = 'bnsV348bOverlay';
-    ov.innerHTML =
-      '<div id="bnsV348bOverlayBox">'+
-        '<h3>'+esc(title)+'</h3>'+
-        '<p>'+esc(body)+'</p>'+
-        '<button class="bnsV348bOvBtn bnsV348bOvCancel" id="bnsV348bOvCancelBtn">Sluiten</button>'+
-      '</div>';
-    document.body.appendChild(ov);
-    document.getElementById('bnsV348bOvCancelBtn').addEventListener('click', function(){ ov.remove(); });
+    cancelBtn.addEventListener('click', function(){ ov.remove(); });
     ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
   }
 
-  // ─── Navigatie: actieve knop markeren ───────────────────────────────────────
+  function infoOverlay(title, msg) {
+    var ov = document.getElementById('bnsV349Overlay');
+    if (ov) ov.remove();
+    ov = document.createElement('div');
+    ov.id = 'bnsV349Overlay';
+    ov.innerHTML =
+      '<div id="bnsV349OverlayBox">'+
+        '<h3>'+esc(title)+'</h3>'+
+        '<p>'+esc(msg)+'</p>'+
+        '<button class="bns349btn bns349cancel" id="bns349CancelBtn">Sluiten</button>'+
+      '</div>';
+    document.body.appendChild(ov);
+    document.getElementById('bns349CancelBtn').addEventListener('click',function(){ ov.remove(); });
+    ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
+  }
 
-  var NAV_IDS = ['bnsV348NavBtn','bnsV348SchadeBtn'];
+  // ─── Actieve nav markering ───────────────────────────────────────────────────
 
-  function setActiveNav(activeId) {
+  var OWN_NAV_IDS = ['bnsV349ArchBtn','bnsV349SchadeBtn'];
+
+  function setActiveNav(id) {
     var side = document.querySelector('.side')||document.querySelector('.sidebar')||document.querySelector('nav');
-    if (!side) return;
-    // Alle nav-knoppen licht maken
-    side.querySelectorAll('button.nav, a.nav, button[data-page], a[data-page]').forEach(function(b) {
-      b.style.removeProperty('background');
-      b.style.removeProperty('color');
-      b.style.removeProperty('font-weight');
+    if (side) {
+      side.querySelectorAll('button.nav,a.nav,button[data-page],a[data-page]').forEach(function(b){
+        b.style.removeProperty('background');
+        b.style.removeProperty('color');
+        b.style.removeProperty('font-weight');
+      });
+    }
+    OWN_NAV_IDS.forEach(function(bid){
+      var b = document.getElementById(bid);
+      if (b) { b.style.background=''; b.style.color=''; b.style.fontWeight=''; }
     });
-    // Ook onze eigen knoppen resetten
-    NAV_IDS.forEach(function(id) {
-      var b = document.getElementById(id);
-      if (!b) return;
-      b.style.background = '';
-      b.style.color = '';
-      b.style.fontWeight = '';
-    });
-    // Actieve knop donker maken
-    var active = document.getElementById(activeId);
+    var active = document.getElementById(id);
     if (active) {
       active.style.background = '#0f172a';
       active.style.color = '#fff';
@@ -40342,27 +40398,56 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
     }
   }
 
-  // ─── Kaart-helpers ───────────────────────────────────────────────────────────
+  // ─── Kaart helpers ───────────────────────────────────────────────────────────
 
-  function orderCard(o) {
+  function badgeHtml(o) {
+    if (!isOpt(o)) return '';
+    var d = daysLeft(o);
+    var cls, txt;
+    if (d <= 0)       { cls='bns-v349-expired'; txt='Verlopen'; }
+    else if (d === 1) { cls='bns-v349-urgent';  txt='Laatste dag!'; }
+    else if (d <= 2)  { cls='bns-v349-warn';    txt='Nog '+d+' dag'+(d!==1?'en':''); }
+    else              { cls='bns-v349-ok';      txt='Nog '+d+' dagen'; }
+    return '<span class="bns-v349-badge '+cls+'">'+txt+'</span>';
+  }
+
+  function optionButtons(o) {
+    return '<button type="button" onclick="BNS_V349_confirm(\''+esc(o.id)+'\')" '+
+      'style="margin-top:8px;margin-right:6px;background:#16a34a;border:0;border-radius:6px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:12px;color:#fff">'+
+      '✓ Bevestigen</button>'+
+      '<button type="button" onclick="BNS_V349_cancel(\''+esc(o.id)+'\')" '+
+      'style="margin-right:6px;background:#dc2626;border:0;border-radius:6px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:12px;color:#fff">'+
+      '✗ Niet door</button>'+
+      '<button type="button" onclick="BNS_V349_extend(\''+esc(o.id)+'\')" '+
+      'style="background:#0369a1;border:0;border-radius:6px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:12px;color:#fff">'+
+      '↻ Verlengen</button>';
+  }
+
+  function orderCard(o, withOptionBtns) {
     var mats = (o.materials||[]).map(function(m){return m.code||m.name||'';}).filter(Boolean).join(', ');
     var klant = (o.customer&&o.customer.name)||'';
     var loc = o.location ? [o.location.street,o.location.city].filter(Boolean).join(', ') : '';
-    return '<div class="bns-v348b-card" data-order-id="'+esc(o.id)+'">' +
+    return '<div class="bns-v349-card" data-order-id="'+esc(o.id)+'">' +
       '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'+
         '<b style="font-size:14px">'+esc(o.number||'')+(o.title?' — '+esc(o.title):'')+'</b>'+
-        '<span style="font-size:11px;font-weight:800;background:#f1f5f9;border-radius:999px;padding:3px 10px;white-space:nowrap;flex-shrink:0">'+esc(o.status||'')+'</span>'+
+        '<div style="flex-shrink:0">'+
+          '<span style="font-size:11px;font-weight:800;background:#f1f5f9;border-radius:999px;padding:3px 10px">'+esc(o.status||'')+'</span>'+
+          badgeHtml(o)+
+        '</div>'+
       '</div>'+
       '<div style="font-size:13px;color:#64748b;margin-top:3px">'+
-        esc(fmt(o.start))+(o.end&&o.end!==o.start?' t/m '+esc(fmt(o.end)):'') +
+        esc(fmt(o.start))+(o.end&&o.end!==o.start?' t/m '+esc(fmt(o.end)):'')+
         (klant?' · '+esc(klant):'')+(loc?' · '+esc(loc):'')+'</div>'+
       (mats?'<div style="font-size:12px;color:#94a3b8;margin-top:2px">'+esc(mats)+'</div>':'')+
-      '<button type="button" class="bns-v348b-open" style="margin-top:8px;background:#e0f2fe;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700;font-size:12px;color:#0369a1">Openen</button>'+
+      '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">'+
+        '<button type="button" class="bns-v349-open" style="background:#e0f2fe;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700;font-size:12px;color:#0369a1">Openen</button>'+
+        (withOptionBtns ? optionButtons(o) : '')+
+      '</div>'+
     '</div>';
   }
 
   function dmgCard(a) {
-    return '<div class="bns-v348b-card" data-alert-id="'+esc(a.id||'')+'">'+
+    return '<div class="bns-v349-card" data-alert-id="'+esc(a.id||'')+'">'+
       '<div style="display:flex;justify-content:space-between;gap:8px">'+
         '<b>'+esc(a.title||a.type||'Melding')+'</b>'+
         '<span style="font-size:11px;color:#94a3b8;white-space:nowrap">'+esc(String(a.time||'').slice(0,16))+'</span>'+
@@ -40370,165 +40455,274 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
       '<div style="font-size:13px;color:#64748b;margin-top:2px">'+
         esc(a.orderNumber||a.orderId||'')+(a.orderTitle?' — '+esc(a.orderTitle):'')+'</div>'+
       (a.note||a.message?'<div style="font-size:13px;margin-top:4px">'+esc(a.note||a.message)+'</div>':'')+
-      '<button type="button" class="bns-v348b-deldmg" data-aid="'+esc(a.id||'')+'" '+
+      '<button type="button" class="bns-v349-deldmg" data-aid="'+esc(a.id||'')+'" '+
         'style="margin-top:8px;background:#fee2e2;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700;font-size:12px;color:#991b1b">'+
-        'Verwijderen</button>'+
+        '✗ Verwijderen</button>'+
     '</div>';
   }
 
   function bindOpenBtns(box) {
-    box.querySelectorAll('.bns-v348b-open').forEach(function(btn) {
-      btn.onclick = function() {
-        var c = btn.closest('[data-order-id]');
-        var oid = c && c.dataset.orderId;
-        if (!oid) return;
-        try { if (typeof editOrder==='function') { editOrder(oid); return; } } catch(e) {}
-        try { if (window.editOrder) window.editOrder(oid); } catch(e) {}
+    box.querySelectorAll('.bns-v349-open').forEach(function(btn){
+      btn.onclick = function(){
+        var c=btn.closest('[data-order-id]');
+        var oid=c&&c.dataset.orderId; if(!oid) return;
+        try{ if(typeof editOrder==='function'){editOrder(oid);return;} }catch(e){}
+        try{ if(window.editOrder) window.editOrder(oid); }catch(e){}
       };
     });
   }
 
-  function bindDelDmgBtns(box, afterDelete) {
-    box.querySelectorAll('.bns-v348b-deldmg').forEach(function(btn) {
-      btn.onclick = function() {
+  function bindDelDmg(box, afterFn) {
+    box.querySelectorAll('.bns-v349-deldmg').forEach(function(btn){
+      btn.onclick = function(){
         var aid = btn.dataset.aid;
-        confirmOverlay(
-          'Melding verwijderen',
+        showOverlay('Melding verwijderen',
           'Deze schademelding wordt definitief verwijderd uit het systeem en uit Firebase.',
-          function() {
-            var s = S(); if (!s) return;
-            s.alerts = (s.alerts||[]).filter(function(a){ return String(a.id||'') !== aid; });
-            fbDel('alerts', aid);
-            saveSt();
-            if (typeof afterDelete === 'function') afterDelete();
-          }
-        );
+          'DEFINITIEF', function(){
+            var s=S(); if(!s) return;
+            s.alerts=(s.alerts||[]).filter(function(a){return String(a.id||'')!==aid;});
+            fbDel('alerts',aid); saveSt();
+            if(typeof afterFn==='function') afterFn();
+          });
       };
     });
   }
 
-  // ─── Jaarmap render helper ────────────────────────────────────────────────────
+  // ─── Optie-acties (globaal zodat onclick werkt) ──────────────────────────────
 
-  function renderYearMap(box, items, yearFn, cardFn, currentYear, onYearClick, onBack, afterBindExtra) {
-    if (!currentYear) {
-      var years = {};
-      items.forEach(function(o){ var y=yearFn(o); years[y]=(years[y]||0)+1; });
-      var yk = Object.keys(years).sort(function(a,b){ return String(b).localeCompare(String(a)); });
-      box.innerHTML =
-        '<div style="color:#64748b;font-size:13px;padding:6px 0 14px">'+
-          items.length+(items.length!==1?' items':' item')+' · '+yk.length+' jaar'+(yk.length!==1?'en':'')+'</div>'+
-        (yk.length ? yk.map(function(y){
-          return '<button type="button" class="bns-v348b-year" data-y="'+esc(y)+'">📁 '+esc(y)+
-            ' <span style="opacity:.65">('+years[y]+')</span></button>';
-        }).join('') : '<p style="color:#94a3b8;padding:20px 0">Geen items gevonden.</p>');
-      box.querySelectorAll('.bns-v348b-year').forEach(function(b){
-        b.onclick = function(){ onYearClick(b.dataset.y); };
+  window.BNS_V349_confirm = function(id) {
+    showOverlay('Optie bevestigen',
+      'De optie wordt omgezet naar <b>Bevestigd</b>. Het materiaal blijft geboekt.',
+      null, function(){
+        var s=S(); if(!s) return;
+        var o=(s.orders||[]).find(function(x){return String(x.id)===String(id);});
+        if(!o) return;
+        o.status='Bevestigd';
+        o.confirmedAt=new Date().toISOString();
+        saveSt(); syncO(o);
+        renderOpdrachtenTab(_ordTab);
       });
-    } else {
-      var inYear = items.filter(function(o){ return yearFn(o)===currentYear; });
-      box.innerHTML =
-        '<button type="button" id="bnsV348bBack" style="margin-bottom:14px;background:#f1f5f9;border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:700">← Terug naar jaren</button>'+
-        '<div style="font-weight:700;margin-bottom:10px;color:#0f172a">'+esc(currentYear)+' — '+
-          inYear.length+(inYear.length!==1?' items':' item')+'</div>'+
-        (inYear.length ? inYear.map(cardFn).join('') : '<p style="color:#94a3b8">Niets in '+esc(currentYear)+'.</p>');
-      var back = document.getElementById('bnsV348bBack');
-      if (back) back.onclick = onBack;
-      bindOpenBtns(box);
-      if (typeof afterBindExtra === 'function') afterBindExtra(box);
-    }
+  };
+
+  window.BNS_V349_cancel = function(id) {
+    showOverlay('Optie annuleren',
+      'De optie wordt omgezet naar <b>Geannuleerd</b>. Het materiaal komt vrij.',
+      null, function(){
+        var s=S(); if(!s) return;
+        var o=(s.orders||[]).find(function(x){return String(x.id)===String(id);});
+        if(!o) return;
+        o.status='Geannuleerd';
+        saveSt(); syncO(o);
+        renderOpdrachtenTab(_ordTab);
+      });
+  };
+
+  window.BNS_V349_extend = function(id) {
+    showOverlay('Optie verlengen',
+      'De optietermijn wordt opnieuw ingesteld op <b>vandaag</b>. De klant krijgt weer 14 dagen.',
+      null, function(){
+        var s=S(); if(!s) return;
+        var o=(s.orders||[]).find(function(x){return String(x.id)===String(id);});
+        if(!o) return;
+        o.optionCreatedAt=new Date().toISOString();
+        saveSt(); syncO(o);
+        renderOpdrachtenTab(_ordTab);
+        infoOverlay('Verlengd','De optie is verlengd. Nieuwe startdatum: vandaag.');
+      });
+  };
+
+  // ─── Optie-banner ────────────────────────────────────────────────────────────
+
+  function showOptionBanner() {
+    var existing = document.getElementById('bnsV349Banner');
+    if (existing) existing.remove();
+    var s=S(); if(!s) return;
+    var urgent = (s.orders||[]).filter(function(o){
+      return isOpt(o) && daysLeft(o) <= 2;
+    });
+    if (!urgent.length) return;
+    var banner = document.createElement('div');
+    banner.id = 'bnsV349Banner';
+    banner.className = 'bns-v349-banner '+(urgent.some(function(o){return daysLeft(o)<=1;})?'bns-v349-banner-urgent':'bns-v349-banner-warn');
+    var msgs = urgent.map(function(o){
+      var d=daysLeft(o);
+      return esc(o.number||o.title||'Optie')+': '+(d<=0?'verlopen':(d===1?'laatste dag':'nog '+d+' dagen'));
+    }).join(' · ');
+    banner.innerHTML = '<span style="flex:1">⚠️ Optie bijna verlopen — '+msgs+'</span>'+
+      '<button onclick="document.getElementById(\'bnsV349Banner\').remove()">Sluiten</button>';
+    var list = document.getElementById('ordersList');
+    if (list && list.parentNode) list.parentNode.insertBefore(banner, list);
+    else document.body.insertBefore(banner, document.body.firstChild);
   }
 
-  // ─── Gemeenschappelijke stijl ────────────────────────────────────────────────
+  // ─── OPDRACHTEN tabs ─────────────────────────────────────────────────────────
 
-  function injectPageStyle() {
-    if (document.getElementById('bnsV348bStyle')) return;
-    var st = document.createElement('style');
-    st.id = 'bnsV348bStyle';
-    st.textContent =
-      '.bns-v348b-page{display:none;padding:20px 24px}'+
-      '.bns-v348b-page.active{display:block}'+
-      '.bns-v348b-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}'+
-      '.bns-v348b-tab{border:2px solid #e2e8f0;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700;font-size:13px;background:#fff;color:#475569;transition:.15s}'+
-      '.bns-v348b-tab:hover{background:#f1f5f9;border-color:#94a3b8}'+
-      '.bns-v348b-active{background:#0f172a!important;color:#fff!important;border-color:#0f172a!important}'+
-      '.bns-v348b-year{display:inline-flex;align-items:center;gap:6px;border:2px solid #bae6fd;border-radius:10px;padding:10px 18px;margin:4px;cursor:pointer;font-weight:700;font-size:14px;background:#e0f2fe;color:#0369a1;transition:.15s}'+
-      '.bns-v348b-year:hover{background:#bae6fd}'+
-      '.bns-v348b-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:8px;transition:.15s}'+
-      '.bns-v348b-card:hover{border-color:#94a3b8;box-shadow:0 2px 8px rgba(0,0,0,.06)}'+
-      '.bns-v348b-search{width:100%;box-sizing:border-box;border:1.5px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:14px;outline:none}'+
-      '.bns-v348b-search:focus{border-color:#0369a1}'+
-      '.bns-v348b-del-year{border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:700;font-size:13px;background:#fee2e2;color:#991b1b;margin:4px;transition:.15s}'+
-      '.bns-v348b-del-year:hover{background:#fecaca}';
-    document.head.appendChild(st);
-  }
-
-  // ─── ARCHIEF PAGINA ──────────────────────────────────────────────────────────
-
-  var _arch = { tab:'active', year:null, q:'' };
-
-  var ARCH_TABS = [
-    { id:'active',    label:'Actieve opdrachten',      map:false },
-    { id:'option14',  label:'Opties 14 dagen',         map:false },
-    { id:'done',      label:'Uitgevoerde opdrachten',  map:true  },
-    { id:'cancelled', label:'Geannuleerde opdrachten', map:true  },
-    { id:'deleted',   label:'Verwijderde opdrachten',  map:true  }
+  var _ordTab = 'all';
+  var ORD_TABS = [
+    { id:'all',      label:'Alle opdrachten' },
+    { id:'active',   label:'Actief'          },
+    { id:'option14', label:'Opties 14 dagen' },
+    { id:'offer',    label:'Offertes'        },
+    { id:'confirm',  label:'Bevestigd'       }
   ];
 
-  function archOrders(tabId) {
-    var all = S()&&S().orders||[];
-    var q = _arch.q.toLowerCase().trim();
+  function ordOrders(tabId) {
+    var all = (S()&&S().orders)||[];
+    var q = ((document.getElementById('ordersSearch')||{}).value||'').toLowerCase().trim();
     var f;
-    if (tabId==='active')    f=all.filter(function(o){return isAct(o)&&!isOpt(o);});
-    else if (tabId==='option14') f=all.filter(isOpt);
-    else if (tabId==='done')     f=all.filter(isDone);
-    else if (tabId==='cancelled')f=all.filter(isCan);
-    else if (tabId==='deleted')  f=all.filter(isDel);
+    if      (tabId==='all')     f=all.filter(function(o){return !isDone(o)&&!isDel(o)&&!isCan(o);});
+    else if (tabId==='active')  f=all.filter(isAct);
+    else if (tabId==='option14')f=all.filter(isOpt);
+    else if (tabId==='offer')   f=all.filter(isOffer);
+    else if (tabId==='confirm') f=all.filter(isConf);
     else f=[];
     return q ? f.filter(function(o){return JSON.stringify(o).toLowerCase().indexOf(q)>=0;}) : f;
   }
 
-  function renderArchief() {
-    var box = document.getElementById('bnsV348bArchiefContent');
-    if (!box) return;
-    var tab = ARCH_TABS.find(function(t){return t.id===_arch.tab;});
-    if (!tab) return;
-    var items = archOrders(_arch.tab);
-    if (!tab.map) {
-      box.innerHTML = items.length ? items.map(orderCard).join('') :
-        '<p style="color:#94a3b8;padding:20px 0">Geen opdrachten gevonden.</p>';
-      bindOpenBtns(box);
+  function renderOrdTabs() {
+    var bar = document.getElementById('bnsV349OrdTabs'); if(!bar) return;
+    bar.querySelectorAll('.bns-v349-tab').forEach(function(b){
+      b.classList.toggle('bns-v349-active', b.dataset.tab===_ordTab);
+    });
+  }
+
+  function renderOpdrachtenTab(tabId) {
+    _ordTab = tabId || _ordTab;
+    var list = document.getElementById('ordersList'); if(!list) return;
+    var items = ordOrders(_ordTab);
+    var isOptTab = _ordTab==='option14';
+    list.innerHTML = items.length
+      ? items.map(function(o){ return orderCard(o, isOptTab); }).join('')
+      : '<p style="padding:20px;color:#64748b">Geen opdrachten gevonden.</p>';
+    bindOpenBtns(list);
+    renderOrdTabs();
+    if (isOptTab) showOptionBanner();
+  }
+
+  function injectOrdTabs() {
+    if (document.getElementById('bnsV349OrdTabs')) return;
+    var list = document.getElementById('ordersList'); if(!list) return;
+    var bar = document.createElement('div');
+    bar.id = 'bnsV349OrdTabs';
+    bar.className = 'bns-v349-tabs';
+    bar.innerHTML = ORD_TABS.map(function(t){
+      return '<button type="button" class="bns-v349-tab'+(t.id===_ordTab?' bns-v349-active':'')+'" data-tab="'+esc(t.id)+'">'+esc(t.label)+'</button>';
+    }).join('');
+    list.parentNode.insertBefore(bar, list);
+    bar.querySelectorAll('.bns-v349-tab').forEach(function(btn){
+      btn.onclick = function(){
+        _ordTab = btn.dataset.tab;
+        renderOpdrachtenTab(_ordTab);
+      };
+    });
+  }
+
+  // Override renderOrders
+  function installOrdersOverride() {
+    if (window.__BNS_V349_RO__) return;
+    window.__BNS_V349_RO__ = true;
+    var ro = function() {
+      injectOrdTabs();
+      renderOpdrachtenTab(_ordTab);
+      // Verberg oude tab-knoppen die jaarmappen openen
+      hideExtraTabs();
+    };
+    window.renderOrders = ro;
+    try{ renderOrders=ro; }catch(e){}
+  }
+
+  var HIDE_TABS = ['uitgevoerde opdrachten','geannuleerde opdrachten','schade meldingen',
+                   'verwijderde opdrachten','schade'];
+  function hideExtraTabs() {
+    var anch = document.getElementById('activeOrders'); if(!anch) return;
+    var par = anch.parentNode; if(!par) return;
+    par.querySelectorAll('button').forEach(function(b){
+      var t=(b.textContent||'').toLowerCase().replace(/\s+/g,' ').trim();
+      if (HIDE_TABS.some(function(h){return t===h||t.indexOf(h)>=0;})) b.style.display='none';
+    });
+  }
+
+  // ─── Jaarmap helper ──────────────────────────────────────────────────────────
+
+  function renderYearMap(box, items, yearFn, cardFn, state, onYear, onBack, afterExtra) {
+    if (!state.year) {
+      var years={}; items.forEach(function(o){var y=yearFn(o);years[y]=(years[y]||0)+1;});
+      var yk=Object.keys(years).sort(function(a,b){return String(b).localeCompare(String(a));});
+      box.innerHTML=
+        '<div style="color:#64748b;font-size:13px;padding:6px 0 12px">'+
+          items.length+(items.length!==1?' items':' item')+' · '+yk.length+' jaar'+(yk.length!==1?'en':'')+'</div>'+
+        (yk.length?yk.map(function(y){
+          return '<button type="button" class="bns-v349-year" data-y="'+esc(y)+'">📁 '+esc(y)+
+            ' <span style="opacity:.65">('+years[y]+')</span></button>';
+        }).join(''):'<p style="color:#94a3b8;padding:20px 0">Geen items gevonden.</p>');
+      box.querySelectorAll('.bns-v349-year').forEach(function(b){
+        b.onclick=function(){ onYear(b.dataset.y); };
+      });
     } else {
-      renderYearMap(box, items, oYear, orderCard, _arch.year,
-        function(y){ _arch.year=y; renderArchief(); },
-        function(){ _arch.year=null; renderArchief(); });
+      var inYear=items.filter(function(o){return yearFn(o)===state.year;});
+      box.innerHTML=
+        '<button type="button" id="bnsV349Back" style="margin-bottom:14px;background:#f1f5f9;border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:700">← Terug naar jaren</button>'+
+        '<div style="font-weight:700;margin-bottom:10px">'+esc(state.year)+' — '+inYear.length+(inYear.length!==1?' items':' item')+'</div>'+
+        (inYear.length?inYear.map(cardFn).join(''):'<p style="color:#94a3b8">Niets in '+esc(state.year)+'.</p>');
+      var back=document.getElementById('bnsV349Back');
+      if(back) back.onclick=onBack;
+      bindOpenBtns(box);
+      if(typeof afterExtra==='function') afterExtra(box);
     }
   }
 
+  // ─── ARCHIEF PAGINA ──────────────────────────────────────────────────────────
+
+  var _arch={tab:'done',year:null,q:''};
+  var ARCH_TABS=[
+    {id:'done',      label:'Uitgevoerde opdrachten', map:true },
+    {id:'cancelled', label:'Geannuleerde opdrachten',map:true },
+    {id:'deleted',   label:'Verwijderde opdrachten', map:true },
+    {id:'options',   label:'Opties (terugzoeken)',   map:true }
+  ];
+
+  function archItems(tabId) {
+    var all=(S()&&S().orders)||[];
+    var q=_arch.q.toLowerCase().trim();
+    var f;
+    if      (tabId==='done')     f=all.filter(isDone);
+    else if (tabId==='cancelled')f=all.filter(isCan);
+    else if (tabId==='deleted')  f=all.filter(isDel);
+    else if (tabId==='options')  f=all.filter(isOpt);
+    else f=[];
+    return q?f.filter(function(o){return JSON.stringify(o).toLowerCase().indexOf(q)>=0;}):f;
+  }
+
+  function renderArchief() {
+    var box=document.getElementById('bnsV349ArchiefContent'); if(!box) return;
+    var items=archItems(_arch.tab);
+    renderYearMap(box,items,oYear,function(o){return orderCard(o,false);},_arch,
+      function(y){_arch.year=y;renderArchief();},
+      function(){_arch.year=null;renderArchief();});
+  }
+
   function buildArchiefPage() {
-    if (document.getElementById('bnsV348bArchiefPage')) return;
-    injectPageStyle();
-    var page = document.createElement('div');
-    page.id = 'bnsV348bArchiefPage';
-    page.className = 'page bns-v348b-page';
-    page.innerHTML =
-      '<h2 style="margin:0 0 16px;font-size:22px;font-weight:900;color:#0f172a">Archief</h2>'+
-      '<input type="text" class="bns-v348b-search" id="bnsV348bArchiefSearch" placeholder="Zoek op opdracht, klant, locatie, materiaal, datum...">'+
-      '<div class="bns-v348b-tabs">'+
+    if (document.getElementById('bnsV349ArchiefPage')) return;
+    var page=document.createElement('div');
+    page.id='bnsV349ArchiefPage'; page.className='page bns-v349-page';
+    page.innerHTML=
+      '<h2 style="margin:0 0 16px;font-size:22px;font-weight:900">Archief</h2>'+
+      '<input type="text" class="bns-v349-search" id="bnsV349ArchiefSearch" placeholder="Zoek op opdracht, klant, locatie, materiaal, datum...">'+
+      '<div class="bns-v349-tabs">'+
         ARCH_TABS.map(function(t){
-          return '<button type="button" class="bns-v348b-tab'+(t.id===_arch.tab?' bns-v348b-active':'')+'" data-tab="'+esc(t.id)+'">'+esc(t.label)+'</button>';
+          return '<button type="button" class="bns-v349-tab'+(t.id===_arch.tab?' bns-v349-active':'')+'" data-tab="'+esc(t.id)+'">'+esc(t.label)+'</button>';
         }).join('')+
       '</div>'+
-      '<div id="bnsV348bArchiefContent"></div>';
+      '<div id="bnsV349ArchiefContent"></div>';
     (document.querySelector('.content')||document.querySelector('main')||document.body).appendChild(page);
-
-    document.getElementById('bnsV348bArchiefSearch').addEventListener('input', function(e){
+    document.getElementById('bnsV349ArchiefSearch').addEventListener('input',function(e){
       _arch.q=e.target.value; _arch.year=null; renderArchief();
     });
-    page.querySelectorAll('.bns-v348b-tab').forEach(function(btn){
+    page.querySelectorAll('.bns-v349-tab').forEach(function(btn){
       btn.onclick=function(){
         _arch.tab=btn.dataset.tab; _arch.year=null;
-        page.querySelectorAll('.bns-v348b-tab').forEach(function(b){
-          b.classList.toggle('bns-v348b-active', b.dataset.tab===_arch.tab);
+        page.querySelectorAll('.bns-v349-tab').forEach(function(b){
+          b.classList.toggle('bns-v349-active',b.dataset.tab===_arch.tab);
         });
         renderArchief();
       };
@@ -40537,106 +40731,70 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
 
   // ─── SCHADE PAGINA ───────────────────────────────────────────────────────────
 
-  var _dmg = { year:null, q:'' };
+  var _dmg={year:null,q:''};
 
-  function dmgAlerts() {
-    var all = (S()&&S().alerts)||[];
-    var q = _dmg.q.toLowerCase().trim();
-    var f = all.filter(isDmg);
-    return q ? f.filter(function(a){return JSON.stringify(a).toLowerCase().indexOf(q)>=0;}) : f;
+  function dmgItems() {
+    var all=(S()&&S().alerts)||[];
+    var q=_dmg.q.toLowerCase().trim();
+    var f=all.filter(isDmg);
+    return q?f.filter(function(a){return JSON.stringify(a).toLowerCase().indexOf(q)>=0;}):f;
   }
 
   function renderSchade() {
-    var box = document.getElementById('bnsV348bSchadeContent');
-    if (!box) return;
-    var items = dmgAlerts();
-    renderYearMap(box, items, aYear, dmgCard, _dmg.year,
-      function(y){ _dmg.year=y; renderSchade(); },
-      function(){ _dmg.year=null; renderSchade(); },
-      function(b){ bindDelDmgBtns(b, function(){ _dmg.year=null; renderSchade(); }); }
-    );
+    var box=document.getElementById('bnsV349SchadeContent'); if(!box) return;
+    renderYearMap(box,dmgItems(),aYear,dmgCard,_dmg,
+      function(y){_dmg.year=y;renderSchade();},
+      function(){_dmg.year=null;renderSchade();},
+      function(b){bindDelDmg(b,function(){_dmg.year=null;renderSchade();});});
   }
 
   function buildSchadePage() {
-    if (document.getElementById('bnsV348bSchadePage')) return;
-    injectPageStyle();
-    var page = document.createElement('div');
-    page.id = 'bnsV348bSchadePage';
-    page.className = 'page bns-v348b-page';
-    page.innerHTML =
-      '<h2 style="margin:0 0 16px;font-size:22px;font-weight:900;color:#0f172a">Schade meldingen</h2>'+
-      '<input type="text" class="bns-v348b-search" id="bnsV348bSchadeSearch" placeholder="Zoek op melding, opdracht, klant, datum...">'+
-      '<div id="bnsV348bSchadeContent"></div>';
+    if (document.getElementById('bnsV349SchadePage')) return;
+    var page=document.createElement('div');
+    page.id='bnsV349SchadePage'; page.className='page bns-v349-page';
+    page.innerHTML=
+      '<h2 style="margin:0 0 16px;font-size:22px;font-weight:900">Schade meldingen</h2>'+
+      '<input type="text" class="bns-v349-search" id="bnsV349SchadeSearch" placeholder="Zoek op melding, opdracht, klant, datum...">'+
+      '<div id="bnsV349SchadeContent"></div>';
     (document.querySelector('.content')||document.querySelector('main')||document.body).appendChild(page);
-
-    document.getElementById('bnsV348bSchadeSearch').addEventListener('input', function(e){
+    document.getElementById('bnsV349SchadeSearch').addEventListener('input',function(e){
       _dmg.q=e.target.value; _dmg.year=null; renderSchade();
     });
   }
 
   // ─── Pagina wisselen ─────────────────────────────────────────────────────────
 
-  function showBnsPage(pageId, renderId, renderFn, navBtnId) {
-    buildArchiefPage();
-    buildSchadePage();
-    document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
-    var pg = document.getElementById(pageId);
-    if (pg) pg.classList.add('active');
-    setActiveNav(navBtnId);
-    setTimeout(renderFn, 30);
+  function goPage(pageId, renderFn, navId) {
+    document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+    var pg=document.getElementById(pageId);
+    if(pg){pg.classList.add('active');setTimeout(renderFn,30);}
+    setActiveNav(navId);
   }
 
-  // ─── OPDRACHTEN override ─────────────────────────────────────────────────────
-
-  var HIDE_TABS = ['uitgevoerde opdrachten','geannuleerde opdrachten','schade meldingen',
-                   'verwijderde opdrachten','schade'];
-
-  function hideExtraTabs() {
-    var anch = document.getElementById('activeOrders');
-    if (!anch) return;
-    var par = anch.parentNode; if (!par) return;
-    par.querySelectorAll('button').forEach(function(b){
-      var t=(b.textContent||'').toLowerCase().replace(/\s+/g,' ').trim();
-      if (HIDE_TABS.some(function(h){return t===h||t.indexOf(h)>=0;})) {
-        b.style.display='none';
-      }
-    });
-  }
-
-  function installOrdersOverride() {
-    if (window.__BNS_V348B_RO__) return;
-    window.__BNS_V348B_RO__ = true;
-    var ro = function() {
-      var list = document.getElementById('ordersList'); if (!list) return;
-      var q = ((document.getElementById('ordersSearch')||{}).value||'').toLowerCase().trim();
-      var cardFn = window.card;
-      var orders = (S()&&S().orders||[]).filter(function(o){
-        return isAct(o)||isOpt(o);
-      }).filter(function(o){
-        return !q||JSON.stringify(o).toLowerCase().indexOf(q)>=0;
-      });
-      list.innerHTML = orders.length
-        ? orders.map(function(o){ return cardFn?cardFn(o):orderCard(o); }).join('')
-        : '<p style="padding:20px;color:#64748b">Geen actieve opdrachten.</p>';
-      try{window.BNS_MODE='active';window.mode='active';mode='active';}catch(e){}
-      hideExtraTabs();
+  function patchShowPage() {
+    var orig=window.showPage; if(!orig||orig.__bnsV349sp) return;
+    var w=function(p){
+      if(p==='bnsV349ArchiefPage'){goPage('bnsV349ArchiefPage',renderArchief,'bnsV349ArchBtn');return;}
+      if(p==='bnsV349SchadePage'){goPage('bnsV349SchadePage',renderSchade,'bnsV349SchadeBtn');return;}
+      _arch.year=null;_dmg.year=null;
+      return orig.apply(this,arguments);
     };
-    window.renderOrders = ro;
-    try{ renderOrders=ro; }catch(e){}
+    w.__bnsV349sp=true; window.showPage=w;
+    try{showPage=w;}catch(e){}
   }
 
-  // ─── ADMIN TAB "Opruimen" ────────────────────────────────────────────────────
+  // ─── ADMIN Opruimen ──────────────────────────────────────────────────────────
 
   function renderOpruimen() {
-    var box = document.getElementById('bnsV348bOpruimenContent'); if (!box) return;
-    var s = S(); if (!s) return;
-    var CATS = [
-      { id:'done',      label:'Uitgevoerde opdrachten', items:(s.orders||[]).filter(isDone), yFn:oYear },
-      { id:'cancelled', label:'Geannuleerde opdrachten',items:(s.orders||[]).filter(isCan),  yFn:oYear },
-      { id:'deleted',   label:'Verwijderde opdrachten', items:(s.orders||[]).filter(isDel),  yFn:oYear },
-      { id:'damage',    label:'Schade meldingen',       items:(s.alerts||[]).filter(isDmg),  yFn:aYear }
+    var box=document.getElementById('bnsV349OpruimenContent'); if(!box) return;
+    var s=S(); if(!s) return;
+    var CATS=[
+      {id:'done',     label:'Uitgevoerde opdrachten',items:(s.orders||[]).filter(isDone),yFn:oYear},
+      {id:'cancelled',label:'Geannuleerde opdrachten',items:(s.orders||[]).filter(isCan),yFn:oYear},
+      {id:'deleted',  label:'Verwijderde opdrachten', items:(s.orders||[]).filter(isDel),yFn:oYear},
+      {id:'damage',   label:'Schade meldingen',       items:(s.alerts||[]).filter(isDmg),yFn:aYear}
     ];
-    box.innerHTML = CATS.map(function(cat){
+    box.innerHTML=CATS.map(function(cat){
       var years={};
       cat.items.forEach(function(o){var y=cat.yFn(o);years[y]=(years[y]||0)+1;});
       var yk=Object.keys(years).sort(function(a,b){return String(b).localeCompare(String(a));});
@@ -40645,71 +40803,62 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
         '<b style="font-size:15px;display:block;margin-bottom:10px">'+esc(cat.label)+'</b>'+
         '<div style="display:flex;flex-wrap:wrap;gap:6px">'+
           yk.map(function(y){
-            return '<button type="button" class="bns-v348b-del-year" data-cat="'+esc(cat.id)+'" data-year="'+esc(y)+'">'+
+            return '<button type="button" class="bns349-del-year" data-cat="'+esc(cat.id)+'" data-year="'+esc(y)+'">'+
               '🗑 '+esc(y)+' ('+years[y]+')</button>';
           }).join('')+
         '</div></div>';
     }).join('');
-
-    box.querySelectorAll('.bns-v348b-del-year').forEach(function(btn){
-      btn.onclick = function(){
+    box.querySelectorAll('.bns349-del-year').forEach(function(btn){
+      btn.onclick=function(){
         var cat=btn.dataset.cat, year=btn.dataset.year;
-        var catLabel = btn.closest('div[style]') &&
-          btn.closest('div[style]').querySelector('b') &&
-          btn.closest('div[style]').querySelector('b').textContent || cat;
-        confirmOverlay(
-          'Data verwijderen: '+catLabel+' '+year,
-          'Alle <b>'+esc(catLabel)+'</b> van <b>'+esc(year)+'</b> worden definitief verwijderd uit het systeem en uit Firebase. Dit kan niet ongedaan worden gemaakt.',
-          function(){
+        var lbl=cat==='damage'?'Schade meldingen':cat==='done'?'Uitgevoerde opdrachten':cat==='cancelled'?'Geannuleerde opdrachten':'Verwijderde opdrachten';
+        showOverlay('Opruimen: '+lbl+' '+year,
+          'Alle <b>'+esc(lbl)+'</b> van <b>'+esc(year)+'</b> worden definitief verwijderd uit het systeem en Firebase.',
+          'DEFINITIEF', function(){
             var s=S(); if(!s) return;
             var removed=0;
             if(cat==='damage'){
-              var keep=[],del=[];
-              (s.alerts||[]).forEach(function(a){
-                if(isDmg(a)&&aYear(a)===year) del.push(a); else keep.push(a);
-              });
-              del.forEach(function(a){ fbDel('alerts',a.id); removed++; });
-              s.alerts=keep;
+              var kd=[],dd=[];
+              (s.alerts||[]).forEach(function(a){if(isDmg(a)&&aYear(a)===year)dd.push(a);else kd.push(a);});
+              dd.forEach(function(a){fbDel('alerts',a.id);removed++;});
+              s.alerts=kd;
             } else {
-              var keep2=[],del2=[];
+              var ko=[],dlo=[];
               (s.orders||[]).forEach(function(o){
-                var match=(cat==='done'&&isDone(o))||(cat==='cancelled'&&isCan(o))||(cat==='deleted'&&isDel(o));
-                if(match&&oYear(o)===year) del2.push(o); else keep2.push(o);
+                var m=(cat==='done'&&isDone(o))||(cat==='cancelled'&&isCan(o))||(cat==='deleted'&&isDel(o));
+                if(m&&oYear(o)===year)dlo.push(o);else ko.push(o);
               });
-              del2.forEach(function(o){ fbDel('orders',o.id); removed++; });
-              s.orders=keep2;
+              dlo.forEach(function(o){fbDel('orders',o.id);removed++;});
+              s.orders=ko;
             }
-            saveSt();
-            renderOpruimen();
+            saveSt(); renderOpruimen();
             try{if(typeof renderAll==='function')renderAll();}catch(e){}
-            infoOverlay('Verwijderd', removed+' item'+(removed!==1?'s':'')+' verwijderd uit '+catLabel+' '+year+'.');
-          }
-        );
+            infoOverlay('Verwijderd',removed+(removed!==1?' items':' item')+' verwijderd uit '+lbl+' '+year+'.');
+          });
       };
     });
   }
 
   function buildAdminOpruimen() {
-    if (document.getElementById('bnsV348bAdminPane')) return;
-    var tabs = document.querySelector('#admin .admin-tabs')||document.querySelector('.admin-tabs');
-    var cont = document.querySelector('#admin')||document.querySelector('.admin')||document.body;
+    if (document.getElementById('bnsV349AdminPane')) return;
+    var tabs=document.querySelector('#admin .admin-tabs')||document.querySelector('.admin-tabs');
+    var cont=document.querySelector('#admin')||document.querySelector('.admin')||document.body;
     if (!tabs) return;
     var tabBtn=document.createElement('button');
     tabBtn.type='button'; tabBtn.className='adminTab';
-    tabBtn.textContent='Opruimen'; tabBtn.dataset.admin='bnsV348bAdminPane';
+    tabBtn.textContent='Opruimen'; tabBtn.dataset.admin='bnsV349AdminPane';
     tabs.appendChild(tabBtn);
     var pane=document.createElement('div');
-    pane.id='bnsV348bAdminPane'; pane.className='adminPane panel hidden';
+    pane.id='bnsV349AdminPane'; pane.className='adminPane panel hidden';
     pane.innerHTML=
       '<h3 style="margin:0 0 8px">Oude data opruimen</h3>'+
-      '<p style="color:#64748b;font-size:13px;margin:0 0 18px">Kies een jaar om alle items van dat jaar definitief te verwijderen uit het systeem en Firebase. Je moet <b>DEFINITIEF</b> typen om te bevestigen.</p>'+
-      '<div id="bnsV348bOpruimenContent"></div>';
+      '<p style="color:#64748b;font-size:13px;margin:0 0 18px">Kies een jaar. Typ <b>DEFINITIEF</b> in het bevestigingsvenster om te wissen. Verwijdert ook uit Firebase.</p>'+
+      '<div id="bnsV349OpruimenContent"></div>';
     cont.appendChild(pane);
     tabBtn.onclick=function(){
       document.querySelectorAll('.adminTab').forEach(function(b){b.classList.remove('active');});
       document.querySelectorAll('.adminPane').forEach(function(p){p.classList.add('hidden');});
-      tabBtn.classList.add('active');
-      pane.classList.remove('hidden');
+      tabBtn.classList.add('active'); pane.classList.remove('hidden');
       renderOpruimen();
     };
   }
@@ -40720,97 +40869,88 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
     var side=document.querySelector('.side')||document.querySelector('.sidebar')||document.querySelector('nav');
     if (!side) return;
 
-    // Archief-knop
-    if (!document.getElementById('bnsV348NavBtn')) {
+    if (!document.getElementById('bnsV349ArchBtn')) {
       var anch=null;
       side.querySelectorAll('button,a').forEach(function(el){
         if((el.textContent||'').toLowerCase().trim()==='opdrachten'&&!anch) anch=el;
       });
       if (anch) {
-        var btn=document.createElement('button');
-        btn.id='bnsV348NavBtn'; btn.type='button'; btn.textContent='Archief';
-        btn.className=anch.className||'nav';
-        btn.onclick=function(){
-          showBnsPage('bnsV348bArchiefPage','bnsV348bArchiefContent',renderArchief,'bnsV348NavBtn');
-        };
-        anch.parentNode.insertBefore(btn, anch.nextSibling);
+        var b=document.createElement('button');
+        b.id='bnsV349ArchBtn'; b.type='button'; b.textContent='Archief';
+        b.className=anch.className||'nav';
+        b.onclick=function(){buildArchiefPage();goPage('bnsV349ArchiefPage',renderArchief,'bnsV349ArchBtn');};
+        anch.parentNode.insertBefore(b,anch.nextSibling);
       }
     }
 
-    // Schade-knop
-    if (!document.getElementById('bnsV348SchadeBtn')) {
-      var archBtn=document.getElementById('bnsV348NavBtn');
-      if (archBtn) {
-        var sBtn=document.createElement('button');
-        sBtn.id='bnsV348SchadeBtn'; sBtn.type='button'; sBtn.textContent='Schade';
-        sBtn.className=archBtn.className||'nav';
-        sBtn.onclick=function(){
-          showBnsPage('bnsV348bSchadePage','bnsV348bSchadeContent',renderSchade,'bnsV348SchadeBtn');
-        };
-        archBtn.parentNode.insertBefore(sBtn, archBtn.nextSibling);
+    if (!document.getElementById('bnsV349SchadeBtn')) {
+      var archB=document.getElementById('bnsV349ArchBtn');
+      if (archB) {
+        var sb=document.createElement('button');
+        sb.id='bnsV349SchadeBtn'; sb.type='button'; sb.textContent='Schade';
+        sb.className=archB.className||'nav';
+        sb.onclick=function(){buildSchadePage();goPage('bnsV349SchadePage',renderSchade,'bnsV349SchadeBtn');};
+        archB.parentNode.insertBefore(sb,archB.nextSibling);
       }
     }
   }
 
-  // ─── showPage patchen ────────────────────────────────────────────────────────
+  // ─── optionCreatedAt bewaken bij opslaan ─────────────────────────────────────
 
-  function patchShowPage() {
-    var orig=window.showPage;
-    if(!orig||orig.__bnsV348bsp) return;
-    var w=function(p){
-      if(p==='bnsV348bArchiefPage'){
-        showBnsPage('bnsV348bArchiefPage','bnsV348bArchiefContent',renderArchief,'bnsV348NavBtn');
-        return;
-      }
-      if(p==='bnsV348bSchadePage'){
-        showBnsPage('bnsV348bSchadePage','bnsV348bSchadeContent',renderSchade,'bnsV348SchadeBtn');
-        return;
-      }
-      _arch.year=null; _dmg.year=null;
-      return orig.apply(this,arguments);
+  function watchOptionSave() {
+    if (window.__BNS_V349_OPTSAVE__) return;
+    window.__BNS_V349_OPTSAVE__ = true;
+    var origSave = window.saveCurrentOrder||window.saveOrder;
+    if (!origSave) return;
+    var fn = origSave.__bnsV349optWrap ? null : origSave;
+    if (!fn) return;
+    var wrapped = function() {
+      var r = fn.apply(this,arguments);
+      // Na opslaan: zorg dat optionCreatedAt gezet is voor opties
+      setTimeout(function(){
+        var s=S(); if(!s) return;
+        (s.orders||[]).forEach(function(o){
+          if(isOpt(o)&&!o.optionCreatedAt){
+            o.optionCreatedAt=new Date().toISOString();
+            try{localStorage.setItem('event-planner-pro-v87',JSON.stringify(s));}catch(e){}
+          }
+        });
+      },300);
+      return r;
     };
-    w.__bnsV348bsp=true; window.showPage=w;
-    try{showPage=w;}catch(e){}
+    wrapped.__bnsV349optWrap=true;
+    if(window.saveCurrentOrder) { window.saveCurrentOrder=wrapped; try{saveCurrentOrder=wrapped;}catch(e){} }
+    if(window.saveOrder&&window.saveOrder!==window.saveCurrentOrder) { window.saveOrder=wrapped; try{saveOrder=wrapped;}catch(e){} }
   }
 
   // ─── Installatie ─────────────────────────────────────────────────────────────
 
   function install() {
-    injectPageStyle();
-    injectOverlayStyle();
+    injectBaseStyle();
     buildArchiefPage();
     buildSchadePage();
     installOrdersOverride();
+    injectOrdTabs();
     hideExtraTabs();
     addNavButtons();
     patchShowPage();
     buildAdminOpruimen();
+    watchOptionSave();
   }
 
-  // Opstart: meerdere pogingen, daarna passief
-  var _installCount = 0;
-  var _installTimer = setInterval(function(){
-    install();
-    hideExtraTabs();
-    addNavButtons();
-    buildAdminOpruimen();
-    _installCount++;
-    if (_installCount >= 5) {
-      clearInterval(_installTimer);
-      // Na 10s één keer herhalen voor late DOM-wijzigingen
-      setTimeout(function(){
-        hideExtraTabs();
-        addNavButtons();
-        buildAdminOpruimen();
-      }, 10000);
-    }
-  }, 800);
+  var _ic=0, _it=setInterval(function(){
+    install(); hideExtraTabs(); addNavButtons(); buildAdminOpruimen();
+    _ic++; if(_ic>=6){ clearInterval(_it); setTimeout(function(){hideExtraTabs();addNavButtons();},12000); }
+  },700);
 
-  if (document.readyState==='loading') {
-    document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,200); });
-  } else {
-    setTimeout(install,200);
-  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',function(){setTimeout(install,200);});
+  } else { setTimeout(install,200); }
 
-  console.info('[BNS v348b] Geladen. Archief+Schade in sidebar. Admin Opruimen met DEFINITIEF-check.');
+  // Optie-banner bij tab-wissel
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible') setTimeout(showOptionBanner,400);
+  });
+
+  console.info('[BNS v349] Opdrachten=tabs. Opties=eigen tab met teller+knoppen. Archief+Schade in sidebar.');
 })();
