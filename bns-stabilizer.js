@@ -27,14 +27,18 @@
     var s = document.createElement('style');
     s.id = 'bnsStabAntiFlicker';
     s.textContent = [
-      // Materiaallijst: geen animaties, geen transitions
+      // Materiaallijst: geen animaties, geen transitions, geen flash
       '#materialList *{animation:none!important;transition:none!important;transform:none!important}',
+      // Prevent white flash during innerHTML replace
+      '#materialList{contain:layout style!important;min-height:40px!important}',
       // Maar defect badge mag wel zichtbaar zijn (alleen geen blink)
       '#materialList .badge.defect{opacity:1!important}',
       // Materiaalknoppen in de lijst: stabiel
       '#materialList button{animation:none!important}',
       // Gekozen materialen: ook stabiel
       '#chosenMaterials *{animation:none!important;transition:none!important}',
+      // Cat tabs: geen flicker bij wisselen
+      '.cat-tabs button{animation:none!important;transition:background .1s!important}',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -295,10 +299,67 @@
     }, true); // capture phase to beat existing listeners
   }
 
+  // ── 8. STICKY BAR VOLLE BREEDTE — verplaats naar body ───────────────────
+  // Als een parent element transform/backdrop-filter heeft (layout-3d, glass etc)
+  // dan werkt position:fixed relatief aan die parent, niet het viewport.
+  // Oplossing: verplaats de bar naar document.body zodat hij altijd viewport-breed is.
+  function fixActionBarWidth() {
+    var bar = E('bnsV58OrderActions') || E('bnsV57OrderActions') ||
+              document.querySelector('.bns-v333-order-bottom');
+    if (!bar) return;
+    if (bar.__bnsStabMoved) return;
+
+    // Verplaats naar body zodat geen parent-transform hem inperkt
+    if (bar.parentElement !== document.body) {
+      // Bewaar een placeholder zodat de layout niet springt
+      var ph = document.createElement('div');
+      ph.style.cssText = 'height:60px;pointer-events:none';
+      bar.parentElement.insertBefore(ph, bar);
+      document.body.appendChild(bar);
+      bar.__bnsStabMoved = true;
+      bar.__bnsStabPlaceholder = ph;
+    }
+
+    // Zet breedte op sidebar-breedte tot viewport-rechts
+    var side = document.querySelector('.side');
+    var sideW = side ? side.getBoundingClientRect().width : 0;
+    bar.style.setProperty('left', sideW + 'px', 'important');
+    bar.style.setProperty('right', '0', 'important');
+    bar.style.setProperty('bottom', '0', 'important');
+    bar.style.setProperty('position', 'fixed', 'important');
+    bar.style.setProperty('z-index', '2147483000', 'important');
+  }
+
+  // ── 9. DEFECT BADGE — knippert af, blijft branden ────────────────────────
+  function fixDefectBadge() {
+    if (E('bnsStabDefectStyle')) return;
+    var s = document.createElement('style');
+    s.id = 'bnsStabDefectStyle';
+    s.textContent = [
+      // Defect badge: geen knipperen, altijd zichtbaar rood
+      '.bns-a12-pill.damage,.badge.defect,.bns-v45-pill.damage,',
+      '.mat-status-badge.defect,.bns-status-defect,',
+      '[class*="defect"],[class*="damage"]{',
+      '  animation:none!important;',
+      '  opacity:1!important;',
+      '  background:#dc2626!important;',
+      '  color:#fff!important;',
+      '}',
+      // Niet actief badge: ook geen animatie
+      '.bns-a12-pill.inactive,.badge.inactive,.bns-v45-pill.inactive{',
+      '  animation:none!important;',
+      '  opacity:1!important;',
+      '}',
+    ].join('');
+    document.head.appendChild(s);
+  }
+
   // ── Main run ──────────────────────────────────────────────────────────────
   function run() {
     injectAntiFlickerCss();
     installMatDebounce();
+    fixDefectBadge();
+    fixActionBarWidth();
     fixRoutenetButtons();
     fixBoekhoudingModal();
     wrapOrderOverviewShow();
@@ -308,9 +369,15 @@
     patchAdminDeleteMat();
   }
 
+  // Resize: herbereken breedte van actiebalk
+  window.addEventListener('resize', function() {
+    setTimeout(fixActionBarWidth, 100);
+  });
+
   // Klik-events: update wis knoppen als overview opengaat
   document.addEventListener('click', function() {
     setTimeout(function() {
+      fixActionBarWidth();
       fixRoutenetButtons();
       patchOrderOverviewWisButton();
       addWisToDriverMessages();
