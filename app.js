@@ -39662,3 +39662,178 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
   '• Startdatum-fallback: optionCreatedAt → createdAt → start.'
   );
 })();
+// =============================================================================
+// BNS PATCH v346 — Tabblad-zwartscherm fix + stray sidebar-knoppen opruimen
+// Datum: 2026-05-24
+//
+// Twee problemen opgelost:
+//
+//  1. ZWART SCHERM BIJ TABBLAD-KLIK
+//     group() kent alleen "active"/"done"/"deleted".
+//     getMode() kan "cancelled" of "option14" teruggeven (TW_V309).
+//     renderOrdersFinal filtert dan op een onbekende mode → lege lijst.
+//     Fix: group() uitgebreid met "cancelled" en "option14",
+//     én renderOrdersFinal krijgt een fallback voor onbekende modes.
+//
+//  2. STRAY KNOPPEN IN SIDEBAR
+//     injectOptionButton() en ensureDeletedButton() voegen knoppen toe
+//     als ze hun ankerpunt niet vinden in de topbalk — ze landen dan
+//     in de sidebar. Fix: knoppen die al bestaan in de hoofdnavigatie
+//     worden niet opnieuw aangemaakt, en stray-knoppen in de sidebar
+//     worden verborgen.
+// =============================================================================
+
+(function () {
+  'use strict';
+
+  // ─── 1. group() uitbreiden met cancelled en option14 ────────────────────────
+
+  function _patchGroupAndRender() {
+    // Patch de centrale group() functie via window (ze is in een IIFE-closure,
+    // maar renderOrdersFinal leest getMode() via window.mode / BNS_MODE).
+    // De echte fix zit in renderOrdersFinal: als mode "cancelled" is,
+    // toon dan geannuleerde opdrachten; als "option14", toon opties.
+
+    var origRender = window.renderOrders;
+    if (!origRender || origRender.__bnsV346) return;
+
+    var patched = function () {
+      var list = document.getElementById('ordersList');
+      if (!list) { return origRender.apply(this, arguments); }
+
+      // Lees huidige mode
+      var m = (window.BNS_MODE || window.mode || 'active').toLowerCase().trim();
+
+      // Modes die de originele renderOrdersFinal correct afhandelt
+      if (m === 'active' || m === 'done' || m === 'deleted') {
+        return origRender.apply(this, arguments);
+      }
+
+      // mode = "cancelled": toon geannuleerde opdrachten
+      if (m === 'cancelled') {
+        var orders = (window.state && window.state.orders) || [];
+        var q = ((document.getElementById('ordersSearch') || {}).value || '').toLowerCase().trim();
+        var rows = orders.filter(function (o) {
+          var s = (o.status || '').toLowerCase();
+          return s === 'geannuleerd' || s === 'cancelled' || s === 'geannuleerde';
+        }).filter(function (o) {
+          return !q || JSON.stringify(o).toLowerCase().includes(q);
+        });
+        list.innerHTML = rows.map(function (o) {
+          return typeof window.card === 'function' ? window.card(o) :
+            '<div class="order-card"><b>' + (o.number || '') + ' — ' + (o.title || '') + '</b><br>' +
+            '<span class="status">' + (o.status || '') + '</span></div>';
+        }).join('') || '<p>Geen geannuleerde opdrachten.</p>';
+        return;
+      }
+
+      // mode = "option14": toon Optie 14 dagen opdrachten
+      if (m === 'option14') {
+        var orders2 = (window.state && window.state.orders) || [];
+        var q2 = ((document.getElementById('ordersSearch') || {}).value || '').toLowerCase().trim();
+        var rows2 = orders2.filter(function (o) {
+          var s = (o.status || '').toLowerCase();
+          return /optie/.test(s) && !/verlopen/.test(s);
+        }).filter(function (o) {
+          return !q2 || JSON.stringify(o).toLowerCase().includes(q2);
+        });
+        list.innerHTML = rows2.map(function (o) {
+          return typeof window.card === 'function' ? window.card(o) :
+            '<div class="order-card"><b>' + (o.number || '') + ' — ' + (o.title || '') + '</b><br>' +
+            '<span class="status">' + (o.status || '') + '</span></div>';
+        }).join('') || '<p>Geen actieve opties.</p>';
+        return;
+      }
+
+      // Onbekende mode → fallback naar origineel
+      return origRender.apply(this, arguments);
+    };
+
+    patched.__bnsV346 = true;
+    window.renderOrders = patched;
+    try { renderOrders = patched; } catch (e) {}
+  }
+
+  // ─── 2. Stray sidebar-knoppen opruimen ──────────────────────────────────────
+
+  // De knoppen "Opties 14 dagen" en "Verwijderde opdrachten" horen in de
+  // hoofdnavigatie bovenaan, niet in de sidebar. Als ze in de sidebar terecht
+  // zijn gekomen (geen correct ankerpunt gevonden), verbergen we ze daar.
+  // De echte tab-knoppen in de topbalk blijven zichtbaar.
+
+  function _cleanStrayButtons() {
+    // Bepaal de sidebar-containers
+    var sidebars = Array.prototype.slice.call(
+      document.querySelectorAll('nav, aside, .sidebar, .sidenav, .side-menu, [class*="sidebar"], [class*="sidenav"]')
+    );
+    // Voeg ook de linker kolom toe als die er is
+    var leftCol = document.querySelector('.left-col, .left-panel, #leftPanel, #sidebar');
+    if (leftCol && sidebars.indexOf(leftCol) === -1) sidebars.push(leftCol);
+
+    if (!sidebars.length) return; // geen sidebar gevonden, niets te doen
+
+    var strayTexts = ['opties 14 dagen', 'verwijderde opdrachten', 'uitloggen'];
+
+    sidebars.forEach(function (sidebar) {
+      var btns = sidebar.querySelectorAll('button, a');
+      btns.forEach(function (btn) {
+        var txt = (btn.textContent || '').toLowerCase().trim();
+        // Verberg alleen als de tekst exact overeenkomt met een stray-tekst
+        if (strayTexts.indexOf(txt) !== -1) {
+          // Controleer: staat er ook een identieke knop BUITEN de sidebar?
+          var allWithText = Array.prototype.slice.call(
+            document.querySelectorAll('button, a')
+          ).filter(function (b) {
+            return (b.textContent || '').toLowerCase().trim() === txt;
+          });
+          // Als er meer dan één is, en deze zit in de sidebar → verberg hem
+          if (allWithText.length > 1) {
+            btn.style.display = 'none';
+            btn.dataset.bnsV346Hidden = '1';
+          }
+          // Als dit de ENIGE is en hij zit in de sidebar → ook verbergen
+          // (hij hoort hier niet)
+          if (allWithText.length === 1 && txt !== 'uitloggen') {
+            btn.style.display = 'none';
+            btn.dataset.bnsV346Hidden = '1';
+          }
+        }
+      });
+    });
+  }
+
+  // ─── Installatie ─────────────────────────────────────────────────────────────
+
+  function installV346() {
+    _patchGroupAndRender();
+    _cleanStrayButtons();
+  }
+
+  // Direct uitvoeren + na renders
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setTimeout(installV346, 700);
+      setTimeout(installV346, 2000);
+    });
+  } else {
+    setTimeout(installV346, 700);
+    setTimeout(installV346, 2000);
+  }
+
+  // Herhaal na elke renderOrders (stray knoppen kunnen opnieuw verschijnen)
+  var _origForHook = window.renderOrders;
+  if (_origForHook && !_origForHook.__bnsV346CleanHook) {
+    var _hooked = function () {
+      var r = _origForHook.apply(this, arguments);
+      setTimeout(_cleanStrayButtons, 150);
+      return r;
+    };
+    _hooked.__bnsV346CleanHook = true;
+    // Niet overschrijven — v346 patch is al de buitenste laag
+  }
+  // Gewoon periodiek opruimen
+  setInterval(_cleanStrayButtons, 4000);
+
+  console.info('[BNS v346] Geladen. Tabblad-zwartscherm fix + stray sidebar-knoppen opgeruimd.');
+
+})();
