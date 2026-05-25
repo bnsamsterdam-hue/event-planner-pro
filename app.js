@@ -40138,3 +40138,400 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
   setTimeout(run, 1600);
   setInterval(run, 2000);
 })();
+
+// =============================================================================
+// BNS PATCH v348 — Archief-pagina in sidebar + tabknoppen definitief hersteld
+// Datum: 2026-05-25
+//
+// Twee dingen:
+//
+//  1. NIEUWE ARCHIEFPAGINA IN SIDEBAR
+//     Een knop "Archief" verschijnt in de linkersidebar (onder Opdrachten).
+//     De pagina toont:
+//      - Zoekbalk (zoekt door alles)
+//      - Tabs: Uitgevoerde opdrachten | Geannuleerde opdrachten | Verwijderde opdrachten
+//      - Jaarmappen per tab
+//      - Klikken op kaart opent de opdracht in de normale editweergave
+//     De pagina wordt volledig dynamisch aangemaakt in app.js.
+//     Geen wijziging aan index.html nodig.
+//
+//  2. TABKNOPPEN BOVENAAN NOOIT MEER MAPPENVIEW
+//     Actieve opdrachten, Geannuleerde opdrachten en Opties 14 dagen
+//     roepen altijd renderOrders aan en tonen nooit een mappenweergave.
+//     renderFolders wordt gewrapped: alleen 'done' en 'deleted' mogen
+//     de echte mappenrenderer aanroepen.
+//     Alle andere types worden doorgestuurd naar renderOrders.
+// =============================================================================
+
+(function BNS_V348_ARCHIEF() {
+  'use strict';
+  if (window.__BNS_V348__) return;
+  window.__BNS_V348__ = true;
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function S() {
+    try { if (typeof state !== 'undefined' && state) return state; } catch(e) {}
+    try { return window.state || null; } catch(e) {}
+    return null;
+  }
+  function allOrders() {
+    var s = S();
+    return (s && Array.isArray(s.orders)) ? s.orders : [];
+  }
+  function fmtDate(v) {
+    if (!v) return '';
+    var d = new Date(String(v).slice(0,10));
+    if (isNaN(d)) return String(v).slice(0,10);
+    return d.toLocaleDateString('nl-NL', {day:'2-digit',month:'2-digit',year:'numeric'});
+  }
+  function orderYear(o) {
+    var d = o.end || o.start || o.dateEnd || o.dateStart || '';
+    if (!d) return 'Geen jaar';
+    return String(d).slice(0,4) || 'Geen jaar';
+  }
+
+  // ─── Archief-data ────────────────────────────────────────────────────────────
+
+  var ARCHIEF_TABS = [
+    { id: 'done',      label: 'Uitgevoerde opdrachten',  color: '#1e40af' },
+    { id: 'cancelled', label: 'Geannuleerde opdrachten', color: '#dc2626' },
+    { id: 'deleted',   label: 'Verwijderde opdrachten',  color: '#6b7280' }
+  ];
+
+  function statusMatch(o, type) {
+    var s = String(o.status || '').toLowerCase();
+    if (type === 'done')
+      return /uitgevoerd|afgerond|klaar|done|voltooid/.test(s);
+    if (type === 'cancelled')
+      return /geannuleerd|cancelled|canceled|annulering/.test(s);
+    if (type === 'deleted')
+      return /verwijderd|deleted|gewist|trash/.test(s);
+    return false;
+  }
+
+  // ─── Archief-render ──────────────────────────────────────────────────────────
+
+  var _archState = { tab: 'done', year: null, q: '' };
+
+  function renderArchief() {
+    var box = document.getElementById('bnsV348ArchiefContent');
+    if (!box) return;
+
+    var orders = allOrders().filter(function(o) {
+      return statusMatch(o, _archState.tab);
+    });
+
+    // Zoekfilter
+    var q = _archState.q.toLowerCase().trim();
+    var filtered = q ? orders.filter(function(o) {
+      return JSON.stringify(o).toLowerCase().indexOf(q) >= 0;
+    }) : orders;
+
+    // Jaarmappen of opdrachtenlijst
+    if (!_archState.year) {
+      // Toon jaarmappen
+      var years = {};
+      filtered.forEach(function(o) {
+        var y = orderYear(o);
+        years[y] = (years[y] || 0) + 1;
+      });
+      var yearKeys = Object.keys(years).sort(function(a,b) {
+        return String(b).localeCompare(String(a));
+      });
+
+      box.innerHTML =
+        '<div style="padding:12px 0 8px;font-weight:700;color:#64748b;font-size:13px">' +
+        (q ? filtered.length + ' resultaten' : yearKeys.length + ' jaar' + (yearKeys.length !== 1 ? 'en' : '')) +
+        '</div>' +
+        (yearKeys.length ? yearKeys.map(function(y) {
+          return '<button type="button" class="bns-v348-year" data-year="' + esc(y) + '">' +
+            '📁 ' + esc(y) + ' <span style="opacity:.7">(' + years[y] + ')</span></button>';
+        }).join('') : '<p style="color:#94a3b8;padding:20px 0">Geen opdrachten gevonden.</p>');
+
+      // Bind jaar-knoppen
+      box.querySelectorAll('.bns-v348-year').forEach(function(btn) {
+        btn.onclick = function() {
+          _archState.year = btn.dataset.year;
+          renderArchief();
+        };
+      });
+
+      // Als er gezocht wordt: toon ook direct de kaarten
+      if (q && filtered.length) {
+        box.innerHTML += '<div style="margin-top:16px">' +
+          filtered.slice(0, 60).map(archiefCard).join('') + '</div>';
+        bindArchiefCards(box);
+      }
+
+    } else {
+      // Toon opdrachten in gekozen jaar
+      var inYear = filtered.filter(function(o) {
+        return orderYear(o) === _archState.year;
+      });
+
+      box.innerHTML =
+        '<button type="button" id="bnsV348Back" style="margin-bottom:12px;background:#f1f5f9;border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:700">← Terug naar jaren</button>' +
+        '<div style="font-weight:700;margin-bottom:10px;color:#1e293b">' + esc(_archState.year) +
+        ' — ' + inYear.length + ' opdracht' + (inYear.length !== 1 ? 'en' : '') + '</div>' +
+        (inYear.length ? inYear.map(archiefCard).join('') :
+          '<p style="color:#94a3b8">Geen opdrachten in ' + esc(_archState.year) + '.</p>');
+
+      var backBtn = document.getElementById('bnsV348Back');
+      if (backBtn) backBtn.onclick = function() {
+        _archState.year = null;
+        renderArchief();
+      };
+      bindArchiefCards(box);
+    }
+  }
+
+  function archiefCard(o) {
+    var mats = (o.materials || []).map(function(m) {
+      return m.code || m.name || '';
+    }).filter(Boolean).join(', ');
+    var addr = [
+      o.location && (o.location.street || o.location.city),
+      o.customer && o.customer.name
+    ].filter(Boolean).join(' · ');
+    return '<div class="bns-v348-card" data-order-id="' + esc(o.id) + '">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+        '<div>' +
+          '<b>' + esc(o.number || '') + '</b>' +
+          (o.title ? ' — ' + esc(o.title) : '') +
+        '</div>' +
+        '<span style="font-size:11px;font-weight:800;background:#f1f5f9;border-radius:999px;padding:3px 8px;white-space:nowrap">' +
+          esc(o.status || '') + '</span>' +
+      '</div>' +
+      '<div style="margin-top:4px;font-size:13px;color:#64748b">' +
+        fmtDate(o.start) + (o.end && o.end !== o.start ? ' t/m ' + fmtDate(o.end) : '') +
+        (addr ? ' · ' + esc(addr) : '') +
+      '</div>' +
+      (mats ? '<div style="margin-top:4px;font-size:12px;color:#94a3b8">' + esc(mats) + '</div>' : '') +
+      '<button type="button" class="bns-v348-open" style="margin-top:8px;font-size:12px;background:#e0f2fe;border:0;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;color:#0369a1">Openen / wijzigen</button>' +
+    '</div>';
+  }
+
+  function bindArchiefCards(box) {
+    box.querySelectorAll('.bns-v348-open').forEach(function(btn) {
+      btn.onclick = function() {
+        var card = btn.closest('[data-order-id]');
+        var oid = card && card.dataset.orderId;
+        if (!oid) return;
+        try {
+          if (typeof editOrder === 'function') { editOrder(oid); return; }
+          if (typeof window.editOrder === 'function') { window.editOrder(oid); return; }
+        } catch(e) {}
+      };
+    });
+  }
+
+  // ─── Pagina opbouwen ─────────────────────────────────────────────────────────
+
+  function buildArchiefPage() {
+    if (document.getElementById('bnsV348Page')) return;
+
+    // Stijl
+    if (!document.getElementById('bnsV348Style')) {
+      var st = document.createElement('style');
+      st.id = 'bnsV348Style';
+      st.textContent =
+        '#bnsV348Page{display:none}' +
+        '#bnsV348Page.active{display:block}' +
+        '.bns-v348-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}' +
+        '.bns-v348-tab{border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:700;font-size:13px;background:#f1f5f9;color:#475569}' +
+        '.bns-v348-tab.active{background:#0f172a;color:#fff}' +
+        '.bns-v348-year{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:10px;padding:10px 18px;margin:4px;cursor:pointer;font-weight:700;font-size:14px;background:#e0f2fe;color:#0369a1}' +
+        '.bns-v348-year:hover{background:#bae6fd}' +
+        '.bns-v348-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:8px}' +
+        '.bns-v348-card:hover{border-color:#94a3b8}' +
+        '#bnsV348Search{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:14px}';
+      document.head.appendChild(st);
+    }
+
+    // Pagina-div (als .page zodat showPage hem kan activeren)
+    var page = document.createElement('div');
+    page.id = 'bnsV348Page';
+    page.className = 'page';
+    page.innerHTML =
+      '<h2 style="margin:0 0 14px;font-size:20px;font-weight:900;color:#0f172a">Archief</h2>' +
+      '<input id="bnsV348Search" type="text" placeholder="Zoek op opdracht, klant, locatie, materiaal, datum...">' +
+      '<div class="bns-v348-tabs">' +
+        ARCHIEF_TABS.map(function(t) {
+          return '<button type="button" class="bns-v348-tab' + (t.id === _archState.tab ? ' active' : '') +
+            '" data-tab="' + esc(t.id) + '">' + esc(t.label) + '</button>';
+        }).join('') +
+      '</div>' +
+      '<div id="bnsV348ArchiefContent"></div>';
+
+    // Voeg toe aan de body (naast andere .page divs)
+    var container = document.querySelector('.content') ||
+                    document.querySelector('main') ||
+                    document.querySelector('#app') ||
+                    document.body;
+    container.appendChild(page);
+
+    // Bind zoekveld
+    var searchEl = document.getElementById('bnsV348Search');
+    if (searchEl) {
+      searchEl.addEventListener('input', function() {
+        _archState.q = searchEl.value;
+        _archState.year = null;
+        renderArchief();
+      });
+    }
+
+    // Bind tabs
+    page.querySelectorAll('.bns-v348-tab').forEach(function(btn) {
+      btn.onclick = function() {
+        _archState.tab = btn.dataset.tab;
+        _archState.year = null;
+        page.querySelectorAll('.bns-v348-tab').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.tab === _archState.tab);
+        });
+        renderArchief();
+      };
+    });
+  }
+
+  // ─── Sidebar-knop toevoegen ──────────────────────────────────────────────────
+
+  function addSidebarButton() {
+    if (document.getElementById('bnsV348NavBtn')) return;
+
+    // Zoek de sidebar/nav
+    var sidebar = document.querySelector('.side') ||
+                  document.querySelector('.sidebar') ||
+                  document.querySelector('nav') ||
+                  document.querySelector('[class*="nav"]');
+    if (!sidebar) return;
+
+    // Zoek ankerpunt: knop "Admin" of "Afmelden"
+    var anchor = null;
+    sidebar.querySelectorAll('button, a, [class*="nav"]').forEach(function(el) {
+      var t = (el.textContent || '').toLowerCase().trim();
+      if (t === 'admin' || t === 'afmelden') {
+        if (!anchor) anchor = el;
+      }
+    });
+
+    var btn = document.createElement('button');
+    btn.id = 'bnsV348NavBtn';
+    btn.type = 'button';
+    btn.textContent = 'Archief';
+    // Kopieer klassen van omliggende knoppen
+    var sibling = sidebar.querySelector('button, a');
+    if (sibling) btn.className = sibling.className;
+    btn.style.cssText = 'cursor:pointer;width:100%;text-align:left';
+
+    btn.onclick = function() {
+      buildArchiefPage(); // zeker opgebouwd
+      // Gebruik showPage als die beschikbaar is
+      try {
+        if (typeof showPage === 'function') {
+          showPage('bnsV348Page');
+          return;
+        }
+      } catch(e) {}
+      // Fallback: handmatig switchen
+      document.querySelectorAll('.page').forEach(function(p) {
+        p.classList.remove('active');
+      });
+      var pg = document.getElementById('bnsV348Page');
+      if (pg) pg.classList.add('active');
+      renderArchief();
+    };
+
+    if (anchor && anchor.parentNode) {
+      anchor.parentNode.insertBefore(btn, anchor);
+    } else {
+      sidebar.appendChild(btn);
+    }
+  }
+
+  // ─── renderFolders wrappen (tabknoppen fix) ──────────────────────────────────
+  // Enige echte fix: renderFolders zelf onderscheppen.
+  // Zo werkt het ongeacht hoeveel intervals bindFolders aanroepen.
+
+  function wrapRenderFolders() {
+    var orig = window.renderFolders;
+    if (!orig || orig.__bnsV348rf) return;
+
+    var wrapped = function(type) {
+      var t = String(type || '').toLowerCase();
+      if (t === 'done' || t === 'deleted') {
+        return orig.apply(this, arguments);
+      }
+      // active, cancelled, option14 → renderOrders
+      try { window.BNS_MODE = t === 'cancelled' ? 'cancelled' : t === 'option14' ? 'option14' : 'active'; } catch(e) {}
+      try { window.mode = window.BNS_MODE; } catch(e) {}
+      try { mode = window.BNS_MODE; } catch(e) {}
+      setTimeout(function() {
+        try {
+          if (typeof renderOrders === 'function') renderOrders();
+          else if (window.renderOrders) window.renderOrders();
+        } catch(e) {}
+      }, 0);
+    };
+    wrapped.__bnsV348rf = true;
+    window.renderFolders = wrapped;
+    try { renderFolders = wrapped; } catch(e) {}
+  }
+
+  // ─── showPage patchen zodat archief-pagina renderArchief aanroept ────────────
+
+  function wrapShowPage() {
+    var orig = window.showPage;
+    if (!orig || orig.__bnsV348sp) return;
+    var wrapped = function(p) {
+      if (p === 'bnsV348Page') {
+        buildArchiefPage();
+        // Verberg andere pages, toon archief
+        document.querySelectorAll('.page').forEach(function(pg) {
+          pg.classList.remove('active');
+        });
+        var archPg = document.getElementById('bnsV348Page');
+        if (archPg) archPg.classList.add('active');
+        setTimeout(renderArchief, 50);
+        return;
+      }
+      return orig.apply(this, arguments);
+    };
+    wrapped.__bnsV348sp = true;
+    window.showPage = wrapped;
+    try { showPage = wrapped; } catch(e) {}
+  }
+
+  // ─── Installatie ─────────────────────────────────────────────────────────────
+
+  function install() {
+    buildArchiefPage();
+    addSidebarButton();
+    wrapRenderFolders();
+    wrapShowPage();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(install, 400);
+      setTimeout(install, 1200);
+    });
+  } else {
+    setTimeout(install, 400);
+    setTimeout(install, 1200);
+  }
+
+  // Herinstalleer bij navigatie (sidebar-knop kan verdwijnen na re-render)
+  setInterval(function() {
+    addSidebarButton();
+    wrapRenderFolders();
+  }, 3000);
+
+  console.info('[BNS v348] Archief-pagina geladen. renderFolders gepatcht voor tabs.');
+
+})();
