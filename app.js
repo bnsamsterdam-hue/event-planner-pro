@@ -38144,3 +38144,72 @@ setTimeout(()=>{
   }catch(e){}
   console.info('[BNS v357] Active weg, Archief terug, dubbele overzichtknop schoon.');
 })();
+
+// BNS PATCH v358 - Admin Opruimen duidelijker/leesbaar
+// Datum: 2026-05-25
+// Doel: alleen Admin > Opruimen visueel verbeteren: duidelijke rubrieken en goed zichtbare jaarknoppen.
+(function BNS_V358_ADMIN_OPRUIMEN_STIJL(){
+  'use strict';
+  if(window.__BNS_V358_ADMIN_OPRUIMEN_STIJL__) return;
+  window.__BNS_V358_ADMIN_OPRUIMEN_STIJL__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function css(){
+    if(E('bns358OpruimStyle')) return;
+    var s=document.createElement('style');
+    s.id='bns358OpruimStyle';
+    s.textContent = ''+
+      '#bns350AdminPane{background:#f8fafc!important;border:1px solid #dbe3ef!important;border-radius:18px!important;padding:18px!important;color:#111827!important;}'+
+      '#bns350AdminPane h3{font-size:22px!important;font-weight:900!important;color:#0f172a!important;margin:0 0 6px!important;}'+
+      '#bns350AdminPane p{color:#334155!important;font-size:14px!important;font-weight:700!important;margin:0 0 18px!important;}'+
+      '#bns350OpBox{display:grid!important;gap:14px!important;margin-top:10px!important;}'+
+      '#bns350OpBox>div{background:#ffffff!important;border:1px solid #cbd5e1!important;border-radius:16px!important;padding:14px 16px!important;margin:0!important;box-shadow:0 4px 14px rgba(15,23,42,.08)!important;}'+
+      '#bns350OpBox>div>b{display:block!important;font-size:17px!important;font-weight:900!important;color:#0f172a!important;margin:0 0 10px!important;}'+
+      '#bns350OpBox span{color:#475569!important;font-weight:800!important;}'+
+      '#bns350OpBox .bns350-delyear{display:inline-flex!important;align-items:center!important;gap:7px!important;border:0!important;border-radius:12px!important;padding:10px 14px!important;margin:4px 6px 4px 0!important;background:#dc2626!important;color:#ffffff!important;font-size:14px!important;font-weight:900!important;cursor:pointer!important;opacity:1!important;filter:none!important;box-shadow:0 3px 10px rgba(220,38,38,.25)!important;}'+
+      '#bns350OpBox .bns350-delyear:hover{background:#b91c1c!important;transform:translateY(-1px)!important;}'+
+      '#bns350OpBox .bns350-delyear:active{background:#7f1d1d!important;transform:translateY(0)!important;}'+
+      '#bns350OpBox .bns358-catnote{display:block!important;color:#475569!important;font-size:13px!important;font-weight:800!important;margin:-4px 0 10px!important;}'+
+      '#bns350OpBox .bns358-count{display:inline-flex!important;align-items:center!important;border-radius:999px!important;background:#e0f2fe!important;color:#075985!important;padding:4px 9px!important;font-size:12px!important;font-weight:900!important;margin-left:8px!important;}';
+    document.head.appendChild(s);
+  }
+
+  function enhance(){
+    css();
+    var box=E('bns350OpBox');
+    if(!box) return;
+    A(':scope > div', box).forEach(function(group){
+      var title=group.querySelector('b');
+      if(!title) return;
+      var txt=(title.textContent||'').trim();
+      if(group.querySelector('.bns358-catnote')) return;
+      var note=document.createElement('span');
+      note.className='bns358-catnote';
+      if(/Uitgevoerde/i.test(txt)) note.textContent='Opdrachten waarvan de einddatum voorbij is of die uitgevoerd/afgerond zijn.';
+      else if(/Geannuleerde/i.test(txt)) note.textContent='Alle opdrachten die geannuleerd zijn. Materiaal is vrij.';
+      else if(/Verwijderde/i.test(txt)) note.textContent='Alles wat naar verwijderd is gezet. Wissen is definitief.';
+      else if(/Schade/i.test(txt)) note.textContent='Schademeldingen per jaar. Wissen verwijdert ook uit Firebase.';
+      else note.textContent='Oude gegevens per jaar opruimen.';
+      title.insertAdjacentElement('afterend', note);
+      var btns=A('.bns350-delyear', group);
+      if(btns.length && !title.querySelector('.bns358-count')){
+        var c=document.createElement('span');
+        c.className='bns358-count';
+        c.textContent=btns.length+' jaarmappen';
+        title.appendChild(c);
+      }
+    });
+  }
+
+  function start(){
+    css();
+    enhance();
+    document.addEventListener('click', function(){ setTimeout(enhance,80); }, true);
+    var n=0;
+    var timer=setInterval(function(){ enhance(); if(++n>12) clearInterval(timer); }, 500);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+  console.info('[BNS v358] Admin Opruimen duidelijker actief.');
+})();
