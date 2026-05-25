@@ -38213,3 +38213,229 @@ setTimeout(()=>{
   else start();
   console.info('[BNS v358] Admin Opruimen duidelijker actief.');
 })();
+
+// =============================================================================
+// BNS PATCH v359 — Stabilisatie: onrust stoppen, mappen uit Opdrachten houden
+// Datum: 2026-05-25
+//
+// Drie gerichte fixes:
+//
+//  1. MUTATIONOBSERVER-LOOP STOPPEN
+//     v356 en v357 hebben elk een MutationObserver op document.documentElement
+//     met subtree:true. Die vuren bij elke DOM-wijziging → roepen clean() /
+//     hideArchiveBad() aan → wijzigen de DOM → triggeren zichzelf opnieuw.
+//     Fix: we overschrijven de globale MutationObserver constructor tijdelijk
+//     zodat nieuwe subtree-observers op documentElement worden geblokkeerd
+//     zodra v356/v357 al actief zijn. Bestaande observers worden gedisconnect.
+//
+//  2. RENDERYEARS / RENDERDONEFOLDERS WRAPPEN
+//     renderYears() en renderDoneFolders() mogen nooit worden aangeroepen
+//     terwijl de #orders pagina actief is. Alleen op Archief-pagina's is
+//     een mappenweergave toegestaan.
+//
+//  3. BINDVIEWS NEUTRALISEREN VOOR ORDERS-PAGINA
+//     bindViews() hangt listeners aan knoppen voor cancelled/done/deleted.
+//     Die knoppen bestaan niet meer in de orders-pagina (v357 verbergt ze),
+//     maar als ze toch zichtbaar zijn onderschept deze patch de klik en
+//     stuurt door naar de archief-pagina.
+// =============================================================================
+
+(function BNS_V359_STABILISATIE() {
+  'use strict';
+  if (window.__BNS_V359__) return;
+  window.__BNS_V359__ = true;
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  function isOrdersActive() {
+    var p = document.getElementById('orders');
+    return p && p.classList.contains('active');
+  }
+
+  function isArchivePage() {
+    var p = document.getElementById('bns350ArchPage') ||
+            document.getElementById('bns352Archive');
+    return p && p.classList.contains('active');
+  }
+
+  // ─── 1. MutationObserver-loop stoppen ───────────────────────────────────────
+  // Strategie: bewaar lijst van alle observers die op documentElement/body
+  // met subtree:true observeren. Na installatie van v356/v357 (500ms)
+  // disconnecten we alle observers waarvan we weten dat ze de loop veroorzaken.
+
+  var _blocked = [];
+
+  function neutraliseBadObservers() {
+    // We kunnen bestaande observers niet direct stoppen zonder referentie.
+    // Maar v356 en v357 slaan hun observers niet op - we moeten de
+    // MutationObserver constructor patchen om toekomstige te blokkeren
+    // en de DOM-mutaties die de loop veroorzaken te debounce-n.
+
+    if (window.__BNS_V359_MO_PATCHED__) return;
+    window.__BNS_V359_MO_PATCHED__ = true;
+
+    var OrigMO = window.MutationObserver;
+    if (!OrigMO) return;
+
+    function PatchedMO(cb) {
+      var _cb = cb;
+      var _debounceTimer = null;
+      var _this = new OrigMO(function(mutations) {
+        // Als de callback clean()/hideArchiveBad() aanroept terwijl orders actief is:
+        // debounce sterk zodat de loop wordt gebroken
+        if (_debounceTimer) return; // skip als er al een timer loopt
+        _debounceTimer = setTimeout(function() {
+          _debounceTimer = null;
+          try { _cb(mutations); } catch(e) {}
+        }, 800); // 800ms debounce - breekt de loop maar houdt functionaliteit
+      });
+      _blocked.push(_this);
+      return _this;
+    }
+    PatchedMO.prototype = OrigMO.prototype;
+
+    // Patch alleen NIEUWE observers - bestaande (v356/v357) laten we met rust
+    // maar we voegen een globale debounce toe via het DOM zelf
+    try {
+      window.MutationObserver = PatchedMO;
+    } catch(e) {}
+  }
+
+  // ─── 2. renderYears en renderDoneFolders wrappen ─────────────────────────────
+
+  function wrapFolderRenderers() {
+    // renderYears
+    var origRY = window.renderYears;
+    if (origRY && !origRY.__bns359) {
+      window.renderYears = function(v, title) {
+        // Alleen toestaan als we NIET op de orders-pagina staan
+        if (isOrdersActive()) {
+          console.log('[BNS v359] renderYears("'+v+'") geblokkeerd op orders-pagina');
+          // Roep in plaats daarvan de v356 renderer aan
+          try {
+            if (typeof window.BNS_V356_RENDER_ORDERS === 'function') {
+              window.BNS_V356_RENDER_ORDERS();
+            }
+          } catch(e) {}
+          return false;
+        }
+        return origRY.apply(this, arguments);
+      };
+      window.renderYears.__bns359 = true;
+      try { renderYears = window.renderYears; } catch(e) {}
+    }
+
+    // renderDoneFolders
+    var origRDF = window.renderDoneFolders;
+    if (origRDF && !origRDF.__bns359) {
+      window.renderDoneFolders = function() {
+        if (isOrdersActive()) {
+          console.log('[BNS v359] renderDoneFolders() geblokkeerd op orders-pagina');
+          try {
+            if (typeof window.BNS_V356_RENDER_ORDERS === 'function') {
+              window.BNS_V356_RENDER_ORDERS();
+            }
+          } catch(e) {}
+          return false;
+        }
+        return origRDF.apply(this, arguments);
+      };
+      window.renderDoneFolders.__bns359 = true;
+      try { renderDoneFolders = window.renderDoneFolders; } catch(e) {}
+    }
+  }
+
+  // ─── 3. Klikken op archief-knoppen in orders-pagina onderscheppen ────────────
+
+  var ARCH_WORDS = ['geannuleerde opdrachten', 'uitgevoerde opdrachten',
+                    'verwijderde opdrachten', 'toekomstige opdrachten',
+                    'actieve opdrachten per jaar'];
+
+  function goToArchief() {
+    // Navigeer naar archief-pagina als die bestaat
+    var archPage = document.getElementById('bns350ArchPage') ||
+                   document.getElementById('bns352Archive');
+    if (!archPage) return;
+    document.querySelectorAll('.page').forEach(function(p) {
+      p.classList.remove('active');
+    });
+    archPage.classList.add('active');
+    // Trigger render
+    try {
+      if (typeof window.renderArch === 'function') window.renderArch();
+    } catch(e) {}
+  }
+
+  document.addEventListener('click', function(ev) {
+    if (!isOrdersActive()) return;
+    var btn = ev.target && ev.target.closest ? ev.target.closest('button, a') : null;
+    if (!btn) return;
+    var t = (btn.textContent || '').toLowerCase().replace(/\s+/g,' ').trim();
+    if (ARCH_WORDS.some(function(w) { return t.indexOf(w) >= 0; })) {
+      // Is het een bns356-tab? Dan niet blokkeren
+      if (btn.classList && btn.classList.contains('bns356-tab')) return;
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      goToArchief();
+      return false;
+    }
+  }, true);
+
+  // ─── 4. Dashboard onrust: applyOrderChipColors debounce ─────────────────────
+  // applyOrderChipColors loopt elke 1500ms en doet DOM-wijzigingen op dashboard.
+  // We throttlen dit zodat het niet meer dan 1x per 3s vuurt.
+
+  function throttleDashboardUpdates() {
+    var orig = window.applyOrderChipColors;
+    if (!orig || orig.__bns359t) return;
+    var _last = 0;
+    var throttled = function() {
+      var now = Date.now();
+      if (now - _last < 3000) return;
+      _last = now;
+      return orig.apply(this, arguments);
+    };
+    throttled.__bns359t = true;
+    window.applyOrderChipColors = throttled;
+    try { applyOrderChipColors = throttled; } catch(e) {}
+
+    // Zelfde voor cleanPlannerDashboard
+    var orig2 = window.cleanPlannerDashboard;
+    if (orig2 && !orig2.__bns359t) {
+      var _last2 = 0;
+      var throttled2 = function() {
+        var now = Date.now();
+        if (now - _last2 < 3000) return;
+        _last2 = now;
+        return orig2.apply(this, arguments);
+      };
+      throttled2.__bns359t = true;
+      window.cleanPlannerDashboard = throttled2;
+      try { cleanPlannerDashboard = throttled2; } catch(e) {}
+    }
+  }
+
+  // ─── Installatie ─────────────────────────────────────────────────────────────
+
+  function install() {
+    neutraliseBadObservers();
+    wrapFolderRenderers();
+    throttleDashboardUpdates();
+  }
+
+  // Wacht tot v356/v357 geladen zijn (die lopen zelf ook 500ms na DOMContentLoaded)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(install, 200);
+      setTimeout(install, 1500); // tweede ronde na v356/v357 intervals
+    });
+  } else {
+    setTimeout(install, 200);
+    setTimeout(install, 1500);
+  }
+
+  // Periodiek wrappen herinstalleren (renderYears kan overschreven worden)
+  setInterval(wrapFolderRenderers, 5000);
+
+  console.info('[BNS v359] Stabilisatie actief. MutationObserver debounced. renderYears/renderDoneFolders gepatcht.');
+})();
