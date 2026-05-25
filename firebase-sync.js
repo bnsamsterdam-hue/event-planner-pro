@@ -108,7 +108,7 @@ async function download(){
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
-    try{if(typeof renderOrders==="function")renderOrders(); if(typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA"); if(typeof adminRender==="function")adminRender()}catch(e){}
+    try{if(typeof renderOrders==="function")renderOrders(); if(typeof adminRender==="function")adminRender();}catch(e){}
   }catch(e){console.error(e);status("Firebase download fout")}
   finally{downloading=false}
 }
@@ -162,7 +162,11 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
         if(col==="orders"&&typeof renderOrders==="function")renderOrders();
-        if(col==="materials"&&typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA");
+        // renderMaterials alleen aanroepen als materialen echt veranderd zijn
+        if(col==="materials"&&typeof renderMaterials==="function"){
+          // Kleine vertraging zodat de DOM rust heeft na de state-update
+          setTimeout(function(){ if(typeof renderMaterials==="function") renderMaterials(window.currentCat||"TW"); }, 80);
+        }
         if(col==="users"&&typeof adminRender==="function")adminRender();
         if(col==="alerts"){
           // Bezorger melding binnengekomen: update planner UI direct

@@ -1,0 +1,104 @@
+rules_version = '2';
+
+// ============================================================
+// BNS Event Planner PRO — Firestore Security Rules
+// Versie: 2026-05-25 (aangescherpt)
+//
+// Gebaseerd op exacte audit van wat de app doet:
+//
+//  LEZEN:     alle collecties (app heeft dit nodig bij opstarten)
+//  SCHRIJVEN: orders, alerts, materials, customers, locations, settings
+//  VERWIJDEREN: alerts (wis melding), orders (opruimen), materials (admin)
+//
+//  USERS: alleen lezen — app schrijft en verwijdert users NIET via
+//         de normale sync. De orphan-cleanup in één patch doet dat wel,
+//         maar dat risico accepteren we: users staan alleen in Firebase
+//         als ze al bestaan, en de PIN-beveiliging is in de app zelf.
+//
+//  KLANTEN / LOCATIES / SETTINGS: schrijven ja, verwijderen NOOIT
+//         (app gebruikt alleen setDoc met merge, nooit deleteDoc)
+//
+// Tweede beschermingslaag: API-sleutel beperkt tot jouw domein
+// (zie BEVEILIGING_INSTELLEN.txt stap 1)
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── orders ───────────────────────────────────────────────
+    // Planner slaat op, bezorger updatet via driver.js
+    // Admin opruimen verwijdert hele jaarmappen
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create, update: if
+        request.resource.data.keys().size() < 200 &&
+        request.resource.data.keys().hasAny(['id', 'number', 'title', 'status']);
+      allow delete: if true; // admin opruimen jaarmappen
+    }
+
+    // ── alerts (bezorger meldingen) ──────────────────────────
+    // Bezorger schrijft via driver.js, planner wist via "Wis melding"
+    match /alerts/{alertId} {
+      allow read: if true;
+      allow create, update: if
+        request.resource.data.keys().size() < 80 &&
+        request.resource.data.keys().hasAny(['id', 'title', 'type', 'orderId', 'message', 'note']);
+      allow delete: if true; // wis melding knop + opruimen
+    }
+
+    // ── materials ────────────────────────────────────────────
+    // Admin beheert materialen, kan ook verwijderen
+    match /materials/{materialId} {
+      allow read: if true;
+      allow create, update: if
+        request.resource.data.keys().size() < 40 &&
+        request.resource.data.keys().hasAny(['id', 'code', 'name']);
+      allow delete: if true; // admin materiaal verwijderen
+    }
+
+    // ── customers ────────────────────────────────────────────
+    // Planner schrijft, app gebruikt nooit deleteDoc op customers
+    match /customers/{customerId} {
+      allow read: if true;
+      allow create, update: if
+        request.resource.data.keys().size() < 40 &&
+        request.resource.data.keys().hasAny(['id', 'name']);
+      allow delete: if false; // app verwijdert klanten NOOIT via Firebase
+    }
+
+    // ── locations ────────────────────────────────────────────
+    // Planner schrijft, app gebruikt nooit deleteDoc op locaties
+    match /locations/{locationId} {
+      allow read: if true;
+      allow create, update: if
+        request.resource.data.keys().size() < 40 &&
+        request.resource.data.keys().hasAny(['id', 'name']);
+      allow delete: if false; // app verwijdert locaties NOOIT via Firebase
+    }
+
+    // ── users ────────────────────────────────────────────────
+    // Driver.js leest users bij inloggen. App schrijft users niet via
+    // de normale sync (UPLOAD_COLLECTIONS bevat geen users).
+    // delete: if false — als de orphan-cleanup breekt is dat acceptabel,
+    // users staan dan alleen lokaal en dat is veiliger dan open delete.
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if false; // app sync schrijft users niet
+      allow delete: if false;         // veiliger: users nooit remote verwijderen
+    }
+
+    // ── settings ─────────────────────────────────────────────
+    // Planner slaat instellingen op, nooit verwijderd
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create, update: if
+        request.resource.data.keys().size() < 60;
+      allow delete: if false; // settings nooit verwijderen
+    }
+
+    // ── Alles anders: volledig geblokkeerd ───────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

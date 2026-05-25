@@ -39,6 +39,40 @@
     document.head.appendChild(s);
   }
 
+  // ── 1b. MATERIAAL RENDER DEBOUNCE ───────────────────────────────────────
+  // Oorzaak flikkeren: 34 versies van renderMaterials, firebase-sync roept
+  // het aan bij ELKE collection-update (ook orders/alerts/settings).
+  // Fix: vervang window.renderMaterials door een debounced versie die:
+  //   - maximaal 1x per animatie-frame rendert (requestAnimationFrame)
+  //   - alleen rendert als materialPanel zichtbaar is (anders weggegooid werk)
+  //   - de laatste cat-waarde onthoudt zodat flikkeren door cat-mismatch stopt
+  var _matRenderPending = false;
+  var _matRenderCat = null;
+
+  function installMatDebounce() {
+    var _realRender = window.renderMaterials;
+    if (!_realRender || _realRender.__bnsMatDebounced) return;
+
+    window.renderMaterials = function(cat) {
+      // Onthoud de gevraagde cat (laatste wint)
+      if (cat) _matRenderCat = cat;
+      if (_matRenderPending) return; // al ingepland
+      _matRenderPending = true;
+      requestAnimationFrame(function() {
+        _matRenderPending = false;
+        var useCat = _matRenderCat || window.currentCat || 'TW';
+        // Alleen renderen als materialPanel zichtbaar is
+        var panel = document.getElementById('materialPanel');
+        if (panel && panel.classList.contains('hidden')) return;
+        if (panel && panel.closest('.page') && !panel.closest('.page').classList.contains('active')) return;
+        try { _realRender(useCat); } catch(e) {}
+      });
+    };
+    window.renderMaterials.__bnsMatDebounced = true;
+    // Sync naar globale var als die bestaat
+    try { renderMaterials = window.renderMaterials; } catch(e) {}
+  }
+
   // ── 2. ROUTENET KNIPPEREN — stabiel houden ───────────────────────────────
   // v126 voegt .bns-routenet-btn toe, v357 verwijdert ze, v126 voegt ze terug.
   // Fix A: markeer ze als .bns356-route zodat v357 ze overslaat.
@@ -264,6 +298,7 @@
   // ── Main run ──────────────────────────────────────────────────────────────
   function run() {
     injectAntiFlickerCss();
+    installMatDebounce();
     fixRoutenetButtons();
     fixBoekhoudingModal();
     wrapOrderOverviewShow();

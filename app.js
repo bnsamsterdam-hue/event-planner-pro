@@ -34350,7 +34350,10 @@ setTimeout(()=>{
     }
     A('button,.nav').forEach(function(b){
       if(b.id==='twAuSideButton') return;
-      if(/boekhouding|facturen/i.test(b.textContent||'')){
+      // NIET de tab-knoppen binnen de boekhouding modal aanraken!
+      var modal=E('tw300AUModal');
+      if(modal&&modal.contains(b)) return;
+      if(/boekhouding/i.test(b.textContent||'')){
         b.dataset.twAuBound='1';
         b.onclick=function(ev){
           ev.preventDefault();
@@ -34456,7 +34459,7 @@ setTimeout(()=>{
     if(E('twAuStyle')) return;
     var s=document.createElement('style');
     s.id='twAuStyle';
-    s.textContent='.tw-au-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.55);display:grid;place-items:center;padding:18px}.tw-au-modal.hidden{display:none!important}.tw-au-panel{width:min(1220px,96vw);max-height:92vh;overflow:auto;background:#fff;color:#172033;border-radius:22px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.35)}.tw-au-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.tw-au-head h2{margin:0}.tw-au-tabs,.tw-au-years{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.tw-au-tabs button,.tw-au-folder{border:0;border-radius:12px;padding:10px 14px;font-weight:900;background:#e2e8f0;color:#0f172a}.tw-au-tabs button.active,.tw-au-folder.active{background:#0f172a!important;color:white!important}.tw-au-tools{display:grid;grid-template-columns:1fr 190px;gap:10px;margin:12px 0}.tw-au-tools input,.tw-au-tools select{padding:12px;border:1px solid #dbe3ef;border-radius:12px}.tw-au-card{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:center;border:1px solid #dbe3ef;border-radius:16px;padding:14px;margin:10px 0;background:#fff}.tw-au-main{display:grid;grid-template-columns:1fr 1.3fr 1.3fr 90px;gap:12px;align-items:center}.tw-au-main small{display:block;color:#64748b;font-size:11px;margin-top:4px}.tw-au-side{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center}.tw-au-side button,#twAuClose,#twAuMakeInvoice,#twAuMakeConfirm{border:0;border-radius:10px;padding:10px 12px;font-weight:900;background:#0f172a;color:white}.tw-au-pay,#twAuMakeInvoice{background:#16a34a!important}.tw-au-badge,.tw-au-order-paid{display:inline-flex;align-items:center;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900;margin-left:8px}.tw-au-badge.open,.tw-au-order-paid.open{background:#fee2e2;color:#7f1d1d}.tw-au-badge.paid,.tw-au-order-paid.paid{background:#dcfce7;color:#166534}.tw-au-empty{padding:18px;border:1px dashed #cbd5e1;background:#f8fafc;border-radius:14px}.tw-au-docbuttons{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}@media(max-width:900px){.tw-au-card{grid-template-columns:1fr}.tw-au-main{grid-template-columns:1fr 1fr}.tw-au-tools{grid-template-columns:1fr}}';
+    s.textContent='.tw-au-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.55);display:grid;place-items:center;padding:18px}.tw-au-modal.hidden{display:none!important}.tw-au-panel{width:min(1220px,96vw);max-height:92vh;overflow:auto;background:#fff;color:#172033;border-radius:22px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.35)}.tw-au-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.tw-au-head h2{margin:0}.tw-au-tabs,.tw-au-years{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.tw-au-tabs button,.tw-au-folder{border:0;border-radius:12px;padding:10px 14px;font-weight:900;background:#e2e8f0;color:#0f172a;cursor:pointer;transition:background .15s,transform .1s,box-shadow .1s;user-select:none}.tw-au-tabs button:hover,.tw-au-folder:hover{background:#cbd5e1!important}.tw-au-tabs button:active,.tw-au-folder:active{transform:scale(.96);box-shadow:inset 0 2px 6px rgba(0,0,0,.18)}.tw-au-tabs button.active,.tw-au-folder.active{background:#0f172a!important;color:white!important;box-shadow:0 2px 8px rgba(15,23,42,.3)}.tw-au-tools{display:grid;grid-template-columns:1fr 190px;gap:10px;margin:12px 0}.tw-au-tools input,.tw-au-tools select{padding:12px;border:1px solid #dbe3ef;border-radius:12px}.tw-au-card{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:center;border:1px solid #dbe3ef;border-radius:16px;padding:14px;margin:10px 0;background:#fff}.tw-au-main{display:grid;grid-template-columns:1fr 1.3fr 1.3fr 90px;gap:12px;align-items:center}.tw-au-main small{display:block;color:#64748b;font-size:11px;margin-top:4px}.tw-au-side{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center}.tw-au-side button,#twAuClose,#twAuMakeInvoice,#twAuMakeConfirm{border:0;border-radius:10px;padding:10px 12px;font-weight:900;background:#0f172a;color:white}.tw-au-pay,#twAuMakeInvoice{background:#16a34a!important}.tw-au-badge,.tw-au-order-paid{display:inline-flex;align-items:center;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900;margin-left:8px}.tw-au-badge.open,.tw-au-order-paid.open{background:#fee2e2;color:#7f1d1d}.tw-au-badge.paid,.tw-au-order-paid.paid{background:#dcfce7;color:#166534}.tw-au-empty{padding:18px;border:1px dashed #cbd5e1;background:#f8fafc;border-radius:14px}.tw-au-docbuttons{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}@media(max-width:900px){.tw-au-card{grid-template-columns:1fr}.tw-au-main{grid-template-columns:1fr 1fr}.tw-au-tools{grid-template-columns:1fr}}';
     document.head.appendChild(s);
   }
   function refresh(){
@@ -37719,11 +37722,16 @@ setTimeout(()=>{
   function renderOpruimen(){
     var box=document.getElementById('bns350OpBox');if(!box)return;
     var s=S();if(!s)return;
+    // Boekhouding jaar bepalen uit factuur
+    function bYear(d){ var y=String(d.year||d.invoiceYear||d.date||d.time||d.createdAt||''); var m=y.match(/\b(20\d{2})\b/); return m?m[1]:(y.slice(0,4)||'Geen jaar'); }
+    // Haal factuurrecords op
+    var acc=typeof accounting==='function'?accounting():{invoices:[],payments:[]};
     var CATS=[
-      {id:'done',     label:'Uitgevoerde opdrachten',items:(s.orders||[]).filter(isDone),yFn:oYear},
-      {id:'cancelled',label:'Geannuleerde opdrachten',items:(s.orders||[]).filter(isCan),yFn:oYear},
-      {id:'deleted',  label:'Verwijderde opdrachten', items:(s.orders||[]).filter(isDel),yFn:oYear},
-      {id:'damage',   label:'Schade meldingen',       items:(s.alerts||[]).filter(isDmg),yFn:aYear}
+      {id:'done',        label:'Uitgevoerde opdrachten', items:(s.orders||[]).filter(isDone), yFn:oYear},
+      {id:'cancelled',   label:'Geannuleerde opdrachten',items:(s.orders||[]).filter(isCan),  yFn:oYear},
+      {id:'deleted',     label:'Verwijderde opdrachten', items:(s.orders||[]).filter(isDel),  yFn:oYear},
+      {id:'damage',      label:'Schade meldingen',       items:(s.alerts||[]).filter(isDmg),  yFn:aYear},
+      {id:'boekhouding', label:'Boekhouding (facturen)', items:(acc.invoices||[]),             yFn:bYear}
     ];
     box.innerHTML=CATS.map(function(cat){
       var ys={};cat.items.forEach(function(o){var y=cat.yFn(o);ys[y]=(ys[y]||0)+1;});
@@ -37741,13 +37749,31 @@ setTimeout(()=>{
       btn.onclick=function(){
         var cat=btn.dataset.cat,year=btn.dataset.year;
         var lbl=cat==='damage'?'Schade meldingen':cat==='done'?'Uitgevoerde opdrachten':
-                cat==='cancelled'?'Geannuleerde opdrachten':'Verwijderde opdrachten';
+                cat==='cancelled'?'Geannuleerde opdrachten':cat==='boekhouding'?'Boekhouding facturen':'Verwijderde opdrachten';
         overlay('Opruimen: '+lbl+' '+year,
           'Alle <b>'+esc(lbl)+'</b> van <b>'+esc(year)+'</b> worden definitief verwijderd uit het systeem en Firebase.',
           'DEFINITIEF',function(){
             var s=S();if(!s)return;
             var removed=0;
-            if(cat==='damage'){
+            if(cat==='boekhouding'){
+              // Verwijder factuurrecords van dit jaar uit de boekhouding
+              var acc2=typeof accounting==='function'?accounting():{invoices:[],payments:[]};
+              var kept=[],deld=[];
+              (acc2.invoices||[]).forEach(function(d){
+                var y2=String(d.year||d.invoiceYear||d.date||d.time||d.createdAt||'');
+                var m2=y2.match(/\b(20\d{2})\b/); var dy=m2?m2[1]:y2.slice(0,4);
+                if(dy===year)deld.push(d); else kept.push(d);
+              });
+              // Sla bijgewerkte boekhouding op
+              if(s.settings&&s.settings.accounting){
+                try{
+                  var bk=typeof s.settings.accounting==='string'?JSON.parse(s.settings.accounting):s.settings.accounting;
+                  bk.invoices=kept;
+                  s.settings.accounting=bk;
+                  removed+=deld.length;
+                }catch(e){}
+              }
+            } else if(cat==='damage'){
               var kd=[],dd=[];
               (s.alerts||[]).forEach(function(a){if(isDmg(a)&&aYear(a)===year)dd.push(a);else kd.push(a);});
               dd.forEach(function(a){fbDel('alerts',a.id);removed++;});s.alerts=kd;
