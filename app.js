@@ -39837,3 +39837,348 @@ window.__BNS_V340_STRICT_FOLDERS__ = true;
   console.info('[BNS v346] Geladen. Tabblad-zwartscherm fix + stray sidebar-knoppen opgeruimd.');
 
 })();
+
+// =============================================================================
+// BNS PATCH v347 — Drie fixes
+// Datum: 2026-05-25
+//
+//  1. ACTIEVE OPDRACHTEN toont kaartlijst (foto 1), niet mappenview
+//     BNS V340 onderschept ALLE tabordr-klikken via capture=true op document
+//     en stuurt ze naar de folder-renderer. Voor "Actieve opdrachten" willen
+//     we de kaartlijst (renderOrdersFinal), niet jaarmappen.
+//     Fix: eigen capture-listener die V340 voor "active" ondervangt.
+//
+//  2. LEGE JAARMAPPEN bij actieve opdrachten
+//     rows('active') bestaat niet in V336/V337. V340 filtert op isCurrentByDate
+//     maar telt opdrachten met Bevestigd/Opdracht niet als "actief" als ze
+//     in het verleden liggen. Fix: ruimere definitie van actief voor de mappen.
+//
+//  3. BEZORGERS laden niet uit Firebase
+//     startFirebaseListeners() heeft een vroege `return` die de users-listener
+//     uitschakelt. loadUsersOnce() werkt wel maar wordt niet altijd aangeroepen
+//     na Firebase-initialisatie. Fix: extra trigger na fbReady.
+// =============================================================================
+
+(function () {
+  'use strict';
+
+  // ─── 1. Actieve opdrachten → kaartlijst, niet mappenview ────────────────────
+
+  // V340 gebruikt document.addEventListener('click', ..., true) capture
+  // en roept render(type) aan voor ALLE tabbladen inclusief 'active'.
+  // Wij zetten een eigen capture-listener die V340 stopt voor 'active',
+  // 'cancelled' en 'option14' zodat renderOrdersFinal die afhandelt.
+
+  function _isTabButton(el) {
+    if (!el) return '';
+    var b = (el.tagName === 'BUTTON') ? el : (el.closest ? el.closest('button') : null);
+    if (!b) return '';
+    var t = (b.textContent || '').toLowerCase().trim();
+    if (t.indexOf('actieve opdrachten') >= 0) return 'active';
+    if (t.indexOf('geannuleerde opdrachten') >= 0) return 'cancelled';
+    if (t.indexOf('opties 14') >= 0 || t.indexOf('optie 14') >= 0) return 'option14';
+    return '';
+  }
+
+  function _setMode(m) {
+    window.BNS_MODE = m;
+    window.mode = m;
+    try { mode = m; } catch (e) {}
+  }
+
+  function _renderOrders() {
+    if (typeof window.renderOrders === 'function') window.renderOrders();
+  }
+
+  // capture=true met hogere prioriteit dan V340 (zelfde fase, maar eerder geregistreerd)
+  document.addEventListener('click', function (ev) {
+    var type = _isTabButton(ev.target);
+    if (!type) return;
+
+    // Stop V340 en andere folder-renderers
+    ev.stopImmediatePropagation();
+
+    // Zet mode en render kaartlijst
+    _setMode(type);
+    setTimeout(_renderOrders, 40);
+    setTimeout(_renderOrders, 200);
+  }, true);
+
+  // ─── 2. Actieve opdrachten mappenview correct vullen ─────────────────────────
+  // Als iemand toch de mappenview voor 'active' ziet (bv via V340 render),
+  // patch dan de rows()-functie van V340 zodat die alle niet-done/niet-deleted
+  // opdrachten toont, niet alleen huidige-datum opdrachten.
+
+  function _patchV340Rows() {
+    var v340Render = window.BNS_V340_RENDER_FOLDERS;
+    if (!v340Render || v340Render.__bnsV347) return;
+
+    // Wrap: voor type='active' sturen we naar renderOrdersFinal
+    var wrapped = function (type) {
+      if (type === 'active' || type === 'cancelled' || type === 'option14') {
+        _setMode(type === 'option14' ? 'option14' : type);
+        setTimeout(_renderOrders, 40);
+        return;
+      }
+      return v340Render.apply(this, arguments);
+    };
+    wrapped.__bnsV347 = true;
+    window.BNS_V340_RENDER_FOLDERS = wrapped;
+  }
+
+  // ─── 3. Bezorgers laden uit Firebase ────────────────────────────────────────
+  // loadUsersOnce() werkt correct maar wordt niet getriggerd als Firebase
+  // pas later klaar is. We pollen totdat BNS.db beschikbaar is en laden dan.
+
+  var _userLoadAttempts = 0;
+  function _tryLoadUsers() {
+    _userLoadAttempts++;
+    if (_userLoadAttempts > 20) return; // max 20 pogingen = 60s
+
+    try {
+      if (!window.BNS || !window.BNS.fs || !window.BNS.db) {
+        setTimeout(_tryLoadUsers, 3000);
+        return;
+      }
+      // Firebase beschikbaar
+      if (typeof window.loadUsersOnce === 'function') {
+        window.loadUsersOnce().then(function (ok) {
+          if (ok) {
+            console.info('[BNS v347] Bezorgers geladen uit Firebase.');
+            // Ververs de bezorger-dropdown en driver-view
+            try { if (typeof renderAll === 'function') renderAll(); } catch (e) {}
+            try { if (typeof window.renderAll === 'function') window.renderAll(); } catch (e) {}
+          }
+        });
+      } else {
+        // loadUsersOnce niet beschikbaar - doe het zelf
+        var fs = window.BNS.fs;
+        var db = window.BNS.db;
+        fs.getDocs(fs.collection(db, 'users')).then(function (snap) {
+          if (!snap || !snap.docs || !snap.docs.length) return;
+          var rows = snap.docs.map(function (d) {
+            return Object.assign({ id: d.id }, d.data());
+          });
+          var s = window.state;
+          if (!s) return;
+          if (!Array.isArray(s.users)) s.users = [];
+          var byId = {};
+          s.users.forEach(function (u) { if (u && u.id) byId[u.id] = u; });
+          rows.forEach(function (u) { byId[u.id] = Object.assign({}, byId[u.id] || {}, u); });
+          s.users = Object.values ? Object.values(byId) : Object.keys(byId).map(function (k) { return byId[k]; });
+          console.info('[BNS v347] Bezorgers direct geladen:', s.users.length);
+          try { if (typeof renderAll === 'function') renderAll(); } catch (e) {}
+        }).catch(function () {});
+      }
+    } catch (e) {
+      setTimeout(_tryLoadUsers, 5000);
+    }
+  }
+
+  // ─── Installatie ─────────────────────────────────────────────────────────────
+
+  function installV347() {
+    _patchV340Rows();
+    _tryLoadUsers();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setTimeout(installV347, 800);
+    });
+  } else {
+    setTimeout(installV347, 800);
+  }
+
+  // Herhaal V340-patch want V340 zelf herinstalleer via setInterval(bind, 2400)
+  setInterval(_patchV340Rows, 3000);
+
+  console.info('[BNS v347] Geladen. Actieve opdrachten → kaartlijst. Bezorgers Firebase-fix actief.');
+
+})();
+
+// =============================================================================
+// BNS PATCH v347 — Tab-navigatie definitief hersteld + bezorgers Firebase sync
+// Datum: 2026-05-25
+//
+// Drie problemen opgelost:
+//
+//  1. TAB-KLIK OPENT MAPPENWEERGAVE IN PLAATS VAN KAARTENLIJST
+//     bindFolders() en bindViews() hangen capture=true listeners aan de
+//     tab-knoppen via setInterval(1800ms/3000ms). Die listeners winnen altijd
+//     van de normale onclick en roepen renderFolders() aan.
+//     Fix: na elke bindFolders/bindViews-ronde overschrijven we de knoppen
+//     "Actieve opdrachten", "Geannuleerde opdrachten" en "Opties 14 dagen"
+//     met een capture=true listener die renderFolders BLOKKEERT en in plaats
+//     daarvan renderOrders aanroept.
+//
+//  2. JAARMAPPEN LEEG BIJ ACTIEVE OPDRACHTEN
+//     renderFolders("active") kent geen "active"-type — dat veroorzaakt
+//     een lege weergave. Niet meer van toepassing na fix 1.
+//
+//  3. BEZORGERS NIET ZICHTBAAR NA OPSLAAN IN ADMIN
+//     Nieuwe bezorgers worden lokaal opgeslagen maar niet naar Firebase
+//     gesynchroniseerd. Fix: na elke admin-save van een gebruiker ook
+//     window.BNS.syncDoc('users', ...) aanroepen.
+// =============================================================================
+
+(function () {
+  'use strict';
+
+  var _GUARD = '__bnsV347TabGuard';
+
+  // ─── 1. Tab-knoppen definitief claimen ──────────────────────────────────────
+  // Strategie: capture=true listener met hogere prioriteit dan bindFolders,
+  // die renderFolders() blokkeert voor de "verkeerde" tabs.
+
+  var TAB_CONFIG = [
+    { regex: /actieve opdrachten/i,    id: 'activeOrders',    mode: 'active'    },
+    { regex: /geannuleerde opdrachten/i, id: 'cancelledOrders', mode: 'cancelled' },
+    { regex: /opties 14 dagen/i,       id: 'twV309OptionOrders', mode: 'option14' }
+  ];
+
+  function _findBtn(regex, id) {
+    return document.getElementById(id) ||
+      Array.prototype.slice.call(document.querySelectorAll('button')).find(function (b) {
+        return regex.test(b.textContent || '');
+      });
+  }
+
+  function _claimTabs() {
+    TAB_CONFIG.forEach(function (cfg) {
+      var btn = _findBtn(cfg.regex, cfg.id);
+      if (!btn || btn.dataset[_GUARD]) return;
+      btn.dataset[_GUARD] = '1';
+
+      btn.addEventListener('click', function (ev) {
+        // Blokkeer altijd — ook bindFolders capture listeners
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+
+        // Zet mode
+        if (window.BNS_MODE !== undefined) window.BNS_MODE = cfg.mode;
+        window.mode = cfg.mode;
+        try { mode = cfg.mode; } catch (e) {}
+
+        // Markeer actief
+        document.querySelectorAll('button').forEach(function (b) {
+          b.classList.remove('bns-tab-active', 'bns-final-active-filter');
+          b.style.removeProperty('background');
+          b.style.removeProperty('color');
+          b.style.removeProperty('border');
+          b.style.removeProperty('box-shadow');
+        });
+        btn.classList.add('bns-tab-active', 'bns-final-active-filter');
+        btn.style.setProperty('background', '#0f172a', 'important');
+        btn.style.setProperty('color', '#fff', 'important');
+        btn.style.setProperty('border', '3px solid #22d3ee', 'important');
+
+        // Render juiste weergave
+        setTimeout(function () {
+          if (typeof window.renderOrders === 'function') window.renderOrders();
+        }, 30);
+
+        return false;
+      }, true); // capture=true: vuurt vóór bindFolders listeners
+    });
+
+    // "Uitgevoerde opdrachten" mag wél naar mappenview
+    // → die laten we met rust
+  }
+
+  // Herclaimtimer: bindFolders draait elke 1800ms en reset dataset
+  // We moeten na elke run van bindFolders opnieuw claimen
+  function _recheckTabs() {
+    TAB_CONFIG.forEach(function (cfg) {
+      var btn = _findBtn(cfg.regex, cfg.id);
+      if (!btn) return;
+      // Als bindFolders de dataset heeft gewist → opnieuw claimen
+      if (!btn.dataset[_GUARD]) {
+        _claimTabs();
+        return;
+      }
+    });
+  }
+
+  // ─── 3. Bezorgers Firebase sync ─────────────────────────────────────────────
+
+  function _patchUserSave() {
+    // Zoek de admin-save knop voor gebruikers
+    var saveUserBtn = document.getElementById('adminSaveUser') ||
+      Array.prototype.slice.call(document.querySelectorAll('button')).find(function (b) {
+        var t = (b.textContent || '').toLowerCase();
+        return t.indexOf('gebruiker opslaan') >= 0 || t.indexOf('bezorger opslaan') >= 0 ||
+               t.indexOf('save user') >= 0 || t.indexOf('opslaan') >= 0 && b.closest('#adminUsers,#adminDrivers,.admin-users,.admin-bezorgers');
+      });
+
+    if (!saveUserBtn || saveUserBtn.dataset.bnsV347UserSync) return;
+    saveUserBtn.dataset.bnsV347UserSync = '1';
+
+    saveUserBtn.addEventListener('click', function () {
+      // Na kort uitstel (zodat originele handler eerst opslaat)
+      setTimeout(function () {
+        try {
+          var users = window.state && window.state.users;
+          if (!users || !Array.isArray(users)) return;
+          if (!window.BNS || !window.BNS.syncDoc) return;
+          // Sync alle users naar Firebase
+          users.forEach(function (u) {
+            if (!u || !u.id) return;
+            window.BNS.syncDoc('users', u.id, u);
+          });
+        } catch (e) {
+          console.warn('[BNS v347] User sync fout:', e);
+        }
+      }, 400);
+    });
+  }
+
+  // Fallback: patch de addUser / saveUser functies op window
+  function _patchWindowUserFns() {
+    ['addUser', 'saveUser', 'addBezorger', 'saveBezorger', 'adminSaveUser'].forEach(function (fn) {
+      var orig = window[fn];
+      if (!orig || orig.__bnsV347) return;
+      var wrapped = function () {
+        var result = orig.apply(this, arguments);
+        setTimeout(function () {
+          try {
+            var users = window.state && window.state.users;
+            if (!users || !window.BNS || !window.BNS.syncDoc) return;
+            users.forEach(function (u) {
+              if (u && u.id) window.BNS.syncDoc('users', u.id, u);
+            });
+          } catch (e) {}
+        }, 500);
+        return result;
+      };
+      wrapped.__bnsV347 = true;
+      window[fn] = wrapped;
+    });
+  }
+
+  // ─── Installatie ─────────────────────────────────────────────────────────────
+
+  function installV347() {
+    _claimTabs();
+    _patchUserSave();
+    _patchWindowUserFns();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setTimeout(installV347, 300);
+      setTimeout(installV347, 800);
+      setTimeout(installV347, 2000);
+    });
+  } else {
+    setTimeout(installV347, 300);
+    setTimeout(installV347, 800);
+    setTimeout(installV347, 2000);
+  }
+
+  // Hercheck elke 2 seconden (bindFolders interval is 1800ms)
+  setInterval(_recheckTabs, 2000);
+
+  console.info('[BNS v347] Tab-navigatie hersteld. Bezorgers sync gepatcht.');
+
+})();
