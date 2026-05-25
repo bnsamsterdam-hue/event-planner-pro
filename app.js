@@ -37333,7 +37333,7 @@ setTimeout(()=>{
       // Dag 13 = nog 2 dagen over. Dag 14 = nog 1 dag over. Beide zichtbaar maken.
       if(left===null || left>2 || left<0) return;
       var key='optie14-'+String(o.id)+'-'+String(optionStart(o));
-      var exists=s.alerts.some(function(a){return a && (a.bnsKey===key || (String(a.orderId)===String(o.id) && /optie 14/i.test(String(a.title||'')) && /verloopt/i.test(String(a.title||a.message||'')));});
+      var exists=s.alerts.some(function(a){return a && (a.bnsKey===key || (String(a.orderId)===String(o.id) && /optie 14/i.test(String(a.title||'')) && /verloopt/i.test(String(a.title||a.message||''))));});
       if(exists) return;
       s.alerts.push({
         id:'alert_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
