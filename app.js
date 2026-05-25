@@ -38439,3 +38439,5 @@ setTimeout(()=>{
 
   console.info('[BNS v359] Stabilisatie actief. MutationObserver debounced. renderYears/renderDoneFolders gepatcht.');
 })();
+
+// ============================================================
