@@ -21160,7 +21160,10 @@ setTimeout(()=>{
   setTimeout(install, 1800);
   // Alleen opnieuw koppelen als een oudere patch de functie terugzet. Geen continue her-render, dus geen verspringen.
   setInterval(function(){
-    if (window.renderMaterials !== renderMaterialsV45 || window.addMat !== addMatV45) install();
+    // Accepteer ook de BNS debounce wrapper als geldige renderMaterials
+    var isOurs = window.renderMaterials && window.renderMaterials.__bnsMatDebounced;
+    if (!isOurs && window.renderMaterials !== renderMaterialsV45) install();
+    if (window.addMat !== addMatV45) install();
     updateAlertButtonStable();
   }, 2500);
   window.BNS_V45_PLANNING_DEBUG = {

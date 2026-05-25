@@ -39,7 +39,7 @@
       '#chosenMaterials *{animation:none!important;transition:none!important}',
       // Cat tabs: geen flicker bij wisselen
       '.cat-tabs button{animation:none!important;transition:background .1s!important}',
-    ].join('\n');
+    ].join(' ');
     document.head.appendChild(s);
   }
 
@@ -52,29 +52,45 @@
   //   - de laatste cat-waarde onthoudt zodat flikkeren door cat-mismatch stopt
   var _matRenderPending = false;
   var _matRenderCat = null;
+  var _matDebounced = null;
 
   function installMatDebounce() {
     var _realRender = window.renderMaterials;
-    if (!_realRender || _realRender.__bnsMatDebounced) return;
+    if (!_realRender) return;
+    // Als al gedebounced EN nog steeds actief als window.renderMaterials: skip
+    if (_matDebounced && window.renderMaterials === _matDebounced) return;
 
-    window.renderMaterials = function(cat) {
-      // Onthoud de gevraagde cat (laatste wint)
+    // Wrap de huidige renderMaterials met debounce
+    _matDebounced = function(cat) {
       if (cat) _matRenderCat = cat;
-      if (_matRenderPending) return; // al ingepland
+      if (_matRenderPending) return;
       _matRenderPending = true;
       requestAnimationFrame(function() {
         _matRenderPending = false;
         var useCat = _matRenderCat || window.currentCat || 'TW';
-        // Alleen renderen als materialPanel zichtbaar is
         var panel = document.getElementById('materialPanel');
         if (panel && panel.classList.contains('hidden')) return;
         if (panel && panel.closest('.page') && !panel.closest('.page').classList.contains('active')) return;
         try { _realRender(useCat); } catch(e) {}
       });
     };
-    window.renderMaterials.__bnsMatDebounced = true;
-    // Sync naar globale var als die bestaat
-    try { renderMaterials = window.renderMaterials; } catch(e) {}
+    _matDebounced.__bnsMatDebounced = true;
+    _matDebounced.__bnsInner = _realRender;
+
+    window.renderMaterials = _matDebounced;
+
+    // KRITIEK: V45 watchdog controleert of renderMaterials === renderMaterialsV45
+    // Als we onze wrapper niet registreren als de "echte" V45 functie,
+    // reinstalleert de watchdog elke 2500ms de raw versie -> debounce weg
+    // Oplossing: vervang ook de V45 referentie zodat watchdog tevreden is
+    try {
+      if (window.BNS_V45_PLANNING_DEBUG) {
+        window.BNS_V45_PLANNING_DEBUG.renderMaterials = _matDebounced;
+      }
+    } catch(e) {}
+
+    // Sync globale var
+    try { renderMaterials = _matDebounced; } catch(e) {}
   }
 
   // ── 2. ROUTENET KNIPPEREN — stabiel houden ───────────────────────────────
@@ -299,34 +315,29 @@
     }, true); // capture phase to beat existing listeners
   }
 
-  // ── 8. STICKY BAR VOLLE BREEDTE — verplaats naar body ───────────────────
-  // Als een parent element transform/backdrop-filter heeft (layout-3d, glass etc)
-  // dan werkt position:fixed relatief aan die parent, niet het viewport.
-  // Oplossing: verplaats de bar naar document.body zodat hij altijd viewport-breed is.
+  // ── 8. STICKY BAR — alleen op nieuwe opdracht pagina, volle breedte ──────
   function fixActionBarWidth() {
     var bar = E('bnsV58OrderActions') || E('bnsV57OrderActions') ||
               document.querySelector('.bns-v333-order-bottom');
     if (!bar) return;
-    if (bar.__bnsStabMoved) return;
 
-    // Verplaats naar body zodat geen parent-transform hem inperkt
-    if (bar.parentElement !== document.body) {
-      // Bewaar een placeholder zodat de layout niet springt
-      var ph = document.createElement('div');
-      ph.style.cssText = 'height:60px;pointer-events:none';
-      bar.parentElement.insertBefore(ph, bar);
-      document.body.appendChild(bar);
-      bar.__bnsStabMoved = true;
-      bar.__bnsStabPlaceholder = ph;
-    }
+    // Alleen tonen als #newOrder pagina actief is
+    var newOrderPage = E('newOrder');
+    var isActive = newOrderPage && newOrderPage.classList.contains('active');
 
-    // Zet breedte op sidebar-breedte tot viewport-rechts
+    bar.style.setProperty('display', isActive ? 'flex' : 'none', 'important');
+    if (!isActive) return;
+
+    // Breedte van zijbalk tot rechts
     var side = document.querySelector('.side');
-    var sideW = side ? side.getBoundingClientRect().width : 0;
+    var sideW = (side && !document.querySelector('.app').classList.contains('hidden'))
+      ? Math.round(side.getBoundingClientRect().width) : 0;
+    bar.style.setProperty('position', 'fixed', 'important');
     bar.style.setProperty('left', sideW + 'px', 'important');
     bar.style.setProperty('right', '0', 'important');
     bar.style.setProperty('bottom', '0', 'important');
-    bar.style.setProperty('position', 'fixed', 'important');
+    bar.style.setProperty('width', 'auto', 'important');
+    bar.style.setProperty('max-width', 'none', 'important');
     bar.style.setProperty('z-index', '2147483000', 'important');
   }
 
@@ -369,15 +380,9 @@
     patchAdminDeleteMat();
   }
 
-  // Resize: herbereken breedte van actiebalk
-  window.addEventListener('resize', function() {
-    setTimeout(fixActionBarWidth, 100);
-  });
-
   // Klik-events: update wis knoppen als overview opengaat
   document.addEventListener('click', function() {
     setTimeout(function() {
-      fixActionBarWidth();
       fixRoutenetButtons();
       patchOrderOverviewWisButton();
       addWisToDriverMessages();
@@ -385,12 +390,14 @@
     }, 120);
   }, true);
 
-  // Rustig interval voor dynamisch geladen elementen
+  // Interval: materiaal debounce bewaken + actiebalk + rest
   setInterval(function() {
+    installMatDebounce();
+    fixActionBarWidth();
     fixRoutenetButtons();
     patchSoftDeleteButtons();
     fixBoekhoudingModal();
-  }, 3000);
+  }, 800);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() { setTimeout(run, 500); });
