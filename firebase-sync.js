@@ -145,8 +145,6 @@ function addTools(){
   document.getElementById("bnsFbDownload").onclick=download;
 }
 async function live(){
-  return;
-
   const t = await fb(); if(!t)return;
   COLLECTIONS.forEach(col=>{
     if(col==="settings"){

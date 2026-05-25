@@ -1,67 +1,102 @@
 /* ============================================================
-   BNS STABILIZER
+   BNS STABILIZER v2
    Laadt NA alle andere scripts.
-   Pakt de resterende problemen aan die niet via de preloader
-   kunnen worden opgelost (omdat de code dan nog niet bestaat):
-   1. Vertraagt de 250ms tick naar 2000ms (was alert-knop updater)
-   2. Wis knop correct in overzicht bestelling
-   3. Boekhouding mappen — navigatie fix
-   4. Firebase verbindingsstatus tonen
+   Fixes:
+   1. Materiaal flicker stoppen (animation:none op hele materialList)
+   2. Routenet knipperen stoppen (één knop, nooit verwijderen)
+   3. Boekhouding tabs correct (klanten/betalingen werken)
+   4. Wis knop in overzicht bestelling
+   5. Wis knop per bezorger melding in overzicht
+   6. Factuur popup: Terug knop (al in app.js)
+   7. Schade meldingen in Admin/Opruimen al opgelost via aYear fix in app.js
    ============================================================ */
-(function BNS_STABILIZER() {
+(function BNS_STABILIZER_V2() {
   'use strict';
-  if (window.__BNS_STABILIZER__) return;
-  window.__BNS_STABILIZER__ = true;
+  if (window.__BNS_STABILIZER_V2__) return;
+  window.__BNS_STABILIZER_V2__ = true;
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   function E(id) { return document.getElementById(id); }
   function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function $(sel, root) { return Array.from((root||document).querySelectorAll(sel)); }
 
-  // ── 1. Interval opschoning ────────────────────────────────────────────────
-  // De alert-knop wordt elke 250ms bijgewerkt, maar 2 seconden is meer dan genoeg.
-  // We kunnen bestaande intervals niet stoppen zonder referentie, maar we kunnen
-  // de callback zelf vertragen via een guard variable.
-  function slowDownAlertButtonTick() {
-    // Zoek de globale applyButton / tick functie en voeg een debounce toe
-    // BNS_V180 gebruikt window.apply — we wrappen renderAll om dit te beperken
-    var _lastTick = 0;
-    var _origRenderAll = window.renderAll;
-    if (_origRenderAll && !_origRenderAll.__bnsStabilized) {
-      window.renderAll = function() {
-        var now = Date.now();
-        if (now - _lastTick < 500) return; // max 2x per seconde
-        _lastTick = now;
-        return _origRenderAll.apply(this, arguments);
+  // ── 1. MATERIAAL FLICKER — Stop alle animaties op materialList ────────────
+  // Meerdere versies overschrijven renderMaterials en voegen CSS toe die
+  // botst. We forceren animation:none op de hele lijst via een hoge-priority style.
+  function injectAntiFlickerCss() {
+    if (E('bnsStabAntiFlicker')) return;
+    var s = document.createElement('style');
+    s.id = 'bnsStabAntiFlicker';
+    s.textContent = [
+      // Materiaallijst: geen animaties, geen transitions
+      '#materialList *{animation:none!important;transition:none!important;transform:none!important}',
+      // Maar defect badge mag wel zichtbaar zijn (alleen geen blink)
+      '#materialList .badge.defect{opacity:1!important}',
+      // Materiaalknoppen in de lijst: stabiel
+      '#materialList button{animation:none!important}',
+      // Gekozen materialen: ook stabiel
+      '#chosenMaterials *{animation:none!important;transition:none!important}',
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  // ── 2. ROUTENET KNIPPEREN — één knop, nooit verwijderd/opnieuw toegevoegd ─
+  // v126 voegt .bns-routenet-btn toe, v357 verwijdert routenet-tekst knoppen.
+  // Oplossing: markeer de v126 knop als .bns356-route zodat v357 hem overslaat.
+  function fixRoutenetButtons() {
+    $('button.bns-routenet-btn').forEach(function(btn) {
+      if (!btn.classList.contains('bns356-route')) {
+        btn.classList.add('bns356-route');
+      }
+    });
+  }
+
+  // ── 3. BOEKHOUDING TABS — niet re-patchen, alleen close-knop fixen ────────
+  // De tab-knoppen (Facturen/Klanten/Betalingen) hebben hun eigen onclick
+  // die de closure-variabele 'tab' bijhoudt. Die MOGEN WE NIET aanraken.
+  // We fixen alleen: sluit bij klikken buiten modal, Terug knop.
+  function fixBoekhoudingModal() {
+    var modal = E('tw300AUModal');
+    if (!modal) return;
+
+    // Sluit bij klikken op achtergrond
+    if (!modal.__bnsStabV2Backdrop) {
+      modal.__bnsStabV2Backdrop = true;
+      modal.addEventListener('click', function(ev) {
+        if (ev.target === modal) modal.classList.add('hidden');
+      });
+    }
+
+    // Terug knop — gebruik de originele close logica
+    var closeBtn = E('twAuClose');
+    if (closeBtn && !closeBtn.__bnsStabV2Fixed) {
+      closeBtn.__bnsStabV2Fixed = true;
+      closeBtn.onclick = function() {
+        modal.classList.add('hidden');
+        return false;
       };
-      window.renderAll.__bnsStabilized = true;
-      try { renderAll = window.renderAll; } catch(e) {}
     }
   }
 
-  // ── 2. Wis knop in Overzicht bestelling ──────────────────────────────────
-  // Zorgt dat de Wis-knop (voor meldingen/foto's) altijd in de header staat.
-  // De losse rode Wis knop rechtsboven in de popup wordt verwijderd.
+  // ── 4. WIS KNOP IN OVERZICHT BESTELLING ──────────────────────────────────
+  // Wis knop in de header, losse Wis knoppen buiten de header verwijderen.
   function patchOrderOverviewWisButton() {
     var modal = E('bnsOrderOverviewModal');
     if (!modal) return;
-
     var card = modal.querySelector('.bns-order-overview-card');
     if (!card) return;
-
     var head = card.querySelector('.bns-order-overview-head');
     if (!head) return;
 
     // Verwijder losse Wis knoppen BUITEN de head
-    card.querySelectorAll('button').forEach(function(btn) {
-      if (/^Wis\s*$/.test((btn.textContent || '').trim()) && !head.contains(btn)) {
+    $('button', card).forEach(function(btn) {
+      var txt = (btn.textContent || '').trim();
+      if ((txt === 'Wis' || txt === 'Wis opdracht') && !head.contains(btn)) {
         btn.remove();
       }
     });
 
-    // Voeg Wis-knop toe in de head als die er nog niet is
-    if (head.querySelector('.bns-stab-wis')) return;
+    if (head.querySelector('.bns-stab-wis-btn')) return;
 
-    // Vind het opdrachtnummer uit de modal tekst
     var text = card.textContent || '';
     var match = text.match(/(20\d{2}-\d{3,6})/);
     if (!match) return;
@@ -77,32 +112,17 @@
         if (found) orderId = found.id;
       }
     } catch(e) {}
-
     if (!orderId) return;
 
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'bns-stab-wis';
-    btn.style.cssText = [
-      'background:#dc2626!important',
-      'color:#fff!important',
-      'border:0!important',
-      'border-radius:12px!important',
-      'padding:10px 18px!important',
-      'font-weight:900!important',
-      'cursor:pointer!important',
-      'margin-left:8px!important',
-      'font-size:14px!important',
-    ].join(';');
+    btn.className = 'bns-stab-wis-btn';
+    btn.style.cssText = 'background:#dc2626!important;color:#fff!important;border:0!important;border-radius:12px!important;padding:10px 18px!important;font-weight:900!important;cursor:pointer!important;margin-left:8px!important;font-size:14px!important';
     btn.textContent = 'Wis meldingen';
-
     btn.onclick = function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      var clearFn = window.bnsV311ClearOrderOverviewData;
-      if (typeof clearFn === 'function') {
-        clearFn(orderId);
-      }
+      e.preventDefault(); e.stopPropagation();
+      var fn = window.bnsV311ClearOrderOverviewData;
+      if (typeof fn === 'function') fn(orderId);
     };
 
     var closeBtn = head.querySelector('.bns-order-overview-close');
@@ -113,72 +133,89 @@
     }
   }
 
-  // Wrapt BNS_V128_SHOW_ORDER_OVERVIEW zodat Wis knop altijd wordt toegevoegd
   function wrapOrderOverviewShow() {
     var fn = window.BNS_V128_SHOW_ORDER_OVERVIEW;
-    if (!fn || fn.__bnsStabWrapped) return;
+    if (!fn || fn.__bnsStabV2Wrapped) return;
     var wrapped = function() {
       var r = fn.apply(this, arguments);
-      setTimeout(patchOrderOverviewWisButton, 80);
-      setTimeout(patchOrderOverviewWisButton, 300);
+      setTimeout(patchOrderOverviewWisButton, 100);
+      setTimeout(addWisToDriverMessages, 150);
       return r;
     };
-    wrapped.__bnsStabWrapped = true;
+    wrapped.__bnsStabV2Wrapped = true;
     window.BNS_V128_SHOW_ORDER_OVERVIEW = wrapped;
   }
 
-  // ── 3. Boekhouding mappen ─────────────────────────────────────────────────
-  // Terug knop en map knoppen werken altijd correct.
-  function fixBoekhoudingModal() {
-    var modal = E('tw300AUModal');
+  // ── 5. WIS KNOP PER BEZORGER MELDING IN OVERZICHT ────────────────────────
+  // In het bestellingoverzicht staat "Foto's / handtekeningen / bezorger meldingen"
+  // Elke melding heeft Delen + Print maar geen Wis. Die voegen we toe.
+  function addWisToDriverMessages() {
+    var modal = E('bnsOrderOverviewModal');
     if (!modal) return;
 
-    // Sluit bij klikken op achtergrond
-    if (!modal.__bnsStabBackdrop) {
-      modal.__bnsStabBackdrop = true;
-      modal.addEventListener('click', function(ev) {
-        if (ev.target === modal) modal.classList.add('hidden');
+    // Zoek alle tw-v141-actions divs (bezorger melding knoppen)
+    $('.tw-v141-actions', modal).forEach(function(actDiv) {
+      if (actDiv.querySelector('.bns-stab-wis-alert')) return;
+
+      // Zoek het alert-id via de bestaande onclick knoppen
+      var alertId = null;
+      actDiv.querySelectorAll('button').forEach(function(b) {
+        var oc = b.getAttribute('onclick') || '';
+        var m = oc.match(/[A-Za-z]+Alert\('([^']+)'\)/);
+        if (m && !alertId) alertId = m[1];
       });
-    }
+      if (!alertId) return;
 
-    // Terug knop
-    var closeBtn = E('twAuClose');
-    if (closeBtn && !closeBtn.__bnsStabFixed) {
-      closeBtn.__bnsStabFixed = true;
-      closeBtn.onclick = function() {
-        modal.classList.add('hidden');
-      };
-    }
-
-    // Map knoppen — herstel actieve state correct
-    modal.querySelectorAll('.tw-au-folder').forEach(function(btn) {
-      if (btn.__bnsStabFixed) return;
-      btn.__bnsStabFixed = true;
-      var orig = btn.onclick;
-      btn.onclick = function(ev) {
-        modal.querySelectorAll('.tw-au-folder').forEach(function(b) {
-          b.classList.remove('active');
+      var wisBtn = document.createElement('button');
+      wisBtn.type = 'button';
+      wisBtn.className = 'bns-stab-wis-alert danger';
+      wisBtn.textContent = 'Wis';
+      wisBtn.style.cssText = 'background:#dc2626;color:#fff;border:0;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer';
+      wisBtn.onclick = function(e) {
+        e.preventDefault(); e.stopPropagation();
+        window.bnsConfirm('Deze melding definitief wissen?', 'Melding wissen?').then(function(ok) {
+          if (!ok) return;
+          // Gebruik bestaande delete functie als die beschikbaar is
+          var delFns = ['TapwagenV141DeleteAlert', 'bnsDeleteAlertV108', 'bnsDeleteAlertV109',
+                        'bnsAlertDelV11', 'BNS_A12_DELETE_ALERT'];
+          var called = false;
+          delFns.forEach(function(fn) {
+            if (!called && typeof window[fn] === 'function') {
+              window[fn](alertId);
+              called = true;
+            }
+          });
+          if (!called) {
+            // Fallback: verwijder direct uit state
+            try {
+              var s = typeof appState === 'function' ? appState() : (typeof state === 'function' ? state() : null);
+              if (s && Array.isArray(s.alerts)) {
+                s.alerts = s.alerts.filter(function(a) { return String(a.id) !== String(alertId); });
+                if (typeof saveOnly === 'function') saveOnly();
+                else if (typeof saveState === 'function') saveState();
+              }
+            } catch(err) {}
+          }
+          // Verwijder de kaart uit de DOM
+          var card = actDiv.closest('.tw-v141-alert,.tw-v141-card');
+          if (card) card.remove();
         });
-        btn.classList.add('active');
-        if (typeof orig === 'function') orig.call(btn, ev);
       };
+      actDiv.appendChild(wisBtn);
     });
   }
 
-  // ── 4. Soft-delete knoppen in opdrachtlijst ───────────────────────────────
-  // Vervangt de native confirm() door eigen bnsConfirm modal.
+  // ── 6. SOFT-DELETE OPDRACHT — eigen confirm ───────────────────────────────
   function patchSoftDeleteButtons() {
-    document.querySelectorAll('.bns-soft-delete:not([data-bns-stab])').forEach(function(btn) {
-      btn.dataset.bnsStab = '1';
+    $('button.bns-soft-delete:not([data-bns-stab-v2])').forEach(function(btn) {
+      btn.dataset.bnsStabV2 = '1';
       var origClick = btn.onclick;
       btn.onclick = null;
-
       btn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         var num = btn.dataset.orderNumber || btn.dataset.orderId || '';
         window.bnsConfirm(
-          'Opdracht ' + num + ' verwijderen?\nDe opdracht gaat naar Verwijderde opdrachten.',
+          'Opdracht ' + num + ' verwijderen?\nGaat naar Verwijderde opdrachten.',
           'Opdracht verwijderen?'
         ).then(function(ok) {
           if (ok && typeof origClick === 'function') origClick.call(btn, e);
@@ -187,95 +224,59 @@
     });
   }
 
-  // ── 5. Admin materiaal verwijderen — eigen confirm ────────────────────────
-  function patchAdminDeleteButtons() {
-    // adminDeleteMat
-    var delMat = E('adminDeleteMat');
-    if (delMat && !delMat.__bnsStab) {
-      delMat.__bnsStab = true;
-      var origMat = delMat.onclick;
-      delMat.onclick = null;
-      delMat.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        window.bnsConfirm('Gekozen materiaal verwijderen?', 'Materiaal verwijderen?')
-          .then(function(ok) {
-            if (ok) {
-              // Roep originele delete aan (geeft zelf ook confirm die nu true geeft)
-              var c = window.confirm; window.confirm = function(){ return true; };
-              try {
-                if (typeof window.deleteMatAdminV92 === 'function') window.deleteMatAdminV92();
-                else if (typeof origMat === 'function') origMat.call(delMat, e);
-              } finally { window.confirm = c; }
-            }
-          });
+  // ── 7. ADMIN MATERIAAL DELETE — eigen confirm ─────────────────────────────
+  function patchAdminDeleteMat() {
+    var btn = E('adminDeleteMat');
+    if (!btn || btn.__bnsStabV2) return;
+    btn.__bnsStabV2 = true;
+    btn.addEventListener('click', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      window.bnsConfirm('Gekozen materiaal verwijderen?', 'Materiaal verwijderen?').then(function(ok) {
+        if (!ok) return;
+        var c = window.confirm; window.confirm = function(){ return true; };
+        try {
+          if (typeof window.deleteMatAdminV92 === 'function') window.deleteMatAdminV92();
+        } finally { window.confirm = c; }
       });
-    }
-  }
-
-  // ── 6. Firebase verbindingsstatus ─────────────────────────────────────────
-  function monitorFirebase() {
-    var statusEl = E('bnsFirebaseStatus');
-    if (!statusEl) return; // firebase-sync.js maakt dit element zelf aan
-    // Status is al zichtbaar via firebase-sync.js — geen extra actie nodig
-  }
-
-  // ── 7. Github tekst in DOM opruimen ──────────────────────────────────────
-  // Loopt één keer na laden om eventuele resterende github-vermeldingen te wissen.
-  function cleanGithubText() {
-    var re = /git\s*hub|github\.io/gi;
-    var walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-      null,
-      false
-    );
-    var node;
-    while ((node = walker.nextNode())) {
-      if (re.test(node.nodeValue)) {
-        node.nodeValue = node.nodeValue.replace(re, 'BNS Systeem');
-      }
-    }
+    }, true); // capture phase to beat existing listeners
   }
 
   // ── Main run ──────────────────────────────────────────────────────────────
   function run() {
-    slowDownAlertButtonTick();
+    injectAntiFlickerCss();
+    fixRoutenetButtons();
+    fixBoekhoudingModal();
     wrapOrderOverviewShow();
     patchOrderOverviewWisButton();
-    fixBoekhoudingModal();
+    addWisToDriverMessages();
     patchSoftDeleteButtons();
-    patchAdminDeleteButtons();
-    monitorFirebase();
+    patchAdminDeleteMat();
   }
 
-  // Eenmalige opschoning na volledig laden
-  function onReady() {
-    setTimeout(run, 500);
-    setTimeout(cleanGithubText, 1500);
-    // Periodiek voor dynamisch geladen elementen — rustig interval
-    setInterval(function() {
-      patchSoftDeleteButtons();
-      fixBoekhoudingModal();
-      patchOrderOverviewWisButton();
-    }, 3000);
-  }
-
-  // Klik-listener: Wis knop updaten als overview wordt geopend
+  // Klik-events: update wis knoppen als overview opengaat
   document.addEventListener('click', function() {
     setTimeout(function() {
+      fixRoutenetButtons();
       patchOrderOverviewWisButton();
+      addWisToDriverMessages();
       fixBoekhoudingModal();
     }, 120);
   }, true);
 
+  // Rustig interval voor dynamisch geladen elementen
+  setInterval(function() {
+    fixRoutenetButtons();
+    patchSoftDeleteButtons();
+    fixBoekhoudingModal();
+  }, 3000);
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(onReady, 400);
-    });
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(run, 500); });
   } else {
-    onReady();
+    setTimeout(run, 400);
   }
 
-  console.info('[BNS Stabilizer] Actief. Wis knop, boekhouding, confirm modals, interval rustiger.');
+  setTimeout(run, 1200);
+
+  console.info('[BNS Stabilizer v2] Actief: flicker, routenet, boekhouding, wis knoppen.');
 })();
