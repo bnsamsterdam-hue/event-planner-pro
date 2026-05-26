@@ -36111,7 +36111,8 @@ setTimeout(()=>{
   function orderEndIsPast(o){
     var p=orderPeriod(o);
     if(!p) return false;
-    return p.end.getTime() <= today().getTime();
+    // Einddatum zelf = nog actief; dag erna = voorbij
+    return p.end.getTime() < today().getTime();
   }
   function orderBlocksMaterial(o){
     var s=L(o && o.status);
@@ -36119,6 +36120,8 @@ setTimeout(()=>{
     if(/geannuleerd|geannuleer|cancel|verwijderd|deleted|verwijder/.test(s)) return false;
     if(s.indexOf('offerte')>=0) return false;
     if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return !orderEndIsPast(o);
+    // Ook actieve opdrachten die voorbij hun einddatum zijn blokkeren niet meer
+    if(orderEndIsPast(o)) return false;
     if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|optie\s*14|optie14|gereserveerd|actief/.test(s)) return true;
     return false;
   }
