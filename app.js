@@ -9228,6 +9228,7 @@ setTimeout(()=>{
     if(l!=='normal') document.body.classList.add('layout-'+l);
   }
   function injectInvoiceAdminV10(){
+    if(window.__BNS_V361__) return; // v361 vervangt deze tab
     ensureV10State();
     const tabs=document.querySelector('.admin-tabs') || document.querySelector('.tabs.admin-tabs');
     const area=byId('adminArea');
@@ -35216,6 +35217,7 @@ setTimeout(()=>{
     }
   }
   function installAdminDocumentStyle(){
+    if(window.__BNS_V361__) return; // v361 vervangt deze tab
     var area=E('adminArea') || document.querySelector('.adminArea,.admin-area,#admin');
     if(!area || E('twV309DocStylePane')) return;
     var tabs=A('.adminTab',area);
@@ -38725,11 +38727,32 @@ setTimeout(()=>{
   var _tab='done', _year=null, _q='';
 
   function ensureSidebar() {
-    if(E('bns362ArchBtn')) return;
+    // Gebruik bestaande Archief knop van v350 als die er al is
+    var existing = E('bns350ABtn') || E('bns352ArchiveBtn') || E('bns362ArchBtn');
+    if(existing) {
+      // Koppel onze betere archief pagina eraan
+      if(!existing.__v362) {
+        existing.__v362 = true;
+        existing.onclick = function(ev) {
+          if(ev){ev.preventDefault();ev.stopPropagation();}
+          showArch();
+          return false;
+        };
+      }
+      return;
+    }
+    // Geen bestaande knop - maak nieuwe aan
     var app=E('app'); if(!app||app.classList.contains('hidden')) return;
     var side=document.querySelector('.side'); if(!side) return;
     var ref=null;
-    side.querySelectorAll('button').forEach(function(b){ if((b.textContent||'').trim().toLowerCase()==='opdrachten') ref=b; });
+    side.querySelectorAll('button').forEach(function(b){
+      if((b.textContent||'').trim().toLowerCase()==='opdrachten') ref=b;
+    });
+    if(!ref) {
+      // Fallback: voeg toe na de laatste nav knop
+      var navBtns = side.querySelectorAll('button.nav, button[data-page]');
+      if(navBtns.length) ref = navBtns[navBtns.length-1];
+    }
     if(!ref) return;
     var btn=document.createElement('button');
     btn.id='bns362ArchBtn'; btn.type='button'; btn.className='nav';
