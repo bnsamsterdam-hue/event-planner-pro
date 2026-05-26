@@ -38669,27 +38669,38 @@ setTimeout(()=>{
       accent:       'v361_accent',
       layout:       'v361_layout',
       textOffer:    'v361_textOffer',
-      intro:        'v361_textOffer',   // ook als inv.intro zodat bestaande code het pikt
+      intro:        'v361_textOffer',
       textConfirm:  'v361_textConfirm',
       textInvoice:  'v361_textInvoice',
       footer:       'v361_footer',
-      footerText:   'v361_footer',      // ook als footerText voor V309 compat
+      footerText:   'v361_footer',
     };
     Object.keys(map).forEach(function(key) {
       var el = E(map[key]); if (el) d[key] = el.value;
     });
     // Sync ook naar documentStyle voor V309 compat
     try {
-      var s = typeof getState === 'function' ? getState() : null;
-      if (s) {
-        s.documentStyle = s.documentStyle || {};
+      var s2 = typeof getState === 'function' ? getState() : null;
+      if (s2) {
+        s2.documentStyle = s2.documentStyle || {};
         ['companyName','phone','email','website','address','kvk','btw','iban',
          'textOffer','textConfirm','textInvoice','footer'].forEach(function(k) {
-          s.documentStyle[k] = d[k] || '';
+          s2.documentStyle[k] = d[k] || '';
         });
       }
     } catch(e) {}
     save361();
+
+    // Direct naar Firebase schrijven zodat onSnapshot niet de oude versie terugschrijft
+    try {
+      if (window.BNS_FIREBASE_SYNC && typeof window.BNS_FIREBASE_SYNC.upload === 'function') {
+        window.BNS_FIREBASE_SYNC.upload('huisstijl_save');
+      } else if (typeof schedule === 'function') {
+        // Force immediate upload via firebase-sync schedule
+        schedule('huisstijl_save');
+      }
+    } catch(e) {}
+
     msg('Huisstijl opgeslagen ✓');
   }
 
