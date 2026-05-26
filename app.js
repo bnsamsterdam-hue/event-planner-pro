@@ -38508,27 +38508,45 @@ setTimeout(()=>{
   function E(id) { return document.getElementById(id); }
   function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  // Helper: lees state.settings.invoice — gebruik altijd de globale state variabele
+  // Eigen localStorage sleutel voor huisstijl — firebase-sync raakt deze NOOIT aan
+  var INV_KEY = 'bns_huisstijl_v361';
+
   function inv() {
     try {
-      // Gebruik de globale 'state' variabele direct (KEY='event-planner-pro-v87')
-      var s = (typeof state !== 'undefined' && state && typeof state === 'object') ? state : null;
-      if (!s) s = typeof getState === 'function' ? getState() : null;
-      if (!s) return {};
-      s.settings = s.settings || {};
-      s.settings.invoice = s.settings.invoice || {};
-      return s.settings.invoice;
+      var stored = localStorage.getItem(INV_KEY);
+      return stored ? JSON.parse(stored) : {};
     } catch(e) { return {}; }
   }
 
-  // Helper: sla op via de globale save() functie
   function save361() {
+    // Lees huidige velden en sla op in eigen sleutel
+    // Dit wordt NOOIT overschreven door firebase-sync
     try {
-      // Gebruik de globale save() die naar KEY='event-planner-pro-v87' schrijft
-      if (typeof save === 'function') {
-        save();
-        window.__bnsLastSettingsSave = Date.now();
-      } else if (typeof saveState === 'function') saveState();
+      var current = inv();
+      var map = {
+        companyName: 'v361_companyName', phone: 'v361_phone',
+        email: 'v361_email', website: 'v361_website',
+        address: 'v361_address', kvk: 'v361_kvk',
+        btw: 'v361_btw', iban: 'v361_iban',
+        accent: 'v361_accent', layout: 'v361_layout',
+        textOffer: 'v361_textOffer', textConfirm: 'v361_textConfirm',
+        textInvoice: 'v361_textInvoice', footer: 'v361_footer',
+      };
+      Object.keys(map).forEach(function(key) {
+        var el = E(map[key]);
+        if (el) current[key] = el.value;
+      });
+      localStorage.setItem(INV_KEY, JSON.stringify(current));
+
+      // OOK opslaan in state.settings.invoice zodat docHtml83 het gebruikt
+      try {
+        var s = (typeof state !== 'undefined' && state) ? state : null;
+        if (s) {
+          s.settings = s.settings || {};
+          s.settings.invoice = Object.assign(s.settings.invoice || {}, current);
+          if (typeof save === 'function') save();
+        }
+      } catch(e2) {}
     } catch(e) {}
   }
 
@@ -38662,53 +38680,9 @@ setTimeout(()=>{
     if (op) { op.src = d.letterheadOpdracht || ''; op.style.display = d.letterheadOpdracht ? 'block' : 'none'; }
   }
 
-  // Sla alle velden op in state.settings.invoice
+  // Sla alle velden op
   function save361fields() {
-    var d = inv();
-    var map = {
-      companyName:  'v361_companyName',
-      phone:        'v361_phone',
-      email:        'v361_email',
-      website:      'v361_website',
-      address:      'v361_address',
-      kvk:          'v361_kvk',
-      btw:          'v361_btw',
-      iban:         'v361_iban',
-      accent:       'v361_accent',
-      layout:       'v361_layout',
-      textOffer:    'v361_textOffer',
-      intro:        'v361_textOffer',
-      textConfirm:  'v361_textConfirm',
-      textInvoice:  'v361_textInvoice',
-      footer:       'v361_footer',
-      footerText:   'v361_footer',
-    };
-    Object.keys(map).forEach(function(key) {
-      var el = E(map[key]); if (el) d[key] = el.value;
-    });
-    // Sync ook naar documentStyle voor V309 compat
-    try {
-      var s2 = typeof getState === 'function' ? getState() : null;
-      if (s2) {
-        s2.documentStyle = s2.documentStyle || {};
-        ['companyName','phone','email','website','address','kvk','btw','iban',
-         'textOffer','textConfirm','textInvoice','footer'].forEach(function(k) {
-          s2.documentStyle[k] = d[k] || '';
-        });
-      }
-    } catch(e) {}
-    save361();
-
-    // Direct naar Firebase schrijven zodat onSnapshot niet de oude versie terugschrijft
-    try {
-      if (window.BNS_FIREBASE_SYNC && typeof window.BNS_FIREBASE_SYNC.upload === 'function') {
-        window.BNS_FIREBASE_SYNC.upload('huisstijl_save');
-      } else if (typeof schedule === 'function') {
-        // Force immediate upload via firebase-sync schedule
-        schedule('huisstijl_save');
-      }
-    } catch(e) {}
-
+    save361(); // save361() leest velden en slaat op in eigen key + state
     msg('Huisstijl opgeslagen ✓');
   }
 
@@ -38719,14 +38693,16 @@ setTimeout(()=>{
     if (lu) lu.onchange = function(e) {
       var f = e.target.files && e.target.files[0]; if (!f) return;
       toBase64(f, function(data) {
-        inv().logo = data; save361();
+        var d = inv(); d.logo = data;
+        localStorage.setItem(INV_KEY, JSON.stringify(d));
+        try { var s=(typeof state!=='undefined'&&state)?state:null; if(s){s.settings=s.settings||{};s.settings.invoice=s.settings.invoice||{};s.settings.invoice.logo=data;if(typeof save==='function')save();} } catch(e2){}
         var p = E('v361_logoPreview'); if (p) { p.src = data; p.style.display = 'block'; }
         msg('Logo opgeslagen ✓');
       });
     };
     var lr = E('v361_logoRemove');
     if (lr) lr.onclick = function() {
-      inv().logo = ''; save361();
+      var d2=inv(); d2.logo=''; localStorage.setItem(INV_KEY,JSON.stringify(d2));
       var p = E('v361_logoPreview'); if (p) { p.src = ''; p.style.display = 'none'; }
       msg('Logo verwijderd');
     };
@@ -38736,14 +38712,14 @@ setTimeout(()=>{
     if (bf) bf.onchange = function(e) {
       var f = e.target.files && e.target.files[0]; if (!f) return;
       toBase64(f, function(data) {
-        inv().letterheadFactuur = data; save361();
+        var df=inv(); df.letterheadFactuur=data; localStorage.setItem(INV_KEY,JSON.stringify(df));
         var p = E('v361_letterheadFactuurPreview'); if (p) { p.src = data; p.style.display = 'block'; }
         msg('Factuur briefpapier opgeslagen ✓');
       });
     };
     var bfr = E('v361_letterheadFactuurRemove');
     if (bfr) bfr.onclick = function() {
-      inv().letterheadFactuur = ''; save361();
+      var df2=inv(); df2.letterheadFactuur=''; localStorage.setItem(INV_KEY,JSON.stringify(df2));
       var p = E('v361_letterheadFactuurPreview'); if (p) { p.src = ''; p.style.display = 'none'; }
       msg('Factuur briefpapier verwijderd');
     };
@@ -38753,14 +38729,14 @@ setTimeout(()=>{
     if (bo) bo.onchange = function(e) {
       var f = e.target.files && e.target.files[0]; if (!f) return;
       toBase64(f, function(data) {
-        inv().letterheadOpdracht = data; save361();
+        var do1=inv(); do1.letterheadOpdracht=data; localStorage.setItem(INV_KEY,JSON.stringify(do1));
         var p = E('v361_letterheadOpdrachtPreview'); if (p) { p.src = data; p.style.display = 'block'; }
         msg('Opdrachtbevestiging briefpapier opgeslagen ✓');
       });
     };
     var bor = E('v361_letterheadOpdrachtRemove');
     if (bor) bor.onclick = function() {
-      inv().letterheadOpdracht = ''; save361();
+      var do2=inv(); do2.letterheadOpdracht=''; localStorage.setItem(INV_KEY,JSON.stringify(do2));
       var p = E('v361_letterheadOpdrachtPreview'); if (p) { p.src = ''; p.style.display = 'none'; }
       msg('Opdrachtbevestiging briefpapier verwijderd');
     };
