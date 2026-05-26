@@ -38482,3 +38482,353 @@ setTimeout(()=>{
 })();
 
 // ============================================================
+
+// ============================================================
+// BNS PATCH v361 — Gecombineerde Huisstijl tab
+// Vervangt "Factuur / offerte" EN "Documenten / Huisstijl" door
+// één tab "Huisstijl & Documenten" met:
+//   - Bedrijfsgegevens (naam, adres, KvK, BTW, IBAN, tel, email, website)
+//   - Logo upload (bestand, opgeslagen als base64)
+//   - Briefpapier upload FACTUUR (apart bestand)
+//   - Briefpapier upload OPDRACHTBEVESTIGING (apart bestand)
+//   - Accentkleur + layout keuze
+//   - Tekst boven factuur / opdrachtbevestiging / offerte
+//   - Tekst onderaan / voorwaarden
+// Alles opgeslagen in state.settings.invoice (zodat docHtml83 het direct gebruikt)
+// ============================================================
+(function BNS_V361_HUISSTIJL() {
+  'use strict';
+  if (window.__BNS_V361__) return;
+  window.__BNS_V361__ = true;
+
+  function E(id) { return document.getElementById(id); }
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // Helper: lees state.settings.invoice
+  function inv() {
+    try {
+      var s = typeof getState === 'function' ? getState() : null;
+      if (!s) s = typeof appState === 'function' ? appState() : (typeof state === 'function' ? state() : null);
+      if (!s) return {};
+      s.settings = s.settings || {};
+      s.settings.invoice = s.settings.invoice || {};
+      return s.settings.invoice;
+    } catch(e) { return {}; }
+  }
+
+  // Helper: sla op
+  function save361() {
+    try {
+      if (typeof saveState === 'function') saveState();
+      else if (typeof saveNow === 'function') saveNow();
+    } catch(e) {}
+  }
+
+  // Helper: bestand -> base64
+  function toBase64(file, cb) {
+    var r = new FileReader();
+    r.onload = function() { cb(r.result); };
+    r.readAsDataURL(file);
+  }
+
+  // Helper: toast/notify
+  function msg(t) {
+    try { if (typeof toast === 'function') toast(t); else if (typeof notify === 'function') notify(t); } catch(e) {}
+  }
+
+  // Bouw de gecombineerde tab HTML
+  function buildPane() {
+    return [
+      '<h3>Huisstijl &amp; Documenten</h3>',
+      '<p class="muted">Alle instellingen voor facturen, opdrachtbevestigingen en offertes. Wordt direct gebruikt bij het aanmaken van documenten.</p>',
+
+      '<h4 style="margin:18px 0 8px;font-size:16px;color:#2563eb">Bedrijfsgegevens</h4>',
+      '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">',
+        '<label>Bedrijfsnaam<input id="v361_companyName" placeholder="Jouw bedrijfsnaam"></label>',
+        '<label>Telefoon<input id="v361_phone" placeholder="088-..."></label>',
+        '<label>E-mail<input id="v361_email" placeholder="info@..."></label>',
+        '<label>Website<input id="v361_website" placeholder="www...."></label>',
+        '<label>Adres<input id="v361_address" placeholder="Straat + huisnummer + plaats"></label>',
+        '<label>KvK<input id="v361_kvk" placeholder="12345678"></label>',
+        '<label>BTW<input id="v361_btw" placeholder="NL...B01"></label>',
+        '<label>IBAN<input id="v361_iban" placeholder="NL..."></label>',
+      '</div>',
+
+      '<h4 style="margin:18px 0 8px;font-size:16px;color:#2563eb">Opmaak</h4>',
+      '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">',
+        '<label>Accentkleur<input id="v361_accent" type="color" value="#2563eb"></label>',
+        '<label>Layout<select id="v361_layout">',
+          '<option value="classic">Klassiek</option>',
+          '<option value="modern">Modern</option>',
+          '<option value="compact">Compact</option>',
+          '<option value="letterhead">Briefpapier</option>',
+        '</select></label>',
+      '</div>',
+
+      '<h4 style="margin:18px 0 8px;font-size:16px;color:#2563eb">Logo</h4>',
+      '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">',
+        '<label style="cursor:pointer"><input id="v361_logoUpload" type="file" accept="image/*" style="display:none">',
+          '<span class="bns361-upload-btn">📁 Logo uploaden</span>',
+        '</label>',
+        '<button id="v361_logoRemove" type="button" class="grey" style="padding:8px 14px">Logo verwijderen</button>',
+        '<img id="v361_logoPreview" style="max-width:200px;max-height:70px;object-fit:contain;background:#fff;border:1px solid #dbe3ef;border-radius:10px;padding:6px;display:none" alt="Logo">',
+      '</div>',
+
+      '<h4 style="margin:18px 0 8px;font-size:16px;color:#2563eb">Briefpapier achtergrond</h4>',
+      '<p class="muted" style="margin:0 0 10px">Upload een PNG/JPG als achtergrond. Aparte bestanden voor factuur en opdrachtbevestiging.</p>',
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">',
+        '<div>',
+          '<b style="display:block;margin-bottom:6px">Factuur briefpapier</b>',
+          '<label style="cursor:pointer"><input id="v361_letterheadFactuur" type="file" accept="image/*" style="display:none">',
+            '<span class="bns361-upload-btn">📄 Bestand kiezen</span>',
+          '</label>',
+          '<button id="v361_letterheadFactuurRemove" type="button" class="grey" style="padding:6px 12px;margin-left:8px">Verwijderen</button>',
+          '<img id="v361_letterheadFactuurPreview" style="max-width:100%;max-height:120px;object-fit:contain;margin-top:8px;display:none;border-radius:8px;border:1px solid #dbe3ef" alt="Factuur briefpapier">',
+        '</div>',
+        '<div>',
+          '<b style="display:block;margin-bottom:6px">Opdrachtbevestiging briefpapier</b>',
+          '<label style="cursor:pointer"><input id="v361_letterheadOpdracht" type="file" accept="image/*" style="display:none">',
+            '<span class="bns361-upload-btn">📄 Bestand kiezen</span>',
+          '</label>',
+          '<button id="v361_letterheadOpdrachtRemove" type="button" class="grey" style="padding:6px 12px;margin-left:8px">Verwijderen</button>',
+          '<img id="v361_letterheadOpdrachtPreview" style="max-width:100%;max-height:120px;object-fit:contain;margin-top:8px;display:none;border-radius:8px;border:1px solid #dbe3ef" alt="Opdrachtbevestiging briefpapier">',
+        '</div>',
+      '</div>',
+
+      '<h4 style="margin:18px 0 8px;font-size:16px;color:#2563eb">Teksten</h4>',
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">',
+        '<label>Tekst boven offerte<textarea id="v361_textOffer" style="height:80px" placeholder="Bijv: Geachte klant, hierbij onze offerte..."></textarea></label>',
+        '<label>Tekst boven opdrachtbevestiging<textarea id="v361_textConfirm" style="height:80px" placeholder="Bijv: Hierbij bevestigen wij uw opdracht..."></textarea></label>',
+        '<label>Tekst boven factuur<textarea id="v361_textInvoice" style="height:80px" placeholder="Bijv: Hierbij ontvangt u onze factuur..."></textarea></label>',
+        '<label>Tekst onderaan / Voorwaarden<textarea id="v361_footer" style="height:80px" placeholder="Algemene voorwaarden, betaling, borg..."></textarea></label>',
+      '</div>',
+
+      '<div class="actions" style="margin-top:20px">',
+        '<button id="v361_save" type="button">💾 Opslaan huisstijl</button>',
+        '<button id="v361_preview" type="button" class="grey">👁 Voorbeeld</button>',
+      '</div>',
+    ].join('');
+  }
+
+  // CSS
+  function injectCss() {
+    if (E('bnsV361Style')) return;
+    var s = document.createElement('style');
+    s.id = 'bnsV361Style';
+    s.textContent = [
+      '.bns361-upload-btn{display:inline-block;background:#2563eb;color:#fff;border-radius:10px;padding:8px 16px;font-weight:800;cursor:pointer;font-size:14px}',
+      '.bns361-upload-btn:hover{background:#1d4ed8}',
+    ].join('');
+    document.head.appendChild(s);
+  }
+
+  // Laad waarden in de velden
+  function load361() {
+    var d = inv();
+    var fields = {
+      v361_companyName: d.companyName || d.company || '',
+      v361_phone:       d.phone || '',
+      v361_email:       d.email || '',
+      v361_website:     d.website || '',
+      v361_address:     d.address || '',
+      v361_kvk:         d.kvk || '',
+      v361_btw:         d.btw || '',
+      v361_iban:        d.iban || '',
+      v361_accent:      d.accent || '#2563eb',
+      v361_layout:      d.layout || 'classic',
+      v361_textOffer:   d.textOffer || d.intro || '',
+      v361_textConfirm: d.textConfirm || '',
+      v361_textInvoice: d.textInvoice || '',
+      v361_footer:      d.footer || d.footerText || '',
+    };
+    Object.keys(fields).forEach(function(id) {
+      var el = E(id); if (el) el.value = fields[id];
+    });
+    // Logo preview
+    var lp = E('v361_logoPreview');
+    if (lp) { lp.src = d.logo || ''; lp.style.display = d.logo ? 'block' : 'none'; }
+    // Briefpapier previews
+    var fp = E('v361_letterheadFactuurPreview');
+    if (fp) { fp.src = d.letterheadFactuur || ''; fp.style.display = d.letterheadFactuur ? 'block' : 'none'; }
+    var op = E('v361_letterheadOpdrachtPreview');
+    if (op) { op.src = d.letterheadOpdracht || ''; op.style.display = d.letterheadOpdracht ? 'block' : 'none'; }
+  }
+
+  // Sla alle velden op in state.settings.invoice
+  function save361fields() {
+    var d = inv();
+    var map = {
+      companyName:  'v361_companyName',
+      phone:        'v361_phone',
+      email:        'v361_email',
+      website:      'v361_website',
+      address:      'v361_address',
+      kvk:          'v361_kvk',
+      btw:          'v361_btw',
+      iban:         'v361_iban',
+      accent:       'v361_accent',
+      layout:       'v361_layout',
+      textOffer:    'v361_textOffer',
+      intro:        'v361_textOffer',   // ook als inv.intro zodat bestaande code het pikt
+      textConfirm:  'v361_textConfirm',
+      textInvoice:  'v361_textInvoice',
+      footer:       'v361_footer',
+      footerText:   'v361_footer',      // ook als footerText voor V309 compat
+    };
+    Object.keys(map).forEach(function(key) {
+      var el = E(map[key]); if (el) d[key] = el.value;
+    });
+    // Sync ook naar documentStyle voor V309 compat
+    try {
+      var s = typeof getState === 'function' ? getState() : null;
+      if (s) {
+        s.documentStyle = s.documentStyle || {};
+        ['companyName','phone','email','website','address','kvk','btw','iban',
+         'textOffer','textConfirm','textInvoice','footer'].forEach(function(k) {
+          s.documentStyle[k] = d[k] || '';
+        });
+      }
+    } catch(e) {}
+    save361();
+    msg('Huisstijl opgeslagen ✓');
+  }
+
+  // Bind alle knoppen
+  function bind361() {
+    // Logo upload
+    var lu = E('v361_logoUpload');
+    if (lu) lu.onchange = function(e) {
+      var f = e.target.files && e.target.files[0]; if (!f) return;
+      toBase64(f, function(data) {
+        inv().logo = data; save361();
+        var p = E('v361_logoPreview'); if (p) { p.src = data; p.style.display = 'block'; }
+        msg('Logo opgeslagen ✓');
+      });
+    };
+    var lr = E('v361_logoRemove');
+    if (lr) lr.onclick = function() {
+      inv().logo = ''; save361();
+      var p = E('v361_logoPreview'); if (p) { p.src = ''; p.style.display = 'none'; }
+      msg('Logo verwijderd');
+    };
+
+    // Briefpapier factuur
+    var bf = E('v361_letterheadFactuur');
+    if (bf) bf.onchange = function(e) {
+      var f = e.target.files && e.target.files[0]; if (!f) return;
+      toBase64(f, function(data) {
+        inv().letterheadFactuur = data; save361();
+        var p = E('v361_letterheadFactuurPreview'); if (p) { p.src = data; p.style.display = 'block'; }
+        msg('Factuur briefpapier opgeslagen ✓');
+      });
+    };
+    var bfr = E('v361_letterheadFactuurRemove');
+    if (bfr) bfr.onclick = function() {
+      inv().letterheadFactuur = ''; save361();
+      var p = E('v361_letterheadFactuurPreview'); if (p) { p.src = ''; p.style.display = 'none'; }
+      msg('Factuur briefpapier verwijderd');
+    };
+
+    // Briefpapier opdrachtbevestiging
+    var bo = E('v361_letterheadOpdracht');
+    if (bo) bo.onchange = function(e) {
+      var f = e.target.files && e.target.files[0]; if (!f) return;
+      toBase64(f, function(data) {
+        inv().letterheadOpdracht = data; save361();
+        var p = E('v361_letterheadOpdrachtPreview'); if (p) { p.src = data; p.style.display = 'block'; }
+        msg('Opdrachtbevestiging briefpapier opgeslagen ✓');
+      });
+    };
+    var bor = E('v361_letterheadOpdrachtRemove');
+    if (bor) bor.onclick = function() {
+      inv().letterheadOpdracht = ''; save361();
+      var p = E('v361_letterheadOpdrachtPreview'); if (p) { p.src = ''; p.style.display = 'none'; }
+      msg('Opdrachtbevestiging briefpapier verwijderd');
+    };
+
+    // Opslaan
+    var sv = E('v361_save');
+    if (sv) sv.onclick = save361fields;
+
+    // Voorbeeld
+    var pv = E('v361_preview');
+    if (pv) pv.onclick = function() {
+      save361fields();
+      try { if (typeof renderInvoicePreviewV10 === 'function') renderInvoicePreviewV10(); } catch(e) {}
+    };
+  }
+
+  // Installeer de gecombineerde tab
+  function install() {
+    injectCss();
+    var area = E('adminArea');
+    if (!area) return;
+
+    // Verwijder de OUDE dubbele tabs
+    ['adminInvoice', 'twV309DocStylePane'].forEach(function(id) {
+      var el = E(id); if (el) el.remove();
+    });
+    document.querySelectorAll('.adminTab').forEach(function(btn) {
+      var txt = (btn.textContent || '').trim();
+      if (txt === 'Factuur / offerte' || txt === 'Documenten / Huisstijl') {
+        btn.remove();
+      }
+    });
+
+    // Voeg nieuwe gecombineerde tab toe
+    if (E('bnsV361Pane')) { load361(); bind361(); return; }
+
+    var tabWrap = area.querySelector('.admin-tabs, .tabs');
+    if (!tabWrap) return;
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'adminTab';
+    btn.dataset.admin = 'bnsV361Pane';
+    btn.textContent = 'Huisstijl & Documenten';
+    tabWrap.appendChild(btn);
+
+    var pane = document.createElement('div');
+    pane.id = 'bnsV361Pane';
+    pane.className = 'adminPane panel hidden';
+    pane.innerHTML = buildPane();
+    area.appendChild(pane);
+
+    // Tab klik
+    btn.onclick = function() {
+      area.querySelectorAll('.adminTab').forEach(function(x) { x.classList.remove('active'); });
+      area.querySelectorAll('.adminPane').forEach(function(x) { x.classList.add('hidden'); });
+      btn.classList.add('active');
+      pane.classList.remove('hidden');
+      load361();
+      bind361();
+    };
+
+    load361();
+    bind361();
+  }
+
+  // Wacht tot adminArea beschikbaar is
+  function tryInstall() {
+    if (E('adminArea')) { install(); return; }
+    setTimeout(tryInstall, 500);
+  }
+
+  // Herinstalleer na elke admin-klik (admintabs worden soms opnieuw opgebouwd)
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    if (t && (t.id === 'unlockAdmin' || t.closest && t.closest('#admin'))) {
+      setTimeout(install, 300);
+      setTimeout(install, 800);
+    }
+  }, true);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(tryInstall, 600); });
+  } else {
+    setTimeout(tryInstall, 400);
+  }
+  setTimeout(tryInstall, 1500);
+
+  console.info('[BNS v361] Gecombineerde Huisstijl & Documenten tab actief.');
+})();
