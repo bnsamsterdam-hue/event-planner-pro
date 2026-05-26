@@ -368,12 +368,29 @@
     document.head.appendChild(s);
   }
 
+  // ── 10. ADMIN NAV — altijd zichtbaar voor admin gebruikers ──────────────
+  function fixAdminNav() {
+    // Controleer of er een ingelogde admin gebruiker is
+    var user = window.user || null;
+    if (!user) return;
+    var role = String(user.role || '').toLowerCase();
+    if (role !== 'admin') return;
+
+    // Zorg dat admin-only nav buttons zichtbaar zijn
+    document.querySelectorAll('.admin-only').forEach(function(el) {
+      if (el.style.display === 'none') {
+        el.style.display = '';
+      }
+    });
+  }
+
   // ── Main run ──────────────────────────────────────────────────────────────
   function run() {
     injectAntiFlickerCss();
     installMatDebounce();
     fixDefectBadge();
     fixActionBarWidth();
+    fixAdminNav();
     fixRoutenetButtons();
     fixBoekhoudingModal();
     wrapOrderOverviewShow();
