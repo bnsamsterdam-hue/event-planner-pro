@@ -38792,7 +38792,7 @@ setTimeout(()=>{
     var k=(o.customer&&o.customer.name)||'';
     var l=o.location?[o.location.street,o.location.city].filter(Boolean).join(', '):'';
     var m=(o.materials||[]).map(function(x){return x.code||x.name||'';}).filter(Boolean).join(', ');
-    var dt=String(o.start||'')+(o.end&&o.end!==o.start?' t/m '+o.end:'');
+    var dt=fmtDate(o.start||o.dateStart||o.startDate||o.date||'')+(o.end&&o.end!==o.start?' t/m '+fmtDate(o.end||o.endDate||o.finish||''):'');
     return '<div data-oid="'+esc(o.id)+'" style="border:1px solid #dbe3ef;border-radius:14px;padding:13px;margin:8px 0;background:#fff">'+
       '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'+
         '<b>'+esc(o.number||'')+(o.title?' — '+esc(o.title):'')+'</b>'+
@@ -38970,6 +38970,11 @@ setTimeout(()=>{
     var m = String(raw).match(/20\d{2}/);
     return m ? m[0] : '';
   }
+  function fmtDate(v){
+    var d = parseDate(v);
+    if(!d) return String(v || '');
+    return String(d.getDate()) + '-' + String(d.getMonth()+1) + '-' + String(d.getFullYear());
+  }
   function isPastEnd(o){
     var d = orderDate(o);
     if(!d) return false;
@@ -39045,7 +39050,7 @@ setTimeout(()=>{
     var loc = o.location || {};
     var l = [loc.name, loc.street, loc.city].filter(Boolean).join(', ');
     var m = (o.materials||[]).map(function(x){ return x.code || x.name || ''; }).filter(Boolean).join(', ');
-    var dt = String(o.start || '') + (o.end && o.end !== o.start ? ' t/m ' + o.end : '');
+    var dt = fmtDate(o.start || o.dateStart || o.startDate || o.date || '') + (o.end && o.end !== o.start ? ' t/m ' + fmtDate(o.end || o.endDate || o.finish || '') : '');
     return '<div data-oid="'+esc(o.id)+'" style="border:1px solid #dbe3ef;border-radius:15px;padding:14px;margin:9px 0;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.05)">'+
       '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">'+
         '<b style="font-size:15px">'+esc(o.number||'')+(o.title?' — '+esc(o.title):'')+'</b>'+statusPill(o)+
@@ -39246,6 +39251,7 @@ setTimeout(()=>{
   }
   function orderDate(o){ return parseDate(o && (o.end || o.endDate || o.finish || o.start || o.date)); }
   function orderYear(o){ var d=orderDate(o); if(d) return String(d.getFullYear()); var m=String([o&&o.end,o&&o.start,o&&o.date,o&&o.number].filter(Boolean).join(' ')).match(/20\d{2}/); return m?m[0]:''; }
+  function fmtDate(v){ var d=parseDate(v); return d ? (String(d.getDate())+'-'+String(d.getMonth()+1)+'-'+String(d.getFullYear())) : String(v||''); }
   function isPastEnd(o){ var d=orderDate(o); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); }
   function isDeleted(o){ var st=norm(o&&o.status); return !!(o&&(o.deleted||o.removed||o.deletedAt||/verwijderd|deleted|gewist|trash|prullenbak/.test(st))); }
   function isCancelled(o){ return /geannuleerd|annulering|cancelled|canceled/.test(norm(o&&o.status)); }
@@ -39277,7 +39283,7 @@ setTimeout(()=>{
     var loc=o.location||{};
     var l=[loc.name,loc.street,loc.city].filter(Boolean).join(', ');
     var m=(o.materials||[]).map(function(x){ return x.code||x.name||''; }).filter(Boolean).join(', ');
-    var dt=String(o.start||'')+(o.end&&o.end!==o.start?' t/m '+o.end:'');
+    var dt=fmtDate(o.start||o.dateStart||o.startDate||o.date||'')+(o.end&&o.end!==o.start?' t/m '+fmtDate(o.end||o.endDate||o.finish||''):'');
     return '<div data-oid="'+esc(o.id)+'" style="border:1px solid #dbe3ef;border-radius:15px;padding:14px;margin:9px 0;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.05)">'+
       '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b style="font-size:15px">'+esc(o.number||'')+(o.title?' — '+esc(o.title):'')+'</b>'+pill(o)+'</div>'+
       '<div style="font-size:13px;color:#64748b;margin-top:4px">'+esc(dt)+(k?' · '+esc(k):'')+(l?' · '+esc(l):'')+'</div>'+
@@ -39356,5 +39362,5 @@ setTimeout(()=>{
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,400); setTimeout(boot,1200); }); else { setTimeout(boot,300); setTimeout(boot,1200); }
   window.BNS_V364_SHOW_ARCHIEF=showArchief;
   window.BNS_V363_SHOW_ARCHIEF=showArchief;
-  console.info('[BNS v364] Dubbele Archief knop verborgen en zoekbalk typbaar gemaakt.');
+  console.info('[BNS v365] Archief datumweergave dd-m-yyyy actief.');
 })();
