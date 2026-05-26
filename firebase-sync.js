@@ -98,10 +98,22 @@ async function download(){
   downloading=true; status("Firebase laden...");
   try{
     const s=norm(loadLocal()||{});
+    // Bewaar huidige settings als ze recentelijk lokaal zijn opgeslagen (< 15 sec)
+    const recentSave=window.__bnsLastSettingsSave && (Date.now()-window.__bnsLastSettingsSave < 30000);
+    const localSettings = recentSave ? (s.settings||{}) : null;
     for(const col of UPLOAD_COLLECTIONS){
       if(col==="settings"){
         const snap=await t.fsMod.getDoc(t.fsMod.doc(t.db,"settings","main"));
-        if(snap.exists())s.settings=snap.data()||{};
+        if(snap.exists()){
+          if(recentSave && localSettings){
+            // Merge: Firebase wint voor alles BEHALVE invoice (die is net lokaal opgeslagen)
+            var fbSettings = snap.data()||{};
+            fbSettings.invoice = localSettings.invoice || fbSettings.invoice;
+            s.settings = fbSettings;
+          } else {
+            s.settings=snap.data()||{};
+          }
+        }
         continue;
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
@@ -121,13 +133,18 @@ function patchStorage(){
   if(localStorage.__bnsFbAutoV2)return;
   localStorage.__bnsFbAutoV2="1";
   const old=localStorage.setItem.bind(localStorage);
-  localStorage.setItem=function(k,v){const r=old(k,v); if(STORAGE_KEYS.includes(k))schedule("localStorage"); return r};
+  localStorage.setItem=function(k,v){const r=old(k,v); if(STORAGE_KEYS.includes(k)){window.__bnsLastSettingsSave=Date.now(); schedule("localStorage");} return r};
 }
 function patchSave(){
   try{
     if(typeof window.save==="function"&&!window.save.__bnsFbAutoV2){
       const old=window.save;
-      window.save=function(){const r=old.apply(this,arguments); schedule("save"); return r};
+      window.save=function(){
+        const r=old.apply(this,arguments);
+        window.__bnsLastSettingsSave=Date.now(); // markeer tijdstip van save
+        schedule("save");
+        return r;
+      };
       window.save.__bnsFbAutoV2=true;
     }
   }catch(e){}
@@ -150,7 +167,14 @@ async function live(){
     if(col==="settings"){
 t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
         if(uploading)return;
-        const s=norm(loadLocal()||{}); if(snap.exists())s.settings=snap.data()||{};
+        const s=norm(loadLocal()||{});
+        if(snap.exists()){
+          // Bescherm recent lokaal opgeslagen invoice instellingen (30 sec)
+          const recentSnap=window.__bnsLastSettingsSave&&(Date.now()-window.__bnsLastSettingsSave<30000);
+          const localInvSnap=recentSnap?(s.settings||{}).invoice:null;
+          s.settings=snap.data()||{};
+          if(localInvSnap) s.settings.invoice=localInvSnap;
+        }
         downloading=true; saveLocal(s); downloading=false; lastJson=json();
       });
       return;
