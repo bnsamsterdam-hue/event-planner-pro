@@ -38796,7 +38796,11 @@ setTimeout(()=>{
     });
 
     // Voeg nieuwe gecombineerde tab toe
-    if (E('bnsV361Pane')) { load361(); bind361(); return; }
+    if (E('bnsV361Pane')) {
+      // Alleen bind knoppen opnieuw - NIET load361() anders worden velden overschreven
+      bind361();
+      return;
+    }
 
     var tabWrap = area.querySelector('.admin-tabs, .tabs');
     if (!tabWrap) return;
@@ -38834,12 +38838,12 @@ setTimeout(()=>{
     setTimeout(tryInstall, 500);
   }
 
-  // Herinstalleer na elke admin-klik (admintabs worden soms opnieuw opgebouwd)
+  // Herinstalleer ALLEEN na unlockAdmin klik (niet op elke klik in admin)
   document.addEventListener('click', function(e) {
     var t = e.target;
-    if (t && (t.id === 'unlockAdmin' || t.closest && t.closest('#admin'))) {
-      setTimeout(install, 300);
-      setTimeout(install, 800);
+    if (t && t.id === 'unlockAdmin') {
+      setTimeout(install, 400);
+      setTimeout(install, 1000);
     }
   }, true);
 
@@ -38873,25 +38877,39 @@ setTimeout(()=>{
   // ── 1. ARCHIEF ALTIJD IN ZIJBALK ─────────────────────────────────────────
   function ensureArchiefInSidebar() {
     if (E('bns362ArchBtn')) return;
+
+    // Wacht tot app zichtbaar is (niet op loginscherm)
+    var app = E('app');
+    if (!app || app.classList.contains('hidden')) return;
+
     var side = document.querySelector('.side');
     if (!side) return;
 
-    // Zoek Opdrachten knop als referentiepunt
+    // Zoek Opdrachten knop - probeer meerdere selectors
     var ref = null;
-    side.querySelectorAll('button.nav').forEach(function(b) {
-      if (/^opdrachten$/i.test((b.textContent||'').trim())) ref = b;
+    side.querySelectorAll('button').forEach(function(b) {
+      var txt = (b.textContent||'').trim().toLowerCase();
+      if (txt === 'opdrachten') ref = b;
     });
+    // Fallback: voeg toe na laatste nav knop
+    if (!ref) {
+      var navBtns = side.querySelectorAll('button.nav, button[data-page]');
+      if (navBtns.length) ref = navBtns[navBtns.length - 1];
+    }
     if (!ref) return;
 
     var btn = document.createElement('button');
     btn.id = 'bns362ArchBtn';
     btn.type = 'button';
-    btn.className = ref.className || 'nav';
+    btn.className = 'nav'; // altijd nav class
     btn.textContent = 'Archief';
-    btn.onclick = function() {
-      buildAndShowArchief();
-    };
-    ref.parentNode.insertBefore(btn, ref.nextSibling);
+    btn.onclick = function() { buildAndShowArchief(); };
+
+    if (ref.nextSibling) {
+      ref.parentNode.insertBefore(btn, ref.nextSibling);
+    } else {
+      ref.parentNode.appendChild(btn);
+    }
   }
 
   // ── 2. ARCHIEF PAGINA MET VOLLEDIGE KNOPPEN ──────────────────────────────
@@ -39120,7 +39138,7 @@ setTimeout(()=>{
     if (btn) setTimeout(ensureArchiefInSidebar, 200);
   });
 
-  setInterval(ensureArchiefInSidebar, 2000);
+  setInterval(ensureArchiefInSidebar, 1000);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() { setTimeout(run, 500); });
