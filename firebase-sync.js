@@ -98,29 +98,17 @@ async function download(){
   downloading=true; status("Firebase laden...");
   try{
     const s=norm(loadLocal()||{});
-    // Bewaar huidige settings als ze recentelijk lokaal zijn opgeslagen (< 15 sec)
-    const recentSave=window.__bnsLastSettingsSave && (Date.now()-window.__bnsLastSettingsSave < 30000);
-    const localSettings = recentSave ? (s.settings||{}) : null;
     for(const col of UPLOAD_COLLECTIONS){
       if(col==="settings"){
         const snap=await t.fsMod.getDoc(t.fsMod.doc(t.db,"settings","main"));
-        if(snap.exists()){
-          if(recentSave && localSettings){
-            // Merge: Firebase wint voor alles BEHALVE invoice (die is net lokaal opgeslagen)
-            var fbSettings = snap.data()||{};
-            fbSettings.invoice = localSettings.invoice || fbSettings.invoice;
-            s.settings = fbSettings;
-          } else {
-            s.settings=snap.data()||{};
-          }
-        }
+        if(snap.exists())s.settings=snap.data()||{};
         continue;
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
-    try{if(typeof renderOrders==="function")renderOrders(); if(typeof adminRender==="function")adminRender();}catch(e){}
+    try{if(typeof renderOrders==="function")renderOrders(); if(typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA"); if(typeof adminRender==="function")adminRender()}catch(e){}
   }catch(e){console.error(e);status("Firebase download fout")}
   finally{downloading=false}
 }
@@ -133,18 +121,13 @@ function patchStorage(){
   if(localStorage.__bnsFbAutoV2)return;
   localStorage.__bnsFbAutoV2="1";
   const old=localStorage.setItem.bind(localStorage);
-  localStorage.setItem=function(k,v){const r=old(k,v); if(STORAGE_KEYS.includes(k)){window.__bnsLastSettingsSave=Date.now(); schedule("localStorage");} return r};
+  localStorage.setItem=function(k,v){const r=old(k,v); if(STORAGE_KEYS.includes(k))schedule("localStorage"); return r};
 }
 function patchSave(){
   try{
     if(typeof window.save==="function"&&!window.save.__bnsFbAutoV2){
       const old=window.save;
-      window.save=function(){
-        const r=old.apply(this,arguments);
-        window.__bnsLastSettingsSave=Date.now(); // markeer tijdstip van save
-        schedule("save");
-        return r;
-      };
+      window.save=function(){const r=old.apply(this,arguments); schedule("save"); return r};
       window.save.__bnsFbAutoV2=true;
     }
   }catch(e){}
@@ -167,14 +150,7 @@ async function live(){
     if(col==="settings"){
 t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
         if(uploading)return;
-        const s=norm(loadLocal()||{});
-        if(snap.exists()){
-          // Bescherm recent lokaal opgeslagen invoice instellingen (30 sec)
-          const recentSnap=window.__bnsLastSettingsSave&&(Date.now()-window.__bnsLastSettingsSave<30000);
-          const localInvSnap=recentSnap?(s.settings||{}).invoice:null;
-          s.settings=snap.data()||{};
-          if(localInvSnap) s.settings.invoice=localInvSnap;
-        }
+        const s=norm(loadLocal()||{}); if(snap.exists())s.settings=snap.data()||{};
         downloading=true; saveLocal(s); downloading=false; lastJson=json();
       });
       return;
@@ -184,28 +160,7 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       const s=norm(loadLocal()||{});
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
-      try{
-        if(col==="orders"&&typeof renderOrders==="function")renderOrders();
-        // renderMaterials alleen aanroepen als materialen echt veranderd zijn
-        if(col==="materials"&&typeof renderMaterials==="function"){
-          // Kleine vertraging zodat de DOM rust heeft na de state-update
-          setTimeout(function(){ if(typeof renderMaterials==="function") renderMaterials(window.currentCat||"TW"); }, 80);
-        }
-        if(col==="users"&&typeof adminRender==="function")adminRender();
-        if(col==="alerts"){
-          // Bezorger melding binnengekomen: update planner UI direct
-          if(typeof renderDriver==="function")renderDriver();
-          if(typeof renderDriverDashboard==="function")renderDriverDashboard();
-          // Update systeemmeldingen teller
-          var alertBtn=document.getElementById("alertsBtn");
-          if(alertBtn){
-            var openCount=(s.alerts||[]).filter(function(a){return !a.resolved;}).length;
-            alertBtn.textContent=openCount?"Systeemmeldingen ("+openCount+")":"Systeemmeldingen (0)";
-          }
-          // Toast melding zodat planner ziet dat er iets binnenkomt
-          try{if(typeof toastMsg==="function")toastMsg("Nieuwe bezorger melding ontvangen");}catch(e){}
-        }
-      }catch(e){}
+      try{if(col==="orders"&&typeof renderOrders==="function")renderOrders(); if(col==="materials"&&typeof renderMaterials==="function"){clearTimeout(window.__bnsFbMatTimer); window.__bnsFbMatTimer=setTimeout(function(){try{renderMaterials(window.currentCat||"EXTRA");}catch(e){}},120);} if(col==="users"&&typeof adminRender==="function")adminRender()}catch(e){}
     });
   });
   localStorage.setItem(AUTO_KEY,"1");
@@ -220,5 +175,25 @@ async function start(){
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(start,1000)); else setTimeout(start,1000);
 setInterval(patchSave,3000);
-window.BNSFirebaseSync={uploadLocalToFirebase:upload,downloadFirebaseToLocal:download,startRealtimeSync:live};
+async function syncDoc(col,row){
+  const t=await fb(); if(!t||!col||!row||!row.id)return false;
+  try{
+    await t.fsMod.setDoc(t.fsMod.doc(t.db,String(col),String(row.id)),row,{merge:true});
+    return true;
+  }catch(e){console.error(e);status("Firebase syncDoc fout");return false;}
+}
+async function deleteDocPublic(col,id){
+  const t=await fb(); if(!t||!col||!id)return false;
+  try{
+    uploading=true;
+    await t.fsMod.deleteDoc(t.fsMod.doc(t.db,String(col),String(id)));
+    status("Firebase verwijderd");
+    return true;
+  }catch(e){console.error(e);status("Firebase delete fout");return false;}
+  finally{uploading=false;}
+}
+window.BNSFirebaseSync={uploadLocalToFirebase:upload,downloadFirebaseToLocal:download,startRealtimeSync:live,syncDoc:syncDoc,deleteDoc:deleteDocPublic};
+window.BNS=window.BNS||{};
+window.BNS.syncDoc=syncDoc;
+window.BNS.deleteDoc=deleteDocPublic;
 })();
