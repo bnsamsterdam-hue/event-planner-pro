@@ -34,9 +34,21 @@ function saveLocal(s){
 }
 function arr(s,k){s[k]=Array.isArray(s[k])?s[k]:[]}
 function id(x,p){if(!x.id)x.id=p+"_"+Math.random().toString(36).slice(2,10);return x}
+function cleanMaterialStatuses(s){
+  try{
+    if(!s||!Array.isArray(s.materials))return s;
+    s.materials.forEach(m=>{
+      if(!m)return;
+      const st=String(m.status||"").toLowerCase();
+      if(/reserved|gereserveerd|bezet|geboekt/.test(st))m.status="free";
+    });
+  }catch(e){}
+  return s;
+}
 function norm(s){
   s=s||{}; ["users","orders","materials","customers","locations","alerts"].forEach(k=>arr(s,k)); s.settings=s.settings||{};
   s.users.forEach(x=>id(x,"u")); s.orders.forEach(x=>id(x,"o")); s.materials.forEach(x=>id(x,"m")); s.customers.forEach(x=>id(x,"c")); s.locations.forEach(x=>id(x,"l")); s.alerts.forEach(x=>id(x,"a"));
+  cleanMaterialStatuses(s);
   return s;
 }
 function json(){try{return JSON.stringify(loadLocal()||{})}catch(e){return""}}
@@ -165,15 +177,19 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
         if(col==="alerts"){
           if(typeof renderDriver==="function")renderDriver();
           var ab=document.getElementById("alertsBtn");
-          if(ab){var al=(window.state||{}).alerts||[];ab.textContent="Systeemmeldingen ("+(al.filter(function(a){return !a.resolved;}).length)+")";}
+          if(ab){var oc=(window.__bnsState||loadLocal()||{}).alerts||[];ab.textContent="Systeemmeldingen ("+(oc.filter(function(a){return !a.resolved;}).length)+")";}
           try{if(typeof toastMsg==="function")toastMsg("Nieuwe bezorger melding ontvangen");}catch(e){}
         }
+        // Materials: alleen renderen als materialPanel zichtbaar is, met debounce
         if(col==="materials"){
           clearTimeout(window.__bnsFbMatTimer);
           window.__bnsFbMatTimer=setTimeout(function(){
-            var panel=document.getElementById("materialPanel");
-            if(panel&&!panel.classList.contains("hidden")&&typeof renderMaterials==="function")
-              renderMaterials(window.currentCat||"TW");
+            try{
+              var panel=document.getElementById("materialPanel");
+              var isVisible=panel&&!panel.classList.contains("hidden");
+              if(isVisible&&typeof renderMaterials==="function")
+                renderMaterials(window.currentCat||"TW");
+            }catch(e){}
           },300);
         }
       }catch(e){}
