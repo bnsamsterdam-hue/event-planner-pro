@@ -36111,8 +36111,7 @@ setTimeout(()=>{
   function orderEndIsPast(o){
     var p=orderPeriod(o);
     if(!p) return false;
-    // Einddatum zelf = nog actief; dag erna = voorbij
-    return p.end.getTime() < today().getTime();
+    return p.end.getTime() <= today().getTime();
   }
   function orderBlocksMaterial(o){
     var s=L(o && o.status);
@@ -36120,8 +36119,6 @@ setTimeout(()=>{
     if(/geannuleerd|geannuleer|cancel|verwijderd|deleted|verwijder/.test(s)) return false;
     if(s.indexOf('offerte')>=0) return false;
     if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return !orderEndIsPast(o);
-    // Ook actieve opdrachten die voorbij hun einddatum zijn blokkeren niet meer
-    if(orderEndIsPast(o)) return false;
     if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|optie\s*14|optie14|gereserveerd|actief/.test(s)) return true;
     return false;
   }
@@ -37991,8 +37988,10 @@ setTimeout(()=>{
     el.textContent=paid(o)?'☑ Betaald':'Openstaande factuur';
   }
   function overviewFix(cardEl,o){
-    var all=A('.bns356-overview,.bns355-overview,.bns353-overview,.bns-order-overview-btn',cardEl);
-    all.forEach(function(x){x.remove();});
+    // Als de knop er al is, niet opnieuw aanmaken - voorkomt flikkeren
+    if(cardEl.querySelector('.bns356-overview')) return;
+    // Verwijder alleen de OUDERE versies (niet bns356-overview zelf)
+    A('.bns355-overview,.bns353-overview,.bns-order-overview-btn',cardEl).forEach(function(x){x.remove();});
     if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW!=='function')return;
     var actions=cardEl.querySelector('.actions,.bns-v126-card-actions')||cardEl.querySelector('div:last-child')||cardEl;
     var b=document.createElement('button');b.type='button';b.className='bns356-overview';b.textContent='Overzicht bestelling';
@@ -38000,12 +37999,16 @@ setTimeout(()=>{
     actions.insertBefore(b,actions.firstChild||null);
   }
   function routeFix(cardEl,o){
-    // Verwijder bestaande routenet knoppen
-    A('button,a',cardEl).forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||''))b.remove();});
-    // Optie 14 dagen en offertes krijgen GEEN routenet knop — niet actieve levering
-    if(isOpt(o)||isQuote(o))return;
+    // Optie 14 dagen en offertes krijgen GEEN routenet knop
+    if(isOpt(o)||isQuote(o)){
+      // Verwijder alle routenet knoppen van deze kaart
+      A('button,a',cardEl).forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||''))b.remove();});
+      return;
+    }
+    // Als er al een routenet knop is (welke versie dan ook), niet opnieuw toevoegen
+    if(cardEl.querySelector('.bns356-route,.bns-routenet-btn')) return;
     var w=A('button,a',cardEl).find(function(b){return /^\s*waze\s*$/i.test(b.textContent||'');});
-    if(!w||cardEl.querySelector('.bns356-route'))return;
+    if(!w) return;
     var a=addr(o); if(!a)return;
     var b=document.createElement('button');b.type='button';b.className='bns356-route';b.textContent='Routenet';
     b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();window.open('https://www.routenet.nl/routeplanner?locatie='+encodeURIComponent(a),'_blank');return false;};
@@ -38146,22 +38149,19 @@ setTimeout(()=>{
   function cleanupCards(){
     var roots=A('#orders .order-card,#orders .bns-v126-order-card,#orders [data-bns-order-id]');
     roots.forEach(function(card){
-      // Overzicht bestelling: houd alleen de rechter/laatste knop over.
+      // Overzicht bestelling: houd alleen de bns356-overview knop over, verwijder oude versies
       var over=A('button,a', card).filter(function(b){return /overzicht\s*bestelling/i.test(txt(b));});
       if(over.length>1){
-        over.slice(0, over.length-1).forEach(function(b){b.remove();});
+        // Behoud de bns356-overview versie, verwijder de rest
+        var keep=over.find(function(b){return b.classList.contains('bns356-overview');})||over[over.length-1];
+        over.forEach(function(b){ if(b!==keep) b.remove(); });
       }
-      // Routenet: verwijder brede/dubbele knoppen. Houd alleen bns356-route of bns-routenet-btn naast Waze over.
+      // Routenet: houd maximaal 1 knop over
       var routes=A('button,a', card).filter(function(b){return /^routenet$/i.test(txt(b));});
       if(routes.length>1){
-        var keep=routes.find(function(b){return b.classList.contains('bns356-route') || b.classList.contains('bns-routenet-btn');}) || routes[routes.length-1];
-        routes.forEach(function(b){ if(b!==keep) b.remove(); });
+        var keep2=routes.find(function(b){return b.classList.contains('bns356-route')||b.classList.contains('bns-routenet-btn');})||routes[routes.length-1];
+        routes.forEach(function(b){ if(b!==keep2) b.remove(); });
       }
-      routes=A('button,a', card).filter(function(b){return /^routenet$/i.test(txt(b));});
-      routes.forEach(function(b){
-        var r=b.getBoundingClientRect ? b.getBoundingClientRect() : {width:0,height:0};
-        if(r.width>180 || r.height>32){ b.remove(); }
-      });
     });
   }
 
