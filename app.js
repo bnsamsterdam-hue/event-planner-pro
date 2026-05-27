@@ -39380,3 +39380,167 @@ setTimeout(()=>{
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',installStyle); else installStyle();
   window.BNS_V368_fillMaterialAdmin=fill;
 })();
+
+/* ==========================================================
+   BNS V369 - Makkelijk materiaal/rubriek wissen
+   - Geen browser prompt en geen VERWIJDER typen.
+   - Eigen BNS bevestigingsvenster.
+   - Geselecteerd materiaal wissen of hele rubriek in 1 keer wissen.
+========================================================== */
+(function BNS_V369_EASY_MATERIAL_DELETE(){
+  'use strict';
+  if(window.__BNS_V369_EASY_MATERIAL_DELETE__) return;
+  window.__BNS_V369_EASY_MATERIAL_DELETE__=true;
+
+  function E(id){return document.getElementById(id);} 
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v).trim();}
+  function C(v){return T(v).toUpperCase().replace(/\s+/g,'');}
+  function S(){
+    try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){}
+    try{ if(typeof state!=='undefined' && state && Array.isArray(state.materials)) return state; }catch(e){}
+    try{return JSON.parse(localStorage.getItem('event-planner-pro-v87')||'{}');}catch(e){return {materials:[]};}
+  }
+  function saveState(s){
+    try{ if(window.state && window.state!==s) window.state=s; }catch(e){}
+    try{ if(typeof state!=='undefined') state=s; }catch(e){}
+    try{ localStorage.setItem('event-planner-pro-v87',JSON.stringify(s)); }catch(e){}
+    try{ localStorage.setItem('eventPlannerState',JSON.stringify(s)); }catch(e){}
+  }
+  function mats(){var s=S(); return Array.isArray(s.materials)?s.materials:[];}
+  function catOf(m){return C(m && (m.cat||m.rubriek||m.category||''));}
+  function codeOf(m){return C(m && (m.code||m.productCode||''));}
+  function nameOf(m){return T(m && (m.name||m.product||m.searchName||m.zoeknaam||m.type||m.description||''));}
+  function selectedId(){return T(window.__bnsSelectedMaterialId||window.bnsSelectedMaterialId||'');}
+  function currentCat(){
+    var ids=['bnsV56Cat','bnsV58AdminCat','adminMatCat','matCat','materialCat'];
+    for(var i=0;i<ids.length;i++){var el=E(ids[i]); if(el && T(el.value||el.textContent)) return C(el.value||el.textContent);}
+    try{ if(window.currentCat) return C(window.currentCat); }catch(e){}
+    try{ if(typeof currentCat!=='undefined') return C(currentCat); }catch(e){}
+    var sid=selectedId();
+    var m=mats().find(function(x){return String(x.id)===String(sid);});
+    return catOf(m)||'';
+  }
+  function firebaseDelete(id){
+    if(!id) return;
+    try{ if(window.BNS && typeof window.BNS.deleteDoc==='function'){ window.BNS.deleteDoc('materials',id); return; } }catch(e){}
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.db){
+        var fs=window.BNS.fs;
+        if(fs.deleteDoc && fs.doc) fs.deleteDoc(fs.doc(window.BNS.db,'materials',String(id))).catch(function(){});
+      }
+    }catch(e){}
+  }
+  function refresh(cat){
+    try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials==='function') window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
+    try{ if(typeof window.BNS_V12_renderAdminMaterials==='function') window.BNS_V12_renderAdminMaterials(); }catch(e){}
+    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(cat||currentCat()||'TW'); }catch(e){}
+    try{ if(typeof renderMaterials==='function') renderMaterials(cat||currentCat()||'TW'); }catch(e){}
+    try{ if(typeof window.renderCats==='function') window.renderCats(); }catch(e){}
+    try{ if(typeof renderCats==='function') renderCats(); }catch(e){}
+    setTimeout(function(){
+      try{ if(typeof window.renderMaterials==='function') window.renderMaterials(cat||currentCat()||'TW'); }catch(e){}
+    },100);
+  }
+  function clearForm(){
+    ['bnsV56Nr','bnsV56Product','bnsV56Desc','bnsV56Price','adminMatCode','adminMatProduct','adminMatName','adminMatPrice'].forEach(function(id){var e=E(id); if(e) e.value='';});
+    window.__bnsSelectedMaterialId=''; window.bnsSelectedMaterialId='';
+  }
+  function ensureStyle(){
+    if(E('bnsV369Style')) return;
+    var st=document.createElement('style'); st.id='bnsV369Style';
+    st.textContent='\
+      .bns-v369-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:999999;display:flex;align-items:center;justify-content:center;padding:18px}\
+      .bns-v369-box{width:min(560px,96vw);background:#fff;border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden;font-family:inherit}\
+      .bns-v369-head{padding:18px 20px;background:#111827;color:#fff;font-size:20px;font-weight:900}\
+      .bns-v369-body{padding:18px 20px;color:#111827;font-size:15px;line-height:1.45}\
+      .bns-v369-warn{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:12px;margin:12px 0;color:#7c2d12;font-weight:800}\
+      .bns-v369-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;padding:14px 20px 18px;background:#f8fafc}\
+      .bns-v369-actions button{border:0;border-radius:12px;padding:12px 15px;font-weight:900;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.10)}\
+      .bns-v369-actions button:active{transform:scale(.96);filter:brightness(.88)}\
+      .bns-v369-cancel{background:#e5e7eb;color:#111827}\
+      .bns-v369-one{background:#f97316;color:#fff}\
+      .bns-v369-all{background:#dc2626;color:#fff}\
+      #bnsV369DeleteCat{background:#7f1d1d!important;color:#fff!important;font-weight:900!important;margin-left:8px!important}\
+    ';
+    document.head.appendChild(st);
+  }
+  function closeModal(){var o=E('bnsV369Modal'); if(o) o.remove();}
+  function modal(title,body,buttons){
+    ensureStyle(); closeModal();
+    var ov=document.createElement('div'); ov.id='bnsV369Modal'; ov.className='bns-v369-overlay';
+    var html='<div class="bns-v369-box"><div class="bns-v369-head">'+title+'</div><div class="bns-v369-body">'+body+'</div><div class="bns-v369-actions">';
+    buttons.forEach(function(b,i){html+='<button class="'+(b.cls||'bns-v369-cancel')+'" data-i="'+i+'">'+b.label+'</button>';});
+    html+='</div></div>'; ov.innerHTML=html;
+    ov.addEventListener('click',function(ev){
+      if(ev.target===ov){closeModal();return;}
+      var btn=ev.target.closest&&ev.target.closest('button[data-i]'); if(!btn)return;
+      var b=buttons[Number(btn.getAttribute('data-i'))]; if(b && typeof b.fn==='function') b.fn();
+    });
+    document.body.appendChild(ov);
+  }
+  function deleteIds(ids,afterCat){
+    var s=S(); ids=ids.map(String);
+    s.materials=(Array.isArray(s.materials)?s.materials:[]).filter(function(m){return ids.indexOf(String(m.id))<0;});
+    saveState(s);
+    ids.forEach(firebaseDelete);
+    clearForm(); closeModal(); refresh(afterCat);
+    setTimeout(function(){
+      modal('Verwijderen klaar','<b>'+ids.length+'</b> materiaalregel'+(ids.length===1?' is':'s zijn')+' verwijderd.',[
+        {label:'OK',cls:'bns-v369-one',fn:closeModal}
+      ]);
+    },80);
+  }
+  function askDeleteOne(id){
+    var m=mats().find(function(x){return String(x.id)===String(id);});
+    if(!m){ modal('Geen materiaal gekozen','Klik eerst op <b>Wijzig</b> bij het materiaal dat je wilt wissen.',[{label:'OK',cls:'bns-v369-one',fn:closeModal}]); return; }
+    var c=catOf(m)||currentCat();
+    modal('Materiaal wissen',
+      'Wil je dit materiaal wissen?<div class="bns-v369-warn">'+(codeOf(m)||m.id)+' - '+(nameOf(m)||'materiaal')+'</div>Geen tekst typen nodig. Kies hieronder.',[
+        {label:'Annuleren',cls:'bns-v369-cancel',fn:closeModal},
+        {label:'Wis dit materiaal',cls:'bns-v369-one',fn:function(){deleteIds([m.id],c);}}
+      ]);
+  }
+  function askDeleteCat(c){
+    c=C(c||currentCat());
+    if(!c){ modal('Geen rubriek gekozen','Kies eerst een rubriek, bijvoorbeeld EXTRA, TW of KW.',[{label:'OK',cls:'bns-v369-one',fn:closeModal}]); return; }
+    var list=mats().filter(function(m){return catOf(m)===c;});
+    if(!list.length){ modal('Rubriek is leeg','Rubriek <b>'+c+'</b> heeft geen materialen om te wissen.',[{label:'OK',cls:'bns-v369-one',fn:closeModal}]); return; }
+    modal('Hele rubriek wissen',
+      'Je staat op rubriek <b>'+c+'</b>.<div class="bns-v369-warn">Dit wist <b>'+list.length+'</b> materiaalregels in één keer uit deze rubriek.</div>Dit is bedoeld voor opschonen. Geen VERWIJDER typen nodig.',[
+        {label:'Annuleren',cls:'bns-v369-cancel',fn:closeModal},
+        {label:'Wis hele rubriek '+c,cls:'bns-v369-all',fn:function(){
+          modal('Zeker weten?',
+            '<div class="bns-v369-warn">Laatste controle: rubriek <b>'+c+'</b> met <b>'+list.length+'</b> materialen definitief wissen?</div>',[
+              {label:'Annuleren',cls:'bns-v369-cancel',fn:closeModal},
+              {label:'Ja, definitief wissen',cls:'bns-v369-all',fn:function(){deleteIds(list.map(function(m){return m.id;}),c);}}
+            ]);
+        }}
+      ]);
+  }
+  function addBulkButton(){
+    ensureStyle();
+    var del=E('bnsV56Delete');
+    if(del){del.textContent='Wis gekozen materiaal';}
+    if(E('bnsV369DeleteCat')) return;
+    var host=E('bnsV56Actions') || (del&&del.parentElement) || E('adminMatActions');
+    if(!host) return;
+    var b=document.createElement('button');
+    b.id='bnsV369DeleteCat'; b.type='button'; b.textContent='Wis hele rubriek';
+    host.appendChild(b);
+  }
+  document.addEventListener('click',function(ev){
+    var b=ev.target&&ev.target.closest&&ev.target.closest('button'); if(!b) return;
+    if(b.id==='bnsV56Delete' || /wis\s+materiaal|wis\s+gekozen\s+materiaal/i.test(T(b.textContent))){
+      ev.preventDefault(); ev.stopImmediatePropagation(); askDeleteOne(selectedId()); return false;
+    }
+    if(b.id==='bnsV369DeleteCat' || /wis\s+hele\s+rubriek/i.test(T(b.textContent))){
+      ev.preventDefault(); ev.stopImmediatePropagation(); askDeleteCat(currentCat()); return false;
+    }
+  },true);
+  function boot(){addBulkButton();}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+  var n=0,iv=setInterval(function(){addBulkButton(); if(++n>20) clearInterval(iv);},700);
+  window.BNS_V369_deleteSelectedMaterial=function(){askDeleteOne(selectedId());};
+  window.BNS_V369_deleteCurrentCategory=function(){askDeleteCat(currentCat());};
+})();
