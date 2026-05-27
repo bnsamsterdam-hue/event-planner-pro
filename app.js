@@ -34848,8 +34848,19 @@ setTimeout(()=>{
     if(!a || !b) return false;
     var aid=T(a.id||a.materialId), bid=T(b.id||b.materialId);
     if(aid && bid && aid===bid) return true;
-    var ac=T(a.code), bc=T(b.code);
-    return !!(ac && bc && ac.toLowerCase()===bc.toLowerCase());
+    function clean(v){return T(v).toUpperCase().replace(/\s+/g,'');}
+    function token(m){
+      var vals=[m.code,m.productNr,m.nr,m.number,m.type,m.product,m.name,m.description].map(clean).filter(Boolean);
+      for(var i=0;i<vals.length;i++){
+        var v=vals[i];
+        if(/^(EXTRA|TW|KW|TO|NVT|GEEN|LOS|OVERIG|DIVERS|-|\.)$/.test(v)) continue;
+        var mm=v.match(/^([A-Z]{1,12})0*(\d{1,6})$/);
+        if(mm) return mm[1]+String(parseInt(mm[2],10));
+      }
+      return '';
+    }
+    var ta=token(a), tb=token(b);
+    return !!(ta && tb && ta===tb);
   }
   function findMat(mid){
     var s=getState();
@@ -36111,8 +36122,9 @@ setTimeout(()=>{
   function orderEndIsPast(o){
     var p=orderPeriod(o);
     if(!p) return false;
-    // Einddatum zelf = nog geblokkeerd; dag erna = vrij
-    return p.end.getTime() < today().getTime();
+    // period() maakt de einddatum exclusief: einddatum 25-5 geeft p.end 26-5.
+    // Daarom is <= vandaag correct: op 25-5 nog geblokkeerd, op 26-5 vrij.
+    return p.end.getTime() <= today().getTime();
   }
   function orderBlocksMaterial(o){
     var s=L(o && o.status);
@@ -36479,15 +36491,24 @@ setTimeout(()=>{
   }
   function adminDelete(){
     if(!adminEditId){
-      alert('Kies eerst een materiaal.');
+      adminEditId=String(window.__bnsSelectedMaterialId||window.bnsSelectedMaterialId||'');
+    }
+    if(!adminEditId){
+      alert('Kies eerst een materiaal. Druk eerst op Wijzig bij het materiaal dat je wilt wissen.');
       return false;
     }
-    if(!confirm('Weet je zeker dat je dit materiaal wilt verwijderen?')) return false;
+    var mat=(stateObj().materials||[]).find(function(m){ return String(m.id)===String(adminEditId); });
+    var naam=mat ? ((mat.code||'')+' '+(mat.name||mat.product||mat.description||'')) : 'dit materiaal';
+    var ok=prompt('Materiaal definitief wissen: '+naam+'\n\nTyp VERWIJDER om te bevestigen.');
+    if(String(ok||'').toUpperCase()!=='VERWIJDER') return false;
     var s=stateObj();
     s.materials=(s.materials||[]).filter(function(m){
       return String(m.id)!==String(adminEditId);
     });
+    try{ if(window.BNS && typeof window.BNS.deleteDoc==='function') window.BNS.deleteDoc('materials', adminEditId); }catch(e){}
     adminEditId='';
+    window.__bnsSelectedMaterialId='';
+    window.bnsSelectedMaterialId='';
     saveApp();
     adminClear();
     try{
@@ -39290,4 +39311,72 @@ setTimeout(()=>{
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(clean,200);setTimeout(clean,1200);});
   else {setTimeout(clean,200);setTimeout(clean,1200);} 
   var n=0,t=setInterval(function(){clean(); if(++n>10) clearInterval(t);},600);
+})();
+
+
+/* ==========================================================
+   BNS V368 - Materiaalbeheer selectie + blokkering rust
+   - Wijzig vult direct Rubriek/Product nr/Product/Omschrijving.
+   - Wis materiaal gebruikt de geselecteerde regel en vraagt VERWIJDER.
+   - Generieke rubrieknamen EXTRA/TW/KW/TO worden nooit meer als uniek materiaal gezien.
+========================================================== */
+(function BNS_V368_MATERIAALBEHEER_FIX(){
+  'use strict';
+  if(window.__BNS_V368_MATERIAALBEHEER_FIX__) return;
+  window.__BNS_V368_MATERIAALBEHEER_FIX__=true;
+  function E(id){return document.getElementById(id);}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v).trim();}
+  function C(v){return T(v).toUpperCase().replace(/\s+/g,'');}
+  function S(){try{return window.state||JSON.parse(localStorage.getItem('eventPlannerState')||localStorage.getItem('event-planner-pro-v87')||'{}');}catch(e){return window.state||{};}}
+  function mats(){var s=S(); return Array.isArray(s.materials)?s.materials:[];}
+  function setVal(id,v){var e=E(id); if(e){e.value=T(v); try{e.dispatchEvent(new Event('input',{bubbles:true}));}catch(x){}}}
+  function cat(m){return C(m&& (m.cat||m.rubriek||m.category));}
+  function code(m){return C(m&&m.code);}
+  function nrFrom(m){
+    var c=cat(m), co=code(m), n=C(m&& (m.productNr||m.nr||m.number));
+    if(n) return n.replace(new RegExp('^'+c),'');
+    if(co && c && co.indexOf(c)===0) return co.slice(c.length);
+    var mm=co.match(/^[A-Z]+0*(\d+)$/); return mm?mm[1]:'';
+  }
+  function nameOf(m){return T(m&&(m.product||m.searchName||m.zoeknaam||m.type||m.name));}
+  function descOf(m){return T(m&&(m.description||m.beschrijving||m.name));}
+  function find(id){return mats().find(function(m){return String(m.id)===String(id);});}
+  function fill(id){
+    var m=find(id); if(!m) return false;
+    window.__bnsSelectedMaterialId=String(m.id); window.bnsSelectedMaterialId=String(m.id);
+    var c=cat(m)||'EXTRA';
+    setVal('bnsV56Cat',c); setVal('bnsV56Nr',nrFrom(m)); setVal('bnsV56Product',nameOf(m)); setVal('bnsV56Desc',descOf(m)); setVal('bnsV56Price',m.price||''); setVal('bnsV56Status',m.status||'free');
+    setVal('adminMatCat',c); setVal('adminMatCode',nrFrom(m)); setVal('adminMatProduct',nameOf(m)); setVal('adminMatName',descOf(m)||nameOf(m)); setVal('adminMatPrice',m.price||''); setVal('adminMatStatus',m.status||'free');
+    try{window.currentCat=c;}catch(e){}
+    try{ if(typeof currentCat!=='undefined') currentCat=c; }catch(e){}
+    var save=E('bnsV56Save'); if(save) save.textContent='Opslaan materiaal';
+    var del=E('bnsV56Delete'); if(del) del.textContent='Wis materiaal';
+    try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){}
+    return true;
+  }
+  function installStyle(){
+    if(E('bnsV368Style')) return;
+    var st=document.createElement('style'); st.id='bnsV368Style';
+    st.textContent='\
+      #bnsV56Actions button:active,.bns-v83-admin-row button:active,.bns-v56-row button:active{transform:scale(.96)!important;filter:brightness(.86)!important}\
+      #bnsV56Delete{background:#dc2626!important;color:#fff!important;font-weight:900!important}\
+      #bnsV56Save{background:#16a34a!important;color:#fff!important;font-weight:900!important}\
+      .bns-v368-selected{outline:3px solid rgba(14,165,233,.55)!important;box-shadow:0 0 0 3px rgba(14,165,233,.12)!important}\
+    ';
+    document.head.appendChild(st);
+  }
+  document.addEventListener('click',function(ev){
+    installStyle();
+    var b=ev.target&&ev.target.closest&&ev.target.closest('button,[data-v83-fill-mat],[data-v56-edit],[data-v61-edit],[data-bns-v67-edit]');
+    if(!b) return;
+    var id=b.getAttribute('data-v83-fill-mat')||b.getAttribute('data-v56-edit')||b.getAttribute('data-v61-edit')||b.getAttribute('data-bns-v67-edit')||'';
+    if(id){
+      fill(id);
+      A('.bns-v368-selected').forEach(function(x){x.classList.remove('bns-v368-selected');});
+      var row=b.closest('.bns-v83-admin-row,.bns-v56-admin-row,.bns-v56-row,.material-row,div'); if(row) row.classList.add('bns-v368-selected');
+    }
+  },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',installStyle); else installStyle();
+  window.BNS_V368_fillMaterialAdmin=fill;
 })();
