@@ -108,7 +108,7 @@ async function download(){
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
-    try{if(typeof renderOrders==="function")renderOrders(); if(typeof renderMaterials==="function")renderMaterials(window.currentCat||"EXTRA"); if(typeof adminRender==="function")adminRender()}catch(e){}
+    try{if(typeof renderOrders==="function")renderOrders();}catch(e){}
   }catch(e){console.error(e);status("Firebase download fout")}
   finally{downloading=false}
 }
@@ -160,7 +160,27 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       const s=norm(loadLocal()||{});
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
-      try{if(col==="orders"&&typeof renderOrders==="function")renderOrders(); if(col==="materials"&&typeof renderMaterials==="function"){clearTimeout(window.__bnsFbMatTimer); window.__bnsFbMatTimer=setTimeout(function(){try{renderMaterials(window.currentCat||"EXTRA");}catch(e){}},120);} if(col==="users"&&typeof adminRender==="function")adminRender()}catch(e){}
+      try{
+        if(col==="orders"&&typeof renderOrders==="function")renderOrders();
+        if(col==="alerts"){
+          if(typeof renderDriver==="function")renderDriver();
+          var ab=document.getElementById("alertsBtn");
+          if(ab){var oc=(window.__bnsState||loadLocal()||{}).alerts||[];ab.textContent="Systeemmeldingen ("+(oc.filter(function(a){return !a.resolved;}).length)+")";}
+          try{if(typeof toastMsg==="function")toastMsg("Nieuwe bezorger melding ontvangen");}catch(e){}
+        }
+        // Materials: alleen renderen als materialPanel zichtbaar is, met debounce
+        if(col==="materials"){
+          clearTimeout(window.__bnsFbMatTimer);
+          window.__bnsFbMatTimer=setTimeout(function(){
+            try{
+              var panel=document.getElementById("materialPanel");
+              var isVisible=panel&&!panel.classList.contains("hidden");
+              if(isVisible&&typeof renderMaterials==="function")
+                renderMaterials(window.currentCat||"TW");
+            }catch(e){}
+          },300);
+        }
+      }catch(e){}
     });
   });
   localStorage.setItem(AUTO_KEY,"1");
