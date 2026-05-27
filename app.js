@@ -36135,46 +36135,32 @@ setTimeout(()=>{
     if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|optie\s*14|optie14|gereserveerd|actief/.test(s)) return true;
     return false;
   }
+  // BNS V370 materiaalherkenning terug naar V207AB-logica:
+  // rubriek (TW/TO/KW/EXTRA/nieuwe rubrieken) is alleen de map;
+  // reserveren/blokkeren gebeurt op uniek materiaal: id, oldId of echte code met nummer.
+  // Vrije add_ regels zoals EXTRA / Extra blokkeren alleen zichzelf via id en nooit de hele rubriek.
   function materialToken(m){
     if(!m) return '';
+    var vals=[m.id,m.oldId,m.code,m.productNr,m.nr,m.number,m.type,m.product,m.searchName,m.zoeknaam,m.name,m.description,m.beschrijving].map(T).filter(Boolean);
     var c=cat(m.cat||m.rubriek||m.category);
-    var vals=[m.code,m.productNr,m.nr,m.number,m.type,m.product,m.searchName,m.zoeknaam,m.name,m.description,m.beschrijving].map(T).filter(Boolean);
-    for(var i=0; i<vals.length; i++){
-      var v=compact(vals[i]);
-      // Algemene rubrieknamen zoals EXTRA/TW/KW/TO zijn vrije tekstregels en mogen niet als uniek materiaal blokkeren.
-      if(c && v===c) continue;
-      if(!c && /^[A-Z]{2,12}$/.test(v)) continue;
+    for(var i=0;i<vals.length;i++){
+      var u=String(vals[i]).toUpperCase();
+      var mm=null;
       if(c){
-        var re=new RegExp('^'+c+'0*(\\d+)$');
-        var mm=v.match(re);
+        try{ mm=u.match(new RegExp('\\b'+c+'\\s*[-_]?\\s*(\\d{1,6})\\b')); }catch(e){ mm=null; }
         if(mm) return c+String(parseInt(mm[1],10));
       }
-      var m2=v.match(/^([A-Z]{1,12})0*(\d{1,6})$/);
-      if(m2) return m2[1]+String(parseInt(m2[2],10));
+      mm=u.match(/\b([A-Z]{1,10})\s*[-_]?(\d{1,6})\b/);
+      if(mm) return mm[1]+String(parseInt(mm[2],10));
     }
-    for(var j=0;j<vals.length;j++){
-      var fv=compact(vals[j]);
-      if(!fv) continue;
-      if(c && fv===c) continue;
-      if(/^(EXTRA|TW|KW|TO|NVT|GEEN|LOS|OVERIG|DIVERS|-|\.)$/i.test(fv)) continue;
-      return fv;
-    }
-    return '';
+    return vals[0] ? compact(vals[0]) : '';
   }
   function sameMaterial(a,b){
     if(!a || !b) return false;
     if(a.id && b.id && String(a.id)===String(b.id)) return true;
     if(a.oldId && b.oldId && String(a.oldId)===String(b.oldId)) return true;
     var ta=materialToken(a), tb=materialToken(b);
-    if(ta && tb && ta===tb) return true;
-    var ca=cat(a.cat||a.rubriek||a.category), cb=cat(b.cat||b.rubriek||b.category);
-    if(ca===cb){
-      var na=normText(a.name||a.product||a.searchName||a.zoeknaam||a.description||a.beschrijving);
-      var nb=normText(b.name||b.product||b.searchName||b.zoeknaam||b.description||b.beschrijving);
-      if(/^(extra|nvt|geen|los|overig|divers|-|\.)$/i.test(na)||/^(extra|nvt|geen|los|overig|divers|-|\.)$/i.test(nb)) return false;
-      if(na && nb && na===nb) return true;
-    }
-    return false;
+    return !!(ta && tb && ta===tb);
   }
   function editingId(){
     try{
@@ -39543,4 +39529,17 @@ setTimeout(()=>{
   var n=0,iv=setInterval(function(){addBulkButton(); if(++n>20) clearInterval(iv);},700);
   window.BNS_V369_deleteSelectedMaterial=function(){askDeleteOne(selectedId());};
   window.BNS_V369_deleteCurrentCategory=function(){askDeleteCat(currentCat());};
+})();
+
+
+/* ============================================================
+   BNS V370 - Materiaalblokkering V207AB herstel
+   ============================================================
+   Deze versie herstelt het oude principe:
+   - TW/TO/KW/EXTRA/nieuwe rubrieken zijn mappen/rubrieken;
+   - TW37, TO12, EXTRA4, of id art_... is het echte materiaal;
+   - vrije add_ regels blokkeren alleen zichzelf en niet de hele rubriek.
+*/
+(function BNS_V370_MATERIAL_MARKER(){
+  window.__BNS_V370_MATERIAL_V207AB__ = true;
 })();
