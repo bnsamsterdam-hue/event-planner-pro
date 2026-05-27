@@ -36111,7 +36111,8 @@ setTimeout(()=>{
   function orderEndIsPast(o){
     var p=orderPeriod(o);
     if(!p) return false;
-    return p.end.getTime() <= today().getTime();
+    // Einddatum zelf = nog geblokkeerd; dag erna = vrij
+    return p.end.getTime() < today().getTime();
   }
   function orderBlocksMaterial(o){
     var s=L(o && o.status);
@@ -36286,6 +36287,11 @@ setTimeout(()=>{
       }
       var r=reservationForMaterial(base);
       if(r){
+        // Skip als het dezelfde opdracht is die we nu bewerken
+        var editId=typeof editingId==='function'?editingId():(window.editing&&window.editing.id);
+        if(editId && String(r.order.id)===String(editId)) continue;
+        // Skip als de blokkerende opdracht voorbij zijn einddatum is
+        if(typeof orderEndIsPast==='function'&&orderEndIsPast(r.order)) continue;
         alert('Opslaan geblokkeerd: '+T(base.code||materialToken(base))+' is al geblokkeerd door '+T(r.order.status)+' opdracht '+T(r.order.number||'')+'.');
         return false;
       }
@@ -37930,6 +37936,8 @@ setTimeout(()=>{
     var s=document.createElement('style');s.id='bns356Style';
     s.textContent=[
       '#orders #bns350OrdTabs{display:none!important}',
+      // Verberg originele Actieve opdrachten knop - v356 tabs vervangen dit
+      '#orders #activeOrders,#orders #doneOrders,#orders #cancelledOrders{display:none!important}',
       '#orders .bns356-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}',
       '#orders .bns356-tab{border:0;border-radius:10px;padding:9px 13px;background:#0f2942;color:#fff;font-weight:900;cursor:pointer}',
       '#orders .bns356-tab.active{background:#0ea5e9;box-shadow:0 0 0 2px rgba(14,165,233,.25)}',
@@ -37943,6 +37951,9 @@ setTimeout(()=>{
       '#orders .bns356-badge.warn{background:#ffedd5;color:#9a3412}.bns356-badge.danger{background:#fee2e2;color:#991b1b}',
       // Waze knop altijd zichtbaar in kaarten
       '#ordersList button[onclick*="waze"],#ordersList a[href*="waze"]{display:inline-flex!important}',
+      // Verberg oude overzicht/routenet knoppen - v356 bouwt ze opnieuw schoon
+      '#ordersList .bns-order-overview-btn{display:none!important}',
+      '#ordersList .bns-routenet-btn,.bns-route-bar,.bns-v126-route-bar{display:none!important}',
     ].join('');
     document.head.appendChild(s);
   }
