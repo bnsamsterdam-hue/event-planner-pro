@@ -39432,18 +39432,38 @@ setTimeout(()=>{
   function S(){try{return state;}catch(e){return window.state||(window.state={});}}
   function mats(){var s=S(); if(!Array.isArray(s.materials)) s.materials=[]; return s.materials;}
   function orders(){var s=S(); if(!Array.isArray(s.orders)) s.orders=[]; return s.orders;}
+  function isAddLine(m){
+    var id=T(m&&m.id);
+    return /^add[_-]/i.test(id);
+  }
   function cleanStateMaterialStatus(){
     try{
       var s=S(); if(!s||!Array.isArray(s.materials)) return;
-      var changed=false;
+      var changed=false, removed=[];
+      var cleaned=[];
       s.materials.forEach(function(m){
         if(!m) return;
+        /*
+          Oude handmatige orderregels zoals add_161 / EXTRA / Extra horen
+          NIET in de globale materiaalcatalogus. Ze mogen wel in order.materials
+          blijven staan voor factuur/tekstregels, maar mogen nooit materiaal blokkeren.
+        */
+        if(isAddLine(m)){
+          removed.push(String(m.id));
+          changed=true;
+          return;
+        }
         var st=L(m.status);
         if(/reserved|gereserveerd|bezet|geboekt/.test(st)){
           m.status='free'; changed=true;
         }
+        cleaned.push(m);
       });
-      if(changed) persist();
+      if(changed){
+        s.materials=cleaned;
+        persist();
+        removed.forEach(function(id){try{deleteMaterialRemote(id);}catch(e){}});
+      }
     }catch(e){}
   }
   function chosenList(){try{if(Array.isArray(chosen)) return chosen;}catch(e){} if(!Array.isArray(window.chosen)) window.chosen=[]; return window.chosen;}

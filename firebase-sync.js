@@ -34,9 +34,13 @@ function saveLocal(s){
 }
 function arr(s,k){s[k]=Array.isArray(s[k])?s[k]:[]}
 function id(x,p){if(!x.id)x.id=p+"_"+Math.random().toString(36).slice(2,10);return x}
+function isAddMaterialLine(m){
+  return !!(m&&String(m.id||"").match(/^add[_-]/i));
+}
 function cleanMaterialStatuses(s){
   try{
     if(!s||!Array.isArray(s.materials))return s;
+    s.materials=s.materials.filter(m=>!isAddMaterialLine(m));
     s.materials.forEach(m=>{
       if(!m)return;
       const st=String(m.status||"").toLowerCase();
@@ -118,6 +122,7 @@ async function download(){
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
     try{if(typeof renderOrders==="function")renderOrders();}catch(e){}
@@ -171,6 +176,7 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
         if(col==="orders"&&typeof renderOrders==="function")renderOrders();
