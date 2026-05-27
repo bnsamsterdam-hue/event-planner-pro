@@ -26166,9 +26166,12 @@ setTimeout(()=>{
   setInterval(function(){
     try{
       applyOverrides();
-      window.renderMaterials=renderMaterials;
-      window.renderCats=renderCats;
-      window.addMat=addMatStable;
+      // Niet overschrijven als nieuwere versie actief is
+      if(!window.renderMaterials||!window.renderMaterials.__bnsMatDebounced){
+        window.renderMaterials=renderMaterials;
+        window.renderCats=renderCats;
+        window.addMat=addMatStable;
+      }
     } catch(e){
     }
   },6000);
@@ -39403,7 +39406,7 @@ setTimeout(()=>{
   function overlaps(a,b){return !!(a&&b&&a.start.getTime()<b.end.getTime()&&b.start.getTime()<a.end.getTime());}
   function orderPeriod(o){return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum));}
   function wantedPeriod(){var s=E('dateStart'), e=E('dateEnd'); return period(s&&s.value,(e&&e.value)||(s&&s.value));}
-  function orderEndIsPast(o){var p=orderPeriod(o); if(!p) return false; return p.end.getTime()<=today().getTime();}
+  function orderEndIsPast(o){var p=orderPeriod(o); if(!p) return false; return p.end.getTime()<today().getTime();}
   function daysBetween(a,b){return Math.floor((b.getTime()-a.getTime())/(24*60*60*1000));}
   function optionActive(o){var d=parseDate(o&&(o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||o.date)); if(!d) return true; return (14-daysBetween(d,today()))>0;}
   function orderBlocks(o){
@@ -39650,4 +39653,43 @@ setTimeout(()=>{
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { setTimeout(run, 800); });
   else setTimeout(run, 600);
   console.info('[BNS v373] Admin materiaal wissen actief.');
+})();
+
+
+// ============================================================
+// BNS PATCH v374 — Staat opschoning: verwijder verouderde status van materialen
+// Materialen in state.materials mogen GEEN status='reserved' hebben
+// want dat wordt berekend op basis van opdrachten
+// ============================================================
+(function BNS_V374_STATE_CLEANUP() {
+  'use strict';
+  if (window.__BNS_V374__) return;
+  window.__BNS_V374__ = true;
+
+  function cleanMaterialStatus() {
+    try {
+      var s = (typeof state !== 'undefined' && state) ? state : window.state;
+      if (!s || !Array.isArray(s.materials)) return;
+      var cleaned = 0;
+      s.materials.forEach(function(m) {
+        // Verwijder status die er niet op hoort (wordt berekend uit opdrachten)
+        // Mag alleen: free, defect, inactive, damage
+        var st = String(m.status || '').toLowerCase();
+        if (st === 'reserved' || st === 'gereserveerd') {
+          delete m.status;
+          cleaned++;
+        }
+      });
+      if (cleaned > 0) {
+        if (typeof save === 'function') save();
+        console.info('[BNS v374] Verwijderd: ' + cleaned + ' verouderde reserved-statussen van materialen.');
+      }
+    } catch(e) {}
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(cleanMaterialStatus, 500); });
+  } else {
+    setTimeout(cleanMaterialStatus, 300);
+  }
 })();
