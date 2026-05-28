@@ -24520,8 +24520,9 @@ setTimeout(()=>{
     st.textContent="";
     document.head.appendChild(st);
   }
-  // patchMaterial() stub - functie bestaat in andere IIFE
+  // Stubs voor functies die in andere IIFEs staan
   function patchMaterial(){ try{ if(typeof window.addMat==='function') return; } catch(e){} }
+  function phoneMode(){ try{ return !!(window.location&&window.location.hash&&window.location.hash.indexOf('bezorger')>=0); } catch(e){ return false; } }
   var DEFAULT_TYPES = [
   {
     id:"storing", name:"Storing", color:"#dc2626", driver:true, text:true, photo:false, signature:false, admin:true
