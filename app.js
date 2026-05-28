@@ -38023,9 +38023,31 @@ setTimeout(()=>{
     }
     if(cardEl.querySelector('.bns356-actions'))return;
     var box=document.createElement('div');box.className='bns356-actions';
-    box.innerHTML='<button type="button" class="bns356-ok">✓ Bevestigen</button><button type="button" class="bns356-no">✗ Niet door</button>'+(isOpt(o)?'<button type="button" class="bns356-renew">↻ Verlengen</button>':'');
+    var noLabel=isQuote(o)?'✗ Verwijderen':'✗ Niet door';
+    var noClass=isQuote(o)?'bns356-no bns356-del':'bns356-no';
+    box.innerHTML='<button type="button" class="bns356-ok">✓ Bevestigen</button>'+
+      '<button type="button" class="'+noClass+'">'+noLabel+'</button>'+
+      (isOpt(o)?'<button type="button" class="bns356-renew">↻ Verlengen</button>':'');
     box.querySelector('.bns356-ok').onclick=function(ev){ev.preventDefault();ev.stopPropagation();window.BNS_V356_CONFIRM(o.id);};
-    box.querySelector('.bns356-no').onclick=function(ev){ev.preventDefault();ev.stopPropagation();window.BNS_V356_CANCEL(o.id);};
+    box.querySelector('.bns356-no').onclick=function(ev){
+      ev.preventDefault();ev.stopPropagation();
+      if(isQuote(o)){
+        // Offerte: echt verwijderen met eigen bevestiging
+        var msg='Offerte "'+T(o.title||o.number||'')+'" definitief verwijderen?';
+        Promise.resolve(typeof window.bnsConfirm==='function'
+          ? window.bnsConfirm(msg,'Offerte verwijderen?')
+          : window.confirm(msg)
+        ).then(function(ok){
+          if(!ok) return;
+          var s=S(); if(!s||!s.orders) return;
+          s.orders=s.orders.filter(function(x){return String(x.id)!==String(o.id);});
+          try{if(window.BNS&&typeof window.BNS.deleteDoc==='function')window.BNS.deleteDoc('orders',o.id);}catch(e){}
+          saveIt(); renderV356();
+        });
+      } else {
+        window.BNS_V356_CANCEL(o.id);
+      }
+    };
     var rn=box.querySelector('.bns356-renew');if(rn)rn.onclick=function(ev){ev.preventDefault();ev.stopPropagation();window.BNS_V356_RENEW(o.id);};
     var main=cardEl.querySelector('.order-title')?cardEl.querySelector('.order-title').parentNode:(cardEl.children[1]||cardEl);
     main.appendChild(box);
@@ -38927,17 +38949,49 @@ setTimeout(()=>{
     for(var i=0;i<chosenList().length;i++){
       var item=chosenList()[i];
       var base=mats().find(function(m){return sameMaterial(m,item);}) || item;
-      var st=statusFor(base);
-      if(st.key==='chosen') continue;
-      if(st.key==='inactive'||st.key==='defect') { alert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is '+st.label+'.'); return false; }
+      var raw=txt(base.status||'').toLowerCase();
+      // Altijd blokkeren: defect/inactive
+      if(/inactive|niet actief|niet beschikbaar/.test(raw)){
+        try{window.bnsAlert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is niet inzetbaar.','Materiaal niet beschikbaar');}
+        catch(e){alert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is niet inzetbaar.');}
+        return false;
+      }
+      if(/defect|damage|schade|missing|vermist/.test(raw)){
+        try{window.bnsAlert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is defect.','Materiaal defect');}
+        catch(e){alert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is defect.');}
+        return false;
+      }
+      // Altijd checken op dubbele reservering — ook als item al in chosenList staat
       var r=reservationFor(base);
-      if(r){ alert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is al geboekt door opdracht '+txt(r.order.number||'')+'.'); return false; }
+      if(r){
+        var msg='Opslaan geblokkeerd: '+txt(base.code||base.name)+
+          ' is al gereserveerd door opdracht '+txt(r.order.number||'')+
+          ' ('+txt(r.order.status||'')+').';
+        try{window.bnsAlert(msg,'Dubbele reservering');}catch(e){alert(msg);}
+        return false;
+      }
     }
     return true;
   }
   function upsertCust(c){ try{ if(typeof upsertCustomer==='function') return upsertCustomer(c); }catch(e){} }
   function upsertLoc(l){ try{ if(typeof upsertLocation==='function') return upsertLocation(l); }catch(e){} }
   function makeId(){ try{ return id(); }catch(e){return Math.random().toString(36).slice(2,10);} }
+  // Pas materiaalstatus aan op basis van opdrachtstatus voor opslaan
+  // Offerte: materialen krijgen status 'free' (niet 'reserved')
+  // Optie/Bevestigd/Opdracht: materialen krijgen status 'reserved'
+  // Geannuleerd/Verwijderd: materialen krijgen status 'free'
+  function prepareMaterials(list, orderStatus){
+    var s=low(orderStatus||'');
+    var isOfferte=/offerte/.test(s);
+    var isCancelled=/geannuleerd|cancel|verwijderd|deleted|trash/.test(s);
+    var matStatus=(isOfferte||isCancelled)?'free':'reserved';
+    return list.map(function(m){
+      var item=clone(m);
+      item.status=matStatus;
+      return item;
+    });
+  }
+
   function saveStable(){
     if(!validateAllChosen()) return false;
     var s=stateObj(); s.orders=s.orders||[];
@@ -38958,7 +39012,7 @@ setTimeout(()=>{
       brand: txt(E('orderBrand')&&E('orderBrand').value),
       customer:{name:txt(E('customerName')&&E('customerName').value),street:txt(E('customerStreet')&&E('customerStreet').value),zip:txt(E('customerZip')&&E('customerZip').value),city:txt(E('customerCity')&&E('customerCity').value),phone:txt(E('customerPhone')&&E('customerPhone').value),email:txt(E('customerEmail')&&E('customerEmail').value)},
       location:{name:txt(E('locationName')&&E('locationName').value),street:txt(E('locationStreet')&&E('locationStreet').value),zip:txt(E('locationZip')&&E('locationZip').value),city:txt(E('locationCity')&&E('locationCity').value),contact:txt(E('locationContact')&&E('locationContact').value),phone:txt(E('locationPhone')&&E('locationPhone').value),show:E('showLocationOnDocs')?E('showLocationOnDocs').checked:true},
-      materials: clone(chosenList()),
+      materials: prepareMaterials(clone(chosenList()),txt(E('orderStatus')&&E('orderStatus').value)),
       driver:driver,driverName:driver,bezorger:driver,
       vehicle:txt(E('orderVehicle')&&E('orderVehicle').value),
       extra:txt(E('orderExtra')&&E('orderExtra').value),
