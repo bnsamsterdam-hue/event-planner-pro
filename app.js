@@ -39728,3 +39728,40 @@ setTimeout(()=>{
 })();
 
 
+
+// ============================================================
+// BNS PATCH v374 — Staat opschoning bij laden
+// Verwijdert verouderde status='reserved' van materialen.
+// Materiaalstatus wordt berekend uit opdrachten, niet opgeslagen.
+// Behoudt: inactive, defect, damage, missing.
+// ============================================================
+(function BNS_V374_CLEANUP(){
+  'use strict';
+  if(window.__BNS_V374__) return;
+  window.__BNS_V374__ = true;
+
+  function clean(){
+    try{
+      var s; try{ s=state; }catch(e){ s=window.state; }
+      if(!s||!Array.isArray(s.materials)) return;
+      var n=0;
+      s.materials.forEach(function(m){
+        if(!m) return;
+        var st=String(m.status||'').toLowerCase();
+        if(/reserved|gereserveerd|bezet|geboekt/.test(st) &&
+           !/inactive|defect|damage|missing|vermist/.test(st)){
+          delete m.status;
+          n++;
+        }
+      });
+      if(n>0){
+        try{ if(typeof save==='function') save(); }catch(e){}
+        console.info('[BNS v374] '+n+' verouderde reserved-statussen verwijderd.');
+      }
+    }catch(e){}
+  }
+
+  if(document.readyState==='loading')
+    document.addEventListener('DOMContentLoaded',function(){ setTimeout(clean,600); });
+  else setTimeout(clean,400);
+})();
