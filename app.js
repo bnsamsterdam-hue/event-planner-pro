@@ -21134,6 +21134,8 @@ setTimeout(()=>{
     });
   }
   function install(){
+    // Niet installeren als v380 stable core actief is
+    if(window.BNS_STABLE_CORE && window.renderMaterials === window.BNS_STABLE_CORE.renderMaterials) return;
     ensureCss();
     try {
       window.renderMaterials = renderMaterialsV45;
@@ -39023,6 +39025,11 @@ setTimeout(()=>{
           window.renderMaterials = window.BNS_STABLE_CORE.renderMaterials;
           try{ renderMaterials = window.BNS_STABLE_CORE.renderMaterials; }catch(e){}
         }
+        // Ook renderCats bewaken - als die vervangen wordt springt de rubriekkeuze terug
+        if(window.BNS_STABLE_CORE.renderCats && window.renderCats !== window.BNS_STABLE_CORE.renderCats){
+          window.renderCats = window.BNS_STABLE_CORE.renderCats;
+          try{ renderCats = window.BNS_STABLE_CORE.renderCats; }catch(e){}
+        }
       }
     }catch(e){}
   }
@@ -39056,6 +39063,20 @@ setTimeout(()=>{
     protectStableMaterial();
     fixVisibleDates();
     cleanupOrderNav();
+    cleanupAdminTabs();
+  }
+  function cleanupAdminTabs(){
+    // Verwijder verouderde dubbele Huisstijl tabs
+    document.querySelectorAll('.adminTab').forEach(function(btn){
+      var txt=(btn.textContent||'').trim();
+      if(txt==='Documenten / Huisstijl'||txt==='Factuur / offerte'){
+        btn.remove();
+      }
+    });
+    var old=document.getElementById('twV309DocStylePane');
+    if(old) old.remove();
+    var old2=document.getElementById('adminInvoice');
+    if(old2) old2.remove();
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(run,600);setTimeout(run,1600);});
