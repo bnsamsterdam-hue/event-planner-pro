@@ -39025,11 +39025,22 @@ setTimeout(()=>{
           window.renderMaterials = window.BNS_STABLE_CORE.renderMaterials;
           try{ renderMaterials = window.BNS_STABLE_CORE.renderMaterials; }catch(e){}
         }
-        // Ook renderCats bewaken - als die vervangen wordt springt de rubriekkeuze terug
+        // Ook renderCats bewaken
         if(window.BNS_STABLE_CORE.renderCats && window.renderCats !== window.BNS_STABLE_CORE.renderCats){
           window.renderCats = window.BNS_STABLE_CORE.renderCats;
           try{ renderCats = window.BNS_STABLE_CORE.renderCats; }catch(e){}
         }
+        // renderMaterialsFinal en andere versies omleiden naar v380
+        // Dit voorkomt dat oude click handlers de verkeerde weergave tonen
+        var _stable = window.BNS_STABLE_CORE.renderMaterials;
+        ['renderMaterialsFinal','renderMaterialsV45','renderMaterialsPro',
+         'renderMaterials95','renderMaterials83','renderMaterials72',
+         'renderMaterialsV50','renderMaterials112'].forEach(function(name){
+          if(typeof window[name]==='function' && !window[name].__bnsRedirected){
+            window[name]=function(cat){ return _stable(cat); };
+            window[name].__bnsRedirected=true;
+          }
+        });
       }
     }catch(e){}
   }
@@ -39064,6 +39075,7 @@ setTimeout(()=>{
     fixVisibleDates();
     cleanupOrderNav();
     cleanupAdminTabs();
+    interceptCatClicks();
   }
   function cleanupAdminTabs(){
     // Verwijder verouderde dubbele Huisstijl tabs
@@ -39079,10 +39091,38 @@ setTimeout(()=>{
     if(old2) old2.remove();
   }
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(run,600);setTimeout(run,1600);});
-  else {setTimeout(run,400);setTimeout(run,1400);}
-  document.addEventListener('click',function(){setTimeout(run,120);},true);
-  setInterval(run,3000);
+  function interceptCatClicks(){
+    // Zet een capture-listener op materialCats die als EERSTE vuurt
+    // en de cat-click afhandelt via v380 - zodat oude handlers de verkeerde
+    // weergave niet meer kunnen overschrijven
+    var cats=document.getElementById('materialCats');
+    if(!cats||cats.__bns381Intercept) return;
+    cats.__bns381Intercept=true;
+    cats.addEventListener('click',function(e){
+      var btn=e.target.closest('button');
+      if(!btn) return;
+      // Lees de cat uit data-bns-cat (v380) of data-cat (oud) of textContent
+      var cat=btn.getAttribute('data-bns-cat')||btn.getAttribute('data-cat')||
+               (btn.textContent||'').trim().toUpperCase();
+      if(!cat) return;
+      // Sla op en render via v380
+      try{ window.currentCat=cat; currentCat=cat; }catch(ex){}
+      if(window.BNS_STABLE_CORE&&typeof window.BNS_STABLE_CORE.renderMaterials==='function'){
+        window.BNS_STABLE_CORE.renderMaterials(cat);
+      }
+      // Markeer knoppen actief
+      Array.from(cats.querySelectorAll('button')).forEach(function(b){
+        b.classList.toggle('active', b===btn);
+      });
+      // Stop: geen andere handlers meer
+      e.stopImmediatePropagation();
+    }, true); // capture = true, als eerste
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(run,200);setTimeout(run,600);setTimeout(run,1400);});
+  else {setTimeout(run,100);setTimeout(run,400);setTimeout(run,1200);}
+  document.addEventListener('click',function(){setTimeout(run,50);},true);
+  setInterval(run,1500);
 
   console.info('[BNS v381] Nieuwe functies veilig teruggezet. Materiaal blijft v380 stable core.');
 })();
