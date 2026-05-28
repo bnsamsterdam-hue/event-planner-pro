@@ -29,8 +29,8 @@
     s.textContent = [
       // Materiaallijst: geen animaties, geen transitions, geen flash
       '#materialList *{animation:none!important;transition:none!important;transform:none!important}',
-      // Genoeg hoogte voor de materiaallijst - scrollt door heel de kolom
-      '#materialList{min-height:40px!important}',
+      // Prevent white flash during innerHTML replace
+      '#materialList{contain:layout style!important;min-height:40px!important}',
       // Maar defect badge mag wel zichtbaar zijn (alleen geen blink)
       '#materialList .badge.defect{opacity:1!important}',
       // Materiaalknoppen in de lijst: stabiel
@@ -52,80 +52,12 @@
   //   - de laatste cat-waarde onthoudt zodat flikkeren door cat-mismatch stopt
   var _matRenderPending = false;
   var _matRenderCat = null;
-  var _matDebounceInstalled = false;
+  var _matDebounced = null;
 
   function installMatDebounce() {
-    // BELANGRIJK: v375 is de nieuwe schone materiaal-render.
-    // Oude stabilizer v2 pakte hier altijd BNS_V45_PLANNING_DEBUG.renderMaterials
-    // en wrapte die als "echte" render. Daardoor won oude V45 steeds van v375
-    // en bleef vooral EXTRA onrustig/flikkeren. Vanaf v376: nieuwere renderers
-    // nooit meer vervangen door V45.
-    var cur = window.renderMaterials;
-
-    // Als v375 actief is: met rust laten. v375 heeft zelf al debounce + watchdog.
-    if (cur && cur.__bnsV375) {
-      _matDebounceInstalled = true;
-      return;
-    }
-    if (window.BNS_V375 && typeof window.BNS_V375.renderMaterials === 'function') {
-      window.renderMaterials = window.BNS_V375.renderMaterials;
-      try { renderMaterials = window.BNS_V375.renderMaterials; } catch(e) {}
-      _matDebounceInstalled = true;
-      return;
-    }
-
-    // Ook v372/v374 niet terugdraaien naar V45 als zo'n nieuwere laag actief is.
-    if (cur && (cur.__bnsV372 || cur.__bnsV374)) {
-      _matDebounceInstalled = true;
-      return;
-    }
-
-    // Alleen als er GEEN nieuwe materiaal-render actief is, mag V45 als fallback.
-    var debug = window.BNS_V45_PLANNING_DEBUG;
-    var _realRender = null;
-    if (debug && debug.renderMaterials &&
-        !debug.renderMaterials.__bnsMatDebounced &&
-        !debug.renderMaterials.__bnsV375 &&
-        !debug.renderMaterials.__bnsV372 &&
-        !debug.renderMaterials.__bnsV374) {
-      _realRender = debug.renderMaterials;
-    }
-
-    if (!_realRender) {
-      // Fallback: gebruik huidige window.renderMaterials als die niet al gedebounced is
-      cur = window.renderMaterials;
-      if (!cur || cur.__bnsMatDebounced || cur.__bnsV375 || cur.__bnsV372 || cur.__bnsV374) return;
-      _realRender = cur;
-    }
-
-    // Maak de debounce wrapper — alleen voor oude renderers, nooit voor v375.
-    var debounced = function(cat) {
-      if (cat) _matRenderCat = cat;
-      if (_matRenderPending) return;
-      _matRenderPending = true;
-      requestAnimationFrame(function() {
-        _matRenderPending = false;
-        var useCat = _matRenderCat || window.currentCat || 'TW';
-        // Alleen renderen als materiaalPanel zichtbaar is
-        var panel = document.getElementById('materialPanel');
-        if (panel && panel.classList.contains('hidden')) return;
-        if (panel && panel.closest('.page') &&
-            !panel.closest('.page').classList.contains('active')) return;
-        try { _realRender(useCat); } catch(e) {}
-      });
-    };
-    debounced.__bnsMatDebounced = true;
-    debounced.__bnsStabilizerDebounced = true;
-
-    // Vervang window.renderMaterials alleen voor oude renderers.
-    window.renderMaterials = debounced;
-    try { renderMaterials = debounced; } catch(e) {}
-
-    // Vervang ook in V45 debug zodat zijn watchdog tevreden is, maar alleen
-    // wanneer we daadwerkelijk V45 als fallback gebruikten.
-    if (debug && _realRender === debug.renderMaterials) debug.renderMaterials = debounced;
-
-    _matDebounceInstalled = true;
+    // BNS v380: materiaal wordt volledig beheerd door app.js / BNS_STABLE_CORE.
+    // Stabilizer mag renderMaterials niet meer wrappen, anders gaat EXTRA/TW/KW opnieuw flikkeren.
+    return;
   }
 
   // ── 2. ROUTENET KNIPPEREN — stabiel houden ───────────────────────────────
@@ -400,29 +332,11 @@
     document.head.appendChild(s);
   }
 
-  // ── 10. ADMIN NAV — altijd zichtbaar voor admin gebruikers ──────────────
-  function fixAdminNav() {
-    // Controleer of er een ingelogde admin gebruiker is
-    var user = window.user || null;
-    if (!user) return;
-    var role = String(user.role || '').toLowerCase();
-    if (role !== 'admin') return;
-
-    // Zorg dat admin-only nav buttons zichtbaar zijn
-    document.querySelectorAll('.admin-only').forEach(function(el) {
-      if (el.style.display === 'none') {
-        el.style.display = '';
-      }
-    });
-  }
-
   // ── Main run ──────────────────────────────────────────────────────────────
   function run() {
     injectAntiFlickerCss();
-    installMatDebounce();
     fixDefectBadge();
     fixActionBarWidth();
-    fixAdminNav();
     fixRoutenetButtons();
     fixBoekhoudingModal();
     wrapOrderOverviewShow();
@@ -442,14 +356,13 @@
     }, 120);
   }, true);
 
-  // Interval: materiaal debounce bewaken + actiebalk + rest
+  // Interval: actiebalk + layout, GEEN materiaalrender.
   setInterval(function() {
-    installMatDebounce();
     fixActionBarWidth();
     fixRoutenetButtons();
     patchSoftDeleteButtons();
     fixBoekhoudingModal();
-  }, 800);
+  }, 2500);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() { setTimeout(run, 500); });
@@ -459,5 +372,5 @@
 
   setTimeout(run, 1200);
 
-  console.info('[BNS Stabilizer v2] Actief: flicker, routenet, boekhouding, wis knoppen.');
+  console.info('[BNS Stabilizer v2] Actief zonder materiaalrender: routenet, boekhouding, wis knoppen.');
 })();
