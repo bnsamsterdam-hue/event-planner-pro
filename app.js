@@ -39130,6 +39130,8 @@ setTimeout(()=>{
     cleanupOrderNav();
     cleanupAdminTabs();
     interceptCatClicks();
+    interceptMatClicks();
+    fixMaterialScroll();
   }
   function cleanupAdminTabs(){
     // Verwijder verouderde dubbele Huisstijl tabs
@@ -39146,31 +39148,56 @@ setTimeout(()=>{
   }
 
   function interceptCatClicks(){
-    // Zet een capture-listener op materialCats die als EERSTE vuurt
-    // en de cat-click afhandelt via v380 - zodat oude handlers de verkeerde
-    // weergave niet meer kunnen overschrijven
     var cats=document.getElementById('materialCats');
     if(!cats||cats.__bns381Intercept) return;
     cats.__bns381Intercept=true;
     cats.addEventListener('click',function(e){
       var btn=e.target.closest('button');
       if(!btn) return;
-      // Lees de cat uit data-bns-cat (v380) of data-cat (oud) of textContent
       var cat=btn.getAttribute('data-bns-cat')||btn.getAttribute('data-cat')||
                (btn.textContent||'').trim().toUpperCase();
       if(!cat) return;
-      // Sla op en render via v380
       try{ window.currentCat=cat; currentCat=cat; }catch(ex){}
       if(window.BNS_STABLE_CORE&&typeof window.BNS_STABLE_CORE.renderMaterials==='function'){
         window.BNS_STABLE_CORE.renderMaterials(cat);
       }
-      // Markeer knoppen actief
       Array.from(cats.querySelectorAll('button')).forEach(function(b){
         b.classList.toggle('active', b===btn);
       });
-      // Stop: geen andere handlers meer
       e.stopImmediatePropagation();
-    }, true); // capture = true, als eerste
+    }, true);
+  }
+
+  function interceptMatClicks(){
+    // Document-level capture voor materialList klikken
+    // Altijd via v380's toggleMaterial - nooit via oude handlers
+    if(document.__bns381MatIntercept) return;
+    document.__bns381MatIntercept=true;
+    document.addEventListener('click', function(e){
+      var list=document.getElementById('materialList');
+      if(!list) return;
+      // Is de klik binnen materialList?
+      var row=e.target.closest('[data-mid]');
+      if(!row||!list.contains(row)) return;
+      var mid=row.getAttribute('data-mid');
+      if(!mid) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      // Altijd via v380's toggleMaterial
+      if(window.BNS_STABLE_CORE&&typeof window.BNS_STABLE_CORE.toggleMat==='function'){
+        window.BNS_STABLE_CORE.toggleMat(mid);
+      }
+    }, true); // capture = true, als allereerste
+  }
+
+  function fixMaterialScroll(){
+    // Zorg dat materialList altijd scrollbaar is
+    var list=document.getElementById('materialList');
+    if(!list||list.__bns381Scroll) return;
+    list.__bns381Scroll=true;
+    list.style.overflowY='auto';
+    list.style.maxHeight='55vh';
+    list.style.display='block';
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(run,200);setTimeout(run,600);setTimeout(run,1400);});
@@ -39879,4 +39906,200 @@ setTimeout(()=>{
   if(document.readyState==='loading')
     document.addEventListener('DOMContentLoaded',function(){ setTimeout(clean,600); });
   else setTimeout(clean,400);
+})();
+
+// ============================================================
+// BNS PATCH v383 — Opdracht vergrendeling voor meerdere planners
+// Als een collega een opdracht open heeft, krijgt een andere
+// planner de melding: "Een collega is bezig met deze opdracht."
+// Lock via Firebase collectie 'locks', verloopt na 15 minuten.
+// ============================================================
+(function BNS_V383_ORDER_LOCK(){
+  'use strict';
+  if(window.__BNS_V383__) return;
+  window.__BNS_V383__ = true;
+
+  var LOCK_TTL = 15 * 60 * 1000; // 15 minuten
+  var LOCK_COL = 'locks';
+  var _currentLock = null; // { orderId, key }
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+
+  // Unieke sessie-ID voor deze browser/tab
+  var SESSION_ID = (function(){
+    var k = 'bns_session_id';
+    var s = sessionStorage.getItem(k);
+    if(!s){ s = 'sess_' + Math.random().toString(36).slice(2,10); sessionStorage.setItem(k,s); }
+    return s;
+  })();
+
+  // Firebase helpers via bestaande BNSFirebaseSync
+  function fbTools(){
+    return window.__bnsFirebaseTls || null;
+  }
+
+  async function getLockTools(){
+    try{
+      var mod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+      var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+      var app = appMod.getApps().length ? appMod.getApp() : null;
+      if(!app) return null;
+      var db = mod.getFirestore(app);
+      return {mod, db};
+    }catch(e){ return null; }
+  }
+
+  async function writeLock(orderId){
+    var t = await getLockTools(); if(!t) return;
+    try{
+      var ref = t.mod.doc(t.db, LOCK_COL, String(orderId));
+      await t.mod.setDoc(ref, {
+        session: SESSION_ID,
+        since: new Date().toISOString(),
+        expires: new Date(Date.now() + LOCK_TTL).toISOString()
+      });
+      _currentLock = {orderId: orderId};
+    }catch(e){}
+  }
+
+  async function releaseLock(orderId){
+    if(!orderId) return;
+    var t = await getLockTools(); if(!t) return;
+    try{
+      var ref = t.mod.doc(t.db, LOCK_COL, String(orderId));
+      var snap = await t.mod.getDoc(ref);
+      if(snap.exists() && snap.data().session === SESSION_ID){
+        await t.mod.deleteDoc(ref);
+      }
+    }catch(e){}
+    if(_currentLock && _currentLock.orderId === orderId) _currentLock = null;
+  }
+
+  async function checkLock(orderId){
+    var t = await getLockTools(); if(!t) return false;
+    try{
+      var ref = t.mod.doc(t.db, LOCK_COL, String(orderId));
+      var snap = await t.mod.getDoc(ref);
+      if(!snap.exists()) return false;
+      var data = snap.data();
+      // Eigen sessie = geen blokkering
+      if(data.session === SESSION_ID) return false;
+      // Verlopen lock = geen blokkering
+      if(data.expires && new Date(data.expires).getTime() < Date.now()) return false;
+      return true; // iemand anders heeft het open
+    }catch(e){ return false; }
+  }
+
+  // Toon blokkeermelding
+  function showBlocked(){
+    try{
+      window.bnsAlert(
+        'Een collega is bezig met deze opdracht.\nEven wachten of later opnieuw proberen.',
+        'Opdracht bezet'
+      );
+    }catch(e){
+      alert('Een collega is bezig met deze opdracht. Even wachten of later opnieuw proberen.');
+    }
+  }
+
+  // Patch: onderschep het openen van een opdracht voor bewerken
+  function patchEditOrder(){
+    // Bewaar originele editOrder als die bestaat
+    var origEdit = window.editOrder;
+    if(typeof origEdit !== 'function' || origEdit.__v383) return;
+
+    window.editOrder = function(id){
+      var orderId = T(id);
+      if(!orderId){ return origEdit.apply(this, arguments); }
+
+      checkLock(orderId).then(function(locked){
+        if(locked){
+          showBlocked(orderId);
+        } else {
+          writeLock(orderId);
+          origEdit.call(window, id);
+        }
+      });
+    };
+    window.editOrder.__v383 = true;
+  }
+
+  // Patch: release lock bij opslaan of annuleren
+  function patchSaveAndCancel(){
+    var origSave = window.BNS_STABLE_CORE && window.BNS_STABLE_CORE.save;
+    if(origSave && !origSave.__v383){
+      window.BNS_STABLE_CORE.save = function(){
+        var result = origSave.apply(this, arguments);
+        var editing = T(window.editing || '');
+        if(editing) releaseLock(editing);
+        return result;
+      };
+      window.BNS_STABLE_CORE.save.__v383 = true;
+    }
+
+    // Ook de opslaan-knop zelf
+    var saveBtn = E('saveOrder');
+    if(saveBtn && !saveBtn.__v383lock){
+      saveBtn.__v383lock = true;
+      saveBtn.addEventListener('click', function(){
+        setTimeout(function(){
+          var editing = T(window.editing || '');
+          if(!editing && _currentLock) releaseLock(_currentLock.orderId);
+        }, 2000);
+      }, true);
+    }
+
+    // Annuleren knop
+    var cancelBtn = E('cancelOrder') || E('annuleerOrder');
+    if(cancelBtn && !cancelBtn.__v383lock){
+      cancelBtn.__v383lock = true;
+      cancelBtn.addEventListener('click', function(){
+        if(_currentLock) releaseLock(_currentLock.orderId);
+      }, true);
+    }
+  }
+
+  // Vernieuw eigen lock elke 10 minuten zodat hij niet verloopt
+  setInterval(function(){
+    if(_currentLock && _currentLock.orderId){
+      writeLock(_currentLock.orderId);
+    }
+  }, 10 * 60 * 1000);
+
+  // Release lock als tab/browser gesloten wordt
+  window.addEventListener('beforeunload', function(){
+    if(_currentLock){
+      // Synchrone fallback (best effort)
+      try{
+        var nav = navigator;
+        if(nav.sendBeacon && window.BNS_FIREBASE_CONFIG){
+          // Kan niet synchroon Firebase aanroepen, maar releaseLock proberen
+          releaseLock(_currentLock.orderId);
+        }
+      }catch(e){}
+    }
+  });
+
+  function install(){
+    patchEditOrder();
+    patchSaveAndCancel();
+  }
+
+  // Expose voor externe aanroepen
+  window.BNS_V383 = {
+    writeLock: writeLock,
+    releaseLock: releaseLock,
+    checkLock: checkLock,
+    sessionId: SESSION_ID
+  };
+
+  if(document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 800); });
+  else setTimeout(install, 600);
+
+  // Herinstalleer na navigatie (editOrder kan later geladen worden)
+  setInterval(install, 5000);
+
+  console.info('[BNS v383] Opdracht vergrendeling actief. Collega-blokkering via Firebase locks.');
 })();
