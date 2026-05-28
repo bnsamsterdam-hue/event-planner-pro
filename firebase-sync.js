@@ -34,9 +34,25 @@ function saveLocal(s){
 }
 function arr(s,k){s[k]=Array.isArray(s[k])?s[k]:[]}
 function id(x,p){if(!x.id)x.id=p+"_"+Math.random().toString(36).slice(2,10);return x}
+function isAddMaterialLine(m){
+  return !!(m&&String(m.id||"").match(/^add[_-]/i));
+}
+function cleanMaterialStatuses(s){
+  try{
+    if(!s||!Array.isArray(s.materials))return s;
+    s.materials=s.materials.filter(m=>!isAddMaterialLine(m));
+    s.materials.forEach(m=>{
+      if(!m)return;
+      const st=String(m.status||"").toLowerCase();
+      if(/reserved|gereserveerd|bezet|geboekt/.test(st))m.status="free";
+    });
+  }catch(e){}
+  return s;
+}
 function norm(s){
   s=s||{}; ["users","orders","materials","customers","locations","alerts"].forEach(k=>arr(s,k)); s.settings=s.settings||{};
   s.users.forEach(x=>id(x,"u")); s.orders.forEach(x=>id(x,"o")); s.materials.forEach(x=>id(x,"m")); s.customers.forEach(x=>id(x,"c")); s.locations.forEach(x=>id(x,"l")); s.alerts.forEach(x=>id(x,"a"));
+  cleanMaterialStatuses(s);
   return s;
 }
 function json(){try{return JSON.stringify(loadLocal()||{})}catch(e){return""}}
@@ -106,9 +122,10 @@ async function download(){
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
-    try{if(typeof renderOrders==="function")renderOrders(); if(typeof adminRender==="function")adminRender();}catch(e){}
+    try{if(typeof renderOrders==="function")renderOrders();}catch(e){}
   }catch(e){console.error(e);status("Firebase download fout")}
   finally{downloading=false}
 }
@@ -159,27 +176,27 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
         if(col==="orders"&&typeof renderOrders==="function")renderOrders();
-        // renderMaterials alleen aanroepen als materialen echt veranderd zijn
-        if(col==="materials"&&typeof renderMaterials==="function"){
-          // Kleine vertraging zodat de DOM rust heeft na de state-update
-          setTimeout(function(){ if(typeof renderMaterials==="function") renderMaterials(window.currentCat||"TW"); }, 80);
-        }
-        if(col==="users"&&typeof adminRender==="function")adminRender();
         if(col==="alerts"){
-          // Bezorger melding binnengekomen: update planner UI direct
           if(typeof renderDriver==="function")renderDriver();
-          if(typeof renderDriverDashboard==="function")renderDriverDashboard();
-          // Update systeemmeldingen teller
-          var alertBtn=document.getElementById("alertsBtn");
-          if(alertBtn){
-            var openCount=(s.alerts||[]).filter(function(a){return !a.resolved;}).length;
-            alertBtn.textContent=openCount?"Systeemmeldingen ("+openCount+")":"Systeemmeldingen (0)";
-          }
-          // Toast melding zodat planner ziet dat er iets binnenkomt
+          var ab=document.getElementById("alertsBtn");
+          if(ab){var oc=(window.__bnsState||loadLocal()||{}).alerts||[];ab.textContent="Systeemmeldingen ("+(oc.filter(function(a){return !a.resolved;}).length)+")";}
           try{if(typeof toastMsg==="function")toastMsg("Nieuwe bezorger melding ontvangen");}catch(e){}
+        }
+        // Materials: alleen renderen als materialPanel zichtbaar is, met debounce
+        if(col==="materials"){
+          clearTimeout(window.__bnsFbMatTimer);
+          window.__bnsFbMatTimer=setTimeout(function(){
+            try{
+              var panel=document.getElementById("materialPanel");
+              var isVisible=panel&&!panel.classList.contains("hidden");
+              if(isVisible&&typeof renderMaterials==="function")
+                renderMaterials(window.currentCat||"TW");
+            }catch(e){}
+          },300);
         }
       }catch(e){}
     });
@@ -196,5 +213,25 @@ async function start(){
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(start,1000)); else setTimeout(start,1000);
 setInterval(patchSave,3000);
-window.BNSFirebaseSync={uploadLocalToFirebase:upload,downloadFirebaseToLocal:download,startRealtimeSync:live};
+async function syncDoc(col,row){
+  const t=await fb(); if(!t||!col||!row||!row.id)return false;
+  try{
+    await t.fsMod.setDoc(t.fsMod.doc(t.db,String(col),String(row.id)),row,{merge:true});
+    return true;
+  }catch(e){console.error(e);status("Firebase syncDoc fout");return false;}
+}
+async function deleteDocPublic(col,id){
+  const t=await fb(); if(!t||!col||!id)return false;
+  try{
+    uploading=true;
+    await t.fsMod.deleteDoc(t.fsMod.doc(t.db,String(col),String(id)));
+    status("Firebase verwijderd");
+    return true;
+  }catch(e){console.error(e);status("Firebase delete fout");return false;}
+  finally{uploading=false;}
+}
+window.BNSFirebaseSync={uploadLocalToFirebase:upload,downloadFirebaseToLocal:download,startRealtimeSync:live,syncDoc:syncDoc,deleteDoc:deleteDocPublic};
+window.BNS=window.BNS||{};
+window.BNS.syncDoc=syncDoc;
+window.BNS.deleteDoc=deleteDocPublic;
 })();
