@@ -24512,7 +24512,7 @@ setTimeout(()=>{
 (function(){
   "use strict";
   var STYLE_ID = "bns-v62-driver-alert-dashboard-style";
-  // css() stub - voorkomt ReferenceError als css() niet in scope is
+  // css() stub
   function css(){
     if(document.getElementById(STYLE_ID)) return;
     var st=document.createElement("style");
@@ -24520,6 +24520,8 @@ setTimeout(()=>{
     st.textContent="";
     document.head.appendChild(st);
   }
+  // patchMaterial() stub - functie bestaat in andere IIFE
+  function patchMaterial(){ try{ if(typeof window.addMat==='function') return; } catch(e){} }
   var DEFAULT_TYPES = [
   {
     id:"storing", name:"Storing", color:"#dc2626", driver:true, text:true, photo:false, signature:false, admin:true
