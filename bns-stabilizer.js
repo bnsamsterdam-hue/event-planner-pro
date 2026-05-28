@@ -55,20 +55,50 @@
   var _matDebounceInstalled = false;
 
   function installMatDebounce() {
-    // Haal de ECHTE V45 render op via debug object - dan hoeven we nooit te vechten
+    // BELANGRIJK: v375 is de nieuwe schone materiaal-render.
+    // Oude stabilizer v2 pakte hier altijd BNS_V45_PLANNING_DEBUG.renderMaterials
+    // en wrapte die als "echte" render. Daardoor won oude V45 steeds van v375
+    // en bleef vooral EXTRA onrustig/flikkeren. Vanaf v376: nieuwere renderers
+    // nooit meer vervangen door V45.
+    var cur = window.renderMaterials;
+
+    // Als v375 actief is: met rust laten. v375 heeft zelf al debounce + watchdog.
+    if (cur && cur.__bnsV375) {
+      _matDebounceInstalled = true;
+      return;
+    }
+    if (window.BNS_V375 && typeof window.BNS_V375.renderMaterials === 'function') {
+      window.renderMaterials = window.BNS_V375.renderMaterials;
+      try { renderMaterials = window.BNS_V375.renderMaterials; } catch(e) {}
+      _matDebounceInstalled = true;
+      return;
+    }
+
+    // Ook v372/v374 niet terugdraaien naar V45 als zo'n nieuwere laag actief is.
+    if (cur && (cur.__bnsV372 || cur.__bnsV374)) {
+      _matDebounceInstalled = true;
+      return;
+    }
+
+    // Alleen als er GEEN nieuwe materiaal-render actief is, mag V45 als fallback.
     var debug = window.BNS_V45_PLANNING_DEBUG;
-    var _realRender = (debug && debug.renderMaterials && !debug.renderMaterials.__bnsMatDebounced)
-      ? debug.renderMaterials
-      : null;
+    var _realRender = null;
+    if (debug && debug.renderMaterials &&
+        !debug.renderMaterials.__bnsMatDebounced &&
+        !debug.renderMaterials.__bnsV375 &&
+        !debug.renderMaterials.__bnsV372 &&
+        !debug.renderMaterials.__bnsV374) {
+      _realRender = debug.renderMaterials;
+    }
 
     if (!_realRender) {
       // Fallback: gebruik huidige window.renderMaterials als die niet al gedebounced is
-      var cur = window.renderMaterials;
-      if (!cur || cur.__bnsMatDebounced) return;
+      cur = window.renderMaterials;
+      if (!cur || cur.__bnsMatDebounced || cur.__bnsV375 || cur.__bnsV372 || cur.__bnsV374) return;
       _realRender = cur;
     }
 
-    // Maak de debounce wrapper - wraps altijd de RAW V45 functie
+    // Maak de debounce wrapper — alleen voor oude renderers, nooit voor v375.
     var debounced = function(cat) {
       if (cat) _matRenderCat = cat;
       if (_matRenderPending) return;
@@ -85,13 +115,15 @@
       });
     };
     debounced.__bnsMatDebounced = true;
+    debounced.__bnsStabilizerDebounced = true;
 
-    // Vervang window.renderMaterials
+    // Vervang window.renderMaterials alleen voor oude renderers.
     window.renderMaterials = debounced;
     try { renderMaterials = debounced; } catch(e) {}
 
-    // Vervang ook in V45 debug zodat watchdog tevreden is
-    if (debug) debug.renderMaterials = debounced;
+    // Vervang ook in V45 debug zodat zijn watchdog tevreden is, maar alleen
+    // wanneer we daadwerkelijk V45 als fallback gebruikten.
+    if (debug && _realRender === debug.renderMaterials) debug.renderMaterials = debounced;
 
     _matDebounceInstalled = true;
   }
