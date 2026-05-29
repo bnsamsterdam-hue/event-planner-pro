@@ -8051,8 +8051,14 @@ function workTab(idv){
   $(idv).classList.remove('hidden');
   document.querySelectorAll('.worktab').forEach(x=>x.classList.toggle('active',x.dataset.tab===idv));
   if(idv==='materialPanel'){
-    renderCats();
-    renderMaterials(currentCat)
+    if(typeof window.renderCats==='function') window.renderCats(); else renderCats();
+    // Via window zodat v391's debounced versie wint
+    setTimeout(function(){
+      if(typeof window.renderMaterials==='function') window.renderMaterials(window.currentCat||currentCat||'TW');
+      // Scroll naar boven
+      var box=document.getElementById('materialList');
+      if(box) box.scrollTop=0;
+    },0);
   }
   summaryRender();
 }
@@ -39416,6 +39422,8 @@ setTimeout(()=>{
   function notify(msg){ try{ if(typeof toastMsg==='function') return toastMsg(msg); }catch(e){} try{ if(window.toastMsg) return window.toastMsg(msg); }catch(e){} alert(msg); }
   function saveLocal(){ try{ if(typeof save==='function') save(); }catch(e){} try{ if(window.save) window.save(); }catch(e){} try{ localStorage.setItem('eventPlannerState',JSON.stringify(S())); }catch(e){} }
   function rerenderMaterial(){
+    // Scroll naar boven na elke materiaalrender
+    try{ var box=document.getElementById('materialList'); if(box) box.scrollTop=0; }catch(e){}
     try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
     try{ if(window.renderChosen) window.renderChosen(); }catch(e){}
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
@@ -39564,7 +39572,65 @@ setTimeout(()=>{
     window.saveCurrentOrder.__bns391=true;
   }
 
-  function boot(){ css(); ensureAdmin(); installAddMat(); installDebounce(); }
+  function renderV391(cat){
+    var box=E('materialList'); if(!box) return;
+    window.currentCat=cat||window.currentCat||'TW';
+    try{ currentCat=window.currentCat; }catch(e){}
+    var curCat=window.currentCat;
+    var q=L(T((E('materialSearch')||{}).value));
+    var rows=mats().filter(function(m){
+      if(String(m.id||'').match(/^add[_-]/i)) return false;
+      return U(m.cat||m.rubriek||m.category||'')===curCat;
+    }).filter(function(m){
+      if(!q) return true;
+      return [m.code,m.name,m.searchName,m.zoeknaam,m.description].some(function(v){ return L(T(v)).indexOf(q)>=0; });
+    }).sort(function(a,b){
+      var na=parseInt((materialKey(a)||'').replace(/\D/g,''),10)||0;
+      var nb=parseInt((materialKey(b)||'').replace(/\D/g,''),10)||0;
+      return na-nb;
+    });
+    var html=rows.length ? rows.map(function(m){
+      var st=statusFor(m);
+      var lbl=st.label; var why='';
+      if(st.reservation&&st.reservation.order){
+        why=' · '+T(st.reservation.order.status||'')+' '+T(st.reservation.order.number||'');
+      }
+      var bg=st.key==='reserved'?'#fff7ed':st.key==='chosen'?'#f0fdf4':st.key==='defect'||st.key==='inactive'?'#fef2f2':'#fff';
+      var border=st.key==='reserved'?'border-left:3px solid #f59e0b':st.key==='chosen'?'border-left:3px solid #16a34a':st.key==='defect'||st.key==='inactive'?'border-left:3px solid #ef4444':'border-left:3px solid #e2e8f0';
+      var badgeColor=st.key==='free'?'#16a34a':st.key==='chosen'?'#16a34a':st.key==='reserved'?'#f59e0b':'#ef4444';
+      var btn=st.key==='chosen'
+        ? '<button type="button" data-v391mat="'+esc(m.id)+'" style="background:#16a34a;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer;flex-shrink:0;font-size:12px">Verwijder</button>'
+        : (st.blocked
+          ? '<span style="font-size:11px;color:#94a3b8;flex-shrink:0">'+esc(lbl)+esc(why)+'</span>'
+          : '<button type="button" data-v391mat="'+esc(m.id)+'" style="background:#2563eb;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer;flex-shrink:0;font-size:12px">Kies</button>');
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;'+border+';background:'+bg+';margin-bottom:2px;border-radius:8px;gap:10px">'+
+        '<div style="flex:1;min-width:0">'+
+          '<b style="font-size:14px">'+esc(codeOf(m)||materialKey(m))+'</b> '+
+          '<span style="color:#475569;font-size:13px">'+esc(nameOf(m))+'</span>'+
+          (st.key==='reserved'||st.key==='free'||st.key==='chosen' ? '<br><small style="color:'+badgeColor+';font-weight:700">● '+esc(lbl)+esc(why)+'</small>' : '')+
+        '</div>'+btn+
+      '</div>';
+    }).join('') : '<p style="color:#94a3b8;padding:16px 0">Geen materialen gevonden.</p>';
+
+    if(html!==box._v391html){
+      box._v391html=html;
+      box.innerHTML=html;
+      box.scrollTop=0; // scroll naar boven bij nieuwe rubriek
+      box.querySelectorAll('[data-v391mat]').forEach(function(btn){
+        btn.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); safeAddMat(btn.getAttribute('data-v391mat')); };
+      });
+    }
+  }
+
+  function installOwn(){
+    if(window.__bns391OwnRender) return;
+    window.__bns391OwnRender=true;
+    window.renderMaterials=renderV391;
+    window.__bns391RenderDebounce=true; // voorkomt dat installDebounce hem opnieuw wraps
+    try{ renderMaterials=renderV391; }catch(e){}
+  }
+
+  function boot(){ css(); ensureAdmin(); installAddMat(); installOwn(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,250); setTimeout(boot,1200); });
   else { setTimeout(boot,120); setTimeout(boot,1200); }
   setInterval(function(){ css(); ensureAdmin(); installAddMat(); },2500);
