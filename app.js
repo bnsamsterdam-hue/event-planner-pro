@@ -8,6 +8,12 @@ function safeMail(text, subject){
   const body = encodeURIComponent(text || '');
   window.location.href = 'mailto:?subject=' + encodeURIComponent(subject || 'Opdrachtbevestiging') + '&body=' + body;
 }
+
+// ===== BNS STABIELE BASIS SAFETY GLOBALS =====
+// Voorkomt dat oude telefoon/materiaal patches de planner laten crashen.
+function phoneMode(){ return false; }
+function patchMaterial(){ return false; }
+
 const INITIAL_STATE = {
   "version": "2023-import-v1", "seq": 1, "users": [{
     "id": "u_admin", "name": "Admin", "phone": "", "pin": "1111", "role": "Admin", "rights": {
@@ -21,7 +27,6359 @@ const INITIAL_STATE = {
     "id": "u_planner", "name": "Planner Demo", "phone": "", "pin": "3333", "role": "Planner", "rights": {
       "prices": true, "agenda": true, "gps": false, "resolve": true
     }
-  }], "materials": [], "orders": [], "alerts": [], "settings": {
+  }], "materials": [{
+    "id": "art_1", "oldId": 1, "cat": "TW", "code": "TW17", "name": "Tapwagen Zwart XXL", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken WH-XN-43"
+  }, {
+    "id": "art_2", "oldId": 2, "cat": "KW", "code": "KW1", "name": "Container aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_3", "oldId": 3, "cat": "EXTRA", "code": "EXTRA2", "name": "-", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_4", "oldId": 4, "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "oude prijs: € 0", "status": "free", "notes": "Mueller 2003"
+  }, {
+    "id": "art_5", "oldId": 5, "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "oude prijs: € 0", "status": "free", "notes": "Mueller 2003"
+  }, {
+    "id": "art_6", "oldId": 6, "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_7", "oldId": 7, "cat": "TW", "code": "TW25", "name": "Bierslangen 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_8", "oldId": 8, "cat": "KW", "code": "KW5", "name": "Container 4000 liter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_9", "oldId": 9, "cat": "KW", "code": "KW1", "name": "Koel container 220 volt", "price": "oude prijs: € 0", "status": "free", "notes": "koel container 220 volt"
+  }, {
+    "id": "art_10", "oldId": 10, "cat": "KW", "code": "KW2", "name": "Koel container 220 volt Nw", "price": "oude prijs: € 0", "status": "inactive", "notes": "Koel container klein"
+  }, {
+    "id": "art_11", "oldId": 11, "cat": "EXTRA", "code": "EXTRA3", "name": "NVT", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_12", "oldId": 12, "cat": "KW", "code": "KW4", "name": "Reefer 20 ft", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_13", "oldId": 13, "cat": "KW", "code": "KW5", "name": "Reefer 10 ft", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_14", "oldId": 14, "cat": "TW", "code": "TW23", "name": "Tap container", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_15", "oldId": 15, "cat": "EXTRA", "code": "EXTRA1", "name": "Podium delen", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_16", "oldId": 16, "cat": "EXTRA", "code": "EXTRA2", "name": "Podiumwagen Klein", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_17", "oldId": 17, "cat": "EXTRA", "code": "EXTRA3", "name": "Podiumwagen xl", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_18", "oldId": 18, "cat": "TW", "code": "TW24", "name": "Bierslangen 12 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_19", "oldId": 19, "cat": "KW", "code": "KW2", "name": "Carrousel met koelcel", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_20", "oldId": 20, "cat": "EXTRA", "code": "EXTRA3", "name": "-", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_21", "oldId": 21, "cat": "EXTRA", "code": "EXTRA4", "name": "Carrousel XXL 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken WY-53-JJ 4 tap punten"
+  }, {
+    "id": "art_22", "oldId": 22, "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken 15-WD-XR"
+  }, {
+    "id": "art_23", "oldId": 23, "cat": "TW", "code": "TW6", "name": "Tap Blikje Heineken 0.0", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_24", "oldId": 24, "cat": "TW", "code": "TW19", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "4 tap punten"
+  }, {
+    "id": "art_25", "oldId": 25, "cat": "TW", "code": "TW18", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "4 tap punten"
+  }, {
+    "id": "art_26", "oldId": 26, "cat": "KW", "code": "KW1", "name": "Containerwagen met kraan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_27", "oldId": 27, "cat": "EXTRA", "code": "EXTRA2", "name": "Wipkar groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_28", "oldId": 28, "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_29", "oldId": 29, "cat": "TO", "code": "TO2", "name": "Toiletwagen 12 klepper op  aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_30", "oldId": 30, "cat": "EXTRA", "code": "EXTRA3", "name": "14-klepper / 14 zit", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_31", "oldId": 31, "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_33", "oldId": 33, "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_34", "oldId": 34, "cat": "KW", "code": "KW19", "name": "Reefer 20 ft", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_37", "oldId": 37, "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "oude prijs: € 0", "status": "free", "notes": "Mueller 2012"
+  }, {
+    "id": "art_38", "oldId": 38, "cat": "EXTRA", "code": "EXTRA7", "name": "Mueller tank  6 KB 1501", "price": "oude prijs: € 0", "status": "free", "notes": "Mueller 2012"
+  }, {
+    "id": "art_39", "oldId": 39, "cat": "EXTRA", "code": "EXTRA8", "name": "-", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_40", "oldId": 40, "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_41", "oldId": 41, "cat": "EXTRA", "code": "EXTRA1", "name": "Kasa unit 1 persoons", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_42", "oldId": 42, "cat": "EXTRA", "code": "EXTRA1", "name": "Movinghead", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_43", "oldId": 43, "cat": "EXTRA", "code": "EXTRA2", "name": "Led par", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_44", "oldId": 44, "cat": "EXTRA", "code": "EXTRA3", "name": "Toppen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_45", "oldId": 45, "cat": "EXTRA", "code": "EXTRA4", "name": "Subwoofer", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_46", "oldId": 46, "cat": "EXTRA", "code": "EXTRA5", "name": "Special effect", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_47", "oldId": 47, "cat": "EXTRA", "code": "EXTRA6", "name": "Spots", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_48", "oldId": 48, "cat": "EXTRA", "code": "EXTRA7", "name": "Truss", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_49", "oldId": 49, "cat": "EXTRA", "code": "EXTRA1", "name": "Uigifte bar", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_51", "oldId": 51, "cat": "EXTRA", "code": "EXTRA1", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_52", "oldId": 52, "cat": "EXTRA", "code": "EXTRA2", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_53", "oldId": 53, "cat": "EXTRA", "code": "EXTRA3", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_54", "oldId": 54, "cat": "EXTRA", "code": "EXTRA4", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_55", "oldId": 55, "cat": "EXTRA", "code": "EXTRA5", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_56", "oldId": 56, "cat": "EXTRA", "code": "EXTRA6", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_57", "oldId": 57, "cat": "EXTRA", "code": "EXTRA7", "name": "Mobiele bar 1 kraan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_58", "oldId": 58, "cat": "EXTRA", "code": "EXTRA8", "name": "Mobiele bar 1 kraan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_59", "oldId": 59, "cat": "EXTRA", "code": "EXTRA9", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_60", "oldId": 60, "cat": "EXTRA", "code": "EXTRA1", "name": "Kassa unit 2 persoons met klep", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_61", "oldId": 61, "cat": "TW", "code": "TW2", "name": "Bierslang 12  meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_62", "oldId": 62, "cat": "TW", "code": "TW3", "name": "Bierslang 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_63", "oldId": 63, "cat": "KW", "code": "KW1", "name": "Koelkast groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_64", "oldId": 64, "cat": "KW", "code": "KW2", "name": "Koelkast groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_65", "oldId": 65, "cat": "KW", "code": "KW3", "name": "Koelkast groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_66", "oldId": 66, "cat": "KW", "code": "KW4", "name": "Koelkast groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_67", "oldId": 67, "cat": "EXTRA", "code": "EXTRA1", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_68", "oldId": 68, "cat": "EXTRA", "code": "EXTRA2", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_69", "oldId": 69, "cat": "EXTRA", "code": "EXTRA3", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_70", "oldId": 70, "cat": "EXTRA", "code": "EXTRA4", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_71", "oldId": 71, "cat": "EXTRA", "code": "EXTRA5", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_72", "oldId": 72, "cat": "EXTRA", "code": "EXTRA6", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_73", "oldId": 73, "cat": "EXTRA", "code": "EXTRA2", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_74", "oldId": 74, "cat": "EXTRA", "code": "EXTRA3", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_75", "oldId": 75, "cat": "EXTRA", "code": "EXTRA4", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_76", "oldId": 76, "cat": "EXTRA", "code": "EXTRA5", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_77", "oldId": 77, "cat": "EXTRA", "code": "EXTRA6", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_78", "oldId": 78, "cat": "EXTRA", "code": "EXTRA7", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_79", "oldId": 79, "cat": "EXTRA", "code": "EXTRA8", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_80", "oldId": 80, "cat": "EXTRA", "code": "EXTRA1", "name": "Homa pomp 220 volt", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_81", "oldId": 81, "cat": "EXTRA", "code": "EXTRA2", "name": "Homa pomp 380 volt", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_82", "oldId": 82, "cat": "EXTRA", "code": "EXTRA3", "name": "Filterbak met pomp", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_83", "oldId": 83, "cat": "EXTRA", "code": "EXTRA4", "name": "Drukverhoger 220 volt", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_84", "oldId": 84, "cat": "EXTRA", "code": "EXTRA2", "name": "Wipkar groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_85", "oldId": 85, "cat": "EXTRA", "code": "EXTRA3", "name": "Aanhanger klein", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_86", "oldId": 86, "cat": "EXTRA", "code": "EXTRA4", "name": "BE Oplegger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_87", "oldId": 87, "cat": "EXTRA", "code": "EXTRA5", "name": "BE Oplegger gesloten", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_88", "oldId": 88, "cat": "KW", "code": "KW6", "name": "Wipkar containerwagen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_89", "oldId": 89, "cat": "EXTRA", "code": "EXTRA1", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_90", "oldId": 90, "cat": "EXTRA", "code": "EXTRA2", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_91", "oldId": 91, "cat": "EXTRA", "code": "EXTRA3", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_92", "oldId": 92, "cat": "EXTRA", "code": "EXTRA4", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_93", "oldId": 93, "cat": "EXTRA", "code": "EXTRA5", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_94", "oldId": 94, "cat": "EXTRA", "code": "EXTRA6", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_95", "oldId": 95, "cat": "EXTRA", "code": "EXTRA7", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_96", "oldId": 96, "cat": "EXTRA", "code": "EXTRA8", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_97", "oldId": 97, "cat": "EXTRA", "code": "EXTRA9", "name": "Persslang 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_98", "oldId": 98, "cat": "EXTRA", "code": "EXTRA10", "name": "Persslang 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_99", "oldId": 99, "cat": "EXTRA", "code": "EXTRA1", "name": "BE trekker", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_100", "oldId": 100, "cat": "EXTRA", "code": "EXTRA2", "name": "Vrachtwagen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_101", "oldId": 101, "cat": "EXTRA", "code": "EXTRA3", "name": "Pick up", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_102", "oldId": 102, "cat": "EXTRA", "code": "EXTRA4", "name": "Bakwagen met laadklep", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_103", "oldId": 103, "cat": "EXTRA", "code": "EXTRA30", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_104", "oldId": 104, "cat": "EXTRA", "code": "EXTRA45", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_105", "oldId": 105, "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_106", "oldId": 106, "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_107", "oldId": 107, "cat": "EXTRA", "code": "EXTRA2", "name": "Snackwagen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_108", "oldId": 108, "cat": "EXTRA", "code": "EXTRA31", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_110", "oldId": 110, "cat": "TW", "code": "TW7", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_111", "oldId": 111, "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_112", "oldId": 112, "cat": "EXTRA", "code": "EXTRA8", "name": "Carrousel zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_113", "oldId": 113, "cat": "EXTRA", "code": "EXTRA6", "name": "13 klepper / 8 zit 5 staan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_114", "oldId": 114, "cat": "EXTRA", "code": "EXTRA7", "name": "Rioolpomp 220 volt", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_115", "oldId": 115, "cat": "EXTRA", "code": "EXTRA8", "name": "Rioolpomp 380 volt dubbel", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_116", "oldId": 116, "cat": "EXTRA", "code": "EXTRA9", "name": "Perslang 70 mm / 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_117", "oldId": 117, "cat": "EXTRA", "code": "EXTRA10", "name": "Waterslang", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_118", "oldId": 118, "cat": "EXTRA", "code": "EXTRA11", "name": "Water opvoerpomp", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_120", "oldId": 120, "cat": "EXTRA", "code": "EXTRA2", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_121", "oldId": 121, "cat": "EXTRA", "code": "EXTRA3", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_122", "oldId": 122, "cat": "EXTRA", "code": "EXTRA4", "name": "Kantoor unit 20 ft 2x raam", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_123", "oldId": 123, "cat": "EXTRA", "code": "EXTRA21", "name": "--", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_124", "oldId": 124, "cat": "TO", "code": "TO12", "name": "Vip toiletwagen black edition", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_125", "oldId": 125, "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_126", "oldId": 126, "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_127", "oldId": 127, "cat": "EXTRA", "code": "EXTRA10", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_128", "oldId": 128, "cat": "EXTRA", "code": "EXTRA11", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_129", "oldId": 129, "cat": "TW", "code": "TW12", "name": "Tapwagen Radler blikje", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_130", "oldId": 130, "cat": "EXTRA", "code": "EXTRA13", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_131", "oldId": 131, "cat": "EXTRA", "code": "EXTRA14", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_132", "oldId": 132, "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_133", "oldId": 133, "cat": "KW", "code": "KW16", "name": "Brand container zwart Heineken", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_135", "oldId": 135, "cat": "TW", "code": "TW9", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_136", "oldId": 136, "cat": "KW", "code": "KW22", "name": "Brand container Parade bar", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_137", "oldId": 137, "cat": "KW", "code": "KW23", "name": "Container auto", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_138", "oldId": 138, "cat": "EXTRA", "code": "EXTRA24", "name": "Auto  met kraan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_139", "oldId": 139, "cat": "EXTRA", "code": "EXTRA23", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_140", "oldId": 140, "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_141", "oldId": 141, "cat": "EXTRA", "code": "EXTRA25", "name": "14 klepper/ 10 zit 4 staan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_142", "oldId": 142, "cat": "EXTRA", "code": "EXTRA8", "name": "Podiumwagen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_143", "oldId": 143, "cat": "EXTRA", "code": "EXTRA25", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "inactive", "notes": "kenteken 26-WK-VT"
+  }, {
+    "id": "art_144", "oldId": 144, "cat": "EXTRA", "code": "EXTRA26", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_145", "oldId": 145, "cat": "EXTRA", "code": "EXTRA15", "name": "Septictank 10.000 liter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_146", "oldId": 146, "cat": "EXTRA", "code": "EXTRA10", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_147", "oldId": 147, "cat": "EXTRA", "code": "EXTRA11", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_148", "oldId": 148, "cat": "EXTRA", "code": "EXTRA12", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_149", "oldId": 149, "cat": "EXTRA", "code": "EXTRA13", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_150", "oldId": 150, "cat": "EXTRA", "code": "EXTRA14", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_151", "oldId": 151, "cat": "EXTRA", "code": "EXTRA16", "name": "Opvang bak met pomp 450 liter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_152", "oldId": 152, "cat": "TO", "code": "TO17", "name": "Toiletwagen lux wit schamel kl", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_153", "oldId": 153, "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_154", "oldId": 154, "cat": "EXTRA", "code": "EXTRA19", "name": "Dixi Type 1 op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_156", "oldId": 156, "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_157", "oldId": 157, "cat": "EXTRA", "code": "EXTRA20", "name": "Desperados Bottle bar", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_158", "oldId": 158, "cat": "EXTRA", "code": "EXTRA27", "name": "Desperados uitgifte bar 1", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_159", "oldId": 159, "cat": "EXTRA", "code": "EXTRA28", "name": "Desperados uitgifte bar 2", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_160", "oldId": 160, "cat": "KW", "code": "KW29", "name": "Lagunitas container", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_161", "oldId": 161, "cat": "EXTRA", "code": "EXTRA6", "name": "EHBo  unit 10 ft 1 raam", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_162", "oldId": 162, "cat": "EXTRA", "code": "EXTRA7", "name": "Kantoor unit 10 ft 1 raam", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_163", "oldId": 163, "cat": "KW", "code": "KW8", "name": "Koelwagen met 3x 1000 liter tanken", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_164", "oldId": 164, "cat": "KW", "code": "KW7", "name": "Koelaanhanger met 3x 1000 liter tanken", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_165", "oldId": 165, "cat": "TO", "code": "TO32", "name": "Toiletwagen 13 klepper op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_166", "oldId": 166, "cat": "EXTRA", "code": "EXTRA32", "name": "Luxe 13 klepper op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_167", "oldId": 167, "cat": "TW", "code": "TW33", "name": "Bierlokaal container", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_168", "oldId": 168, "cat": "KW", "code": "KW34", "name": "Heineken Silver container", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_169", "oldId": 169, "cat": "EXTRA", "code": "EXTRA0", "name": "Carrousel zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_170", "oldId": 170, "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken 15-WD-XR"
+  }, {
+    "id": "art_171", "oldId": 171, "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 23-WS-GP"
+  }, {
+    "id": "art_172", "oldId": 172, "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 23-WS-GP"
+  }, {
+    "id": "art_173", "oldId": 173, "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 42-WL-XP"
+  }, {
+    "id": "art_174", "oldId": 174, "cat": "EXTRA", "code": "EXTRA15", "name": "Standaard kleur zwart ML 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken  WT-11-TP"
+  }, {
+    "id": "art_175", "oldId": 175, "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 03-WD-JT"
+  }, {
+    "id": "art_176", "oldId": 176, "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 04-WD-JT"
+  }, {
+    "id": "art_177", "oldId": 177, "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 14-WD-RT"
+  }, {
+    "id": "art_178", "oldId": 178, "cat": "EXTRA", "code": "EXTRA40", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 66-WL-GF"
+  }, {
+    "id": "art_179", "oldId": 179, "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 66-WL-GF"
+  }, {
+    "id": "art_180", "oldId": 180, "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 22-WK-VT"
+  }, {
+    "id": "art_181", "oldId": 181, "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 71-WF-DZ"
+  }, {
+    "id": "art_182", "oldId": 182, "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 25-WD-RP"
+  }, {
+    "id": "art_183", "oldId": 183, "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 04-WX-VX"
+  }, {
+    "id": "art_184", "oldId": 184, "cat": "EXTRA", "code": "EXTRA2", "name": "13 klepper op  aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_186", "oldId": 186, "cat": "KW", "code": "KW14", "name": "Bar container met koelcel 8 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_187", "oldId": 187, "cat": "EXTRA", "code": "EXTRA9", "name": "Parade bar", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_188", "oldId": 188, "cat": "EXTRA", "code": "EXTRA23", "name": "Black Edition", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_189", "oldId": 189, "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_190", "oldId": 190, "cat": "KW", "code": "KW10", "name": "Event container met dakterras /trap", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_191", "oldId": 191, "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_192", "oldId": 192, "cat": "KW", "code": "KW3", "name": "Bar container", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_193", "oldId": 193, "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_196", "oldId": 196, "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken 65-WL-GF"
+  }, {
+    "id": "art_198", "oldId": 198, "cat": "EXTRA", "code": "EXTRA2", "name": "Extern inhuur carrousel", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_199", "oldId": 199, "cat": "EXTRA", "code": "EXTRA12", "name": "Plaskruis extern", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_200", "oldId": 200, "cat": "EXTRA", "code": "EXTRA17", "name": "Plaskruis extern", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_201", "oldId": 201, "cat": "EXTRA", "code": "EXTRA21", "name": "Plaskruis extern", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_202", "oldId": 202, "cat": "EXTRA", "code": "EXTRA22", "name": "Plaskruis extern", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_203", "oldId": 203, "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_204", "oldId": 204, "cat": "EXTRA", "code": "EXTRA1", "name": "Touniquet 3", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_205", "oldId": 205, "cat": "EXTRA", "code": "EXTRA2", "name": "Touniquet 5", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_206", "oldId": 206, "cat": "EXTRA", "code": "EXTRA3", "name": "Touniquet 8", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_207", "oldId": 207, "cat": "EXTRA", "code": "EXTRA4", "name": "Touniquet 9", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_209", "oldId": 209, "cat": "EXTRA", "code": "EXTRA46", "name": "Jumbo eiland incl 3000 L tanken", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_210", "oldId": 210, "cat": "EXTRA", "code": "EXTRA4", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_211", "oldId": 211, "cat": "EXTRA", "code": "EXTRA4", "name": "Kantoor unit 20 FT 1959155", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_213", "oldId": 213, "cat": "EXTRA", "code": "EXTRA100", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_214", "oldId": 214, "cat": "KW", "code": "KW2", "name": "Event container leeg", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_217", "oldId": 217, "cat": "EXTRA", "code": "EXTRA1", "name": "Lichtmast: 4 x camera/ 2x verlichtings", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_218", "oldId": 218, "cat": "EXTRA", "code": "EXTRA2", "name": "Lichtmast: 4 x camera/ 2x verlichtings", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_219", "oldId": 219, "cat": "EXTRA", "code": "EXTRA3", "name": "Camera paal met 4 x special camera", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_220", "oldId": 220, "cat": "EXTRA", "code": "EXTRA4", "name": "Camera paal met 4 x special camera", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_221", "oldId": 221, "cat": "EXTRA", "code": "EXTRA23", "name": "Standaard 3 dames / 1 heren en 3 urinoir", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }], "orders": [{
+    "id": "old_1340", "oldId": 1340, "number": "2023-3002", "title": "Opdracht 3002", "start": "2023-01-15", "end": "2023-01-15", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 514", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "838", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1347", "oldId": 1347, "number": "2023-3007", "title": "Opdracht 3007", "start": "2023-01-31", "end": "2023-01-31", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 519", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "843", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_19", "cat": "KW", "code": "KW2", "name": "Carrousel met koelcel", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1357", "oldId": 1357, "number": "2023-3014", "title": "oefenterrein brandweer", "start": "2023-03-08", "end": "2023-03-08", "startTime": "16 uur", "endTime": "20 uur", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Michelle de Wit", "street": "", "zip": "", "city": "", "phone": "06 47766372", "email": ""
+    }, "location": {
+      "name": "Brandweer oefenterrein", "street": "Molenlaan 30", "zip": "", "city": "Uithoorn", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Frisdrank € 2,00 (Cola, Fanta , water, appelsap)\r\n\r\nalcoholische dranken € 250 ( wijn, Bier, roze )\r\n\r\nhuur wagen incl. personeel €175 \r\n\r\neindschoonmaak € 125\r\nprijzen zijn ex btw", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1365", "oldId": 1365, "number": "2023-3021", "title": "Tapwagen", "start": "2023-03-08", "end": "2023-03-08", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "FC", "street": "", "zip": "", "city": "", "phone": "06-55246480", "email": ""
+    }, "location": {
+      "name": "857", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen met de deal zelf schoonmaken en ook weer schoon retour .\r\nKosten  aangepast € 550 ex btw \r\nBorg € 500", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1367", "oldId": 1367, "number": "2023-3023", "title": "toiletwagen", "start": "2023-03-12", "end": "2023-03-12", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "toiletwagen", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "859", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "aejrklghalskdfglkarejg", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1369", "oldId": 1369, "number": "2023-3025", "title": "00000000000000000000000000000000000000000000000000", "start": "2023-03-14", "end": "2023-03-14", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "00000000000000000000000000000000000000000000000000", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "860", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1390", "oldId": 1390, "number": "2023-3045", "title": "Desperados Amsterdam Open Air", "start": "2023-03-20", "end": "2023-03-20", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Desperados Amsterdam Open Air", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "880", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1406", "oldId": 1406, "number": "2023-3060", "title": "Opdracht 3060", "start": "2023-03-31", "end": "2023-03-31", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 543", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "895", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1407", "oldId": 1407, "number": "2023-3061", "title": "Opdracht 3061", "start": "2023-03-31", "end": "2023-03-31", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 544", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "896", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1417", "oldId": 1417, "number": "2023-3062", "title": "test", "start": "2023-03-31", "end": "2023-04-01", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "test", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "poppppennenn", "street": "hhhh", "zip": "", "city": "gbbbgfgg", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1420", "oldId": 1420, "number": "2023-3063", "title": "Opdracht 3063", "start": "2023-03-31", "end": "2023-03-31", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 1002", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "899", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1435", "oldId": 1435, "number": "2023-3064", "title": "test", "start": "2023-03-31", "end": "2023-05-31", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "test", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "900", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1436", "oldId": 1436, "number": "2023-3065", "title": "test 2", "start": "2023-03-31", "end": "2023-08-31", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "test 2", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "hahahha", "street": "lfhajhfo;jqanv", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "fnlanefdnh;oaenf", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1443", "oldId": 1443, "number": "2023-3068", "title": "Opdracht 3068", "start": "2023-04-04", "end": "2023-04-04", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 550", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "904", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1343", "oldId": 1343, "number": "2023-3004", "title": "Opdracht 3004", "start": "2023-04-19", "end": "2023-04-28", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 516", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "840", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_110", "cat": "TW", "code": "TW7", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1441", "oldId": 1441, "number": "2023-3066", "title": "Carrousel Wit Blauw koningsdag", "start": "2023-04-19", "end": "2023-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 1375, "brand": "Onbekend", "invoice": "", "customer": {
+      "name": "Eelco Haringman", "street": "", "zip": "", "city": "", "phone": "0615097229", "email": ""
+    }, "location": {
+      "name": "902", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Carrousel € 1250 ex btw \r\nReinigen leidingen € 125 ex btw \r\nBorg € 500 ( geen btw )\r\nTotaal meetenemen bij het ophalen € 2163,75\r\nborg krijgt u terug na het inleveren van de tapwagen en als de wagen schoon en schade vrij is .\r\nBetaling contant bij ophalen tapwagen.\r\n\r\nLet op er zitten 2 kleine koelkastjes in .\r\nAdvies fusten voor te koelen omdat de koeler bij warm weer niet het vermogen aan kan van zoveel fusten \r\n\r\nTapwagen dient schoon retour terug te komen, het spoelen van de tap installatie laten wij uitvoeren door de tapwacht.\r\n\r\nLees voor u gaat huren ons algemene voorwaarde te vinden op de site \r\n\r\n\r\n\r\nPrijzen zijn ex btw", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1442", "oldId": 1442, "number": "2023-3067", "title": "M.Bar Koningsdag", "start": "2023-04-19", "end": "2023-04-28", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 1550, "brand": "jupilar", "invoice": "", "customer": {
+      "name": "Monique senft", "street": "", "zip": "", "city": "", "phone": "06-38246420", "email": ""
+    }, "location": {
+      "name": "903", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_59", "cat": "EXTRA", "code": "EXTRA9", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_146", "cat": "EXTRA", "code": "EXTRA10", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_147", "cat": "EXTRA", "code": "EXTRA11", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_148", "cat": "EXTRA", "code": "EXTRA12", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "4 x M.Bar enkel kraans 100\r\n€175 brengen \r\n€175 ophalen \r\nReinigen Biertappen  €125\r\n2 geïsoleerde slangen 3/8 van 25 meter €75 \r\nPrijzen zijn exclusief btw", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1457", "oldId": 1457, "number": "2023-3080", "title": "M.Bar Koningsdag Nathan", "start": "2023-04-19", "end": "2023-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "M.Bar Koningsdag Nathan", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "912", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "2x M.Bar", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1458", "oldId": 1458, "number": "2023-3081", "title": "2x Tap Koningsdag", "start": "2023-04-19", "end": "2023-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 400, "brand": "Neutraal", "invoice": "", "customer": {
+      "name": "Nathan", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "913", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_57", "cat": "EXTRA", "code": "EXTRA7", "name": "Mobiele bar 1 kraan", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x M.Bar 2 meter met spoelbak € 400\r\nOphalen kan op 20-4-23 of op 26-4-23 om 7 uur \r\nNa 7 uur is er niemand meer op de locatie aanwezig", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1351", "oldId": 1351, "number": "2023-3010", "title": "Opdracht 3010", "start": "2023-04-21", "end": "2023-04-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 522", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "846", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1466", "oldId": 1466, "number": "2023-3087", "title": "Toilet wagen huren", "start": "2023-04-21", "end": "2023-06-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Toilet wagen huren", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "919", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "In huur luxe toiletwagen voor de huur van minimaal 8 weken voor dser speciale prijs van € 1050 per week ex btw \r\nDe unit moet geheel schoon retour terug geleverd worden .\r\nAlle schade die ontstaat tijdens de huur periode is voor huurder .\r\nBij niet schoon inleveren zullen wij een bedrag van € 350 ex btw  in rekening brengen .", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1345", "oldId": 1345, "number": "2023-3006", "title": "koningsdag leiden", "start": "2023-04-24", "end": "2023-04-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "koningsdag leiden", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Rebel horeca groep", "street": "", "zip": "", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_128", "cat": "EXTRA", "code": "EXTRA11", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Pop up container zonder trap € 1050\r\nTapcontainer event  € 1050\r\nTransport kraanwagen en vergunningen € 120 per uur exclusief dieseltoeslag", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1353", "oldId": 1353, "number": "2023-3012", "title": "Opdracht 3012", "start": "2023-04-24", "end": "2023-04-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 524", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "848", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1384", "oldId": 1384, "number": "2023-3039", "title": "Desperados container Koningsdag Best", "start": "2023-04-24", "end": "2023-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Supersized Kingsday", "street": "Ekkersweijer 1", "zip": "", "city": "Best", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_157", "cat": "EXTRA", "code": "EXTRA20", "name": "Desperados Bottle bar", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport € 1800", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1467", "oldId": 1467, "number": "2023-3088", "title": "plaskruis Badhoevendorp", "start": "2023-04-24", "end": "2023-04-24", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 150, "brand": "", "invoice": "", "customer": {
+      "name": "Sander ketel", "street": "", "zip": "", "city": "", "phone": "06-46745737", "email": ""
+    }, "location": {
+      "name": "920", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Plaskruis € 150\r\nBorg € 200", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_527", "oldId": 527, "number": "2017-7044", "title": "koningsdag cafe wester", "start": "2023-04-25", "end": "2023-04-25", "startTime": "overleg", "endTime": "", "status": "Geannuleerd", "amount": 1785, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "daan", "street": "", "zip": "", "city": "", "phone": "0612313153", "email": ""
+    }, "location": {
+      "name": "315", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_25", "cat": "TW", "code": "TW18", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_24", "cat": "TW", "code": "TW19", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Extra tap slang om te verlengen\r\nDe wagens dienen zelf geplaatst te worden en na afloop klaar te staan op de parkeerplaats westerstraat of parkeer plek \r\nSchade aan materiaal, lees ons algemene voorwaarde op de site", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1149", "oldId": 1149, "number": "2022-2031", "title": "ophaal klant koningsdag", "start": "2023-04-25", "end": "2023-04-28", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aalt van Drie", "street": "", "zip": "", "city": "", "phone": "06-81725690", "email": "aaltvandrie@gmail.com"
+    }, "location": {
+      "name": "706", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_112", "cat": "EXTRA", "code": "EXTRA8", "name": "Carrousel zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen carrousel zwart € 850\r\nwordt zelf opgehaald \r\nLet op u moet dan wel om 7.30 in uithoorn zijn \r\nborg € 500\r\ntapwagen dient schoon retour", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1362", "oldId": 1362, "number": "2023-3019", "title": "cafe wester Amsterdam koningsdag", "start": "2023-04-25", "end": "2023-04-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2450, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "daan", "street": "", "zip": "", "city": "", "phone": "0612313153", "email": ""
+    }, "location": {
+      "name": "855", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_25", "cat": "TW", "code": "TW18", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_24", "cat": "TW", "code": "TW19", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Tapwagen wit € 800 per wagen\r\nTransport € 300 per wagen\r\nReinigen tap installatie € 125 per wagen\r\nExra tap slang om te verlengen\r\nDe wagens dienen zelf geplaatst te worden en na afloop klaar te staan op de parkeerplaats westerstraat  uiterlijk 20 uur \r\nTapwagens moeten schoon retour .\r\nSchade aan materiaal zijn voor huurder . Kijk op de site voor meer info.", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1455", "oldId": 1455, "number": "2023-3078", "title": "Event container Zaandam", "start": "2023-04-25", "end": "2023-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2505, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Debby", "street": "", "zip": "", "city": "", "phone": "0647961348", "email": ""
+    }, "location": {
+      "name": "910", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Event container € 1500\r\nTransport 4 ritten € 880\r\nReinigen Tap installatie € 125\r\nLet op de container moet geheel schoon retour \r\nBij niet goed schoon retour komen er schoonmaak kosten van € 275 ex btw boven de factuur .", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1456", "oldId": 1456, "number": "2023-3079", "title": "Lijfering Koningsdag", "start": "2023-04-25", "end": "2023-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 750, "brand": "", "invoice": "", "customer": {
+      "name": "Fred de Vries", "street": "", "zip": "", "city": "", "phone": "06-43047340", "email": ""
+    }, "location": {
+      "name": "911", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_52", "cat": "EXTRA", "code": "EXTRA2", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_53", "cat": "EXTRA", "code": "EXTRA3", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_58", "cat": "EXTRA", "code": "EXTRA8", "name": "Mobiele bar 1 kraan", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x M.Bar € 750\r\nPrijs is incl reinigen", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1479", "oldId": 1479, "number": "2023-3092", "title": "Opdracht 3092", "start": "2023-05-01", "end": "2023-05-01", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 567", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "924", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1480", "oldId": 1480, "number": "2023-3093", "title": "test", "start": "2023-05-01", "end": "2023-05-01", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "test", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "test 2", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_85", "cat": "EXTRA", "code": "EXTRA3", "name": "Aanhanger klein", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1485", "oldId": 1485, "number": "2023-3094", "title": "Opdracht 3094", "start": "2023-05-01", "end": "2023-08-18", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 569", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "926", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_38", "cat": "EXTRA", "code": "EXTRA7", "name": "Mueller tank  6 KB 1501", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1460", "oldId": 1460, "number": "2023-3083", "title": "Tapwagen Bevrijdingsdag", "start": "2023-05-03", "end": "2023-05-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 650, "brand": "Grolsch", "invoice": "", "customer": {
+      "name": "Tapwagen Bevrijdingsdag", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "915", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 650\r\n2x Grolsch koppeling", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1469", "oldId": 1469, "number": "2023-3089", "title": "Kassa uinit 2 pers Hem kade Zaandam", "start": "2023-05-03", "end": "2023-05-07", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Kassa uinit 2 pers Hem kade Zaandam", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "921", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_122", "cat": "EXTRA", "code": "EXTRA4", "name": "Kantoor unit 20 ft 2x raam", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Kassa unit 2 persoons € 350\r\nTransport kraanwagen brengen € 300\r\nTransport kraanwagen ophalen € 300\r\nZelf ophalen is eventueel ook mogelijk", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1471", "oldId": 1471, "number": "2023-3091", "title": "Toiletwagen Eemhof watersport", "start": "2023-05-09", "end": "2023-05-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 1300, "brand": "", "invoice": "", "customer": {
+      "name": "Toiletwagen Eemhof watersport", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "923", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_152", "cat": "TO", "code": "TO17", "name": "Toiletwagen lux wit schamel kl", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen type 3  € 550\r\nLeegkosten  € 150 met slang\r\nTransport brengen € 300\r\nTransport ophalen € 300\r\nBorg € 500\r\n\r\nToiletwagen dient geheel schoon ingeleverd te worden , is dit niet het geval zullern wij € 350 schoonmaak kosten in rekening brengen \r\nPlaskruis dient u met een slang aan te sluiten op een put of na afloop zelf te legen bij een put, zodat hij leeg is bij het ophalen", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1486", "oldId": 1486, "number": "2023-3095", "title": "Pop-up container met terras zonder trap", "start": "2023-05-09", "end": "2023-05-14", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2370, "brand": "", "invoice": "", "customer": {
+      "name": "Joost", "street": "", "zip": "", "city": "", "phone": "06-18581159", "email": ""
+    }, "location": {
+      "name": "927", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_128", "cat": "EXTRA", "code": "EXTRA11", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Pop-up container € 1050\r\nTransport  kraanwagen 4 ritten € 1320", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1470", "oldId": 1470, "number": "2023-3090", "title": "plaskruis Uithoorn", "start": "2023-05-11", "end": "2023-05-14", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 150, "brand": "", "invoice": "", "customer": {
+      "name": "Joëlla vd Galiën", "street": "", "zip": "", "city": "", "phone": "0612222545", "email": ""
+    }, "location": {
+      "name": "922", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Plaskruis € 150\r\nMet slang", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1496", "oldId": 1496, "number": "2023-3101", "title": "POL Rotterdam", "start": "2023-05-11", "end": "2023-05-14", "startTime": "9/13", "endTime": "8/13", "status": "Bevestigd", "amount": 5000, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "POL Rotterdam", "street": "Meent 46-48", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_19", "cat": "KW", "code": "KW2", "name": "Carrousel met koelcel", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_21", "cat": "EXTRA", "code": "EXTRA4", "name": "Carrousel XXL 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_22", "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Carrousel XXL €850\r\nTransport rit € 125 x4 =€ 500\r\n\r\n1x Carrousel met koelcel €850\r\nTransport rit € 125 x4 =€ 500\r\n\r\n1x Tapwagen standaard  €650\r\nTransport rit € 125 x4 =€ 500\r\n\r\n1x Tapwagen standaard €650\r\nTransport rit € 125 x4 =€ 500", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1462", "oldId": 1462, "number": "2023-3084", "title": "Water container 1500 liter", "start": "2023-05-14", "end": "2023-07-20", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Water container 1500 liter", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "916", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_6", "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "De tank container met  1500 liter   incl kranen en verdeel stuk compressor en koeling  € 1950 per week", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_812", "oldId": 812, "number": "2019-9001", "title": "event container  T veld", "start": "2023-05-15", "end": "2023-05-18", "startTime": "9/13", "endTime": "9/13", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Jim", "street": "", "zip": "", "city": "", "phone": "06-53854376", "email": "info@jghoreca.nl"
+    }, "location": {
+      "name": "Jim groen", "street": "Leijerpolderweg 2", "zip": "", "city": "T. Veld", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container event € 1050\r\n( transport door klant zelf \r\nStekker 3x 220 ( is geen 380 aanwezig)", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1376", "oldId": 1376, "number": "2023-3031", "title": "Container Silver   Utrecht", "start": "2023-05-16", "end": "2023-05-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Soenda Festival", "street": "", "zip": "", "city": "Utrecht", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_168", "cat": "KW", "code": "KW34", "name": "Heineken Silver container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1348", "oldId": 1348, "number": "2023-3008", "title": "Tapwagen Aalsmeer", "start": "2023-05-18", "end": "2023-05-21", "startTime": "9/13", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Onbekend", "invoice": "", "customer": {
+      "name": "Angelique", "street": "", "zip": "", "city": "", "phone": "0620081765", "email": ""
+    }, "location": {
+      "name": "844", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "tapwagen standaard € 575\r\nTransport € 100", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1453", "oldId": 1453, "number": "2023-3076", "title": "Biertanken en Tapwagen worden opgehaald door klant", "start": "2023-05-22", "end": "2023-05-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 5380, "brand": "Inbev", "invoice": "", "customer": {
+      "name": "Roy", "street": "", "zip": "", "city": "", "phone": "06-50648702", "email": ""
+    }, "location": {
+      "name": "908", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_1", "cat": "TW", "code": "TW17", "name": "Tapwagen Zwart XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_5", "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_37", "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "De tapwagen XXL week €1500\r\n\r\nKoelwagen week €950\r\n\r\n2x Biertank  (inbev) week € 2600\r\n\r\n4 slangen A25 meter  geïsoleerd \r\n\r\nSpinnen kop \r\n\r\nKoppelingen voor slangen \r\n\r\n2 bierzakken € 80\r\n\r\nReinigen tap installatie €125\r\n\r\nReinigen tanken €125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1508", "oldId": 1508, "number": "2023-3112", "title": "Opdracht 3112", "start": "2023-05-22", "end": "2023-06-25", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 580", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "943", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_19", "cat": "KW", "code": "KW2", "name": "Carrousel met koelcel", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1512", "oldId": 1512, "number": "2023-3115", "title": "Tapwagen Wijk aan zee", "start": "2023-05-22", "end": "2023-05-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Bianca", "street": "Julianaplein", "zip": "", "city": "Wijk aan zee", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_22", "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 650\r\nTransport  brengen € 125\r\nTransport ophalen  € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_34", "oldId": 34, "number": "2014-4027", "title": "Bierlokaal Amsterdam", "start": "2023-05-24", "end": "2023-05-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2200, "brand": "Bierlokaal", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Bierlokaal", "street": "NDSM", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_167", "cat": "TW", "code": "TW33", "name": "Bierlokaal container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container incl transport € 2200", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1505", "oldId": 1505, "number": "2023-3109", "title": "Water container Lelystad", "start": "2023-05-28", "end": "2023-06-04", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Timo", "street": "", "zip": "", "city": "", "phone": "0647011645", "email": ""
+    }, "location": {
+      "name": "Strand Lelystad", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "10 ft container met 3x500 gekoelde tanken .\r\nKosten zijn €1750 voor 1 week \r\nIncl kranen set van 5 stuks \r\n\r\n3x inliner (zakken waar water in komt ) €110\r\n\r\nVulling water € 100\r\n\r\nTransport brengen en plaatsen kraanwagen € 440\r\n\r\nOphalen materiaal vroeg in de ochtend met kraanwagen €440", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1377", "oldId": 1377, "number": "2023-3032", "title": "Container Silver Amsterdam Open Air", "start": "2023-05-31", "end": "2023-06-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Silver", "invoice": "", "customer": {
+      "name": "Egbert", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Amsterdam Open Air", "street": "Driemondweg", "zip": "", "city": "Amsterdam zo", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_168", "cat": "KW", "code": "KW34", "name": "Heineken Silver container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1389", "oldId": 1389, "number": "2023-3044", "title": "Desperados Amsterdam Open Air", "start": "2023-05-31", "end": "2023-06-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Amsterdam Open Air -", "street": "Driemondweg", "zip": "", "city": "Amstewrdam zo", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_158", "cat": "EXTRA", "code": "EXTRA27", "name": "Desperados uitgifte bar 1", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_159", "cat": "EXTRA", "code": "EXTRA28", "name": "Desperados uitgifte bar 2", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1518", "oldId": 1518, "number": "2023-3121", "title": "koelwagen Amstelveen", "start": "2023-05-31", "end": "2023-06-04", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "koelwagen Amstelveen", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "948", "street": "Sportlaan 33", "zip": "", "city": "Amstelveen", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Koelwagen Amstelveen € 375\r\nKoelwagen extern inhuur 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1131", "oldId": 1131, "number": "2022-2017", "title": "Alltogether festival", "start": "2023-06-01", "end": "2023-06-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 4018, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Alltogether festival", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "pekingtuin", "street": "stationsweg 39", "zip": "", "city": "Baarn", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_29", "cat": "TO", "code": "TO2", "name": "Toiletwagen 12 klepper op  aanhanger", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container Event container € 1450\r\nOp en afbouw  €350\r\ntransport container  € 440\r\n\r\nToilet 13/ klepper €750 per stuk.\r\nTransport wc  €440.\r\nOpbouw en plaatsen € 350\r\n\r\n wc papier 28 x € 238\r\n\r\nVerbruikt 2023 \r\n11 rollen wc papier\r\n2000 liter bier \r\ngeen wc wagen op wielen meer \r\nhierdoor gaat de wc wagen naar € 950 en extra vrachtwagen qua transport", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1214", "oldId": 1214, "number": "2022-2074", "title": "evenement Heemstede", "start": "2023-06-01", "end": "2023-06-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "lonneke", "street": "", "zip": "", "city": "", "phone": "0645468448", "email": ""
+    }, "location": {
+      "name": "'t Trapveldje", "street": "Vrijheidsdreef,", "zip": "", "city": "Heemstede", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_164", "cat": "KW", "code": "KW7", "name": "Koelaanhanger met 3x 1000 liter tanken", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3000 liter wagen € 2250 incl water \r\n3x 25 m slang € 75\r\nkoppelingen en spinnen kop ( bij tank)\r\n3x waterzak € 120 (3x 1000 liter)\r\nTransport € 550\r\nKorting goedmaken vorigjaar € -150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1516", "oldId": 1516, "number": "2023-3119", "title": "Koelwagen Event center nieuwkoop", "start": "2023-06-01", "end": "2023-06-04", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 375, "brand": "", "invoice": "", "customer": {
+      "name": "Patrick", "street": "", "zip": "", "city": "", "phone": "0622521388", "email": ""
+    }, "location": {
+      "name": "947", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koelwagen € 375\r\nBorg € 500\r\nBetaling contant bij ophalen\r\nkoelwagen moet maandag voor 9 uur retour terug zijn in Uithoorn", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1521", "oldId": 1521, "number": "2023-3124", "title": "water tank 1000 liter", "start": "2023-06-01", "end": "2023-06-04", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 885, "brand": "", "invoice": "", "customer": {
+      "name": "Caroline de Ruiter", "street": "", "zip": "", "city": "", "phone": "(+31)  (0)181-257 798", "email": ""
+    }, "location": {
+      "name": "951", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Tank € 850\r\nwaterzak € 35\r\nspinnen kop \r\nslang 25 meter", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1344", "oldId": 1344, "number": "2023-3005", "title": "Mud masters", "start": "2023-06-06", "end": "2023-06-11", "startTime": "9/12", "endTime": "9/12", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Jeroen", "street": "", "zip": "", "city": "", "phone": "024-6631250", "email": "heineken@micodo.nl"
+    }, "location": {
+      "name": "BudMasters", "street": "Stelling 1", "zip": "", "city": "Vijfhuizen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_21", "cat": "EXTRA", "code": "EXTRA4", "name": "Carrousel XXL 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Carrousel groot € 850\r\nTransport € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1386", "oldId": 1386, "number": "2023-3041", "title": "Bottle bar Best Pussy Lounge Festival", "start": "2023-06-06", "end": "2023-06-11", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Pussy Lounge Festival", "street": "Ekkersweijer 1", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_157", "cat": "EXTRA", "code": "EXTRA20", "name": "Desperados Bottle bar", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1366", "oldId": 1366, "number": "2023-3022", "title": "Toiletwagens Amsterdam", "start": "2023-06-07", "end": "2023-06-11", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Nora", "street": "", "zip": "", "city": "", "phone": "06 43104095", "email": ""
+    }, "location": {
+      "name": "Festival terrein", "street": "Pieter Moeskopspad 20", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_113", "cat": "EXTRA", "code": "EXTRA6", "name": "13 klepper / 8 zit 5 staan", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_141", "cat": "EXTRA", "code": "EXTRA25", "name": "14 klepper/ 10 zit 4 staan", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_28", "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_115", "cat": "EXTRA", "code": "EXTRA8", "name": "Rioolpomp 380 volt dubbel", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_125", "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_166", "cat": "EXTRA", "code": "EXTRA32", "name": "Luxe 13 klepper op aanhanger", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x 14 klepper € 1900\r\n1x Aanhanger 13 klepper  € 950\r\n4x plaskruis€ 500\r\n1x pomp met 25 meter slang € 275 \r\nAansluiten tot 4 meter van de put € 195 per wagen € 585\r\nTransport per unit € 120 per uur \r\n1 uur laden op de opslag 1 uur rijden 1 uur lossen met kraanwagen  1 uur terug \r\nKomt het transport totaal op €2880 voor alle toiletten .\r\nDe plaskruizen en pomp unit komen met een bakwagen en kunnen samen met de toiletwagen mee en kost niets extra's", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1501", "oldId": 1501, "number": "2023-3106", "title": "pop up containers Noorderlicht Amsterdam", "start": "2023-06-07", "end": "2023-06-12", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Krijn", "street": "", "zip": "", "city": "", "phone": "06-53580122", "email": ""
+    }, "location": {
+      "name": "937", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_127", "cat": "EXTRA", "code": "EXTRA10", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_128", "cat": "EXTRA", "code": "EXTRA11", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Pop-up container met dakterras € 1050\r\nTransport € 1400\r\n1x pop-up container met dakterreas € 1050", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1506", "oldId": 1506, "number": "2023-3110", "title": "Opdracht 3110", "start": "2023-06-07", "end": "2023-06-11", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 578", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "941", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_23", "cat": "TW", "code": "TW6", "name": "Tap Blikje Heineken 0.0", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1304", "oldId": 1304, "number": "2022-2150", "title": "Event container Rai", "start": "2023-06-08", "end": "2023-06-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Event container Rai", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Rai Amsterdam", "street": "Europaplein 2-22", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "event container incl transport € 2790\r\n4 x transport ritten zit hier bij in", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1522", "oldId": 1522, "number": "2023-3125", "title": "Tapwagen ophalen", "start": "2023-06-08", "end": "2023-06-11", "startTime": "tijd afstemmen", "endTime": "tijd Afstemmen", "status": "Geannuleerd", "amount": 775, "brand": "", "invoice": "", "customer": {
+      "name": "Ger", "street": "", "zip": "", "city": "", "phone": "06-81652930", "email": ""
+    }, "location": {
+      "name": "952", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_22", "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 650\r\nZelf ophalen en terug brengen \r\nTapwagen dient geheel schoon ingeleverd te worden \r\nHet reinigen van de tap installatie laten wij uitvoeren € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1504", "oldId": 1504, "number": "2023-3108", "title": "M.Bar Mastermate", "start": "2023-06-13", "end": "2023-06-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 330, "brand": "Bizar", "invoice": "", "customer": {
+      "name": "Rob Coorn", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "939", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_58", "cat": "EXTRA", "code": "EXTRA8", "name": "Mobiele bar 1 kraan", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "M.Bar  € 150\r\n50 liter Bizar 1x € 110\r\nkoolzuur € 70", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1401", "oldId": 1401, "number": "2023-3056", "title": "Kassa unit wordt opgehaald door klant", "start": "2023-06-14", "end": "2023-06-18", "startTime": "Zelf ophalen", "endTime": "Zelf retour", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Anjo", "street": "", "zip": "", "city": "", "phone": "071 341 2019", "email": ""
+    }, "location": {
+      "name": "891", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_121", "cat": "EXTRA", "code": "EXTRA3", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Kassa unit € 350\r\nBorg € 500\r\nbetaling contant bij ophalen", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1454", "oldId": 1454, "number": "2023-3077", "title": "Toiletwagen type 3", "start": "2023-06-14", "end": "2023-06-18", "startTime": "9/13", "endTime": "9/13", "status": "Bevestigd", "amount": 1275, "brand": "", "invoice": "", "customer": {
+      "name": "Astrid", "street": "", "zip": "", "city": "", "phone": "06-480 88 065", "email": ""
+    }, "location": {
+      "name": "Conference Company B.V.", "street": "Ijweg 320", "zip": "", "city": "Zwanenburg", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen type 3 € 550 \r\n\r\nTransport brengen € 300 incl. stellen en aansluiten \r\n\r\nTransport ophalen € 300 incl. demonteren.\r\n\r\nEind schoonmaak € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1525", "oldId": 1525, "number": "2023-3127", "title": "Tapwagen wordt opgehaald", "start": "2023-06-14", "end": "2023-06-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 650, "brand": "Onbekend", "invoice": "", "customer": {
+      "name": "Noah Huisman", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "954", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_22", "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1396", "oldId": 1396, "number": "2023-3051", "title": "Desperados Defqon.1 Biddinghuizen", "start": "2023-06-15", "end": "2023-06-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Defqon.1", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_159", "cat": "EXTRA", "code": "EXTRA28", "name": "Desperados uitgifte bar 2", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1530", "oldId": 1530, "number": "2023-3131", "title": "koelwagen uithoorn", "start": "2023-06-15", "end": "2023-06-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 375, "brand": "", "invoice": "", "customer": {
+      "name": "Andre Sturing", "street": "", "zip": "", "city": "", "phone": "06-30848203", "email": ""
+    }, "location": {
+      "name": "957", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koelwagen € 375", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1372", "oldId": 1372, "number": "2023-3027", "title": "Concert at Sea Bierlokaal", "start": "2023-06-18", "end": "2023-06-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Bierlokaal", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "862", "street": "Brouwersdam", "zip": "", "city": "Ouddorp", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_167", "cat": "TW", "code": "TW33", "name": "Bierlokaal container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1498", "oldId": 1498, "number": "2023-3103", "title": "Paul 13 klepper op aanhanger", "start": "2023-06-19", "end": "2023-06-22", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Paul 13 klepper op aanhanger", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "ING Hembrug terrein", "street": "Middeweg 62", "zip": "", "city": "Zaandam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_166", "cat": "EXTRA", "code": "EXTRA32", "name": "Luxe 13 klepper op aanhanger", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "850 Toiletwagen\r\nTransport 4 ritten A € 125 =€ 500", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1532", "oldId": 1532, "number": "2023-3133", "title": "Koelwagen", "start": "2023-06-20", "end": "2023-06-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 550, "brand": "", "invoice": "", "customer": {
+      "name": "Monika", "street": "", "zip": "", "city": "", "phone": "06 83808647", "email": ""
+    }, "location": {
+      "name": "959", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "koelwagen € 550\r\nBorg €500", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1526", "oldId": 1526, "number": "2023-3128", "title": "Carrousel wordt opgehaald", "start": "2023-06-21", "end": "2023-06-25", "startTime": "7:30", "endTime": "", "status": "Bevestigd", "amount": 975, "brand": "", "invoice": "", "customer": {
+      "name": "Carrousel wordt opgehaald", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "955", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Carrousel € 850\r\nReinigen tap installatie € 125\r\nTapwagen dient geheel schoon ingeleverd te worden .\r\nBij niet goed schoon inleveren berekenen wij € 250 schoonmaak kosten", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1533", "oldId": 1533, "number": "2023-3134", "title": "Opdracht 3134", "start": "2023-06-21", "end": "2023-06-21", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 589", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "960", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1502", "oldId": 1502, "number": "2023-3107", "title": "Cafe het hoekje leiden", "start": "2023-06-22", "end": "2023-06-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Cafe het hoekje leiden", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "938", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_22", "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_110", "cat": "TW", "code": "TW7", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 650\r\nTapwagen standaard € 650\r\nTapwagen standaard € 650\r\nToiletwagen 13 klepper € 850\r\nTransport door klant zelf", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1387", "oldId": 1387, "number": "2023-3042", "title": "Bottle bar Beuningen", "start": "2023-06-25", "end": "2023-07-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2350, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Down The Rabbit Hole -", "street": "Groene Heuvels  Beuningen", "zip": "", "city": "Beuningen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_157", "cat": "EXTRA", "code": "EXTRA20", "name": "Desperados Bottle bar", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € \r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1379", "oldId": 1379, "number": "2023-3034", "title": "Rolling Loud/Woo hah Rotterdam", "start": "2023-06-26", "end": "2023-07-02", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Silver", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Rolling Loud/Woo hah", "street": "", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_168", "cat": "KW", "code": "KW34", "name": "Heineken Silver container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1392", "oldId": 1392, "number": "2023-3047", "title": "Desperados Rotterdam", "start": "2023-06-26", "end": "2023-07-02", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Rolling Loud/Woo hah -", "street": "", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_158", "cat": "EXTRA", "code": "EXTRA27", "name": "Desperados uitgifte bar 1", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1447", "oldId": 1447, "number": "2023-3072", "title": "Den helder 2 x tapwagen", "start": "2023-06-26", "end": "2023-07-02", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "906", "street": "Willemsoord", "zip": "", "city": "Den Helder", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_25", "cat": "TW", "code": "TW18", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_24", "cat": "TW", "code": "TW19", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen Denhelder  brengen 22-6-22 blijven staan tot feest santpoort en neemt stammis mee .Let op Knoppen door stammis wisselen naar Amstel\r\n\r\n2x tapwagen € 1200\r\nTransport enkele rit € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1165", "oldId": 1165, "number": "2022-2042", "title": "Events House of Bird Diemerbos", "start": "2023-06-27", "end": "2023-07-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2255, "brand": "onbekend", "invoice": "", "customer": {
+      "name": "part", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "House of Bird -", "street": "Diemerbospad 1A", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_53", "cat": "EXTRA", "code": "EXTRA3", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_54", "cat": "EXTRA", "code": "EXTRA4", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_55", "cat": "EXTRA", "code": "EXTRA5", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_56", "cat": "EXTRA", "code": "EXTRA6", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "4 x mobiele tap barren met twee taps €1000\r\n-Koelwagen € 375\r\nLetters BAR € 330\r\nReinigen tap installatie 4x € 50 = € 200\r\n \r\n- Transport brengen € 175\r\n- Transport ophalen € 175 \r\n\r\nMaterialen worden bij de voordeur geleverd en dienen bij het ophalen ook weer daar te staan .\r\nPoten koelwagen indraaien \r\nMaterialen dienen schoon retour ingeleverd te worden", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1349", "oldId": 1349, "number": "2023-3009", "title": "Zeehelden festival Den haag biertanken", "start": "2023-06-27", "end": "2023-07-02", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Zeehelden festival Den haag biertanken", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "845", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "weekprijs\r\nKoelaanhanger met 3x 1000 litertanken € 1250\r\n1x container met 4x 1000 litertanken € 800\r\nlosse tanken € 550\r\nM.bar € 250\r\nslangen 25 meter € 20\r\nSpinnen kop € 20 \r\nInliner tanken € 35 pst", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1218", "oldId": 1218, "number": "2022-2078", "title": "Coen Hilversum 2023", "start": "2023-06-29", "end": "2023-07-02", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2425, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Paul", "street": "", "zip": "", "city": "", "phone": "06-26364321", "email": ""
+    }, "location": {
+      "name": "751", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Event container € 1050\r\nTransport 4 ritten € 900\r\nPlaatsen en stellen en weghalen \r\n€ 350\r\nReinigen tap installatie € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1511", "oldId": 1511, "number": "2023-3114", "title": "Tapwagen Wijk aan zee", "start": "2023-06-29", "end": "2023-07-02", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 650, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Bianca", "street": "Julianaplein", "zip": "", "city": "Wijk aan zee", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 650\r\nKlant doet transport zelf", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1490", "oldId": 1490, "number": "2023-3098", "title": "Desperados container Amsterdamse bos", "start": "2023-07-02", "end": "2023-07-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2200, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Vunzige Deuntjes", "street": "Nieuwe meeuwenlaan 1", "zip": "", "city": "Amstelveen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_159", "cat": "EXTRA", "code": "EXTRA28", "name": "Desperados uitgifte bar 2", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Bottlebar container \r\nTransport 4 ritten", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1517", "oldId": 1517, "number": "2023-3120", "title": "Event container Rai", "start": "2023-07-02", "end": "2023-08-06", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 6550, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Event container Rai", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Rai Amsterdam", "street": "Europaplein 2-22", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container  incl transport \r\n€ 6550", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_610", "oldId": 610, "number": "2018-8007", "title": "Haringrock", "start": "2023-07-04", "end": "2023-07-08", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Haringrock", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "366", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_23", "cat": "TW", "code": "TW6", "name": "Tap Blikje Heineken 0.0", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_28", "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_115", "cat": "EXTRA", "code": "EXTRA8", "name": "Rioolpomp 380 volt dubbel", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_117", "cat": "EXTRA", "code": "EXTRA10", "name": "Waterslang", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_125", "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_127", "cat": "EXTRA", "code": "EXTRA10", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_128", "cat": "EXTRA", "code": "EXTRA11", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_30", "cat": "EXTRA", "code": "EXTRA3", "name": "14-klepper / 14 zit", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_140", "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_121", "cat": "EXTRA", "code": "EXTRA3", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_163", "cat": "KW", "code": "KW8", "name": "Koelwagen met 3x 1000 liter tanken", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_116", "cat": "EXTRA", "code": "EXTRA9", "name": "Perslang 70 mm / 25 meter", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_139", "cat": "EXTRA", "code": "EXTRA23", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1404", "oldId": 1404, "number": "2023-3059", "title": "Opdracht 3059", "start": "2023-07-06", "end": "2023-07-08", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 542", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "894", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_1", "cat": "TW", "code": "TW17", "name": "Tapwagen Zwart XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1382", "oldId": 1382, "number": "2023-3037", "title": "Parade container NDSM Amsterdam", "start": "2023-07-12", "end": "2023-07-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Brand", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "NDSM Amsterdam", "street": "NDSM-Plein 102", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_136", "cat": "KW", "code": "KW22", "name": "Brand container Parade bar", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2 weken parade Container € 1700\r\nTransport € 1400", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1487", "oldId": 1487, "number": "2023-3096", "title": "optie nijmeegse vierdaagse", "start": "2023-07-13", "end": "2023-07-23", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "optie nijmeegse vierdaagse", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "928", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_21", "cat": "EXTRA", "code": "EXTRA4", "name": "Carrousel XXL 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Carrousel groot € 2040\r\nKoelwagen € 750\r\nZelf ophalen in Uithoorn", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1393", "oldId": 1393, "number": "2023-3048", "title": "Desperados Ouderkerk a/d Amstel", "start": "2023-07-18", "end": "2023-07-23", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "|Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Festival Macumba", "street": "Aan de wind 9", "zip": "", "city": "Ouderkerk a/d Amstel", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_158", "cat": "EXTRA", "code": "EXTRA27", "name": "Desperados uitgifte bar 1", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1542", "oldId": 1542, "number": "2023-3141", "title": "Toiletwagen Type 3 Nederhorst Den Berg", "start": "2023-07-20", "end": "2023-07-20", "startTime": "7:30 opgehaald", "endTime": "", "status": "Bevestigd", "amount": 550, "brand": "", "invoice": "", "customer": {
+      "name": "Edo", "street": "", "zip": "", "city": "", "phone": "06-20350169", "email": ""
+    }, "location": {
+      "name": "967", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen type 3 € 550 \r\nOphalen Uithoorn\r\nBetaling contant bij ophalen ( Geen pin)", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1378", "oldId": 1378, "number": "2023-3033", "title": "Heinken silver container Utrecht", "start": "2023-07-25", "end": "2023-07-30", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Silver", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Orbit", "street": "", "zip": "", "city": "Utrecht", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_168", "cat": "KW", "code": "KW34", "name": "Heineken Silver container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1445", "oldId": 1445, "number": "2023-3070", "title": "Feestweek santpoort", "start": "2023-07-26", "end": "2023-08-06", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Bartje", "street": "Hoofdstraat 150", "zip": "2071EL", "city": "Sanpoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_25", "cat": "TW", "code": "TW18", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 1150\r\nTransport € 240", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1222", "oldId": 1222, "number": "2022-2081", "title": "feestweek santpoort", "start": "2023-07-27", "end": "2023-08-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 4075, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "754", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_112", "cat": "EXTRA", "code": "EXTRA8", "name": "Carrousel zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_25", "cat": "TW", "code": "TW18", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_24", "cat": "TW", "code": "TW19", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x tapwagen Amstel voor de Meierij, Hoofdstraat 204 € 1100\r\n\r\n1x tapwagen Amstel voor Cafe Bartje, Hoofdstraat 150  € 1100\r\n\r\n1x Carrousel Amstel voor Korf Catering op de Weijmanweide  € 1200\r\n\r\nTransport per wagen voor 4 ritten € 225", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1539", "oldId": 1539, "number": "2023-3139", "title": "Opdracht 3139", "start": "2023-07-27", "end": "2023-07-30", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 594", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "965", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_19", "cat": "KW", "code": "KW2", "name": "Carrousel met koelcel", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1464", "oldId": 1464, "number": "2023-3085", "title": "Toiletwagen Zandvoort", "start": "2023-07-31", "end": "2023-08-07", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 1400, "brand": "", "invoice": "", "customer": {
+      "name": "Toiletwagen Zandvoort", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "917", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_28", "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_125", "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Kosten toiletwagen € 550 incl 1x legen\r\n\r\nTransport brengen€ 175\r\n\r\nTransport ophalen € 175\r\n\r\n4x Plaskruis € 500 aansluiten met slang \r\nDeze worden niet geleegd op de locatie\r\n\r\nBetaling contant bij aflevering aan bezorger", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1537", "oldId": 1537, "number": "2023-3137", "title": "Opdracht 3137", "start": "2023-08-03", "end": "2023-08-06", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 592", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "963", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1538", "oldId": 1538, "number": "2023-3138", "title": "Opdracht 3138", "start": "2023-08-03", "end": "2023-08-06", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 593", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "964", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_140", "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1543", "oldId": 1543, "number": "2023-3142", "title": "Carrousel schagen wordt opgehaald", "start": "2023-08-03", "end": "2023-08-06", "startTime": "", "endTime": "8 uur", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Carrousel schagen wordt opgehaald", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "968", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_21", "cat": "EXTRA", "code": "EXTRA4", "name": "Carrousel XXL 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Carrousel €1050\r\nReinigen tap installatie na gebruik € 125\r\nBorg € 500\r\nGeanuleerd afgesproken afkoop € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1380", "oldId": 1380, "number": "2023-3035", "title": "Container Silver Loveland", "start": "2023-08-08", "end": "2023-08-14", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Silver", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Loveland", "street": "", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_168", "cat": "KW", "code": "KW34", "name": "Heineken Silver container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1339", "oldId": 1339, "number": "2023-3001", "title": "Lustrum", "start": "2023-08-10", "end": "2023-08-20", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Lustrum", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "837", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_139", "cat": "EXTRA", "code": "EXTRA23", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapcontainer Black edition week prijs € 2500\r\nSpeciale prijs / sponcering € 1750 week \r\nSnackwagen €  weekprijs € 1250\r\nSpeciale prijs € 1050\r\nTransport € 980\r\nMaterialen dien schoon retour terug te komen", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1342", "oldId": 1342, "number": "2023-3003", "title": "Lustrum tuin paul", "start": "2023-08-10", "end": "2023-08-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Bierzar", "invoice": "", "customer": {
+      "name": "Lustrum tuin paul", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "839", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_121", "cat": "EXTRA", "code": "EXTRA3", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_19", "cat": "KW", "code": "KW2", "name": "Carrousel met koelcel", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Carrousel met koelcel  € 1750 \r\nKassa unit € 550\r\n1000 liter bier ( 20 Fusten) € 2200\r\nCamera paal € 0\r\nMeterialen schoon retour door", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1398", "oldId": 1398, "number": "2023-3053", "title": "Desperados  Lowlands Biddinghuizen", "start": "2023-08-10", "end": "2023-08-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "123", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_159", "cat": "EXTRA", "code": "EXTRA28", "name": "Desperados uitgifte bar 2", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 2550\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1500", "oldId": 1500, "number": "2023-3105", "title": "Tapwagen Zandvoort Zep", "start": "2023-08-10", "end": "2023-08-13", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Stichting zep", "street": "Haltestraat 6", "zip": "", "city": "zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_110", "cat": "TW", "code": "TW7", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen € 650\r\nTransport € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1547", "oldId": 1547, "number": "2023-3144", "title": "Slimmerick- Naaldwijk", "start": "2023-08-13", "end": "2023-08-20", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Slimmerick- Naaldwijk", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "970", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_4", "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_38", "cat": "EXTRA", "code": "EXTRA7", "name": "Mueller tank  6 KB 1501", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_163", "cat": "KW", "code": "KW8", "name": "Koelwagen met 3x 1000 liter tanken", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Biertank dubbelwandig incl koeling en compressor € 650 per stuk\r\nKoelwagen met 3x1000 liter tanken er in €1250\r\nBierzak€ 35 per stuk\r\n\r\nTransport kraanwagen  brengen € 600\r\nOphalen € 600\r\nPrijzen zijn ex btw", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1388", "oldId": 1388, "number": "2023-3043", "title": "Bottle bar  Beekse Bergen Decibel", "start": "2023-08-14", "end": "2023-08-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Decibel outdoor -", "street": "Beekse Bergen 1", "zip": "", "city": "Hilvarenbeek", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_157", "cat": "EXTRA", "code": "EXTRA20", "name": "Desperados Bottle bar", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1449", "oldId": 1449, "number": "2023-3074", "title": "Jazz festival Haarlem Beinum", "start": "2023-08-14", "end": "2023-08-19", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Brasserie van Beinum.", "street": "Klokhuisplein 3", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_110", "cat": "TW", "code": "TW7", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 600\r\nTransport € 240\r\nExtra op zondag ophalen € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1551", "oldId": 1551, "number": "2023-3148", "title": "Opdracht 3148", "start": "2023-08-14", "end": "2023-08-20", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 602", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "974", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_25", "cat": "TW", "code": "TW18", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1394", "oldId": 1394, "number": "2023-3049", "title": "Desperados Almere", "start": "2023-08-15", "end": "2023-08-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "latin village", "street": "spaarnwoude", "zip": "", "city": "velsen zuid", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_158", "cat": "EXTRA", "code": "EXTRA27", "name": "Desperados uitgifte bar 1", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1448", "oldId": 1448, "number": "2023-3073", "title": "Jazz festival Haarlem ML", "start": "2023-08-15", "end": "2023-08-19", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "ML Haarlem", "street": "Klokhuisplein 9", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_135", "cat": "TW", "code": "TW9", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 600\r\nTransport 4 ritten € 240 \r\nExtra op zondag ophalen € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1531", "oldId": 1531, "number": "2023-3132", "title": "BAR BV", "start": "2023-08-15", "end": "2023-08-27", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "BAR BV", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "project Wilnes", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_1", "cat": "TW", "code": "TW17", "name": "Tapwagen Zwart XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen XXL 4 kraans € 2000", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_500", "oldId": 500, "number": "2017-7021", "title": "Gilde feesten Soest", "start": "2023-08-16", "end": "2023-08-28", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 4200, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Gildefeesten", "street": "F.Huycklaan 5 A", "zip": "3768HW", "city": "Soest", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_23", "cat": "TW", "code": "TW6", "name": "Tap Blikje Heineken 0.0", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Levering zal op 17/8/23 worden \r\nExtra verplaatsen op 25/8/23", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1245", "oldId": 1245, "number": "2022-2101", "title": "Biertanken geisoleerd worden opgehaald", "start": "2023-08-16", "end": "2023-08-20", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Biertanken geisoleerd worden opgehaald", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "773", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_4", "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_38", "cat": "EXTRA", "code": "EXTRA7", "name": "Mueller tank  6 KB 1501", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_5", "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x biertank geisoleerd € 1950 incl compressor en koelingen\r\n2x spinnen kop kop € 50 (Jupilar)\r\nspinnenkop heineken € 25\r\nverloop jupilair naar 3/8 (barren)\r\nGeisoleerde slangen 5x 25 meter € 50\r\nGeisoleerde slang 5x kort € 0\r\n4x doorverbinders koppelingen €0\r\nTransport door klant zelf", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1360", "oldId": 1360, "number": "2023-3017", "title": "Carrousel Voetbalclub KFC Koog aan de Zaan", "start": "2023-08-16", "end": "2023-08-21", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Voetbalclub KFC", "street": "Wezelstraat 9", "zip": "", "city": "Koog aan de Zaan", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_21", "cat": "EXTRA", "code": "EXTRA4", "name": "Carrousel XXL 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Carrousel", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1550", "oldId": 1550, "number": "2023-3147", "title": "Tapwagen Prodinks", "start": "2023-08-16", "end": "2023-08-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 1750, "brand": "Geen", "invoice": "", "customer": {
+      "name": "Noah", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "973", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_24", "cat": "TW", "code": "TW19", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen met 4 kranen €1625 voor geheel evenement \r\nTapwagen dient schoon retour\r\nHet reinigen van de tap installatie zullen wij laten uitvoeren €125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1319", "oldId": 1319, "number": "2022-2161", "title": "Jumbo eiland  Soest", "start": "2023-08-17", "end": "2023-08-28", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Jumbo eiland  Soest", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "827", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "25", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1513", "oldId": 1513, "number": "2023-3116", "title": "Tapwagen wijk aan zee", "start": "2023-08-17", "end": "2023-08-20", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 900, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Bianca", "street": "Julianaplein", "zip": "", "city": "Wijk aan zee", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_22", "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 650\r\ntransport 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_837", "oldId": 837, "number": "2019-9019", "title": "Kermis Blaricum", "start": "2023-08-18", "end": "2023-08-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 11430, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Frank", "street": "", "zip": "", "city": "", "phone": "0648118396", "email": ""
+    }, "location": {
+      "name": "Aflevering", "street": "Toren laan en bergnet", "zip": "", "city": "Blaricum", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_6", "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_21", "cat": "EXTRA", "code": "EXTRA4", "name": "Carrousel XXL 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_121", "cat": "EXTRA", "code": "EXTRA3", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "add_161", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_162", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_163", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koelwagen € 650\r\nTransport 4 ritten €330 \r\n\r\nCarrousel  € 1250\r\nBiertank € 750\r\nKassa unit € 450\r\nTransport 4 ritten €900 ( kraanwagen)\r\n\r\nToiletwagen € 600\r\nTransport 4 ritten € 330\r\n\r\n45 fusten Amstel € \r\n2x koolzuur € 130\r\ntransport 4 ritten €340\r\n\r\nInliner € 25 x3=€75\n45x Extra € 0\n3x Extra € 0\n1x Extra € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1244", "oldId": 1244, "number": "2022-2100", "title": "Formule 1 in zandvoort", "start": "2023-08-21", "end": "2023-08-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Formule 1 in zandvoort -", "street": "Haltestraat 18", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_135", "cat": "TW", "code": "TW9", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 650\r\n liefst zo klein mogelijk\r\nTransport € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1364", "oldId": 1364, "number": "2023-3020", "title": "Koelwagen zandvoort F1", "start": "2023-08-21", "end": "2023-08-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Hotel De Kust", "street": "van Speijkerstraat 162", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koelwagen € 550\r\nTransport € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1375", "oldId": 1375, "number": "2023-3030", "title": "Bierlokaal Mysteryland", "start": "2023-08-21", "end": "2023-08-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Bierlokaal", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Mysteryland -", "street": "", "zip": "", "city": "Haarlemmermeer", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_167", "cat": "TW", "code": "TW33", "name": "Bierlokaal container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €1240", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1399", "oldId": 1399, "number": "2023-3054", "title": "Desperados Mysteryland", "start": "2023-08-21", "end": "2023-08-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1234", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_159", "cat": "EXTRA", "code": "EXTRA28", "name": "Desperados uitgifte bar 2", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1507", "oldId": 1507, "number": "2023-3111", "title": "2x M Bar Zandvoort", "start": "2023-08-21", "end": "2023-08-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 500, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Guy ( rioolman)", "street": "", "zip": "", "city": "", "phone": "06-11500827", "email": ""
+    }, "location": {
+      "name": "942", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_55", "cat": "EXTRA", "code": "EXTRA5", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_56", "cat": "EXTRA", "code": "EXTRA6", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x m Bar 2 kraans", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1554", "oldId": 1554, "number": "2023-3149", "title": "Rai Amsterdam", "start": "2023-08-21", "end": "2023-09-19", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 6500, "brand": "Brand / Heineken", "invoice": "", "customer": {
+      "name": "Rai Amsterdam", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Rai Amsterdam", "street": "Europaplein 2-22", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_140", "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1519", "oldId": 1519, "number": "2023-3122", "title": "Opdracht 3122", "start": "2023-08-23", "end": "2023-08-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 16", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "949", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_139", "cat": "EXTRA", "code": "EXTRA23", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1520", "oldId": 1520, "number": "2023-3123", "title": "optie zandvoort  Event en Black edition", "start": "2023-08-23", "end": "2023-08-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Michael", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "950", "street": "", "zip": "", "city": "Bloemendaal", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_139", "cat": "EXTRA", "code": "EXTRA23", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "De kosten zijn € 1050 per container\r\n \r\nTransport per container :\r\n \r\nTransport brengen € 550\r\n \r\nTransport halen      € 550\r\n \r\nplaatsen en stellen van de containers € 350\r\n \r\nPrijzen zijn ex btw", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1548", "oldId": 1548, "number": "2023-3145", "title": "Biertanken Burito", "start": "2023-08-24", "end": "2023-08-28", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 3650, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Biertanken Burito", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "971", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_4", "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_5", "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_38", "cat": "EXTRA", "code": "EXTRA7", "name": "Mueller tank  6 KB 1501", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_163", "cat": "KW", "code": "KW8", "name": "Koelwagen met 3x 1000 liter tanken", "price": "€ 1250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Spinnen kop aantral 3 € 150\r\nVerlopen naar bar  26x3/8 € 75\r\nBierzakken € 225\r\nBurito komt het materiaal ophalen op vrijdag ochtend 7 uur / 7:30 daarna is er niemand meer op de locatie Uthoorn aanwezig", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1497", "oldId": 1497, "number": "2023-3102", "title": "Tapwagen Haarlem", "start": "2023-08-27", "end": "2023-09-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 825, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "S.V. Olympia", "street": "Henk van Turnhoutpad 1", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen Tapwagen € 650\r\nTransport € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1549", "oldId": 1549, "number": "2023-3146", "title": "Koelwagen wordt opgehaald 7.30", "start": "2023-08-28", "end": "2023-09-01", "startTime": "7.30", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Rene", "street": "", "zip": "", "city": "", "phone": "06-24977556", "email": ""
+    }, "location": {
+      "name": "972", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Koelwagen 375", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1361", "oldId": 1361, "number": "2023-3018", "title": "Toiletten paleis soestdijk", "start": "2023-08-29", "end": "2023-09-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Jochem van Rossenberg", "street": "", "zip": "", "city": "", "phone": "0642151948", "email": "jochem@classicsatthepalace.com"
+    }, "location": {
+      "name": "854", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_120", "cat": "EXTRA", "code": "EXTRA2", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_121", "cat": "EXTRA", "code": "EXTRA3", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_30", "cat": "EXTRA", "code": "EXTRA3", "name": "14-klepper / 14 zit", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_141", "cat": "EXTRA", "code": "EXTRA25", "name": "14 klepper/ 10 zit 4 staan", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toilet container 14 klepper (14x zit ) € 950\r\nToilet container 14 klepper (10 x zit en 4 plasbakjes) € 950\r\nLuxe toilet container € 750\r\nEventueel rioolpomp  incl. 25 persmeter slang € 250\r\n2x Kassa unit 2 persoons € 350 per unit \r\nEindschoonmaak per unit € 125\r\nPrijzen zijn voor geheel weekend en excl., btw .\r\n \r\nTransport € 110 per uur vanuit Uithoorn ex btw", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1536", "oldId": 1536, "number": "2023-3136", "title": "Tapwagen XXL", "start": "2023-08-30", "end": "2023-09-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Jan", "street": "", "zip": "", "city": "", "phone": "0629471141", "email": ""
+    }, "location": {
+      "name": "962", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_1", "cat": "TW", "code": "TW17", "name": "Tapwagen Zwart XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen XXL € 750\r\nTransport 4 ritten bakwagen €  750\r\nZelf ophalen mag ook \r\nEind schoonmaak tap installatie € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1514", "oldId": 1514, "number": "2023-3117", "title": "Tapwagen wijk aan zee", "start": "2023-08-31", "end": "2023-09-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 650, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Bianca", "street": "Julianaplein", "zip": "", "city": "Wijk aan zee", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_22", "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard € 650\r\nKlant doet transport zelf", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1562", "oldId": 1562, "number": "2023-3156", "title": "Koelwagen", "start": "2023-08-31", "end": "2023-08-31", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Koelwagen", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "981", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1523", "oldId": 1523, "number": "2023-3126", "title": "13 klepper Herwijnen", "start": "2023-09-07", "end": "2023-09-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2650, "brand": "", "invoice": "", "customer": {
+      "name": "Remi", "street": "", "zip": "", "city": "", "phone": "0639313104", "email": ""
+    }, "location": {
+      "name": "953", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "13  klepper € 950\r\nRioolpomp € 450 incl slang ( 70 meter)\r\nwaterslang 70 meter € 50\r\nTransport € 1200 4 ritten\r\nToiletwagen dient schoon retour terug te komen .\r\nBij niet schoon retour berekenen wij €375 schoonmaak kosten\r\n\r\nToiletwagen was niet schoon borg verekent met het volgende \r\nborg € 500\r\ngeleverd Banner dak € 75 ex\r\nschoonmaak wc wagen €375\r\nTotaal € 450 ex  komt op € 544,50 incl \r\nTe kort  klant € 44,50", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1565", "oldId": 1565, "number": "2023-3159", "title": "Event container Beverwijk", "start": "2023-09-13", "end": "2023-09-18", "startTime": "9/12", "endTime": "9/12", "status": "Bevestigd", "amount": 2625, "brand": "", "invoice": "", "customer": {
+      "name": "Rob Spannemaker", "street": "", "zip": "", "city": "", "phone": "0251) 203 240", "email": ""
+    }, "location": {
+      "name": "984", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Event container € 1050\r\nTransport € 1100\r\nplaatsen en weghalen € 350\r\nEind reinigen bier installatie €125\r\nDe tapwagen dient geheel schoon ingeleverd te worden .", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1358", "oldId": 1358, "number": "2023-3015", "title": "Toiletwagens zeist", "start": "2023-09-14", "end": "2023-09-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Mandy  Frölich", "street": "", "zip": "", "city": "", "phone": "06-51185135", "email": "mandy@conferencecompany.nl"
+    }, "location": {
+      "name": "De reehorst", "street": "Hoofdstraat 20", "zip": "", "city": "Driebergen/rijsenburg", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_124", "cat": "TO", "code": "TO12", "name": "Vip toiletwagen black edition", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "14 klepper € 950 \r\nPlaatsen en stellen wagen € 350\r\nTransport auto met kraan brengen € 550 \r\nTransport auto met kraan ophalen € 550\r\nToiletwagen type 3 € 550\r\nTransport achter vrachtwagen\r\nToiletwagen type 3 € 550 \r\nTransport bakwagen brengen € 175\r\nTransport bakwagen ophalen € 175\r\n\r\nExtra levering", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1561", "oldId": 1561, "number": "2023-3155", "title": "Tapwagen standaard wordt opgehaald", "start": "2023-09-14", "end": "2023-09-17", "startTime": "7,30", "endTime": "7,30", "status": "Bevestigd", "amount": 775, "brand": "Gulpener", "invoice": "", "customer": {
+      "name": "Bas Funken", "street": "", "zip": "", "city": "", "phone": "06-81956637", "email": ""
+    }, "location": {
+      "name": "980", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen € 650\r\nSpoelen 2 kranen tap installatie € 125\r\nTapwagen dient schoon ingeleverd te worden\r\n\r\nBorg € 500\r\nBetaling contant bij ophalen", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1563", "oldId": 1563, "number": "2023-3157", "title": "Koelwagen wordt opgehaald", "start": "2023-09-14", "end": "2023-09-16", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 450, "brand": "", "invoice": "", "customer": {
+      "name": "Jasper Vera", "street": "", "zip": "", "city": "", "phone": "31646277702", "email": ""
+    }, "location": {
+      "name": "982", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koelwagen via Heineken \r\nKlant haald de wagen zelf op", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1287", "oldId": 1287, "number": "2022-2135", "title": "Brand containerbar Parade Bathmen", "start": "2023-09-20", "end": "2023-09-25", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Kermis Bathmen / Boode", "street": "Brink 10", "zip": "", "city": "Bathmen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_136", "cat": "KW", "code": "KW22", "name": "Brand container Parade bar", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "LET OP KLANT WIL GEEN  PARADE BAR MEER \r\nBrand container Parade € 850\r\nTransport  4 ritten € 1670", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1383", "oldId": 1383, "number": "2023-3038", "title": "De Parade Boode Bathem", "start": "2023-09-20", "end": "2023-09-25", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Michael", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "873", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Let op klant wil eiegelijk een event container dit met Michael opnemen \r\nContainer € 850\r\nTransport", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1558", "oldId": 1558, "number": "2023-3153", "title": "Tapwagens Utrecht", "start": "2023-09-21", "end": "2023-09-24", "startTime": "9/13", "endTime": "9/13", "status": "Geannuleerd", "amount": 0, "brand": "Onbekend", "invoice": "", "customer": {
+      "name": "Kimber", "street": "", "zip": "", "city": "", "phone": "31(0)6 86 89 06 67", "email": ""
+    }, "location": {
+      "name": "978", "street": "Vredenburgkade", "zip": "", "city": "Utrecht", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_22", "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_132", "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_25", "cat": "TW", "code": "TW18", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_24", "cat": "TW", "code": "TW19", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "4x Tapwagen standaard € 2600\r\nTransport heen per wagen € 205\r\nTransport ophalen per wagen € 205\r\nTotaal transport 4 wagens € 1640\r\neind Reiniging tap installatie per wagen € 125 komt op € 500\r\n\r\nLET OPU DIENT DE WAGENS SCHOON IN TE LEVEREN HET REINIGEN VAN DE TAP INSTALLATIE LATEN WIJ UITVOEREN", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1097", "oldId": 1097, "number": "2021-1046", "title": "Tapwagens  leiden", "start": "2023-09-28", "end": "2023-10-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 2300, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Chesney Crosby", "street": "", "zip": "", "city": "", "phone": "0639073757", "email": "chez@thedukeofoz.nl"
+    }, "location": {
+      "name": "699", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_135", "cat": "TW", "code": "TW9", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_110", "cat": "TW", "code": "TW7", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen standaard €650 \r\nTransport brengen €250\r\nTransport ophalen €250\r\n\r\nTapwagen standaard €650 \r\nTransport brengen €250\r\nTransport ophalen €250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1566", "oldId": 1566, "number": "2023-3160", "title": "Carrousel met koelcel Amsterdam", "start": "2023-09-28", "end": "2023-09-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Robbert", "street": "", "zip": "", "city": "", "phone": "0638512564", "email": ""
+    }, "location": {
+      "name": "Museumplein -", "street": "", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_19", "cat": "KW", "code": "KW2", "name": "Carrousel met koelcel", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Carrousel met koelcel € 850\r\nTransport brengen€ 175\r\nTransport ophalen € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1395", "oldId": 1395, "number": "2023-3050", "title": "Desperados Rai Valhalla", "start": "2023-12-14", "end": "2023-12-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Valhalla RAI", "street": "Europaplein 2", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_158", "cat": "EXTRA", "code": "EXTRA27", "name": "Desperados uitgifte bar 1", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport €", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1315", "oldId": 1315, "number": "2022-2160", "title": "Koelwagen kerst slagerij", "start": "2023-12-15", "end": "2023-12-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 950, "brand": "", "invoice": "", "customer": {
+      "name": "Rogier", "street": "", "zip": "", "city": "", "phone": "06-83835991", "email": "r,ofwegen@quicknet.nl"
+    }, "location": {
+      "name": "826", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koelwagen € 425 per weekend \r\nSpeciaal tarief € 950 voor gehele periode \r\nZelf ophalen en terug brengen \r\nOphaal adres \r\nTapwagen.nl \r\nMolenlaan 30\r\n1422 ZA Uithoorn\r\nBetaling contant bij ophalen", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1568", "oldId": 1568, "number": "2023-2172", "title": "Opdracht 2172", "start": "2023-12-27", "end": "2023-12-27", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 613", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "987-12:08:29", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1569", "oldId": 1569, "number": "2023-2173", "title": "aaaa", "start": "2024-01-09", "end": "2024-01-16", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Rene", "street": "", "zip": "", "city": "", "phone": "06-24977556", "email": ""
+    }, "location": {
+      "name": "aaaa", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_58", "cat": "EXTRA", "code": "EXTRA8", "name": "Mobiele bar 1 kraan", "price": "€ 123", "status": "reserved"
+    }, {
+      "id": "art_149", "cat": "EXTRA", "code": "EXTRA13", "name": "Mobiele bar 1 kraans met spoelbak", "price": "€ 456", "status": "reserved"
+    }, {
+      "id": "add_175", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 25.45", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 25.45", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1576", "oldId": 1576, "number": "2024-2176", "title": "koningsdag Haarlem ML", "start": "2024-01-15", "end": "2024-01-15", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "koningsdag Haarlem ML", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "988", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1578", "oldId": 1578, "number": "2024-2177", "title": "tapwagen koningsdag", "start": "2024-01-17", "end": "2024-01-17", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "150", "invoice": "", "customer": {
+      "name": "tapwagen koningsdag", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "989", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_161", "cat": "EXTRA", "code": "EXTRA6", "name": "EHBo  unit 10 ft 1 raam", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "add_179", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "tapwagen\n1x Extra € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1593", "oldId": 1593, "number": "2024-2184", "title": "Plaskruizen", "start": "2024-02-13", "end": "2024-02-13", "startTime": "", "endTime": "", "status": "Offerte", "amount": 350, "brand": "", "invoice": "", "customer": {
+      "name": "Stefen", "street": "", "zip": "", "city": "", "phone": "06-46256655", "email": ""
+    }, "location": {
+      "name": "996", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Plaskruizen € 350\r\nBorg 500", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1596", "oldId": 1596, "number": "2024-2186", "title": "Test paul", "start": "2024-02-19", "end": "2024-02-22", "startTime": "9/13", "endTime": "", "status": "Geannuleerd", "amount": 850, "brand": "amstel", "invoice": "", "customer": {
+      "name": "Edward", "street": "", "zip": "", "city": "", "phone": "06 1970 4447", "email": ""
+    }, "location": {
+      "name": "998", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_12", "cat": "KW", "code": "KW4", "name": "Reefer 20 ft", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen moet schoon retour", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1598", "oldId": 1598, "number": "2024-2187", "title": "toiletwagen type 3", "start": "2024-02-25", "end": "2024-02-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 550, "brand": "", "invoice": "", "customer": {
+      "name": "Sjors", "street": "", "zip": "", "city": "", "phone": ": 0639006877", "email": ""
+    }, "location": {
+      "name": "999", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen type 3 € 550", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1368", "oldId": 1368, "number": "2023-3024", "title": "Snowbass - 18hrs Zaandam", "start": "2024-02-27", "end": "2024-03-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados Bottle bar", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Joy Festival", "street": "Hemkade 18", "zip": "", "city": "zaandam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850 \r\nTransport € 900", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1611", "oldId": 1611, "number": "2024-2194", "title": "Opdracht 2194", "start": "2024-03-06", "end": "2024-03-06", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 628", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1005", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1588", "oldId": 1588, "number": "2024-2182", "title": "Dorpshuis de kwakel Edward", "start": "2024-03-07", "end": "2024-03-10", "startTime": "9/12", "endTime": "9/12", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "", "customer": {
+      "name": "Edward", "street": "", "zip": "", "city": "", "phone": "06 1970 4447", "email": ""
+    }, "location": {
+      "name": "994", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_58", "cat": "EXTRA", "code": "EXTRA8", "name": "Mobiele bar 1 kraan", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "M.Bar zonder spoelbak € 250\r\nPrijs is incl transport en schoonmaak\r\n\r\n10  fusten Bierzar € 1100", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1605", "oldId": 1605, "number": "2024-2192", "title": "Toiletwagen type 3Mijdrecht", "start": "2024-03-21", "end": "2024-03-24", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Contant", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1003", "street": "oosterlandweg 40", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_218", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 55", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 55", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1332", "oldId": 1332, "number": "2022-2168", "title": "Eventmanager Pinoké Amstelveen", "start": "2024-03-25", "end": "2024-04-02", "startTime": "vroeg", "endTime": "Vroeg", "status": "Bevestigd", "amount": 2050, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Marieke\r\n\r\n Marieke", "street": "", "zip": "", "city": "", "phone": "06-11030022", "email": ""
+    }, "location": {
+      "name": "WAGENER STADION", "street": "Amsterdamsebos", "zip": "", "city": "Achterzijde", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_140", "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1 x zwarte tapcontainer black edition € 1250 \r\nTransport kraanwagen 4 ritten € 800", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1613", "oldId": 1613, "number": "2024-2196", "title": "Silver en bierlokaal NDSM", "start": "2024-03-26", "end": "2024-04-01", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "NDSM", "street": "NDSM-Plein 85", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_188", "cat": "EXTRA", "code": "EXTRA23", "name": "Black Edition", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_198", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2470", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2470", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1642", "oldId": 1642, "number": "2024-2215", "title": "toiletwagen 14 klepper", "start": "2024-03-27", "end": "2024-03-27", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "toiletwagen 14 klepper", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "990", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1617", "oldId": 1617, "number": "2024-2199", "title": "13 klepper op aanhanger Hilversum", "start": "2024-03-28", "end": "2024-04-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Jaap", "street": "", "zip": "", "city": "", "phone": "0621828609", "email": ""
+    }, "location": {
+      "name": "Rugby Club Hilversum", "street": "Kininelaantje 7A", "zip": "", "city": "Hilversum", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_120", "cat": "EXTRA", "code": "EXTRA2", "name": "Kassa unit 2 persoons", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "art_28", "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_184", "cat": "EXTRA", "code": "EXTRA2", "name": "13 klepper op  aanhanger", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_190", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 300", "status": "reserved"
+    }, {
+      "id": "add_191", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 587.5", "status": "reserved"
+    }, {
+      "id": "add_192", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 587.5", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Extra riool slang mee\r\nMaterialen dienen geheel schoon retour terug te komen, als de materialen niet schoon retour terug komen rekenen wij u € 550 extra voor het schoonmaken .\n1x Extra € 300\n1x Extra € 587.5\n1x Extra € 587.5", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1571", "oldId": 1571, "number": "2024-2174", "title": "aa", "start": "2024-03-31", "end": "2024-04-12", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Rene", "street": "", "zip": "", "city": "", "phone": "06-24977556", "email": ""
+    }, "location": {
+      "name": "aa", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_58", "cat": "EXTRA", "code": "EXTRA8", "name": "Mobiele bar 1 kraan", "price": "€ 123", "status": "reserved"
+    }, {
+      "id": "art_149", "cat": "EXTRA", "code": "EXTRA13", "name": "Mobiele bar 1 kraans met spoelbak", "price": "€ 456", "status": "reserved"
+    }, {
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_164", "cat": "KW", "code": "KW7", "name": "Koelaanhanger met 3x 1000 liter tanken", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_34", "cat": "KW", "code": "KW19", "name": "Reefer 20 ft", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_66", "cat": "KW", "code": "KW4", "name": "Koelkast groot", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_46", "cat": "EXTRA", "code": "EXTRA5", "name": "Special effect", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "add_177", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 25.45", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 25.45", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1649", "oldId": 1649, "number": "2024-2221", "title": "Opdracht 2221", "start": "2024-04-11", "end": "2024-09-28", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 640", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1028", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1650", "oldId": 1650, "number": "2024-2222", "title": "Opdracht 2222", "start": "2024-04-14", "end": "2024-04-14", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "CREDIt 987655", "customer": {
+      "name": "Klant 641", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1029", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_147", "cat": "EXTRA", "code": "EXTRA11", "name": "Mobiele bar 1 kraans met spoelbak", "price": "€ -750", "status": "reserved"
+    }, {
+      "id": "art_148", "cat": "EXTRA", "code": "EXTRA12", "name": "Mobiele bar 1 kraans met spoelbak", "price": "€ -750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1587", "oldId": 1587, "number": "2024-2181", "title": "Koningsdag edward de kwakel", "start": "2024-04-17", "end": "2024-04-29", "startTime": "9/13", "endTime": "9/13", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "", "customer": {
+      "name": "Edward", "street": "", "zip": "", "city": "", "phone": "06 1970 4447", "email": ""
+    }, "location": {
+      "name": "993", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_149", "cat": "EXTRA", "code": "EXTRA13", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_150", "cat": "EXTRA", "code": "EXTRA14", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Mobiele bar 2 meter neutraal  € 500\r\nPrijs is incl transport en schoonmaak\r\n\r\n15 fusten Bierzar € 1650\r\n2 fusten reeds geleverd € 220", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1654", "oldId": 1654, "number": "2024-2224", "title": "2x despo en bierlokaal Erp", "start": "2024-04-17", "end": "2024-04-17", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "2x despo en bierlokaal Erp", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1031", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1151", "oldId": 1151, "number": "2022-2033", "title": "Oranje vereniging koningsdag", "start": "2024-04-21", "end": "2024-04-28", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Frank", "street": "", "zip": "", "city": "", "phone": "0648118396", "email": ""
+    }, "location": {
+      "name": "708", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Carrousel € 850\r\n16 fusten bierzar \r\nKoel aanhanger € 450 (zelf ophalen)\r\n2x koolzuur € 70 \r\nTransport  € 450\r\nBierslangen  en koolzuur set", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1125", "oldId": 1125, "number": "2022-2012", "title": "koningsdag Hilversum", "start": "2024-04-23", "end": "2024-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Paul", "street": "", "zip": "", "city": "", "phone": "06-26364321", "email": ""
+    }, "location": {
+      "name": "691", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen  € 750\r\nTransport €300 ( 4 ritten)", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1656", "oldId": 1656, "number": "2024-2226", "title": "Tapwagen Hoogeveen koningsdag", "start": "2024-04-23", "end": "2024-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 1265, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Zaak", "street": "", "zip": "", "city": "", "phone": "0528 856 193", "email": ""
+    }, "location": {
+      "name": "Tapwagen Hoogeveen koningsdag", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Tapwagen Carrousel XXL met koelcel € 950\r\nVerzekering € 190\r\nSpoelen tap installatie € 125\r\nTapwagen dient schoon retour terug te komen.\r\nBij niet schoon berekenen wij u € 350 schoonmaak kosten", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1600", "oldId": 1600, "number": "2024-2189", "title": "Jumbo eiland koningsdag Lelystad", "start": "2024-04-24", "end": "2024-04-27", "startTime": "15/18 uur", "endTime": "6:00", "status": "Bevestigd", "amount": 0, "brand": "Geen", "invoice": "249877892", "customer": {
+      "name": "Tom", "street": "", "zip": "", "city": "", "phone": "06-41613035", "email": ""
+    }, "location": {
+      "name": "Jumbo eiland koningsdag Lelystad", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_23", "cat": "TW", "code": "TW6", "name": "Tap Blikje Heineken 0.0", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Jumbo eiland € 1450\r\nOpbouw € 350\r\nTransport € 880\r\nVerzekering € 550\r\nwagen dient schoon en klaar te staan en vrij, zodat ze vroeg weg kunnen halen.\r\nBorg € 500 \r\nAls de wagen niet schoon is rekenen wij u € 350 voor het schoonmaken van deze wagen", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1618", "oldId": 1618, "number": "2024-2200", "title": "Tapwagen ophaal klant Leiden Oma Rietje", "start": "2024-04-24", "end": "2024-04-27", "startTime": "7 /7:30", "endTime": "", "status": "Bevestigd", "amount": 1567, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Louis", "street": "", "zip": "", "city": "", "phone": "0618-958234", "email": ""
+    }, "location": {
+      "name": "1011", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_56", "cat": "EXTRA", "code": "EXTRA6", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen carrousel zwart € 1050\r\nMobiele bar 2 kranen € 250\r\nReinigen tap installatie 2x € 250\r\nVerzekering € 130\r\nKorting € 113\r\nBorg € 500\r\nBetaling contant bij ophalen materiaal ( geen pin aanwezig)\r\n\r\nDe tapwagen dient geheel schoon retour te komen, mochthij niet schoon zijn berekenen wij u € 250 schoonmaak kosten.\r\nHet reinigen van de tap installatie laten wij uitvoeren door de tapwacht\r\n\r\nOphalen locatie |Uithoorn op  25-4-24  tussen 7 en 7:30 daarna is er niemand meer op deze locatie aanwezig \r\nTerug brengen kan op zondag ochtend voor 12 uur", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1150", "oldId": 1150, "number": "2022-2032", "title": "wordt opgehaald koningsdag", "start": "2024-04-25", "end": "2024-04-28", "startTime": "7.30", "endTime": "", "status": "Bevestigd", "amount": 650, "brand": "", "invoice": "", "customer": {
+      "name": "Roy", "street": "", "zip": "", "city": "", "phone": "0614103695", "email": ""
+    }, "location": {
+      "name": "707", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen schamelwagen  € 650\r\nWagen dient schoon retour te komen\r\nBorg € 500\r\nBetaling contant bij ophalen\r\nOp te halen op de 26ste om 7.30 ( niet later dan is er niemand meer aanwezig )", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1586", "oldId": 1586, "number": "2024-2180", "title": "Koningsdag ophaal klant Rotterdam", "start": "2024-04-25", "end": "2024-04-28", "startTime": "7 uur", "endTime": "overleg", "status": "Geannuleerd", "amount": 0, "brand": "Geen", "invoice": "", "customer": {
+      "name": "Robin", "street": "", "zip": "", "city": "", "phone": "06-13402590", "email": ""
+    }, "location": {
+      "name": "992", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen Carrousel € 850\r\nReinigen Tap installatie na evenement € 125\r\nVerzekering € 75 ( zie rubriek Home Algemenevoorwaarde op de site)\r\n\r\nTapwagen dient geheel schoon retour terug te komen , bij niet schoon berekenen wij u € 250 ex btw \r\n\r\nOphalen op 26-4-24 tussen 7 en 7:30 daarna is er niemand meer op de locatie .", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1594", "oldId": 1594, "number": "2024-2185", "title": "Opdracht 2185", "start": "2024-04-25", "end": "2024-04-28", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 622", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "997", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1619", "oldId": 1619, "number": "2024-2201", "title": "3x Carrousel Leiden koningsdag", "start": "2024-04-25", "end": "2024-04-28", "startTime": "ochtend", "endTime": "ochtend", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Marc Vink", "street": "", "zip": "", "city": "", "phone": "06-44490998", "email": ""
+    }, "location": {
+      "name": "1012", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Einstein Leiden (wagens komen aan de kant van Cityhall\r\n\r\nCarrousel XXL Afmetingen open:      6.12 x 6.86 x 2.80  meter (LxBxH)( de maat is van klep klep open)\r\n\r\nAfmetingen gesloten 3.97 x 2.42 x 2.80  meter (LXBxH)\r\nKleppen gesloten)\r\n\r\nCarrouse zwart  572 x 225 gesloten\r\nCarrousel wit  513 x 230 gesloten\r\nKleppen rond open om  zijn ongeveer 1,50 meter", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1620", "oldId": 1620, "number": "2024-2202", "title": "Carrousel leiden koningsdag", "start": "2024-04-25", "end": "2024-04-28", "startTime": "ochtend", "endTime": "ochtend", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Chesney Crosby", "street": "", "zip": "", "city": "", "phone": "06-39073757", "email": ""
+    }, "location": {
+      "name": "1013", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport € 360\r\nTapwagen carrousel zwart € 700", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1660", "oldId": 1660, "number": "2024-2228", "title": "Brinkpop Muidenberg", "start": "2024-04-28", "end": "2024-04-28", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Brinkpop Muidenberg", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "991", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1385", "oldId": 1385, "number": "2023-3040", "title": "Bottle bar Zwolle", "start": "2024-05-01", "end": "2024-05-05", "startTime": "", "endTime": "Weekend", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "249877915", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Bevrijdingsfestival Zwolle", "street": "Park de Wezenlanden", "zip": "", "city": "Zwolle", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_213", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1980", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1980", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1624", "oldId": 1624, "number": "2024-2204", "title": "Bevrijdings festival zwollen Despo 1", "start": "2024-05-01", "end": "2024-05-05", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Bevrijdings festival zwollen", "street": "Park de wezenlanden", "zip": "", "city": "Zwolle", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_155", "oldId": 155, "number": "2015-5018", "title": "Koelcontainer SV Hertha", "start": "2024-05-05", "end": "2024-05-12", "startTime": "overleg", "endTime": "overleg", "status": "Geannuleerd", "amount": 1400, "brand": "", "invoice": "249877900", "customer": {
+      "name": "everd", "street": "", "zip": "", "city": "", "phone": "06-27895292", "email": ""
+    }, "location": {
+      "name": "Koelcontainer SV Hertha", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_12", "cat": "KW", "code": "KW4", "name": "Reefer 20 ft", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koelcontainer 1 week € 550\r\nplaskruis € 175\r\nPlaskruis € 175\r\nTransport brengen kraanwagen € 250\r\nTransport ophalen kraanwagen € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1099", "oldId": 1099, "number": "2021-1048", "title": "watertank  Tulpenrallye", "start": "2024-05-07", "end": "2024-05-20", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877896", "customer": {
+      "name": "(Kees) van Loon", "street": "", "zip": "", "city": "", "phone": "0620361785", "email": "keesvanloon@tulpenrallye.nl"
+    }, "location": {
+      "name": "671", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_4", "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "€ 1550", "status": "reserved"
+    }, {
+      "id": "add_235", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "add_236", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_237", "cat": "EXTRA", "code": "EXTRA", "name": "4 meter", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_238", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 95", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 50\n1x Extra € 0\n1x 4 meter € 0\n1x Extra € 95", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1615", "oldId": 1615, "number": "2024-2197", "title": "EHBo post Numansdorp", "start": "2024-05-07", "end": "2024-03-11", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "EHBo post Numansdorp", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1008", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1652", "oldId": 1652, "number": "2024-2223", "title": "Ehbo/ kassa Niemansdorp", "start": "2024-05-07", "end": "2024-05-12", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "249877895", "customer": {
+      "name": "Ehbo/ kassa Niemansdorp", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Stichtingen Nautisch", "street": "Van Beethovenstraat 15", "zip": "", "city": "Numansdorp", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_120", "cat": "EXTRA", "code": "EXTRA2", "name": "Kassa unit 2 persoons", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "art_161", "cat": "EXTRA", "code": "EXTRA6", "name": "EHBo  unit 10 ft 1 raam", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_240", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1500", "status": "reserved"
+    }, {
+      "id": "add_241", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 110", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1500\n1x Extra € 110", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1198", "oldId": 1198, "number": "2022-2071", "title": "Mandy", "start": "2024-05-09", "end": "2024-05-11", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Mandy", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "744", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_57", "cat": "EXTRA", "code": "EXTRA7", "name": "Mobiele bar 1 kraan", "price": "€ 150", "status": "reserved"
+    }, {
+      "id": "art_58", "cat": "EXTRA", "code": "EXTRA8", "name": "Mobiele bar 1 kraan", "price": "€ 150", "status": "reserved"
+    }, {
+      "id": "art_127", "cat": "EXTRA", "code": "EXTRA10", "name": ".", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_72", "cat": "EXTRA", "code": "EXTRA6", "name": "Uitgifte bar RVS blad", "price": "€ 30", "status": "reserved"
+    }, {
+      "id": "add_242", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1870", "status": "reserved"
+    }, {
+      "id": "add_243", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_245", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "verlengsnoeren\n17x Extra € 1870\n1x Extra € 550\n1x Extra € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1602", "oldId": 1602, "number": "2024-2190", "title": "type 3 toiletwagen  Scheveningen", "start": "2024-05-09", "end": "2024-05-12", "startTime": "voor 12 uur", "endTime": "Na 12 uur", "status": "Bevestigd", "amount": 2050, "brand": "", "invoice": "249877899", "customer": {
+      "name": "Marjolein Veerman", "street": "", "zip": "", "city": "", "phone": "06 - 81 28 39 07", "email": ""
+    }, "location": {
+      "name": "type 3 toiletwagen  Scheveningen", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_30", "cat": "EXTRA", "code": "EXTRA3", "name": "14-klepper / 14 zit", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Type 3  toiletwagen 14 toileten zit  € 950\r\nTransport brengen € 550\r\nTransport ophalen € 550\r\nToilet wordt tot aan strand geleverd waar u dan een shovel heeft die de toilet op zijn plek zet en met ophalen weer op de vrachtwagen.\r\nToiletwagen dient geheel scoon retor te komen \r\nBij niet schoon berkenen wij € 550 voor 14 toiletten", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1679", "oldId": 1679, "number": "2024-2245", "title": "Despo  container Reuver", "start": "2024-05-13", "end": "2024-05-20", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877920", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "aa", "street": "Drakenrijkstraat 3", "zip": "", "city": "Reuver", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_309", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2700", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2700", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1673", "oldId": 1673, "number": "2024-2240", "title": "Opdracht 2240", "start": "2024-05-14", "end": "2024-05-14", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 653", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1041", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1616", "oldId": 1616, "number": "2024-2198", "title": "Biertanken Ijmuiden", "start": "2024-05-16", "end": "2024-05-18", "startTime": "9/11", "endTime": "8/9", "status": "Geannuleerd", "amount": 0, "brand": "Inbev", "invoice": "", "customer": {
+      "name": "Jan Willem", "street": "", "zip": "", "city": "", "phone": "06-11861892", "email": ""
+    }, "location": {
+      "name": "Mannen van staal Festival", "street": "Plein 1945", "zip": "", "city": "Ijmuiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_5", "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "€ 475", "status": "reserved"
+    }, {
+      "id": "art_37", "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "€ 475", "status": "reserved"
+    }, {
+      "id": "art_38", "cat": "EXTRA", "code": "EXTRA7", "name": "Mueller tank  6 KB 1501", "price": "€ 475", "status": "reserved"
+    }, {
+      "id": "art_6", "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "€ 475", "status": "reserved"
+    }, {
+      "id": "add_184", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 220", "status": "reserved"
+    }, {
+      "id": "add_185", "cat": "EXTRA", "code": "EXTRA", "name": "2x 25 meter", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "add_186", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_187", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 220", "status": "reserved"
+    }, {
+      "id": "add_188", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 220", "status": "reserved"
+    }, {
+      "id": "add_189", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Ophalen weekend / feestdag  wordt extra belast \r\nDe materialen dienen bij ophalen weer op de aanhanger klaar  te staan, is dit niet het geval zullen wij extra uren belasten voor het laden van de tanken .\n4x Extra € 220\n2x 2x 25 meter € 50\n2x Extra € 0\n1x Extra € 220\n1x Extra € 220\n1x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1672", "oldId": 1672, "number": "2024-2239", "title": "Tapwage Haarlem City Walk", "start": "2024-05-16", "end": "2024-05-20", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "249877908", "customer": {
+      "name": "Rob", "street": "", "zip": "", "city": "", "phone": "0642118612", "email": ""
+    }, "location": {
+      "name": "City Walk", "street": "Dolhuys, Svhotersingel 2", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_301", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_302", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 75\n4x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1676", "oldId": 1676, "number": "2024-2242", "title": "Koelwagen", "start": "2024-05-20", "end": "2024-05-20", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Koelwagen", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1043", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1662", "oldId": 1662, "number": "2024-2230", "title": "Event container Vlaardingen", "start": "2024-05-22", "end": "2024-05-26", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2498779010", "customer": {
+      "name": "Dennis", "street": "", "zip": "", "city": "", "phone": "0642878714", "email": ""
+    }, "location": {
+      "name": "1033", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_262", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 625", "status": "reserved"
+    }, {
+      "id": "add_263", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 625", "status": "reserved"
+    }, {
+      "id": "add_264", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 135", "status": "reserved"
+    }, {
+      "id": "add_265", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 625\n1x Extra € 625\n1x Extra € 135\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1663", "oldId": 1663, "number": "2024-2231", "title": "The Harbour Club Amsterdam Oost", "start": "2024-05-27", "end": "2024-06-04", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Onbekent", "invoice": "249877911", "customer": {
+      "name": "T Keijser", "street": "", "zip": "", "city": "", "phone": "06 512 512 40", "email": ""
+    }, "location": {
+      "name": "1034", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_140", "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "€ 1722.5", "status": "reserved"
+    }, {
+      "id": "add_270", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1500", "status": "reserved"
+    }, {
+      "id": "add_271", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_272", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1500\n1x Extra € 125\n1x Extra € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1647", "oldId": 1647, "number": "2024-2219", "title": "Event container Amsterdam", "start": "2024-05-29", "end": "2024-06-02", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1000", "street": "-", "zip": "", "city": "-", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_233", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 810", "status": "reserved"
+    }, {
+      "id": "add_234", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 810", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 810\n1x Extra € 810", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1674", "oldId": 1674, "number": "2024-2241", "title": "Toiletwagen type 3 Overveen", "start": "2024-05-30", "end": "2024-06-02", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877909", "customer": {
+      "name": "Bradley", "street": "", "zip": "", "city": "", "phone": "06 19 89 31 25", "email": ""
+    }, "location": {
+      "name": "Beach events/ Later aan Zee", "street": "Zeeweg 83 Overveen", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_303", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_304", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_305", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Afhandeling borg \r\n2 man extra uren gemaakt om de wagen weg te krijgen , die stond geheel ingebouwd, en stonden dus niet klaar zoals besproken .\r\nBorg € 500\r\nuren-€ -380\r\nOver € 120\n2x Extra € 350\n2x Extra € 350\n2x Extra € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1235", "oldId": 1235, "number": "2022-2094", "title": "Despo container Harlingen", "start": "2024-06-03", "end": "2024-06-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Brand", "invoice": "249877924", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Transport bedrijf  de Vlas", "street": "Lijnbaan 25", "zip": "", "city": "Harlingen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 1700", "status": "reserved"
+    }, {
+      "id": "add_207", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2370", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2370", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1509", "oldId": 1509, "number": "2023-3113", "title": "Carrousel met koelcel Zandvoort", "start": "2024-06-03", "end": "2024-06-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Circuitpark Zandvoort", "street": "Burgemeester van Alphenstraat 108", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 2250", "status": "reserved"
+    }, {
+      "id": "add_252", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_253", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 125\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1684", "oldId": 1684, "number": "2024-2250", "title": "Lege  container Zaandam", "start": "2024-06-04", "end": "2024-06-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Despo uitstraling", "invoice": "249877926", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Joy Festival", "street": "Hemkade 18", "zip": "", "city": "zaandam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_198", "cat": "EXTRA", "code": "EXTRA2", "name": "Extern inhuur carrousel", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_328", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 900", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 900", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1555", "oldId": 1555, "number": "2023-3150", "title": "Koelwagen wordt opgehaald", "start": "2024-06-05", "end": "2024-06-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877918", "customer": {
+      "name": "Koelwagen wordt opgehaald", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "975", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "€ 450", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1603", "oldId": 1603, "number": "2024-2191", "title": "Kassa unit gemeente Oegsgeest", "start": "2024-06-05", "end": "2024-09-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877958", "customer": {
+      "name": "werf", "street": "", "zip": "", "city": "", "phone": "071-5191887", "email": ""
+    }, "location": {
+      "name": "Kassa unit gemeente Oegsgeest", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_60", "cat": "EXTRA", "code": "EXTRA1", "name": "Kassa unit 2 persoons met klep", "price": "€ 4900", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Kassa unit €350 per week\r\nMinimale verhuur periode 3 maanden \r\nExtra verlening mogelijk na 6-9-24", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_814", "oldId": 814, "number": "2019-9002", "title": "toiletwagen de dood", "start": "2024-06-06", "end": "2024-06-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 950, "brand": "", "invoice": "", "customer": {
+      "name": "toiletwagen de dood", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "477", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_30", "cat": "EXTRA", "code": "EXTRA3", "name": "14-klepper / 14 zit", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Schades en eind schoonmaak voor klant", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1381", "oldId": 1381, "number": "2023-3036", "title": "Brand container Harlingen", "start": "2024-06-06", "end": "2024-06-16", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Brand", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Oerol Festival De Vlas", "street": "", "zip": "", "city": "Harlingen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_186", "cat": "KW", "code": "KW14", "name": "Bar container met koelcel 8 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 2550\r\nTransport € 2370", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1403", "oldId": 1403, "number": "2023-3058", "title": "Desperados Terschelling", "start": "2024-06-06", "end": "2024-06-16", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Desporados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Oerol Festival De Vlas -", "street": "Lijnbaan 25", "zip": "", "city": "Harlingen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 1700", "status": "reserved"
+    }, {
+      "id": "add_214", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2370", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2370", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1645", "oldId": 1645, "number": "2024-2217", "title": "Tapwagen Carrousel Amsterdam", "start": "2024-06-11", "end": "2024-06-16", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Robert", "street": "", "zip": "", "city": "", "phone": "0655190225", "email": ""
+    }, "location": {
+      "name": "936", "street": "Bok de Korverweg 4", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_230", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_231", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1691", "oldId": 1691, "number": "2024-2256", "title": "Opdracht 2256", "start": "2024-06-11", "end": "2024-06-11", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 661", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1052", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1648", "oldId": 1648, "number": "2024-2220", "title": "Toiletwagen type 3 Uithoorn", "start": "2024-06-12", "end": "2024-06-13", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877913", "customer": {
+      "name": "0297522740", "street": "", "zip": "", "city": "", "phone": "-", "email": ""
+    }, "location": {
+      "name": "1027", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1678", "oldId": 1678, "number": "2024-2244", "title": "Koelwagen RentFactor Zandvoort ophaal klant", "start": "2024-06-16", "end": "2024-06-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877912", "customer": {
+      "name": "Cees", "street": "", "zip": "", "city": "", "phone": "0653 343 181", "email": ""
+    }, "location": {
+      "name": "Koelwagen RentFactor Zandvoort ophaal klant", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 600", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1690", "oldId": 1690, "number": "2024-2255", "title": "Toiletwagen type 3 Amstelveen", "start": "2024-06-20", "end": "2024-06-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877933", "customer": {
+      "name": "Marjan", "street": "", "zip": "", "city": "", "phone": "0655918655", "email": ""
+    }, "location": {
+      "name": "1051", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "art_199", "cat": "EXTRA", "code": "EXTRA12", "name": "Plaskruis extern", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_200", "cat": "EXTRA", "code": "EXTRA17", "name": "Plaskruis extern", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_339", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_340", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 250\n1x Extra € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1697", "oldId": 1697, "number": "2024-2262", "title": "Carrousel ophaal klant Heineken", "start": "2024-06-20", "end": "2024-06-23", "startTime": "zelf", "endTime": "zelf", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Gezellig Horeca", "street": "Stadhuisplein 29", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "add_344", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 120", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 120", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1164", "oldId": 1164, "number": "2022-2041", "title": "Boulevard Outdoor  Desperados", "start": "2024-06-21", "end": "2024-06-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Boulevard Outdoor", "street": "Vriezenveenseweg 57", "zip": "", "city": "Wierden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport € 2220", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1160", "oldId": 1160, "number": "2022-2040", "title": "Tapwagen Beverwijk", "start": "2024-06-23", "end": "2024-06-30", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Notelle .", "street": "Koningstraat 14", "zip": "", "city": "beverwijk", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_277", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 113.4", "status": "reserved"
+    }, {
+      "id": "add_278", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 113.4", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 113.4\n1x Extra € 113.4", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1664", "oldId": 1664, "number": "2024-2232", "title": "Water container Zaandam", "start": "2024-06-23", "end": "2024-07-02", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Water container Zaandam", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "89", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1612", "oldId": 1612, "number": "2024-2195", "title": "Carrousel XXL WORDT OPGEHAALD Friesland", "start": "2024-06-25", "end": "2024-06-30", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Grolsch", "invoice": "249877945", "customer": {
+      "name": "Niels", "street": "", "zip": "", "city": "", "phone": "06-13248984", "email": ""
+    }, "location": {
+      "name": "1006", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 900", "status": "reserved"
+    }, {
+      "id": "add_183", "cat": "EXTRA", "code": "EXTRA", "name": "Grolsch", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_346", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_347", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Carrousel XXL € 900 ( koppelingen ombouwen naar Grolsch)\r\nVerzekering € 125\r\nReinigen tapinstallatie € 125\r\nDe wagen dient schoon retour terug gebracht te worden \r\nHet reinigen van de tap installatie laten wij uitvoeren door de tapwacht\r\n\r\nPrijzen zijn ex btw \r\nOp halen in Uithoorn , wagen ongeveer 2800 kg\n4x Grolsch € 0\n1x Extra € 125\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1668", "oldId": 1668, "number": "2024-2235", "title": "Tapwagen carrousel Kermis Beverwijk", "start": "2024-06-25", "end": "2024-06-30", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Kermis Beverwijk", "street": "Breestraat 60", "zip": "", "city": "Beverwijk", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_286", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 113.4", "status": "reserved"
+    }, {
+      "id": "add_287", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 113.4", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "(zo laat mogelijk in overleg met de klant aub!)\n1x Extra € 113.4\n1x Extra € 113.4", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1677", "oldId": 1677, "number": "2024-2243", "title": "Desporados container Galder", "start": "2024-06-25", "end": "2024-06-30", "startTime": "ochtend", "endTime": "Middag", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Ploegendienst Zomer", "street": "Galderse meren. Rijsbergsebaan 22", "zip": "", "city": "Galder", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_306", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2040", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2040", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1661", "oldId": 1661, "number": "2024-2229", "title": "Brink pop Muidenberg", "start": "2024-06-26", "end": "2024-06-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Bierzar", "invoice": "249877955", "customer": {
+      "name": "Nathalie", "street": "", "zip": "", "city": "", "phone": "06-28073071", "email": ""
+    }, "location": {
+      "name": "1032", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_259", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 720", "status": "reserved"
+    }, {
+      "id": "add_260", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_355", "cat": "EXTRA", "code": "EXTRA", "name": "fusten", "price": "€ 504", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "6x Extra € 720\n1x Extra € 75\n12x fusten € 504", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1685", "oldId": 1685, "number": "2024-2251", "title": "Cafe ons hoekje Leiden", "start": "2024-06-27", "end": "2024-07-02", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Cafe ons hoekje Leiden", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1047", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_184", "cat": "EXTRA", "code": "EXTRA2", "name": "13 klepper op  aanhanger", "price": "€ 850", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1693", "oldId": 1693, "number": "2024-2258", "title": "Tapwagen The duke  Leiden wordt opgehaald", "start": "2024-06-27", "end": "2024-06-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "cont", "customer": {
+      "name": "Chesney Crosby", "street": "", "zip": "", "city": "", "phone": "0639073757", "email": "chez@thedukeofoz.nl"
+    }, "location": {
+      "name": "Tapwagen The duke  Leiden wordt opgehaald", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 800", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1696", "oldId": 1696, "number": "2024-2261", "title": "Silver  Denbosch personeelsfeest Heineken", "start": "2024-06-27", "end": "2024-06-30", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Silver", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Abrex", "street": "Ertveldweg 51E", "zip": "", "city": "Denbosch", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_188", "cat": "EXTRA", "code": "EXTRA23", "name": "Black Edition", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_697", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1634", "oldId": 1634, "number": "2024-2209", "title": "Bierlokaal Down The Rabbit Hole", "start": "2024-06-30", "end": "2024-07-08", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Down The Rabbit", "street": "Ficarystraat", "zip": "", "city": "Beuningen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_202", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1800", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1800", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1701", "oldId": 1701, "number": "2024-2264", "title": "Opdracht 2264", "start": "2024-06-30", "end": "2024-07-09", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 666", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1059", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1705", "oldId": 1705, "number": "2024-2267", "title": "Muidenberg", "start": "2024-06-30", "end": "2024-06-30", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Muidenberg", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1061", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1700", "oldId": 1700, "number": "2024-2178", "title": "Toiletwagen type geo stick uithoorn", "start": "2024-07-04", "end": "2024-07-07", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877948", "customer": {
+      "name": "Jan Willem", "street": "", "zip": "", "city": "", "phone": "0689973264", "email": ""
+    }, "location": {
+      "name": "Toiletwagen type geo stick uithoorn", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1606", "oldId": 1606, "number": "2024-2193", "title": "Carrousel en koelwagen met koppel systeem voorburg", "start": "2024-07-04", "end": "2024-07-06", "startTime": "9/13", "endTime": "7/9", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "249877905", "customer": {
+      "name": "Marvin Gerritsen Heineken 06-82489759", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Voorburg Jazz Culinair.", "street": "Van Schagenstraat,", "zip": "", "city": "Voorburg", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_181", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_182", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_297", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_298", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 380", "status": "reserved"
+    }, {
+      "id": "add_299", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 380", "status": "reserved"
+    }, {
+      "id": "add_300", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 380", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 125\n1x Extra € 125\n4x Extra € 75\n2x Extra € 380\n2x Extra € 380\n2x Extra € 380", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1671", "oldId": 1671, "number": "2024-2238", "title": "Carroucel koelwagen  Voorburg", "start": "2024-07-04", "end": "2024-07-07", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Fred Hoorn", "street": "", "zip": "", "city": "", "phone": "+316 52200430", "email": ""
+    }, "location": {
+      "name": "Voorburg Jazz Culinair", "street": "7A", "zip": "", "city": "Voorburg", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_293", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_294", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 380", "status": "reserved"
+    }, {
+      "id": "add_295", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 380", "status": "reserved"
+    }, {
+      "id": "add_296", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Bedankt voor u bericht, aanvraag.\r\n\r\nHet volgende kunnen we u aanbieden :\r\n\r\nCarrousel € 700\r\n\r\nKoelwagen € 375\r\n\r\nKoppelsysteem in koelwagen € 75\r\n\r\nLevering op 5-7-24  € 190\r\n\r\nOphalen op  8-7-24 € 190\n1x Extra € 75\n2x Extra € 380\n2x Extra € 380\n2x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1688", "oldId": 1688, "number": "2024-2253", "title": "Toiletwagen Ouderkerk aan de Amstel", "start": "2024-07-04", "end": "2024-07-07", "startTime": "ochtend", "endTime": "ochtend", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877929", "customer": {
+      "name": "Hazal Yuksekdag", "street": "", "zip": "", "city": "", "phone": "06 27 21 75 39", "email": ""
+    }, "location": {
+      "name": "Hazal Yuksekdag van Duo+", "street": "Ambachtenstraat 84", "zip": "", "city": "Ouderkerk aan de Amstel", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_334", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 95", "status": "reserved"
+    }, {
+      "id": "add_335", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 200", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 95\n1x Extra € 200", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1689", "oldId": 1689, "number": "2024-2254", "title": "Plaskruizen en kassa Uithoorn", "start": "2024-07-04", "end": "2024-07-07", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877932", "customer": {
+      "name": "Sjiek", "street": "", "zip": "", "city": "", "phone": "0297-520199", "email": ""
+    }, "location": {
+      "name": "1050", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_28", "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_121", "cat": "EXTRA", "code": "EXTRA3", "name": "Kassa unit 2 persoons", "price": "€ 325", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen type 3 extern € 550", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1714", "oldId": 1714, "number": "2024-2275", "title": "Opdracht 2275", "start": "2024-07-04", "end": "2024-07-04", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 672", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1068", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1692", "oldId": 1692, "number": "2024-2257", "title": "Joy festival zaandam", "start": "2024-07-07", "end": "2024-07-14", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Despo", "invoice": "249877936", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Joy Festival", "street": "Hemkade 18", "zip": "", "city": "zaandam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_341", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 900", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 900", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1702", "oldId": 1702, "number": "2024-2265", "title": "touniquet met betaalsysteem", "start": "2024-07-07", "end": "2024-07-14", "startTime": "7 uur", "endTime": "7 uur", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Jelle Spaan", "street": "", "zip": "", "city": "", "phone": "06-27497550", "email": ""
+    }, "location": {
+      "name": "Rijnweek Rhenen", "street": "Veerweg", "zip": "", "city": "Rhenen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_205", "cat": "EXTRA", "code": "EXTRA2", "name": "Touniquet 5", "price": "€ 900", "status": "reserved"
+    }, {
+      "id": "art_206", "cat": "EXTRA", "code": "EXTRA3", "name": "Touniquet 8", "price": "€ 900", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Let op Elke pin transactie neemt kosten met zich mee.", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1713", "oldId": 1713, "number": "2024-2274", "title": "Opdracht 2274", "start": "2024-07-07", "end": "2024-07-13", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 671", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1067", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1707", "oldId": 1707, "number": "2024-2268", "title": "Opdracht 2268", "start": "2024-07-08", "end": "2024-07-10", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 668", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1062", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_143", "cat": "EXTRA", "code": "EXTRA25", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_178", "cat": "EXTRA", "code": "EXTRA40", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1711", "oldId": 1711, "number": "2024-2272", "title": "4x carrousel Hilversum EK 2024", "start": "2024-07-08", "end": "2024-07-14", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "249877959 CREDIT", "customer": {
+      "name": "Marco", "street": "", "zip": "", "city": "", "phone": "0653107757", "email": ""
+    }, "location": {
+      "name": "Van Veldhooven Hereca Groep", "street": "Marktplein 1", "zip": "", "city": "Hilversum", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ -850", "status": "reserved"
+    }, {
+      "id": "art_143", "cat": "EXTRA", "code": "EXTRA25", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ -850", "status": "reserved"
+    }, {
+      "id": "art_178", "cat": "EXTRA", "code": "EXTRA40", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ -850", "status": "reserved"
+    }, {
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ -850", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ -850", "status": "reserved"
+    }, {
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ -650", "status": "reserved"
+    }, {
+      "id": "add_362", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ -900", "status": "reserved"
+    }, {
+      "id": "add_363", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ -900", "status": "reserved"
+    }, {
+      "id": "add_364", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ -450", "status": "reserved"
+    }, {
+      "id": "add_365", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ -490", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "6x Extra € -900\n1x Extra € -900\n1x Extra € -450\n6x Extra € -490", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1400", "oldId": 1400, "number": "2023-3055", "title": "Tapwagen XXL  Weesp", "start": "2024-07-10", "end": "2024-07-14", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Onbekend", "invoice": "239877943", "customer": {
+      "name": "Tapwagen XXL  Weesp", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Funky Festival", "street": "Nijverheidlaan 18", "zip": "", "city": "Weesp", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_274", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_275", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_276", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Let op u dient de wagens geheel schoon in te leveren bij niet schoon,eindschoonmaak € 350 per wagen\n2x Extra € 250\n1x Extra € 125\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1397", "oldId": 1397, "number": "2023-3052", "title": "Desperados Saasveld", "start": "2024-07-11", "end": "2024-07-16", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Dak d'r af festival - Bruins", "street": "Gravenallee 2", "zip": "", "city": "Saasveld", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850\r\nTransport € 2220", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1709", "oldId": 1709, "number": "2024-2270", "title": "Carrousel Gulpener Utrecht", "start": "2024-07-11", "end": "2024-07-13", "startTime": "Ophalen", "endTime": "Retour", "status": "Bevestigd", "amount": 0, "brand": "Gulpener", "invoice": "249877956", "customer": {
+      "name": "Arjan Poll", "street": "", "zip": "", "city": "", "phone": "+31651279640", "email": ""
+    }, "location": {
+      "name": "Db’s Utrecht", "street": "Vlampijpstraat 63", "zip": "", "city": "Utrecht", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_359", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 110", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koppelingen komen van brouwerij\n1x Extra € 110", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1712", "oldId": 1712, "number": "2024-2273", "title": "Opdracht 2273", "start": "2024-07-11", "end": "2024-07-14", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 670", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1066", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1717", "oldId": 1717, "number": "2024-2277", "title": "Biertanken Utrecht EK", "start": "2024-07-13", "end": "2024-07-14", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "Heinken", "invoice": "249877960", "customer": {
+      "name": "Karim", "street": "", "zip": "", "city": "", "phone": "06-41780510", "email": ""
+    }, "location": {
+      "name": "1069", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_4", "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_38", "cat": "EXTRA", "code": "EXTRA7", "name": "Mueller tank  6 KB 1501", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_368", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 220", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 220", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1704", "oldId": 1704, "number": "2024-2266", "title": "Tapwagen standaard Rotterdam", "start": "2024-07-16", "end": "2024-07-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "249877953", "customer": {
+      "name": "Robin", "street": "", "zip": "", "city": "", "phone": "06-13402590", "email": ""
+    }, "location": {
+      "name": "1053", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_353", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 95", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen dient zelf opgehaald te worden en na evenement weer schoon retour\n1x Extra € 95", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1723", "oldId": 1723, "number": "2024-2282", "title": "n 6000", "start": "2024-07-21", "end": "2024-07-21", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "n 6000", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1073", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1724", "oldId": 1724, "number": "2024-2283", "title": "Tapwagen Carrousel Schagen", "start": "2024-07-30", "end": "2024-08-04", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "249877967", "customer": {
+      "name": "Jordy", "street": "", "zip": "", "city": "", "phone": "06-19978641", "email": ""
+    }, "location": {
+      "name": "Tapwagen Carrousel Schagen", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_372", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_373", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 125\n1x Extra € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1055", "oldId": 1055, "number": "2021-1017", "title": "Gay parade", "start": "2024-07-31", "end": "2024-08-04", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877951", "customer": {
+      "name": "Prik", "street": "", "zip": "", "city": "", "phone": "020 320 0002", "email": ""
+    }, "location": {
+      "name": "640", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "€ 400", "status": "reserved"
+    }, {
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_139", "cat": "EXTRA", "code": "EXTRA23", "name": ".", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "add_322", "cat": "EXTRA", "code": "EXTRA", "name": "container 1", "price": "€ 1080", "status": "reserved"
+    }, {
+      "id": "add_323", "cat": "EXTRA", "code": "EXTRA", "name": "container 2", "price": "€ 1080", "status": "reserved"
+    }, {
+      "id": "add_324", "cat": "EXTRA", "code": "EXTRA", "name": "koelwagen", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_327", "cat": "EXTRA", "code": "EXTRA", "name": "container 3", "price": "€ 1080", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "4x container 1 € 1080\n4x container 2 € 1080\n4x koelwagen € 350\n4x container 3 € 1080", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_22", "oldId": 22, "number": "2014-4017", "title": "Gay parade realitybar", "start": "2024-08-01", "end": "2024-08-02", "startTime": "8/10", "endTime": "", "status": "Geannuleerd", "amount": 4300, "brand": "Geen reclame", "invoice": "", "customer": {
+      "name": "Jeff", "street": "", "zip": "", "city": "", "phone": "06-24217946", "email": ""
+    }, "location": {
+      "name": "realitybar", "street": "Regulier dwarsstraat 129", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_174", "cat": "EXTRA", "code": "EXTRA15", "name": "Standaard kleur zwart ML 2 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "4x tapwagen standaard  € 2600\r\n\r\n4x Transport brengen € 700\r\n\r\n4x Transport ophalen € 700\r\n\r\nExtra kosten weekend ophalen € 300\r\n\r\nTapwagens worden geleverd, niet geplaats dit dient klant zelf te doen, bij ophalen dienen alle wagen schoon klaar te staan en poten ingeklapt te zijn. Staan de wagens niet klaar of zijn ze niet schoon berekenen wij € 350 per wagen \r\n\r\nBorg € 2500\r\nu heeft geen verzekering, wilt u dit wel dan horen wij dit graag per mail van u .\r\nKosten per wagen € 125( zie algemene voorwaarde site)", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1669", "oldId": 1669, "number": "2024-2236", "title": "gay pride  Amstel Amsterdam", "start": "2024-08-01", "end": "2024-08-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Silver", "invoice": "CREDIT FACTUUR 25675436", "customer": {
+      "name": "Robert", "street": "", "zip": "", "city": "", "phone": "0655190225", "email": ""
+    }, "location": {
+      "name": "gay pride", "street": "Amstel 3", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ -600", "status": "reserved"
+    }, {
+      "id": "add_288", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ -175", "status": "reserved"
+    }, {
+      "id": "add_289", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ -175", "status": "reserved"
+    }, {
+      "id": "add_290", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ -175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € -175\n1x Extra € -175\n1x Extra € -175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1670", "oldId": 1670, "number": "2024-2237", "title": "gay pride Reguliersdwarsstraat  Amsterdam", "start": "2024-08-01", "end": "2024-08-04", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Robert", "street": "", "zip": "", "city": "", "phone": "0655190225", "email": ""
+    }, "location": {
+      "name": "Cafe Reality", "street": "Reguliersdwarsstraat 49", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_291", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 525", "status": "reserved"
+    }, {
+      "id": "add_292", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 525", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x Extra € 525\n3x Extra € 525", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1721", "oldId": 1721, "number": "2024-2280", "title": "Opdracht 2280", "start": "2024-08-02", "end": "2024-08-04", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 675", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1072", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1374", "oldId": 1374, "number": "2023-3029", "title": "Despo 3 Lowlands Biddinghuizen", "start": "2024-08-08", "end": "2024-08-21", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Lowlands -", "street": "Spijkerweg 30", "zip": "", "city": "Biddinghuizen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 1700", "status": "reserved"
+    }, {
+      "id": "add_197", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1500", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1500", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1655", "oldId": 1655, "number": "2024-2225", "title": "Tapwagen Castricum", "start": "2024-08-08", "end": "2024-08-11", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Hertog Jan", "invoice": "249877898", "customer": {
+      "name": "Alexander", "street": "", "zip": "", "city": "", "phone": "06-22198307", "email": ""
+    }, "location": {
+      "name": "Tapwagen Castricum", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_256", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 90", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koppelingen mee leveren\r\nTapwagen dient geheel schoon retour terug te komen\n1x Extra € 90", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1699", "oldId": 1699, "number": "2024-2263", "title": "pinkpanter festival", "start": "2024-08-08", "end": "2024-08-11", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "pinkpanter festival", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1058", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_12", "cat": "KW", "code": "KW4", "name": "Reefer 20 ft", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_58", "cat": "EXTRA", "code": "EXTRA8", "name": "Mobiele bar 1 kraan", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "add_345", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 12000", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Doos bekers Amstel 1250 stuks € 110\r\nKoolzuur fles 10 kg € 78\r\nparasol overleg\n100x Extra € 12000", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1729", "oldId": 1729, "number": "2024-2287", "title": "Carrousel Ermelo", "start": "2024-08-09", "end": "2024-08-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "249877969", "customer": {
+      "name": "Thijs", "street": "", "zip": "", "city": "", "phone": "0341 250 515", "email": ""
+    }, "location": {
+      "name": "Nationaal Hippisch Centrum", "street": "De Beek 125", "zip": "", "city": "Errmelo", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 1800", "status": "reserved"
+    }, {
+      "id": "add_379", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 180", "status": "reserved"
+    }, {
+      "id": "add_380", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 180\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1451", "oldId": 1451, "number": "2023-3075", "title": "Oranje vereniging Kermis Blaricum", "start": "2024-08-12", "end": "2024-08-21", "startTime": "Berg Net", "endTime": "Kerk", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "249877963", "customer": {
+      "name": "Frank", "street": "", "zip": "", "city": "", "phone": "0648118396", "email": ""
+    }, "location": {
+      "name": "907", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_120", "cat": "EXTRA", "code": "EXTRA2", "name": "Kassa unit 2 persoons", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "art_152", "cat": "TO", "code": "TO17", "name": "Toiletwagen lux wit schamel kl", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_163", "cat": "KW", "code": "KW8", "name": "Koelwagen met 3x 1000 liter tanken", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_349", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 160", "status": "reserved"
+    }, {
+      "id": "add_350", "cat": "EXTRA", "code": "EXTRA", "name": "Amstel", "price": "€ 5850", "status": "reserved"
+    }, {
+      "id": "add_351", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1560", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 160\n45x Amstel € 5850\n1x Extra € 1560", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1544", "oldId": 1544, "number": "2023-3143", "title": "Bierbroers Wilnis", "start": "2024-08-13", "end": "2024-08-20", "startTime": "11/16 uur", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "info@BierBroers.nl", "street": "", "zip": "", "city": "", "phone": "030-6620081", "email": ""
+    }, "location": {
+      "name": "Wilnis Festival", "street": "Pieter Joostenlaan 26", "zip": "", "city": "Wilnis", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Container met koelcel € 1050\r\nTransport brengen   € 330\r\nTransport ophalen   € 330\r\nStroom die aanwezig moet zijn is 380 32 Amp", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1625", "oldId": 1625, "number": "2024-2205", "title": "Despo 2 Dance-Dutch Valley Velsen zuid", "start": "2024-08-13", "end": "2024-08-28", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Dutch / Latin Village", "street": "Spaarnwoude", "zip": "", "city": "Velsen Zuid", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 850 Dutch valley\r\nContainer € 850 Latin Village\r\nTransport € 1500\r\nContainer blijft staan voor  Latin Village geen extra transport nodig", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1639", "oldId": 1639, "number": "2024-2214", "title": "De Parade Amsterdam", "start": "2024-08-13", "end": "2024-09-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1025", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_187", "cat": "EXTRA", "code": "EXTRA9", "name": "Parade bar", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1680", "oldId": 1680, "number": "2024-2246", "title": "Tapwagen  ML Haarlem", "start": "2024-08-13", "end": "2024-08-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "ML Haarlem", "street": "Klokhuisplein 9", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_313", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1735", "oldId": 1735, "number": "2024-2293", "title": "Opdracht 2293", "start": "2024-08-15", "end": "2024-08-15", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 686", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1081", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1708", "oldId": 1708, "number": "2024-2269", "title": "Carrousel Gravendeel", "start": "2024-08-18", "end": "2024-08-24", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1063", "street": "Noord Voorstraat 15", "zip": "", "city": "'s Gravendeel", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_356", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 594", "status": "reserved"
+    }, {
+      "id": "add_358", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 594\n1x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1286", "oldId": 1286, "number": "2022-2134", "title": "Pop-up Zandvoort F1", "start": "2024-08-19", "end": "2024-08-25", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Silver", "invoice": "", "customer": {
+      "name": "Michael", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "DGP F1 Later aan Zee:", "street": "Jacob van Heemskerckstraat 6", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_140", "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_249", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1636", "oldId": 1636, "number": "2024-2211", "title": "Bierlokaal Strandfestival Zand almere", "start": "2024-08-20", "end": "2024-08-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Strandfestival Zand", "street": "Ijmeerdijk 1", "zip": "", "city": "Almere", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_204", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1476", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1476", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1733", "oldId": 1733, "number": "2024-2291", "title": "Tapwagen Nijkerk", "start": "2024-08-20", "end": "2024-08-22", "startTime": "9/14", "endTime": "7 uur", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "249877972", "customer": {
+      "name": "Wendy", "street": "", "zip": "", "city": "", "phone": "0611516638", "email": ""
+    }, "location": {
+      "name": "Tapwagen Nijkerk", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 5", "status": "reserved"
+    }, {
+      "id": "add_386", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 520", "status": "reserved"
+    }, {
+      "id": "add_388", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 117", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 520\n1x Extra € 117", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1730", "oldId": 1730, "number": "2024-2288", "title": "Toiletwagen Type 3 Amsterdam", "start": "2024-08-22", "end": "2024-08-25", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Lieke", "street": "", "zip": "", "city": "", "phone": "+316 24421822", "email": ""
+    }, "location": {
+      "name": "TV opnames", "street": "Mediapark", "zip": "", "city": "Hilversum", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_381", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_382", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1731", "oldId": 1731, "number": "2024-2289", "title": "Tapwagen standaard Berkel en Rodenrijs", "start": "2024-08-22", "end": "2024-09-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877970", "customer": {
+      "name": "club", "street": "", "zip": "", "city": "", "phone": "(010) 21345678", "email": ""
+    }, "location": {
+      "name": "Tapwagen standaard Berkel en Rodenrijs", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_383", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_384", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 125\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1459", "oldId": 1459, "number": "2023-3082", "title": "Biertank |Lelystad  Hiswa te water", "start": "2024-08-25", "end": "2024-09-01", "startTime": "7 uur", "endTime": "", "status": "Bevestigd", "amount": 4715, "brand": "Heineken", "invoice": "249877992", "customer": {
+      "name": "Jacco Kuiper", "street": "", "zip": "", "city": "", "phone": "06-51695149", "email": ""
+    }, "location": {
+      "name": "Hiswa te water -", "street": "Bataviahaven", "zip": "", "city": "Lelystad", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_37", "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Biertank 1000 liter € 650 \r\nincl bierzak\r\nSpinnen kop \r\nGeen slang nodig\r\n1000 liter Heineken bier € 3940\r\nTransport  door klant zelf \r\nReinigen biertank na evenement € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1556", "oldId": 1556, "number": "2023-3151", "title": "water container 1500 liter", "start": "2024-08-25", "end": "2024-08-26", "startTime": "12/16 uur", "endTime": "8.30/11 uur", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Cathelijne Moors", "street": "", "zip": "", "city": "", "phone": "020-5253072", "email": ""
+    }, "location": {
+      "name": "976", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_6", "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_329", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 950", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 950", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1725", "oldId": 1725, "number": "2024-2284", "title": "Tapwagen standaard Nunspeet", "start": "2024-08-27", "end": "2024-08-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Pool- & Snooker Café Shooters", "street": "Stationslaan 3A", "zip": "", "city": "Nunspeet", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_374", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 270", "status": "reserved"
+    }, {
+      "id": "add_375", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 270", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 270\n1x Extra € 270", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1599", "oldId": 1599, "number": "2024-2188", "title": "ophaal klant Rotterdam", "start": "2024-08-28", "end": "2024-09-01", "startTime": "7 uur", "endTime": "overleg", "status": "Bevestigd", "amount": 1050, "brand": "Geen", "invoice": "", "customer": {
+      "name": "Robin", "street": "", "zip": "", "city": "", "phone": "06-13402590", "email": ""
+    }, "location": {
+      "name": "992", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen Carrousel € 850\r\nReinigen Tap installatie na evenement € 125\r\nVerzekering € 75 \r\n\r\nTapwagen dient geheel schoon retour terug te komen , bij niet schoon berekenen wij u € 250 ex btw \r\n\r\nOphalen op 29-8-24 \r\nRetour op 2-9-24", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1732", "oldId": 1732, "number": "2024-2290", "title": "Opdracht 2290", "start": "2024-08-28", "end": "2024-09-01", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 684", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1074", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_143", "cat": "EXTRA", "code": "EXTRA25", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1695", "oldId": 1695, "number": "2024-2260", "title": "Biertap Edward Dorphuis de kwakel", "start": "2024-08-29", "end": "2024-09-08", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "249877964", "customer": {
+      "name": "Edward", "street": "", "zip": "", "city": "", "phone": "06 1970 4447", "email": ""
+    }, "location": {
+      "name": "Biertap Edward Dorphuis de kwakel", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_57", "cat": "EXTRA", "code": "EXTRA7", "name": "Mobiele bar 1 kraan", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_342", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 87.5", "status": "reserved"
+    }, {
+      "id": "add_343", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 87.5", "status": "reserved"
+    }, {
+      "id": "add_417", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2640", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 87.5\n1x Extra € 87.5\n24x Extra € 2640", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1740", "oldId": 1740, "number": "2024-2296", "title": "13 klepper", "start": "2024-08-29", "end": "2024-09-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877976", "customer": {
+      "name": "Aziz", "street": "", "zip": "", "city": "", "phone": "0623063576", "email": ""
+    }, "location": {
+      "name": "Voetbal club ASV", "street": "Sloterweg 1043 K", "zip": "", "city": "Sloten", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_184", "cat": "EXTRA", "code": "EXTRA2", "name": "13 klepper op  aanhanger", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_393", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 525", "status": "reserved"
+    }, {
+      "id": "add_394", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Sponsoring 08 toernooi 1 sept 2024\"\n1x Extra € 525\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1736", "oldId": 1736, "number": "2024-2294", "title": "Tapwagen carrousel met koelcel Amersfoort", "start": "2024-08-30", "end": "2024-09-01", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Tapwagen carrousel met koelcel Amersfoort", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1082", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1719", "oldId": 1719, "number": "2024-2278", "title": "Carrousel Almere", "start": "2024-09-04", "end": "2024-09-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1070", "street": "Esplanade 14", "zip": "", "city": "Almere", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "add_369", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_370", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1727", "oldId": 1727, "number": "2024-2285", "title": "Swing op de Brink Muidenberg", "start": "2024-09-05", "end": "2024-09-08", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "249877968", "customer": {
+      "name": "Ben", "street": "", "zip": "", "city": "", "phone": "0651311778", "email": ""
+    }, "location": {
+      "name": "Stichting Swing op de Brink", "street": "", "zip": "", "city": "Muiderberg", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_376", "cat": "EXTRA", "code": "EXTRA", "name": "Heineken", "price": "€ 2340", "status": "reserved"
+    }, {
+      "id": "add_377", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 170", "status": "reserved"
+    }, {
+      "id": "add_378", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 225", "status": "reserved"
+    }, {
+      "id": "add_385", "cat": "EXTRA", "code": "EXTRA", "name": "Bierzar", "price": "€ 240", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport voor de  tapwagen € 225\r\nKoelwagen wordt door klant zelf opgehaald en terug gebracht\r\n\r\n5 fusten mogen kosteloos retour\n18x Heineken € 2340\n2x Extra € 170\n1x Extra € 225\n2x Bierzar € 240", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1750", "oldId": 1750, "number": "2024-2305", "title": "Toiletwagen Toyota  Mijdrecht", "start": "2024-09-05", "end": "2024-09-08", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "24987782", "customer": {
+      "name": "Stefan\t \r\nvan de Bilt", "street": "", "zip": "", "city": "", "phone": "0641017779", "email": ""
+    }, "location": {
+      "name": "1090", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 650", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Klant brengt de wagen zelf terug\r\nLet op toiletwagen dient schoon retour ingeleverd te worden", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1710", "oldId": 1710, "number": "2024-2271", "title": "Carrousel met koelcel Heerhuhowaard", "start": "2024-09-10", "end": "2024-09-15", "startTime": "8/9", "endTime": "8/9", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877957", "customer": {
+      "name": "Carlo", "street": "", "zip": "", "city": "", "phone": "0627288479", "email": ""
+    }, "location": {
+      "name": "Carrousel met koelcel Heerhuhowaard", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 1000", "status": "reserved"
+    }, {
+      "id": "add_360", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 110", "status": "reserved"
+    }, {
+      "id": "add_361", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 110", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 110\n1x Extra € 110", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1739", "oldId": 1739, "number": "2024-2295", "title": "Toiletwagen standaard Abcoude", "start": "2024-09-11", "end": "2024-09-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877975", "customer": {
+      "name": "Dewi Snel", "street": "", "zip": "", "city": "", "phone": "06-13120284", "email": ""
+    }, "location": {
+      "name": "1083", "street": "Bloklaan 26", "zip": "", "city": "Loosdrecht", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_80", "cat": "EXTRA", "code": "EXTRA1", "name": "Homa pomp 220 volt", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_391", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 285", "status": "reserved"
+    }, {
+      "id": "add_392", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 95", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Aansluiten van de pomp €  service \r\nDemontge van de pomp € service\r\nLet op er moet wel een stroom punt en water punt aanwezig zijn bij de plek waar de wagen dient te komen .\n1x Extra € 285\n1x Extra € 95", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1658", "oldId": 1658, "number": "2024-2227", "title": "Amstel blikje Alkmaar", "start": "2024-09-12", "end": "2024-09-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "AZ te Alkmaar", "street": "Stadionweg 1", "zip": "", "city": "Alkmaar", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_257", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 162", "status": "reserved"
+    }, {
+      "id": "add_258", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 162", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 162\n1x Extra € 162", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1745", "oldId": 1745, "number": "2024-2300", "title": "Bierlokaal  Rotterdam", "start": "2024-09-18", "end": "2024-09-22", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Bierlokaal", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "A Day at the Park", "street": "Langepad 30", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_407", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1800", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1800", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1747", "oldId": 1747, "number": "2024-2302", "title": "Tapwagen Amstel blikje Amsterdam", "start": "2024-09-19", "end": "2024-09-22", "startTime": "8/12", "endTime": "8/12", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "sub types", "street": "Weesperzijde", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_404", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_405", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1728", "oldId": 1728, "number": "2024-2286", "title": "Miljoenen jacht 2024 14 klepper", "start": "2024-09-25", "end": "2024-11-05", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 7525, "brand": "", "invoice": "", "customer": {
+      "name": "Tristan", "street": "", "zip": "", "city": "", "phone": "+31 (0) 6 3302 6100", "email": ""
+    }, "location": {
+      "name": "1077", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_184", "cat": "EXTRA", "code": "EXTRA2", "name": "13 klepper op  aanhanger", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "De toiletwagen 14 klepper op aanhanger kunnen we u aanbieden voor € 650 per opdracht \r\nTransport halen en brengen € 175\r\nEXTRA OPTIE \r\nAansluiten op locatie max 4 meter vanaf riool en water punt € 150 ( indien anders kunnen we dit bespreken )\r\nVulling toilet papier  en zeep € 100\r\nToiletwagen dient na evenement weer schoon retour terug te komen \r\n\r\nHet gaat om de volgende data's \r\n\r\n26 september\r\n30 september\r\n4 oktober\r\n9 oktober\r\n11 oktober\r\n31 oktober\r\n6 november", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1751", "oldId": 1751, "number": "2024-2306", "title": "Toiletwagen Type 3 ophaal klant", "start": "2024-09-26", "end": "2024-09-29", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Cornelis", "street": "", "zip": "", "city": "", "phone": "06 53 14 00 59", "email": ""
+    }, "location": {
+      "name": "1091", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_411", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1567", "oldId": 1567, "number": "2023-3161", "title": "Drinkwater Aalsmeer", "start": "2024-09-28", "end": "2024-10-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877934", "customer": {
+      "name": "Martijn van Dijk", "street": "", "zip": "", "city": "", "phone": "06-81 14 37 55", "email": ""
+    }, "location": {
+      "name": "Drinkwater Aalsmeer", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_6", "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_336", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 500", "status": "reserved"
+    }, {
+      "id": "add_337", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 50", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "waterslang 25 meter\n1x Extra € 500\n1x Extra € 50", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1746", "oldId": 1746, "number": "2024-2301", "title": "Tapwagen Leiden", "start": "2024-09-30", "end": "2024-10-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Brasserie de Poort", "street": "Garenmarkt 16", "zip": "", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_403", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 275", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 275", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1748", "oldId": 1748, "number": "2024-2303", "title": "Tapwagen Leiden", "start": "2024-09-30", "end": "2024-10-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1089", "street": "Nieuwe Rijn / Vismarkt 19", "zip": "", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_406", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 275", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 275", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1754", "oldId": 1754, "number": "2024-2309", "title": "Cafe ons hoekje", "start": "2024-09-30", "end": "2024-10-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "249877986", "customer": {
+      "name": "Cafe ons hoekje", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Cafe ons hoekje", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_184", "cat": "EXTRA", "code": "EXTRA2", "name": "13 klepper op  aanhanger", "price": "€ 850", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1741", "oldId": 1741, "number": "2024-2297", "title": "Leids onzet  2024 Leiden", "start": "2024-10-01", "end": "2024-10-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "249877977", "customer": {
+      "name": "Zaak", "street": "", "zip": "", "city": "", "phone": "071 512 1600", "email": ""
+    }, "location": {
+      "name": "Leids onzet  2024 Leiden", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_395", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_396", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_397", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 110", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175\n1x Extra € 110", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1756", "oldId": 1756, "number": "2024-2311", "title": "De Gouden leeuw zuidLaren", "start": "2024-10-07", "end": "2024-10-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "De Gouden Leeuw", "street": "Brink O.Z. 4", "zip": "", "city": "Zuidlaren", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 800", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagens worden opgahaald door klant zelf", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1757", "oldId": 1757, "number": "2024-2312", "title": "Koelwagen ADE Amsterdam", "start": "2024-10-16", "end": "2024-10-20", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "The other Side", "street": "Riga kade 10", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_418", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1744", "oldId": 1744, "number": "2024-2299", "title": "Carrousel Zaandam", "start": "2024-10-29", "end": "2024-11-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877996", "customer": {
+      "name": "Marcel", "street": "", "zip": "", "city": "", "phone": "06 26 84 87 71", "email": ""
+    }, "location": {
+      "name": "Carrousel Zaandam", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_399", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_400", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_401", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 95", "status": "reserved"
+    }, {
+      "id": "add_425", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175\n1x Extra € 95\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1761", "oldId": 1761, "number": "2024-2314", "title": "Toiletwagen", "start": "2024-11-07", "end": "2024-11-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877993", "customer": {
+      "name": "Maaike Berbee", "street": "", "zip": "", "city": "", "phone": "0648144171", "email": ""
+    }, "location": {
+      "name": "1095", "street": "Pijlslaan", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_421", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_422", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1766", "oldId": 1766, "number": "2024-2318", "title": "Ophaal klant", "start": "2024-12-17", "end": "2024-12-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "249877110", "customer": {
+      "name": "Ruud", "street": "", "zip": "", "city": "", "phone": "06-50612907", "email": ""
+    }, "location": {
+      "name": "1097", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_447", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen dient schoon ingeleverd te worden , bij niet schhon retor berekenen wij u €275 schoonmaak kosten .\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1788", "oldId": 1788, "number": "2025-2334", "title": "Gay pride Amsterdam", "start": "2025-02-03", "end": "2025-02-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Gay pride Amsterdam", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1112", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1789", "oldId": 1789, "number": "2025-2335", "title": "5x Tapwagen Gay pride Amsterdam", "start": "2025-02-03", "end": "2025-02-03", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "5x Tapwagen Gay pride Amsterdam", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1113", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1798", "oldId": 1798, "number": "2025-2338", "title": "Opdracht 2338", "start": "2025-02-06", "end": "2025-02-06", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 717", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1115", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1765", "oldId": 1765, "number": "2024-2317", "title": "Event Montfoort", "start": "2025-03-01", "end": "2025-03-01", "startTime": "8\\12", "endTime": "8/12", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987748", "customer": {
+      "name": "Event Montfoort", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Evenementen Les Boutonniers.", "street": "Hofplein", "zip": "", "city": "Montfoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_23", "cat": "TW", "code": "TW6", "name": "Tap Blikje Heineken 0.0", "price": "€ 1450", "status": "reserved"
+    }, {
+      "id": "add_438", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 500", "status": "reserved"
+    }, {
+      "id": "add_439", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_441", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_497", "cat": "EXTRA", "code": "EXTRA", "name": "zondag", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Het tapeiland dient schoon retour ingeleverd te worden.\r\nBij niet schoon retour berekenen wij € 350 schoonmaak kosten.\r\nHet reinigen van de tap installatie laten wij uitvoeren door de tapwacht.\n1x Extra € 500\n1x Extra € 350\n1x Extra € 250\n1x zondag € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1781", "oldId": 1781, "number": "2025-2330", "title": "Opdracht 2330", "start": "2025-03-01", "end": "2025-03-01", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 710", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1108", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1830", "oldId": 1830, "number": "2025-2349", "title": "Opdracht 2349", "start": "2025-03-01", "end": "2025-03-01", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 721", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1123", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1840", "oldId": 1840, "number": "2025-2352", "title": "Opdracht 2352", "start": "2025-03-09", "end": "2025-03-09", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 723", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1125", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1861", "oldId": 1861, "number": "2025-2361", "title": "Opdracht 2361", "start": "2025-03-31", "end": "2025-03-31", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 729", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "847", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1864", "oldId": 1864, "number": "2025-2363", "title": "rai", "start": "2025-03-31", "end": "2025-03-31", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "rai", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1129", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1871", "oldId": 1871, "number": "2025-2367", "title": "test", "start": "2025-04-03", "end": "2025-04-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "test", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1877", "oldId": 1877, "number": "2025-2371", "title": "Tour of Holland Dordrecht", "start": "2025-04-06", "end": "2025-04-07", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Caya Noorland", "street": "", "zip": "", "city": "", "phone": "+31 (0) 40 84 86 672", "email": ""
+    }, "location": {
+      "name": "Tour of Holland)", "street": "Sonsbeekpark", "zip": "", "city": "Arnhem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_554", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_555", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 275", "status": "reserved"
+    }, {
+      "id": "add_556", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 275", "status": "reserved"
+    }, {
+      "id": "add_557", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport kan eventueel door u zelf gedaan worden, als wij het transport regelen kunt u zien bij Extra wat het u kost per wagen.\n1x per wagen € 125\n1x per wagen € 275\n1x per wagen € 275\n1x per wagen € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1867", "oldId": 1867, "number": "2025-2365", "title": "Despo met klep Breda", "start": "2025-04-10", "end": "2025-04-13", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "NHG Hoofdgebouw", "street": "Stadionstraat 5", "zip": "", "city": "Breda", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_545", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1889", "oldId": 1889, "number": "2025-2380", "title": "Tapwagen", "start": "2025-04-14", "end": "2025-04-14", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Tapwagen", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1139", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1180", "oldId": 1180, "number": "2022-2057", "title": "Koningsdag Muidenberg", "start": "2025-04-16", "end": "2025-04-26", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Nathalie", "street": "", "zip": "", "city": "", "phone": "06-28073071", "email": ""
+    }, "location": {
+      "name": "Lossen woning  tegenover manage", "street": "Googweg 20", "zip": "", "city": "Muidenberg", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_51", "cat": "EXTRA", "code": "EXTRA1", "name": "Mobiele bar 2 kraans", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_493", "cat": "EXTRA", "code": "EXTRA", "name": "Heineken", "price": "€ 1792", "status": "reserved"
+    }, {
+      "id": "add_494", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 130", "status": "reserved"
+    }, {
+      "id": "add_495", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 440", "status": "reserved"
+    }, {
+      "id": "add_508", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 85", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "14x Heineken € 1792\n2x Extra € 130\n4x Extra € 440\n1x Extra € 85", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1782", "oldId": 1782, "number": "2025-2331", "title": "bas", "start": "2025-04-18", "end": "2025-04-23", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "bas", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1109", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1775", "oldId": 1775, "number": "2025-2325", "title": "Opdracht 2325", "start": "2025-04-19", "end": "2025-04-26", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 706", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1103", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1778", "oldId": 1778, "number": "2025-2327", "title": "test fout", "start": "2025-04-19", "end": "2025-04-25", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "test fout", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1105", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1130", "oldId": 1130, "number": "2022-2016", "title": "Koningsdag Nieuw vennep", "start": "2025-04-20", "end": "2025-04-27", "startTime": "Ophalen Uithoorn", "endTime": "Retouir Uithoorn", "status": "Bevestigd", "amount": 0, "brand": "jupiler", "invoice": "25987749", "customer": {
+      "name": "Reinier van Elderen", "street": "", "zip": "", "city": "", "phone": "0620905605", "email": "vanelderen@aol.nl"
+    }, "location": {
+      "name": "692", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_37", "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_448", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_451", "cat": "EXTRA", "code": "EXTRA", "name": "kort", "price": "€ 70", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport doet klant zelf\n1x Extra € 125\n4x kort € 70", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1776", "oldId": 1776, "number": "2025-2326", "title": "test", "start": "2025-04-20", "end": "2025-04-26", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "test", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1104", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1779", "oldId": 1779, "number": "2025-2328", "title": "Opdracht 2328", "start": "2025-04-20", "end": "2025-04-26", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 702", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1106", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1493", "oldId": 1493, "number": "2023-3100", "title": "Tapwagen Koningsdag  Hilversum", "start": "2025-04-21", "end": "2025-04-26", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "25987751", "customer": {
+      "name": "Marco", "street": "", "zip": "", "city": "", "phone": "0653107757", "email": ""
+    }, "location": {
+      "name": "932", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_266", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }, {
+      "id": "add_267", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }, {
+      "id": "add_268", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_269", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 150\n1x Extra € 150\n1x Extra € 75\n1x Extra € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1764", "oldId": 1764, "number": "2024-2316", "title": "Koningsdag 2025 Blaricum oranje vereniging", "start": "2025-04-22", "end": "2025-04-26", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "25987737", "customer": {
+      "name": "Frank", "street": "", "zip": "", "city": "", "phone": "0648118396", "email": ""
+    }, "location": {
+      "name": "Bergnet", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_120", "cat": "EXTRA", "code": "EXTRA2", "name": "Kassa unit 2 persoons", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_427", "cat": "EXTRA", "code": "EXTRA", "name": "Amstel", "price": "€ 2560", "status": "reserved"
+    }, {
+      "id": "add_430", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 156", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "20x Amstel € 2560\n2x Extra € 156", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1881", "oldId": 1881, "number": "2025-2374", "title": "Toiletwagen Lelystad", "start": "2025-04-22", "end": "2025-04-29", "startTime": "7/8", "endTime": "voor 12 uur", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Dany", "street": "", "zip": "", "city": "", "phone": "+316 505 225 69", "email": ""
+    }, "location": {
+      "name": "1134", "street": "", "zip": "", "city": "Lelystad", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_567", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Extra riool slang meeleveren 4 meter  € 0,00\r\nBetaling contant bij ophalen  ( geen pin aanwezig op deze locatie)\r\nOphaal adres Molenlaan 30 Uithoorn\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1354", "oldId": 1354, "number": "2023-3013", "title": "Koningsdag mijdrecht", "start": "2025-04-23", "end": "2025-04-27", "startTime": "", "endTime": "8/15", "status": "Bevestigd", "amount": 0, "brand": "Onbekend", "invoice": "25987758", "customer": {
+      "name": "Frank", "street": "", "zip": "", "city": "", "phone": "+31 620 58 85 44", "email": ""
+    }, "location": {
+      "name": "849", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_131", "cat": "EXTRA", "code": "EXTRA14", "name": ".", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_228", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 330", "status": "reserved"
+    }, {
+      "id": "add_229", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 330", "status": "reserved"
+    }, {
+      "id": "add_512", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Materialen dienen schoon retour terug te komen \r\nBij niet schoon bereken wij u €450 ex per materiaal\n1x Extra € 330\n1x Extra € 330\n2x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1589", "oldId": 1589, "number": "2024-2183", "title": "Koningsdag Geldermalsen ophaal klant", "start": "2025-04-23", "end": "2025-04-27", "startTime": "7 uur", "endTime": "9/13", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "25987752", "customer": {
+      "name": "Zaak", "street": "", "zip": "", "city": "", "phone": "0345 576 380", "email": ""
+    }, "location": {
+      "name": "995", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_426", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "De wagens dienen schoon retour teruggebracht te worden.\r\nBij niet schoon berekenen wij u € 250 per wagen\r\nLET OP u heeft Geen verzekering afgesloten\n2x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1646", "oldId": 1646, "number": "2024-2218", "title": "Silver container Oranje Bitter", "start": "2025-04-23", "end": "2025-04-27", "startTime": "", "endTime": "Ochtend", "status": "Bevestigd", "amount": 0, "brand": "Silver", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Oranjebitter", "street": "Mevlanaplein 1", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_232", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1900", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1900", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1753", "oldId": 1753, "number": "2024-2308", "title": "Tapwagen standaard leiden", "start": "2025-04-23", "end": "2025-04-26", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "25987753", "customer": {
+      "name": "Rosanne", "street": "", "zip": "", "city": "", "phone": "0624862683", "email": ""
+    }, "location": {
+      "name": "Tapwagen standaard leiden", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_413", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_414", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_415", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 95", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 250\n1x Extra € 250\n1x Extra € 95", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1774", "oldId": 1774, "number": "2025-2324", "title": "Cafe het hoekje", "start": "2025-04-23", "end": "2025-04-28", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Hei", "invoice": "", "customer": {
+      "name": "Cafe het hoekje", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1102", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1831", "oldId": 1831, "number": "2025-2350", "title": "Tapwagen  Groot Ammers", "start": "2025-04-23", "end": "2025-05-05", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Tapwagen  Groot Ammers", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1124", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1773", "oldId": 1773, "number": "2025-2323", "title": "Opdracht 2323", "start": "2025-04-24", "end": "2025-04-29", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 704", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1101", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1812", "oldId": 1812, "number": "2025-2342", "title": "Koningsdag Amsterdam Blaffende vis", "start": "2025-04-24", "end": "2025-04-26", "startTime": "9 uur", "endTime": "vroeg mogelijk", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Blaffende vis", "street": "Westerstraat 118", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_140", "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_487", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_488", "cat": "EXTRA", "code": "EXTRA", "name": "weekend", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 750\n1x weekend € 750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1155", "oldId": 1155, "number": "2022-2037", "title": "Bevrijdings festival Overijssel 2025 zwolle", "start": "2025-05-01", "end": "2025-05-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Bevrijdings festival", "street": "Park de Wezenlanden", "zip": "", "city": "zwolle", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_501", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1843", "oldId": 1843, "number": "2025-2353", "title": "Tapwagen XXL Met koelcel Boskoop wordt opgehaald", "start": "2025-05-01", "end": "2025-05-05", "startTime": "7 /10", "endTime": "voor 10 uur", "status": "Bevestigd", "amount": 0, "brand": "hertog jan", "invoice": "25987742", "customer": {
+      "name": "Tapwagen XXL Met koelcel Boskoop wordt opgehaald", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Stichting evenementen Boskoop", "street": "burgemeester colijnstraat 26", "zip": "", "city": "Boskoop", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "add_537", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_538", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Klant rijd zelf de tapwagen :\r\nLet op de tapwagen weegt 2800 kg en u heeft een sterke bus of jeep nodig om deze wagen te kunnnen trekken, klant is tijdens de huur periode geheel verandwoordelijk voor  schades en diefstal van de wagen . Zie rubriek Home/  algemene voorwaarde op de site voor meer info\n1x Extra € 125\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1901", "oldId": 1901, "number": "2025-2388", "title": "Amsterdamsche Hockey & Bandy Club Amstelveen", "start": "2025-05-14", "end": "2025-05-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Hockey & Bandy Club", "street": "Nieuwe Kalfjeslaan 19", "zip": "", "city": "Amstelveen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 1600", "status": "reserved"
+    }, {
+      "id": "add_588", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1734", "oldId": 1734, "number": "2024-2292", "title": "Despo met klep Breda", "start": "2025-05-15", "end": "2025-05-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "NHG Hoofdgebouw", "street": "Stadionstraat 5", "zip": "", "city": "Breda", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_389", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1913", "oldId": 1913, "number": "2025-2397", "title": "Plaskruizen", "start": "2025-05-15", "end": "2025-05-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "Contant", "customer": {
+      "name": "Plaskruizen", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Plaskruizen", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_125", "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Kruizen maandag rond 12 uur terug", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1631", "oldId": 1631, "number": "2024-2206", "title": "Despo Harmonie of Hardcore Haarlemmermeer", "start": "2025-05-22", "end": "2025-06-11", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Marc", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Harmonie of Hardcore", "street": "Keldonkseweg 8", "zip": "", "city": "Erp", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 1700", "status": "reserved"
+    }, {
+      "id": "add_330", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1560", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1560", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1818", "oldId": 1818, "number": "2025-2346", "title": "Toiletwagen Noordbeesmster", "start": "2025-05-22", "end": "2025-05-24", "startTime": "13/17", "endTime": "overleg", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Toiletwagen Noordbeesmster", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "98", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen € 650 \r\nTransport brengen € 175\r\nTransport ophalen € 175\r\n1 malige Speciale prijs € 350 \r\nWel moet de toiletwagen helemaal schoon retour ingeleverd worden.", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1891", "oldId": 1891, "number": "2025-2381", "title": "Opdracht 2381", "start": "2025-05-22", "end": "2025-05-25", "startTime": "ophaal", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "25987745", "customer": {
+      "name": "Klant 731", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "NVT NVT", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_574", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_575", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "4x Extra € 125\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1921", "oldId": 1921, "number": "2025-2401", "title": "Toiletwagen type 3", "start": "2025-05-22", "end": "2025-05-22", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Toiletwagen type 3", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1148", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1817", "oldId": 1817, "number": "2025-2345", "title": "Despo Wijk aan zee", "start": "2025-05-26", "end": "2025-06-01", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Meifestival", "street": "", "zip": "", "city": "Wijk aan Zee", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_491", "cat": "EXTRA", "code": "EXTRA", "name": "Kraanwagen", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_492", "cat": "EXTRA", "code": "EXTRA", "name": "Kraanwagen", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Kraanwagen € 750\n1x Kraanwagen € 750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1820", "oldId": 1820, "number": "2025-2347", "title": "Despo Wijk aan zee", "start": "2025-05-26", "end": "2025-06-01", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Despo Wijk aan zee", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1121", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1882", "oldId": 1882, "number": "2025-2375", "title": "Toiletwagen en watertank Driebergen", "start": "2025-05-26", "end": "2025-06-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987744", "customer": {
+      "name": "Arthur", "street": "", "zip": "", "city": "", "phone": "0620578849", "email": ""
+    }, "location": {
+      "name": "Triodos Bank", "street": "Hoofdstraat 10", "zip": "", "city": "Driebergen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "€ 1100", "status": "reserved"
+    }, {
+      "id": "art_6", "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_600", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_601", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 500", "status": "reserved"
+    }, {
+      "id": "add_602", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 500", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x toiletwagen A € 550 type 3 W18 met extra inhuur extern\r\nWater container dient op stroom te staan bij aankomst\n1x Extra € 950\n2x Extra € 500\n2x Extra € 500", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1632", "oldId": 1632, "number": "2024-2207", "title": "Despo  Rotterdam Toffler Festival", "start": "2025-05-27", "end": "2025-06-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877921", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Toffler Festival", "street": "Toffler Festival 1", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_200", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1900", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 1900", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1770", "oldId": 1770, "number": "2025-2321", "title": "Koelwagen volendam", "start": "2025-05-27", "end": "2025-05-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "z--", "street": "ingang park aan de Burg. van Baarstraat", "zip": "", "city": "Volendam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_456", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_457", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1928", "oldId": 1928, "number": "2025-2406", "title": "Biertanken Bramco", "start": "2025-05-27", "end": "2025-05-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987761", "customer": {
+      "name": "Biertanken Bramco", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Biertanken Bramco", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_4", "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "€ 400", "status": "reserved"
+    }, {
+      "id": "art_37", "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "€ 400", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1807", "oldId": 1807, "number": "2025-2340", "title": "Event Hilversum", "start": "2025-05-28", "end": "2025-05-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "25987759", "customer": {
+      "name": "Laurenz", "street": "", "zip": "", "city": "", "phone": "0630848850", "email": ""
+    }, "location": {
+      "name": "1116", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_480", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 3840", "status": "reserved"
+    }, {
+      "id": "add_481", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 170", "status": "reserved"
+    }, {
+      "id": "add_482", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }, {
+      "id": "add_483", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }, {
+      "id": "add_498", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Klant komt Koelwagen zelf ophalen en terug brengen\n30x Extra € 3840\n2x Extra € 170\n1x Extra € 150\n1x Extra € 150\n1x Extra € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1863", "oldId": 1863, "number": "2025-2362", "title": "Toppers Arena Amsterdam", "start": "2025-05-28", "end": "2025-06-02", "startTime": "9/13", "endTime": "tot max 13", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Toppers Arena Amsterdam", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "JC Arena", "street": "Burgemeester Stramanweg 404", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_543", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1550", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Afleveren  Arena deck\n1x Extra € 1550", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1088", "oldId": 1088, "number": "2021-1039", "title": "toiletbox Bilthoven", "start": "2025-05-29", "end": "2025-06-01", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Loliet Enneking", "street": "", "zip": "", "city": "", "phone": "06 54 650 237", "email": ""
+    }, "location": {
+      "name": "662", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_533", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_534", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 250\n1x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1848", "oldId": 1848, "number": "2025-2356", "title": "watertank en toiletwagen Purmerend", "start": "2025-05-29", "end": "2025-05-29", "startTime": "13 uur", "endTime": "17 uur", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "259877939", "customer": {
+      "name": "Tanja", "street": "", "zip": "", "city": "", "phone": "0299) 452114", "email": ""
+    }, "location": {
+      "name": "Park bij ingang", "street": "Koogsinge", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_5", "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_515", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_516", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_517", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_518", "cat": "EXTRA", "code": "EXTRA", "name": "25 meter", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Watertank vullen met 500 liter water \r\nSlang met kraan meeleveren\r\nSpinnen kop en slang meeleveren\n2x Extra € 350\n2x Extra € 350\n1x Extra € 0\n1x 25 meter € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1894", "oldId": 1894, "number": "2025-2383", "title": "Tapwagen  heemskerk", "start": "2025-05-29", "end": "2025-06-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Chateau event juni", "street": "Marquettelaan 34", "zip": "", "city": "Heemskers", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_578", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 275", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 275", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1910", "oldId": 1910, "number": "2025-2394", "title": "Tapwagen Amsterdam Part", "start": "2025-05-29", "end": "2025-06-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "-25987756", "customer": {
+      "name": "Frank", "street": "", "zip": "", "city": "", "phone": "0644983098", "email": ""
+    }, "location": {
+      "name": "Tapwagen Amsterdam Part", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_606", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 85", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "klant komt zelf halen en trugbrengen\r\nTapwagen dient schoon retour terug te komen\n1x Extra € 85", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1638", "oldId": 1638, "number": "2024-2213", "title": "despo container Oerol Festival De Vlas Harlingen", "start": "2025-06-01", "end": "2025-06-17", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Transport bedrijf  Vlas", "street": "Lijnbaan", "zip": "", "city": "Harlingen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 1700", "status": "reserved"
+    }, {
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 1700", "status": "reserved"
+    }, {
+      "id": "add_206", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2370", "status": "reserved"
+    }, {
+      "id": "add_442", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2370", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2370\n1x Extra € 2370", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1934", "oldId": 1934, "number": "2025-2411", "title": "Despo Arnhem", "start": "2025-06-04", "end": "2025-06-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Free your mind", "street": "Stadsblokkenweg 1", "zip": "", "city": "Arnhem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_627", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1800", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1800", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1847", "oldId": 1847, "number": "2025-2355", "title": "Tapwagen Velserbroek", "start": "2025-06-05", "end": "2025-06-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "24987761", "customer": {
+      "name": "Stephanie", "street": "", "zip": "", "city": "", "phone": "06-31993804", "email": ""
+    }, "location": {
+      "name": "Tapwagen Velserbroek", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_513", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_514", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 250\n1x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1402", "oldId": 1402, "number": "2023-3057", "title": "Desperados Haarlem veerplas festival", "start": "2025-06-09", "end": "2025-06-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Desperados Haarlem veerplas festival", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Veerplas festival", "street": "Hofmanweg 62", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_318", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1740", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1740", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1927", "oldId": 1927, "number": "2025-2405", "title": "Toiletwagen Zandvoort", "start": "2025-06-10", "end": "2025-06-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": ".25987759", "customer": {
+      "name": "Mathijs Linders", "street": "", "zip": "", "city": "", "phone": "0618159267", "email": ""
+    }, "location": {
+      "name": "Venti Beach", "street": "Strandafgang Barnaart 20", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_617", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 195", "status": "reserved"
+    }, {
+      "id": "add_618", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 195", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen dient schoon retour terug te komen en klaar te staan op het harde bij de weg, dit zou gedaan worden door de firma Paap\r\nWij leveren de wagen af bij de firma Paap zoals besproken met opdracht gevester \r\n\r\nFirma paap \r\nMax Planckstraat 17\r\nZandvoort\r\n 023-571 83 95\n1x Extra € 195\n1x Extra € 195", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1938", "oldId": 1938, "number": "2025-2414", "title": "Koelwagen Aalsmeer", "start": "2025-06-11", "end": "2025-06-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987771", "customer": {
+      "name": "Koelwagen Aalsmeer", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1158", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 375", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1772", "oldId": 1772, "number": "2025-2322", "title": "Tapwagen xXL met koelcel Hoorn", "start": "2025-06-12", "end": "2025-06-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Tapwagen xXL met koelcel Hoorn", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_461", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 380", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 380", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1845", "oldId": 1845, "number": "2025-2354", "title": "Opdracht 2354", "start": "2025-06-12", "end": "2025-06-24", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 725", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1127", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1907", "oldId": 1907, "number": "2025-2391", "title": "Chin Chin Zandvoort", "start": "2025-06-12", "end": "2025-06-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Chin-Chin", "street": "Haltestraat 20", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_595", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1683", "oldId": 1683, "number": "2024-2249", "title": "Carrousel Middenbeemster", "start": "2025-06-14", "end": "2025-06-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "-25987752", "customer": {
+      "name": "Dick Bakker", "street": "", "zip": "", "city": "", "phone": "06-22379135", "email": ""
+    }, "location": {
+      "name": "BRASA Beemster", "street": "Rijperweg 83", "zip": "", "city": "Middenbeemster", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_319", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_320", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1527", "oldId": 1527, "number": "2023-3129", "title": "open Container  Zandvoort", "start": "2025-06-15", "end": "2025-06-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 1950, "brand": "", "invoice": "", "customer": {
+      "name": "open Container  Zandvoort", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Paap", "street": "Max Planckstraat 17", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "Container   € 850 zwart open \r\nTransport € 1100 4 ritten", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1528", "oldId": 1528, "number": "2023-3130", "title": "Toilet container 13 klepper Zandvoort", "start": "2025-06-15", "end": "2025-06-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987750", "customer": {
+      "name": "Toilet container 13 klepper Zandvoort", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Paap", "street": "Max Planckstraat 17", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_28", "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_125", "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_141", "cat": "EXTRA", "code": "EXTRA25", "name": "14 klepper/ 10 zit 4 staan", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_310", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1100", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Slangen bij plaskruizen meegeven \r\nMaterialen bij paap leveren\n1x Extra € 1100", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1874", "oldId": 1874, "number": "2025-2368", "title": "Kermis Oostblokker", "start": "2025-06-17", "end": "2025-06-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "De Harmonie", "street": "Oosterblokker 38", "zip": "", "city": "Oosterblokker", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_143", "cat": "EXTRA", "code": "EXTRA25", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 960", "status": "reserved"
+    }, {
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_546", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 460", "status": "reserved"
+    }, {
+      "id": "add_547", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 460", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 460\n1x Extra € 460", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1925", "oldId": 1925, "number": "2025-2403", "title": "Jaarbeurs Utrecht", "start": "2025-06-17", "end": "2025-06-22", "startTime": "9-12", "endTime": "9-12", "status": "Bevestigd", "amount": 0, "brand": "Heinken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Jaarbeurs Utrecht.", "street": "Fentener van Vlissingenkade", "zip": "", "city": "Utrecht", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_613", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 200", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 200", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1940", "oldId": 1940, "number": "2025-2415", "title": "Circuitpark Zandvoort", "start": "2025-06-18", "end": "2025-06-22", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Egbert", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Circuit Park VIP Catering Skyboxen", "street": "Burgemeester van Alphenstraat", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_634", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 216", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 216", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1633", "oldId": 1633, "number": "2024-2208", "title": "Bierlokaal Concert at Sea Scharredijke", "start": "2025-06-19", "end": "2025-06-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "249877946", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Concert at Sea", "street": "Brouwersdam 1", "zip": "", "city": "Scharredijke", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 1700", "status": "reserved"
+    }, {
+      "id": "add_201", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2070", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2070", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1868", "oldId": 1868, "number": "2025-2366", "title": "Tapwagen woerden", "start": "2025-06-19", "end": "2025-06-22", "startTime": "7/8", "endTime": "voor 10 uur", "status": "Geannuleerd", "amount": 0, "brand": "Hertog Jan", "invoice": "", "customer": {
+      "name": "Wessel", "street": "", "zip": "", "city": "", "phone": "0631238687", "email": ""
+    }, "location": {
+      "name": "…", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_581", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "add_582", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_593", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_594", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 50\n1x Extra € 75\n1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1895", "oldId": 1895, "number": "2025-2384", "title": "chemisch toilet  en koelwagen Kwakel", "start": "2025-06-19", "end": "2025-06-22", "startTime": "7/10", "endTime": "7/10", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "-25987748", "customer": {
+      "name": "Dustin Van Baal", "street": "", "zip": "", "city": "", "phone": "+31 (0)297 325 150", "email": ""
+    }, "location": {
+      "name": "Dustin van Baal", "street": "Jaagpad 20", "zip": "", "city": "Kwakel", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_579", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 300", "status": "reserved"
+    }, {
+      "id": "add_580", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 300", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 300\n2x Extra € 300", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1897", "oldId": 1897, "number": "2025-2385", "title": "Toiletwagen standaard Uithoorn", "start": "2025-06-19", "end": "2025-06-22", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "-25987750", "customer": {
+      "name": "Toiletwagen standaard Uithoorn", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1141", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_583", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen dienst schoon ingeleverd te worden\n1x Extra € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1838", "oldId": 1838, "number": "2025-2351", "title": "Tapwagen Beverwijk", "start": "2025-06-22", "end": "2025-06-29", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Notelle .", "street": "Koningstraat 14", "zip": "", "city": "beverwijk", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_510", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 113.4", "status": "reserved"
+    }, {
+      "id": "add_511", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 113.4", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 113.4\n1x Extra € 113.4", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1916", "oldId": 1916, "number": "2025-2398", "title": "Tapwagen Driehuis", "start": "2025-06-24", "end": "2025-06-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Café Middeloo", "street": "Driehuizerkerkweg 71", "zip": "", "city": "Driehuis", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_608", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 180", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 180", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1391", "oldId": 1391, "number": "2023-3046", "title": "Desperados Wierden", "start": "2025-06-25", "end": "2025-06-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Desperados", "invoice": "", "customer": {
+      "name": "Desperados Wierden", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Boulevard Outdoor -", "street": "Vriezenveenseweg 57", "zip": "", "city": "Wierden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_317", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2220", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2220", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1898", "oldId": 1898, "number": "2025-2386", "title": "Koelwagen Landsmeer", "start": "2025-06-25", "end": "2025-06-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Tennisvereniging Heb Durf", "street": "Sportpark 9", "zip": "", "city": "Landsmeer", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_584", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 100", "status": "reserved"
+    }, {
+      "id": "add_585", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 100", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 100\n1x Extra € 100", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1947", "oldId": 1947, "number": "2025-2421", "title": "Despo NdSM Amsterdam", "start": "2025-06-25", "end": "2025-06-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Meganistie bedrijf van Dam", "street": "Usemerweg 4", "zip": "", "city": "Ursem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_641", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1050", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1050", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1694", "oldId": 1694, "number": "2024-2259", "title": "Carrousel XXL en koelwagen Dam Amsterdam", "start": "2025-06-26", "end": "2025-06-29", "startTime": "10/13", "endTime": "5/10", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "2598772", "customer": {
+      "name": "Saloua Mathurin", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Me and the People", "street": "Dam", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_535", "cat": "EXTRA", "code": "EXTRA", "name": "Koelwagen", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_536", "cat": "EXTRA", "code": "EXTRA", "name": "Koelwagen", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Huurder is in de verhuur periode geheel verandwoordelijk voor schades en diefstal van gehuurde materialen.\r\nTapwagen dient schoon retour terug te komen, bij niet schoon retour berekenen wij u € 350 ex btw voor de schoonmaak kosten.\n1x Koelwagen € 250\n1x Koelwagen € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1937", "oldId": 1937, "number": "2025-2413", "title": "Tapcontainer met koelcel Mook", "start": "2025-06-26", "end": "2025-06-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Hertog Jan", "invoice": "25987769", "customer": {
+      "name": "George Dettmer", "street": "", "zip": "", "city": "", "phone": "+31 24 696 92 88", "email": ""
+    }, "location": {
+      "name": "1157", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_131", "cat": "EXTRA", "code": "EXTRA14", "name": ".", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_629", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_630", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1020", "status": "reserved"
+    }, {
+      "id": "add_631", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1020", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 125\n1x Extra € 1020\n1x Extra € 1020", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1373", "oldId": 1373, "number": "2023-3028", "title": "Despo 2  Down The Rabbit Hole", "start": "2025-06-30", "end": "2025-07-07", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Despo", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "the Rabbit Hole", "street": "Groene Heuvels", "zip": "", "city": "Beuningen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_470", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1850", "status": "reserved"
+    }, {
+      "id": "add_471", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1850", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1850\n1x Extra € 1850", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1883", "oldId": 1883, "number": "2025-2376", "title": "Despo Ploegendienst Breda", "start": "2025-07-01", "end": "2025-07-06", "startTime": "9/17", "endTime": "9/17", "status": "Bevestigd", "amount": 0, "brand": "Despo", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Ploegendienst", "street": "Rijsbergsebaan 17", "zip": "", "city": "Breda", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_569", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1941", "oldId": 1941, "number": "2025-2416", "title": "Tapwagens Limon Amsterdam", "start": "2025-07-01", "end": "2025-07-06", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Limon", "street": "Gustav Mahlerplein 222", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_635", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 525", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 525", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1942", "oldId": 1942, "number": "2025-2417", "title": "Toiletwagen Limon Amsterdam", "start": "2025-07-01", "end": "2025-07-06", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2598773", "customer": {
+      "name": "Nick", "street": "", "zip": "", "city": "", "phone": "0646403712", "email": ""
+    }, "location": {
+      "name": "1161", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_28", "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_637", "cat": "EXTRA", "code": "EXTRA", "name": "Toiletwagen", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Plaskruizen dienen leeg te zijn bij het ophalen en\n1x Toiletwagen € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1489", "oldId": 1489, "number": "2023-3097", "title": "Guilty Pleasure Amsterdam Despo", "start": "2025-07-02", "end": "2025-07-06", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Marc", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Guilty Pleasure Amsterdam", "street": "Driemondweg 21", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_648", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1400", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1400", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1905", "oldId": 1905, "number": "2025-2389", "title": "cafe ons Hoekje Leiden", "start": "2025-07-02", "end": "2025-07-06", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "-25987754", "customer": {
+      "name": "cafe ons Hoekje Leiden", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "cafe ons Hoekje Leiden", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1945", "oldId": 1945, "number": "2025-2420", "title": "Cafe ons hoekje", "start": "2025-07-02", "end": "2025-07-06", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Cafe ons hoekje", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1163", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1920", "oldId": 1920, "number": "2025-2400", "title": "Toiletwagen type 3 Utrecht", "start": "2025-07-03", "end": "2025-07-07", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "-25987757", "customer": {
+      "name": "Mandy", "street": "", "zip": "", "city": "", "phone": "030-7820680", "email": ""
+    }, "location": {
+      "name": "Toiletwagen type 3 Utrecht", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_610", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_614", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1949", "oldId": 1949, "number": "2025-2422", "title": "Koelwagen Amsterdam", "start": "2025-07-03", "end": "2025-07-06", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Sante open", "street": "Boechorstraat 38", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_642", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1499", "oldId": 1499, "number": "2023-3104", "title": "Biertank brouwerij Amsterdam", "start": "2025-07-06", "end": "2025-07-13", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "25987768", "customer": {
+      "name": "Wietse", "street": "", "zip": "", "city": "", "phone": "0630406238", "email": ""
+    }, "location": {
+      "name": "Biertank brouwerij Amsterdam", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_4", "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_5", "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_37", "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_38", "cat": "EXTRA", "code": "EXTRA7", "name": "Mueller tank  6 KB 1501", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_219", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "add_220", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "add_221", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 50\n1x Extra € 50\n4x Extra € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1951", "oldId": 1951, "number": "2025-2424", "title": "North Sea Jazz festival Rotterdam", "start": "2025-07-07", "end": "2025-07-14", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Egbert", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "North Sea Jazz festival", "street": "Ahoyweg 10", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_647", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1900", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1900", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1936", "oldId": 1936, "number": "2025-2412", "title": "JOY X Flow Festival Zaandam", "start": "2025-07-08", "end": "2025-07-13", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "JOY X Flow Festival.", "street": "Hemkade 18", "zip": "", "city": "Zaandam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_632", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 900", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 900", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1172", "oldId": 1172, "number": "2022-2049", "title": "Toiletwagen huttenbouw Amstelveen", "start": "2025-07-10", "end": "2025-07-17", "startTime": "voor 10 uur", "endTime": "na 1300", "status": "Bevestigd", "amount": 1250, "brand": "", "invoice": "25987763", "customer": {
+      "name": "Hennie Buffing", "street": "", "zip": "", "city": "", "phone": "0651314110", "email": ""
+    }, "location": {
+      "name": "Toiletwagen huttenbouw Amstelveen", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Prijs incl transport\r\nToiletwagen dient schoon retour te komen, bij niet schoon  bereken wij € 350 schoonmaak kosten.", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1908", "oldId": 1908, "number": "2025-2392", "title": "Chin Chin Zandvoort", "start": "2025-07-17", "end": "2025-07-20", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Chin-Chin", "street": "Haltestraat 20", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_596", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1557", "oldId": 1557, "number": "2023-3152", "title": "Parade bar Amsterdam", "start": "2025-07-22", "end": "2025-08-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Brand", "invoice": "", "customer": {
+      "name": "Parade bar Amsterdam", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "parade Amsteldijk", "street": "Maarten luther king park", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_187", "cat": "EXTRA", "code": "EXTRA9", "name": "Parade bar", "price": "€ 2550", "status": "reserved"
+    }, {
+      "id": "add_208", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1600", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Speciaal transport  ivm gewicht en ontheffingen\n1x Extra € 1600", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1715", "oldId": 1715, "number": "2024-2276", "title": "No Art Festival Amsterdam", "start": "2025-07-22", "end": "2025-07-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Despo", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "No Art Festival/ Flevopark Amsterdam", "street": "Valetijnkade 1", "zip": "", "city": "Amsteram", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_367", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1670", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1670", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1722", "oldId": 1722, "number": "2024-2281", "title": "toiletboxen type Hillegom", "start": "2025-07-23", "end": "2025-07-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2598776", "customer": {
+      "name": "toiletboxen type Hillegom", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "toiletboxen type Hillegom", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1813", "oldId": 1813, "number": "2025-2343", "title": "Live Amsterdam Gay piride", "start": "2025-07-24", "end": "2025-08-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Live Amsterdam", "street": "Thorbeckerplein 16/18", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 1400", "status": "reserved"
+    }, {
+      "id": "add_531", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1955", "oldId": 1955, "number": "2025-2426", "title": "Solar Weekend Festival te Roermond.", "start": "2025-07-28", "end": "2025-08-04", "startTime": "9/12", "endTime": "9/12", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1168", "street": "Hornerweg 2B", "zip": "", "city": "Roermond", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_652", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2150", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Plaatsen/afhalen 29-07-2025 (09:00 - 12:00) / 05-08-2025 (09:00 - 12:00)\r\nLocatie naam Solar Weekend Festival\r\nLocatie adres De Weerd 1\r\n6041 TK Roermond\n1x Extra € 2150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1359", "oldId": 1359, "number": "2023-3016", "title": "carrousel santpoort Cor", "start": "2025-07-29", "end": "2025-08-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Veld na Centrum", "street": "Weijmanweide", "zip": "", "city": "Santpoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_178", "cat": "EXTRA", "code": "EXTRA40", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 1200", "status": "reserved"
+    }, {
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_225", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_226", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_227", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 350\n2x Extra € 350\n2x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1444", "oldId": 1444, "number": "2023-3069", "title": "Feestweek Santpoort De Meijerij", "start": "2025-07-29", "end": "2025-08-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "De Meijerij", "street": "Hoofdstraat 204", "zip": "", "city": "Santpoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 1150", "status": "reserved"
+    }, {
+      "id": "add_281", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_282", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1446", "oldId": 1446, "number": "2023-3071", "title": "Feestweek santpoort Ramsis", "start": "2025-07-29", "end": "2025-08-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "grillroom Ramsis", "street": "Hoofdstraat 186", "zip": "2071EN", "city": "Sanpoort noord", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 1150", "status": "reserved"
+    }, {
+      "id": "add_279", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_280", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1682", "oldId": 1682, "number": "2024-2248", "title": "Tapwagen Café Bartje Santpoort", "start": "2025-07-29", "end": "2025-08-07", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Cafe Bartje", "street": "Hoofdstraat 150", "zip": "2071EL", "city": "Sanpoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 1150", "status": "reserved"
+    }, {
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 1150", "status": "reserved"
+    }, {
+      "id": "add_315", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_502", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 350\n2x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1801", "oldId": 1801, "number": "2025-2339", "title": "Gay piride Montmarte Amsterdam", "start": "2025-07-31", "end": "2025-08-02", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "cafe montmartre", "street": "Reguliersdwarsstraat 129", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_649", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1500", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1500", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1852", "oldId": 1852, "number": "2025-2358", "title": "Gay pride Jan verjaardag Amsterdam", "start": "2025-07-31", "end": "2025-08-02", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Janjes verjaardag", "street": "Reguliersdwarsstraat 108", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "art_143", "cat": "EXTRA", "code": "EXTRA25", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "add_522", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_523", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_644", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 350\n2x Extra € 350\n1x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1966", "oldId": 1966, "number": "2025-2435", "title": "Plaskruis  ophaal klant", "start": "2025-07-31", "end": "2025-08-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987784-", "customer": {
+      "name": "Lex", "street": "", "zip": "", "city": "", "phone": "0628391174", "email": ""
+    }, "location": {
+      "name": "1173", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Plaskruis met slang\r\nZaterdag terug brengen  is mogelijk bel het volgende tel nummer als u voor de poort staat 0900-123 1234", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1786", "oldId": 1786, "number": "2025-2332", "title": "Jumbo en pop up Lemmer", "start": "2025-08-03", "end": "2025-08-08", "startTime": "6-12", "endTime": "6-12", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "25987778", "customer": {
+      "name": "Albert Hessels", "street": "", "zip": "", "city": "", "phone": "0641294060", "email": ""
+    }, "location": {
+      "name": "SHPL", "street": "Brekkenweg 10", "zip": "", "city": "Lemmer", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_127", "cat": "EXTRA", "code": "EXTRA10", "name": ".", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "art_213", "cat": "EXTRA", "code": "EXTRA100", "name": ".", "price": "€ 1750", "status": "reserved"
+    }, {
+      "id": "add_464", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1530", "status": "reserved"
+    }, {
+      "id": "add_465", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1530", "status": "reserved"
+    }, {
+      "id": "add_466", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_467", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_468", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 360", "status": "reserved"
+    }, {
+      "id": "add_469", "cat": "EXTRA", "code": "EXTRA", "name": "ophalen  materialen", "price": "€ 450", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1530\n1x Extra € 1530\n1x Extra € 750\n1x Extra € 350\n10x Extra € 360\n1x ophalen  materialen € 450", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1787", "oldId": 1787, "number": "2025-2333", "title": "Opdracht 2333", "start": "2025-08-03", "end": "2025-08-08", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 713", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1111", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1962", "oldId": 1962, "number": "2025-2432", "title": "Amstel Blikje Wieringerwerf", "start": "2025-08-03", "end": "2025-08-11", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1171Cafe bij de buren", "street": "Brinkweg 15", "zip": "", "city": "Wieringerwerf", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_657", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 450", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Koelkast regeld klant zelf via stammis\n1x Extra € 450", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1720", "oldId": 1720, "number": "2024-2279", "title": "Bierlokaal Loveland Amsterdam", "start": "2025-08-05", "end": "2025-08-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Bierlokaal", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Loveland.", "street": "President Allendelaan 3", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_371", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1670", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1670", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1909", "oldId": 1909, "number": "2025-2393", "title": "Chin Chin Zandvoort", "start": "2025-08-07", "end": "2025-08-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Chin-Chin", "street": "Haltestraat 20", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 1200", "status": "reserved"
+    }, {
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 1200", "status": "reserved"
+    }, {
+      "id": "add_597", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_598", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_661", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1635", "oldId": 1635, "number": "2024-2210", "title": "Bierlokaal Lowlands", "start": "2025-08-10", "end": "2025-08-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Lowlands biddinghuizen", "street": "Spijkweg 30", "zip": "", "city": "Biddinghuizen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 1020", "status": "reserved"
+    }, {
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 1020", "status": "reserved"
+    }, {
+      "id": "add_203", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1600", "status": "reserved"
+    }, {
+      "id": "add_532", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1600", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1600\n1x Extra € 1600", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1954", "oldId": 1954, "number": "2025-2425", "title": "Despo met bestickering  Breda", "start": "2025-08-12", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "NHG Hoofdgebouw", "street": "Stadionstraat 5", "zip": "", "city": "Breda", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 1700", "status": "reserved"
+    }, {
+      "id": "add_651", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1147", "oldId": 1147, "number": "2022-2029", "title": "Haarlem Jazz", "start": "2025-08-13", "end": "2025-08-16", "startTime": "9/13", "endTime": "9/13", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "jazz festival", "street": "Oude groenmarkt", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "add_504", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_505", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Schade aan de\n1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1681", "oldId": 1681, "number": "2024-2247", "title": "Tapwagen Brasserie van Beinum Haarlem", "start": "2025-08-13", "end": "2025-08-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Brasserie van Beinum", "street": "Klokhuisplein\r\nAdres :Klokhuisplein 3", "zip": "2011HK", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_312", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_662", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1965", "oldId": 1965, "number": "2025-2434", "title": "Tapwagen Wijk aan zee", "start": "2025-08-13", "end": "2025-08-17", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "beachclubtexel", "street": "Rijckert Aertszweg", "zip": "", "city": "Wijk aan zee", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_666", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 280", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 280", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1352", "oldId": 1352, "number": "2023-3011", "title": "Evenement Koog aan de Zaan", "start": "2025-08-14", "end": "2025-08-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "25987741", "customer": {
+      "name": "Eric Paauwe", "street": "", "zip": "", "city": "", "phone": "06-52340354", "email": "axtobv.nl"
+    }, "location": {
+      "name": "Evenement Koog aan de Zaan", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "U heeft Geen verzekering !!!  Zie rubriek op de site bij algemene voorwaarden", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1767", "oldId": 1767, "number": "2025-2319", "title": "chemisch toilet type 3", "start": "2025-08-14", "end": "2025-08-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "chemisch toilet type 3", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1098", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1943", "oldId": 1943, "number": "2025-2418", "title": "Toiletwagen Hoofddorp", "start": "2025-08-14", "end": "2025-08-17", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "25987774", "customer": {
+      "name": "Jordi Bonouvrie", "street": "", "zip": "", "city": "", "phone": "+31 6 52 08 30 43", "email": ""
+    }, "location": {
+      "name": "1162", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_639", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 85", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 85", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1958", "oldId": 1958, "number": "2025-2429", "title": "Tapwagen Wervershoof Amstel", "start": "2025-08-14", "end": "2025-08-19", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Café Bistro Van Rooijen", "street": "De hoek 6", "zip": "", "city": "Wervershoof", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_654", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 450", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 450", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1964", "oldId": 1964, "number": "2025-2433", "title": "Chin Chin Zandvoort", "start": "2025-08-14", "end": "2025-08-17", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Chin-Chin", "street": "Haltestraat 20", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_663", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_664", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_665", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1865", "oldId": 1865, "number": "2025-2364", "title": "Double Tree by Hilton Amsterdam", "start": "2025-08-18", "end": "2025-08-24", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Double Tree by Hilton", "street": "Oosterdoksstraat 4", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_544", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1573", "oldId": 1573, "number": "2024-2175", "title": "Gilde feesten Soest", "start": "2025-08-19", "end": "2025-09-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Gildefeesten", "street": "F.Huycklaan 5 A", "zip": "3768HW", "city": "Soest", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_140", "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "€ 1900", "status": "reserved"
+    }, {
+      "id": "add_316", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1692", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1692", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1535", "oldId": 1535, "number": "2023-3135", "title": "Event container Julianadorp", "start": "2025-08-20", "end": "2025-08-25", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Ashley van Strien", "street": "", "zip": "", "city": "", "phone": "0629209524", "email": ""
+    }, "location": {
+      "name": "961", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container € 1750 \r\nTRANSORT KRAANWAGEN\r\nTransport kosten € 1175 \r\nContainer dient geheel schoon retour te komen", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1780", "oldId": 1780, "number": "2025-2329", "title": "Opdracht 2329", "start": "2025-08-20", "end": "2025-08-24", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 709", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1107", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_106", "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1932", "oldId": 1932, "number": "2025-2409", "title": "Event container Den oever", "start": "2025-08-20", "end": "2025-08-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Neutraal Tapwagen", "invoice": "25987764", "customer": {
+      "name": "Hendrik", "street": "", "zip": "", "city": "", "phone": "0614280638", "email": ""
+    }, "location": {
+      "name": "Event container Den oever", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_620", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_621", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_622", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 125\n1x Extra € 750\n1x Extra € 750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1687", "oldId": 1687, "number": "2024-2252", "title": "Intreeweek NDSM Amsterdam water container", "start": "2025-08-24", "end": "2025-08-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "259877927", "customer": {
+      "name": "Cathelijne Moors", "street": "", "zip": "", "city": "", "phone": "020-5253072", "email": ""
+    }, "location": {
+      "name": "Intreeweek", "street": "NDSM", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_6", "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_333", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 950", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 950", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1967", "oldId": 1967, "number": "2025-2436", "title": "Smerrig Zomerfestival Despo den bosch", "start": "2025-08-25", "end": "2025-09-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Smerrig Zomerfestival", "street": "Adres:\tDe Pettelaarse Schans 1", "zip": "", "city": "'s-Hertogenbosch", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "add_669", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1700", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1700", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1268", "oldId": 1268, "number": "2022-2119", "title": "Chin-Chin Zandvoort F1", "start": "2025-08-26", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Chin-Chin Zandvoort F1", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Chin-Chin.", "street": "Haltestraat 20", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_239", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1559", "oldId": 1559, "number": "2023-3154", "title": "Despo Hoorn outdoor stereo", "start": "2025-08-26", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Outdoor Stereo", "street": "Nieuwe Wal 1", "zip": "", "city": "Hoorn", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_443", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1920", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1920", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1666", "oldId": 1666, "number": "2024-2233", "title": "Friends Bar Zandvoort formule 1", "start": "2025-08-26", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "1001\r\nFriends Bar and Kitchen", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_283", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1811", "oldId": 1811, "number": "2025-2341", "title": "Formule 1 Zandvoort", "start": "2025-08-26", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "het Wapen van Zandvoort", "street": "Gasthuisplein 10", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_486", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1923", "oldId": 1923, "number": "2025-2402", "title": "Vechtzicht Weesp", "start": "2025-08-26", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Vechtzicht |", "street": "Slijkstraat 1", "zip": "", "city": "Weesp", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_612", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 190", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 190", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1959", "oldId": 1959, "number": "2025-2430", "title": "IntreeweekLocatie: Kaap Amsterdam water container", "start": "2025-08-26", "end": "2025-08-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987785", "customer": {
+      "name": "Cathelijne Moors", "street": "", "zip": "", "city": "", "phone": "020-5253072", "email": ""
+    }, "location": {
+      "name": "Intreeweek", "street": "NDSM", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_6", "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_655", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 950", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 950", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1968", "oldId": 1968, "number": "2025-2437", "title": "Blue zone espresso  Zandvoort", "start": "2025-08-26", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987786", "customer": {
+      "name": "Jim", "street": "", "zip": "", "city": "", "phone": "0620524256", "email": ""
+    }, "location": {
+      "name": "1175", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 540", "status": "reserved"
+    }, {
+      "id": "add_670", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_671", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_672", "cat": "EXTRA", "code": "EXTRA", "name": "25 meter", "price": "€ 60", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175\n4x 25 meter € 60", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1918", "oldId": 1918, "number": "2025-2399", "title": "Facet Jazz Hillegersberg Rotterdam", "start": "2025-08-27", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Café Van Eijk", "street": "Bergse Dorpsstraat 142", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "add_611", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 450", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x bierslang 12,5 meter \r\n\r\n2 x koppeling 3/8 op de wagen monteren \r\nTW 52\n1x Extra € 450", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1926", "oldId": 1926, "number": "2025-2404", "title": "koelwagen weesp Ophaal klant", "start": "2025-08-27", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": ".25987758", "customer": {
+      "name": "Fred de Kleijn", "street": "", "zip": "", "city": "", "phone": "0294 745 836", "email": ""
+    }, "location": {
+      "name": "koelwagen weesp Ophaal klant", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 375", "status": "reserved"
+    }, {
+      "id": "add_667", "cat": "EXTRA", "code": "EXTRA", "name": "Tapwagen", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_668", "cat": "EXTRA", "code": "EXTRA", "name": "koelwagen", "price": "€ 85", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Klant komt de wagen zelf ophalen en terug brengen\n1x Tapwagen € 125\n1x koelwagen € 85", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1930", "oldId": 1930, "number": "2025-2407", "title": "Facet Jazz Hillegersberg Rotterdam", "start": "2025-08-27", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Eetcafé Facet", "street": "Weissenbruchlaan 8", "zip": "", "city": "Rotterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "add_619", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 900", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "4 x bierleiding 12,5 meter\r\n\r\n4 x koppelstuk 3/8 op de wagen monteren \r\n\r\n2 op de TW 09\r\n2 op de TW 17\n2x Extra € 900", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1933", "oldId": 1933, "number": "2025-2410", "title": "Black edition Otterlo", "start": "2025-08-27", "end": "2025-08-29", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "25987767", "customer": {
+      "name": "Remco", "street": "", "zip": "", "city": "", "phone": "0631014228", "email": ""
+    }, "location": {
+      "name": "Black edition Otterlo", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_139", "cat": "EXTRA", "code": "EXTRA23", "name": ".", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_623", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 780", "status": "reserved"
+    }, {
+      "id": "add_624", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 780", "status": "reserved"
+    }, {
+      "id": "add_625", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_626", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 780\n1x Extra € 780\n1x Extra € 175\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1491", "oldId": 1491, "number": "2023-3099", "title": "Tapwagen weesp", "start": "2025-08-28", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Tapwagen.nl", "invoice": "25987754", "customer": {
+      "name": "Tapwagen weesp", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Tapwagen weesp", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_216", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_217", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 75\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1667", "oldId": 1667, "number": "2024-2234", "title": "Tapwagen Heemskerk Family Heemskerk", "start": "2025-08-28", "end": "2025-09-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Family Heemskerk", "street": "Kerkplein 4", "zip": "", "city": "Heemskerk", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 960", "status": "reserved"
+    }, {
+      "id": "add_284", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 135", "status": "reserved"
+    }, {
+      "id": "add_285", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 135", "status": "reserved"
+    }, {
+      "id": "add_506", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 135\n1x Extra € 135\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1931", "oldId": 1931, "number": "2025-2408", "title": "Materialen Sandra / Frank", "start": "2025-08-28", "end": "2025-08-29", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Frank", "street": "", "zip": "", "city": "", "phone": ". 06-22634703", "email": ""
+    }, "location": {
+      "name": "1153", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_66", "cat": "KW", "code": "KW4", "name": "Koelkast groot", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "art_65", "cat": "KW", "code": "KW3", "name": "Koelkast groot", "price": "€ 50", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1957", "oldId": 1957, "number": "2025-2428", "title": "Despo Met Bestickering Breda NHG", "start": "2025-08-28", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "NHG Hoofdgebouw", "street": "Stadionstraat 5", "zip": "", "city": "Breda", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_653", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1960", "oldId": 1960, "number": "2025-2431", "title": "Intreeweek Locatie:Jaap Edenbaan   water container", "start": "2025-08-28", "end": "2025-08-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987784", "customer": {
+      "name": "Cathelijne Moors", "street": "", "zip": "", "city": "", "phone": "020-5253072", "email": ""
+    }, "location": {
+      "name": "Intreeweek", "street": "NDSM", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_6", "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_656", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 950", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 950", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1540", "oldId": 1540, "number": "2023-3140", "title": "Vijfhuizen feestweek", "start": "2025-09-02", "end": "2025-09-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Hertog Jan", "invoice": "2598778", "customer": {
+      "name": "Vijfhuizen feestweek", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Sportcomplex in Vijfhuizen", "street": "Zijdewinde 3", "zip": "", "city": "Vijfhuizen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_8", "cat": "KW", "code": "KW5", "name": "Container 4000 liter", "price": "€ 3000", "status": "reserved"
+    }, {
+      "id": "art_146", "cat": "EXTRA", "code": "EXTRA10", "name": "Mobiele bar 1 kraans met spoelbak", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "art_147", "cat": "EXTRA", "code": "EXTRA11", "name": "Mobiele bar 1 kraans met spoelbak", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "art_148", "cat": "EXTRA", "code": "EXTRA12", "name": "Mobiele bar 1 kraans met spoelbak", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "art_149", "cat": "EXTRA", "code": "EXTRA13", "name": "Mobiele bar 1 kraans met spoelbak", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "art_150", "cat": "EXTRA", "code": "EXTRA14", "name": "Mobiele bar 1 kraans met spoelbak", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "art_61", "cat": "TW", "code": "TW2", "name": "Bierslang 12  meter", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_62", "cat": "TW", "code": "TW3", "name": "Bierslang 25 meter", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "art_63", "cat": "KW", "code": "KW1", "name": "Koelkast groot", "price": "€ 100", "status": "reserved"
+    }, {
+      "id": "art_64", "cat": "KW", "code": "KW2", "name": "Koelkast groot", "price": "€ 100", "status": "reserved"
+    }, {
+      "id": "art_65", "cat": "KW", "code": "KW3", "name": "Koelkast groot", "price": "€ 100", "status": "reserved"
+    }, {
+      "id": "art_66", "cat": "KW", "code": "KW4", "name": "Koelkast groot", "price": "€ 100", "status": "reserved"
+    }, {
+      "id": "add_658", "cat": "EXTRA", "code": "EXTRA", "name": "conatainer", "price": "€ 880", "status": "reserved"
+    }, {
+      "id": "add_659", "cat": "EXTRA", "code": "EXTRA", "name": "materialen", "price": "€ 330", "status": "reserved"
+    }, {
+      "id": "add_660", "cat": "EXTRA", "code": "EXTRA", "name": "materialen", "price": "€ 330", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "5x mobiele tap (inclusief spoelbak) \r\n1x mobiele tap zonder spoelbak 1 kraans \r\n(Container ) 4x mobiele tank (1.000L)  incl zak \r\n4x bierslang 25 meter \r\n2x  bierslang12 meter \r\n4x koelkast\n1x conatainer € 880\n1x materialen € 330\n1x materialen € 330", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1978", "oldId": 1978, "number": "2025-2442", "title": "Bierlokaal Hullabaloo Groningen", "start": "2025-09-02", "end": "2025-09-07", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Hullabaloo te Groningen", "street": "Concourslaan 10", "zip": "", "city": "Groningen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_685", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2280", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2280", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1979", "oldId": 1979, "number": "2025-2443", "title": "Tapwagen XXL met koelcel", "start": "2025-09-02", "end": "2025-09-04", "startTime": "13/17", "endTime": "Vroeg", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "259877990", "customer": {
+      "name": "Rabia", "street": "", "zip": "", "city": "", "phone": "0621502555", "email": ""
+    }, "location": {
+      "name": "1181", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_686", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_687", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_688", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 85", "status": "reserved"
+    }, {
+      "id": "add_689", "cat": "EXTRA", "code": "EXTRA", "name": "Heineken  € 128", "price": "€ 640", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175\n1x Extra € 85\n5x Heineken  € 128 € 640", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1950", "oldId": 1950, "number": "2025-2423", "title": "Tapwagen standaard Velsenzuid", "start": "2025-09-03", "end": "2025-09-07", "startTime": "5-7 uur", "endTime": "5-7 uur", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "2598775", "customer": {
+      "name": "Thomas", "street": "", "zip": "", "city": "", "phone": "0653583217", "email": ""
+    }, "location": {
+      "name": "Summer Park Sessions", "street": "Locatie: Park Velserbeek -Velserbeek 3", "zip": "", "city": "Velsen-Zuid", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_645", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_646", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1637", "oldId": 1637, "number": "2024-2212", "title": "Bierlokaal Appelpop  Tiel", "start": "2025-09-09", "end": "2025-09-15", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Appelpop", "street": "Tielse Waalkade 100", "zip": "", "city": "Tiel", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_205", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1980", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1980", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1755", "oldId": 1755, "number": "2024-2310", "title": "Despo Breda Hartje Ginneken", "start": "2025-09-11", "end": "2025-09-14", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1093", "street": "Schoolakkerplein 42", "zip": "", "city": "Breda", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_416", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1956", "oldId": 1956, "number": "2025-2427", "title": "Despo Breda  Ginneke", "start": "2025-09-11", "end": "2025-09-14", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Despo Breda  Ginneke", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1169", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1973", "oldId": 1973, "number": "2025-2441", "title": "Toiletwagen type 3 Naarden", "start": "2025-09-11", "end": "2025-09-14", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "25987787", "customer": {
+      "name": "Raymand", "street": "", "zip": "", "city": "", "phone": "06-33822098", "email": ""
+    }, "location": {
+      "name": "1179", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_156", "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_679", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 275", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 275", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1982", "oldId": 1982, "number": "2025-2445", "title": "Event container Beverwijk", "start": "2025-09-11", "end": "2025-09-14", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "259877993", "customer": {
+      "name": "Rob Spannemaker", "street": "", "zip": "", "city": "", "phone": "0251) 203 240", "email": ""
+    }, "location": {
+      "name": "984", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_692", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_693", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_694", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "De tapwagen dient geheel schoon ingeleverd te worden .\n1x Extra € 175\n1x Extra € 175\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1752", "oldId": 1752, "number": "2024-2307", "title": "Despo Vianen", "start": "2025-09-16", "end": "2025-09-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Titanuim festival", "street": "Middelwaard 2", "zip": "", "city": "Vianen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_412", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1200", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1200", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1980", "oldId": 1980, "number": "2025-2444", "title": "van Rooyen Top Movers Toiletwagen", "start": "2025-09-18", "end": "2025-09-22", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "259877991", "customer": {
+      "name": "Kitty\r\n\r\n \r\n\r\nHettema", "street": "", "zip": "", "city": "", "phone": "0297-514027", "email": ""
+    }, "location": {
+      "name": "1000", "street": "-", "zip": "", "city": "-", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 500", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1972", "oldId": 1972, "number": "2025-2440", "title": "Museumplein Polo Amsterdam", "start": "2025-09-24", "end": "2025-09-28", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Museumplein Polo", "street": "Honthorststraat 20", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_677", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_678", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1856", "oldId": 1856, "number": "2025-2359", "title": "Brasserie de Poort Leiden", "start": "2025-09-25", "end": "2025-10-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Brasserie de Poort.", "street": "Garenmarktplein 1", "zip": "", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_540", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_542", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 350\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1859", "oldId": 1859, "number": "2025-2360", "title": "Cafe ons Hoekje Leiden", "start": "2025-09-25", "end": "2025-10-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "259877103", "customer": {
+      "name": "Cafe ons Hoekje Leiden", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Cafe ons Hoekje Leiden", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 650", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Ophaal Klant", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1884", "oldId": 1884, "number": "2025-2377", "title": "Grolsch Tapwagen Leiden", "start": "2025-09-28", "end": "2025-10-05", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Grolsch", "invoice": "", "customer": {
+      "name": "Grolsch", "street": "", "zip": "", "city": "", "phone": "T +31 53 48 33 135 |", "email": ""
+    }, "location": {
+      "name": "Uyl van Hoogland", "street": "", "zip": "", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_570", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_571", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 350\n2x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1885", "oldId": 1885, "number": "2025-2378", "title": "Grolsch  tapwagen Leiden", "start": "2025-09-28", "end": "2025-10-05", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Grolsch", "invoice": "", "customer": {
+      "name": "Grolsch", "street": "", "zip": "", "city": "", "phone": "T +31 53 48 33 135 |", "email": ""
+    }, "location": {
+      "name": "in de Oude Marenpoort", "street": "", "zip": "", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "add_572", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_573", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1886", "oldId": 1886, "number": "2025-2379", "title": "Grolsche Tapwagen Leiden", "start": "2025-09-28", "end": "2025-10-05", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Grolsche", "invoice": "", "customer": {
+      "name": "Grolsch", "street": "", "zip": "", "city": "", "phone": "T +31 53 48 33 135 |", "email": ""
+    }, "location": {
+      "name": "1138", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1742", "oldId": 1742, "number": "2024-2298", "title": "The Duke Leiden ontzet 2025", "start": "2025-09-30", "end": "2025-10-03", "startTime": "7/9", "endTime": "nacht", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "259877997", "customer": {
+      "name": "Chesney Crosby", "street": "", "zip": "", "city": "", "phone": "0639073757", "email": "chez@thedukeofoz.nl"
+    }, "location": {
+      "name": "The Duke Leiden ontzet 2025", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_650", "cat": "EXTRA", "code": "EXTRA", "name": "Container", "price": "€ 900", "status": "reserved"
+    }, {
+      "id": "add_680", "cat": "EXTRA", "code": "EXTRA", "name": "Tapwagen", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_681", "cat": "EXTRA", "code": "EXTRA", "name": "Tapwagen", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_683", "cat": "EXTRA", "code": "EXTRA", "name": "Vrachtwagen", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_684", "cat": "EXTRA", "code": "EXTRA", "name": "Tapwagen", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "TW 03  Beestenmarkt 14 Leiden  tapwagen 7/9\r\n\r\nBetaling contant bij aflevering transporteur\n1x Container € 900\n1x Tapwagen € 250\n1x Tapwagen € 250\n1x Vrachtwagen € 350\n1x Tapwagen € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1759", "oldId": 1759, "number": "2024-2313", "title": "Tapwagen en carrousel Einstein Leiden", "start": "2025-09-30", "end": "2025-10-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "hhh", "street": "- -", "zip": "", "city": "-", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_419", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_420", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_604", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 350\n2x Extra € 350\n2x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1814", "oldId": 1814, "number": "2025-2344", "title": "Einstein Leiden ontzet", "start": "2025-09-30", "end": "2025-10-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "hhh", "street": "- -", "zip": "", "city": "-", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1749", "oldId": 1749, "number": "2024-2304", "title": "Tapwagen Leiden standaard", "start": "2025-10-01", "end": "2025-10-04", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "259877988", "customer": {
+      "name": "Evert", "street": "", "zip": "", "city": "", "phone": "0612193502", "email": ""
+    }, "location": {
+      "name": "Tapwagen Leiden standaard", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_408", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_409", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_410", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 250\n1x Extra € 250\n1x Extra € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1906", "oldId": 1906, "number": "2025-2390", "title": "City hall Leiden Koningsdag 2026", "start": "2025-10-01", "end": "2025-10-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "City Hall", "street": "Stadhuisplein 1", "zip": "2311EJ", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "add_675", "cat": "EXTRA", "code": "EXTRA", "name": "zat", "price": "€ 525", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x zat € 525", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1969", "oldId": 1969, "number": "2025-2438", "title": "Los Cosmos Leiden", "start": "2025-10-01", "end": "2025-10-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Los Cosmos", "street": "Aalmarkt 15", "zip": "", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_673", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_674", "cat": "EXTRA", "code": "EXTRA", "name": "zat", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 350\n1x zat € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1971", "oldId": 1971, "number": "2025-2439", "title": "Hotel Rumour Leiden", "start": "2025-10-01", "end": "2025-10-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Hotel Rumour", "street": "Burgsteeg 13", "zip": "", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_676", "cat": "EXTRA", "code": "EXTRA", "name": "zat", "price": "€ 525", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x zat € 525", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1821", "oldId": 1821, "number": "2025-2348", "title": "Kantoor unit 20 Ft parkeer plaats Uithoorn", "start": "2025-10-06", "end": "2026-10-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2598773987", "customer": {
+      "name": "Mateo", "street": "", "zip": "", "city": "", "phone": "06-52490584", "email": ""
+    }, "location": {
+      "name": "Kantoor unit 20 Ft parkeer plaats Uithoorn", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_211", "cat": "EXTRA", "code": "EXTRA4", "name": "Kantoor unit 20 FT 1959155", "price": "€ 500", "status": "reserved"
+    }, {
+      "id": "add_509", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Speciale prijs voor de duur van 1 jaar, deze opdracht kan niet tussen tijds opgezecht worden, dan alleen met een boete bedrag van € 2500 ex btw\r\n\r\nHuur prijs € 500 per maand ex btw, factuur komt per maanden en zal € 500  zijn met een borg van 2 termijnen \r\n\r\nLET OP \r\nGeen gaten of produckten aan de muren of plafond, vloer bevestigen /aanbrengen.\r\nDe unit dient elke 6maanden gewassen te worden aan de buitenzijde. Verwarming, koelkast en keukenblok/kookplaat zijn \r\ngebruiks materialen, onderhoud of reparaties zijn voor huurder tijdens de verhuur periode. Na verhuur periode dienen alle gebruiks materialen het te doen en in goede staat retour terug te komen.\r\nAansluiten van de unit is voor huurder.\r\nBraak of schade sporen zijn voor huurder en dienen gerepareeds te worden door huurder, u dient verhuurder wel op de hoogte te stellen .\n1x Extra € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1985", "oldId": 1985, "number": "2025-2447", "title": "Despo container Liempde", "start": "2025-10-07", "end": "2025-10-12", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Elektrum", "street": "Velderseweg 10", "zip": "", "city": "Liempde", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_698", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2010", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2010", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1987", "oldId": 1987, "number": "2025-2449", "title": "Biertanken Zutphen", "start": "2025-10-08", "end": "2025-10-13", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "259877999", "customer": {
+      "name": "Gerrit Wolf", "street": "", "zip": "", "city": "", "phone": "06 47665125", "email": ""
+    }, "location": {
+      "name": "1185", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_5", "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "art_37", "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_699", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "add_700", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_701", "cat": "EXTRA", "code": "EXTRA", "name": "25 meter", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "add_702", "cat": "EXTRA", "code": "EXTRA", "name": "2,50 p/km", "price": "€ 575", "status": "reserved"
+    }, {
+      "id": "add_703", "cat": "EXTRA", "code": "EXTRA", "name": "2,50 pkm", "price": "€ 575", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 50\n2x Extra € 0\n4x 25 meter € 50\n1x 2,50 p/km € 575\n1x 2,50 pkm € 575", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1876", "oldId": 1876, "number": "2025-2370", "title": "Tour of Holland Dordrecht", "start": "2025-10-14", "end": "2025-10-15", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Caya Noorland", "street": "", "zip": "", "city": "", "phone": "+31 (0) 40 84 86 672", "email": ""
+    }, "location": {
+      "name": "Tour of Holland)", "street": "Sonsbeekpark", "zip": "", "city": "Arnhem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_550", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 295", "status": "reserved"
+    }, {
+      "id": "add_551", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 295", "status": "reserved"
+    }, {
+      "id": "add_552", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_553", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport kan eventueel door u zelf gedaan worden, als wij het transport regelen kunt u zien bij Extra wat het u kost per wagen.\n1x per wagen € 295\n1x per wagen € 295\n1x per wagen € 125\n1x per wagen € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1878", "oldId": 1878, "number": "2025-2372", "title": "Tour of Holland Drente", "start": "2025-10-17", "end": "2025-10-18", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Caya Noorland", "street": "", "zip": "", "city": "", "phone": "+31 (0) 40 84 86 672", "email": ""
+    }, "location": {
+      "name": "Tour of Holland)", "street": "Sonsbeekpark", "zip": "", "city": "Arnhem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_558", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_559", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_560", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_561", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport kan eventueel door u zelf gedaan worden, als wij het transport regelen kunt u zien bij Extra wat het u kost per wagen.\n1x per wagen € 125\n1x per wagen € 550\n1x per wagen € 550\n1x per wagen € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1879", "oldId": 1879, "number": "2025-2373", "title": "Tour of Holland Arnhem", "start": "2025-10-18", "end": "2025-10-19", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Caya Noorland", "street": "", "zip": "", "city": "", "phone": "+31 (0) 40 84 86 672", "email": ""
+    }, "location": {
+      "name": "Tour of Holland)", "street": "Sonsbeekpark", "zip": "", "city": "Arnhem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_562", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_563", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_564", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_565", "cat": "EXTRA", "code": "EXTRA", "name": "per wagen", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport kan eventueel door u zelf gedaan worden, als wij het transport regelen kunt u zien bij Extra wat het u kost per wagen.\n1x per wagen € 125\n1x per wagen € 450\n1x per wagen € 450\n1x per wagen € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1988", "oldId": 1988, "number": "2025-2450", "title": "Toiletwagen 2 persoons", "start": "2025-11-06", "end": "2025-11-09", "startTime": "7/10", "endTime": "7/10", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "-259877999", "customer": {
+      "name": "Sander", "street": "", "zip": "", "city": "", "phone": "06-21544299", "email": ""
+    }, "location": {
+      "name": "1186", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_705", "cat": "EXTRA", "code": "EXTRA", "name": "Service", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Service € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1992", "oldId": 1992, "number": "2025-2452", "title": "Black edition Volendam", "start": "2025-12-01", "end": "2025-12-02", "startTime": "", "endTime": "voor 10 uur", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Henk", "street": "", "zip": "", "city": "", "phone": "06-51094711", "email": ""
+    }, "location": {
+      "name": "Black edition Volendam", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_714", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_715", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport wordt door klant geregeld met een kraanwagen \r\nContainer weegt tegen de 4 ton\r\nContainer dient schoon retour terug gebracht te worden op 8-9-25 voor 10 uur\n1x Extra € 175\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1993", "oldId": 1993, "number": "2025-2453", "title": "Black edition Volendam", "start": "2025-12-01", "end": "2025-12-02", "startTime": "", "endTime": "voor 10 uur", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Henk", "street": "", "zip": "", "city": "", "phone": "06-51094711", "email": ""
+    }, "location": {
+      "name": "Black edition Volendam", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_716", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_717", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport wordt door klant geregeld met een kraanwagen \r\nContainer weegt tegen de 4 ton\r\nContainer dient schoon retour terug gebracht te worden op 8-9-25 voor 10 uur\n1x Extra € 175\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1912", "oldId": 1912, "number": "2025-2396", "title": "AZ Amstel blikje", "start": "2025-12-03", "end": "2026-01-11", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "AZ te Alkmaar", "street": "Stadionweg 1", "zip": "", "city": "Alkmaar", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "€ 2400", "status": "reserved"
+    }, {
+      "id": "add_607", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_710", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1998", "oldId": 1998, "number": "2025-2455", "title": "Opdracht 2455", "start": "2025-12-03", "end": "2025-12-03", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 767", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1189", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1995", "oldId": 1995, "number": "2025-2454", "title": "Opdracht 2454", "start": "2025-12-04", "end": "2025-12-04", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 766", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1188", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1999", "oldId": 1999, "number": "2025-2456", "title": "Opdracht 2456", "start": "2025-12-04", "end": "2025-12-04", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 768", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1190", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2001", "oldId": 2001, "number": "2025-2457", "title": "Opdracht 2457", "start": "2025-12-04", "end": "2025-12-07", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1191", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1762", "oldId": 1762, "number": "2024-2315", "title": "Bierlokaal winter paradijs Rai", "start": "2025-12-11", "end": "2026-01-04", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Rai Amsterdam", "street": "Europaplein 2-22", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_189", "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "€ 2550", "status": "reserved"
+    }, {
+      "id": "add_423", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1550", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1550", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1334", "oldId": 1334, "number": "2022-2170", "title": "Tapwagens kerst Haarlem", "start": "2025-12-23", "end": "2025-12-24", "startTime": "8 uur", "endTime": "5/9", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Tapwagens kerst Haarlem", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Kerst", "street": "Grote Markt 2", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_431", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 525", "status": "reserved"
+    }, {
+      "id": "add_434", "cat": "EXTRA", "code": "EXTRA", "name": "kerst/", "price": "€ 236.25", "status": "reserved"
+    }, {
+      "id": "add_436", "cat": "EXTRA", "code": "EXTRA", "name": "kerst", "price": "€ 236.25", "status": "reserved"
+    }, {
+      "id": "add_437", "cat": "EXTRA", "code": "EXTRA", "name": "kerst.", "price": "€ 236.25", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x Extra € 525\n1x kerst/ € 236.25\n1x kerst € 236.25\n1x kerst. € 236.25", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2011", "oldId": 2011, "number": "2025-2460", "title": "Koelwagen", "start": "2025-12-29", "end": "2026-01-01", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "2598771013", "customer": {
+      "name": "Vera", "street": "", "zip": "", "city": "", "phone": "o6-11868710", "email": ""
+    }, "location": {
+      "name": "stichting vrienden van het gala", "street": "Zijsingel 2", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 375", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2013", "oldId": 2013, "number": "2026-2461", "title": "Toiletwagen Leuseden", "start": "2026-01-08", "end": "2026-01-11", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "269877066", "customer": {
+      "name": "T. Kaandorp", "street": "", "zip": "", "city": "", "phone": "0625070334", "email": ""
+    }, "location": {
+      "name": "1196", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_721", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 205", "status": "reserved"
+    }, {
+      "id": "add_722", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 205", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen dient schoon retour terug ingeleverd te worden\n1x Extra € 205\n1x Extra € 205", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1986", "oldId": 1986, "number": "2025-2448", "title": "Biertank 1000 liter Made", "start": "2026-02-06", "end": "2026-02-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "259877100", "customer": {
+      "name": "Sanne Wuijten", "street": "", "zip": "", "city": "", "phone": "0654754065", "email": ""
+    }, "location": {
+      "name": "1184", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_5", "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "€ 1300", "status": "reserved"
+    }, {
+      "id": "art_37", "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "€ 1300", "status": "reserved"
+    }, {
+      "id": "add_706", "cat": "EXTRA", "code": "EXTRA", "name": "25 meter", "price": "€ 87.5", "status": "reserved"
+    }, {
+      "id": "add_707", "cat": "EXTRA", "code": "EXTRA", "name": "5x aansluiting 3/8", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_708", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_709", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "5x 25 meter € 87.5\n1x 5x aansluiting 3/8 € 0\n1x Extra € 350\n1x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1991", "oldId": 1991, "number": "2025-2451", "title": "Event container Maastricht", "start": "2026-02-10", "end": "2026-02-18", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Gulpener", "invoice": "2698771019", "customer": {
+      "name": "Coen Smits", "street": "", "zip": "", "city": "", "phone": "043 321 60 02", "email": ""
+    }, "location": {
+      "name": "1187", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 1550", "status": "reserved"
+    }, {
+      "id": "add_711", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_712", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_735", "cat": "EXTRA", "code": "EXTRA", "name": "montage extra tapkraan", "price": "€ 275", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1250\n1x Extra € 1250\n1x montage extra tapkraan € 275", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2016", "oldId": 2016, "number": "2026-2463", "title": "Tapwagen standaard 4 kraans", "start": "2026-02-11", "end": "2026-02-17", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Dean", "street": "", "zip": "", "city": "", "phone": "0681004407", "email": ""
+    }, "location": {
+      "name": "1198", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2005", "oldId": 2005, "number": "2025-2458", "title": "Tapwagen carnaval Ravenstein", "start": "2026-02-12", "end": "2026-02-14", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Rens", "street": "", "zip": "", "city": "", "phone": "0640326203", "email": ""
+    }, "location": {
+      "name": "1193", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_718", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2025", "oldId": 2025, "number": "2026-2468", "title": "Jumo Hulst Carnaval 2026", "start": "2026-02-13", "end": "2026-02-16", "startTime": "overleg", "endTime": "6/7", "status": "Bevestigd", "amount": 0, "brand": "Inbev Jupiler", "invoice": "2698771018", "customer": {
+      "name": "Leon", "street": "", "zip": "", "city": "", "phone": "06-21116661", "email": ""
+    }, "location": {
+      "name": "1203", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_209", "cat": "EXTRA", "code": "EXTRA46", "name": "Jumbo eiland incl 3000 L tanken", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_730", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 3300", "status": "reserved"
+    }, {
+      "id": "add_731", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_732", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "add_733", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_734", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 3300\n1x Extra € 0\n3x Extra € 50\n1x Extra € 350\n1x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2049", "oldId": 2049, "number": "2026-2481", "title": "Toiletwagen 2 persoons Ophaal klant", "start": "2026-03-03", "end": "2026-03-04", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "748847846", "customer": {
+      "name": "Jefery", "street": "", "zip": "", "city": "", "phone": "06-31058680", "email": ""
+    }, "location": {
+      "name": "1208", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 450", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2058", "oldId": 2058, "number": "2026-2489", "title": "Toiletwagen Zandvoort", "start": "2026-03-16", "end": "2026-03-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Mathijs Linders", "street": "", "zip": "", "city": "", "phone": "0618159267", "email": ""
+    }, "location": {
+      "name": "Venti Beach", "street": "Strandafgang Barnaart 20", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "add_784", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_785", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen dient schoon retour terug te komen en klaar te staan op het harde bij de weg, dit zou gedaan worden door de firma Paap\r\nWij leveren de wagen af bij de firma Paap zoals besproken met opdracht gevester \r\n\r\nFirma paap \r\nMax Planckstraat 17\r\nZandvoort\r\n 023-571 83 95\n1x Extra € 0\n1x Extra € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2054", "oldId": 2054, "number": "2026-2486", "title": "Tapblikje Heineken", "start": "2026-03-19", "end": "2026-03-22", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Alexander", "street": "", "zip": "", "city": "", "phone": "0646222380", "email": ""
+    }, "location": {
+      "name": "Tapblikje Heineken", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_23", "cat": "TW", "code": "TW6", "name": "Tap Blikje Heineken 0.0", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_780", "cat": "EXTRA", "code": "EXTRA", "name": "6/8 uur", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_781", "cat": "EXTRA", "code": "EXTRA", "name": "6/8 uur", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_782", "cat": "EXTRA", "code": "EXTRA", "name": "Tapwagen dient schoon retour terug te komen, wij laten de tap reinigen door een tapwacht", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Let op u heeft geen verzekering afgesloten, tapwagen is schade vrij, alle schades worden op huurder verhaalt. Huurder diet zorg te dragen dat de tapwagen schoon retour komt, bij niet schoon berekenen wij € 350\n1x 6/8 uur € 175\n1x 6/8 uur € 175\n1x Tapwagen dient schoon retour terug te komen, wij laten de tap reinigen door een tapwacht € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2059", "oldId": 2059, "number": "2026-2490", "title": "Koelwagen Mijdrecht", "start": "2026-03-19", "end": "2026-03-22", "startTime": "", "endTime": "8 uur", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Ramon", "street": "", "zip": "", "city": "", "phone": "06-37406150", "email": ""
+    }, "location": {
+      "name": "1212", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 300", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2051", "oldId": 2051, "number": "2026-2483", "title": "Toiletwagen Amsterdam Noord", "start": "2026-03-22", "end": "2026-03-22", "startTime": "9 uur", "endTime": "17:30", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2698771033", "customer": {
+      "name": "Ron van Steenis", "street": "", "zip": "", "city": "", "phone": "06-11334576", "email": ""
+    }, "location": {
+      "name": "1209", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_767", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_768", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 250\n1x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2081", "oldId": 2081, "number": "2026-2511", "title": "toiletwagen de dood", "start": "2026-04-06", "end": "2026-04-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 950, "brand": "", "invoice": "", "customer": {
+      "name": "toiletwagen de dood", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "toiletwagen de dood", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_184", "cat": "EXTRA", "code": "EXTRA2", "name": "13 klepper op  aanhanger", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Schades en eind schoonmaak voor klant", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1644", "oldId": 1644, "number": "2024-2216", "title": "Amstel Blikje Valkenburg", "start": "2026-04-15", "end": "2026-04-19", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Amstel Blikje Valkenburg", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Amstel Gold Race Gastentent", "street": "De Leeuwhof 2", "zip": "", "city": "Valkenburg", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_224", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x tapkraan Amstel, 1x Rose, 1x Radler\n1x Extra € 1125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2038", "oldId": 2038, "number": "2026-2472", "title": "Koningsdag Muidenberg", "start": "2026-04-16", "end": "2026-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Nathalie", "street": "", "zip": "", "city": "", "phone": "06-28073071", "email": ""
+    }, "location": {
+      "name": "Lossen woning  tegenover manage", "street": "Googweg 20", "zip": "", "city": "Muidenberg", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_51", "cat": "EXTRA", "code": "EXTRA1", "name": "Mobiele bar 2 kraans", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_744", "cat": "EXTRA", "code": "EXTRA", "name": "Heineken", "price": "€ 1280", "status": "reserved"
+    }, {
+      "id": "add_745", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 95", "status": "reserved"
+    }, {
+      "id": "add_746", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 440", "status": "reserved"
+    }, {
+      "id": "add_747", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 85", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "10x Heineken € 1280\n1x Extra € 95\n4x Extra € 440\n1x Extra € 85", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2060", "oldId": 2060, "number": "2026-2491", "title": "Carrousel Circuitpark Zandvoort", "start": "2026-04-16", "end": "2026-04-19", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Egbert", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Circuitpark Zandvoort", "street": "Burgemeester van Alphenstraat 108", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_786", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x Extra € 750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1144", "oldId": 1144, "number": "2022-2028", "title": "Cafe ons hoekje", "start": "2026-04-18", "end": "2026-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "2698771035", "customer": {
+      "name": "Cafe ons hoekje", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "703", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_170", "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "€ 650", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Let op de tapwagendient  schoon retour terug te komen, bij niet schoon rekenen wij € 250 voor de tapwagen om schoon te maken.", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1133", "oldId": 1133, "number": "2022-2019", "title": "Koningsdag  Haarlem", "start": "2026-04-20", "end": "2026-04-27", "startTime": "9/13", "endTime": "6/12", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Koningsdag  Haarlem", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "ML Haarlem", "street": "Klokhuisplein 9", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_458", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1143", "oldId": 1143, "number": "2022-2027", "title": "Koningsdag Haarlem", "start": "2026-04-20", "end": "2026-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Koningsdag Haarlem", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Brasserie van Beinum.", "street": "Klokhuisplein 3", "zip": "", "city": "Haarlem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_459", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2070", "oldId": 2070, "number": "2026-2501", "title": "Tapwagen standaard koningsdag ophaal klant", "start": "2026-04-21", "end": "2026-04-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "2698771038", "customer": {
+      "name": "Robin", "street": "", "zip": "", "city": "", "phone": "0630930934", "email": ""
+    }, "location": {
+      "name": "820", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_803", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2079", "oldId": 2079, "number": "2026-2510", "title": "Mobiele bar koningsdag", "start": "2026-04-21", "end": "2026-04-27", "startTime": "7/8 uur", "endTime": "7/8 uur", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "2698771043", "customer": {
+      "name": "Remco van der Jagt", "street": "", "zip": "", "city": "", "phone": "0625419204", "email": ""
+    }, "location": {
+      "name": "Mobiele bar koningsdag", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_56", "cat": "EXTRA", "code": "EXTRA6", "name": "Mobiele bar 2 kraans", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_821", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 35", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Ophalen 22-4-26 retour 28-4-26  tussen 7 / 8 uur\n1x Extra € 35", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1899", "oldId": 1899, "number": "2025-2387", "title": "Koningsdag Almere", "start": "2026-04-22", "end": "2026-04-27", "startTime": "7 uur", "endTime": "7 uur", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Tom", "street": "", "zip": "", "city": "", "phone": "0630843795", "email": ""
+    }, "location": {
+      "name": "Koningsdag Almere", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_586", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_587", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Tapwagen dient u tussen 7 en 7:30 op te halen daarna is er niemand meer op deze locatie aanwezig .\r\nTerug brengen ook tussen 7 en 8 op 28 -4-26 \r\nTapwagen dient schoon retour terug te komen\n1x Extra € 75\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1983", "oldId": 1983, "number": "2025-2446", "title": "2x tapwagen Lelystad ophaal klant", "start": "2026-04-22", "end": "2026-04-27", "startTime": "7 uur", "endTime": "7 uur", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "-259877993", "customer": {
+      "name": "Henk Kok", "street": "", "zip": "", "city": "", "phone": "0623765030", "email": ""
+    }, "location": {
+      "name": "Kok Experience Lelystad b.v.", "street": "De waag 9", "zip": "", "city": "Lelystad", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_143", "cat": "EXTRA", "code": "EXTRA25", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_695", "cat": "EXTRA", "code": "EXTRA", "name": "€ 125 per 4 stuks", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "8x € 125 per 4 stuks € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2047", "oldId": 2047, "number": "2026-2479", "title": "Koningsdag extern inhuur XXL Heemstede", "start": "2026-04-22", "end": "2026-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Koningsdag extern inhuur XXL Heemstede", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Proeflokaal de groene druif.", "street": "Jan van Goyenstraat 33", "zip": "", "city": "Heemstede", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_762", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_618", "oldId": 618, "number": "2018-8010", "title": "Koningsdag Utrecht", "start": "2026-04-23", "end": "2026-04-27", "startTime": "8/12", "endTime": "Gehele dag", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Koningsdag Utrecht", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "stadhuisplein koningsdag", "street": "Ganzenmarkt 24", "zip": "3512GE", "city": "Utrecht", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "art_190", "cat": "KW", "code": "KW10", "name": "Event container met dakterras /trap", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_209", "cat": "EXTRA", "code": "EXTRA", "name": "BQ..", "price": "€ 1200", "status": "reserved"
+    }, {
+      "id": "add_210", "cat": "EXTRA", "code": "EXTRA", "name": "BQ.", "price": "€ 1200", "status": "reserved"
+    }, {
+      "id": "add_211", "cat": "EXTRA", "code": "EXTRA", "name": "BQ", "price": "€ 1200", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport is per container excl laden en lossen en extra tijd  die nodig zal zijn om de materialen te plaatsen.\n1x BQ.. € 1200\n1x BQ. € 1200\n1x BQ € 1200", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1580", "oldId": 1580, "number": "2024-0", "title": "Koningsdag ophaal klant XXL Laren", "start": "2026-04-23", "end": "2026-04-27", "startTime": "7 uur", "endTime": "9/13", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "2698771033.", "customer": {
+      "name": "Marc Timmerman", "street": "", "zip": "", "city": "", "phone": "0652691990", "email": ""
+    }, "location": {
+      "name": "Koningsdag ophaal klant XXL Laren", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_178", "cat": "EXTRA", "code": "EXTRA40", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_215", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_273", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Klant komt de wagen ophalen op 25-4-26  \r\nRetour 28-4-26 tussen 7/8\r\n\r\nLet op wagen weegt ruim 2800 kg neem een goede bus of jeep mee.\r\nDe tapwagen dient geheel schoon ingeleverd te worden .\r\nBij niet schoon of plakband resten berekenen wij € 350\n1x Extra € 125\n1x Extra € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1584", "oldId": 1584, "number": "2024-2179", "title": "Koningsdag Amsterdam ophaal klant", "start": "2026-04-23", "end": "2026-04-27", "startTime": "OPHALEN 7 uur", "endTime": "7/8", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Ricky", "street": "", "zip": "", "city": "", "phone": "06-11344203", "email": ""
+    }, "location": {
+      "name": "Koningsdag Amsterdam ophaal klant", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "add_462", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_463", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }, {
+      "id": "add_778", "cat": "EXTRA", "code": "EXTRA", "name": "1 wagen", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 250\n2x Extra € 150\n1x 1 wagen € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1621", "oldId": 1621, "number": "2024-2203", "title": "Café van Hout leiden koningsdag", "start": "2026-04-23", "end": "2026-04-27", "startTime": "ochtend", "endTime": "ochtend", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Rico", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Kruising van", "street": "De laat de Kanterstraat en Cobetstraat", "zip": "", "city": "leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_188", "cat": "EXTRA", "code": "EXTRA23", "name": "Black Edition", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_193", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_194", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 850", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container dient bij ophalen klaar te staan voor transport incl ingeklapte rekken op het dak.\n1x Extra € 850\n1x Extra € 850", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1769", "oldId": 1769, "number": "2025-2320", "title": "Koningsdag Purmerend", "start": "2026-04-23", "end": "2026-04-26", "startTime": "einde dag", "endTime": "6/7", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "Contant bij ophalen", "customer": {
+      "name": "Koningsdag Purmerend", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Koningsdag Purmerend", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_452", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_453", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 135", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 125\n1x Extra € 135", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1796", "oldId": 1796, "number": "2025-2337", "title": "leiden koningsdag City hall", "start": "2026-04-23", "end": "2026-04-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "City Hall", "street": "Stadhuisplein 1", "zip": "2311EJ", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_213", "cat": "EXTRA", "code": "EXTRA100", "name": ".", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "add_479", "cat": "EXTRA", "code": "EXTRA", "name": "4 ritten", "price": "€ 1000", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x 4 ritten € 1000", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1893", "oldId": 1893, "number": "2025-2382", "title": "Geldermalsen ophaal klant koningsdag", "start": "2026-04-23", "end": "2026-04-27", "startTime": "7 uur", "endTime": "7 uur", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "2598771008", "customer": {
+      "name": "Zaak", "street": "", "zip": "", "city": "", "phone": "0345 576 380", "email": ""
+    }, "location": {
+      "name": "Geldermalsen ophaal klant koningsdag", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 800", "status": "reserved"
+    }, {
+      "id": "art_180", "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 850", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "De wagens dienen schoon retour teruggebracht te worden.\r\nBij niet schoon berekenen wij u € 250 per wagen\r\nLET OP u heeft Geen verzekering afgesloten\r\nLET OP DE WAGEN DIENT ROND & UUR TERUG TE ZIJN IN UITHOORN", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2045", "oldId": 2045, "number": "2026-2477", "title": "City hall Leiden", "start": "2026-04-23", "end": "2026-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "2698771025", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "City Hall", "street": "Stadhuisplein 1", "zip": "2311EJ", "city": "Leiden", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_196", "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_757", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_758", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2046", "oldId": 2046, "number": "2026-2478", "title": "Koningsdag mijdrecht 2026", "start": "2026-04-23", "end": "2026-04-27", "startTime": "overleg", "endTime": "6 /12", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "2698771026", "customer": {
+      "name": "Frank", "street": "", "zip": "", "city": "", "phone": "+31 620 58 85 44", "email": ""
+    }, "location": {
+      "name": "849", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_188", "cat": "EXTRA", "code": "EXTRA23", "name": "Black Edition", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "art_143", "cat": "EXTRA", "code": "EXTRA25", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_759", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 330", "status": "reserved"
+    }, {
+      "id": "add_760", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 330", "status": "reserved"
+    }, {
+      "id": "add_761", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Materialen dienen schoon retour terug te komen \r\nBij niet schoon bereken wij u €450 ex per materiaal\n1x Extra € 330\n1x Extra € 330\n2x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1371", "oldId": 1371, "number": "2023-3026", "title": "Carrousel Koningsdag vosje maarn", "start": "2026-04-24", "end": "2026-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Geen", "invoice": "2698771016", "customer": {
+      "name": "Cafe", "street": "", "zip": "", "city": "", "phone": "0343444633", "email": ""
+    }, "location": {
+      "name": "Carrousel Koningsdag vosje maarn", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_247", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_248", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Carrousel dient zelf opgehaald te worden met minimaal een bus die 2500 kg mag trekken .\r\nTerug brengen 28-4-25 om 7 uur\r\n\r\nSchuifkoppelingen  4x  €   Service\n1x Extra € 125\n1x Extra € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2014", "oldId": 2014, "number": "2026-2462", "title": "Grolsch koningsdag 2026 Amsterdam", "start": "2026-04-24", "end": "2026-04-27", "startTime": "Tijd:  7/10", "endTime": "Tijd: overleg klant", "status": "Bevestigd", "amount": 0, "brand": "grolsch", "invoice": "", "customer": {
+      "name": "Eventdesk", "street": "", "zip": "", "city": "", "phone": "053-4833135", "email": ""
+    }, "location": {
+      "name": "De Groene Olifant", "street": "Noordermarkt 43", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_723", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2010", "oldId": 2010, "number": "2025-2459", "title": "Opdracht 2459", "start": "2026-04-25", "end": "2026-04-27", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Klant 770", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1194", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2061", "oldId": 2061, "number": "2026-2492", "title": "Carrousel Circuitpark Zandvoort", "start": "2026-04-30", "end": "2026-05-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Egbert", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Circuitpark Zandvoort", "street": "Burgemeester van Alphenstraat 108", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_787", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x Extra € 750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2082", "oldId": 2082, "number": "2026-2512", "title": "Tapwagens Zandvoort", "start": "2026-04-30", "end": "2026-05-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Tapwagens Zandvoort", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "1214", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2083", "oldId": 2083, "number": "2026-2513", "title": "watertank  Tulpenrallye", "start": "2026-04-30", "end": "2026-05-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2698771044", "customer": {
+      "name": "(Kees) van Loon", "street": "", "zip": "", "city": "", "phone": "0620361785", "email": "keesvanloon@tulpenrallye.nl"
+    }, "location": {
+      "name": "671", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_4", "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "€ 1550", "status": "reserved"
+    }, {
+      "id": "add_822", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 50", "status": "reserved"
+    }, {
+      "id": "add_823", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 95", "status": "reserved"
+    }, {
+      "id": "add_824", "cat": "EXTRA", "code": "EXTRA", "name": "4 meter", "price": "€ 0", "status": "reserved"
+    }, {
+      "id": "add_825", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 0", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 50\n1x Extra € 95\n1x 4 meter € 0\n1x Extra € 0", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2075", "oldId": 2075, "number": "2026-2506", "title": "Tapcontainer wervershoof", "start": "2026-05-07", "end": "2026-05-10", "startTime": "6/7", "endTime": "6/7", "status": "Geannuleerd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Antoinet", "street": "", "zip": "", "city": "", "phone": "06-42015777", "email": ""
+    }, "location": {
+      "name": "Tapcontainer wervershoof", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_814", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_815", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2076", "oldId": 2076, "number": "2026-2507", "title": "Toiletwagen 2 persoons  Breukelen", "start": "2026-05-07", "end": "2026-05-10", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2698771041", "customer": {
+      "name": "Antonet", "street": "", "zip": "", "city": "", "phone": "06 - 53791429", "email": ""
+    }, "location": {
+      "name": "Toiletwagen 2 persoons  Breukelen", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_816", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_608", "oldId": 608, "number": "2018-8005", "title": "Kermis Hoogkarspel", "start": "2026-05-11", "end": "2026-05-17", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "2698771013", "customer": {
+      "name": "Pieter", "street": "", "zip": "", "city": "", "phone": "0228 561316", "email": ""
+    }, "location": {
+      "name": "Eerste aanleg", "street": "westerwijzend 1", "zip": "1616LA", "city": "Hoogkarspel", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_496", "cat": "EXTRA", "code": "EXTRA", "name": "Tapwagens", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_724", "cat": "EXTRA", "code": "EXTRA", "name": "Koelwagen", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Tapwagens € 1050\n1x Koelwagen € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2071", "oldId": 2071, "number": "2026-2502", "title": "Event Hilversum tapwagen en koelwagen", "start": "2026-05-12", "end": "2026-05-16", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "2698771039", "customer": {
+      "name": "Laurenz", "street": "", "zip": "", "city": "", "phone": "0630848850", "email": ""
+    }, "location": {
+      "name": "1116", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_804", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 3840", "status": "reserved"
+    }, {
+      "id": "add_805", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 170", "status": "reserved"
+    }, {
+      "id": "add_806", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_807", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }, {
+      "id": "add_808", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Klant komt Koelwagen zelf ophalen en terug brengen\n30x Extra € 3840\n2x Extra € 170\n1x Extra € 75\n1x Extra € 150\n1x Extra € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2065", "oldId": 2065, "number": "2026-2496", "title": "Doetinchem tapwagen XXL", "start": "2026-05-18", "end": "2026-05-25", "startTime": "7/9 uur", "endTime": "4- 6 uur", "status": "Bevestigd", "amount": 0, "brand": "neutraal", "invoice": "2698771037", "customer": {
+      "name": "Ben", "street": "", "zip": "", "city": "", "phone": "0652377917", "email": ""
+    }, "location": {
+      "name": "Proeflokaal de groene druif.", "street": "Jan van Goyenstraat 33", "zip": "", "city": "Heemstede", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 1275", "status": "reserved"
+    }, {
+      "id": "add_791", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 514.3", "status": "reserved"
+    }, {
+      "id": "add_792", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 514.3", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 514.3\n1x Extra € 514.3", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2039", "oldId": 2039, "number": "2026-2473", "title": "Jumbo eiland Kermis Ursem", "start": "2026-05-19", "end": "2026-05-24", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "inbev", "invoice": "", "customer": {
+      "name": "Marita", "street": "", "zip": "", "city": "", "phone": "0623239643", "email": ""
+    }, "location": {
+      "name": "Meganistie bedrijf van Dam", "street": "Usemerweg 4", "zip": "", "city": "Ursem", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_209", "cat": "EXTRA", "code": "EXTRA46", "name": "Jumbo eiland incl 3000 L tanken", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_748", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_749", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_750", "cat": "EXTRA", "code": "EXTRA", "name": "4 tap kranen", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_802", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 105", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 350\n1x Extra € 350\n4x 4 tap kranen € 250\n3x Extra € 105", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2062", "oldId": 2062, "number": "2026-2493", "title": "Carrousel Circuitpark Zandvoort", "start": "2026-05-21", "end": "2026-05-25", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Egbert", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Circuitpark Zandvoort", "street": "Burgemeester van Alphenstraat 108", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_788", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x Extra € 750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2020", "oldId": 2020, "number": "2026-2465", "title": "Carrousel BierFestival Den Haag", "start": "2026-05-28", "end": "2026-05-31", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Neutraal", "invoice": "2698771017", "customer": {
+      "name": "Carrousel BierFestival Den Haag", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "BierFestival Den Haag", "street": "Rond de Grote Kerk 8", "zip": "", "city": "Den Haag", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_177", "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_727", "cat": "EXTRA", "code": "EXTRA", "name": "4 ritten", "price": "€ 390", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x 4 ritten € 390", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2050", "oldId": 2050, "number": "2026-2482", "title": "Tapwagen standaard Rugby club Amsterdam", "start": "2026-06-03", "end": "2026-06-07", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Grolsch", "invoice": "2698771032", "customer": {
+      "name": "Frank Grenier", "street": "", "zip": "", "city": "", "phone": "0644983098", "email": ""
+    }, "location": {
+      "name": "Tapwagen standaard Rugby club Amsterdam", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_765", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_766", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 125\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2022", "oldId": 2022, "number": "2026-2466", "title": "Bar container Utrecht", "start": "2026-06-04", "end": "2026-06-07", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "2698771046", "customer": {
+      "name": "Sanneke Gevaerts", "street": "", "zip": "", "city": "", "phone": "0686890662", "email": ""
+    }, "location": {
+      "name": "1201", "street": "Groenewoudsedijk 10", "zip": "", "city": "Utrecht", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_111", "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "art_203", "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "add_728", "cat": "EXTRA", "code": "EXTRA", "name": "ondervoorbehoud € 140 per uur incl laden en lossen", "price": "€ 1300", "status": "reserved"
+    }, {
+      "id": "add_729", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_826", "cat": "EXTRA", "code": "EXTRA", "name": "Koelwagen", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_827", "cat": "EXTRA", "code": "EXTRA", "name": "koelwagen.", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_828", "cat": "EXTRA", "code": "EXTRA", "name": "koelwagen", "price": "€ 250", "status": "reserved"
+    }, {
+      "id": "add_829", "cat": "EXTRA", "code": "EXTRA", "name": "koelwagen.", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x ondervoorbehoud € 140 per uur incl laden en lossen € 1300\n4x Extra € 125\n1x Koelwagen € 250\n1x koelwagen. € 250\n1x koelwagen € 250\n1x koelwagen. € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1911", "oldId": 1911, "number": "2025-2395", "title": "Tapwagen Hoorn Amstelblikje", "start": "2026-06-11", "end": "2026-06-14", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "2698771014", "customer": {
+      "name": "Aukje Visser", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Café JP Coen", "street": "Veemark 17", "zip": "", "city": "Hoorn", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_603", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 378", "status": "reserved"
+    }, {
+      "id": "add_725", "cat": "EXTRA", "code": "EXTRA", "name": "60 meter", "price": "€ 37.5", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 378\n3x 60 meter € 37.5", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2072", "oldId": 2072, "number": "2026-2503", "title": "Toilet container 13 klepper Zandvoort", "start": "2026-06-14", "end": "2026-06-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2698771040", "customer": {
+      "name": "Toilet container 13 klepper Zandvoort", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Paap", "street": "Max Planckstraat 17", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_28", "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "€ 120", "status": "reserved"
+    }, {
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "€ 120", "status": "reserved"
+    }, {
+      "id": "art_125", "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "€ 120", "status": "reserved"
+    }, {
+      "id": "art_141", "cat": "EXTRA", "code": "EXTRA25", "name": "14 klepper/ 10 zit 4 staan", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "€ 120", "status": "reserved"
+    }, {
+      "id": "add_809", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1100", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Slangen bij plaskruizen meegeven \r\nMaterialen bij paap leveren\n1x Extra € 1100", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1515", "oldId": 1515, "number": "2023-3118", "title": "Event container Pinkpop  Landgraaf", "start": "2026-06-15", "end": "2026-06-22", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Event container Pinkpop  Landgraaf", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Pinkpop", "street": "Hofstraat 15", "zip": "", "city": "Landgraaf", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "art_188", "cat": "EXTRA", "code": "EXTRA23", "name": "Black Edition", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_212", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2112", "status": "reserved"
+    }, {
+      "id": "add_307", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2112", "status": "reserved"
+    }, {
+      "id": "add_633", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 2112", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 2112\n1x Extra € 2112\n1x Extra € 2112", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2055", "oldId": 2055, "number": "2026-2487", "title": "Lege event container Sandy Hill zandvoort", "start": "2026-06-15", "end": "2026-06-21", "startTime": "6/8", "endTime": "6/8", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Lege event container Sandy Hill zandvoort", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Beachclub Sandy Hill", "street": "Paap bv", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_214", "cat": "KW", "code": "KW2", "name": "Event container leeg", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "add_810", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1100", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Leveringen via Paap bv\n1x Extra € 1100", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2078", "oldId": 2078, "number": "2026-2509", "title": "Toppers Arena Amsterdam", "start": "2026-06-15", "end": "2026-07-19", "startTime": "9/13", "endTime": "tot max 13", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Toppers Arena Amsterdam", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "JC Arena", "street": "Burgemeester Stramanweg 404", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 5780", "status": "reserved"
+    }, {
+      "id": "add_820", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Afleveren  Arena deck\n1x Extra € 1750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2066", "oldId": 2066, "number": "2026-2497", "title": "Barcontainer Driehuis", "start": "2026-06-17", "end": "2026-06-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "2698771047", "customer": {
+      "name": "Andre", "street": "", "zip": "", "city": "", "phone": "0631900250", "email": ""
+    }, "location": {
+      "name": "Barcontainer Driehuis", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_186", "cat": "KW", "code": "KW14", "name": "Bar container met koelcel 8 kraans", "price": "€ 1050", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2063", "oldId": 2063, "number": "2026-2494", "title": "Carrousel Circuitpark Zandvoort", "start": "2026-06-18", "end": "2026-06-21", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Egbert", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Circuitpark Zandvoort", "street": "Burgemeester van Alphenstraat 108", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_789", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x Extra € 750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2029", "oldId": 2029, "number": "2026-2470", "title": "Container met koelcel Nieuw vennep ophaal klant", "start": "2026-06-24", "end": "2026-06-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "William", "street": "", "zip": "", "city": "", "phone": "0653991210", "email": ""
+    }, "location": {
+      "name": "1205", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_186", "cat": "KW", "code": "KW14", "name": "Bar container met koelcel 8 kraans", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_737", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container dient schoon retour terug te komen , \r\nHet reinigen van de tapkranen laten wij door een tapwacht uitvoeren\n8x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1325", "oldId": 1325, "number": "2022-2165", "title": "Cafe de Blauwwe engel Amsterdam", "start": "2026-06-25", "end": "2026-06-26", "startTime": "Vroeg", "endTime": "Vroeg", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Cafe de Blauwwe engel Amsterdam", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Cafe de Blauwe engel", "street": "Strawinskylaan 143", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_172", "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_444", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 525", "status": "reserved"
+    }, {
+      "id": "add_445", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 525", "status": "reserved"
+    }, {
+      "id": "add_446", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 255", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x Extra € 525\n1x Extra € 525\n1x Extra € 255", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2018", "oldId": 2018, "number": "2026-2464", "title": "Pop-up Eventcontainer met Dakterras Dalfsen", "start": "2026-06-25", "end": "2026-06-28", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2698771015", "customer": {
+      "name": "Esther", "street": "", "zip": "", "city": "", "phone": "0657867749", "email": ""
+    }, "location": {
+      "name": "1199", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_190", "cat": "KW", "code": "KW10", "name": "Event container met dakterras /trap", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_726", "cat": "EXTRA", "code": "EXTRA", "name": "4 ritten", "price": "€ 1560", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Klant lost de container zelf met een heftruk Let op moet een lepel bord hebben van 2 meter )\n1x 4 ritten € 1560", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1338", "oldId": 1338, "number": "2022-2171", "title": "Biertanken brouwerij Den Haag", "start": "2026-06-30", "end": "2026-07-12", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Martin", "street": "", "zip": "", "city": "", "phone": "06 222 09 648", "email": "martin@eiberbier.nl"
+    }, "location": {
+      "name": "Biertanken brouwerij Den Haag", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_8", "cat": "KW", "code": "KW5", "name": "Container 4000 liter", "price": "€ 1500", "status": "reserved"
+    }, {
+      "id": "art_163", "cat": "KW", "code": "KW8", "name": "Koelwagen met 3x 1000 liter tanken", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_524", "cat": "EXTRA", "code": "EXTRA", "name": "25 meter", "price": "€ 200", "status": "reserved"
+    }, {
+      "id": "add_525", "cat": "EXTRA", "code": "EXTRA", "name": "5 kraans", "price": "€ 40", "status": "reserved"
+    }, {
+      "id": "add_526", "cat": "EXTRA", "code": "EXTRA", "name": "vulhaspel 50 meter", "price": "€ 100", "status": "reserved"
+    }, {
+      "id": "add_527", "cat": "EXTRA", "code": "EXTRA", "name": "M.Bar extern inhuur", "price": "€ 937.5", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Barren levering op 6-7-26 tot 13-7-21\n8x 25 meter € 200\n2x 5 kraans € 40\n1x vulhaspel 50 meter € 100\n3x M.Bar extern inhuur € 937.5", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2053", "oldId": 2053, "number": "2026-2485", "title": "div vijfhuizen", "start": "2026-07-01", "end": "2026-07-05", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2698771034", "customer": {
+      "name": "Aldo Moraal", "street": "", "zip": "", "city": "", "phone": "0655880427", "email": ""
+    }, "location": {
+      "name": "Sport compex vijfhuizen", "street": "Zijdewind 3", "zip": "", "city": "Vijfhuizen", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_125", "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_30", "cat": "EXTRA", "code": "EXTRA3", "name": "14-klepper / 14 zit", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_217", "cat": "EXTRA", "code": "EXTRA1", "name": "Lichtmast: 4 x camera/ 2x verlichtings", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_218", "cat": "EXTRA", "code": "EXTRA2", "name": "Lichtmast: 4 x camera/ 2x verlichtings", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_120", "cat": "EXTRA", "code": "EXTRA2", "name": "Kassa unit 2 persoons", "price": "€ 325", "status": "reserved"
+    }, {
+      "id": "add_775", "cat": "EXTRA", "code": "EXTRA", "name": "kraanwagen met oplegger", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_776", "cat": "EXTRA", "code": "EXTRA", "name": "Kraanwagen met oplegger", "price": "€ 600", "status": "reserved"
+    }, {
+      "id": "add_777", "cat": "EXTRA", "code": "EXTRA", "name": "2x plaskruis ophaal klant", "price": "€ 75", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Klant komt de 2 plaskruizen en kassa unit zelf ophalen .\n1x kraanwagen met oplegger € 600\n1x Kraanwagen met oplegger € 600\n1x 2x plaskruis ophaal klant € 75", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2056", "oldId": 2056, "number": "2026-2488", "title": "Toiletwagen huttenbouw Amstelveen", "start": "2026-07-02", "end": "2026-07-09", "startTime": "voor 10 uur", "endTime": "na 1300", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2698771036", "customer": {
+      "name": "Hennie Buffing", "street": "", "zip": "", "city": "", "phone": "0651314110", "email": ""
+    }, "location": {
+      "name": "Toiletwagen huttenbouw Amstelveen", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_221", "cat": "EXTRA", "code": "EXTRA23", "name": "Standaard 3 dames / 1 heren en 3 urinoir", "price": "€ 1250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Prijs incl transport\r\nToiletwagen dient schoon retour te komen, bij niet schoon  bereken wij € 350 schoonmaak kosten.", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2048", "oldId": 2048, "number": "2026-2480", "title": "Bar container vierdaagse  Nijmegen", "start": "2026-07-15", "end": "2026-07-24", "startTime": "", "endTime": "Vanaf", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "2698771030", "customer": {
+      "name": "Stefan Kloeg", "street": "", "zip": "", "city": "", "phone": "0623157238", "email": ""
+    }, "location": {
+      "name": "Bar container vierdaagse  Nijmegen", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 2625", "status": "reserved"
+    }, {
+      "id": "add_764", "cat": "EXTRA", "code": "EXTRA", "name": "Kraanwagen", "price": "€ 1850", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Kraanwagen € 1850", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2027", "oldId": 2027, "number": "2026-2469", "title": "Grolsch Tennisvereniging Amsterdam", "start": "2026-07-27", "end": "2026-08-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Grolsch", "invoice": "", "customer": {
+      "name": "Eventdesk", "street": "", "zip": "", "city": "", "phone": "053-4833135", "email": ""
+    }, "location": {
+      "name": "Tennisvereniging Chip& Charsge", "street": "Radioweg 80", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_175", "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 1512.5", "status": "reserved"
+    }, {
+      "id": "add_736", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2067", "oldId": 2067, "number": "2026-2498", "title": "Tapwagen Café Bartje Santpoort", "start": "2026-07-28", "end": "2026-08-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Tapwagen Café Bartje Santpoort", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Cafe Bartje", "street": "Hoofdstraat 150", "zip": "2071EL", "city": "Sanpoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 1210", "status": "reserved"
+    }, {
+      "id": "add_796", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 195", "status": "reserved"
+    }, {
+      "id": "add_797", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 195", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 195\n1x Extra € 195", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2068", "oldId": 2068, "number": "2026-2499", "title": "carrousel santpoort Cor", "start": "2026-07-28", "end": "2026-08-08", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "carrousel santpoort Cor", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Veld na Centrum", "street": "Weijmanweide", "zip": "", "city": "Santpoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_178", "cat": "EXTRA", "code": "EXTRA40", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 1200", "status": "reserved"
+    }, {
+      "id": "add_798", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_799", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 195", "status": "reserved"
+    }, {
+      "id": "add_800", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 195", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 125\n2x Extra € 195\n2x Extra € 195", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1790", "oldId": 1790, "number": "2025-2336", "title": "Gay parade prik Amsterdam", "start": "2026-07-29", "end": "2026-08-01", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Grolsch", "invoice": "", "customer": {
+      "name": "Prik", "street": "", "zip": "", "city": "", "phone": "020 320 0002", "email": ""
+    }, "location": {
+      "name": "Gay parade prik Amsterdam", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_33", "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "€ 450", "status": "reserved"
+    }, {
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_193", "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "oude prijs: € 0", "status": "reserved"
+    }, {
+      "id": "add_472", "cat": "EXTRA", "code": "EXTRA", "name": "koelwagen", "price": "€ 350", "status": "reserved"
+    }, {
+      "id": "add_473", "cat": "EXTRA", "code": "EXTRA", "name": "container 1", "price": "€ 1350", "status": "reserved"
+    }, {
+      "id": "add_474", "cat": "EXTRA", "code": "EXTRA", "name": "container 2", "price": "€ 1350", "status": "reserved"
+    }, {
+      "id": "add_475", "cat": "EXTRA", "code": "EXTRA", "name": "container 3", "price": "€ 1350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "4x koelwagen € 350\n4x container 1 € 1350\n4x container 2 € 1350\n4x container 3 € 1350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1875", "oldId": 1875, "number": "2025-2369", "title": "Gay Pride  Senior Amsterdam", "start": "2026-07-29", "end": "2026-07-30", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Rene Hamer", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Gay pride Senior", "street": "Nieuwmarkt 4B", "zip": "", "city": "Amsterdam", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_171", "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_548", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 700", "status": "reserved"
+    }, {
+      "id": "add_549", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 700", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "4x Extra € 700\n4x Extra € 700", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2024", "oldId": 2024, "number": "2026-2467", "title": "2x bar container Volendam", "start": "2026-08-04", "end": "2026-08-09", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Thom", "street": "", "zip": "", "city": "", "phone": "+31 657 558 147", "email": ""
+    }, "location": {
+      "name": "1202", "street": "europaplein", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_739", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1500", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "2x Extra € 1500", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1309", "oldId": 1309, "number": "2022-2154", "title": "Tapcontainer wervershoof", "start": "2026-08-12", "end": "2026-08-18", "startTime": "6/7", "endTime": "6/7", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Antoinet", "street": "", "zip": "", "city": "", "phone": "06-42015777", "email": ""
+    }, "location": {
+      "name": "Tapcontainer wervershoof", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 1000", "status": "reserved"
+    }, {
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "add_390", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1120", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1120", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1944", "oldId": 1944, "number": "2025-2419", "title": "Tapblikje wervershoofd", "start": "2026-08-12", "end": "2026-08-18", "startTime": "", "endTime": "", "status": "Geannuleerd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Antoinet", "street": "", "zip": "", "city": "", "phone": "06-42015777", "email": ""
+    }, "location": {
+      "name": "Het cafe van werfershoof", "street": "Dorpstraat 76", "zip": "1693AH", "city": "Wervershoof", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_173", "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2073", "oldId": 2073, "number": "2026-2504", "title": "Tapcontainer met koelcel  Grolsch Etten-leur", "start": "2026-08-12", "end": "2026-08-13", "startTime": "vroeg", "endTime": "vroeg", "status": "Bevestigd", "amount": 0, "brand": "Grolsch", "invoice": "", "customer": {
+      "name": "Eventdesk", "street": "", "zip": "", "city": "", "phone": "053-4833135", "email": ""
+    }, "location": {
+      "name": "Zomeravondspektakel", "street": "Raadhuisplein", "zip": "", "city": "Etten-Leur", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_186", "cat": "KW", "code": "KW14", "name": "Bar container met koelcel 8 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_811", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1400", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "06-08 Uithoorn – Etten Leur               € 750,00\r\n\r\n07-08  Etten-Leur – Opslag                € 650,00\r\n\r\n13-08  Opslag – Etten Leur                € 650,00\r\n\r\n14-08  Etten Leur – Uithoorn              € 750,00\n1x Extra € 1400", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2041", "oldId": 2041, "number": "2026-2475", "title": "Bar container zandvoort F1", "start": "2026-08-16", "end": "2026-08-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken blikjes", "invoice": "2698771023", "customer": {
+      "name": "Udo", "street": "", "zip": "", "city": "", "phone": "06-28166917", "email": ""
+    }, "location": {
+      "name": "Boven aan op de boulevard", "street": "Boulevard Paulus Loot 18/ 19", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 1260", "status": "reserved"
+    }, {
+      "id": "add_754", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1100", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Container dient geheel schoon ingeleverd te worden, bij niet goed schoon bereken wij € 450 schoonmaak kosten .\n1x Extra € 1100", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2069", "oldId": 2069, "number": "2026-2500", "title": "Chin-Chin Zandvoort F1", "start": "2026-08-17", "end": "2026-08-23", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Chin-Chin Zandvoort F1", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Chin-Chin.", "street": "Haltestraat 20", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_183", "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "€ 550", "status": "reserved"
+    }, {
+      "id": "add_801", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 250", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 250", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2074", "oldId": 2074, "number": "2026-2505", "title": "Tapcontainer met koelcel  Grolsch Etten-leur", "start": "2026-08-19", "end": "2026-08-20", "startTime": "vroeg", "endTime": "vroeg", "status": "Bevestigd", "amount": 0, "brand": "Grolsch", "invoice": "", "customer": {
+      "name": "Eventdesk", "street": "", "zip": "", "city": "", "phone": "053-4833135", "email": ""
+    }, "location": {
+      "name": "Zomeravondspektakel", "street": "Raadhuisplein", "zip": "", "city": "Etten-Leur", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_186", "cat": "KW", "code": "KW14", "name": "Bar container met koelcel 8 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_813", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 1400", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 1400", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2077", "oldId": 2077, "number": "2026-2508", "title": "Event container Den oever", "start": "2026-08-25", "end": "2026-08-30", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Neutraal Tapwagen", "invoice": "2698771042", "customer": {
+      "name": "Hendrik", "street": "", "zip": "", "city": "", "phone": "0614280638", "email": ""
+    }, "location": {
+      "name": "Event container Den oever", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_105", "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "add_817", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_818", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_819", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 850\n1x Extra € 850\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2043", "oldId": 2043, "number": "2026-2476", "title": "Tapwagen  XXL Almere", "start": "2026-08-26", "end": "2026-09-03", "startTime": "6-11 uur", "endTime": "4-9 uur", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "2698771024", "customer": {
+      "name": "Cafe", "street": "", "zip": "", "city": "", "phone": "036 534 5591", "email": ""
+    }, "location": {
+      "name": "Tapwagen  XXL Almere", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 1650", "status": "reserved"
+    }, {
+      "id": "add_756", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 350", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 350", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2040", "oldId": 2040, "number": "2026-2474", "title": "Tapwagen weesp Ophaal klant", "start": "2026-08-27", "end": "2026-08-30", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Tapwagen.nl", "invoice": "2698771045", "customer": {
+      "name": "Tapwagen weesp Ophaal klant", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Tapwagen weesp Ophaal klant", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_176", "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_752", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_753", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 150", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "1x Extra € 125\n1x Extra € 150", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1465", "oldId": 1465, "number": "2023-3086", "title": "Toiletwagen 2 persoons Leidschendam ophaal", "start": "2026-09-01", "end": "2026-09-03", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Kees", "street": "", "zip": "", "city": "", "phone": "0683329961", "email": ""
+    }, "location": {
+      "name": "918", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_31", "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "€ 450", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Toiletwagen dient geheel schoon retour \r\nMocht de wagen niet schoon terug komen laten wij dit uitvoeren door een extern bedrijf € 275", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1849", "oldId": 1849, "number": "2025-2357", "title": "Black edition Volendam", "start": "2026-09-03", "end": "2026-09-07", "startTime": "", "endTime": "voor 10 uur", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Henk", "street": "", "zip": "", "city": "", "phone": "06-51094711", "email": ""
+    }, "location": {
+      "name": "Black edition Volendam", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_519", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }, {
+      "id": "add_520", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport wordt door klant geregeld met een kraanwagen \r\nContainer weegt tegen de 4 ton\r\nContainer dient schoon retour terug gebracht te worden op 8-9-26 voor 10 uur\n1x Extra € 125\n1x Extra € 175", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2064", "oldId": 2064, "number": "2026-2495", "title": "Carrousel Circuitpark Zandvoort", "start": "2026-09-17", "end": "2026-09-20", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Egbert", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "Circuitpark Zandvoort", "street": "Burgemeester van Alphenstraat 108", "zip": "", "city": "Zandvoort", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_179", "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_181", "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "€ 750", "status": "reserved"
+    }, {
+      "id": "art_182", "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "€ 650", "status": "reserved"
+    }, {
+      "id": "add_790", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 750", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "3x Extra € 750", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2031", "oldId": 2031, "number": "2026-2471", "title": "Black edition Volendam", "start": "2027-02-03", "end": "2027-02-07", "startTime": "", "endTime": "voor 10 uur", "status": "Geannuleerd", "amount": 0, "brand": "Heineken", "invoice": "", "customer": {
+      "name": "Henk", "street": "", "zip": "", "city": "", "phone": "06-51094711", "email": ""
+    }, "location": {
+      "name": "Black edition Volendam", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 1050", "status": "reserved"
+    }, {
+      "id": "add_741", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 175", "status": "reserved"
+    }, {
+      "id": "add_742", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Transport wordt door klant geregeld met een kraanwagen \r\nContainer weegt tegen de 4 ton\r\nContainer dient schoon retour terug gebracht te worden op 8-9-26 voor 10 uur\n1x Extra € 175\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_2052", "oldId": 2052, "number": "2026-2484", "title": "Koningsdag ophaal klant XXL Laren", "start": "2027-04-23", "end": "2027-04-27", "startTime": "", "endTime": "", "status": "Bevestigd", "amount": 0, "brand": "Amstel", "invoice": "", "customer": {
+      "name": "Marc Timmerman", "street": "", "zip": "", "city": "", "phone": "0652691990", "email": ""
+    }, "location": {
+      "name": "Koningsdag ophaal klant XXL Laren", "street": "NVT NVT", "zip": "NVT", "city": "NVT", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_178", "cat": "EXTRA", "code": "EXTRA40", "name": "Carrousel  standaard zwart 4 kraans", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "add_770", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 75", "status": "reserved"
+    }, {
+      "id": "add_771", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 125", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "Klant komt de wagen ophalen op 25-4-27  \r\nRetour 28-4-27 tussen 7/8\r\n\r\nLet op wagen weegt ruim 2800 kg neem een goede bus of jeep mee.\r\nDe tapwagen dient geheel schoon ingeleverd te worden .\r\nBij niet schoon of plakband resten berekenen wij € 350\n1x Extra € 75\n1x Extra € 125", "source": "Access vanaf 2023"
+  }, {
+    "id": "old_1564", "oldId": 1564, "number": "2023-3158", "title": "Haring rock 2027 offerte", "start": "2027-07-06", "end": "2027-07-11", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
+      "name": "Haring rock 2027 offerte", "street": "", "zip": "", "city": "", "phone": "", "email": ""
+    }, "location": {
+      "name": "983", "street": "", "zip": "", "city": "", "phone": "", "show": true
+    }, "materials": [{
+      "id": "art_28", "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "art_30", "cat": "EXTRA", "code": "EXTRA3", "name": "14-klepper / 14 zit", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "art_40", "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "art_125", "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "art_126", "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "art_163", "cat": "KW", "code": "KW8", "name": "Koelwagen met 3x 1000 liter tanken", "price": "€ 1250", "status": "reserved"
+    }, {
+      "id": "art_191", "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_192", "cat": "KW", "code": "KW3", "name": "Bar container", "price": "€ 850", "status": "reserved"
+    }, {
+      "id": "art_209", "cat": "EXTRA", "code": "EXTRA46", "name": "Jumbo eiland incl 3000 L tanken", "price": "€ 950", "status": "reserved"
+    }, {
+      "id": "art_81", "cat": "EXTRA", "code": "EXTRA2", "name": "Homa pomp 380 volt", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "art_153", "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "€ 0.0", "status": "reserved"
+    }, {
+      "id": "add_331", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 46", "status": "reserved"
+    }, {
+      "id": "add_332", "cat": "EXTRA", "code": "EXTRA", "name": "Extra", "price": "€ 3500", "status": "reserved"
+    }], "driver": "", "vehicle": "", "extra": "8x Extra € 46\n1x Extra € 3500", "source": "Access vanaf 2023"
+  }], "alerts": [], "settings": {
     "theme": "blue", "layout": "compact", "locationVisibleDefault": true
   }, "customers": [{
     "id": "c1", "name": "Michelle de Wit", "street": "", "zip": "", "city": "", "phone": "06 47766372", "email": ""
@@ -2876,7 +9234,6 @@ setTimeout(()=>{
     if(l!=='normal') document.body.classList.add('layout-'+l);
   }
   function injectInvoiceAdminV10(){
-    if(window.__BNS_V361__) return; // v361 vervangt deze tab
     ensureV10State();
     const tabs=document.querySelector('.admin-tabs') || document.querySelector('.tabs.admin-tabs');
     const area=byId('adminArea');
@@ -14777,6 +21134,8 @@ setTimeout(()=>{
     });
   }
   function install(){
+    // Niet installeren als v380 stable core actief is
+    if(window.BNS_STABLE_CORE && window.renderMaterials === window.BNS_STABLE_CORE.renderMaterials) return;
     ensureCss();
     try {
       window.renderMaterials = renderMaterialsV45;
@@ -14812,7 +21171,8 @@ setTimeout(()=>{
     // Accepteer ook de BNS debounce wrapper als geldige renderMaterials
     var isOurs = window.renderMaterials && window.renderMaterials.__bnsMatDebounced;
     if (!isOurs && window.renderMaterials !== renderMaterialsV45) install();
-    if (window.addMat !== addMatV45) install();
+    var addOk = window.addMat === addMatV45 || (window.addMat && window.addMat.__bnsMatDebounced);
+    if (!addOk) install();
     updateAlertButtonStable();
   }, 2500);
   window.BNS_V45_PLANNING_DEBUG = {
@@ -16500,7 +22860,7 @@ setTimeout(()=>{
       #materialCats button{position:relative!important;min-width:64px!important;height:54px!important;margin:0!important;border-radius:14px!important;transition:none!important;transform:none!important;}
       #materialCats button::after{content:'';position:absolute;left:10px;right:10px;bottom:5px;height:5px;border-radius:999px;background:var(--cat-color,#0ea5e9)!important;}
       #materialSearch{height:48px!important;font-size:18px!important;margin:4px 0 10px!important;scroll-margin:0!important;}
-      #materialList{display:block!important;height:auto!important;min-height:320px!important;max-height:calc(100vh - 280px)!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;overflow-anchor:none!important;padding:0 6px 90px 0!important;}
+      #materialList{display:block!important;height:auto!important;min-height:320px!important;max-height:58vh!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;overflow-anchor:none!important;padding:0 6px 90px 0!important;}
       #materialList .bns-v56-row{display:grid!important;grid-template-columns:8px minmax(0,1fr) auto!important;gap:12px!important;align-items:center!important;width:100%!important;min-height:82px!important;margin:9px 0!important;padding:13px 14px!important;border:1px solid #dbe3ef!important;border-radius:18px!important;background:var(--panel,#fff)!important;color:var(--text,#172033)!important;box-sizing:border-box!important;cursor:pointer!important;box-shadow:none!important;transition:none!important;transform:none!important;}
       #materialList .bns-v56-bar{width:8px!important;height:54px!important;border-radius:999px!important;background:var(--cat-color,#0ea5e9)!important;}
       #materialList .bns-v56-title{font-size:17px!important;line-height:1.15!important;color:#172033!important;white-space:normal!important;word-break:normal!important;overflow:visible!important;}
@@ -18142,14 +24502,8 @@ setTimeout(()=>{
 (function(){
   "use strict";
   var STYLE_ID = "bns-v62-driver-alert-dashboard-style";
-  // css() stub - voorkomt ReferenceError als css() niet in scope is
-  function css(){
-    if(document.getElementById(STYLE_ID)) return;
-    var st=document.createElement("style");
-    st.id=STYLE_ID;
-    st.textContent="";
-    document.head.appendChild(st);
-  }
+  function patchMaterial(){ try{ if(typeof window.addMat==="function") return; }catch(e){} }
+  function phoneMode(){ try{ return !!(window.location&&window.location.hash&&window.location.hash.indexOf("bezorger")>=0); }catch(e){ return false; } }
   var DEFAULT_TYPES = [
   {
     id:"storing", name:"Storing", color:"#dc2626", driver:true, text:true, photo:false, signature:false, admin:true
@@ -28865,7 +35219,6 @@ setTimeout(()=>{
     }
   }
   function installAdminDocumentStyle(){
-    if(window.__BNS_V361__) return; // v361 vervangt deze tab
     var area=E('adminArea') || document.querySelector('.adminArea,.admin-area,#admin');
     if(!area || E('twV309DocStylePane')) return;
     var tabs=A('.adminTab',area);
@@ -29759,8 +36112,7 @@ setTimeout(()=>{
   function orderEndIsPast(o){
     var p=orderPeriod(o);
     if(!p) return false;
-    // Einddatum zelf = nog geblokkeerd; dag erna = vrij
-    return p.end.getTime() < today().getTime();
+    return p.end.getTime() <= today().getTime();
   }
   function orderBlocksMaterial(o){
     var s=L(o && o.status);
@@ -29935,11 +36287,6 @@ setTimeout(()=>{
       }
       var r=reservationForMaterial(base);
       if(r){
-        // Skip als het dezelfde opdracht is die we nu bewerken
-        var editId=typeof editingId==='function'?editingId():(window.editing&&window.editing.id);
-        if(editId && String(r.order.id)===String(editId)) continue;
-        // Skip als de blokkerende opdracht voorbij zijn einddatum is
-        if(typeof orderEndIsPast==='function'&&orderEndIsPast(r.order)) continue;
         alert('Opslaan geblokkeerd: '+T(base.code||materialToken(base))+' is al geblokkeerd door '+T(r.order.status)+' opdracht '+T(r.order.number||'')+'.');
         return false;
       }
@@ -30905,7 +37252,7 @@ setTimeout(()=>{
     var d=new Date(String(v).slice(0,10)+'T00:00:00');
     return isNaN(d.getTime())?null:d;
   }
-  function oYear(o){ return String(o.end||o.start||o.dateEnd||o.dateStart||'').slice(0,4)||'Geen jaar'; }
+  function oYear(o){ var raw=String(o.end||o.start||o.dateEnd||o.dateStart||''); var m=raw.match(/\b(20\d{2})\b/); return m?m[1]:(raw.slice(0,4)||'Geen jaar'); }
   function aYear(a){ if(a.createdAt)return String(a.createdAt).slice(0,4)||'Geen jaar'; var t=String(a.time||a.date||''); var m=t.match(/\b(20\d{2})\b/); return m?m[1]:'Geen jaar'; }
   function getQ(id){ return ((document.getElementById(id)||{}).value||'').toLowerCase().trim(); }
 
@@ -31538,26 +37885,33 @@ setTimeout(()=>{
 })();
 
 
-// BNS PATCH v356 — Opdrachten tabs schoon (herschreven, geen flikkeren)
+// BNS PATCH v356 — Opdrachten tabs schoon
+// Datum: 2026-05-25
+// Doel:
+// - Alleen in Opdrachten: Lopende opdrachten, 14 dagen opties, Offertes.
+// - 14 dagen en Offertes NIET in Archief.
+// - 14 dagen: dag 13 melding via eigen systeemmeldingen + knoppen.
+// - Offertes: zelfde beslisknoppen groen/rood.
+// - Kaarten blijven dashboardstijl: 1x Overzicht bestelling, groen vinkje, openstaande factuur/betaald.
+// - Brede Routenet onderbalk weg; alleen kleine Routenet naast Waze.
 (function BNS_V356_ORDERS_TABS_CLEAN(){
   'use strict';
   if(window.__BNS_V356_ORDERS_TABS_CLEAN__) return;
   window.__BNS_V356_ORDERS_TABS_CLEAN__=true;
-
   var MODE='running';
   var RENDERING=false;
 
-  function E(id){return document.getElementById(id);}
+  function E(id){return document.getElementById(id);} 
   function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
   function S(){try{return (typeof state!=='undefined'&&state)||window.state||null;}catch(e){return window.state||null;}}
   function T(v){return String(v==null?'':v).trim();}
   function L(v){return T(v).toLowerCase();}
-  function H(v){return T(v).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function H(v){return T(v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function todayMs(){var d=new Date();d.setHours(0,0,0,0);return d.getTime();}
-  function dateMs(v){var m=T(v).match(/(20\d{2})-(\d{2})-(\d{2})/);return m?new Date(+m[1],+m[2]-1,+m[3]).getTime():NaN;}
+  function dateMs(v){var x=T(v),m=x.match(/(20\d{2})-(\d{1,2})-(\d{1,2})/);if(m)return new Date(+m[1],+m[2]-1,+m[3]).getTime();m=x.match(/(\d{1,2})-(\d{1,2})-(20\d{2})/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():NaN;}
   function st(o){return L(o&&o.status);}
-  function endOf(o){return T(o&&(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||o.startDate||o.date));}
   function startOf(o){return T(o&&(o.start||o.dateStart||o.startDate||o.date||o.end||o.dateEnd||o.endDate));}
+  function endOf(o){return T(o&&(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||o.startDate||o.date));}
   function isCan(o){return /geannuleerd|annul/.test(st(o));}
   function isDel(o){return /verwijder/.test(st(o))||!!(o&&o.deletedAt);}
   function isOpt(o){return /optie/.test(st(o))&&/14/.test(st(o));}
@@ -31566,43 +37920,32 @@ setTimeout(()=>{
   function isRunning(o){return !isCan(o)&&!isDel(o)&&!isDone(o)&&!isOpt(o)&&!isQuote(o);}
   function optStart(o){return T(o&&(o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||o.date));}
   function optLeft(o){var ms=dateMs(optStart(o));if(isNaN(ms))return null;return 14-Math.floor((todayMs()-ms)/86400000);}
-  function addr(o){return [o&&o.location&&o.location.street,o&&o.location&&o.location.zip,o&&o.location&&o.location.city].filter(Boolean).join(' ');}
+  function addr(o){return [o&&o.location&&o.location.street,o&&o.location&&o.location.zip,o&&o.location&&o.location.city].filter(Boolean).join(' ');} 
   function paid(o){var p=L((o&&o.paymentStatus)+' '+(o&&o.factuurStatus)+' '+(o&&o.invoiceStatus)+' '+(o&&o.paid));return /betaald|paid|true/.test(p);}
   function findOrder(id){var s=S();return ((s&&s.orders)||[]).find(function(o){return String(o.id)===String(id);});}
   function saveIt(){try{if(typeof save==='function')save();else if(typeof saveAll==='function')saveAll();}catch(e){}}
   function syncO(o){try{if(window.BNS&&typeof window.BNS.syncDoc==='function')window.BNS.syncDoc('orders',o);}catch(e){}}
 
-  function fmtDate(v){
-    if(!v) return '';
-    var m=T(v).match(/(20\d{2})-(\d{2})-(\d{2})/);
-    if(!m) return v;
-    return m[3]+'-'+m[2]+'-'+m[1];
-  }
-
   function css(){
     if(E('bns356Style'))return;
     var s=document.createElement('style');s.id='bns356Style';
-    s.textContent=[
-      '#orders #bns350OrdTabs{display:none!important}',
-      // Verberg originele Actieve opdrachten knop - v356 tabs vervangen dit
-      '#orders #activeOrders,#orders #doneOrders,#orders #cancelledOrders{display:none!important}',
-      '#orders .bns356-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}',
-      '#orders .bns356-tab{border:0;border-radius:10px;padding:9px 13px;background:#0f2942;color:#fff;font-weight:900;cursor:pointer}',
-      '#orders .bns356-tab.active{background:#0ea5e9;box-shadow:0 0 0 2px rgba(14,165,233,.25)}',
-      '#orders .bns356-paid{display:inline-flex!important;align-items:center!important;border-radius:999px!important;padding:3px 9px!important;font-size:11px!important;font-weight:900!important;margin:0 6px!important;background:#fee2e2!important;color:#991b1b!important;vertical-align:middle!important}',
-      '#orders .bns356-paid.paid{background:#dcfce7!important;color:#166534!important}',
-      '#orders .bns356-overview{background:#d97706!important;color:white!important;border:0!important;border-radius:8px!important;padding:7px 10px!important;font-weight:900!important;margin-right:7px!important;cursor:pointer!important}',
-      '#orders .bns356-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}',
-      '#orders .bns356-actions button{border:0;border-radius:8px;padding:7px 10px;font-weight:900;color:white;cursor:pointer}',
-      '#orders .bns356-ok{background:#16a34a!important}.bns356-no{background:#dc2626!important}.bns356-renew{background:#2563eb!important}',
-      '#orders .bns356-badge{display:inline-flex;align-items:center;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:900;margin-left:6px;background:#dcfce7;color:#166534}',
-      '#orders .bns356-badge.warn{background:#ffedd5;color:#9a3412}.bns356-badge.danger{background:#fee2e2;color:#991b1b}',
-      // Waze knop altijd zichtbaar in kaarten
-      '#ordersList button[onclick*="waze"],#ordersList a[href*="waze"]{display:inline-flex!important}',
-      // Verberg oude overzicht/routenet knoppen - v356 bouwt ze opnieuw schoon
-      '#ordersList .bns-order-overview-btn{display:none!important}',
-      '#ordersList .bns-routenet-btn,.bns-route-bar,.bns-v126-route-bar{display:none!important}',
-    ].join('');
+    s.textContent='\
+      #orders #bns350OrdTabs{display:none!important}\
+      #orders .bns356-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}\
+      #orders .bns356-tab{border:0;border-radius:10px;padding:9px 13px;background:#0f2942;color:#fff;font-weight:900;cursor:pointer}\
+      #orders .bns356-tab.active{background:#0ea5e9;box-shadow:0 0 0 2px rgba(14,165,233,.25)}\
+      #orders .bns356-paid{display:inline-flex!important;align-items:center!important;border-radius:999px!important;padding:3px 9px!important;font-size:11px!important;font-weight:900!important;margin:0 6px!important;background:#fee2e2!important;color:#991b1b!important;vertical-align:middle!important}\
+      #orders .bns356-paid.paid{background:#dcfce7!important;color:#166534!important}\
+      #orders .bns356-confirmed{display:inline-flex!important;align-items:center!important;border-radius:999px!important;padding:3px 9px!important;font-size:11px!important;font-weight:900!important;margin-left:6px!important;background:#dcfce7!important;color:#166534!important;border:1px solid #86efac!important}\
+      #orders .bns356-overview{background:#d97706!important;color:white!important;border:0!important;border-radius:8px!important;padding:7px 10px!important;font-weight:900!important;margin-right:7px!important}\
+      #orders .bns356-route{background:#0ea5e9!important;color:white!important;border:0!important;border-radius:7px!important;padding:5px 9px!important;font-size:11px!important;line-height:1.1!important;font-weight:900!important;margin-left:6px!important;min-width:0!important;width:auto!important;height:auto!important}\
+      #orders .bns356-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}\
+      #orders .bns356-actions button{border:0;border-radius:8px;padding:7px 10px;font-weight:900;color:white;cursor:pointer}\
+      #orders .bns356-ok{background:#16a34a}.bns356-no{background:#dc2626}.bns356-renew{background:#2563eb}\
+      #orders .bns356-badge{display:inline-flex;align-items:center;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:900;margin-left:6px;background:#dcfce7;color:#166534}\
+      #orders .bns356-badge.warn{background:#ffedd5;color:#9a3412}.bns356-badge.danger{background:#fee2e2;color:#991b1b}\
+      #bns350ArchPage .bns350-tab[data-at="options"], #bns350ArchPage .bns350-tab[data-at="quotes"], #bns352Archive .bns352-tab[data-tab="options"], #bns352Archive .bns352-tab[data-tab="quotes"]{display:none!important}\
+    ';
     document.head.appendChild(s);
   }
 
@@ -31611,166 +37954,269 @@ setTimeout(()=>{
     var bar=E('bns356Tabs');
     if(!bar){
       bar=document.createElement('div');bar.id='bns356Tabs';bar.className='bns356-tabs';
-      bar.innerHTML='<button type="button" class="bns356-tab" data-mode="running">Lopende opdrachten</button>'+
-        '<button type="button" class="bns356-tab" data-mode="options">14 dagen opties</button>'+
-        '<button type="button" class="bns356-tab" data-mode="quotes">Offertes</button>';
+      bar.innerHTML='<button type="button" class="bns356-tab" data-mode="running">Lopende opdrachten</button><button type="button" class="bns356-tab" data-mode="options">14 dagen opties</button><button type="button" class="bns356-tab" data-mode="quotes">Offertes</button>';
       var search=E('ordersSearch');
-      if(search&&search.parentNode)search.parentNode.insertBefore(bar,search.nextSibling);
-      else orders.insertBefore(bar,orders.firstChild);
-      A('.bns356-tab',bar).forEach(function(b){
-        b.onclick=function(ev){
-          ev.preventDefault();ev.stopPropagation();
-          MODE=b.dataset.mode||'running';
-          renderV356();
-          return false;
-        };
-      });
+      if(search&&search.parentNode)search.parentNode.insertBefore(bar,search.nextSibling);else orders.insertBefore(bar,orders.firstChild);
+      A('.bns356-tab',bar).forEach(function(b){b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();MODE=b.dataset.mode||'running';renderV356();return false;};});
     }
     A('.bns356-tab',bar).forEach(function(b){b.classList.toggle('active',(b.dataset.mode||'running')===MODE);});
   }
 
-  // Bouw een complete kaart in HTML - geen post-processing nodig
-  function buildCard(o){
-    var k=T((o.customer&&o.customer.name)||o.customerName||'');
-    var loc=o.location||{};
-    var l=[loc.name,loc.street,loc.city].filter(Boolean).join(', ');
-    var mats=(o.materials||[]).map(function(x){return x.code||x.name||'';}).filter(Boolean).join(', ');
-    var dt=fmtDate(startOf(o))+(o.end&&o.end!==o.start?' t/m '+fmtDate(endOf(o)):'');
-    var paidBadge=paid(o)
-      ? '<span class="bns356-paid paid">☑ Betaald</span>'
-      : '<span class="bns356-paid">Openstaande factuur</span>';
-    var wazeAddr=addr(o);
-    var wazeBtn=wazeAddr
-      ? '<a href="https://waze.com/ul?q='+encodeURIComponent(wazeAddr)+'" target="_blank" '+
-        'style="background:#33ccff;color:#000;border:0;border-radius:8px;padding:7px 10px;font-weight:900;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;cursor:pointer">Waze</a>'
-      : '';
-    var overzichtBtn=typeof window.BNS_V128_SHOW_ORDER_OVERVIEW==='function'
-      ? '<button type="button" class="bns356-overview" data-overview-id="'+H(o.id)+'">Overzicht bestelling</button>'
-      : '';
-    var extraBtns='';
-    if(isOpt(o)){
-      var left=optLeft(o);
-      var badge=left===null?'':(left<=1?'<span class="bns356-badge danger">Dag '+left+'</span>':left<=3?'<span class="bns356-badge warn">Dag '+left+'</span>':'<span class="bns356-badge">Dag '+left+'</span>');
-      extraBtns='<div class="bns356-actions">'+badge+
-        '<button type="button" class="bns356-ok" data-confirm-id="'+H(o.id)+'" style="background:#16a34a;color:#fff;border:0;border-radius:8px;padding:7px 10px;font-weight:900;cursor:pointer">Bevestigen</button>'+
-        '<button type="button" class="bns356-no" data-cancel-id="'+H(o.id)+'" style="background:#dc2626;color:#fff;border:0;border-radius:8px;padding:7px 10px;font-weight:900;cursor:pointer">Annuleren</button>'+
-        '<button type="button" class="bns356-renew" data-renew-id="'+H(o.id)+'" style="background:#2563eb;color:#fff;border:0;border-radius:8px;padding:7px 10px;font-weight:900;cursor:pointer">Verlengen +14d</button>'+
-        '</div>';
-    } else if(isQuote(o)){
-      extraBtns='<div class="bns356-actions">'+
-        '<button type="button" class="bns356-ok" data-confirm-id="'+H(o.id)+'" style="background:#16a34a;color:#fff;border:0;border-radius:8px;padding:7px 10px;font-weight:900;cursor:pointer">Bevestigen</button>'+
-        '<button type="button" class="bns356-no" data-cancel-id="'+H(o.id)+'" style="background:#dc2626;color:#fff;border:0;border-radius:8px;padding:7px 10px;font-weight:900;cursor:pointer">Annuleren</button>'+
-        '</div>';
-    }
-    return '<div class="order-card bns-v126-order-card" data-bns-order-id="'+H(o.id)+'" style="border:1px solid #dbe3ef;border-radius:14px;padding:13px;margin:8px 0;background:#fff">'+
-      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'+
-        '<b>'+H(o.number||'')+(o.title?' — '+H(o.title):'')+'</b>'+
-        '<span style="font-size:11px;font-weight:800;background:#f1f5f9;border-radius:999px;padding:3px 10px;flex-shrink:0">'+H(o.status||'')+'</span>'+
-      '</div>'+
-      '<div style="font-size:13px;color:#64748b;margin-top:3px">'+H(dt)+(k?' · '+H(k):'')+(l?' · '+H(l):'')+'</div>'+
-      (mats?'<div style="font-size:12px;color:#94a3b8;margin-top:2px">'+H(mats)+'</div>':'')+
-      '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:7px;align-items:center">'+
-        overzichtBtn+paidBadge+wazeBtn+
-      '</div>'+
-      extraBtns+
-    '</div>';
-  }
-
-  function rows(){
-    var s=S(); if(!s||!Array.isArray(s.orders))return[];
-    var all=s.orders, f;
-    if(MODE==='running')      f=all.filter(isRunning);
-    else if(MODE==='options') f=all.filter(isOpt);
-    else if(MODE==='quotes')  f=all.filter(isQuote);
-    else f=all.filter(isRunning);
-    var q='';
-    try{q=(E('ordersSearch')&&E('ordersSearch').value||'').toLowerCase();}catch(e){}
-    if(q)f=f.filter(function(o){return JSON.stringify(o).toLowerCase().indexOf(q)>=0;});
-    return f.sort(function(a,b){
-      var ad=dateMs(startOf(a)),bd=dateMs(startOf(b));
-      return (isNaN(ad)?0:ad)-(isNaN(bd)?0:bd);
-    });
-  }
-
-  function hideArchiveBad(){
-    // Verberg oude archief knoppen die niet bij de tabs horen
-    A('#orders .bns-v126-inzien, #orders #bnsInzienOpdrachtenBtn').forEach(function(b){b.style.display='none';});
-  }
-
-  function optionAlerts(){
-    var s=S(); if(!s||!Array.isArray(s.orders))return;
-    s.orders.filter(isOpt).forEach(function(o){
-      var left=optLeft(o);
-      if(left!==null&&left<=1&&!o.__bns356alertSent){
-        o.__bns356alertSent=true;
-        try{if(typeof toastMsg==='function')toastMsg('Optie '+H(o.number||'')+' verloopt morgen!');}catch(e){}
+  function removeBadButtons(cardEl){
+    var seenOverview=false;
+    A('button,a',cardEl).forEach(function(b){
+      var x=T(b.textContent);
+      if(/^routenet$/i.test(x)){b.remove();return;}
+      if(/overzicht\s*bestelling/i.test(x)){
+        if(seenOverview){b.remove();return;}
+        seenOverview=true;
       }
     });
   }
+  function statusFix(cardEl,o){
+    var status=A('.status,.order-status,[class*="status"]',cardEl).find(function(x){return /bevestigd|opdrachtbevestiging|offerte|optie|geannuleerd|uitgevoerd|verwijderd/i.test(x.textContent||'');});
+    if(status&&/bevestigd|opdrachtbevestiging/i.test(o.status||'')){
+      status.classList.add('bns356-confirmed');
+      if(!/[✓✔☑]/.test(status.textContent||''))status.textContent='✓ '+(o.status||'Bevestigd');
+    }
+  }
+  function paidFix(cardEl,o){
+    var all=A('.bns356-paid,.bns355-paid,.bns353-paid,.tw-au-order-paid',cardEl);
+    all.slice(1).forEach(function(x){x.remove();});
+    var el=all[0];
+    if(!el){var title=cardEl.querySelector('.order-title')||cardEl.querySelector('b')||cardEl.firstElementChild;if(!title||!title.parentNode)return;el=document.createElement('span');title.parentNode.insertBefore(el,title.nextSibling);} 
+    el.className='bns356-paid '+(paid(o)?'paid':'');
+    el.textContent=paid(o)?'☑ Betaald':'Openstaande factuur';
+  }
+  function overviewFix(cardEl,o){
+    var all=A('.bns356-overview,.bns355-overview,.bns353-overview,.bns-order-overview-btn',cardEl);
+    all.forEach(function(x){x.remove();});
+    if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW!=='function')return;
+    var actions=cardEl.querySelector('.actions,.bns-v126-card-actions')||cardEl.querySelector('div:last-child')||cardEl;
+    var b=document.createElement('button');b.type='button';b.className='bns356-overview';b.textContent='Overzicht bestelling';
+    b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();return window.BNS_V128_SHOW_ORDER_OVERVIEW(o.id);};
+    actions.insertBefore(b,actions.firstChild||null);
+  }
+  function routeFix(cardEl,o){
+    // Verwijder bestaande routenet knoppen
+    A('button,a',cardEl).forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||''))b.remove();});
+    // Optie 14 dagen en offertes krijgen GEEN routenet knop — niet actieve levering
+    if(isOpt(o)||isQuote(o))return;
+    var w=A('button,a',cardEl).find(function(b){return /^\s*waze\s*$/i.test(b.textContent||'');});
+    if(!w||cardEl.querySelector('.bns356-route'))return;
+    var a=addr(o); if(!a)return;
+    var b=document.createElement('button');b.type='button';b.className='bns356-route';b.textContent='Routenet';
+    b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();window.open('https://www.routenet.nl/routeplanner?locatie='+encodeURIComponent(a),'_blank');return false;};
+    w.insertAdjacentElement('afterend',b);
+  }
+  function setStatus(id,status,renew){var o=findOrder(id);if(!o)return;o.status=status;if(renew)o.optionCreatedAt=new Date().toISOString().slice(0,10);saveIt();syncO(o);renderV356();try{if(typeof renderDashboard==='function')renderDashboard();}catch(e){}}
+  window.BNS_V356_CONFIRM=function(id){setStatus(id,'Bevestigd',false);};
+  window.BNS_V356_CANCEL=function(id){setStatus(id,'Geannuleerd',false);};
+  window.BNS_V356_RENEW=function(id){setStatus(id,'Optie 14 dagen',true);};
 
+  function optionOfferControls(cardEl,o){
+    if(!(isOpt(o)||isQuote(o)))return;
+    var left=isOpt(o)?optLeft(o):null;
+    if(isOpt(o)&&!cardEl.querySelector('.bns356-badge')){
+      var badge=document.createElement('span');var cls='bns356-badge';if(left!==null&&left<=1)cls+=' danger';else if(left!==null&&left<=2)cls+=' warn';badge.className=cls;badge.textContent=left===null?'Optie 14 dagen':(left>0?'Nog '+left+' dag(en)':'Optie verlopen');
+      var title=cardEl.querySelector('.order-title')||cardEl.querySelector('b')||cardEl.firstElementChild;if(title&&title.parentNode)title.parentNode.insertBefore(badge,title.nextSibling);
+    }
+    if(cardEl.querySelector('.bns356-actions'))return;
+    var box=document.createElement('div');box.className='bns356-actions';
+    var noLabel=isQuote(o)?'✗ Verwijderen':'✗ Niet door';
+    var noClass=isQuote(o)?'bns356-no bns356-del':'bns356-no';
+    box.innerHTML='<button type="button" class="bns356-ok">✓ Bevestigen</button>'+
+      '<button type="button" class="'+noClass+'">'+noLabel+'</button>'+
+      (isOpt(o)?'<button type="button" class="bns356-renew">↻ Verlengen</button>':'');
+    box.querySelector('.bns356-ok').onclick=function(ev){ev.preventDefault();ev.stopPropagation();window.BNS_V356_CONFIRM(o.id);};
+    box.querySelector('.bns356-no').onclick=function(ev){
+      ev.preventDefault();ev.stopPropagation();
+      if(isQuote(o)){
+        // Offerte: echt verwijderen met eigen bevestiging
+        var msg='Offerte "'+T(o.title||o.number||'')+'" definitief verwijderen?';
+        Promise.resolve(typeof window.bnsConfirm==='function'
+          ? window.bnsConfirm(msg,'Offerte verwijderen?')
+          : window.confirm(msg)
+        ).then(function(ok){
+          if(!ok) return;
+          var s=S(); if(!s||!s.orders) return;
+          s.orders=s.orders.filter(function(x){return String(x.id)!==String(o.id);});
+          try{if(window.BNS&&typeof window.BNS.deleteDoc==='function')window.BNS.deleteDoc('orders',o.id);}catch(e){}
+          saveIt(); renderV356();
+        });
+      } else {
+        window.BNS_V356_CANCEL(o.id);
+      }
+    };
+    var rn=box.querySelector('.bns356-renew');if(rn)rn.onclick=function(ev){ev.preventDefault();ev.stopPropagation();window.BNS_V356_RENEW(o.id);};
+    var main=cardEl.querySelector('.order-title')?cardEl.querySelector('.order-title').parentNode:(cardEl.children[1]||cardEl);
+    main.appendChild(box);
+  }
+
+  function enhance(rows){
+    var list=E('ordersList'); if(!list)return;
+    A('.order-card,.bns-v126-order-card,[data-bns-order-id]',list).forEach(function(cardEl,idx){
+      var id=cardEl.getAttribute('data-bns-order-id')||cardEl.getAttribute('data-order-id')||'';
+      var o=id?findOrder(id):(rows&&rows[idx]); if(!o)return;
+      cardEl.setAttribute('data-bns-order-id',o.id||'');
+      removeBadButtons(cardEl);statusFix(cardEl,o);paidFix(cardEl,o);overviewFix(cardEl,o);routeFix(cardEl,o);optionOfferControls(cardEl,o);removeBadButtons(cardEl);
+    });
+  }
+  function rows(){
+    var s=S();var all=((s&&s.orders)||[]);var f;
+    if(MODE==='options')f=all.filter(isOpt);else if(MODE==='quotes')f=all.filter(isQuote);else f=all.filter(isRunning);
+    var q='';try{q=(E('ordersSearch')&&E('ordersSearch').value||'').toLowerCase();}catch(e){}
+    if(q)f=f.filter(function(o){return JSON.stringify(o).toLowerCase().indexOf(q)>=0;});
+    return f.sort(function(a,b){return startOf(a).localeCompare(startOf(b));});
+  }
+  function build(o){try{if(typeof card==='function')return card(o);}catch(e){}return '<div class="order-card" data-bns-order-id="'+H(o.id)+'"><div class="date-tile">'+H(startOf(o))+'</div><div><div class="order-title">'+H(o.number||'')+' - '+H(o.title||'')+' <span class="status">'+H(o.status||'')+'</span></div><div>Klant: '+H(o.customer&&o.customer.name||'')+'</div><div>Locatie: '+H(addr(o))+'</div></div><div class="actions"><button onclick="editOrder(\''+H(o.id)+'\')">Wijzigen</button></div></div>';}
+  function optionAlerts(){
+    var s=S(); if(!s||!Array.isArray(s.orders))return;if(!Array.isArray(s.alerts))s.alerts=[];var changed=false;
+    s.orders.forEach(function(o){if(!isOpt(o))return;var left=optLeft(o);if(left===null||left!==2)return;var key='v356-optie-dag13-'+String(o.id)+'-'+String(optStart(o));if(s.alerts.some(function(a){return a&&a.bnsKey===key;}))return;s.alerts.push({id:'alert_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),bnsKey:key,orderId:o.id,title:'Optie 14 dagen dag 13',message:(o.number||'')+' - '+(o.title||'')+' verloopt bijna. Nog 2 dagen.',time:new Date().toLocaleString(),resolved:false,type:'Optie 14 dagen'});changed=true;});
+    if(changed)saveIt();
+  }
+  function hideArchiveBad(){
+    A('#bns350ArchPage button,#bns352Archive button').forEach(function(b){var x=L(b.textContent);if(/opties|optie\s*14|offerte/.test(x))b.style.display='none';});
+    var ab=E('bns350ABtn')||E('bns352ArchiveBtn'); if(ab)ab.textContent='Archief';
+  }
   function renderV356(){
     if(RENDERING)return; RENDERING=true;
-    try{
-      css();ensureTabs();hideArchiveBad();optionAlerts();
-      var list=E('ordersList'); if(!list){RENDERING=false;return;}
-      var r=rows();
-      var empty=MODE==='options'?'Geen 14 dagen opties.':MODE==='quotes'?'Geen offertes.':'Geen lopende opdrachten.';
-      // Bouw alle kaarten in één keer - geen post-processing nodig
-      list.innerHTML=r.length?r.map(buildCard).join(''):'<p style="color:#94a3b8;padding:24px 0">'+empty+'</p>';
-      ensureTabs();
-      // Bind alle knop events via data attributes
-      A('[data-overview-id]',list).forEach(function(btn){
-        btn.onclick=function(ev){
-          ev.preventDefault();ev.stopPropagation();
-          if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW==='function')
-            window.BNS_V128_SHOW_ORDER_OVERVIEW(btn.getAttribute('data-overview-id'));
-          return false;
-        };
-      });
-      A('[data-confirm-id]',list).forEach(function(btn){
-        btn.onclick=function(ev){ev.preventDefault();ev.stopPropagation();
-          if(window.BNS_V356_CONFIRM)window.BNS_V356_CONFIRM(btn.getAttribute('data-confirm-id'));return false;};
-      });
-      A('[data-cancel-id]',list).forEach(function(btn){
-        btn.onclick=function(ev){ev.preventDefault();ev.stopPropagation();
-          if(window.BNS_V356_CANCEL)window.BNS_V356_CANCEL(btn.getAttribute('data-cancel-id'));return false;};
-      });
-      A('[data-renew-id]',list).forEach(function(btn){
-        btn.onclick=function(ev){ev.preventDefault();ev.stopPropagation();
-          if(window.BNS_V356_RENEW)window.BNS_V356_RENEW(btn.getAttribute('data-renew-id'));return false;};
-      });
-    }finally{RENDERING=false;}
+    try{css();ensureTabs();hideArchiveBad();optionAlerts();var list=E('ordersList');if(!list)return;var r=rows();var empty=MODE==='options'?'Geen 14 dagen opties gevonden.':(MODE==='quotes'?'Geen offertes gevonden.':'Geen lopende opdrachten gevonden.');list.innerHTML=r.length?r.map(build).join(''):'<p>'+empty+'</p>';ensureTabs();enhance(r);}finally{RENDERING=false;}
   }
-
   window.BNS_V356_RENDER_ORDERS=renderV356;
-  window.BNS_V356_CONFIRM=function(id){var o=findOrder(id);if(!o)return;o.status='Opdrachtbevestiging';saveIt();syncO(o);renderV356();try{if(typeof renderDashboard==='function')renderDashboard();}catch(e){}};
-  window.BNS_V356_CANCEL=function(id){var o=findOrder(id);if(!o)return;o.status='Geannuleerd';saveIt();syncO(o);renderV356();};
-  window.BNS_V356_RENEW=function(id){var o=findOrder(id);if(!o)return;o.status='Optie 14 dagen';o.optionCreatedAt=new Date().toISOString().slice(0,10);saveIt();syncO(o);renderV356();};
+  function install(){css();ensureTabs();hideArchiveBad();if(window.renderOrders!==renderV356){window.renderOrders=renderV356;try{renderOrders=renderV356;}catch(e){}}var search=E('ordersSearch');if(search&&!search.__bns356){search.__bns356=true;search.addEventListener('input',function(){renderV356();});}var orders=E('orders');if(orders&&orders.classList.contains('active'))renderV356();}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,100);setTimeout(install,1000);});else setTimeout(install,100);
+  var n=0,tm=setInterval(function(){install();if(++n>24)clearInterval(tm);},500);
+  try{var mo=new MutationObserver(function(){hideArchiveBad();var orders=E('orders');if(orders&&orders.classList.contains('active')){A('#orders button,#orders a').forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||'')&&!b.classList.contains('bns356-route'))b.remove();});}});mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+  console.info('[BNS v356] Opdrachten tabs schoon actief.');
+})();
 
-  function install(){
-    css();ensureTabs();hideArchiveBad();
-    if(window.renderOrders!==renderV356){
-      window.renderOrders=renderV356;
-      try{renderOrders=renderV356;}catch(e){}
-    }
-    var search=E('ordersSearch');
-    if(search&&!search.__bns356){
-      search.__bns356=true;
-      search.addEventListener('input',function(){renderV356();});
-    }
-    var orders=E('orders');
-    if(orders&&orders.classList.contains('active'))renderV356();
+
+// =============================================================================
+// BNS PATCH v357 — Active weg, Archief terug, dubbele overzichtknop weg
+// Datum: 2026-05-25
+// Doel:
+// - Oude mappenknop 'Actieve opdrachten' mag niet meer in Opdrachten verschijnen.
+// - Sidebar-rubriek heet weer 'Archief'.
+// - Dubbele 'Overzicht bestelling' opruimen: linker/dubbele knop weg, maximaal 1 per kaart.
+// - Brede Routenet onderbalk blijft weg; alleen kleine Routenet naast Waze mag blijven.
+// =============================================================================
+(function BNS_V357_ACTIVE_ARCHIEF_CLEANUP(){
+  'use strict';
+  if(window.__BNS_V357_ACTIVE_ARCHIEF_CLEANUP__) return;
+  window.__BNS_V357_ACTIVE_ARCHIEF_CLEANUP__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function txt(el){ return String(el && el.textContent || '').replace(/\s+/g,' ').trim(); }
+  function low(el){ return txt(el).toLowerCase(); }
+
+  function style(){
+    if(E('bns357Style')) return;
+    var s=document.createElement('style');
+    s.id='bns357Style';
+    s.textContent='\
+      #orders button.bns-v340-folder, #orders .bns-v340-folderwrap, #orders .bns-v340-title, #orders .bns-v340-toolbar, #orders .bns-v340-folders{display:none!important}\
+      #orders button[data-bns-v340-year], #orders button[data-bns-v340-emptyyear]{display:none!important}\
+      #orders button.bns350-tab[data-t="active"], #orders button.bns350-tab[data-t="all"], #orders button.bns350-tab[data-t="conf"]{display:none!important}\
+    ';
+    document.head.appendChild(s);
   }
 
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',function(){setTimeout(install,100);setTimeout(install,800);});
-  } else {
-    setTimeout(install,100);
+  function ensureArchiefButton(){
+    var b=E('bns350ABtn') || E('bns352ArchiveBtn');
+    if(b){
+      b.textContent='Archief';
+      b.style.display='';
+      return;
+    }
+    var side=document.querySelector('.side')||document.querySelector('.sidebar')||document.querySelector('nav');
+    if(!side) return;
+    var ref=null;
+    A('button,a', side).forEach(function(el){ if(!ref && /^opdrachten$/i.test(txt(el))) ref=el; });
+    if(!ref) return;
+    b=document.createElement('button');
+    b.id='bns350ABtn';
+    b.type='button';
+    b.textContent='Archief';
+    b.className=ref.className || 'nav';
+    b.onclick=function(ev){
+      if(ev){ev.preventDefault();ev.stopPropagation();}
+      try{ if(typeof buildArchPage==='function') buildArchPage(); }catch(e){}
+      try{ if(typeof goPage==='function' && typeof renderArch==='function'){ goPage('bns350ArchPage', renderArch, 'bns350ABtn'); return false; } }catch(e){}
+      var pg=E('bns350ArchPage')||E('bns352Archive');
+      if(pg){ A('.page').forEach(function(p){p.classList.remove('active');}); pg.classList.add('active'); }
+      return false;
+    };
+    ref.parentNode.insertBefore(b, ref.nextSibling);
   }
-  // Korte install loop - stopt na 8 seconden
-  var n=0,tm=setInterval(function(){install();if(++n>16)clearInterval(tm);},500);
 
-  console.info('[BNS v356] Opdrachten tabs schoon actief. Geen enhance loop, geen flikkeren.');
+  function hideActiveButtons(){
+    A('#orders button, #orders a').forEach(function(b){
+      var t=low(b);
+      if(t==='actieve opdrachten' || t==='actief'){
+        // Niet de gewenste nieuwe tabs raken: Lopende opdrachten / 14 dagen / Offertes blijven zichtbaar.
+        if(!b.classList.contains('bns356-tab')) b.style.display='none';
+      }
+    });
+    // Als oude renderer toch een mappenview heeft geplaatst, verwijder alleen die oude mappenkop/knoppen.
+    A('#orders .bns-v340-title,#orders .bns-v340-toolbar,#orders .bns-v340-folders,#orders .bns-v340-folderwrap').forEach(function(x){x.remove();});
+  }
+
+  function cleanupCards(){
+    var roots=A('#orders .order-card,#orders .bns-v126-order-card,#orders [data-bns-order-id]');
+    roots.forEach(function(card){
+      // Overzicht bestelling: houd alleen de rechter/laatste knop over.
+      var over=A('button,a', card).filter(function(b){return /overzicht\s*bestelling/i.test(txt(b));});
+      if(over.length>1){
+        over.slice(0, over.length-1).forEach(function(b){b.remove();});
+      }
+      // Routenet: verwijder brede/dubbele knoppen. Houd alleen bns356-route of bns-routenet-btn naast Waze over.
+      var routes=A('button,a', card).filter(function(b){return /^routenet$/i.test(txt(b));});
+      if(routes.length>1){
+        var keep=routes.find(function(b){return b.classList.contains('bns356-route') || b.classList.contains('bns-routenet-btn');}) || routes[routes.length-1];
+        routes.forEach(function(b){ if(b!==keep) b.remove(); });
+      }
+      routes=A('button,a', card).filter(function(b){return /^routenet$/i.test(txt(b));});
+      routes.forEach(function(b){
+        var r=b.getBoundingClientRect ? b.getBoundingClientRect() : {width:0,height:0};
+        if(r.width>180 || r.height>32){ b.remove(); }
+      });
+    });
+  }
+
+  function clean(){
+    style();
+    ensureArchiefButton();
+    hideActiveButtons();
+    cleanupCards();
+  }
+
+  // Capture-click: oude Active knop mag nooit de oude mappenrenderer starten.
+  document.addEventListener('click', function(ev){
+    var b=ev.target && ev.target.closest ? ev.target.closest('button,a') : null;
+    if(!b) return;
+    var t=low(b);
+    if((t==='actieve opdrachten' || t==='actief') && !b.classList.contains('bns356-tab')){
+      ev.preventDefault();
+      ev.stopPropagation();
+      if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      hideActiveButtons();
+      try{ if(window.BNS_V356_RENDER_ORDERS) window.BNS_V356_RENDER_ORDERS(); }
+      catch(e){}
+      return false;
+    }
+  }, true);
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){setTimeout(clean,100);setTimeout(clean,700);});
+  else { setTimeout(clean,50); setTimeout(clean,700); }
+  var n=0;
+  var tm=setInterval(function(){ clean(); if(++n>30) clearInterval(tm); }, 400);
+  try{
+    var mo=new MutationObserver(function(){ setTimeout(clean,30); });
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+  }catch(e){}
+  console.info('[BNS v357] Active weg, Archief terug, dubbele overzichtknop schoon.');
 })();
 
 // BNS PATCH v358 - Admin Opruimen duidelijker/leesbaar
@@ -32070,7 +38516,7 @@ setTimeout(()=>{
 
 // ============================================================
 
-// ============================================================
+
 // BNS PATCH v360 — Eigen meldingen systeem
 // Vervangt window.alert en window.confirm door eigen modals
 // ============================================================
@@ -32290,6 +38736,488 @@ setTimeout(()=>{
 })();
 
 // ============================================================
+
+
+/* =========================================================
+   BNS STABIELE PLANNING BASIS v380
+   Doel: planning en materiaal weer betrouwbaar maken.
+   - Materiaalrubrieken TW/KW/TO/EXTRA werken gelijk: rubriek is alleen label.
+   - Blokkeren gebeurt op uniek materiaal-id, niet op rubrieknaam EXTRA.
+   - Einddatum: t/m einddatum bezet, dag erna vrij.
+   - Offerte blokkeert niet, maar mag geen bezet materiaal kiezen.
+   - Geannuleerd/verwijderd/uitgevoerd verlopen blokkeren niet.
+   - Deze laag neemt materiaalrender en opslaan over van oude patch-lagen.
+   ========================================================= */
+(function BNS_STABIELE_PLANNING_BASIS_V380(){
+  'use strict';
+  if (window.__BNS_STABIELE_PLANNING_BASIS_V380__) return;
+  window.__BNS_STABIELE_PLANNING_BASIS_V380__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function txt(v){ return String(v == null ? '' : v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function esc(v){ return txt(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function clone(o){ try{return structuredClone(o);}catch(e){return JSON.parse(JSON.stringify(o));} }
+  function todayMs(){ var d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+  function parseDate(v){
+    var s=txt(v);
+    if(!s) return null;
+    var m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(!m) m=s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+    var y,mo,da;
+    if(m && m[1].length===4){ y=+m[1]; mo=+m[2]; da=+m[3]; }
+    else if(m){ da=+m[1]; mo=+m[2]; y=+m[3]; }
+    else return null;
+    var d=new Date(y,mo-1,da); d.setHours(0,0,0,0);
+    return isNaN(d.getTime())?null:d;
+  }
+  function periodFrom(a,b){
+    var s=parseDate(a), e=parseDate(b||a);
+    if(!s && e) s=e;
+    if(!s) return null;
+    if(!e) e=s;
+    if(e.getTime()<s.getTime()) e=s;
+    return {start:s,end:e};
+  }
+  function wantedPeriod(){
+    var ds=E('dateStart'), de=E('dateEnd');
+    return periodFrom(ds&&ds.value, (de&&de.value) || (ds&&ds.value));
+  }
+  function orderPeriod(o){
+    return periodFrom(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum));
+  }
+  function overlaps(a,b){
+    return !!(a && b && a.start.getTime() <= b.end.getTime() && b.start.getTime() <= a.end.getTime());
+  }
+  function endIsPast(o){
+    var p=orderPeriod(o);
+    if(!p) return false;
+    // Correcte bedrijfsregel: op einddatum nog bezet, dag erna vrij.
+    return p.end.getTime() < todayMs();
+  }
+  function optionExpired(o){
+    var s=low(o&&o.status);
+    if(!/optie\s*14|optie14/.test(s)) return false;
+    var start=parseDate(o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||o.dateStart||o.date);
+    if(!start) return false;
+    var expire=start.getTime()+14*24*60*60*1000;
+    return todayMs() >= expire;
+  }
+  function orderBlocks(o){
+    var s=low(o&&o.status);
+    if(!s) return false;
+    if(/geannuleerd|cancel|verwijderd|deleted|trash/.test(s)) return false;
+    if(/offerte/.test(s)) return false;
+    if(/optie\s*14|optie14/.test(s)) return !optionExpired(o);
+    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return !endIsPast(o);
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(s)) return !endIsPast(o);
+    return false;
+  }
+  function materialKey(m){
+    if(!m) return '';
+    if(m.id) return 'id:'+txt(m.id);
+    // Gebruik alleen echte materiaalcodes met letters + cijfers, nooit rubrieknamen zoals EXTRA/TW/KW/TO.
+    var vals=[m.code,m.productNr,m.nr,m.number,m.type,m.product,m.searchName,m.zoeknaam,m.name,m.description,m.beschrijving].map(txt).filter(Boolean);
+    for(var i=0;i<vals.length;i++){
+      var c=vals[i].toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(/^(EXTRA|TW|KW|TO|KA|SL|NVT|GEEN|LOS|OVERIG|DIVERS|[-.]*)$/.test(c)) continue;
+      var mm=c.match(/^([A-Z]{1,12})0*(\d{1,6})$/);
+      if(mm) return 'code:'+mm[1]+String(parseInt(mm[2],10));
+    }
+    return '';
+  }
+  function sameMaterial(a,b){
+    var ka=materialKey(a), kb=materialKey(b);
+    return !!(ka && kb && ka===kb);
+  }
+  function stateObj(){ try{return state;}catch(e){return window.state||{};} }
+  function mats(){ var s=stateObj(); return Array.isArray(s.materials)?s.materials:[]; }
+  function orders(){ var s=stateObj(); return Array.isArray(s.orders)?s.orders:[]; }
+  function chosenList(){ try{return Array.isArray(chosen)?chosen:[];}catch(e){return Array.isArray(window.chosen)?window.chosen:[];} }
+  function setChosen(list){ try{ chosen=list; }catch(e){} window.chosen=list; }
+  function editingId(){ try{ if(editing) return txt(editing); }catch(e){} return txt(window.editing||''); }
+  function editingNumber(){ var n=E('orderNumber'); return txt(n&&n.value); }
+  function materialById(id){ return mats().find(function(m){return txt(m.id)===txt(id);}); }
+  function reservationFor(m){
+    var wp=wantedPeriod();
+    if(!wp || !m) return null;
+    var eid=editingId(), nr=editingNumber();
+    for(var i=0;i<orders().length;i++){
+      var o=orders()[i];
+      if(!o || !orderBlocks(o)) continue;
+      if(eid && txt(o.id)===eid) continue;
+      if(nr && txt(o.number)===nr) continue;
+      var op=orderPeriod(o);
+      if(!overlaps(wp,op)) continue;
+      var ml=Array.isArray(o.materials)?o.materials:[];
+      if(ml.some(function(x){return sameMaterial(x,m);})){ return {order:o,period:op}; }
+    }
+    return null;
+  }
+  function statusFor(m){
+    if(!m) return {key:'missing',label:'Niet gevonden',blocked:true};
+    if(chosenList().some(function(x){return sameMaterial(x,m);})){ return {key:'chosen',label:'Toegevoegd',blocked:false}; }
+    var raw=low(m.status);
+    if(/inactive|niet actief|niet beschikbaar/.test(raw)) return {key:'inactive',label:'Niet inzetbaar',blocked:true};
+    if(/defect|damage|schade|missing|vermist/.test(raw)) return {key:'defect',label:'Defect',blocked:true};
+    if(!wantedPeriod()) return {key:'nodate',label:'Vul eerst start/einddatum in',blocked:true};
+    var r=reservationFor(m);
+    if(r) return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:r};
+    return {key:'free',label:'Vrij',blocked:false};
+  }
+  function currentCatSafe(cat){
+    var c=txt(cat||window.currentCat||'TW').toUpperCase();
+    var list=[].slice.call(new Set(mats().map(function(m){return txt(m.cat||'EXTRA').toUpperCase();}).filter(Boolean))).sort();
+    if(list.indexOf(c)<0) c=list[0]||'TW';
+    try{ currentCat=c; }catch(e){} window.currentCat=c;
+    return c;
+  }
+  var _lastCatsHtml='', _lastActiveCat='';
+  function renderCatsStable(){
+    var box=E('materialCats'); if(!box) return;
+    var list=[].slice.call(new Set(mats().map(function(m){return txt(m.cat||'EXTRA').toUpperCase();}).filter(Boolean))).sort();
+    var c=currentCatSafe();
+    var html=list.map(function(k){return '<button type="button" class="'+(k===c?'active':'')+'" data-bns-cat="'+esc(k)+'">'+esc(k)+'</button>';}).join('');
+    // Alleen DOM updaten als iets veranderd is — voorkomt visueel flikkeren
+    if(html===_lastCatsHtml && c===_lastActiveCat) return;
+    _lastCatsHtml=html; _lastActiveCat=c;
+    box.innerHTML=html;
+    Array.from(box.querySelectorAll('[data-bns-cat]')).forEach(function(btn){
+      btn.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); currentCatSafe(btn.getAttribute('data-bns-cat')); renderCatsStable(); renderMaterialsStable(window.currentCat); };
+    });
+  }
+  var _lastMatsHtml='', _lastMatsCat='';
+  function renderMaterialsStable(cat){
+    var box=E('materialList'); if(!box) return;
+    var c=currentCatSafe(cat);
+    var q=low(E('materialSearch')&&E('materialSearch').value);
+    var rows=mats().filter(function(m){return txt(m.cat||'EXTRA').toUpperCase()===c;}).filter(function(m){return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0;});
+    var newHtml=rows.map(function(m){
+      var st=statusFor(m);
+      var cls=st.key;
+      var sub=''; // lijst toont alleen status; details pas bij klikken
+      return '<div class="material-row '+(st.key==='chosen'?'selected ':'')+'bns-stable-material" data-mid="'+esc(m.id)+'">'
+        + '<div class="catbar cat-'+esc(m.cat||'EXTRA')+'"></div>'
+        + '<div><b>'+esc(m.code||'')+'</b> '+esc(m.name||'')+'<br><small>'+esc(m.price||'')+'</small></div>'
+        + '<div><span class="badge '+esc(cls)+'">'+esc(st.label)+'</span></div>'
+        + '</div>';
+    }).join('') || '<p>Geen materiaal</p>';
+    // Alleen updaten als inhoud veranderd is — geen flikkeren, rubriekkeuze blijft
+    if(newHtml !== _lastMatsHtml || c !== _lastMatsCat){
+      _lastMatsHtml = newHtml; _lastMatsCat = c;
+      box.innerHTML = newHtml;
+      Array.from(box.querySelectorAll('[data-mid]')).forEach(function(row){
+        row.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); toggleMaterial(row.getAttribute('data-mid')); };
+      });
+    }
+  }
+  renderMaterialsStable.__bnsMatDebounced=true;
+  renderMaterialsStable.__bnsStableV380=true;
+  toggleMaterial.__bnsMatDebounced=true;
+  toggleMaterial.__bnsStableV380=true;
+
+  function renderChosenStable(){
+    try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){
+      var box=E('chosenMaterials'); if(box) box.innerHTML=chosenList().map(function(m){return '<span class="chip">'+esc(m.code||'')+' '+esc(m.name||'')+'<button type="button" data-remove="'+esc(m.id)+'">x</button></span>';}).join('');
+    }
+    var b=E('chosenMaterials');
+    if(b){ Array.from(b.querySelectorAll('[data-remove]')).forEach(function(btn){btn.onclick=function(e){e.preventDefault();removeMaterial(btn.getAttribute('data-remove'));};}); }
+  }
+  function refreshMaterial(){
+    renderChosenStable();
+    try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+    try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
+    renderCatsStable(); renderMaterialsStable(window.currentCat||'TW');
+  }
+  function toggleMaterial(mid){
+    var m=materialById(mid); if(!m) return false;
+    var exists=chosenList().some(function(x){return sameMaterial(x,m);});
+    if(exists){ setChosen(chosenList().filter(function(x){return !sameMaterial(x,m);})); refreshMaterial(); return false; }
+    var st=statusFor(m);
+    if(st.blocked){
+      if(st.key==='nodate') alert('Vul eerst startdatum en einddatum in. De datum is de basis voor materiaal.');
+      else if(st.reservation && st.reservation.order) alert('Dit materiaal is al geboekt door opdracht '+txt(st.reservation.order.number||'')+'.');
+      else alert(st.label||'Materiaal niet beschikbaar.');
+      return false;
+    }
+    var item=clone(m); item.status='reserved'; if(item.qty==null)item.qty=1;
+    var list=chosenList(); list.push(item); setChosen(list); refreshMaterial(); return false;
+  }
+  function removeMaterial(mid){
+    var m=materialById(mid) || {id:mid};
+    setChosen(chosenList().filter(function(x){return !sameMaterial(x,m) && txt(x.id)!==txt(mid);}));
+    refreshMaterial();
+  }
+  function validateAllChosen(){
+    for(var i=0;i<chosenList().length;i++){
+      var item=chosenList()[i];
+      var base=mats().find(function(m){return sameMaterial(m,item);}) || item;
+      var raw=txt(base.status||'').toLowerCase();
+      // Altijd blokkeren: defect/inactive
+      if(/inactive|niet actief|niet beschikbaar/.test(raw)){
+        try{window.bnsAlert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is niet inzetbaar.','Materiaal niet beschikbaar');}
+        catch(e){alert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is niet inzetbaar.');}
+        return false;
+      }
+      if(/defect|damage|schade|missing|vermist/.test(raw)){
+        try{window.bnsAlert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is defect.','Materiaal defect');}
+        catch(e){alert('Opslaan geblokkeerd: '+txt(base.code||base.name)+' is defect.');}
+        return false;
+      }
+      // Altijd checken op dubbele reservering — ook als item al in chosenList staat
+      var r=reservationFor(base);
+      if(r){
+        var msg='Opslaan geblokkeerd: '+txt(base.code||base.name)+
+          ' is al gereserveerd door opdracht '+txt(r.order.number||'')+
+          ' ('+txt(r.order.status||'')+').';
+        try{window.bnsAlert(msg,'Dubbele reservering');}catch(e){alert(msg);}
+        return false;
+      }
+    }
+    return true;
+  }
+  function upsertCust(c){ try{ if(typeof upsertCustomer==='function') return upsertCustomer(c); }catch(e){} }
+  function upsertLoc(l){ try{ if(typeof upsertLocation==='function') return upsertLocation(l); }catch(e){} }
+  function makeId(){ try{ return id(); }catch(e){return Math.random().toString(36).slice(2,10);} }
+  // Pas materiaalstatus aan op basis van opdrachtstatus voor opslaan
+  // Offerte: materialen krijgen status 'free' (niet 'reserved')
+  // Optie/Bevestigd/Opdracht: materialen krijgen status 'reserved'
+  // Geannuleerd/Verwijderd: materialen krijgen status 'free'
+  function prepareMaterials(list, orderStatus){
+    var s=low(orderStatus||'');
+    var isOfferte=/offerte/.test(s);
+    var isCancelled=/geannuleerd|cancel|verwijderd|deleted|trash/.test(s);
+    var matStatus=(isOfferte||isCancelled)?'free':'reserved';
+    return list.map(function(m){
+      var item=clone(m);
+      item.status=matStatus;
+      return item;
+    });
+  }
+
+  function saveStable(){
+    if(!validateAllChosen()) return false;
+    var s=stateObj(); s.orders=s.orders||[];
+    var curId=editingId(), curNum=editingNumber();
+    var idx=-1;
+    if(curId) idx=s.orders.findIndex(function(o){return txt(o.id)===curId;});
+    if(idx<0 && curNum) idx=s.orders.findIndex(function(o){return txt(o.number)===curNum;});
+    var old=idx>=0?s.orders[idx]:null;
+    var totals={}; try{ totals=(typeof calcLineTotals==='function')?calcLineTotals():((typeof calcTotals==='function')?calcTotals():{}); }catch(e){}
+    var driver=txt(E('orderDriver')&&E('orderDriver').value);
+    var o={
+      id: old?old.id:(curId||makeId()),
+      number: curNum,
+      status: txt(E('orderStatus')&&E('orderStatus').value)||'Offerte',
+      title: txt(E('orderTitle')&&E('orderTitle').value)||'Zonder titel',
+      start: txt(E('dateStart')&&E('dateStart').value),
+      end: txt(E('dateEnd')&&E('dateEnd').value)||txt(E('dateStart')&&E('dateStart').value),
+      brand: txt(E('orderBrand')&&E('orderBrand').value),
+      customer:{name:txt(E('customerName')&&E('customerName').value),street:txt(E('customerStreet')&&E('customerStreet').value),zip:txt(E('customerZip')&&E('customerZip').value),city:txt(E('customerCity')&&E('customerCity').value),phone:txt(E('customerPhone')&&E('customerPhone').value),email:txt(E('customerEmail')&&E('customerEmail').value)},
+      location:{name:txt(E('locationName')&&E('locationName').value),street:txt(E('locationStreet')&&E('locationStreet').value),zip:txt(E('locationZip')&&E('locationZip').value),city:txt(E('locationCity')&&E('locationCity').value),contact:txt(E('locationContact')&&E('locationContact').value),phone:txt(E('locationPhone')&&E('locationPhone').value),show:E('showLocationOnDocs')?E('showLocationOnDocs').checked:true},
+      materials: prepareMaterials(clone(chosenList()),txt(E('orderStatus')&&E('orderStatus').value)),
+      driver:driver,driverName:driver,bezorger:driver,
+      vehicle:txt(E('orderVehicle')&&E('orderVehicle').value),
+      extra:txt(E('orderExtra')&&E('orderExtra').value),
+      pricing:totals,
+      confirmationText: txt(E('confirmationText')&&E('confirmationText').value),
+      updatedAt:new Date().toISOString()
+    };
+    if(/optie\s*14|optie14/i.test(o.status) && !o.optionCreatedAt) o.optionCreatedAt=new Date().toISOString().slice(0,10);
+    upsertCust(o.customer); upsertLoc(o.location);
+    if(idx>=0) s.orders[idx]=Object.assign({},old,o); else s.orders.push(o);
+    try{ if(typeof save==='function') save(); else localStorage.setItem('event-planner-pro-v87',JSON.stringify(s)); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+    try{ if(typeof toastMsg==='function') toastMsg('Opdracht opgeslagen'); }catch(e){ alert('Opdracht opgeslagen'); }
+    try{ editing=null; }catch(e){} window.editing='';
+    try{ if(typeof clearOrder==='function') clearOrder(); }catch(e){}
+    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
+    return false;
+  }
+  function installSaveButton(){
+    var btn=E('saveOrder'); if(!btn || btn.__bnsStableSave) return;
+    btn.__bnsStableSave=true;
+    btn.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopImmediatePropagation(); return saveStable(); },true);
+  }
+  function install(){
+    window.renderMaterials=renderMaterialsStable;
+    window.addMat=toggleMaterial;
+    window.removeMat=removeMaterial;
+    window.BNS_STABLE_CORE={renderMaterials:renderMaterialsStable,renderCats:renderCatsStable,toggleMat:toggleMaterial,save:saveStable,orderBlocks:orderBlocks,reservationFor:reservationFor};
+    try{ renderMaterials=renderMaterialsStable; addMat=toggleMaterial; removeMat=removeMaterial; }catch(e){}
+    try{ if(window.BNS_V45_PLANNING_DEBUG) window.BNS_V45_PLANNING_DEBUG.renderMaterials=renderMaterialsStable; }catch(e){}
+    installSaveButton();
+  }
+  document.addEventListener('DOMContentLoaded',function(){ setTimeout(function(){install(); renderCatsStable(); renderMaterialsStable(window.currentCat||'TW');},250); });
+  setTimeout(function(){install();},100);
+  setTimeout(function(){install();},1000);
+  setInterval(function(){ install(); },1500);
+  document.addEventListener('input',function(ev){ if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){ setTimeout(function(){ renderMaterialsStable(window.currentCat||'TW'); },60); } },true);
+  console.info('[BNS v380] Stabiele planningbasis actief: materiaal op ID, einddatumregel correct.');
+})();
+
+
+/* =========================================================
+   BNS v381 — Nieuwe functies veilig teruggezet op v380
+   - Herstelt v360 eigen meldingen + v361 Documenten/Huisstijl.
+   - Laat materiaalrender volledig bij v380 stable core.
+   - Verbetert jaarherkenning voor archief/opruimen met dd-mm-yyyy.
+   ========================================================= */
+(function BNS_V381_SAFE_NEW_FEATURES(){
+  'use strict';
+  if(window.__BNS_V381_SAFE_NEW_FEATURES__) return;
+  window.__BNS_V381_SAFE_NEW_FEATURES__ = true;
+
+  function E(id){return document.getElementById(id);}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v).trim();}
+
+  // Belangrijk: stabilizer en v381 mogen materiaal nooit overnemen.
+  // Als een oudere patch renderMaterials toch vervangt, zet v380 hem rustig terug.
+  function protectStableMaterial(){
+    try{
+      if(window.BNS_STABLE_CORE && typeof window.BNS_STABLE_CORE.renderMaterials === 'function'){
+        if(window.renderMaterials !== window.BNS_STABLE_CORE.renderMaterials){
+          window.renderMaterials = window.BNS_STABLE_CORE.renderMaterials;
+          try{ renderMaterials = window.BNS_STABLE_CORE.renderMaterials; }catch(e){}
+        }
+        // Ook renderCats bewaken
+        if(window.BNS_STABLE_CORE.renderCats && window.renderCats !== window.BNS_STABLE_CORE.renderCats){
+          window.renderCats = window.BNS_STABLE_CORE.renderCats;
+          try{ renderCats = window.BNS_STABLE_CORE.renderCats; }catch(e){}
+        }
+        // renderMaterialsFinal en andere versies omleiden naar v380
+        // Dit voorkomt dat oude click handlers de verkeerde weergave tonen
+        var _stable = window.BNS_STABLE_CORE.renderMaterials;
+        ['renderMaterialsFinal','renderMaterialsV45','renderMaterialsPro',
+         'renderMaterials95','renderMaterials83','renderMaterials72',
+         'renderMaterialsV50','renderMaterials112'].forEach(function(name){
+          if(typeof window[name]==='function' && !window[name].__bnsRedirected){
+            window[name]=function(cat){ return _stable(cat); };
+            window[name].__bnsRedirected=true;
+          }
+        });
+      }
+    }catch(e){}
+  }
+
+  // Archief/opruimen: oude kaartdatum in NL-vorm tonen waar v350 kaarten worden gebruikt.
+  function fixVisibleDates(){
+    try{
+      A('.bns350-card').forEach(function(card){
+        if(card.__bns381Dates) return;
+        card.innerHTML = card.innerHTML.replace(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/g,function(_,y,m,d){return String(+d)+'-'+String(+m)+'-'+y;});
+        card.__bns381Dates = true;
+      });
+    }catch(e){}
+  }
+
+  // Opdrachten: hou de gewenste tabs zichtbaar en oude dubbele knoppen weg.
+  function cleanupOrderNav(){
+    try{
+      var orders=E('orders'); if(!orders) return;
+      A('button,a',orders).forEach(function(b){
+        var tx=T(b.textContent).toLowerCase().replace(/\s+/g,' ');
+        if(tx==='actief' || tx==='actieve opdrachten' || tx==='uitgevoerde opdrachten' || tx==='geannuleerde opdrachten'){
+          if(!b.classList.contains('bns356-tab')) b.style.display='none';
+        }
+        if(/^routenet$/i.test(T(b.textContent)) && !b.classList.contains('bns356-route')) b.remove();
+      });
+    }catch(e){}
+  }
+
+  function run(){
+    protectStableMaterial();
+    fixVisibleDates();
+    cleanupOrderNav();
+    cleanupAdminTabs();
+    interceptCatClicks();
+    interceptMatClicks();
+    fixMaterialScroll();
+  }
+  function cleanupAdminTabs(){
+    // Verwijder verouderde dubbele Huisstijl tabs
+    document.querySelectorAll('.adminTab').forEach(function(btn){
+      var txt=(btn.textContent||'').trim();
+      if(txt==='Documenten / Huisstijl'||txt==='Factuur / offerte'){
+        btn.remove();
+      }
+    });
+    var old=document.getElementById('twV309DocStylePane');
+    if(old) old.remove();
+    var old2=document.getElementById('adminInvoice');
+    if(old2) old2.remove();
+  }
+
+  function interceptCatClicks(){
+    var cats=document.getElementById('materialCats');
+    if(!cats||cats.__bns381Intercept) return;
+    cats.__bns381Intercept=true;
+    cats.addEventListener('click',function(e){
+      var btn=e.target.closest('button');
+      if(!btn) return;
+      var cat=btn.getAttribute('data-bns-cat')||btn.getAttribute('data-cat')||
+               (btn.textContent||'').trim().toUpperCase();
+      if(!cat) return;
+      try{ window.currentCat=cat; currentCat=cat; }catch(ex){}
+      if(window.BNS_STABLE_CORE&&typeof window.BNS_STABLE_CORE.renderMaterials==='function'){
+        window.BNS_STABLE_CORE.renderMaterials(cat);
+      }
+      Array.from(cats.querySelectorAll('button')).forEach(function(b){
+        b.classList.toggle('active', b===btn);
+      });
+      e.stopImmediatePropagation();
+    }, true);
+  }
+
+  function interceptMatClicks(){
+    // Document-level capture voor materialList klikken
+    // Altijd via v380's toggleMaterial - nooit via oude handlers
+    if(document.__bns381MatIntercept) return;
+    document.__bns381MatIntercept=true;
+    document.addEventListener('click', function(e){
+      var list=document.getElementById('materialList');
+      if(!list) return;
+      // Is de klik binnen materialList?
+      var row=e.target.closest('[data-mid]');
+      if(!row||!list.contains(row)) return;
+      var mid=row.getAttribute('data-mid');
+      if(!mid) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      // Altijd via v380's toggleMaterial
+      if(window.BNS_STABLE_CORE&&typeof window.BNS_STABLE_CORE.toggleMat==='function'){
+        window.BNS_STABLE_CORE.toggleMat(mid);
+      }
+    }, true); // capture = true, als allereerste
+  }
+
+  function fixMaterialScroll(){
+    // Zorg dat materialList altijd scrollbaar is
+    var list=document.getElementById('materialList');
+    if(!list||list.__bns381Scroll) return;
+    list.__bns381Scroll=true;
+    list.style.overflowY='auto';
+    list.style.maxHeight='55vh';
+    list.style.display='block';
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(run,200);setTimeout(run,600);setTimeout(run,1400);});
+  else {setTimeout(run,100);setTimeout(run,400);setTimeout(run,1200);}
+  document.addEventListener('click',function(){setTimeout(run,50);},true);
+  setInterval(run,1500);
+
+  console.info('[BNS v381] Nieuwe functies veilig teruggezet. Materiaal blijft v380 stable core.');
+})();
+
+
+/* =========================================================
+   BNS v382 — Archief v362/v363/v364 teruggezet op v381
+   - Alleen archief/zijbalk/zoek/jaarmappen.
+   - Materiaalrender, addMat en blokkering blijven volledig v380.
+   ========================================================= */
+
 // BNS PATCH v362 — Archief in zijbalk + kaarten met knoppen
 // ============================================================
 (function BNS_V362() {
@@ -32478,6 +39406,7 @@ setTimeout(()=>{
 })();
 
 // ============================================================
+
 // BNS PATCH v363 — Archief indeling op status + einddatum
 // - Lopende: einddatum vandaag/toekomst, behalve optie/geannuleerd/verwijderd
 // - Optie 14 dagen: altijd eigen map
@@ -32793,6 +39722,7 @@ setTimeout(()=>{
 })();
 
 // ============================================================
+
 // BNS PATCH v364 — Archief knop opschonen + zoekbalk typbaar
 // - Verwijdert/verbergt dubbele oude Archief knop in zijbalk
 // - Vervangt Archief pagina door rustige renderer waarbij zoeken niet
@@ -32942,586 +39872,833 @@ setTimeout(()=>{
   console.info('[BNS v365] Archief datumweergave dd-m-yyyy actief.');
 })();
 
-/* =========================================================
-   BNS v391 - Herstel werkende app na materiaalpatch
-   Doel: terug naar rustige app(27)/v365-basis, zonder v389/v390 overname.
-   - Laat bestaande materiaal layout/render intact, maar stabiliseert flikker.
-   - Materiaal toevoegen via 1 centrale veilige addMat.
-   - Oude generieke codes TW/TO/KW/EXTRA blokkeren niet alles.
-   - Bestaande oude reserveringen tellen mee via id of echte code (TW17/TO4/KW2/EXTRA37).
-   - Admin knop terug.
-   - Admin > Materialen beheren: Wijzig/Opslaan/Wis gebruikt actief materiaal-id.
-   - Systeembeheer 8760 bewust nog niet ingebouwd; onthouden voor later.
-   ========================================================= */
-(function(){
+
+
+// ============================================================
+// BNS PATCH v374 — Staat opschoning bij laden
+// Verwijdert verouderde status='reserved' van materialen.
+// Materiaalstatus wordt berekend uit opdrachten, niet opgeslagen.
+// Behoudt: inactive, defect, damage, missing.
+// ============================================================
+(function BNS_V374_CLEANUP(){
   'use strict';
-  if(window.__BNS_V391_RECOVERY__) return;
-  window.__BNS_V391_RECOVERY__ = true;
+  if(window.__BNS_V374__) return;
+  window.__BNS_V374__ = true;
 
-  function E(id){ return document.getElementById(id); }
-  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function T(v){ return String(v==null?'':v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function U(v){ return T(v).toUpperCase().replace(/\s+/g,''); }
-  function esc(s){ return T(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} if(window.state) return window.state; window.state={}; return window.state; }
-  function mats(){ var s=S(); if(!Array.isArray(s.materials)) s.materials=[]; return s.materials; }
-  function orders(){ var s=S(); if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
-  function chosenList(){ try{ if(typeof chosen!=='undefined' && Array.isArray(chosen)) return chosen; }catch(e){} if(Array.isArray(window.chosen)) return window.chosen; return []; }
-  function setChosenList(list){ try{ chosen=list; }catch(e){} window.chosen=list; }
-  function catOf(m){ return U(m && (m.cat||m.rubriek||m.category||'')); }
-  function codeOf(m){ return T(m && (m.code||m.productNr||m.nr||m.number||'')); }
-  function nameOf(m){ return T(m && (m.name||m.product||m.searchName||m.zoeknaam||m.type||m.description||m.omschrijving||m.beschrijving||'')); }
-  function byId(id){ id=T(id); if(!id) return null; return mats().find(function(m){ return T(m.id)===id; }) || null; }
-
-  function parseDate(v){
-    if(!v) return null;
-    if(v instanceof Date && !isNaN(v.getTime())) return new Date(v.getFullYear(),v.getMonth(),v.getDate());
-    var s=T(v); if(!s) return null;
-    var m=s.match(/(20\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
-    if(m){ var d1=new Date(+m[1],+m[2]-1,+m[3]); if(!isNaN(d1.getTime())) return d1; }
-    m=s.match(/(\d{1,2})[-\/.](\d{1,2})[-\.\/](20\d{2}|\d{2})/);
-    if(m){ var y=+m[3]; if(y<100) y+=2000; var d2=new Date(y,+m[2]-1,+m[1]); if(!isNaN(d2.getTime())) return d2; }
-    var d3=new Date(s); if(!isNaN(d3.getTime())) return new Date(d3.getFullYear(),d3.getMonth(),d3.getDate());
-    return null;
-  }
-  function today(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
-  function period(a,b){ var s=parseDate(a), e=parseDate(b||a); if(!s && e) s=e; if(!e && s) e=s; if(!s || !e) return null; if(e<s){ var t=s; s=e; e=t; } return {start:s,end:e}; }
-  function overlap(p,q){ return !!(p&&q&&p.start<=q.end&&q.start<=p.end); }
-  function wantedPeriod(){ return period((E('dateStart')||E('orderStart')||E('startDate')||{}).value, (E('dateEnd')||E('orderEnd')||E('endDate')||{}).value); }
-  function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.finish||o.start||o.date)); }
-  function endPast(o){ var p=orderPeriod(o); if(!p) return false; return p.end.getTime() < today().getTime(); }
-
-  function realKeyFromParts(cat, code, name){
-    cat=U(cat).replace(/[^A-Z]/g,''); code=U(code).replace(/[^A-Z0-9]/g,''); name=U(name).replace(/[^A-Z0-9]/g,'');
-    var vals=[code,name].filter(Boolean);
-    for(var i=0;i<vals.length;i++){
-      var v=vals[i];
-      var m=v.match(/^([A-Z]{1,12})0*(\d{1,6})$/);
-      if(m) return m[1]+String(parseInt(m[2],10));
-      if(cat){ var re=new RegExp('^'+cat+'0*(\\d{1,6})$'); var m2=v.match(re); if(m2) return cat+String(parseInt(m2[1],10)); }
-    }
-    return '';
-  }
-  function materialKey(m){ return realKeyFromParts(catOf(m), codeOf(m), nameOf(m)); }
-  function sameMaterial(a,b){
-    if(!a || !b) return false;
-    if(T(a.id) && T(b.id) && T(a.id)===T(b.id)) return true;
-    if(T(a.oldId) && T(b.oldId) && T(a.oldId)===T(b.oldId)) return true;
-    var ka=materialKey(a), kb=materialKey(b);
-    return !!(ka && kb && ka===kb);
-  }
-  function isOptionExpired(o){
-    if(!/optie|14\s*dagen/.test(L(o&&o.status))) return false;
-    var d=parseDate(o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||o.date);
-    if(!d) return false;
-    var diff=Math.floor((today().getTime()-d.getTime())/86400000);
-    return diff>=14;
-  }
-  function orderBlocks(o){
-    var st=L(o&&o.status);
-    if(!st) return false;
-    if(/offerte|geannuleerd|cancel|verwijderd|deleted|trash|gewist/.test(st)) return false;
-    if(/optie|14\s*dagen/.test(st)) return !isOptionExpired(o);
-    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(st)) return !endPast(o);
-    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(st)) return !endPast(o);
-    return false;
-  }
-  function editingId(){
-    try{ if(typeof editing!=='undefined' && editing) return T(typeof editing==='object'?editing.id:editing); }catch(e){}
-    if(window.editing) return T(typeof window.editing==='object'?window.editing.id:window.editing);
-    var nr=T((E('orderNumber')||{}).value);
-    var found=orders().find(function(o){ return nr && T(o.number)===nr; });
-    return found?T(found.id):'';
-  }
-  function reservationFor(m){
-    var wp=wantedPeriod();
-    if(!m || !wp) return null;
-    var edit=editingId();
-    var nr=T((E('orderNumber')||{}).value);
-    for(var i=0;i<orders().length;i++){
-      var o=orders()[i];
-      if(!o || !orderBlocks(o)) continue;
-      if(edit && T(o.id)===edit) continue;
-      if(nr && T(o.number)===nr) continue;
-      var op=orderPeriod(o); if(!overlap(wp,op)) continue;
-      var ml=Array.isArray(o.materials)?o.materials:[];
-      if(ml.some(function(x){ return sameMaterial(x,m); })) return {order:o,period:op};
-    }
-    return null;
-  }
-  function statusFor(m){
-    if(!m) return {key:'missing',label:'Niet gevonden',blocked:true};
-    if(chosenList().some(function(x){ return sameMaterial(x,m); })) return {key:'chosen',label:'Toegevoegd',blocked:false};
-    var raw=L(m.status);
-    if(/inactive|niet actief|niet beschikbaar/.test(raw)) return {key:'inactive',label:'Niet inzetbaar',blocked:true};
-    if(/defect|schade|damage|vermist|missing/.test(raw)) return {key:'defect',label:'Defect',blocked:true};
-    var r=reservationFor(m);
-    if(r) return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:r};
-    return {key:'free',label:'Vrij',blocked:false};
-  }
-
-  function notify(msg){ try{ if(typeof toastMsg==='function') return toastMsg(msg); }catch(e){} try{ if(window.toastMsg) return window.toastMsg(msg); }catch(e){} alert(msg); }
-  function saveLocal(){ try{ if(typeof save==='function') save(); }catch(e){} try{ if(window.save) window.save(); }catch(e){} try{ localStorage.setItem('eventPlannerState',JSON.stringify(S())); }catch(e){} }
-  function rerenderMaterial(){
-    try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
-    try{ if(window.renderChosen) window.renderChosen(); }catch(e){}
-    try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
-    try{ if(window.renderMaterials) window.renderMaterials(window.currentCat||'TW'); }catch(e){}
-  }
-  function safeAddMat(id){
-    var m=byId(id); if(!m) return false;
-    var st=statusFor(m);
-    if(st.key==='chosen'){
-      setChosenList(chosenList().filter(function(x){ return !sameMaterial(x,m); }));
-      rerenderMaterial(); return false;
-    }
-    if(st.blocked){
-      var o=st.reservation&&st.reservation.order;
-      notify(o ? ('Materiaal is gereserveerd door opdracht '+T(o.number||o.id)+' ('+T(o.status)+').') : (st.label||'Materiaal niet beschikbaar'));
-      return false;
-    }
-    var copy=JSON.parse(JSON.stringify(m)); copy.status='reserved';
-    var list=chosenList().slice(); list.push(copy); setChosenList(list); rerenderMaterial(); return false;
-  }
-  function validateBeforeSave(){
-    var list=chosenList();
-    for(var i=0;i<list.length;i++){
-      var base=mats().find(function(m){ return sameMaterial(m,list[i]); }) || list[i];
-      var st=statusFor(base);
-      if(st.blocked && st.key!=='chosen'){
-        var o=st.reservation&&st.reservation.order;
-        alert('Opslaan geblokkeerd: '+T(codeOf(base)||materialKey(base)||nameOf(base))+(o?' is al geblokkeerd door '+T(o.status)+' opdracht '+T(o.number||o.id)+'.':' is niet beschikbaar.'));
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function installAddMat(){
-    window.addMat=safeAddMat;
-    try{ addMat=safeAddMat; }catch(e){}
-    window.BNS_V391={sameMaterial:sameMaterial,materialKey:materialKey,statusFor:statusFor,reservationFor:reservationFor,addMat:safeAddMat,validateBeforeSave:validateBeforeSave};
-  }
-
-  function css(){
-    if(E('bns391Css')) return;
-    var st=document.createElement('style'); st.id='bns391Css';
-    st.textContent='html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important}#newOrder,#orderForm,.page,.content,.main{overflow:visible!important}#materialList{overflow-y:auto!important;max-height:65vh!important;padding-bottom:120px!important}#materialList *{animation:none!important;transition:none!important}.admin-only,[data-page="admin"]{display:initial!important;visibility:visible!important}.bns391-clicked{filter:brightness(.86)!important;transform:scale(.97)!important}';
-    document.head.appendChild(st);
-  }
-
-  function ensureAdmin(){
-    var adminPage=E('admin');
-    var side=document.querySelector('.side')||document.querySelector('.sidebar')||document.querySelector('nav')||document.querySelector('.navs');
-    if(!side || !adminPage) return;
-    var btn=A('button,a',side).find(function(b){ return (b.dataset&&b.dataset.page==='admin') || /^admin$/i.test(T(b.textContent)); });
-    if(!btn){
-      var ref=A('button,a',side)[0]; if(!ref) return;
-      btn=document.createElement('button'); btn.type='button'; btn.textContent='Admin'; btn.className=ref.className||'nav'; btn.dataset.page='admin'; side.appendChild(btn);
-    }
-    btn.style.display=''; btn.hidden=false; btn.classList.add('admin-only');
-    if(btn.tagName==='BUTTON') btn.type='button';
-    btn.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} try{ if(typeof showPage==='function') showPage('admin'); else if(window.showPage) window.showPage('admin'); }catch(e){ A('.page').forEach(function(p){p.classList.remove('active');}); adminPage.classList.add('active'); } return false; };
-  }
-
-  function setAdminActive(id){
-    id=T(id); window.BNS_ACTIVE_MATERIAL_ID=id; window.__bnsSelectedMaterialId=id; window.bnsSelectedMaterialId=id; window.BNS_ADMIN_SELECTED_MATERIAL_ID=id;
-    try{ adminEditMatId=id; }catch(e){}
-    return byId(id);
-  }
-  function activeAdminMaterial(){
-    var m=byId(window.BNS_ACTIVE_MATERIAL_ID)||byId(window.__bnsSelectedMaterialId)||byId(window.bnsSelectedMaterialId)||byId(window.BNS_ADMIN_SELECTED_MATERIAL_ID);
-    if(m) return m;
-    try{ if(typeof adminEditMatId!=='undefined' && adminEditMatId) return byId(adminEditMatId); }catch(e){}
-    var cat=U((E('bnsV56Cat')||{}).value||''), nr=U((E('bnsV56Nr')||{}).value||''), code=cat+nr;
-    return mats().find(function(x){ return code && U(codeOf(x))===code; })||null;
-  }
-  function adminDelete(ev){
-    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    var m=activeAdminMaterial();
-    if(!m){ notify('Kies eerst materiaal via Wijzig'); return false; }
-    var label=(codeOf(m)+' '+nameOf(m)).trim();
-    if(!confirm('Weet je zeker dat je dit materiaal wilt wissen?\n\n'+label)) return false;
-    var id=T(m.id);
-    S().materials=mats().filter(function(x){ return T(x.id)!==id; });
-    try{ if(window.fbDel) window.fbDel('materials',id); }catch(e){}
-    try{ if(window.BNS&&window.BNS.fs&&window.BNS.db) window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'materials',id)).catch(function(){}); }catch(e){}
-    window.BNS_ACTIVE_MATERIAL_ID=''; window.__bnsSelectedMaterialId=''; window.bnsSelectedMaterialId=''; window.BNS_ADMIN_SELECTED_MATERIAL_ID='';
-    saveLocal();
-    try{ if(typeof adminRender==='function') adminRender(); }catch(e){}
-    try{ if(window.renderMaterials) window.renderMaterials(window.currentCat||'TW'); }catch(e){}
-    notify('Materiaal verwijderd');
-    return false;
-  }
-
-  var oldFill=window.fillMat;
-  window.fillMat=function(id){ setAdminActive(id); if(typeof oldFill==='function'){ try{ return oldFill.apply(this,arguments); }catch(e){} } return false; };
-
-  function installDebounce(){
-    if(window.__bns391RenderDebounce || typeof window.renderMaterials!=='function') return;
-    var real=window.renderMaterials;
-    function wrapped(cat){
-      window.currentCat=cat||window.currentCat||'TW';
-      if(wrapped._busy) return;
-      wrapped._busy=true;
-      requestAnimationFrame(function(){ wrapped._busy=false; try{ real.call(window,window.currentCat||cat||'TW'); }catch(e){} });
-    }
-    wrapped.__bns391=true;
-    window.renderMaterials=wrapped;
-    window.__bns391RenderDebounce=true;
-  }
-
-  document.addEventListener('click',function(ev){
-    var btn=ev.target&&ev.target.closest&&ev.target.closest('button');
-    if(btn){ btn.classList.add('bns391-clicked'); setTimeout(function(){btn.classList.remove('bns391-clicked');},130); }
-    var edit=ev.target&&ev.target.closest&&ev.target.closest('[data-v83-fill-mat],[data-bns387-edit],button[onclick*="fillMat"]');
-    if(edit){ var id=edit.getAttribute('data-v83-fill-mat')||edit.getAttribute('data-bns387-edit')||''; if(!id){ var oc=edit.getAttribute('onclick')||''; var mm=oc.match(/fillMat\(['"]([^'"]+)/); if(mm) id=mm[1]; } if(id) setAdminActive(id); }
-    var del=ev.target&&ev.target.closest&&ev.target.closest('#bnsV56Delete,#adminDeleteMat,#bnsV58AdminDelete,#deleteMatAdmin,#adminDeleteMaterial');
-    if(del) return adminDelete(ev);
-    var row=ev.target&&ev.target.closest&&ev.target.closest('#materialList [data-mid]');
-    if(row){ var mid=row.getAttribute('data-mid'); if(mid){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); return safeAddMat(mid); } }
-  },true);
-
-  document.addEventListener('click',function(ev){
-    var saveBtn=ev.target&&ev.target.closest&&ev.target.closest('#saveOrder,#btnSaveOrder,button');
-    if(saveBtn && /opslaan/i.test(T(saveBtn.textContent)) && (E('newOrder')||E('orderForm'))){
-      if(!validateBeforeSave()){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); return false; }
-    }
-  },true);
-
-  var oldSave=window.saveCurrentOrder;
-  if(typeof oldSave==='function' && !oldSave.__bns391){
-    window.saveCurrentOrder=function(){ if(!validateBeforeSave()) return false; return oldSave.apply(this,arguments); };
-    window.saveCurrentOrder.__bns391=true;
-  }
-
-  function boot(){ css(); ensureAdmin(); installAddMat(); installDebounce(); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,250); setTimeout(boot,1200); });
-  else { setTimeout(boot,120); setTimeout(boot,1200); }
-  setInterval(function(){ css(); ensureAdmin(); installAddMat(); },2500);
-  console.info('[BNS v391] Werkende herstelbasis actief: rubrieken niet overgenomen, admin terug, materiaalblok veilig. Systeembeheer 8760 later.');
-})();
-
-/* =========================================================
-   BNS v394 - Materiaal stabiel zonder oude renderstrijd
-   - Vervangt alleen de materiaalkeuze UI met eigen stabiele rubrieken.
-   - Geen MutationObserver, geen globale stop op oude rubriekknoppen.
-   - Oude algemene codes TW/TO/KW/EXTRA blokkeren niet alles.
-   - Echte codes/id blokkeren wel, inclusief oude lopende opdrachten.
-   - Admin materiaal Wissen gebruikt het laatst via Wijzig gekozen materiaal.
-   ========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS_V394_MATERIAL_STABLE__) return;
-  window.__BNS_V394_MATERIAL_STABLE__ = true;
-
-  var activeCat = 'TW';
-  var lastKey = '';
-  var renderTimer = 0;
-
-  function E(id){ return document.getElementById(id); }
-  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function T(v){ return String(v==null?'':v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function U(v){ return T(v).toUpperCase().replace(/\s+/g,''); }
-  function H(s){ return T(s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} if(window.state) return window.state; window.state={}; return window.state; }
-  function mats(){ var s=S(); if(!Array.isArray(s.materials)) s.materials=[]; return s.materials; }
-  function orders(){ var s=S(); if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
-  function chosenList(){ try{ if(typeof chosen!=='undefined' && Array.isArray(chosen)) return chosen; }catch(e){} if(Array.isArray(window.chosen)) return window.chosen; return []; }
-  function setChosen(list){ try{ chosen=list; }catch(e){} window.chosen=list; }
-  function catOf(m){ return U(m && (m.cat||m.rubriek||m.category||'')); }
-  function codeOf(m){ return T(m && (m.code||m.productNr||m.nr||m.number||'')); }
-  function nameOf(m){ return T(m && (m.name||m.product||m.searchName||m.zoeknaam||m.type||m.description||m.omschrijving||m.beschrijving||'')); }
-  function descOf(m){ return T(m && (m.description||m.omschrijving||m.beschrijving||m.notes||'')); }
-  function byId(id){ id=T(id); return mats().find(function(m){ return T(m.id)===id; }) || null; }
-  function colorFor(cat){ return ({TW:'#2563eb',TO:'#7c3aed',KW:'#0891b2',EXTRA:'#f59e0b'}[U(cat)] || '#64748b'); }
-
-  function parseDate(v){
-    if(!v) return null;
-    if(v instanceof Date && !isNaN(v.getTime())) return new Date(v.getFullYear(),v.getMonth(),v.getDate());
-    var s=T(v); if(!s) return null;
-    var m=s.match(/(20\d{2})[-\/.](\d{1,2})[-\.\/](\d{1,2})/);
-    if(m){ var d1=new Date(+m[1],+m[2]-1,+m[3]); if(!isNaN(d1.getTime())) return d1; }
-    m=s.match(/(\d{1,2})[-\/.](\d{1,2})[-\.\/](20\d{2}|\d{2})/);
-    if(m){ var y=+m[3]; if(y<100) y+=2000; var d2=new Date(y,+m[2]-1,+m[1]); if(!isNaN(d2.getTime())) return d2; }
-    var d3=new Date(s); if(!isNaN(d3.getTime())) return new Date(d3.getFullYear(),d3.getMonth(),d3.getDate());
-    return null;
-  }
-  function today(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
-  function period(a,b){ var s=parseDate(a), e=parseDate(b||a); if(!s&&e) s=e; if(!e&&s) e=s; if(!s||!e) return null; if(e<s){ var t=s; s=e; e=t; } return {start:s,end:e}; }
-  function overlaps(a,b){ return !!(a&&b&&a.start<=b.end&&b.start<=a.end); }
-  function fmt(v){ var d=parseDate(v); return d ? (d.getDate()+'-'+(d.getMonth()+1)+'-'+d.getFullYear()) : T(v); }
-  function wantedPeriod(){
-    return period((E('dateStart')||E('orderStart')||E('startDate')||{}).value, (E('dateEnd')||E('orderEnd')||E('endDate')||{}).value);
-  }
-  function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.finish||o.start||o.date)); }
-  function endPast(o){ var p=orderPeriod(o); if(!p) return false; return p.end.getTime() < today().getTime(); }
-  function editingId(){
-    try{ if(typeof editing!=='undefined' && editing) return T(typeof editing==='object'?editing.id:editing); }catch(e){}
-    if(window.editing) return T(typeof window.editing==='object'?window.editing.id:window.editing);
-    var nr=T((E('orderNumber')||{}).value);
-    var found=orders().find(function(o){ return nr && T(o.number)===nr; });
-    return found?T(found.id):'';
-  }
-  function isOptionExpired(o){
-    if(!/optie|14\s*dagen/.test(L(o&&o.status))) return false;
-    var d=parseDate(o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||o.date);
-    if(!d) return false;
-    return Math.floor((today().getTime()-d.getTime())/86400000) >= 14;
-  }
-  function orderBlocks(o){
-    var st=L(o&&o.status);
-    if(!st) return false;
-    if(/offerte|geannuleerd|cancel|verwijderd|deleted|trash|gewist/.test(st)) return false;
-    if(/optie|14\s*dagen/.test(st)) return !isOptionExpired(o);
-    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(st)) return false;
-    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(st)) return !endPast(o);
-    return false;
-  }
-  function realKey(m){
-    var cat=catOf(m).replace(/[^A-Z]/g,''), code=U(codeOf(m)).replace(/[^A-Z0-9]/g,''), nm=U(nameOf(m)).replace(/[^A-Z0-9]/g,'');
-    var vals=[code,nm].filter(Boolean);
-    for(var i=0;i<vals.length;i++){
-      var v=vals[i];
-      var mt=v.match(/^([A-Z]{1,12})0*(\d{1,6})$/);
-      if(mt) return mt[1]+String(parseInt(mt[2],10));
-      if(cat){ var re=new RegExp('^'+cat+'0*(\\d{1,6})$'); var mt2=v.match(re); if(mt2) return cat+String(parseInt(mt2[1],10)); }
-    }
-    return '';
-  }
-  function sameMat(a,b){
-    if(!a||!b) return false;
-    if(T(a.id)&&T(b.id)&&T(a.id)===T(b.id)) return true;
-    if(T(a.oldId)&&T(b.oldId)&&T(a.oldId)===T(b.oldId)) return true;
-    var ka=realKey(a), kb=realKey(b);
-    return !!(ka&&kb&&ka===kb);
-  }
-  function reservationFor(m){
-    var wp=wantedPeriod(); if(!m||!wp) return null;
-    var edit=editingId(); var nr=T((E('orderNumber')||{}).value);
-    for(var i=0;i<orders().length;i++){
-      var o=orders()[i]; if(!o||!orderBlocks(o)) continue;
-      if(edit && T(o.id)===edit) continue;
-      if(nr && T(o.number)===nr) continue;
-      var op=orderPeriod(o); if(!overlaps(wp,op)) continue;
-      var ml=Array.isArray(o.materials)?o.materials:[];
-      if(ml.some(function(x){ return sameMat(x,m); })) return {order:o,period:op};
-    }
-    return null;
-  }
-  function statusFor(m){
-    if(!m) return {key:'missing',label:'Niet gevonden',blocked:true};
-    if(chosenList().some(function(x){ return sameMat(x,m); })) return {key:'chosen',label:'Toegevoegd',blocked:false};
-    var raw=L(m.status);
-    if(/inactive|niet actief|niet beschikbaar/.test(raw)) return {key:'inactive',label:'Niet actief',blocked:true};
-    if(/defect|schade|damage|vermist|missing/.test(raw)) return {key:'defect',label:'Defect',blocked:true};
-    var r=reservationFor(m);
-    if(r) return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:r};
-    return {key:'free',label:'Vrij',blocked:false};
-  }
-  function notify(msg){ try{ if(typeof toastMsg==='function') return toastMsg(msg); }catch(e){} try{ if(window.toastMsg) return window.toastMsg(msg); }catch(e){} alert(msg); }
-  function rerenderChosen(){ try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){} try{ if(window.renderChosen) window.renderChosen(); }catch(e){} try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){} }
-
-  function renderCats(force){
-    var box=E('materialCats'); if(!box) return;
-    var cats=Array.from(new Set(mats().map(function(m){ return catOf(m); }).filter(Boolean)));
-    ['TW','TO','KW','EXTRA'].forEach(function(c){ if(cats.indexOf(c)<0) cats.push(c); });
-    cats.sort(function(a,b){ var pref=['TW','TO','KW','EXTRA']; var ia=pref.indexOf(a), ib=pref.indexOf(b); ia=ia<0?99:ia; ib=ib<0?99:ib; return ia-ib || a.localeCompare(b); });
-    if(cats.indexOf(activeCat)<0) activeCat=cats[0]||'TW';
-    var html=cats.map(function(c){ return '<button type="button" class="bns-v394-cat '+(c===activeCat?'active':'')+'" data-v394-cat="'+H(c)+'" style="--c:'+H(colorFor(c))+'">'+H(c)+'</button>'; }).join('')+'<span class="bns-v394-help">Klik rubriek, zoek daarna binnen die rubriek.</span>';
-    if(force || box.getAttribute('data-v394-html')!==html){ box.innerHTML=html; box.setAttribute('data-v394-html',html); box.dataset.bnsV394='1'; }
-  }
-  function rowHtml(m){
-    var st=statusFor(m), code=codeOf(m), nm=nameOf(m)||code, desc=descOf(m); var detail='';
-    if(st.reservation){ var o=st.reservation.order; detail='Klant: '+T(o.customer&&o.customer.name)+' | Opdracht: '+T(o.number||o.id)+' | Datum: '+fmt(o.start)+' t/m '+fmt(o.end||o.start); }
-    else detail=T(m.price||m.notes||'');
-    return '<div class="bns-v394-row '+H(st.key)+'" data-v394-mid="'+H(m.id)+'" style="--c:'+H(m.color||colorFor(catOf(m)))+'">'+
-      '<div class="bns-v394-bar"></div><div class="bns-v394-main"><div class="bns-v394-title"><b>'+H(code)+'</b> '+H(nm)+'</div>'+
-      (desc&&desc!==nm?'<div class="bns-v394-desc">'+H(desc)+'</div>':'')+'<div class="bns-v394-small">'+H(detail)+'</div></div><span class="bns-v394-pill '+H(st.key)+'">'+H(st.label)+'</span></div>';
-  }
-  function renderMaterials(cat,force){
-    var list=E('materialList'); if(!list) return;
-    activeCat=U(cat||activeCat||window.currentCat||'TW')||'TW'; window.currentCat=activeCat; try{ currentCat=activeCat; }catch(e){}
-    renderCats(false);
-    var q=L((E('materialSearch')||{}).value);
-    var rows=mats().filter(function(m){ return catOf(m)===activeCat; }).filter(function(m){ return !q || (codeOf(m)+' '+nameOf(m)+' '+descOf(m)+' '+T(m.notes)).toLowerCase().indexOf(q)>=0; });
-    var key=activeCat+'|'+q+'|'+T((E('dateStart')||{}).value)+'|'+T((E('dateEnd')||{}).value)+'|'+chosenList().map(function(x){return T(x.id)||realKey(x);}).join(',')+'|'+rows.map(function(m){ var st=statusFor(m); return [m.id,codeOf(m),nameOf(m),m.status,st.key].join(':'); }).join(';');
-    if(!force && key===lastKey && list.dataset.bnsV394==='1') return;
-    lastKey=key;
-    var html=rows.length?rows.map(rowHtml).join(''):'<p class="bns-v394-empty">Geen materiaal gevonden in rubriek '+H(activeCat)+'.</p>';
-    if(list.innerHTML!==html) list.innerHTML=html;
-    list.dataset.bnsV394='1';
-  }
-  function requestRender(cat,force){ clearTimeout(renderTimer); renderTimer=setTimeout(function(){ renderMaterials(cat||activeCat,!!force); },20); }
-
-  function addMat(id){
-    var m=byId(id); if(!m) return false;
-    var st=statusFor(m);
-    if(st.key==='chosen'){
-      setChosen(chosenList().filter(function(x){ return !sameMat(x,m); })); rerenderChosen(); requestRender(activeCat,true); return false;
-    }
-    if(st.blocked){
-      var o=st.reservation&&st.reservation.order;
-      notify(o ? ('Materiaal is gereserveerd door opdracht '+T(o.number||o.id)+' ('+T(o.status)+').') : (st.label||'Materiaal niet beschikbaar'));
-      return false;
-    }
-    var c=JSON.parse(JSON.stringify(m)); c.status='reserved'; if(c.qty==null)c.qty=1; if(c.linePrice==null)c.linePrice=0; if(c.lineDeposit==null)c.lineDeposit=0;
-    var list=chosenList().slice(); list.push(c); setChosen(list); rerenderChosen(); requestRender(activeCat,true); return false;
-  }
-  function validateBeforeSave(){
-    var list=chosenList();
-    for(var i=0;i<list.length;i++){
-      var base=mats().find(function(m){ return sameMat(m,list[i]); }) || list[i];
-      var st=statusFor(base);
-      if(st.blocked && st.key!=='chosen'){
-        var o=st.reservation&&st.reservation.order;
-        alert('Opslaan geblokkeerd: '+T(codeOf(base)||realKey(base)||nameOf(base))+(o?' is al geblokkeerd door '+T(o.status)+' opdracht '+T(o.number||o.id)+'.':' is niet beschikbaar.'));
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function css(){
-    if(E('bns394Css')) return;
-    var s=document.createElement('style'); s.id='bns394Css';
-    s.textContent='html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important;scroll-behavior:auto!important}#newOrder,#orderForm,.page,.content,.main{overflow:visible!important}#materialList{max-height:none!important;overflow:visible!important;padding-bottom:220px!important;overflow-anchor:none!important}#materialList *{animation:none!important;transition:none!important;transform:none!important}.bns-v394-cat{border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:999px;padding:9px 14px;margin:0 7px 8px 0;font-weight:900;cursor:pointer}.bns-v394-cat.active{background:var(--c);border-color:var(--c);color:white}.bns-v394-help{font-weight:800;color:#64748b}.bns-v394-row{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:80px;margin:9px 0;padding:13px 14px;border:1px solid #dbe3ef;border-radius:18px;background:#fff;color:#172033;box-sizing:border-box;cursor:pointer;box-shadow:none!important}.bns-v394-row.reserved,.bns-v394-row.defect,.bns-v394-row.inactive{cursor:not-allowed;border-color:#fecaca}.bns-v394-bar{width:8px;height:54px;border-radius:999px;background:var(--c,#0ea5e9)}.bns-v394-title{font-size:18px;line-height:1.2;font-weight:800}.bns-v394-title b{font-weight:1000;margin-right:6px}.bns-v394-desc{font-size:14px;color:#475569;font-weight:700;margin-top:3px}.bns-v394-small{font-size:12px;color:#64748b;font-weight:800;margin-top:3px}.bns-v394-pill{white-space:nowrap;border-radius:999px;padding:8px 12px;font-weight:1000}.bns-v394-pill.free{background:#dcfce7;color:#166534}.bns-v394-pill.reserved,.bns-v394-pill.defect,.bns-v394-pill.inactive{background:#fee2e2;color:#991b1b}.bns-v394-pill.chosen{background:#dbeafe;color:#1e40af}.admin-only,[data-page="admin"]{display:initial!important;visibility:visible!important}';
-    document.head.appendChild(s);
-  }
-  function ensureAdmin(){
-    var adminPage=E('admin'); var side=document.querySelector('.side')||document.querySelector('.sidebar')||document.querySelector('nav')||document.querySelector('.navs');
-    if(!side||!adminPage) return;
-    var btn=A('button,a',side).find(function(b){ return (b.dataset&&b.dataset.page==='admin') || /^admin$/i.test(T(b.textContent)); });
-    if(!btn){ var ref=A('button,a',side)[0]; if(!ref) return; btn=document.createElement('button'); btn.type='button'; btn.textContent='Admin'; btn.className=ref.className||'nav'; btn.dataset.page='admin'; side.appendChild(btn); }
-    btn.style.display=''; btn.hidden=false; btn.classList.add('admin-only'); if(btn.tagName==='BUTTON') btn.type='button';
-    btn.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} try{ if(typeof showPage==='function') showPage('admin'); else if(window.showPage) window.showPage('admin'); }catch(e){ A('.page').forEach(function(p){p.classList.remove('active');}); adminPage.classList.add('active'); } return false; };
-  }
-
-  function setAdminActive(id){ id=T(id); window.BNS_ACTIVE_MATERIAL_ID=id; window.__bnsSelectedMaterialId=id; window.bnsSelectedMaterialId=id; window.BNS_ADMIN_SELECTED_MATERIAL_ID=id; try{ selectedMaterialId=id; }catch(e){} try{ adminEditMatId=id; }catch(e){} return byId(id); }
-  function activeAdminMaterial(){
-    var m=byId(window.BNS_ACTIVE_MATERIAL_ID)||byId(window.__bnsSelectedMaterialId)||byId(window.bnsSelectedMaterialId)||byId(window.BNS_ADMIN_SELECTED_MATERIAL_ID); if(m) return m;
-    try{ if(typeof selectedMaterialId!=='undefined' && selectedMaterialId) return byId(selectedMaterialId); }catch(e){}
-    try{ if(typeof adminEditMatId!=='undefined' && adminEditMatId) return byId(adminEditMatId); }catch(e){}
-    return null;
-  }
-  function saveLocal(){ try{ if(typeof save==='function') save(); }catch(e){} try{ if(window.save) window.save(); }catch(e){} try{ localStorage.setItem('eventPlannerState',JSON.stringify(S())); }catch(e){} }
-  function adminDelete(ev){
-    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    var m=activeAdminMaterial(); if(!m){ notify('Kies eerst materiaal via Wijzig'); return false; }
-    var label=(codeOf(m)+' '+nameOf(m)).trim(); if(!confirm('Weet je zeker dat je dit materiaal wilt wissen?\n\n'+label)) return false;
-    var id=T(m.id); S().materials=mats().filter(function(x){ return T(x.id)!==id; });
-    try{ if(window.fbDel) window.fbDel('materials',id); }catch(e){}
-    try{ if(window.BNS&&window.BNS.fs&&window.BNS.db) window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'materials',id)).catch(function(){}); }catch(e){}
-    setAdminActive(''); saveLocal(); try{ if(typeof adminRender==='function') adminRender(); }catch(e){} requestRender(activeCat,true); notify('Materiaal verwijderd'); return false;
-  }
-
-  var oldFill=window.fillMat;
-  window.fillMat=function(id){ setAdminActive(id); if(typeof oldFill==='function'){ try{ return oldFill.apply(this,arguments); }catch(e){} } return false; };
-
-  function install(){
-    css(); ensureAdmin();
-    window.renderMaterials=renderMaterials; window.addMat=addMat; window.BNS_V394={renderMaterials:renderMaterials,addMat:addMat,statusFor:statusFor,reservationFor:reservationFor,validateBeforeSave:validateBeforeSave};
-    try{ renderMaterials=renderMaterials; addMat=addMat; }catch(e){}
-    renderCats(false); if(E('materialList')) requestRender(activeCat,true);
-  }
-
-  document.addEventListener('click',function(ev){
-    var cat=ev.target&&ev.target.closest&&ev.target.closest('[data-v394-cat]');
-    if(cat){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); activeCat=U(cat.getAttribute('data-v394-cat'))||'TW'; window.currentCat=activeCat; var ms=E('materialSearch'); if(ms) ms.value=''; lastKey=''; renderCats(true); requestRender(activeCat,true); try{ window.scrollTo({top:0,behavior:'auto'}); }catch(e){ window.scrollTo(0,0); } return false; }
-    var row=ev.target&&ev.target.closest&&ev.target.closest('[data-v394-mid]');
-    if(row){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); return addMat(row.getAttribute('data-v394-mid')); }
-    var edit=ev.target&&ev.target.closest&&ev.target.closest('[data-v83-fill-mat],[data-bns387-edit],button[onclick*="fillMat"]');
-    if(edit){ var id=edit.getAttribute('data-v83-fill-mat')||edit.getAttribute('data-bns387-edit')||''; if(!id){ var oc=edit.getAttribute('onclick')||''; var mm=oc.match(/fillMat\(['"]([^'"]+)/); if(mm) id=mm[1]; } if(id) setAdminActive(id); }
-    var del=ev.target&&ev.target.closest&&ev.target.closest('#bnsV56Delete,#adminDeleteMat,#bnsV58AdminDelete,#deleteMatAdmin,#adminDeleteMaterial');
-    if(del) return adminDelete(ev);
-  },true);
-
-  document.addEventListener('input',function(ev){ if(ev.target && ev.target.id==='materialSearch'){ lastKey=''; requestRender(activeCat,true); } },true);
-  document.addEventListener('change',function(ev){ if(ev.target && /^(dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){ lastKey=''; requestRender(activeCat,true); } },true);
-  document.addEventListener('click',function(ev){
-    var b=ev.target&&ev.target.closest&&ev.target.closest('#saveOrder,#btnSaveOrder,button');
-    if(b && /opslaan/i.test(T(b.textContent)) && (E('newOrder')||E('orderForm'))){ if(!validateBeforeSave()){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); return false; } }
-  },true);
-  var oldSave=window.saveCurrentOrder;
-  if(typeof oldSave==='function' && !oldSave.__bns394){ window.saveCurrentOrder=function(){ if(!validateBeforeSave()) return false; return oldSave.apply(this,arguments); }; window.saveCurrentOrder.__bns394=true; }
-
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,250); setTimeout(install,1200); });
-  else { setTimeout(install,120); setTimeout(install,1200); }
-  setInterval(function(){ css(); ensureAdmin(); window.renderMaterials=renderMaterials; window.addMat=addMat; if(E('materialCats')) renderCats(false); },2500);
-  console.info('[BNS v394] Materiaal stabiel zonder observer: eigen rubrieken, veilige blokkering, admin wissen hersteld.');
-})();
-
-
-/* =========================================================
-   BNS v396 - Schone start materialen + opdrachten
-   - INITIAL_STATE materials/orders zijn leeg
-   - Optionele eenmalige wipe via ?bnsReset=8760
-   - Wist alleen materials en orders lokaal + Firebase
-   - Klanten, locaties, users, boekhouding blijven staan
-========================================================= */
-(function(){
-  if(window.BNS_V396_CLEAN_START) return;
-  window.BNS_V396_CLEAN_START = true;
-  function info(t){
-    try{ toastMsg(t); }catch(e){ try{ console.log('[BNS v396]', t); }catch(_e){} }
-  }
-  function askReset(){
+  function clean(){
     try{
-      var p = new URLSearchParams(location.search || '');
-      if(p.get('bnsReset') !== '8760') return false;
-      return prompt('LET OP: dit wist MATERIALEN en OPDRACHTEN lokaal en uit Firebase. Typ WIS om door te gaan.') === 'WIS';
+      var s; try{ s=state; }catch(e){ s=window.state; }
+      if(!s||!Array.isArray(s.materials)) return;
+      var n=0;
+      s.materials.forEach(function(m){
+        if(!m) return;
+        var st=String(m.status||'').toLowerCase();
+        if(/reserved|gereserveerd|bezet|geboekt/.test(st) &&
+           !/inactive|defect|damage|missing|vermist/.test(st)){
+          delete m.status;
+          n++;
+        }
+      });
+      if(n>0){
+        try{ if(typeof save==='function') save(); }catch(e){}
+        console.info('[BNS v374] '+n+' verouderde reserved-statussen verwijderd.');
+      }
+    }catch(e){}
+  }
+
+  if(document.readyState==='loading')
+    document.addEventListener('DOMContentLoaded',function(){ setTimeout(clean,600); });
+  else setTimeout(clean,400);
+})();
+
+// ============================================================
+// BNS PATCH v383 — Opdracht vergrendeling voor meerdere planners
+// Als een collega een opdracht open heeft, krijgt een andere
+// planner de melding: "Een collega is bezig met deze opdracht."
+// Lock via Firebase collectie 'locks', verloopt na 15 minuten.
+// ============================================================
+(function BNS_V383_ORDER_LOCK(){
+  'use strict';
+  if(window.__BNS_V383__) return;
+  window.__BNS_V383__ = true;
+
+  var LOCK_TTL = 15 * 60 * 1000; // 15 minuten
+  var LOCK_COL = 'locks';
+  var _currentLock = null; // { orderId, key }
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+
+  // Unieke sessie-ID voor deze browser/tab
+  var SESSION_ID = (function(){
+    var k = 'bns_session_id';
+    var s = sessionStorage.getItem(k);
+    if(!s){ s = 'sess_' + Math.random().toString(36).slice(2,10); sessionStorage.setItem(k,s); }
+    return s;
+  })();
+
+  // Firebase helpers via bestaande BNSFirebaseSync
+  function fbTools(){
+    return window.__bnsFirebaseTls || null;
+  }
+
+  async function getLockTools(){
+    try{
+      var mod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+      var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+      var app = appMod.getApps().length ? appMod.getApp() : null;
+      if(!app) return null;
+      var db = mod.getFirestore(app);
+      return {mod, db};
+    }catch(e){ return null; }
+  }
+
+  async function writeLock(orderId){
+    var t = await getLockTools(); if(!t) return;
+    try{
+      var ref = t.mod.doc(t.db, LOCK_COL, String(orderId));
+      await t.mod.setDoc(ref, {
+        session: SESSION_ID,
+        since: new Date().toISOString(),
+        expires: new Date(Date.now() + LOCK_TTL).toISOString()
+      });
+      _currentLock = {orderId: orderId};
+    }catch(e){}
+  }
+
+  async function releaseLock(orderId){
+    if(!orderId) return;
+    var t = await getLockTools(); if(!t) return;
+    try{
+      var ref = t.mod.doc(t.db, LOCK_COL, String(orderId));
+      var snap = await t.mod.getDoc(ref);
+      if(snap.exists() && snap.data().session === SESSION_ID){
+        await t.mod.deleteDoc(ref);
+      }
+    }catch(e){}
+    if(_currentLock && _currentLock.orderId === orderId) _currentLock = null;
+  }
+
+  async function checkLock(orderId){
+    var t = await getLockTools(); if(!t) return false;
+    try{
+      var ref = t.mod.doc(t.db, LOCK_COL, String(orderId));
+      var snap = await t.mod.getDoc(ref);
+      if(!snap.exists()) return false;
+      var data = snap.data();
+      // Eigen sessie = geen blokkering
+      if(data.session === SESSION_ID) return false;
+      // Verlopen lock = geen blokkering
+      if(data.expires && new Date(data.expires).getTime() < Date.now()) return false;
+      return true; // iemand anders heeft het open
     }catch(e){ return false; }
   }
-  function clearLocal(){
+
+  // Toon blokkeermelding
+  function showBlocked(){
     try{
-      state.materials = [];
-      state.orders = [];
-      if(typeof save === 'function') save();
-      try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
-      try{ localStorage.setItem('bns_v396_clean_done', new Date().toISOString()); }catch(e){}
-    }catch(e){ console.warn('[BNS v396] lokaal wissen fout', e); }
-  }
-  async function clearCollection(name){
-    var B = window.BNS || {}, fs = B.fs, db = B.db;
-    if(!fs || !db || !fs.collection || !fs.getDocs || !fs.deleteDoc || !fs.doc) return 0;
-    var snap = await fs.getDocs(fs.collection(db, name));
-    var n = 0;
-    for(const d of snap.docs){
-      await fs.deleteDoc(fs.doc(db, name, d.id));
-      n++;
+      window.bnsAlert(
+        'Een collega is bezig met deze opdracht.\nEven wachten of later opnieuw proberen.',
+        'Opdracht bezet'
+      );
+    }catch(e){
+      alert('Een collega is bezig met deze opdracht. Even wachten of later opnieuw proberen.');
     }
-    return n;
   }
-  function waitFirebaseThenClear(){
-    var tries = 0;
-    var timer = setInterval(async function(){
-      tries++;
-      try{
-        if(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db){
-          clearInterval(timer);
-          var m = await clearCollection('materials');
-          var o = await clearCollection('orders');
-          clearLocal();
-          info('Schone start klaar: '+m+' materialen en '+o+' opdrachten gewist. Haal daarna ?bnsReset=8760 uit de URL.');
-          try{ if(typeof render === 'function') render(); }catch(e){}
-        } else if(tries > 80){
-          clearInterval(timer);
-          info('Lokaal leeggemaakt. Firebase was niet beschikbaar om te wissen.');
+
+  // Patch: onderschep het openen van een opdracht voor bewerken
+  function patchEditOrder(){
+    // Bewaar originele editOrder als die bestaat
+    var origEdit = window.editOrder;
+    if(typeof origEdit !== 'function' || origEdit.__v383) return;
+
+    window.editOrder = function(id){
+      var orderId = T(id);
+      if(!orderId){ return origEdit.apply(this, arguments); }
+
+      checkLock(orderId).then(function(locked){
+        if(locked){
+          showBlocked(orderId);
+        } else {
+          writeLock(orderId);
+          origEdit.call(window, id);
         }
-      }catch(e){
-        clearInterval(timer);
-        console.error('[BNS v396] Firebase wissen fout', e);
-        info('Lokaal leeggemaakt. Firebase wissen gaf een fout; controleer Firebase regels.');
-      }
-    }, 250);
+      });
+    };
+    window.editOrder.__v383 = true;
   }
-  try{
-    if(askReset()){
-      clearLocal();
-      info('Materialen en opdrachten lokaal leeggemaakt. Firebase wissen wordt gestart...');
-      waitFirebaseThenClear();
+
+  // Patch: release lock bij opslaan of annuleren
+  function patchSaveAndCancel(){
+    var origSave = window.BNS_STABLE_CORE && window.BNS_STABLE_CORE.save;
+    if(origSave && !origSave.__v383){
+      window.BNS_STABLE_CORE.save = function(){
+        var result = origSave.apply(this, arguments);
+        var editing = T(window.editing || '');
+        if(editing) releaseLock(editing);
+        return result;
+      };
+      window.BNS_STABLE_CORE.save.__v383 = true;
     }
-  }catch(e){ console.warn('[BNS v396] reset fout', e); }
+
+    // Ook de opslaan-knop zelf
+    var saveBtn = E('saveOrder');
+    if(saveBtn && !saveBtn.__v383lock){
+      saveBtn.__v383lock = true;
+      saveBtn.addEventListener('click', function(){
+        setTimeout(function(){
+          var editing = T(window.editing || '');
+          if(!editing && _currentLock) releaseLock(_currentLock.orderId);
+        }, 2000);
+      }, true);
+    }
+
+    // Annuleren knop
+    var cancelBtn = E('cancelOrder') || E('annuleerOrder');
+    if(cancelBtn && !cancelBtn.__v383lock){
+      cancelBtn.__v383lock = true;
+      cancelBtn.addEventListener('click', function(){
+        if(_currentLock) releaseLock(_currentLock.orderId);
+      }, true);
+    }
+  }
+
+  // Vernieuw eigen lock elke 10 minuten zodat hij niet verloopt
+  setInterval(function(){
+    if(_currentLock && _currentLock.orderId){
+      writeLock(_currentLock.orderId);
+    }
+  }, 10 * 60 * 1000);
+
+  // Release lock als tab/browser gesloten wordt
+  window.addEventListener('beforeunload', function(){
+    if(_currentLock){
+      // Synchrone fallback (best effort)
+      try{
+        var nav = navigator;
+        if(nav.sendBeacon && window.BNS_FIREBASE_CONFIG){
+          // Kan niet synchroon Firebase aanroepen, maar releaseLock proberen
+          releaseLock(_currentLock.orderId);
+        }
+      }catch(e){}
+    }
+  });
+
+  function install(){
+    patchEditOrder();
+    patchSaveAndCancel();
+  }
+
+  // Expose voor externe aanroepen
+  window.BNS_V383 = {
+    writeLock: writeLock,
+    releaseLock: releaseLock,
+    checkLock: checkLock,
+    sessionId: SESSION_ID
+  };
+
+  if(document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 800); });
+  else setTimeout(install, 600);
+
+  // Herinstalleer na navigatie (editOrder kan later geladen worden)
+  setInterval(install, 5000);
+
+  console.info('[BNS v383] Opdracht vergrendeling actief. Collega-blokkering via Firebase locks.');
+})();
+
+
+/* =========================================================
+   BNS v385 — Rollback materiaal-layout, alleen blokkering aangescherpt
+   - Geen nieuwe render, geen scroll-reset, geen MutationObserver.
+   - v383/v384 materiaal-layout is verwijderd.
+   - v380 blijft de basis, maar lijst toont alleen Vrij/Gereserveerd.
+   ========================================================= */
+(function BNS_V385_LAYOUT_ROLLBACK_NOTE(){
+  'use strict';
+  window.BNS_V385 = {active:true, note:'Materiaal layout terug naar v380; oude reserveringen via code/id, geen v384 scroll/render loop.'};
+  console.info('[BNS v385] Materiaal layout rollback actief. Geen v384 render-loop; blokkering blijft op echte codes/id.');
+})();
+
+/* =========================================================
+   BNS v386 — Materiaal definitief stabiel + oude reserveringen
+   - Eén eigen renderer met volle kaarten; geen kleine oude lijst na klik.
+   - Gereserveerd/defect/niet actief nooit toevoegbaar; opent alleen status-info.
+   - Blokkering neemt oude orders mee op echte code én id.
+   - Materiaalpaneel en pagina blijven scrolbaar tot beneden.
+   ========================================================= */
+(function BNS_V386_MATERIAL_FINAL(){
+  'use strict';
+  if(window.__BNS_V386_MATERIAL_FINAL__) return;
+  window.__BNS_V386_MATERIAL_FINAL__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function txt(v){ return String(v == null ? '' : v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function esc(s){ return txt(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function stateObj(){ try{return state;}catch(e){return window.state||{};} }
+  function materials(){ var s=stateObj(); return Array.isArray(s.materials)?s.materials:[]; }
+  function orders(){ var s=stateObj(); return Array.isArray(s.orders)?s.orders:[]; }
+  function chosenList(){ try{return Array.isArray(chosen)?chosen:[];}catch(e){return Array.isArray(window.chosen)?window.chosen:[];} }
+  function setChosen(list){ try{ chosen=list; }catch(e){} window.chosen=list; }
+  function clone(o){ try{return JSON.parse(JSON.stringify(o));}catch(e){return Object.assign({},o||{});} }
+  function todayMs(){ var d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+  function parseDate(v){
+    v=txt(v); if(!v) return null;
+    var m=v.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(m){ var d1=new Date(+m[1],+m[2]-1,+m[3]); d1.setHours(0,0,0,0); return isNaN(d1)?null:d1; }
+    m=v.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+    if(m){ var d2=new Date(+m[3],+m[2]-1,+m[1]); d2.setHours(0,0,0,0); return isNaN(d2)?null:d2; }
+    var d=new Date(v); if(!isNaN(d)){ d.setHours(0,0,0,0); return d; }
+    return null;
+  }
+  function periodFrom(s,e){ var a=parseDate(s), b=parseDate(e||s); if(!a||!b) return null; if(a>b){var t=a;a=b;b=t;} return {start:a,end:b}; }
+  function wantedPeriod(){ var ds=E('dateStart'), de=E('dateEnd'); return periodFrom(ds&&ds.value,(de&&de.value)||(ds&&ds.value)); }
+  function orderPeriod(o){ return periodFrom(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
+  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<=b.end.getTime()&&b.start.getTime()<=a.end.getTime()); }
+  function endIsPast(o){ var p=orderPeriod(o); return !!(p && p.end.getTime() < todayMs()); }
+  function optionExpired(o){
+    var s=low(o&&o.status); if(!/optie\s*14|optie14/.test(s)) return false;
+    var d=parseDate(o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||o.dateStart||o.date); if(!d) return false;
+    return todayMs() >= d.getTime() + 14*24*60*60*1000;
+  }
+  function orderBlocks(o){
+    var s=low(o&&o.status);
+    if(!s) return false;
+    if(/geannuleerd|cancel|verwijderd|deleted|trash/.test(s)) return false;
+    if(/offerte/.test(s)) return false;
+    if(/optie\s*14|optie14/.test(s)) return !optionExpired(o);
+    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return false;
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(s)) return !endIsPast(o);
+    return false;
+  }
+  function realCodeFrom(v){
+    var c=txt(v).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(!c) return '';
+    if(/^(EXTRA|TW|KW|TO|NVT|GEEN|LOS|OVERIG|DIVERS|ALGEMEEN)$/.test(c)) return '';
+    var m=c.match(/^([A-Z]{1,12})0*(\d{1,6})$/);
+    return m ? (m[1]+String(parseInt(m[2],10))) : '';
+  }
+  function keysFor(m){
+    var keys=[]; if(!m) return keys;
+    if(txt(m.id)) keys.push('id:'+txt(m.id));
+    [m.code,m.productNr,m.nr,m.number,m.type,m.product,m.name,m.searchName,m.zoeknaam,m.description,m.beschrijving].forEach(function(v){
+      var rc=realCodeFrom(v); if(rc) keys.push('code:'+rc);
+    });
+    return Array.from(new Set(keys));
+  }
+  function sameMaterial(a,b){
+    var ka=keysFor(a), kb=keysFor(b); if(!ka.length||!kb.length) return false;
+    return ka.some(function(k){return kb.indexOf(k)>=0;});
+  }
+  function currentCat(cat){
+    var c=txt(cat||window.currentCat||'TW').toUpperCase();
+    var all=Array.from(new Set(materials().map(function(m){return txt(m.cat||'EXTRA').toUpperCase();}).filter(Boolean))).sort();
+    if(all.indexOf(c)<0) c=all[0]||'TW';
+    try{ currentCat=c; }catch(e){} window.currentCat=c; return c;
+  }
+  function editingId(){ try{ if(editing) return txt(editing); }catch(e){} return txt(window.editing||''); }
+  function editingNr(){ var n=E('orderNumber'); return txt(n&&n.value); }
+  function reservationFor(m){
+    var wp=wantedPeriod(); if(!wp||!m) return null;
+    var eid=editingId(), nr=editingNr();
+    for(var i=0;i<orders().length;i++){
+      var o=orders()[i]; if(!o||!orderBlocks(o)) continue;
+      if(eid && txt(o.id)===eid) continue;
+      if(nr && txt(o.number)===nr) continue;
+      if(!overlaps(wp,orderPeriod(o))) continue;
+      var ml=Array.isArray(o.materials)?o.materials:[];
+      if(ml.some(function(x){return sameMaterial(x,m);})){ return {order:o,period:orderPeriod(o)}; }
+    }
+    return null;
+  }
+  function materialById(id){ return materials().find(function(m){return txt(m.id)===txt(id);}); }
+  function statusFor(m){
+    if(!m) return {key:'missing',label:'Niet gevonden',blocked:true};
+    if(chosenList().some(function(x){return sameMaterial(x,m);})){ return {key:'chosen',label:'Gekozen',blocked:false}; }
+    var raw=low(m.status);
+    if(/inactive|niet actief|niet beschikbaar/.test(raw)) return {key:'inactive',label:'Niet actief',blocked:true};
+    if(/defect|damage|schade|missing|vermist/.test(raw)) return {key:'defect',label:'Defect',blocked:true};
+    if(!wantedPeriod()) return {key:'nodate',label:'Datum nodig',blocked:true};
+    var r=reservationFor(m);
+    if(r) return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:r};
+    return {key:'free',label:'Vrij',blocked:false};
+  }
+  function infoPopup(m,st){
+    var msg='<b>'+esc((m.code||'')+' '+(m.name||''))+'</b><br><br>Status: '+esc(st.label||'Niet beschikbaar');
+    if(st.reservation && st.reservation.order){
+      var o=st.reservation.order, p=st.reservation.period;
+      msg += '<br><b>Klant:</b> '+esc((o.customer&&o.customer.name)||o.customerName||'Onbekend');
+      msg += '<br><b>Opdracht:</b> '+esc(o.number||o.title||o.id||'');
+      if(p) msg += '<br><b>Datum reservering:</b> '+esc(nlDate(p.start))+' tot '+esc(nlDate(p.end));
+      var wp=wantedPeriod(); if(wp) msg += '<br><b>Jouw datum:</b> '+esc(nlDate(wp.start))+' tot '+esc(nlDate(wp.end));
+    }
+    if(typeof window.bnsAlert==='function') window.bnsAlert(msg,'Materiaal status');
+    else alert((m.code||'')+' '+(m.name||'')+'\n'+(st.label||'Niet beschikbaar'));
+  }
+  function nlDate(d){ if(!d) return ''; return d.getDate()+'-'+(d.getMonth()+1)+'-'+d.getFullYear(); }
+  function renderCats(){
+    var box=E('materialCats'); if(!box) return;
+    var cats=Array.from(new Set(materials().map(function(m){return txt(m.cat||'EXTRA').toUpperCase();}).filter(Boolean))).sort();
+    var c=currentCat();
+    box.innerHTML=cats.map(function(k){return '<button type="button" class="bns386-cat '+(k===c?'active':'')+'" data-bns386-cat="'+esc(k)+'">'+esc(k)+'</button>';}).join('');
+  }
+  function renderMaterials(cat){
+    var box=E('materialList'); if(!box) return;
+    var c=currentCat(cat);
+    var q=low(E('materialSearch')&&E('materialSearch').value);
+    var rows=materials().filter(function(m){return txt(m.cat||'EXTRA').toUpperCase()===c;}).filter(function(m){return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0;});
+    box.innerHTML=rows.map(function(m){
+      var st=statusFor(m);
+      var cls='bns386-'+st.key;
+      return '<div class="material-row bns386-row '+cls+'" data-mid="'+esc(m.id)+'" data-bns386-mid="'+esc(m.id)+'">'
+        + '<div class="bns386-left"></div>'
+        + '<div class="bns386-main"><b>'+esc(m.code||'')+'</b> <span>'+esc(m.name||'')+'</span><br><small>'+esc(m.price||'')+(st.key==='reserved'?' · Klik voor klant/opdracht':'')+'</small></div>'
+        + '<div class="bns386-badge">'+esc(st.label)+'</div>'
+        + '</div>';
+    }).join('') || '<p>Geen materiaal</p>';
+    renderCats();
+  }
+  function renderChosenSafe(){
+    try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
+    try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+    try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
+  }
+  function toggle(mid){
+    var m=materialById(mid); if(!m) return false;
+    var exists=chosenList().some(function(x){return sameMaterial(x,m);});
+    if(exists){ setChosen(chosenList().filter(function(x){return !sameMaterial(x,m);})); renderChosenSafe(); renderMaterials(window.currentCat); return false; }
+    var st=statusFor(m);
+    if(st.blocked){ infoPopup(m,st); renderMaterials(window.currentCat); return false; }
+    var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
+    var list=chosenList(); list.push(item); setChosen(list);
+    renderChosenSafe(); renderMaterials(window.currentCat); return false;
+  }
+  function installCss(){
+    if(E('bns386MaterialCss')) return;
+    var css=document.createElement('style'); css.id='bns386MaterialCss';
+    css.textContent='\n'
+      +'html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important;}\n'
+      +'#newOrder,#orderForm,.content,.main,.page{overflow:visible!important;}\n'
+      +'#materialList{max-height:65vh!important;overflow-y:auto!important;padding-right:8px!important;}\n'
+      +'#chosenMaterials{max-height:55vh!important;overflow-y:auto!important;}\n'
+      +'#materialCats{display:flex!important;gap:10px!important;flex-wrap:wrap!important;margin-bottom:10px!important;}\n'
+      +'#materialCats .bns386-cat,#materialCats button{min-width:58px!important;padding:12px 16px!important;border-radius:10px!important;background:linear-gradient(#1766b0,#0a4a88)!important;color:white!important;font-weight:800!important;border:0!important;box-shadow:0 4px 0 #0796d9!important;}\n'
+      +'#materialCats .active{background:linear-gradient(#10a8ee,#057ac4)!important;}\n'
+      +'#materialList .bns386-row{position:relative!important;display:grid!important;grid-template-columns:8px 1fr auto!important;gap:12px!important;align-items:center!important;min-height:70px!important;margin:10px 0!important;padding:12px 12px!important;border:1px solid #d8e2ea!important;border-radius:14px!important;background:#fff!important;cursor:pointer!important;box-shadow:0 1px 2px rgba(0,0,0,.04)!important;}\n'
+      +'#materialList .bns386-left{align-self:stretch!important;border-radius:8px!important;background:#0b93d1!important;}\n'
+      +'#materialList .bns386-main b{font-size:18px!important;color:#111827!important;}\n'
+      +'#materialList .bns386-main span{font-size:14px!important;color:#273447!important;}\n'
+      +'#materialList .bns386-main small{font-size:12px!important;color:#5b6674!important;}\n'
+      +'#materialList .bns386-badge{padding:8px 12px!important;border-radius:999px!important;font-weight:800!important;white-space:nowrap!important;}\n'
+      +'#materialList .bns386-free .bns386-badge{background:#dff5e8!important;color:#073d22!important;}\n'
+      +'#materialList .bns386-reserved{border-color:#e9b4a4!important;background:#fffaf7!important;}\n'
+      +'#materialList .bns386-reserved .bns386-badge{background:#f6d4d4!important;color:#6d0f0f!important;}\n'
+      +'#materialList .bns386-chosen{border-color:#d77878!important;background:#fff4f4!important;}\n'
+      +'#materialList .bns386-chosen .bns386-badge{background:#f6d4d4!important;color:#6d0f0f!important;}\n'
+      +'#materialList .bns386-defect .bns386-badge,#materialList .bns386-inactive .bns386-badge,#materialList .bns386-nodate .bns386-badge{background:#e5e7eb!important;color:#111827!important;}\n';
+    document.head.appendChild(css);
+  }
+  function install(){
+    installCss();
+    window.renderMaterials=renderMaterials;
+    window.addMat=toggle;
+    window.BNS_V386={renderMaterials:renderMaterials,toggleMaterial:toggle,statusFor:statusFor,reservationFor:reservationFor,sameMaterial:sameMaterial,keysFor:keysFor};
+    try{ renderMaterials=renderMaterials; addMat=toggle; }catch(e){}
+  }
+  document.addEventListener('click',function(ev){
+    var cat=ev.target.closest && ev.target.closest('#materialCats button');
+    if(cat){ ev.preventDefault(); ev.stopImmediatePropagation(); currentCat(cat.getAttribute('data-bns386-cat')||cat.getAttribute('data-bns-cat')||cat.textContent); install(); renderMaterials(window.currentCat); return false; }
+    var row=ev.target.closest && ev.target.closest('#materialList [data-mid]');
+    if(row){ ev.preventDefault(); ev.stopImmediatePropagation(); toggle(row.getAttribute('data-mid')); return false; }
+  },true);
+  document.addEventListener('input',function(ev){ if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){ setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},50); }},true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},400);});
+  else setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},300);
+  setInterval(function(){ install(); var box=E('materialList'); if(box && box.querySelector('.bns386-row')===null){ renderMaterials(window.currentCat||'TW'); } },1200);
+  console.info('[BNS v386] Materiaal definitief stabiel: gereserveerd niet klikbaar, oude reserveringen op code/id, scroll fix.');
+})();
+
+/* ==========================================================
+   BNS v387 — Admin materiaal beheer opslag/list herstel
+   - Admin > Materialen beheren blijft na Opslaan dezelfde tekst tonen.
+   - Onderste beheer-lijst wordt direct opnieuw opgebouwd uit state.materials.
+   - Wijzig-knoppen blijven gekoppeld aan het juiste materiaal.
+   - Alleen beheerweergave; materiaalblokkering/keuze blijft v386.
+========================================================== */
+(function(){
+  'use strict';
+  if(window.__BNS_V387_ADMIN_MATERIAL_LIST_FIX__) return;
+  window.__BNS_V387_ADMIN_MATERIAL_LIST_FIX__=true;
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function lower(v){ return T(v).toLowerCase(); }
+  function getState(){
+    try{ if(typeof state!=='undefined' && state && Array.isArray(state.materials)) return state; }catch(e){}
+    try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){}
+    return null;
+  }
+  function cat(v){ return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6) || 'EXTRA'; }
+  function nrFrom(m){
+    var c=cat(m&& (m.cat||m.rubriek||m.category));
+    var n=T(m&&(m.productNr||m.nr||m.number||''));
+    var co=T(m&&m.code);
+    if(n) return n.toUpperCase().replace(new RegExp('^'+c,'i'),'').replace(/\s+/g,'');
+    if(co) return co.toUpperCase().replace(new RegExp('^'+c,'i'),'').replace(/\s+/g,'');
+    return '';
+  }
+  function codeOf(m){
+    var c=cat(m&&(m.cat||m.rubriek||m.category));
+    var n=nrFrom(m);
+    var co=T(m&&m.code).toUpperCase().replace(/\s+/g,'');
+    if(co) return co;
+    return n ? c+n : c;
+  }
+  function productOf(m){ return T(m&&(m.product||m.searchName||m.zoeknaam||m.type||'')); }
+  function descOf(m){ return T(m&&(m.description||m.beschrijving||m.name||'')); }
+  function priceOf(m){ return T(m&&m.price); }
+  function statusOf(m){ return T(m&&m.status) || 'free'; }
+  var selectedId='';
+  var lastForm=null;
+  function readForm(){
+    var c=cat(E('bnsV56Cat')&&E('bnsV56Cat').value);
+    var n=T(E('bnsV56Nr')&&E('bnsV56Nr').value).toUpperCase().replace(/\s+/g,'');
+    var p=T(E('bnsV56Product')&&E('bnsV56Product').value);
+    var d=T(E('bnsV56Desc')&&E('bnsV56Desc').value);
+    var pr=T(E('bnsV56Price')&&E('bnsV56Price').value);
+    var st=T(E('bnsV56Status')&&E('bnsV56Status').value)||'free';
+    if(!c && !n && !p && !d) return null;
+    return {cat:c,nr:n,product:p,desc:d,price:pr,status:st,code:(n && n.indexOf(c)===0)?n:(c+n)};
+  }
+  function fillForm(m){
+    if(!m) return;
+    var c=cat(m.cat||m.rubriek||m.category), n=nrFrom(m);
+    if(E('bnsV56Cat')) E('bnsV56Cat').value=c;
+    if(E('bnsV56Nr')) E('bnsV56Nr').value=n;
+    if(E('bnsV56Product')) E('bnsV56Product').value=productOf(m);
+    if(E('bnsV56Desc')) E('bnsV56Desc').value=descOf(m);
+    if(E('bnsV56Price')) E('bnsV56Price').value=priceOf(m);
+    if(E('bnsV56Status')) E('bnsV56Status').value=statusOf(m);
+    lastForm=readForm();
+  }
+  function findByIdOrCode(s,f){
+    if(!s||!f) return null;
+    var mats=s.materials||[];
+    if(selectedId){
+      var byId=mats.find(function(x){ return T(x.id)===T(selectedId); });
+      if(byId) return byId;
+    }
+    var code=T(f.code).toUpperCase();
+    return mats.find(function(x){ return codeOf(x).toUpperCase()===code; }) || null;
+  }
+  function saveLocal(){
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof window.save==='function') window.save(); }catch(e){}
+    try{ if(typeof window.saveApp==='function') window.saveApp(); }catch(e){}
+  }
+  function applyFormToState(){
+    var s=getState(), f=readForm()||lastForm;
+    if(!s || !f || !f.cat || !f.nr) return null;
+    s.materials=Array.isArray(s.materials)?s.materials:[];
+    var m=findByIdOrCode(s,f);
+    if(!m){ m={id:'mat_'+Date.now()}; s.materials.push(m); }
+    m.id=m.id || ('mat_'+Date.now());
+    m.cat=f.cat; m.rubriek=f.cat; m.category=f.cat;
+    m.code=f.code; m.productNr=f.nr; m.nr=f.nr;
+    m.product=f.product; m.searchName=f.product; m.zoeknaam=f.product; m.type=f.product;
+    m.name=f.desc || f.product; m.description=f.desc; m.beschrijving=f.desc;
+    m.price=f.price; m.status=f.status;
+    selectedId=T(m.id);
+    lastForm=f;
+    saveLocal();
+    return m;
+  }
+  function rowHtml(m){
+    var c=cat(m.cat||m.rubriek||m.category);
+    return '<div class="bns387-admin-row" data-bns387-mid="'+H(m.id)+'">'
+      +'<span class="bns387-bar"></span><div class="bns387-info"><b>'+H(codeOf(m))+'</b> '+H(productOf(m))+'<br><small>'+H(descOf(m))+' | rubriek '+H(c)+'</small></div>'
+      +'<button type="button" class="bns387-edit" data-bns387-edit="'+H(m.id)+'">Wijzig</button></div>';
+  }
+  function renderList(){
+    var box=E('bnsV56AdminList');
+    var s=getState();
+    if(!box || !s || !Array.isArray(s.materials)) return;
+    var q=lower(E('bnsV56AdminSearch')&&E('bnsV56AdminSearch').value);
+    var rows=s.materials.filter(function(m){
+      var hay=lower([m.cat,m.rubriek,m.category,codeOf(m),m.productNr,m.nr,m.product,m.searchName,m.zoeknaam,m.type,m.name,m.description,m.beschrijving,m.price,m.status].join(' '));
+      return !q || hay.indexOf(q)>=0;
+    }).slice(0,250);
+    box.innerHTML=rows.length?rows.map(rowHtml).join(''):'<small>Geen materiaal gevonden.</small>';
+  }
+  function style(){
+    if(E('bns387AdminMaterialStyle')) return;
+    var st=document.createElement('style');
+    st.id='bns387AdminMaterialStyle';
+    st.textContent='\
+      #bnsV56AdminList .bns387-admin-row{display:grid!important;grid-template-columns:6px 1fr auto!important;gap:10px!important;align-items:center!important;margin:8px 0!important;padding:9px 10px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:12px!important;box-shadow:0 1px 2px rgba(15,23,42,.05)!important}\
+      #bnsV56AdminList .bns387-bar{height:100%!important;min-height:42px!important;border-radius:8px!important;background:#0ea5e9!important}\
+      #bnsV56AdminList .bns387-info b{font-weight:900!important;color:#111827!important}\
+      #bnsV56AdminList .bns387-info small{color:#475569!important}\
+      #bnsV56AdminList .bns387-edit{background:#0b74d1!important;color:white!important;border:0!important;border-radius:10px!important;padding:8px 12px!important;font-weight:800!important;cursor:pointer!important}\
+      #bnsV56AdminList .bns387-edit:active,#bnsV56Save:active{transform:scale(.96)!important;filter:brightness(.88)!important}\
+    ';
+    document.head.appendChild(st);
+  }
+  document.addEventListener('input',function(ev){
+    if(ev.target && /^bnsV56(Cat|Nr|Product|Desc|Price|Status|AdminSearch)$/.test(ev.target.id||'')){
+      lastForm=readForm()||lastForm;
+      setTimeout(renderList,80);
+    }
+  },true);
+  document.addEventListener('change',function(ev){
+    if(ev.target && /^bnsV56(Cat|Nr|Product|Desc|Price|Status)$/.test(ev.target.id||'')) lastForm=readForm()||lastForm;
+  },true);
+  document.addEventListener('click',function(ev){
+    var edit=ev.target && ev.target.closest && ev.target.closest('[data-bns387-edit],[data-v56-edit],[data-v61-edit],[data-bns-v67-edit]');
+    if(edit){
+      selectedId=edit.getAttribute('data-bns387-edit')||edit.getAttribute('data-v56-edit')||edit.getAttribute('data-v61-edit')||edit.getAttribute('data-bns-v67-edit')||'';
+      var s=getState(), m=s && (s.materials||[]).find(function(x){ return T(x.id)===T(selectedId); });
+      if(m) setTimeout(function(){ fillForm(m); },0);
+    }
+    var saveBtn=ev.target && ev.target.closest && ev.target.closest('#bnsV56Save');
+    if(saveBtn){
+      lastForm=readForm()||lastForm;
+      setTimeout(function(){
+        var m=applyFormToState();
+        if(m) fillForm(m);
+        renderList();
+        try{ if(typeof window.renderMaterials==='function') window.renderMaterials((lastForm&&lastForm.cat)||'TW'); }catch(e){}
+      },180);
+      setTimeout(renderList,600);
+    }
+  },true);
+  function run(){ style(); if(E('bnsV56AdminList')) renderList(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(run,200);}); else setTimeout(run,120);
+  setInterval(function(){ if(E('bnsV56AdminList')) run(); },1800);
+  window.BNS_V387_ADMIN_MATERIAL_LIST_FIX={renderList:renderList,applyFormToState:applyFormToState};
+  console.info('[BNS v387] Admin materialen beheren: lijst en opslag gesynchroniseerd.');
+})();
+
+/* ==========================================================
+   BNS v388 — Admin materiaal verwijderen na Wijzig fix
+   - Wis materiaal werkt ook als het materiaal via Wijzig in het formulier staat.
+   - Gebruikt de formuliercode als fallback wanneer oude editId leeg is.
+   - Voorkomt oude melding: "Kies eerst een materiaal".
+========================================================== */
+(function(){
+  'use strict';
+  if(window.__BNS_V388_ADMIN_DELETE_FIX__) return;
+  window.__BNS_V388_ADMIN_DELETE_FIX__=true;
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function cat(v){ return T(v||'EXTRA').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6)||'EXTRA'; }
+  function getState(){
+    try{ if(typeof state!=='undefined' && state && Array.isArray(state.materials)) return state; }catch(e){}
+    try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){}
+    return null;
+  }
+  function nrFrom(m){
+    var c=cat(m && (m.cat||m.rubriek||m.category));
+    var n=T(m && (m.productNr||m.nr||m.number||''));
+    var co=T(m && m.code);
+    if(n) return n.toUpperCase().replace(new RegExp('^'+c,'i'),'').replace(/\s+/g,'');
+    if(co) return co.toUpperCase().replace(new RegExp('^'+c,'i'),'').replace(/\s+/g,'');
+    return '';
+  }
+  function codeOf(m){
+    var c=cat(m && (m.cat||m.rubriek||m.category));
+    var co=T(m && m.code).toUpperCase().replace(/\s+/g,'');
+    if(co) return co;
+    var n=nrFrom(m);
+    return n ? c+n : c;
+  }
+  function formCode(){
+    var c=cat(E('bnsV56Cat') && E('bnsV56Cat').value);
+    var n=T(E('bnsV56Nr') && E('bnsV56Nr').value).toUpperCase().replace(/\s+/g,'');
+    if(!c || !n) return '';
+    return n.indexOf(c)===0 ? n : c+n;
+  }
+  function formHasMaterial(){
+    return !!(T(E('bnsV56Cat')&&E('bnsV56Cat').value) && T(E('bnsV56Nr')&&E('bnsV56Nr').value));
+  }
+  var selectedId='';
+  function rememberFromButton(btn){
+    if(!btn) return;
+    selectedId = btn.getAttribute('data-bns387-edit') || btn.getAttribute('data-v56-edit') || btn.getAttribute('data-v61-edit') || btn.getAttribute('data-bns-v67-edit') || btn.getAttribute('data-mid') || selectedId || '';
+  }
+  function findMaterial(){
+    var s=getState();
+    if(!s) return null;
+    var mats=s.materials||[];
+    if(selectedId){
+      var byId=mats.find(function(m){ return T(m.id)===T(selectedId); });
+      if(byId) return byId;
+    }
+    var fc=formCode();
+    if(fc){
+      var byCode=mats.find(function(m){ return codeOf(m).toUpperCase()===fc.toUpperCase(); });
+      if(byCode){ selectedId=T(byCode.id); return byCode; }
+    }
+    return null;
+  }
+  function saveLocal(){
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.save==='function') window.BNS.save(); }catch(e){}
+    try{ if(window.firebaseSync && typeof window.firebaseSync.saveAll==='function') window.firebaseSync.saveAll(); }catch(e){}
+  }
+  function clearForm(){
+    ['bnsV56Nr','bnsV56Product','bnsV56Desc','bnsV56Price'].forEach(function(id){ if(E(id)) E(id).value=''; });
+    if(E('bnsV56Status')) E('bnsV56Status').value='free';
+  }
+  function rerender(){
+    try{ if(window.BNS_V387_ADMIN_MATERIAL_LIST_FIX && typeof window.BNS_V387_ADMIN_MATERIAL_LIST_FIX.renderList==='function') window.BNS_V387_ADMIN_MATERIAL_LIST_FIX.renderList(); }catch(e){}
+    try{ if(typeof renderAdminList==='function') renderAdminList(); }catch(e){}
+    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(cat(E('bnsV56Cat')&&E('bnsV56Cat').value)||'TW'); }catch(e){}
+  }
+  function doDelete(ev){
+    var btn=ev.target && ev.target.closest && ev.target.closest('#bnsV56Delete,#bnsV58AdminDelete');
+    if(!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    var s=getState();
+    var m=findMaterial();
+    if(!s || !m || !formHasMaterial()){
+      alert('Kies eerst een materiaal via Wijzig.');
+      return false;
+    }
+    var label=codeOf(m)+' '+T(m.product||m.searchName||m.zoeknaam||m.type||m.name||m.description||'');
+    if(!confirm('Weet je zeker dat je dit materiaal wilt verwijderen?\n\n'+label)) return false;
+    var id=T(m.id), code=codeOf(m).toUpperCase();
+    s.materials=(s.materials||[]).filter(function(x){ return T(x.id)!==id && codeOf(x).toUpperCase()!==code; });
+    selectedId='';
+    clearForm();
+    saveLocal();
+    rerender();
+    try{ if(typeof toast==='function') toast('Materiaal verwijderd'); else alert('Materiaal verwijderd'); }catch(e){ alert('Materiaal verwijderd'); }
+    return false;
+  }
+  document.addEventListener('click',function(ev){
+    var edit=ev.target && ev.target.closest && ev.target.closest('[data-bns387-edit],[data-v56-edit],[data-v61-edit],[data-bns-v67-edit],#bnsV56AdminList button,.bns387-edit');
+    if(edit) rememberFromButton(edit);
+    doDelete(ev);
+  },true);
+  console.info('[BNS v388] Admin wis materiaal na Wijzig actief.');
+})();
+
+/* ==========================================================
+   BNS v389 — Admin materiaal opslaan: nieuw blijft nieuw
+   - Na Nieuw/leeg wordt de bewerk-koppeling echt gewist.
+   - Een nieuw productnummer zoals TW3 overschrijft TW1 niet meer.
+   - Alleen na echte Wijzig wordt het bestaande materiaal bijgewerkt.
+========================================================== */
+(function(){
+  'use strict';
+  if(window.__BNS_V389_ADMIN_MATERIAL_SAVE_FIX__) return;
+  window.__BNS_V389_ADMIN_MATERIAL_SAVE_FIX__=true;
+  var editId='';
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function cat(v){ return T(v||'TW').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8)||'TW'; }
+  function getState(){
+    try{ if(typeof state!=='undefined' && state && Array.isArray(state.materials)) return state; }catch(e){}
+    try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){}
+    return null;
+  }
+  function nrFrom(m){
+    var c=cat(m&&(m.cat||m.rubriek||m.category));
+    var n=T(m&&(m.productNr||m.nr||m.number||''));
+    var co=T(m&&m.code);
+    if(n) return n.toUpperCase().replace(new RegExp('^'+c,'i'),'').replace(/\s+/g,'');
+    if(co) return co.toUpperCase().replace(new RegExp('^'+c,'i'),'').replace(/\s+/g,'');
+    return '';
+  }
+  function codeOf(m){
+    var c=cat(m&&(m.cat||m.rubriek||m.category));
+    var co=T(m&&m.code).toUpperCase().replace(/\s+/g,'');
+    if(co) return co;
+    var n=nrFrom(m);
+    return n?c+n:c;
+  }
+  function form(){
+    var c=cat(E('bnsV56Cat')&&E('bnsV56Cat').value);
+    var n=T(E('bnsV56Nr')&&E('bnsV56Nr').value).toUpperCase().replace(/\s+/g,'');
+    var p=T(E('bnsV56Product')&&E('bnsV56Product').value);
+    var d=T(E('bnsV56Desc')&&E('bnsV56Desc').value);
+    var pr=T(E('bnsV56Price')&&E('bnsV56Price').value);
+    var st=T(E('bnsV56Status')&&E('bnsV56Status').value)||'free';
+    if(!c || !n){ alert('Vul rubriek en product nr in.'); return null; }
+    var code=n.indexOf(c)===0?n:c+n;
+    return {cat:c,nr:n,code:code,product:p,desc:d,price:pr,status:st};
+  }
+  function saveAll(){
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.save==='function') window.BNS.save(); }catch(e){}
+    try{ if(window.firebaseSync && typeof window.firebaseSync.saveAll==='function') window.firebaseSync.saveAll(); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('materials', getState().materials); }catch(e){}
+  }
+  function renderAll(c){
+    try{ if(window.BNS_V387_ADMIN_MATERIAL_LIST_FIX && typeof window.BNS_V387_ADMIN_MATERIAL_LIST_FIX.renderList==='function') window.BNS_V387_ADMIN_MATERIAL_LIST_FIX.renderList(); }catch(e){}
+    try{ if(typeof renderAdminList==='function') renderAdminList(); }catch(e){}
+    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(c||'TW'); }catch(e){}
+  }
+  function clearForm(){
+    editId='';
+    ['bnsV56Nr','bnsV56Product','bnsV56Desc','bnsV56Price'].forEach(function(id){ if(E(id)) E(id).value=''; });
+    if(E('bnsV56Status')) E('bnsV56Status').value='free';
+  }
+  function fillForm(m){
+    if(!m) return;
+    var c=cat(m.cat||m.rubriek||m.category), n=nrFrom(m);
+    if(E('bnsV56Cat')) E('bnsV56Cat').value=c;
+    if(E('bnsV56Nr')) E('bnsV56Nr').value=n;
+    if(E('bnsV56Product')) E('bnsV56Product').value=T(m.product||m.searchName||m.zoeknaam||m.type||'');
+    if(E('bnsV56Desc')) E('bnsV56Desc').value=T(m.description||m.beschrijving||m.name||'');
+    if(E('bnsV56Price')) E('bnsV56Price').value=T(m.price||'');
+    if(E('bnsV56Status')) E('bnsV56Status').value=T(m.status||'free');
+  }
+  function doSave(ev){
+    var btn=ev.target && ev.target.closest && ev.target.closest('#bnsV56Save,#bnsV58AdminSave');
+    if(!btn) return;
+    ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    var s=getState(), f=form();
+    if(!s || !f) return false;
+    s.materials=Array.isArray(s.materials)?s.materials:[];
+    var m=null;
+    if(editId){ m=s.materials.find(function(x){ return T(x.id)===T(editId); })||null; }
+    if(!m){ m=s.materials.find(function(x){ return codeOf(x).toUpperCase()===f.code.toUpperCase(); })||null; }
+    var created=false;
+    if(!m){ created=true; m={id:'mat_'+Date.now()+'_'+Math.floor(Math.random()*10000)}; s.materials.push(m); }
+    m.cat=f.cat; m.rubriek=f.cat; m.category=f.cat;
+    m.code=f.code; m.productNr=f.nr; m.nr=f.nr; m.number=f.nr;
+    m.product=f.product; m.searchName=f.product; m.zoeknaam=f.product; m.type=f.product;
+    m.name=f.desc || f.product; m.description=f.desc; m.beschrijving=f.desc;
+    m.price=f.price; m.status=f.status;
+    saveAll();
+    fillForm(m);
+    if(created) editId=''; else editId=T(m.id);
+    setTimeout(function(){ renderAll(f.cat); },40);
+    setTimeout(function(){ renderAll(f.cat); },350);
+    try{ if(typeof toast==='function') toast('Materiaal opgeslagen'); else alert('Materiaal opgeslagen'); }catch(e){ alert('Materiaal opgeslagen'); }
+    return false;
+  }
+  document.addEventListener('click',function(ev){
+    var edit=ev.target && ev.target.closest && ev.target.closest('[data-bns387-edit],[data-v56-edit],[data-v61-edit],[data-bns-v67-edit],.bns387-edit');
+    if(edit){
+      editId=edit.getAttribute('data-bns387-edit')||edit.getAttribute('data-v56-edit')||edit.getAttribute('data-v61-edit')||edit.getAttribute('data-bns-v67-edit')||'';
+      var s=getState(), m=s && (s.materials||[]).find(function(x){ return T(x.id)===T(editId); });
+      if(m) setTimeout(function(){ fillForm(m); },0);
+      return;
+    }
+    var txt=T(ev.target && ev.target.textContent).toLowerCase();
+    var clear=ev.target && ev.target.closest && (ev.target.closest('#bnsV56Clear,#bnsV58AdminClear') || (/nieuw\s*\/\s*leeg|nieuw\/leeg|nieuw materiaal/.test(txt) && ev.target.closest('button')));
+    if(clear){ setTimeout(clearForm,0); return; }
+    doSave(ev);
+  },true);
+  window.BNS_V389_ADMIN_SAVE_FIX={clearForm:clearForm,renderAll:renderAll};
+  console.info('[BNS v389] Admin materiaal opslaan nieuw/wijzigen gescheiden actief.');
 })();
