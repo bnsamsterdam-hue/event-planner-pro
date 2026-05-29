@@ -39433,17 +39433,33 @@ setTimeout(()=>{
       notify(o ? ('Materiaal is gereserveerd door opdracht '+T(o.number||o.id)+' ('+T(o.status)+').') : (st.label||'Materiaal niet beschikbaar'));
       return false;
     }
-    var copy=JSON.parse(JSON.stringify(m)); copy.status='reserved';
+    var orderStatusEl=E('orderStatus')||E('status');
+    var orderSt=T(orderStatusEl?orderStatusEl.value:'').toLowerCase();
+    var matSt=(/offerte|geannuleerd|cancel|verwijderd|deleted/.test(orderSt))?'free':'reserved';
+    var copy=JSON.parse(JSON.stringify(m)); copy.status=matSt;
     var list=chosenList().slice(); list.push(copy); setChosenList(list); rerenderMaterial(); return false;
   }
   function validateBeforeSave(){
     var list=chosenList();
+    var orderStatusEl=E('orderStatus')||E('status');
+    var orderSt=T(orderStatusEl?orderStatusEl.value:'').toLowerCase();
     for(var i=0;i<list.length;i++){
       var base=mats().find(function(m){ return sameMaterial(m,list[i]); }) || list[i];
-      var st=statusFor(base);
-      if(st.blocked && st.key!=='chosen'){
-        var o=st.reservation&&st.reservation.order;
-        alert('Opslaan geblokkeerd: '+T(codeOf(base)||materialKey(base)||nameOf(base))+(o?' is al geblokkeerd door '+T(o.status)+' opdracht '+T(o.number||o.id)+'.':' is niet beschikbaar.'));
+      var raw=L(base.status||'');
+      if(/inactive|niet actief|niet beschikbaar/.test(raw)){
+        try{window.bnsAlert('Opslaan geblokkeerd: '+T(codeOf(base)||nameOf(base))+' is niet inzetbaar.','Materiaal niet beschikbaar');}catch(e){alert('Opslaan geblokkeerd: '+T(codeOf(base)||nameOf(base))+' is niet inzetbaar.');}
+        return false;
+      }
+      if(/defect|schade|damage|vermist|missing/.test(raw)){
+        try{window.bnsAlert('Opslaan geblokkeerd: '+T(codeOf(base)||nameOf(base))+' is defect.','Materiaal defect');}catch(e){alert('Opslaan geblokkeerd: '+T(codeOf(base)||nameOf(base))+' is defect.');}
+        return false;
+      }
+      // Altijd reservationFor checken, ook voor al gekozen items
+      var r=reservationFor(base);
+      if(r){
+        var o=r.order;
+        var msg='Opslaan geblokkeerd: '+T(codeOf(base)||materialKey(base)||nameOf(base))+' is gereserveerd door opdracht '+T(o.number||o.id)+' ('+T(o.status)+').';
+        try{window.bnsAlert(msg,'Dubbele reservering');}catch(e){alert(msg);}
         return false;
       }
     }
