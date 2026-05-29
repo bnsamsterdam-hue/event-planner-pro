@@ -40702,3 +40702,220 @@ setTimeout(()=>{
   window.BNS_V389_ADMIN_SAVE_FIX={clearForm:clearForm,renderAll:renderAll};
   console.info('[BNS v389] Admin materiaal opslaan nieuw/wijzigen gescheiden actief.');
 })();
+
+/* ==========================================================
+   BNS v390 — Admin materiaalbeheer schoon/stabiel
+   - Oude admin-materiaallijsten blijven verborgen zodat ze niet meer flikkeren.
+   - Eigen stabiele beheerkaart met unieke IDs, geen strijd met v56/v61/v387/v389.
+   - Nieuw materiaal met andere code maakt echt nieuw record.
+========================================================== */
+(function(){
+  'use strict';
+  if(window.__BNS_V390_ADMIN_MATERIAL_CLEAN__) return;
+  window.__BNS_V390_ADMIN_MATERIAL_CLEAN__=true;
+  var editId='';
+  var activeCat='TW';
+  function E(id){return document.getElementById(id);}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v).trim();}
+  function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function cat(v){return T(v||'TW').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8)||'TW';}
+  function getState(){
+    try{ if(typeof state!=='undefined' && state && Array.isArray(state.materials)) return state; }catch(e){}
+    try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){}
+    return null;
+  }
+  function nrFrom(m){
+    var c=cat(m&&(m.cat||m.rubriek||m.category));
+    var n=T(m&&(m.productNr||m.nr||m.number||''));
+    var co=T(m&&m.code);
+    if(n) return n.toUpperCase().replace(new RegExp('^'+c,'i'),'').replace(/\s+/g,'');
+    if(co) return co.toUpperCase().replace(new RegExp('^'+c,'i'),'').replace(/\s+/g,'');
+    return '';
+  }
+  function codeOf(m){
+    var c=cat(m&&(m.cat||m.rubriek||m.category));
+    var co=T(m&&m.code).toUpperCase().replace(/\s+/g,'');
+    if(co) return co;
+    var n=nrFrom(m);
+    return n?c+n:c;
+  }
+  function productOf(m){return T(m&&(m.product||m.searchName||m.zoeknaam||m.type||''));}
+  function descOf(m){return T(m&&(m.description||m.beschrijving||m.name||''));}
+  function statusOf(m){return T(m&&m.status)||'free';}
+  function form(){
+    var c=cat(E('bns390Cat')&&E('bns390Cat').value);
+    var n=T(E('bns390Nr')&&E('bns390Nr').value).toUpperCase().replace(/\s+/g,'');
+    var p=T(E('bns390Product')&&E('bns390Product').value);
+    var d=T(E('bns390Desc')&&E('bns390Desc').value);
+    var pr=T(E('bns390Price')&&E('bns390Price').value);
+    var st=T(E('bns390Status')&&E('bns390Status').value)||'free';
+    if(!c || !n){ toastSafe('Vul rubriek en product nr in.'); return null; }
+    var code=n.indexOf(c)===0?n:c+n;
+    return {cat:c,nr:n,code:code,product:p,desc:d,price:pr,status:st};
+  }
+  function fill(m){
+    if(!m){
+      editId='';
+      if(E('bns390Cat')) E('bns390Cat').value=activeCat;
+      ['bns390Nr','bns390Product','bns390Desc','bns390Price'].forEach(function(id){if(E(id))E(id).value='';});
+      if(E('bns390Status')) E('bns390Status').value='free';
+      markEditing('Nieuw materiaal');
+      return;
+    }
+    editId=T(m.id);
+    activeCat=cat(m.cat||m.rubriek||m.category);
+    if(E('bns390Cat')) E('bns390Cat').value=activeCat;
+    if(E('bns390Nr')) E('bns390Nr').value=nrFrom(m);
+    if(E('bns390Product')) E('bns390Product').value=productOf(m);
+    if(E('bns390Desc')) E('bns390Desc').value=descOf(m);
+    if(E('bns390Price')) E('bns390Price').value=T(m.price||'');
+    if(E('bns390Status')) E('bns390Status').value=statusOf(m);
+    markEditing('Wijzigen: '+codeOf(m));
+  }
+  function markEditing(txt){ if(E('bns390Mode')) E('bns390Mode').textContent=txt; }
+  function saveLocal(){
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.save==='function') window.BNS.save(); }catch(e){}
+    try{ if(window.firebaseSync && typeof window.firebaseSync.saveAll==='function') window.firebaseSync.saveAll(); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncDoc==='function'){ var s=getState(); if(s) window.BNS.syncDoc('materials',s.materials); } }catch(e){}
+  }
+  function toastSafe(msg){
+    try{ if(typeof toast==='function') return toast(msg); }catch(e){}
+    try{ if(typeof toastMsg==='function') return toastMsg(msg); }catch(e){}
+    try{ alert(msg); }catch(e){}
+  }
+  function findByCode(s,code){ code=T(code).toUpperCase(); return (s.materials||[]).find(function(m){return codeOf(m).toUpperCase()===code;})||null; }
+  function doSave(){
+    var s=getState(), f=form(); if(!s||!f) return false;
+    s.materials=Array.isArray(s.materials)?s.materials:[];
+    var m=null;
+    if(editId){
+      var current=s.materials.find(function(x){return T(x.id)===T(editId);})||null;
+      // Alleen bestaand record bijwerken als de code gelijk blijft. Wijzig je TW1 naar TW3, dan wordt TW3 een nieuw record.
+      if(current && codeOf(current).toUpperCase()===f.code.toUpperCase()) m=current;
+    }
+    if(!m) m=findByCode(s,f.code);
+    var created=false;
+    if(!m){ created=true; m={id:'mat_'+Date.now()+'_'+Math.floor(Math.random()*10000)}; s.materials.push(m); }
+    m.cat=f.cat; m.rubriek=f.cat; m.category=f.cat;
+    m.code=f.code; m.productNr=f.nr; m.nr=f.nr; m.number=f.nr;
+    m.product=f.product; m.searchName=f.product; m.zoeknaam=f.product; m.type=f.product;
+    m.name=f.desc||f.product; m.description=f.desc; m.beschrijving=f.desc;
+    m.price=f.price; m.status=f.status;
+    activeCat=f.cat;
+    saveLocal();
+    editId=T(m.id);
+    fill(m);
+    renderList();
+    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(activeCat); }catch(e){}
+    toastSafe(created?'Nieuw materiaal opgeslagen':'Materiaal opgeslagen');
+    return false;
+  }
+  function doDelete(){
+    var s=getState(), f=form(); if(!s||!f) return false;
+    var m=null;
+    if(editId) m=(s.materials||[]).find(function(x){return T(x.id)===T(editId);})||null;
+    if(!m) m=findByCode(s,f.code);
+    if(!m){ toastSafe('Kies eerst een materiaal via Wijzig.'); return false; }
+    if(!confirm('Weet je zeker dat je dit materiaal wilt verwijderen?\n\n'+codeOf(m)+' '+(productOf(m)||descOf(m)))) return false;
+    var id=T(m.id), code=codeOf(m).toUpperCase();
+    s.materials=(s.materials||[]).filter(function(x){return T(x.id)!==id && codeOf(x).toUpperCase()!==code;});
+    saveLocal();
+    fill(null);
+    renderList();
+    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(activeCat); }catch(e){}
+    toastSafe('Materiaal verwijderd');
+    return false;
+  }
+  function row(m){
+    var c=cat(m.cat||m.rubriek||m.category);
+    var cls=T(m.id)===editId?' bns390-selected':'';
+    return '<div class="bns390-row'+cls+'" data-bns390-id="'+H(m.id)+'"><span></span><div><b>'+H(codeOf(m))+'</b> '+H(productOf(m))+'<br><small>'+H(descOf(m))+' | rubriek '+H(c)+'</small></div><button type="button">Wijzig</button></div>';
+  }
+  function renderList(){
+    var s=getState(), list=E('bns390List'); if(!s||!list) return;
+    var q=T(E('bns390Search')&&E('bns390Search').value).toLowerCase();
+    var c=activeCat;
+    var rows=(s.materials||[]).filter(function(m){return cat(m.cat||m.rubriek||m.category)===c;});
+    if(q) rows=rows.filter(function(m){return [codeOf(m),productOf(m),descOf(m),T(m.price),statusOf(m)].join(' ').toLowerCase().indexOf(q)>=0;});
+    rows=rows.sort(function(a,b){return codeOf(a).localeCompare(codeOf(b),undefined,{numeric:true});}).slice(0,300);
+    list.innerHTML=rows.length?rows.map(row).join(''):'<div class="bns390-empty">Geen materiaal in rubriek '+H(c)+'.</div>';
+  }
+  function style(){
+    if(E('bns390Style')) return;
+    var st=document.createElement('style'); st.id='bns390Style';
+    st.textContent='\
+      #bnsV56AdminCard,#adminMatList,#bnsV56AdminList:not(#bns390List){display:none!important}\
+      #bns390AdminCard{background:#fff;border:1px solid #dce6f2;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 1px 3px rgba(15,23,42,.06)}\
+      #bns390Grid{display:grid;grid-template-columns:100px 120px 1fr 1fr;gap:12px;align-items:end}\
+      #bns390Grid label{display:block;font-weight:900;font-size:13px;margin:0 0 5px;color:#1f2937}\
+      #bns390Grid input,#bns390Grid select,#bns390Search{width:100%;box-sizing:border-box;border:1px solid #dbe3ef;border-radius:10px;padding:10px;background:white;font-weight:700}\
+      #bns390Actions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;align-items:center}\
+      #bns390Actions button,#bns390Cats button{border:0;border-radius:12px;padding:10px 14px;font-weight:900;color:white;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.22)}\
+      #bns390Save{background:#22a047}#bns390Delete{background:#d83a2e}#bns390New{background:#213044}#bns390Cancel{background:#374151}\
+      #bns390Cats{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}\
+      #bns390Cats button{background:#0b74d1}#bns390Cats button.active{background:#111827;outline:3px solid #65d8ff}\
+      #bns390List{max-height:420px;overflow:auto;padding:4px 2px 80px}\
+      .bns390-row{display:grid;grid-template-columns:7px 1fr auto;gap:10px;align-items:center;background:#fff;border:1px solid #dbe3ef;border-radius:12px;margin:8px 0;padding:10px;box-shadow:0 1px 2px rgba(15,23,42,.05)}\
+      .bns390-row>span{height:100%;min-height:42px;border-radius:8px;background:#0ea5e9}.bns390-row.bns390-selected{border-color:#0b74d1;background:#f0f9ff}\
+      .bns390-row button{background:#0b74d1;color:white;border:0;border-radius:10px;padding:8px 12px;font-weight:900;cursor:pointer}\
+      #bns390Mode{font-weight:900;color:#0f172a;background:#eaf6ff;border-radius:999px;padding:7px 12px}.bns390-empty{padding:18px;color:#64748b;font-weight:800}\
+      @media(max-width:900px){#bns390Grid{grid-template-columns:1fr 1fr}#bns390AdminCard{padding:12px}}\
+    ';
+    document.head.appendChild(st);
+  }
+  function html(){
+    return '<div id="bns390AdminCard"><h3 style="margin:0 0 14px">Materialen beheren</h3><div id="bns390Grid">'
+      +'<div><label>Rubriek</label><input id="bns390Cat" value="TW"></div><div><label>Product nr</label><input id="bns390Nr" placeholder="17"></div>'
+      +'<div><label>Product / zoeknaam</label><input id="bns390Product" placeholder="Tapwagen XXL"></div><div><label>Product omschrijving</label><input id="bns390Desc" placeholder="Tapwagen zwart XXL"></div>'
+      +'<div style="grid-column:1 / span 2"><label>Prijs / vrije tekst</label><input id="bns390Price" placeholder="oude prijs: € 0"></div><div><label>Status</label><select id="bns390Status"><option value="free">Vrij</option><option value="reserved">Gereserveerd</option><option value="defect">Defect</option><option value="inactive">Niet actief</option></select></div><div><label>Mode</label><div id="bns390Mode">Nieuw materiaal</div></div>'
+      +'</div><div id="bns390Actions"><button id="bns390Save" type="button">Opslaan materiaal</button><button id="bns390Delete" type="button">Wis materiaal</button><button id="bns390New" type="button">Nieuw/leeg</button><button id="bns390Cancel" type="button">Annuleren</button></div>'
+      +'<div id="bns390Cats"><button type="button" data-cat="TW">TW</button><button type="button" data-cat="TO">TO</button><button type="button" data-cat="KW">KW</button><button type="button" data-cat="EXTRA">EXTRA</button></div>'
+      +'<input id="bns390Search" placeholder="Zoek binnen rubriek"><div id="bns390List"></div></div>';
+  }
+  function install(){
+    style();
+    var old=E('bnsV56AdminCard') || E('bnsV56AdminList') || E('adminMatList');
+    if(!old) return false;
+    var parent=(old.id==='bnsV56AdminCard'?old.parentNode:old.closest('.card,.panel,.adminPane,section,main,div')||old.parentNode);
+    if(!parent) return false;
+    var card=E('bns390AdminCard');
+    if(!card){
+      card=document.createElement('div'); card.innerHTML=html();
+      parent.insertBefore(card.firstChild, old.id==='bnsV56AdminCard'?old:parent.firstChild);
+      bind();
+      fill(null);
+    }
+    A('#bns390Cats button').forEach(function(b){b.classList.toggle('active',cat(b.getAttribute('data-cat'))===activeCat);});
+    if(E('bns390Cat')) E('bns390Cat').value=activeCat;
+    renderList();
+    return true;
+  }
+  function bind(){
+    document.addEventListener('click',function(ev){
+      var t=ev.target;
+      if(!t || !t.closest) return;
+      var inCard=t.closest('#bns390AdminCard');
+      if(!inCard) return;
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      var catBtn=t.closest('#bns390Cats button');
+      if(catBtn){ activeCat=cat(catBtn.getAttribute('data-cat')); editId=''; fill(null); install(); return false; }
+      if(t.closest('#bns390Save')) return doSave();
+      if(t.closest('#bns390Delete')) return doDelete();
+      if(t.closest('#bns390New,#bns390Cancel')){ fill(null); renderList(); return false; }
+      var row=t.closest('.bns390-row');
+      if(row){ var s=getState(); var m=s&&(s.materials||[]).find(function(x){return T(x.id)===T(row.getAttribute('data-bns390-id'));}); if(m){fill(m); renderList();} return false; }
+    },true);
+    document.addEventListener('input',function(ev){
+      if(!ev.target || !ev.target.closest || !ev.target.closest('#bns390AdminCard')) return;
+      if(ev.target.id==='bns390Search'){ renderList(); return; }
+      if(ev.target.id==='bns390Cat'){ activeCat=cat(ev.target.value); renderList(); }
+    },true);
+  }
+  function boot(){ install(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,250);}); else setTimeout(boot,200);
+  setInterval(function(){ if(E('bnsV56AdminCard') && !E('bns390AdminCard')) install(); },1500);
+  window.BNS_V390_ADMIN_MATERIAL_CLEAN={install:install,renderList:renderList,fill:fill};
+  console.info('[BNS v390] Admin materiaalbeheer schoon en stabiel actief.');
+})();
