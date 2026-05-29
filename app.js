@@ -40995,3 +40995,239 @@ setTimeout(()=>{
   window.BNS_V391_ADMIN_MATERIAL_FULL={install:install,renderList:renderList,fill:fill,setCatColor:setCatColor,getCatColor:getCatColor};
   console.info('[BNS v391] Admin materiaalbeheer met kleurmenu en favorieten actief.');
 })();
+
+/* =========================================================
+   BNS v392 — Materiaal kiezen definitief rustig
+   - Stopt oude click-handlers VOORDAT document-capture handlers starten.
+   - BNS_STABLE_CORE wordt naar deze renderer gezet, zodat oude intervals
+     niet meer terugschakelen naar de kleine/oude lijst.
+   - Rubrieken blijven altijd TW / TO / KW / EXTRA tonen, ook bij lege rubrieken.
+   - Gereserveerd/defect/niet actief alleen info, nooit toevoegen.
+   ========================================================= */
+(function BNS_V392_MATERIAL_PICKER_FINAL(){
+  'use strict';
+  if(window.__BNS_V392_MATERIAL_PICKER_FINAL__) return;
+  window.__BNS_V392_MATERIAL_PICKER_FINAL__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function getState(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || {}; }
+  function mats(){ var s=getState(); return Array.isArray(s.materials) ? s.materials : []; }
+  function orders(){ var s=getState(); return Array.isArray(s.orders) ? s.orders : []; }
+  function chosenList(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen) ? window.chosen : []; }
+  function setChosen(list){ try{ chosen = list; }catch(e){} window.chosen = list; }
+  function clone(o){ try{return JSON.parse(JSON.stringify(o));}catch(e){return Object.assign({},o||{});} }
+  function codeOf(m){ return T(m && (m.code || m.productNr || m.nr || m.number || m.type)); }
+  function catOf(m){ return T(m && (m.cat || m.rubriek || m.category || 'EXTRA')).toUpperCase(); }
+  function nameOf(m){ return T(m && (m.name || m.product || m.searchName || m.zoeknaam || m.description || m.beschrijving)); }
+  function descOf(m){ return T(m && (m.description || m.beschrijving || m.name || m.product || m.searchName)); }
+
+  function realCode(v){
+    var c=T(v).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(!c) return '';
+    if(/^(EXTRA|TW|KW|TO|NVT|GEEN|LOS|OVERIG|DIVERS|ALGEMEEN)$/.test(c)) return '';
+    var m=c.match(/^([A-Z]{1,12})0*(\d{1,6})$/);
+    return m ? (m[1] + String(parseInt(m[2],10))) : '';
+  }
+  function keysFor(m){
+    var keys=[]; if(!m) return keys;
+    if(T(m.id)) keys.push('id:'+T(m.id));
+    [m.code,m.productNr,m.nr,m.number,m.type,m.product,m.name,m.searchName,m.zoeknaam,m.description,m.beschrijving].forEach(function(v){
+      var r=realCode(v); if(r) keys.push('code:'+r);
+    });
+    return Array.from(new Set(keys));
+  }
+  function sameMaterial(a,b){
+    var ka=keysFor(a), kb=keysFor(b); if(!ka.length || !kb.length) return false;
+    return ka.some(function(k){ return kb.indexOf(k) >= 0; });
+  }
+
+  function parseDate(v){
+    v=T(v); if(!v) return null;
+    var m=v.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(m){ var d1=new Date(+m[1],+m[2]-1,+m[3]); d1.setHours(0,0,0,0); return isNaN(d1)?null:d1; }
+    m=v.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+    if(m){ var d2=new Date(+m[3],+m[2]-1,+m[1]); d2.setHours(0,0,0,0); return isNaN(d2)?null:d2; }
+    var d=new Date(v); if(!isNaN(d)){ d.setHours(0,0,0,0); return d; }
+    return null;
+  }
+  function nlDate(d){ return d ? (d.getDate()+'-'+(d.getMonth()+1)+'-'+d.getFullYear()) : ''; }
+  function period(s,e){ var a=parseDate(s), b=parseDate(e||s); if(!a||!b) return null; if(a>b){ var t=a; a=b; b=t; } return {start:a,end:b}; }
+  function wantedPeriod(){ var s=E('dateStart'), e=E('dateEnd'); return period(s&&s.value,(e&&e.value)||(s&&s.value)); }
+  function orderPeriod(o){ return period(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
+  function todayMs(){ var d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<=b.end.getTime()&&b.start.getTime()<=a.end.getTime()); }
+  function endPast(o){ var p=orderPeriod(o); return !!(p && p.end.getTime() < todayMs()); }
+  function optionExpired(o){
+    var s=L(o&&o.status); if(!/optie\s*14|optie14/.test(s)) return false;
+    var d=parseDate(o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||o.dateStart||o.date); if(!d) return false;
+    return todayMs() >= d.getTime() + 14*24*60*60*1000;
+  }
+  function blocks(o){
+    var s=L(o&&o.status);
+    if(!s) return false;
+    if(/geannuleerd|cancel|verwijderd|deleted|trash/.test(s)) return false;
+    if(/offerte/.test(s)) return false;
+    if(/optie\s*14|optie14/.test(s)) return !optionExpired(o);
+    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return false;
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(s)) return !endPast(o);
+    return false;
+  }
+  function editingId(){ try{ if(T(editing)) return T(editing); }catch(e){} return T(window.editing||''); }
+  function editingNumber(){ var n=E('orderNumber'); return T(n&&n.value); }
+  function reservationFor(m){
+    var wp=wantedPeriod(); if(!wp || !m) return null;
+    var eid=editingId(), nr=editingNumber();
+    for(var i=0;i<orders().length;i++){
+      var o=orders()[i]; if(!o || !blocks(o)) continue;
+      if(eid && T(o.id)===eid) continue;
+      if(nr && T(o.number)===nr) continue;
+      if(!overlaps(wp, orderPeriod(o))) continue;
+      var ml=Array.isArray(o.materials) ? o.materials : [];
+      if(ml.some(function(x){ return sameMaterial(x,m); })) return {order:o,period:orderPeriod(o)};
+    }
+    return null;
+  }
+  function statusFor(m){
+    if(!m) return {key:'missing',label:'Niet gevonden',blocked:true};
+    if(chosenList().some(function(x){ return sameMaterial(x,m); })) return {key:'chosen',label:'Toegevoegd',blocked:false};
+    var raw=L(m.status);
+    if(/defect|schade|damage|missing|vermist/.test(raw)) return {key:'defect',label:'Defect',blocked:true};
+    if(/inactive|niet actief|niet beschikbaar/.test(raw)) return {key:'inactive',label:'Niet actief',blocked:true};
+    if(!wantedPeriod()) return {key:'nodate',label:'Datum nodig',blocked:true};
+    var r=reservationFor(m); if(r) return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:r};
+    return {key:'free',label:'Vrij',blocked:false};
+  }
+  function info(m,st){
+    var html='<b>'+H(codeOf(m)+' '+nameOf(m))+'</b><br><br>Status: '+H(st.label||'Niet beschikbaar');
+    if(st.reservation && st.reservation.order){
+      var o=st.reservation.order, p=st.reservation.period;
+      html += '<br><b>Klant:</b> '+H((o.customer&&o.customer.name)||o.customerName||'Onbekend');
+      html += '<br><b>Opdracht:</b> '+H(o.number||o.title||o.id||'');
+      if(p) html += '<br><b>Datum reservering:</b> '+H(nlDate(p.start))+' tot '+H(nlDate(p.end));
+      var wp=wantedPeriod(); if(wp) html += '<br><b>Jouw datum:</b> '+H(nlDate(wp.start))+' tot '+H(nlDate(wp.end));
+    }
+    if(typeof window.bnsAlert === 'function') window.bnsAlert(html,'Materiaal status');
+    else alert((codeOf(m)+' '+nameOf(m)+'\n'+(st.label||'Niet beschikbaar')));
+  }
+
+  function categoryList(){
+    var base=['TW','TO','KW','EXTRA'];
+    mats().forEach(function(m){ var c=catOf(m); if(c && base.indexOf(c)<0) base.push(c); });
+    return base;
+  }
+  function setCat(c){
+    c=T(c||window.currentCat||'TW').toUpperCase();
+    var cats=categoryList(); if(cats.indexOf(c)<0) c='TW';
+    window.currentCat=c; try{ currentCat=c; }catch(e){} return c;
+  }
+  function renderCats(){
+    var box=E('materialCats'); if(!box) return;
+    var c=setCat();
+    box.innerHTML=categoryList().map(function(k){
+      return '<button type="button" class="bns392-cat bns386-cat '+(k===c?'active':'')+'" data-bns392-cat="'+H(k)+'" data-bns386-cat="'+H(k)+'">'+H(k)+'</button>';
+    }).join('');
+  }
+  function renderChosenSafe(){
+    try{ if(typeof renderChosen === 'function') renderChosen(); }catch(e){}
+    try{ if(typeof summaryRender === 'function') summaryRender(); }catch(e){}
+    try{ if(typeof calcTotals === 'function') calcTotals(); }catch(e){}
+  }
+  function materialById(id){ return mats().find(function(m){ return T(m.id)===T(id); }); }
+  function rowHtml(m){
+    var st=statusFor(m), cls='bns392-'+st.key+' bns386-'+st.key;
+    return '<div class="material-row bns392-row bns386-row '+cls+'" data-mid="'+H(m.id)+'" data-bns392-mid="'+H(m.id)+'" data-bns386-mid="'+H(m.id)+'">'
+      +'<div class="bns392-strip"></div>'
+      +'<div class="bns392-text"><b>'+H(codeOf(m))+'</b> <span>'+H(nameOf(m))+'</span><br><small>'+H(descOf(m)||m.price||'')+(st.key==='reserved'?' · Klik voor klant/opdracht':'')+'</small></div>'
+      +'<div class="bns392-badge">'+H(st.label)+'</div>'
+      +'</div>';
+  }
+  var lastSig='';
+  function renderMaterials(cat, force){
+    var box=E('materialList'); if(!box) return;
+    var c=setCat(cat);
+    var q=L(E('materialSearch')&&E('materialSearch').value);
+    var list=mats().filter(function(m){ return catOf(m)===c; }).filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0; });
+    var sig=c+'|'+q+'|'+list.map(function(m){ var st=statusFor(m); return T(m.id)+':'+codeOf(m)+':'+nameOf(m)+':'+st.key; }).join(',')+'|chosen:'+chosenList().map(function(m){return codeOf(m)||T(m.id);}).join(',');
+    renderCats();
+    if(!force && sig===lastSig && box.querySelector('.bns392-row')) return;
+    lastSig=sig;
+    box.innerHTML=list.map(rowHtml).join('') || '<p class="bns392-empty">Geen materiaal in deze rubriek.</p>';
+  }
+  function toggleMaterial(mid){
+    var m=materialById(mid); if(!m) return false;
+    var exists=chosenList().some(function(x){ return sameMaterial(x,m); });
+    if(exists){
+      setChosen(chosenList().filter(function(x){ return !sameMaterial(x,m); }));
+      renderChosenSafe(); renderMaterials(window.currentCat,true); return false;
+    }
+    var st=statusFor(m);
+    if(st.blocked){ info(m,st); renderMaterials(window.currentCat,true); return false; }
+    var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
+    var list=chosenList(); list.push(item); setChosen(list);
+    renderChosenSafe(); renderMaterials(window.currentCat,true); return false;
+  }
+  function installCss(){
+    if(E('bns392MaterialCss')) return;
+    var css=document.createElement('style'); css.id='bns392MaterialCss';
+    css.textContent='\n'
+      +'html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important;}\n'
+      +'#newOrder,#orderForm,.content,.main,.page{overflow:visible!important;}\n'
+      +'#materialCats{display:flex!important;gap:10px!important;flex-wrap:wrap!important;margin-bottom:12px!important;}\n'
+      +'#materialCats .bns392-cat,#materialCats button{min-width:58px!important;padding:12px 16px!important;border:0!important;border-radius:11px!important;background:linear-gradient(#1766b0,#0b4d8f)!important;color:#fff!important;font-weight:900!important;box-shadow:0 5px 0 #0aa7df!important;cursor:pointer!important;}\n'
+      +'#materialCats .bns392-cat.active,#materialCats button.active{background:linear-gradient(#19aeea,#0880ca)!important;}\n'
+      +'#materialList{max-height:66vh!important;overflow-y:auto!important;padding-right:8px!important;contain:layout paint!important;}\n'
+      +'#chosenMaterials{max-height:55vh!important;overflow-y:auto!important;}\n'
+      +'#materialList .bns392-row{position:relative!important;display:grid!important;grid-template-columns:8px minmax(0,1fr) auto!important;gap:12px!important;align-items:center!important;min-height:72px!important;margin:10px 0!important;padding:12px!important;border:1px solid #d8e2ea!important;border-radius:14px!important;background:#fff!important;box-shadow:0 1px 2px rgba(0,0,0,.04)!important;cursor:pointer!important;transition:none!important;animation:none!important;transform:none!important;}\n'
+      +'#materialList .bns392-strip{align-self:stretch!important;border-radius:8px!important;background:#0b93d1!important;}\n'
+      +'#materialList .bns392-text{min-width:0!important;line-height:1.15!important;}\n'
+      +'#materialList .bns392-text b{font-size:18px!important;color:#111827!important;margin-right:6px!important;}\n'
+      +'#materialList .bns392-text span{font-size:14px!important;color:#273447!important;}\n'
+      +'#materialList .bns392-text small{font-size:12px!important;color:#5b6674!important;}\n'
+      +'#materialList .bns392-badge{padding:8px 13px!important;border-radius:999px!important;font-weight:900!important;white-space:nowrap!important;}\n'
+      +'#materialList .bns392-free .bns392-badge{background:#dff5e8!important;color:#073d22!important;}\n'
+      +'#materialList .bns392-reserved{border-color:#e9b4a4!important;background:#fffaf7!important;cursor:not-allowed!important;}\n'
+      +'#materialList .bns392-reserved .bns392-badge{background:#f6d4d4!important;color:#6d0f0f!important;}\n'
+      +'#materialList .bns392-chosen{border-color:#d77878!important;background:#fff4f4!important;}\n'
+      +'#materialList .bns392-chosen .bns392-badge{background:#dbeafe!important;color:#1e3a8a!important;}\n'
+      +'#materialList .bns392-defect .bns392-badge,#materialList .bns392-inactive .bns392-badge,#materialList .bns392-nodate .bns392-badge{background:#e5e7eb!important;color:#111827!important;}\n';
+    document.head.appendChild(css);
+  }
+  function expose(){
+    installCss();
+    window.renderMaterials=renderMaterials;
+    window.addMat=toggleMaterial;
+    window.BNS_V392={renderMaterials:renderMaterials,toggleMaterial:toggleMaterial,statusFor:statusFor,reservationFor:reservationFor,sameMaterial:sameMaterial,keysFor:keysFor};
+    // Belangrijk: oude v380/v356 intervals zetten window.renderMaterials terug naar BNS_STABLE_CORE.renderMaterials.
+    // Daarom vervangen we die kern ook door v392, zodat de oude intervals juist vóór ons gaan werken.
+    window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
+    window.BNS_STABLE_CORE.renderMaterials = renderMaterials;
+    window.BNS_STABLE_CORE.toggleMat = toggleMaterial;
+    try{ renderMaterials = renderMaterials; addMat = toggleMaterial; }catch(e){}
+  }
+  function schedule(cat,force){
+    expose();
+    if(window.__bns392Raf) cancelAnimationFrame(window.__bns392Raf);
+    window.__bns392Raf=requestAnimationFrame(function(){ renderMaterials(cat||window.currentCat||'TW', !!force); });
+  }
+  window.addEventListener('click',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var catBtn=t.closest('#materialCats button');
+    if(catBtn){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); setCat(catBtn.getAttribute('data-bns392-cat')||catBtn.getAttribute('data-bns386-cat')||catBtn.textContent); schedule(window.currentCat,true); return false; }
+    var row=t.closest('#materialList [data-bns392-mid],#materialList [data-mid],#materialList [data-bns386-mid]');
+    if(row){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); toggleMaterial(row.getAttribute('data-bns392-mid')||row.getAttribute('data-bns386-mid')||row.getAttribute('data-mid')); return false; }
+  },true);
+  document.addEventListener('input',function(ev){
+    if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')) schedule(window.currentCat||'TW',true);
+  },true);
+  function boot(){ schedule(window.currentCat||'TW',true); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,300);}); else setTimeout(boot,150);
+  setInterval(function(){
+    expose();
+    var box=E('materialList');
+    if(box && !box.querySelector('.bns392-row')) renderMaterials(window.currentCat||'TW',true);
+  },1500);
+  console.info('[BNS v392] Materiaal kiezen definitief rustig actief. Oude renderloops omgeleid naar v392.');
+})();
