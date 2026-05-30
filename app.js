@@ -41707,3 +41707,68 @@ setTimeout(()=>{
   else setTimeout(install,400);
   setInterval(install,1500);
 })();
+
+/* =========================================================
+   BNS V401 - KLEURKIEZER OPRUIMEN
+   Doel: alleen de kleurkiezer boven bij 'Rubriek kleur' gebruiken.
+   De dubbele kleurpanelen onder de materiaallijst worden verborgen.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.BNS_V401_COLOR_CLEANUP)return;
+  window.BNS_V401_COLOR_CLEANUP=true;
+
+  function byId(id){return document.getElementById(id);}
+  function css(){
+    if(byId('bns-v401-color-cleanup-style'))return;
+    var s=document.createElement('style');
+    s.id='bns-v401-color-cleanup-style';
+    s.textContent='\
+      #bnsV400ColorPicker{display:none!important}\
+      #bnsV50ColorRow,.bns-v50-colorrow,.bns-color-row{display:none!important}\
+      #bns391ColorPreview{display:none!important}\
+      #bns391ColorLine{display:flex!important;align-items:center!important;gap:10px!important;flex-wrap:wrap!important;margin:10px 0 12px!important}\
+      #bns391ColorInput{display:inline-block!important;width:34px!important;height:28px!important;border:2px solid #334155!important;border-radius:8px!important;padding:0!important;background:transparent!important;cursor:pointer!important;vertical-align:middle!important}\
+      #bns391ColorInput::-webkit-color-swatch-wrapper{padding:0!important}\
+      #bns391ColorInput::-webkit-color-swatch{border:0!important;border-radius:6px!important}\
+      #bns391ColorText{font-weight:900!important;color:#334155!important;min-width:92px!important}\
+      #bns391Dots{display:flex!important;gap:7px!important;align-items:center!important;flex-wrap:wrap!important}\
+      #bns391Dots .bns391-dot{width:24px!important;height:24px!important}\
+    ';
+    document.head.appendChild(s);
+  }
+  function cleanLowerPanels(){
+    var p=byId('bnsV400ColorPicker');
+    if(p)p.remove();
+    document.querySelectorAll('#bnsV50ColorRow,.bns-v50-colorrow,.bns-color-row').forEach(function(el){
+      el.style.display='none';
+      el.setAttribute('aria-hidden','true');
+    });
+  }
+  function syncTopInput(){
+    var input=byId('bns391ColorInput');
+    if(!input)return;
+    var cat=byId('bns391Cat');
+    var c=(cat&&cat.value)||window.currentCat||'';
+    var get=window.BNS_V399_COLORS&&window.BNS_V399_COLORS.getColor;
+    try{ if(get&&c) input.value=get(c); }catch(e){}
+  }
+  function install(){
+    css();
+    cleanLowerPanels();
+    syncTopInput();
+  }
+  document.addEventListener('input',function(ev){
+    if(ev.target&&ev.target.id==='bns391ColorInput'){
+      var cat=byId('bns391Cat');
+      var c=(cat&&cat.value)||window.currentCat||'';
+      try{ if(window.BNS_V399_COLORS&&window.BNS_V399_COLORS.setColor)window.BNS_V399_COLORS.setColor(c,ev.target.value); }catch(e){}
+    }
+  },true);
+  document.addEventListener('change',function(ev){
+    if(ev.target&&ev.target.id==='bns391Cat')setTimeout(syncTopInput,0);
+  },true);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,250);});
+  else setTimeout(install,250);
+  setInterval(install,1200);
+})();
