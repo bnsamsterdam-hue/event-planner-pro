@@ -34031,10 +34031,11 @@ setTimeout(()=>{
   function accounting(){
     var s=appState();
     if(!s.accounting || typeof s.accounting!=='object') s.accounting={
-      documents:[],payments:[]
+      documents:[],payments:[],removedKeys:[]
     };
     if(!Array.isArray(s.accounting.documents)) s.accounting.documents=[];
     if(!Array.isArray(s.accounting.payments)) s.accounting.payments=[];
+    if(!Array.isArray(s.accounting.removedKeys)) s.accounting.removedKeys=[];
     return s.accounting;
   }
   function saveAll(){
@@ -34125,6 +34126,8 @@ setTimeout(()=>{
   function ensureDoc(o,type){
     var acc=accounting();
     var key=docKey(o,type);
+    // Niet opnieuw aanmaken als dit document eerder verwijderd is
+    if(acc.removedKeys && acc.removedKeys.indexOf(key)>=0) return;
     var d=acc.documents.find(function(x){
       return x.key===key;
     });
@@ -37749,7 +37752,7 @@ setTimeout(()=>{
       {id:'cancelled',   label:'Geannuleerde opdrachten',items:(s.orders||[]).filter(isCan),  yFn:oYear},
       {id:'deleted',     label:'Verwijderde opdrachten', items:(s.orders||[]).filter(isDel),  yFn:oYear},
       {id:'damage',      label:'Schade meldingen',       items:(s.alerts||[]).filter(isDmg),  yFn:aYear},
-      {id:'boekhouding', label:'Boekhouding (facturen)', items:(acc.invoices||[]),             yFn:bYear}
+      {id:'boekhouding', label:'Boekhouding (facturen)', items:(acc.documents||[]),             yFn:bYear}
     ];
     box.innerHTML=CATS.map(function(cat){
       var ys={};cat.items.forEach(function(o){var y=cat.yFn(o);ys[y]=(ys[y]||0)+1;});
@@ -37775,22 +37778,19 @@ setTimeout(()=>{
             var removed=0;
             if(cat==='boekhouding'){
               // Verwijder factuurrecords van dit jaar uit de boekhouding
-              var acc2=typeof accounting==='function'?accounting():{invoices:[],payments:[]};
+              var acc2=typeof accounting==='function'?accounting():{documents:[],payments:[]};
               var kept=[],deld=[];
-              (acc2.invoices||[]).forEach(function(d){
+              (acc2.documents||[]).forEach(function(d){
                 var y2=String(d.year||d.invoiceYear||d.date||d.time||d.createdAt||'');
                 var m2=y2.match(/\b(20\d{2})\b/); var dy=m2?m2[1]:y2.slice(0,4);
                 if(dy===year)deld.push(d); else kept.push(d);
               });
-              // Sla bijgewerkte boekhouding op
-              if(s.settings&&s.settings.accounting){
-                try{
-                  var bk=typeof s.settings.accounting==='string'?JSON.parse(s.settings.accounting):s.settings.accounting;
-                  bk.invoices=kept;
-                  s.settings.accounting=bk;
-                  removed+=deld.length;
-                }catch(e){}
-              }
+              // Sla bijgewerkte boekhouding op in de echte accounting-store
+              acc2.documents=kept;
+              acc2.removedKeys=Array.from(new Set(
+                (acc2.removedKeys||[]).concat(deld.map(function(d){return d.key;}).filter(Boolean))
+              ));
+              removed+=deld.length;
             } else if(cat==='damage'){
               var kd=[],dd=[];
               (s.alerts||[]).forEach(function(a){if(isDmg(a)&&aYear(a)===year)dd.push(a);else kd.push(a);});
