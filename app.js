@@ -37743,16 +37743,35 @@ setTimeout(()=>{
   function renderOpruimen(){
     var box=document.getElementById('bns350OpBox');if(!box)return;
     var s=S();if(!s)return;
-    // Boekhouding jaar bepalen uit factuur
-    function bYear(d){ var y=String(d.year||d.invoiceYear||d.date||d.time||d.createdAt||''); var m=y.match(/\b(20\d{2})\b/); return m?m[1]:(y.slice(0,4)||'Geen jaar'); }
-    // Haal factuurrecords op
-    var acc=typeof accounting==='function'?accounting():{invoices:[],payments:[]};
+    // Boekhouding jaar bepalen uit factuur of opdracht
+    function bYear(d){
+      // Probeer jaar uit factuurNummer (bv 2023-3149)
+      var fn=String(d.invoiceNumber||d.factuurNr||d.number||'');
+      var m=fn.match(/\b(20\d{2})\b/); if(m) return m[1];
+      // Uit einddatum of startdatum
+      var y=String(d.year||d.end||d.start||d.date||d.createdAt||'');
+      var m2=y.match(/\b(20\d{2})\b/); return m2?m2[1]:(y.slice(0,4)||'Geen jaar');
+    }
+    // Haal boekhouding-orders op: alle opdrachten met een factuur
+    // Dit zijn uitgevoerde/bevestigde orders die een factuurNummer hebben
+    var boekhoudOrders=(s.orders||[]).filter(function(o){
+      var fn=String(o.invoiceNumber||o.factuurNr||(o.invoice&&(o.invoice.invoiceNumber||o.invoice.number))||'');
+      return fn.length>0;
+    });
+    // Ook uit s.accounting.documents als die al gevuld is
+    var accDocs=[];
+    try{
+      var acc=typeof accounting==='function'?accounting():{documents:[],payments:[]};
+      if(Array.isArray(acc.documents)&&acc.documents.length>0) accDocs=acc.documents;
+    }catch(e){}
+    // Gebruik de langste lijst
+    var boekhoudItems=accDocs.length>=boekhoudOrders.length?accDocs:boekhoudOrders;
     var CATS=[
       {id:'done',        label:'Uitgevoerde opdrachten', items:(s.orders||[]).filter(isDone), yFn:oYear},
       {id:'cancelled',   label:'Geannuleerde opdrachten',items:(s.orders||[]).filter(isCan),  yFn:oYear},
       {id:'deleted',     label:'Verwijderde opdrachten', items:(s.orders||[]).filter(isDel),  yFn:oYear},
       {id:'damage',      label:'Schade meldingen',       items:(s.alerts||[]).filter(isDmg),  yFn:aYear},
-      {id:'boekhouding', label:'Boekhouding (facturen)', items:(acc.documents||[]),             yFn:bYear}
+      {id:'boekhouding', label:'Boekhouding (facturen)', items:boekhoudItems,                  yFn:bYear}
     ];
     box.innerHTML=CATS.map(function(cat){
       var ys={};cat.items.forEach(function(o){var y=cat.yFn(o);ys[y]=(ys[y]||0)+1;});
@@ -37777,13 +37796,30 @@ setTimeout(()=>{
             var s=S();if(!s)return;
             var removed=0;
             if(cat==='boekhouding'){
-              // Verwijder factuurrecords van dit jaar uit de boekhouding
-              var acc2=typeof accounting==='function'?accounting():{documents:[],payments:[]};
+              // Verwijder factuurrecords van dit jaar
+              var acc2=typeof accounting==='function'?accounting():{documents:[],payments:[],removedKeys:[]};
               var kept=[],deld=[];
+              // Uit acc.documents
               (acc2.documents||[]).forEach(function(d){
-                var y2=String(d.year||d.invoiceYear||d.date||d.time||d.createdAt||'');
+                var fn=String(d.invoiceNumber||d.factuurNr||d.number||'');
+                var y2=String(d.year||fn||d.end||d.start||d.date||d.createdAt||'');
                 var m2=y2.match(/\b(20\d{2})\b/); var dy=m2?m2[1]:y2.slice(0,4);
                 if(dy===year)deld.push(d); else kept.push(d);
+              });
+              // Ook uit orders: verwijder factuurNummer van orders in dit jaar
+              // zodat ensureDoc ze niet opnieuw toevoegt
+              (s.orders||[]).forEach(function(o){
+                var fn=String(o.invoiceNumber||o.factuurNr||(o.invoice&&(o.invoice.invoiceNumber||o.invoice.number))||'');
+                if(!fn) return;
+                var m3=fn.match(/\b(20\d{2})\b/);
+                var oy=m3?m3[1]:oYear(o);
+                if(oy===year){
+                  // Verwijder factuurgegevens van deze order
+                  delete o.invoiceNumber; delete o.factuurNr;
+                  if(o.invoice){delete o.invoice.invoiceNumber; delete o.invoice.number;}
+                  fbDel('orders',o.id); // sync naar Firebase
+                  removed++;
+                }
               });
               // Sla bijgewerkte boekhouding op
               if(s.settings&&s.settings.accounting){
@@ -37792,7 +37828,8 @@ setTimeout(()=>{
                   bk.documents=kept;
                   bk.removedKeys=(acc2.removedKeys||[]).concat(deld.map(function(d){return d.key;}));
                   s.settings.accounting=bk;
-                  removed+=deld.length;
+                  if(!deld.length && removed) {} // removed al geteld via orders
+                  else removed+=deld.length;
                 }catch(e){}
               }
             } else if(cat==='damage'){
