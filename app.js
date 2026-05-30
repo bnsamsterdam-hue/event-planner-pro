@@ -41566,3 +41566,144 @@ setTimeout(()=>{
   setTimeout(function(){ maps(); ensureExtraColors(); refreshUI(); }, 900);
   setInterval(function(){ ensureExtraColors(); refreshUI(); }, 2500);
 })();
+
+/* =========================================================
+   BNS V400 - ZICHTBARE RUBRIEK KLEURKIEZER
+   Doel: naast de vaste kleurbolletjes ook een echte kleurkiezer tonen.
+   Werkt met nieuwe/dynamische rubrieken en schrijft naar alle bekende opslagplekken.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.BNS_V400_COLOR_PICKER)return;
+  window.BNS_V400_COLOR_PICKER=true;
+
+  var LS_KEYS=['bns_rubriek_kleuren_v12_pro','bns_rubriek_kleuren_v400'];
+  var DEFAULT='#0ea5e9';
+  var SWATCHES=['#0ea5e9','#2563eb','#1d4ed8','#22c55e','#16a34a','#eab308','#f59e0b','#f97316','#dc2626','#b91c1c','#a855f7','#7c3aed','#ec4899','#64748b','#111827','#ffffff'];
+
+  function byId(id){return document.getElementById(id);}
+  function cleanCat(v){return String(v||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'')||'EXTRA';}
+  function stateObj(){
+    try{ if(typeof appState==='function')return appState(); }catch(e){}
+    try{ if(window.state)return window.state; }catch(e){}
+    try{ if(typeof state!=='undefined')return state; }catch(e){}
+    return {};
+  }
+  function loadLocal(){
+    var out={};
+    LS_KEYS.forEach(function(k){
+      try{ Object.assign(out,JSON.parse(localStorage.getItem(k)||'{}')); }catch(e){}
+    });
+    return out;
+  }
+  function allColors(){
+    var s=stateObj();
+    s.settings=s.settings||{};
+    return Object.assign({},loadLocal(),s.settings.catColors||{},s.settings.categoryColors||{});
+  }
+  function getColor(cat){
+    var k=cleanCat(cat);
+    return allColors()[k]||DEFAULT;
+  }
+  function saveColor(cat,color){
+    var k=cleanCat(cat);
+    var c=String(color||DEFAULT).trim();
+    var s=stateObj();
+    s.settings=s.settings||{};
+    s.settings.catColors=s.settings.catColors||{};
+    s.settings.categoryColors=s.settings.categoryColors||{};
+    s.settings.catColors[k]=c;
+    s.settings.categoryColors[k]=c;
+    LS_KEYS.forEach(function(key){
+      try{
+        var m=JSON.parse(localStorage.getItem(key)||'{}');
+        m[k]=c;
+        localStorage.setItem(key,JSON.stringify(m));
+      }catch(e){}
+    });
+    try{ if(typeof saveState==='function')saveState(); }catch(e){}
+    try{ if(typeof persist==='function')persist(); }catch(e){}
+    try{ if(typeof save==='function')save(); }catch(e){}
+    applyColorStyles();
+    refreshScreens();
+  }
+  function activeCat(){
+    var cat=byId('adminMatCat');
+    if(cat&&cat.value)return cleanCat(cat.value);
+    try{ if(window.currentCat)return cleanCat(window.currentCat); }catch(e){}
+    try{ if(typeof currentCat!=='undefined'&&currentCat)return cleanCat(currentCat); }catch(e){}
+    return 'EXTRA';
+  }
+  function applyColorStyles(){
+    var colors=allColors();
+    var style=byId('bns-v400-cat-colors-style');
+    if(!style){
+      style=document.createElement('style');
+      style.id='bns-v400-cat-colors-style';
+      document.head.appendChild(style);
+    }
+    var css='';
+    Object.keys(colors).forEach(function(k){
+      var c=colors[k];
+      css += '.cat-'+k+'{--cat-color:'+c+'!important;--mat-cat-color:'+c+'!important}\n';
+      css += '[data-cat="'+k+'"],[data-cat="'+k.toLowerCase()+'"]{border-bottom-color:'+c+'!important}\n';
+    });
+    style.textContent=css;
+  }
+  function refreshScreens(){
+    try{ if(typeof window.renderCats==='function')window.renderCats(); }catch(e){}
+    try{ if(typeof window.renderMaterials==='function')window.renderMaterials(window.currentCat||activeCat()); }catch(e){}
+    try{ if(typeof window.renderAdminMaterials==='function')window.renderAdminMaterials(); }catch(e){}
+    try{ if(typeof window.BNS_V12_PRO_renderCats==='function')window.BNS_V12_PRO_renderCats(); }catch(e){}
+    try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials==='function')window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
+  }
+  function syncPicker(){
+    var picker=byId('bnsV400RubriekColor');
+    var label=byId('bnsV400RubriekLabel');
+    var cat=activeCat();
+    var col=getColor(cat);
+    if(picker)picker.value=col;
+    if(label)label.textContent=cat+' '+col;
+    document.querySelectorAll('#bnsV400ColorPicker .bns-v400-swatch').forEach(function(btn){
+      btn.classList.toggle('active',String(btn.dataset.color).toLowerCase()===String(col).toLowerCase());
+    });
+  }
+  function ensurePicker(){
+    var catInput=byId('adminMatCat');
+    if(!catInput)return;
+    var panel=byId('bnsV400ColorPicker');
+    if(!panel){
+      panel=document.createElement('div');
+      panel.id='bnsV400ColorPicker';
+      panel.innerHTML='<div class="bns-v400-head"><b>Rubriek kleur kiezen</b><span id="bnsV400RubriekLabel"></span></div>'+
+        '<div class="bns-v400-row"><input id="bnsV400RubriekColor" type="color" value="'+DEFAULT+'"><button type="button" id="bnsV400SaveColor">Kleur opslaan</button><button type="button" id="bnsV400ClearColor">Kleur wissen</button></div>'+
+        '<div class="bns-v400-swatches">'+SWATCHES.map(function(c){return '<button type="button" class="bns-v400-swatch" data-color="'+c+'" style="background:'+c+'" title="'+c+'"></button>';}).join('')+'</div>';
+      var anchor=byId('adminMatStatus')||byId('adminMatPrice')||catInput;
+      anchor.closest('label,div,section,main') ? anchor.insertAdjacentElement('afterend',panel) : catInput.insertAdjacentElement('afterend',panel);
+
+      var style=document.createElement('style');
+      style.id='bnsV400ColorPickerStyle';
+      style.textContent='#bnsV400ColorPicker{margin:12px 0 14px;padding:12px;border:2px solid #dbe3ef;border-radius:14px;background:rgba(255,255,255,.72);max-width:760px}#bnsV400ColorPicker .bns-v400-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px}#bnsV400RubriekLabel{font-weight:900;color:#334155}#bnsV400ColorPicker .bns-v400-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}#bnsV400RubriekColor{width:74px;height:44px;border:2px solid #94a3b8;border-radius:12px;background:#fff;cursor:pointer;padding:2px}#bnsV400ColorPicker button{border:0;border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}#bnsV400SaveColor{background:#16a34a;color:#fff}#bnsV400ClearColor{background:#475569;color:#fff}.bns-v400-swatches{display:flex;gap:8px;flex-wrap:wrap}.bns-v400-swatch{width:34px;height:34px;border-radius:999px!important;border:3px solid rgba(15,23,42,.18)!important;box-shadow:0 2px 8px rgba(15,23,42,.16)}.bns-v400-swatch.active{outline:4px solid #22d3ee!important;transform:scale(1.08)}';
+      document.head.appendChild(style);
+
+      byId('bnsV400RubriekColor').addEventListener('input',function(){saveColor(activeCat(),this.value);});
+      byId('bnsV400SaveColor').addEventListener('click',function(){saveColor(activeCat(),byId('bnsV400RubriekColor').value);});
+      byId('bnsV400ClearColor').addEventListener('click',function(){saveColor(activeCat(),DEFAULT);});
+      panel.querySelectorAll('.bns-v400-swatch').forEach(function(btn){
+        btn.addEventListener('click',function(){saveColor(activeCat(),btn.dataset.color);syncPicker();});
+      });
+      catInput.addEventListener('input',syncPicker);
+      catInput.addEventListener('change',syncPicker);
+    }
+    syncPicker();
+  }
+  function install(){
+    applyColorStyles();
+    ensurePicker();
+  }
+  window.BNS_V400_setRubriekColor=saveColor;
+  window.BNS_V400_syncRubriekColor=syncPicker;
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,400);});
+  else setTimeout(install,400);
+  setInterval(install,1500);
+})();
