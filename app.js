@@ -35231,6 +35231,7 @@ setTimeout(()=>{
     tab.className=(tabs[0]&&tabs[0].className)||'adminTab';
     tab.dataset.admin='twV309DocStylePane';
     tab.textContent='Documenten / Huisstijl';
+    if(window.__BNS_V361__) return; // v361 heeft eigen tab, deze overslaan
     tabWrap.appendChild(tab);
     var pane=document.createElement('div');
     pane.id='twV309DocStylePane';
@@ -41138,11 +41139,26 @@ setTimeout(()=>{
     var cats=categoryList(); if(cats.indexOf(c)<0) c='TW';
     window.currentCat=c; try{ currentCat=c; }catch(e){} return c;
   }
+  function getCatColor(cat){
+    // Lees kleur uit localStorage (zelfde key als admin gebruikt)
+    try{
+      var map=JSON.parse(localStorage.getItem('bnsCatColors')||'{}');
+      var k=T(cat).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10);
+      if(map[k]) return map[k];
+    }catch(e){}
+    // Fallback defaults
+    var def={TW:'#dc2626',TO:'#f97316',KW:'#2563eb',KA:'#7c3aed',SL:'#16a34a',EXTRA:'#64748b'};
+    var k2=T(cat).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10);
+    return def[k2]||'#2563eb';
+  }
   function renderCats(){
     var box=E('materialCats'); if(!box) return;
     var c=setCat();
     box.innerHTML=categoryList().map(function(k){
-      return '<button type="button" class="bns392-cat bns386-cat '+(k===c?'active':'')+'" data-bns392-cat="'+H(k)+'" data-bns386-cat="'+H(k)+'">'+H(k)+'</button>';
+      var col=getCatColor(k);
+      return '<button type="button" class="bns392-cat bns386-cat '+(k===c?'active':'')+'"'+
+        ' data-bns392-cat="'+H(k)+'" data-bns386-cat="'+H(k)+'"'+
+        ' style="--cat-color:'+col+';border-bottom:4px solid '+col+'">'+H(k)+'</button>';
     }).join('');
   }
   function renderChosenSafe(){
@@ -41153,8 +41169,9 @@ setTimeout(()=>{
   function materialById(id){ return mats().find(function(m){ return T(m.id)===T(id); }); }
   function rowHtml(m){
     var st=statusFor(m), cls='bns392-'+st.key+' bns386-'+st.key;
-    return '<div class="material-row bns392-row bns386-row '+cls+'" data-mid="'+H(m.id)+'" data-bns392-mid="'+H(m.id)+'" data-bns386-mid="'+H(m.id)+'">'
-      +'<div class="bns392-strip"></div>'
+    var col392=getCatColor(catOf(m));
+    return '<div class="material-row bns392-row bns386-row '+cls+'" data-mid="'+H(m.id)+'" data-bns392-mid="'+H(m.id)+'" data-bns386-mid="'+H(m.id)+'" style="--cat-color:'+col392+'">'
+      +'<div class="bns392-strip" style="background:'+col392+'"></div>'
       +'<div class="bns392-text"><b>'+H(codeOf(m))+'</b> <span>'+H(nameOf(m))+'</span><br><small>'+H(descOf(m)||m.price||'')+(st.key==='reserved'?' · Klik voor klant/opdracht':'')+'</small></div>'
       +'<div class="bns392-badge">'+H(st.label)+'</div>'
       +'</div>';
