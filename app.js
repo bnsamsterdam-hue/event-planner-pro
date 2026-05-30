@@ -7919,10 +7919,23 @@ ensure();
 let pin='', user=null, chosen=[], editing=null, currentCat='TW', mode='active';
 function load(){
   try{
-    return JSON.parse(localStorage.getItem(KEY))||structuredClone(INITIAL_STATE)
+    var saved = localStorage.getItem(KEY);
+    if(saved) return JSON.parse(saved);
+    return cleanInitialState();
   } catch(e){
-    return structuredClone(INITIAL_STATE)
+    return cleanInitialState();
   }
+}
+function cleanInitialState(){
+  var s = structuredClone(INITIAL_STATE);
+  // Oude Access/import-data mag nooit opnieuw verschijnen bij een lege browser/incognito.
+  // Bewaar alleen de basisconfiguratie/materialen; echte bedrijfsdata komt uit opslag/Firebase.
+  s.orders = [];
+  s.customers = [];
+  s.locations = [];
+  s.alerts = [];
+  s.accounting = {documents:[], payments:[], removedKeys:[]};
+  return s;
 }
 function save(){
   try{
