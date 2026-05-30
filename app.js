@@ -21134,8 +21134,10 @@ setTimeout(()=>{
     });
   }
   function install(){
-    // Niet installeren als v380 stable core actief is
+    // Niet installeren als v380 stable core of v392 actief is
     if(window.BNS_STABLE_CORE && window.renderMaterials === window.BNS_STABLE_CORE.renderMaterials) return;
+    if(window.__BNS_V392_MATERIAL_PICKER_FINAL__ || window.__bns393MaterialLock) return;
+    if(window.renderMaterials && window.renderMaterials.__bnsMatDebounced) return;
     ensureCss();
     try {
       window.renderMaterials = renderMaterialsV45;
@@ -41274,6 +41276,8 @@ setTimeout(()=>{
   }
   function expose(){
     installCss();
+    renderMaterials.__bnsMatDebounced=true; renderMaterials.__bnsV392=true;
+    toggleMaterial.__bnsMatDebounced=true; toggleMaterial.__bnsV392=true;
     window.renderMaterials=renderMaterials;
     window.addMat=toggleMaterial;
     window.BNS_V392={renderMaterials:renderMaterials,toggleMaterial:toggleMaterial,statusFor:statusFor,reservationFor:reservationFor,sameMaterial:sameMaterial,keysFor:keysFor};
