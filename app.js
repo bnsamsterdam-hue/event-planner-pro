@@ -26176,9 +26176,12 @@ setTimeout(()=>{
   setInterval(function(){
     try{
       applyOverrides();
-      window.renderMaterials=renderMaterials;
-      window.renderCats=renderCats;
-      window.addMat=addMatStable;
+      // Niet overschrijven als v392 of nieuwere versie actief is
+      if(!window.__bns393MaterialLock && !window.renderMaterials?.__bnsMatDebounced){
+        window.renderMaterials=renderMaterials;
+        window.renderCats=renderCats;
+        window.addMat=addMatStable;
+      }
     } catch(e){
     }
   },6000);
@@ -39052,7 +39055,10 @@ setTimeout(()=>{
   document.addEventListener('DOMContentLoaded',function(){ setTimeout(function(){install(); renderCatsStable(); renderMaterialsStable(window.currentCat||'TW');},250); });
   setTimeout(function(){install();},100);
   setTimeout(function(){install();},1000);
-  setInterval(function(){ install(); },1500);
+  setInterval(function(){
+    if(window.__bns393MaterialLock) return; // v392 lock actief, niet installeren
+    install();
+  },1500);
   document.addEventListener('input',function(ev){ if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){ setTimeout(function(){ renderMaterialsStable(window.currentCat||'TW'); },60); } },true);
   console.info('[BNS v380] Stabiele planningbasis actief: materiaal op ID, einddatumregel correct.');
 })();
@@ -40307,15 +40313,24 @@ setTimeout(()=>{
     try{ renderMaterials=renderMaterials; addMat=toggle; }catch(e){}
   }
   document.addEventListener('click',function(ev){
+    // v393: als de nieuwe v392 materiaalrenderer actief is, mag v386 niets meer onderscheppen.
+    // Anders wint v386 door capture=true en verandert de lijst terug naar de kleine/oude layout.
+    if(window.BNS_V392 || window.__bns393MaterialLock) return;
     var cat=ev.target.closest && ev.target.closest('#materialCats button');
     if(cat){ ev.preventDefault(); ev.stopImmediatePropagation(); currentCat(cat.getAttribute('data-bns386-cat')||cat.getAttribute('data-bns-cat')||cat.textContent); install(); renderMaterials(window.currentCat); return false; }
     var row=ev.target.closest && ev.target.closest('#materialList [data-mid]');
     if(row){ ev.preventDefault(); ev.stopImmediatePropagation(); toggle(row.getAttribute('data-mid')); return false; }
   },true);
-  document.addEventListener('input',function(ev){ if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){ setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},50); }},true);
+  document.addEventListener('input',function(ev){ if(window.BNS_V392 || window.__bns393MaterialLock) return; if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){ setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},50); }},true);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},400);});
   else setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},300);
-  setInterval(function(){ install(); var box=E('materialList'); if(box && box.querySelector('.bns386-row')===null){ renderMaterials(window.currentCat||'TW'); } },1200);
+  setInterval(function(){
+    // v393: v386 is alleen fallback. Als v392/v393 actief is of v392/v386 rows zichtbaar zijn, niets doen.
+    if(window.BNS_V392 || window.__bns393MaterialLock) return;
+    install();
+    var box=E('materialList');
+    if(box && box.querySelector('.bns386-row,.bns392-row')===null){ renderMaterials(window.currentCat||'TW'); }
+  },1200);
   console.info('[BNS v386] Materiaal definitief stabiel: gereserveerd niet klikbaar, oude reserveringen op code/id, scroll fix.');
 })();
 
@@ -41226,8 +41241,38 @@ setTimeout(()=>{
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,300);}); else setTimeout(boot,150);
   setInterval(function(){
     expose();
+    window.__bns393MaterialLock = true;
     var box=E('materialList');
-    if(box && !box.querySelector('.bns392-row')) renderMaterials(window.currentCat||'TW',true);
+    // v393: accepteer ook bns386-row als geldige moderne rij, zodat v386/v392 elkaar niet blijven overschrijven.
+    if(box && !box.querySelector('.bns392-row,.bns386-row')) renderMaterials(window.currentCat||'TW',true);
   },1500);
   console.info('[BNS v392] Materiaal kiezen definitief rustig actief. Oude renderloops omgeleid naar v392.');
+})();
+
+
+/* ==========================================================
+   BNS v393 - Materiaal render-lock tegen v386/v392 watchdog conflict
+   - v386 en v392 accepteren elkaars rows
+   - oude capture-click van v386 doet niets zodra v392 actief is
+   - geen extra renderloop; alleen functie-referenties bewaken
+   ========================================================== */
+(function(){
+  window.__bns393MaterialLock = true;
+  var lastExpose = 0;
+  function exposeOnce(){
+    if(!window.BNS_V392) return;
+    var now = Date.now();
+    if(now - lastExpose < 900) return;
+    lastExpose = now;
+    try{ window.renderMaterials = window.BNS_V392.renderMaterials; }catch(e){}
+    try{ window.addMat = window.BNS_V392.toggleMaterial; }catch(e){}
+    try{
+      window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
+      window.BNS_STABLE_CORE.renderMaterials = window.BNS_V392.renderMaterials;
+      window.BNS_STABLE_CORE.toggleMat = window.BNS_V392.toggleMaterial;
+    }catch(e){}
+  }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(exposeOnce, 500); });
+  setInterval(exposeOnce, 2000);
+  console.info('[BNS v393] Materiaal render-lock actief: v386/v392 stoppen met elkaar overschrijven.');
 })();
