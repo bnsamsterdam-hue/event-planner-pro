@@ -7919,23 +7919,10 @@ ensure();
 let pin='', user=null, chosen=[], editing=null, currentCat='TW', mode='active';
 function load(){
   try{
-    var saved = localStorage.getItem(KEY);
-    if(saved) return JSON.parse(saved);
-    return cleanInitialState();
+    return JSON.parse(localStorage.getItem(KEY))||structuredClone(INITIAL_STATE)
   } catch(e){
-    return cleanInitialState();
+    return structuredClone(INITIAL_STATE)
   }
-}
-function cleanInitialState(){
-  var s = structuredClone(INITIAL_STATE);
-  // Oude Access/import-data mag nooit opnieuw verschijnen bij een lege browser/incognito.
-  // Bewaar alleen de basisconfiguratie/materialen; echte bedrijfsdata komt uit opslag/Firebase.
-  s.orders = [];
-  s.customers = [];
-  s.locations = [];
-  s.alerts = [];
-  s.accounting = {documents:[], payments:[], removedKeys:[]};
-  return s;
 }
 function save(){
   try{
@@ -26189,12 +26176,9 @@ setTimeout(()=>{
   setInterval(function(){
     try{
       applyOverrides();
-      // Niet overschrijven als v392 of nieuwere versie actief is
-      if(!window.__bns393MaterialLock && !window.renderMaterials?.__bnsMatDebounced){
-        window.renderMaterials=renderMaterials;
-        window.renderCats=renderCats;
-        window.addMat=addMatStable;
-      }
+      window.renderMaterials=renderMaterials;
+      window.renderCats=renderCats;
+      window.addMat=addMatStable;
     } catch(e){
     }
   },6000);
@@ -34044,11 +34028,10 @@ setTimeout(()=>{
   function accounting(){
     var s=appState();
     if(!s.accounting || typeof s.accounting!=='object') s.accounting={
-      documents:[],payments:[],removedKeys:[]
+      documents:[],payments:[]
     };
     if(!Array.isArray(s.accounting.documents)) s.accounting.documents=[];
     if(!Array.isArray(s.accounting.payments)) s.accounting.payments=[];
-    if(!Array.isArray(s.accounting.removedKeys)) s.accounting.removedKeys=[];
     return s.accounting;
   }
   function saveAll(){
@@ -34139,8 +34122,6 @@ setTimeout(()=>{
   function ensureDoc(o,type){
     var acc=accounting();
     var key=docKey(o,type);
-    // Niet opnieuw aanmaken als dit document eerder verwijderd is
-    if(acc.removedKeys && acc.removedKeys.indexOf(key)>=0) return;
     var d=acc.documents.find(function(x){
       return x.key===key;
     });
@@ -34161,11 +34142,18 @@ setTimeout(()=>{
     return d;
   }
   function documents(){
+    var acc=accounting();
+    acc.deletedBookkeepingYears=acc.deletedBookkeepingYears||{};
     orders().forEach(function(o){
+      var yy=yearOf(o);
+      if(acc.deletedBookkeepingYears && acc.deletedBookkeepingYears[String(yy)]) return;
       ensureDoc(o,'factuur');
       if(o.confirmationText || /offerte|opdrachtbevestiging|bevestigd/i.test(T(o.status))) ensureDoc(o,'opdrachtbevestiging');
     });
-    return accounting().documents;
+    return accounting().documents.filter(function(d){
+      var yy=String(d.year||'');
+      return !(accounting().deletedBookkeepingYears && accounting().deletedBookkeepingYears[yy]);
+    });
   }
   function years(){
     var set={
@@ -35247,7 +35235,6 @@ setTimeout(()=>{
     tab.className=(tabs[0]&&tabs[0].className)||'adminTab';
     tab.dataset.admin='twV309DocStylePane';
     tab.textContent='Documenten / Huisstijl';
-    if(window.__BNS_V361__) return; // v361 heeft eigen tab, deze overslaan
     tabWrap.appendChild(tab);
     var pane=document.createElement('div');
     pane.id='twV309DocStylePane';
@@ -37765,7 +37752,7 @@ setTimeout(()=>{
       {id:'cancelled',   label:'Geannuleerde opdrachten',items:(s.orders||[]).filter(isCan),  yFn:oYear},
       {id:'deleted',     label:'Verwijderde opdrachten', items:(s.orders||[]).filter(isDel),  yFn:oYear},
       {id:'damage',      label:'Schade meldingen',       items:(s.alerts||[]).filter(isDmg),  yFn:aYear},
-      {id:'boekhouding', label:'Boekhouding (facturen)', items:(acc.documents||[]),             yFn:bYear}
+      {id:'boekhouding', label:'Boekhouding (facturen)', items:(typeof documents==='function'?documents():(accounting().documents||[])).filter(function(d){return !d.type || /factuur|opdrachtbevestiging/i.test(String(d.type));}), yFn:bYear}
     ];
     box.innerHTML=CATS.map(function(cat){
       var ys={};cat.items.forEach(function(o){var y=cat.yFn(o);ys[y]=(ys[y]||0)+1;});
@@ -37790,20 +37777,19 @@ setTimeout(()=>{
             var s=S();if(!s)return;
             var removed=0;
             if(cat==='boekhouding'){
-              // Verwijder factuurrecords van dit jaar uit de boekhouding
+              // Verberg/verwijder boekhoudingdocumenten van dit jaar zonder opdrachten te verwijderen.
               var acc2=typeof accounting==='function'?accounting():{documents:[],payments:[]};
-              var kept=[],deld=[];
-              (acc2.documents||[]).forEach(function(d){
-                var y2=String(d.year||d.invoiceYear||d.date||d.time||d.createdAt||'');
-                var m2=y2.match(/\b(20\d{2})\b/); var dy=m2?m2[1]:y2.slice(0,4);
-                if(dy===year)deld.push(d); else kept.push(d);
+              acc2.deletedBookkeepingYears=acc2.deletedBookkeepingYears||{};
+              var docs=(typeof documents==='function'?documents():(acc2.documents||[]));
+              removed=docs.filter(function(d){return String(d.year||'')===String(year);}).length;
+              acc2.deletedBookkeepingYears[String(year)]=true;
+              acc2.documents=(acc2.documents||[]).filter(function(d){return String(d.year||'')!==String(year);});
+              acc2.payments=(acc2.payments||[]).filter(function(pay){
+                var py=String(pay.year||pay.date||pay.time||pay.createdAt||'');
+                var pm=py.match(/\b(20\d{2})\b/);
+                py=pm?pm[1]:py.slice(0,4);
+                return String(py)!==String(year);
               });
-              // Sla bijgewerkte boekhouding op in de echte accounting-store
-              acc2.documents=kept;
-              acc2.removedKeys=Array.from(new Set(
-                (acc2.removedKeys||[]).concat(deld.map(function(d){return d.key;}).filter(Boolean))
-              ));
-              removed+=deld.length;
             } else if(cat==='damage'){
               var kd=[],dd=[];
               (s.alerts||[]).forEach(function(a){if(isDmg(a)&&aYear(a)===year)dd.push(a);else kd.push(a);});
@@ -39069,10 +39055,7 @@ setTimeout(()=>{
   document.addEventListener('DOMContentLoaded',function(){ setTimeout(function(){install(); renderCatsStable(); renderMaterialsStable(window.currentCat||'TW');},250); });
   setTimeout(function(){install();},100);
   setTimeout(function(){install();},1000);
-  setInterval(function(){
-    if(window.__bns393MaterialLock) return; // v392 lock actief, niet installeren
-    install();
-  },1500);
+  setInterval(function(){ install(); },1500);
   document.addEventListener('input',function(ev){ if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){ setTimeout(function(){ renderMaterialsStable(window.currentCat||'TW'); },60); } },true);
   console.info('[BNS v380] Stabiele planningbasis actief: materiaal op ID, einddatumregel correct.');
 })();
@@ -40327,24 +40310,15 @@ setTimeout(()=>{
     try{ renderMaterials=renderMaterials; addMat=toggle; }catch(e){}
   }
   document.addEventListener('click',function(ev){
-    // v393: als de nieuwe v392 materiaalrenderer actief is, mag v386 niets meer onderscheppen.
-    // Anders wint v386 door capture=true en verandert de lijst terug naar de kleine/oude layout.
-    if(window.BNS_V392 || window.__bns393MaterialLock) return;
     var cat=ev.target.closest && ev.target.closest('#materialCats button');
     if(cat){ ev.preventDefault(); ev.stopImmediatePropagation(); currentCat(cat.getAttribute('data-bns386-cat')||cat.getAttribute('data-bns-cat')||cat.textContent); install(); renderMaterials(window.currentCat); return false; }
     var row=ev.target.closest && ev.target.closest('#materialList [data-mid]');
     if(row){ ev.preventDefault(); ev.stopImmediatePropagation(); toggle(row.getAttribute('data-mid')); return false; }
   },true);
-  document.addEventListener('input',function(ev){ if(window.BNS_V392 || window.__bns393MaterialLock) return; if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){ setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},50); }},true);
+  document.addEventListener('input',function(ev){ if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){ setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},50); }},true);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},400);});
   else setTimeout(function(){install(); renderMaterials(window.currentCat||'TW');},300);
-  setInterval(function(){
-    // v393: v386 is alleen fallback. Als v392/v393 actief is of v392/v386 rows zichtbaar zijn, niets doen.
-    if(window.BNS_V392 || window.__bns393MaterialLock) return;
-    install();
-    var box=E('materialList');
-    if(box && box.querySelector('.bns386-row,.bns392-row')===null){ renderMaterials(window.currentCat||'TW'); }
-  },1200);
+  setInterval(function(){ install(); var box=E('materialList'); if(box && box.querySelector('.bns386-row')===null){ renderMaterials(window.currentCat||'TW'); } },1200);
   console.info('[BNS v386] Materiaal definitief stabiel: gereserveerd niet klikbaar, oude reserveringen op code/id, scroll fix.');
 })();
 
@@ -41152,26 +41126,11 @@ setTimeout(()=>{
     var cats=categoryList(); if(cats.indexOf(c)<0) c='TW';
     window.currentCat=c; try{ currentCat=c; }catch(e){} return c;
   }
-  function getCatColor(cat){
-    // Lees kleur uit localStorage (zelfde key als admin gebruikt)
-    try{
-      var map=JSON.parse(localStorage.getItem('bnsCatColors')||'{}');
-      var k=T(cat).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10);
-      if(map[k]) return map[k];
-    }catch(e){}
-    // Fallback defaults
-    var def={TW:'#dc2626',TO:'#f97316',KW:'#2563eb',KA:'#7c3aed',SL:'#16a34a',EXTRA:'#64748b'};
-    var k2=T(cat).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10);
-    return def[k2]||'#2563eb';
-  }
   function renderCats(){
     var box=E('materialCats'); if(!box) return;
     var c=setCat();
     box.innerHTML=categoryList().map(function(k){
-      var col=getCatColor(k);
-      return '<button type="button" class="bns392-cat bns386-cat '+(k===c?'active':'')+'"'+
-        ' data-bns392-cat="'+H(k)+'" data-bns386-cat="'+H(k)+'"'+
-        ' style="--cat-color:'+col+';border-bottom:4px solid '+col+'">'+H(k)+'</button>';
+      return '<button type="button" class="bns392-cat bns386-cat '+(k===c?'active':'')+'" data-bns392-cat="'+H(k)+'" data-bns386-cat="'+H(k)+'">'+H(k)+'</button>';
     }).join('');
   }
   function renderChosenSafe(){
@@ -41182,9 +41141,8 @@ setTimeout(()=>{
   function materialById(id){ return mats().find(function(m){ return T(m.id)===T(id); }); }
   function rowHtml(m){
     var st=statusFor(m), cls='bns392-'+st.key+' bns386-'+st.key;
-    var col392=getCatColor(catOf(m));
-    return '<div class="material-row bns392-row bns386-row '+cls+'" data-mid="'+H(m.id)+'" data-bns392-mid="'+H(m.id)+'" data-bns386-mid="'+H(m.id)+'" style="--cat-color:'+col392+'">'
-      +'<div class="bns392-strip" style="background:'+col392+'"></div>'
+    return '<div class="material-row bns392-row bns386-row '+cls+'" data-mid="'+H(m.id)+'" data-bns392-mid="'+H(m.id)+'" data-bns386-mid="'+H(m.id)+'">'
+      +'<div class="bns392-strip"></div>'
       +'<div class="bns392-text"><b>'+H(codeOf(m))+'</b> <span>'+H(nameOf(m))+'</span><br><small>'+H(descOf(m)||m.price||'')+(st.key==='reserved'?' · Klik voor klant/opdracht':'')+'</small></div>'
       +'<div class="bns392-badge">'+H(st.label)+'</div>'
       +'</div>';
@@ -41221,12 +41179,12 @@ setTimeout(()=>{
       +'html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important;}\n'
       +'#newOrder,#orderForm,.content,.main,.page{overflow:visible!important;}\n'
       +'#materialCats{display:flex!important;gap:10px!important;flex-wrap:wrap!important;margin-bottom:12px!important;}\n'
-      +'#materialCats .bns392-cat,#materialCats button{min-width:58px!important;padding:12px 16px!important;border:0!important;border-radius:11px!important;background:var(--cat-color,#2563eb)!important;color:#fff!important;font-weight:900!important;box-shadow:0 5px 0 rgba(0,0,0,0.25)!important;cursor:pointer!important;}\n'
-      +'#materialCats .bns392-cat.active,#materialCats button.active{filter:brightness(1.15)!important;outline:3px solid #fff!important;}\n'
+      +'#materialCats .bns392-cat,#materialCats button{min-width:58px!important;padding:12px 16px!important;border:0!important;border-radius:11px!important;background:linear-gradient(#1766b0,#0b4d8f)!important;color:#fff!important;font-weight:900!important;box-shadow:0 5px 0 #0aa7df!important;cursor:pointer!important;}\n'
+      +'#materialCats .bns392-cat.active,#materialCats button.active{background:linear-gradient(#19aeea,#0880ca)!important;}\n'
       +'#materialList{max-height:66vh!important;overflow-y:auto!important;padding-right:8px!important;contain:layout paint!important;}\n'
       +'#chosenMaterials{max-height:55vh!important;overflow-y:auto!important;}\n'
       +'#materialList .bns392-row{position:relative!important;display:grid!important;grid-template-columns:8px minmax(0,1fr) auto!important;gap:12px!important;align-items:center!important;min-height:72px!important;margin:10px 0!important;padding:12px!important;border:1px solid #d8e2ea!important;border-radius:14px!important;background:#fff!important;box-shadow:0 1px 2px rgba(0,0,0,.04)!important;cursor:pointer!important;transition:none!important;animation:none!important;transform:none!important;}\n'
-      +'#materialList .bns392-strip{align-self:stretch!important;border-radius:8px!important;background:var(--cat-color,#0b93d1)!important;}\n'
+      +'#materialList .bns392-strip{align-self:stretch!important;border-radius:8px!important;background:#0b93d1!important;}\n'
       +'#materialList .bns392-text{min-width:0!important;line-height:1.15!important;}\n'
       +'#materialList .bns392-text b{font-size:18px!important;color:#111827!important;margin-right:6px!important;}\n'
       +'#materialList .bns392-text span{font-size:14px!important;color:#273447!important;}\n'
@@ -41271,38 +41229,80 @@ setTimeout(()=>{
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,300);}); else setTimeout(boot,150);
   setInterval(function(){
     expose();
-    window.__bns393MaterialLock = true;
     var box=E('materialList');
-    // v393: accepteer ook bns386-row als geldige moderne rij, zodat v386/v392 elkaar niet blijven overschrijven.
-    if(box && !box.querySelector('.bns392-row,.bns386-row')) renderMaterials(window.currentCat||'TW',true);
+    if(box && !box.querySelector('.bns392-row')) renderMaterials(window.currentCat||'TW',true);
   },1500);
   console.info('[BNS v392] Materiaal kiezen definitief rustig actief. Oude renderloops omgeleid naar v392.');
 })();
 
 
-/* ==========================================================
-   BNS v393 - Materiaal render-lock tegen v386/v392 watchdog conflict
-   - v386 en v392 accepteren elkaars rows
-   - oude capture-click van v386 doet niets zodra v392 actief is
-   - geen extra renderloop; alleen functie-referenties bewaken
-   ========================================================== */
-(function(){
-  window.__bns393MaterialLock = true;
-  var lastExpose = 0;
-  function exposeOnce(){
-    if(!window.BNS_V392) return;
-    var now = Date.now();
-    if(now - lastExpose < 900) return;
-    lastExpose = now;
-    try{ window.renderMaterials = window.BNS_V392.renderMaterials; }catch(e){}
-    try{ window.addMat = window.BNS_V392.toggleMaterial; }catch(e){}
-    try{
-      window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
-      window.BNS_STABLE_CORE.renderMaterials = window.BNS_V392.renderMaterials;
-      window.BNS_STABLE_CORE.toggleMat = window.BNS_V392.toggleMaterial;
-    }catch(e){}
+console.log('[BNS v393] Admin Opruimen boekhouding jaarmappen actief.');
+
+/* =========================================================
+   BNS v394 - Oude dubbele Overzicht bestelling knop stilleggen
+   - Oorzaak: BNS V12.8 voegt .bns-order-overview-btn na elke render opnieuw toe.
+   - Nieuwe Opdrachten gebruikt .bns356-overview. De oude knop wordt daarom in #orders
+     aan de bron verborgen/verwijderd zodat hij niet meer kan flikkeren.
+   ========================================================= */
+(function BNS_V394_OLD_OVERVIEW_BUTTON_OFF(){
+  'use strict';
+  if(window.__BNS_V394_OLD_OVERVIEW_BUTTON_OFF__) return;
+  window.__BNS_V394_OLD_OVERVIEW_BUTTON_OFF__ = true;
+
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function E(id){ return document.getElementById(id); }
+
+  function style(){
+    if(E('bns394OldOverviewOffStyle')) return;
+    var s=document.createElement('style');
+    s.id='bns394OldOverviewOffStyle';
+    s.textContent = [
+      '#orders .bns-order-overview-btn{display:none!important;visibility:hidden!important;pointer-events:none!important;opacity:0!important;width:0!important;min-width:0!important;max-width:0!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important}',
+      '#orders .bns356-overview{display:inline-flex!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}',
+      '#orders .bns356-overview + .bns356-overview{display:none!important}'
+    ].join('\n');
+    document.head.appendChild(s);
   }
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(exposeOnce, 500); });
-  setInterval(exposeOnce, 2000);
-  console.info('[BNS v393] Materiaal render-lock actief: v386/v392 stoppen met elkaar overschrijven.');
+
+  function clean(){
+    style();
+    A('#orders .order-card,#orders .bns-v126-order-card,#orders [data-bns-order-id]').forEach(function(card){
+      // Verwijder alle oude V12.8 knoppen. Laat alleen de nieuwe bns356-overview staan.
+      A('.bns-order-overview-btn', card).forEach(function(b){ b.remove(); });
+      var news=A('.bns356-overview', card);
+      if(news.length>1){ news.slice(0, news.length-1).forEach(function(b){ b.remove(); }); }
+    });
+  }
+
+  var queued=false;
+  function schedule(){
+    if(queued) return;
+    queued=true;
+    requestAnimationFrame(function(){ queued=false; clean(); });
+  }
+
+  style();
+  setTimeout(clean,50);
+  setTimeout(clean,250);
+  setTimeout(clean,1000);
+
+  try{
+    var obs=new MutationObserver(schedule);
+    obs.observe(document.body,{childList:true,subtree:true});
+  }catch(e){}
+
+  var oldRenderOrders=window.renderOrders;
+  if(typeof oldRenderOrders==='function' && !oldRenderOrders.__bns394OldOverviewOff){
+    var wrapped=function(){
+      var r=oldRenderOrders.apply(this,arguments);
+      schedule();
+      setTimeout(clean,60);
+      return r;
+    };
+    wrapped.__bns394OldOverviewOff=true;
+    window.renderOrders=wrapped;
+    try{ renderOrders=wrapped; }catch(e){}
+  }
+
+  console.info('[BNS v394] Oude dubbele Overzicht bestelling knop in Opdrachten uitgeschakeld.');
 })();
