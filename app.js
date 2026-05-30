@@ -41057,7 +41057,6 @@ setTimeout(()=>{
   function writeJSON(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
   function colorMap(){var a=readJSON(COLOR_KEY,{}), b=readJSON(COLOR_KEY2,{}); return Object.assign({},b,a);}
   function setCatColor(c,col){c=cat(c); col=hex(col)||'#0ea5e9'; var m=colorMap(); m[c]=col; writeJSON(COLOR_KEY,m); writeJSON(COLOR_KEY2,m); try{window.bnsCatColors=m;}catch(e){} }
-  function removeCatColor(c){c=cat(c); var m=colorMap(); delete m[c]; delete m[c.toLowerCase()]; writeJSON(COLOR_KEY,m); writeJSON(COLOR_KEY2,m); try{if(window.state&&window.state.settings){if(window.state.settings.catColors){delete window.state.settings.catColors[c];delete window.state.settings.catColors[c.toLowerCase()];}if(window.state.settings.categoryColors){delete window.state.settings.categoryColors[c];delete window.state.settings.categoryColors[c.toLowerCase()];}}}catch(e){} try{window.bnsCatColors=m;}catch(e){} }
   function getCatColor(c){c=cat(c); var m=colorMap(); return hex(m[c]||m[c.toLowerCase()]||'#0ea5e9');}
   function favColors(){var f=readJSON(FAV_KEY,null); if(!Array.isArray(f)) f=[]; var out=[]; BASE_COLORS.concat(f).forEach(function(c){c=hex(c); if(c&&out.indexOf(c)<0) out.push(c);}); return out;}
   function saveFav(col){col=hex(col); var f=readJSON(FAV_KEY,[]); if(!Array.isArray(f)) f=[]; if(f.indexOf(col)<0) f.push(col); writeJSON(FAV_KEY,f);}
@@ -41075,53 +41074,6 @@ setTimeout(()=>{
   function fill(m){if(!m){editId=''; if(E('bns391Cat'))E('bns391Cat').value=activeCat; ['bns391Nr','bns391Product','bns391Desc','bns391Price'].forEach(function(id){if(E(id))E(id).value='';}); if(E('bns391Status'))E('bns391Status').value='free'; mark('Nieuw materiaal'); updateColorUI(); return;} editId=T(m.id); activeCat=cat(m.cat||m.rubriek||m.category); if(E('bns391Cat'))E('bns391Cat').value=activeCat; if(E('bns391Nr'))E('bns391Nr').value=nrFrom(m); if(E('bns391Product'))E('bns391Product').value=productOf(m); if(E('bns391Desc'))E('bns391Desc').value=descOf(m); if(E('bns391Price'))E('bns391Price').value=T(m.price||''); if(E('bns391Status'))E('bns391Status').value=statusOf(m); mark('Wijzigen: '+codeOf(m)); updateColorUI();}
   function doSave(){var s=getState(), f=form(); if(!s||!f)return false; s.materials=Array.isArray(s.materials)?s.materials:[]; setCatColor(f.cat,f.color); var m=null; if(editId){var cur=s.materials.find(function(x){return T(x.id)===T(editId);})||null; if(cur&&codeOf(cur).toUpperCase()===f.code.toUpperCase()) m=cur;} if(!m) m=findByCode(s,f.code); var created=false; if(!m){created=true;m={id:'mat_'+Date.now()+'_'+Math.floor(Math.random()*10000)};s.materials.push(m);} m.cat=f.cat;m.rubriek=f.cat;m.category=f.cat;m.code=f.code;m.productNr=f.nr;m.nr=f.nr;m.number=f.nr;m.product=f.product;m.searchName=f.product;m.zoeknaam=f.product;m.type=f.product;m.name=f.product;m.description=f.desc;m.beschrijving=f.desc;m.desc=f.desc;m.price=f.price;m.status=f.status;m.color=f.color;m.catColor=f.color;m.rubricColor=f.color;activeCat=f.cat;saveLocal();editId=T(m.id);fill(m);renderList();updateCats();try{if(typeof window.renderMaterials==='function')window.renderMaterials(activeCat);}catch(e){}toastSafe(created?'Nieuw materiaal opgeslagen':'Materiaal opgeslagen');return false;}
   function doDelete(){var s=getState(), f=form(); if(!s||!f)return false; var m=null; if(editId)m=(s.materials||[]).find(function(x){return T(x.id)===T(editId);})||null; if(!m)m=findByCode(s,f.code); if(!m){toastSafe('Kies eerst een materiaal via Wijzig.');return false;} if(!confirm('Weet je zeker dat je dit materiaal wilt verwijderen?\n\n'+codeOf(m)+' '+(productOf(m)||descOf(m))))return false; var id=T(m.id), code=codeOf(m).toUpperCase(); s.materials=(s.materials||[]).filter(function(x){return T(x.id)!==id&&codeOf(x).toUpperCase()!==code;}); saveLocal(); fill(null); renderList(); try{if(typeof window.renderMaterials==='function')window.renderMaterials(activeCat);}catch(e){} toastSafe('Materiaal verwijderd'); return false;}
-  function bns391SystemConfirm(opts,yes){
-    opts=opts||{};
-    var old=E('bns391ConfirmOverlay'); if(old) old.remove();
-    var ov=document.createElement('div');
-    ov.id='bns391ConfirmOverlay';
-    ov.innerHTML='<div class="bns391-confirm-card"><h3>'+H(opts.title||'Systeemmelding')+'</h3><p>'+H(opts.message||'Weet je het zeker?')+'</p>'+
-      (opts.extra?'<div class="bns391-confirm-extra">'+H(opts.extra)+'</div>':'')+
-      '<div class="bns391-confirm-actions"><button type="button" class="bns391-confirm-cancel">Annuleren</button><button type="button" class="bns391-confirm-ok">'+H(opts.ok||'Ja, doorgaan')+'</button></div></div>';
-    document.body.appendChild(ov);
-    ov.querySelector('.bns391-confirm-cancel').onclick=function(){ov.remove();};
-    ov.querySelector('.bns391-confirm-ok').onclick=function(){ov.remove();yes&&yes();};
-  }
-  function doDeleteRubriek(){
-    var s=getState(); if(!s)return false;
-    var c=cat(E('bns391Cat')&&E('bns391Cat').value||activeCat);
-    if(!c){toastSafe('Kies eerst een rubriek.');return false;}
-    var count=(s.materials||[]).filter(function(m){return cat(m.cat||m.rubriek||m.category)===c;}).length;
-    if(count>0){
-      bns391SystemConfirm({
-        title:'Rubriek kan niet gewist worden',
-        message:'Rubriek '+c+' bevat nog '+count+' materiaalregel(s).',
-        extra:'Verwijder of verplaats eerst alle materialen uit deze rubriek. Daarna kun je de lege rubriek wissen.',
-        ok:'Begrepen'
-      },function(){});
-      return false;
-    }
-    bns391SystemConfirm({
-      title:'Lege rubriek wissen',
-      message:'Rubriek '+c+' bevat geen materialen. Wil je deze rubriek, kleur en favoriet-koppeling uit het systeem verwijderen?',
-      extra:'Extra bevestiging: deze actie verwijdert alleen de lege rubriekknop en de opgeslagen kleur. Er worden geen materialen verwijderd.',
-      ok:'Ja, wis lege rubriek'
-    },function(){
-      removeCatColor(c);
-      try{if(window.BNS_V399_COLORS&&window.BNS_V399_COLORS.clearColor)window.BNS_V399_COLORS.clearColor(c);}catch(e){}
-      var cats=[]; var seen={};
-      (s.materials||[]).forEach(function(m){var k=cat(m.cat||m.rubriek||m.category); if(k&&k!==c&&!seen[k]){seen[k]=1;cats.push(k);}});
-      cats.sort(function(a,b){return String(a).localeCompare(String(b),'nl',{numeric:true});});
-      activeCat=cats[0]||'';
-      if(E('bns391Cat'))E('bns391Cat').value=activeCat;
-      editId='';
-      saveLocal();
-      updateCats(); updateColorUI(); renderList();
-      try{if(typeof window.renderMaterials==='function')window.renderMaterials(activeCat);}catch(e){}
-      toastSafe('Lege rubriek '+c+' gewist');
-    });
-    return false;
-  }
   function row(m){var c=cat(m.cat||m.rubriek||m.category); var col=getCatColor(c); var cls=T(m.id)===editId?' bns391-selected':''; return '<div class="bns391-row'+cls+'" data-bns391-id="'+H(m.id)+'" style="--c:'+H(col)+'"><span></span><div><b>'+H(codeOf(m))+'</b> '+H(productOf(m))+'<br><small>'+H(descOf(m))+' | rubriek '+H(c)+'</small></div><button type="button">Wijzig</button></div>';}
   function renderList(){var s=getState(), list=E('bns391List'); if(!s||!list)return; var q=T(E('bns391Search')&&E('bns391Search').value).toLowerCase(); var rows=(s.materials||[]).filter(function(m){return cat(m.cat||m.rubriek||m.category)===activeCat;}); if(q) rows=rows.filter(function(m){return [codeOf(m),productOf(m),descOf(m),T(m.price),statusOf(m)].join(' ').toLowerCase().indexOf(q)>=0;}); rows=rows.sort(function(a,b){return codeOf(a).localeCompare(codeOf(b),undefined,{numeric:true});}).slice(0,300); list.innerHTML=rows.length?rows.map(row).join(''):'<div class="bns391-empty">Geen materiaal in rubriek '+H(activeCat)+'.</div>';}
   function materialCatsList391(){var s=getState();var seen={},out=[];(s&&Array.isArray(s.materials)?s.materials:[]).forEach(function(m){var c=cat(m.cat||m.rubriek||m.category);if(c&&!seen[c]){seen[c]=1;out.push(c);}});out.sort(function(a,b){return String(a).localeCompare(String(b),'nl',{numeric:true});});if(activeCat&&!seen[activeCat])out.unshift(activeCat);return out.length?out:['TW','TO','KW','EXTRA'];}
@@ -41138,14 +41090,14 @@ setTimeout(()=>{
     #bns391ColorInput{width:48px;height:34px;border:1px solid #cbd5e1;border-radius:8px;padding:2px;background:white}\
     #bns391Actions,#bns391Cats{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;align-items:center}\
     #bns391Actions button,#bns391Cats button{border:0;border-radius:12px;padding:10px 14px;font-weight:900;color:white;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.22)}\
-    #bns391Save{background:#22a047}#bns391Delete{background:#d83a2e}#bns391DeleteCat{background:#991b1b}#bns391New{background:#213044}#bns391Cancel{background:#374151}#bns391FavSave,#bns391FavDel{background:#334155}\
+    #bns391Save{background:#22a047}#bns391Delete{background:#d83a2e}#bns391New{background:#213044}#bns391Cancel{background:#374151}#bns391FavSave,#bns391FavDel{background:#334155}\
     #bns391Cats button{background:var(--c,#0b74d1)}#bns391Cats button.active{background:#111827;outline:3px solid #65d8ff}\
     #bns391List{max-height:420px;overflow:auto;padding:4px 2px 80px}.bns391-row{display:grid;grid-template-columns:7px 1fr auto;gap:10px;align-items:center;background:#fff;border:1px solid #dbe3ef;border-radius:12px;margin:8px 0;padding:10px;box-shadow:0 1px 2px rgba(15,23,42,.05)}\
     .bns391-row>span{height:100%;min-height:42px;border-radius:8px;background:var(--c,#0ea5e9)}.bns391-row.bns391-selected{border-color:#0b74d1;background:#f0f9ff}.bns391-row button{background:#0b74d1;color:white;border:0;border-radius:10px;padding:8px 12px;font-weight:900;cursor:pointer}\
-    #bns391ConfirmOverlay{position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px}    .bns391-confirm-card{max-width:560px;width:100%;background:white;border-radius:18px;padding:20px;box-shadow:0 24px 80px rgba(15,23,42,.35);border:2px solid #cbd5e1}    .bns391-confirm-card h3{margin:0 0 10px;color:#0f172a}.bns391-confirm-card p{font-weight:800;color:#334155}.bns391-confirm-extra{background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;border-radius:12px;padding:12px;margin:10px 0;font-weight:800}    .bns391-confirm-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}.bns391-confirm-actions button{border:0;border-radius:12px;padding:11px 14px;font-weight:900;cursor:pointer}.bns391-confirm-cancel{background:#475569;color:white}.bns391-confirm-ok{background:#dc2626;color:white}    #bns391Mode{font-weight:900;color:#0f172a;background:#eaf6ff;border-radius:999px;padding:7px 12px}.bns391-empty{padding:18px;color:#64748b;font-weight:800}@media(max-width:900px){#bns391Grid{grid-template-columns:1fr 1fr}#bns391AdminCard{padding:12px}}\
+    #bns391Mode{font-weight:900;color:#0f172a;background:#eaf6ff;border-radius:999px;padding:7px 12px}.bns391-empty{padding:18px;color:#64748b;font-weight:800}@media(max-width:900px){#bns391Grid{grid-template-columns:1fr 1fr}#bns391AdminCard{padding:12px}}\
   ';document.head.appendChild(st);}
-  function html(){return '<div id="bns391AdminCard"><h3 style="margin:0 0 14px">Materialen beheren</h3><div id="bns391Grid"><div><label>Rubriek</label><input id="bns391Cat" value="TW"></div><div><label>Product nr</label><input id="bns391Nr" placeholder="17"></div><div><label>Product / zoeknaam</label><input id="bns391Product" placeholder="Tapwagen XXL"></div><div><label>Product omschrijving</label><input id="bns391Desc" placeholder="Tapwagen zwart XXL"></div><div style="grid-column:1 / span 2"><label>Prijs / vrije tekst</label><input id="bns391Price" placeholder="oude prijs: € 0"></div><div><label>Status</label><select id="bns391Status"><option value="free">Vrij</option><option value="reserved">Gereserveerd</option><option value="defect">Defect</option><option value="inactive">Niet actief</option></select></div><div><label>Mode</label><div id="bns391Mode">Nieuw materiaal</div></div></div><div id="bns391Actions"><button id="bns391Save" type="button">Opslaan materiaal</button><button id="bns391Delete" type="button">Wis materiaal</button><button id="bns391DeleteCat" type="button">Wis rubriek</button><button id="bns391New" type="button">Nieuw/leeg</button><button id="bns391Cancel" type="button">Annuleren</button></div><div id="bns391ColorLine"><b>Rubriek kleur</b><span id="bns391ColorPreview"></span><span id="bns391ColorText"></span><input id="bns391ColorInput" type="color" value="#0ea5e9"><button id="bns391FavSave" type="button">Favoriet opslaan</button><button id="bns391FavDel" type="button">Favoriet wissen</button><div id="bns391Dots"></div></div><div id="bns391Cats"><button type="button" data-cat="TW">TW</button><button type="button" data-cat="TO">TO</button><button type="button" data-cat="KW">KW</button><button type="button" data-cat="EXTRA">EXTRA</button></div><input id="bns391Search" placeholder="Zoek rubriek / product nr / product / omschrijving"><div id="bns391List"></div></div>';}
-  function bind(){document.addEventListener('click',function(ev){var t=ev.target;if(!t||!t.closest)return;var card=t.closest('#bns391AdminCard');if(!card)return;ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();var cb=t.closest('#bns391Cats button');if(cb){activeCat=cat(cb.getAttribute('data-cat'));editId='';fill(null);updateCats();renderList();return false;}var dot=t.closest('.bns391-dot');if(dot){setCatColor(E('bns391Cat').value||activeCat,dot.getAttribute('data-color'));updateColorUI();updateCats();renderList();try{if(typeof window.renderMaterials==='function')window.renderMaterials(activeCat);}catch(e){}return false;}if(t.closest('#bns391FavSave')){saveFav(E('bns391ColorInput')&&E('bns391ColorInput').value);updateColorUI();return false;}if(t.closest('#bns391FavDel')){removeFav(E('bns391ColorInput')&&E('bns391ColorInput').value);updateColorUI();return false;}if(t.closest('#bns391Save'))return doSave();if(t.closest('#bns391DeleteCat'))return doDeleteRubriek();if(t.closest('#bns391Delete'))return doDelete();if(t.closest('#bns391New,#bns391Cancel')){fill(null);renderList();return false;}var r=t.closest('.bns391-row');if(r){var s=getState();var m=s&&(s.materials||[]).find(function(x){return T(x.id)===T(r.getAttribute('data-bns391-id'));});if(m){fill(m);renderList();}return false;}},true);document.addEventListener('input',function(ev){if(!ev.target||!ev.target.closest||!ev.target.closest('#bns391AdminCard'))return;if(ev.target.id==='bns391Search'){renderList();return;}if(ev.target.id==='bns391Cat'){activeCat=cat(ev.target.value);updateColorUI();updateCats();renderList();return;}if(ev.target.id==='bns391ColorInput'){setCatColor(E('bns391Cat').value||activeCat,ev.target.value);updateColorUI();updateCats();renderList();try{if(typeof window.renderMaterials==='function')window.renderMaterials(activeCat);}catch(e){}return;}},true);}
+  function html(){return '<div id="bns391AdminCard"><h3 style="margin:0 0 14px">Materialen beheren</h3><div id="bns391Grid"><div><label>Rubriek</label><input id="bns391Cat" value="TW"></div><div><label>Product nr</label><input id="bns391Nr" placeholder="17"></div><div><label>Product / zoeknaam</label><input id="bns391Product" placeholder="Tapwagen XXL"></div><div><label>Product omschrijving</label><input id="bns391Desc" placeholder="Tapwagen zwart XXL"></div><div style="grid-column:1 / span 2"><label>Prijs / vrije tekst</label><input id="bns391Price" placeholder="oude prijs: € 0"></div><div><label>Status</label><select id="bns391Status"><option value="free">Vrij</option><option value="reserved">Gereserveerd</option><option value="defect">Defect</option><option value="inactive">Niet actief</option></select></div><div><label>Mode</label><div id="bns391Mode">Nieuw materiaal</div></div></div><div id="bns391Actions"><button id="bns391Save" type="button">Opslaan materiaal</button><button id="bns391Delete" type="button">Wis materiaal</button><button id="bns391New" type="button">Nieuw/leeg</button><button id="bns391Cancel" type="button">Annuleren</button></div><div id="bns391ColorLine"><b>Rubriek kleur</b><span id="bns391ColorPreview"></span><span id="bns391ColorText"></span><input id="bns391ColorInput" type="color" value="#0ea5e9"><button id="bns391FavSave" type="button">Favoriet opslaan</button><button id="bns391FavDel" type="button">Favoriet wissen</button><div id="bns391Dots"></div></div><div id="bns391Cats"><button type="button" data-cat="TW">TW</button><button type="button" data-cat="TO">TO</button><button type="button" data-cat="KW">KW</button><button type="button" data-cat="EXTRA">EXTRA</button></div><input id="bns391Search" placeholder="Zoek rubriek / product nr / product / omschrijving"><div id="bns391List"></div></div>';}
+  function bind(){document.addEventListener('click',function(ev){var t=ev.target;if(!t||!t.closest)return;var card=t.closest('#bns391AdminCard');if(!card)return;ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();var cb=t.closest('#bns391Cats button');if(cb){activeCat=cat(cb.getAttribute('data-cat'));editId='';fill(null);updateCats();renderList();return false;}var dot=t.closest('.bns391-dot');if(dot){setCatColor(E('bns391Cat').value||activeCat,dot.getAttribute('data-color'));updateColorUI();updateCats();renderList();try{if(typeof window.renderMaterials==='function')window.renderMaterials(activeCat);}catch(e){}return false;}if(t.closest('#bns391FavSave')){saveFav(E('bns391ColorInput')&&E('bns391ColorInput').value);updateColorUI();return false;}if(t.closest('#bns391FavDel')){removeFav(E('bns391ColorInput')&&E('bns391ColorInput').value);updateColorUI();return false;}if(t.closest('#bns391Save'))return doSave();if(t.closest('#bns391Delete'))return doDelete();if(t.closest('#bns391New,#bns391Cancel')){fill(null);renderList();return false;}var r=t.closest('.bns391-row');if(r){var s=getState();var m=s&&(s.materials||[]).find(function(x){return T(x.id)===T(r.getAttribute('data-bns391-id'));});if(m){fill(m);renderList();}return false;}},true);document.addEventListener('input',function(ev){if(!ev.target||!ev.target.closest||!ev.target.closest('#bns391AdminCard'))return;if(ev.target.id==='bns391Search'){renderList();return;}if(ev.target.id==='bns391Cat'){activeCat=cat(ev.target.value);updateColorUI();updateCats();renderList();return;}if(ev.target.id==='bns391ColorInput'){setCatColor(E('bns391Cat').value||activeCat,ev.target.value);updateColorUI();updateCats();renderList();try{if(typeof window.renderMaterials==='function')window.renderMaterials(activeCat);}catch(e){}return;}},true);}
   function install(){style();var _cats=materialCatsList391(); if(_cats.length && (!_cats.includes(activeCat))) activeCat=_cats[0]; var old=E('bns390AdminCard')||E('bnsV56AdminCard')||E('bnsV56AdminList')||E('adminMatList');if(!old)return false;var parent=(old.id==='bns390AdminCard'||old.id==='bnsV56AdminCard'?old.parentNode:old.closest('.card,.panel,.adminPane,section,main,div')||old.parentNode);if(!parent)return false;if(!E('bns391AdminCard')){var tmp=document.createElement('div');tmp.innerHTML=html();parent.insertBefore(tmp.firstChild,old.id==='bns390AdminCard'||old.id==='bnsV56AdminCard'?old:parent.firstChild);bind();fill(null);}updateCats();updateColorUI();renderList();return true;}
   function boot(){install();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,350);});else setTimeout(boot,250);
@@ -41819,167 +41771,4 @@ setTimeout(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,250);});
   else setTimeout(install,250);
   setInterval(install,1200);
-})();
-
-/* =========================================================
-   BNS V402 - KLEURWAAIER OP BOVENSTE VAKJE
-   Doel:
-   - Het kleine kleurvakje naast 'Rubriek kleur' wordt de kleurwaaier-knop.
-   - Geen extra kleurpanelen onder de materiaallijst.
-   - Bestaande knoppen Favoriet opslaan / Favoriet wissen blijven staan.
-   ========================================================= */
-(function(){
-  'use strict';
-  if(window.BNS_V402_COLOR_WHEEL)return;
-  window.BNS_V402_COLOR_WHEEL=true;
-
-  var COLORS=[
-    '#0ea5e9','#0284c7','#2563eb','#1d4ed8','#334155','#111827',
-    '#dc2626','#b91c1c','#f97316','#ea580c','#f59e0b','#ca8a04',
-    '#16a34a','#15803d','#059669','#0f766e','#0891b2','#7c3aed',
-    '#4f46e5','#9333ea','#c026d3','#db2777','#be123c','#64748b'
-  ];
-
-  function E(id){return document.getElementById(id);}
-  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-  function normHex(v){
-    v=String(v||'').trim();
-    if(!v)return '#0ea5e9';
-    if(v.charAt(0)!=='#')v='#'+v;
-    if(/^#[0-9a-f]{3}$/i.test(v))v='#'+v[1]+v[1]+v[2]+v[2]+v[3]+v[3];
-    return /^#[0-9a-f]{6}$/i.test(v)?v.toLowerCase():'#0ea5e9';
-  }
-  function currentCat(){
-    var input=E('bns391Cat')||E('adminMatCat');
-    return String((input&&input.value)||window.currentCat||'').trim().toUpperCase();
-  }
-  function getColor(cat){
-    cat=String(cat||currentCat()).trim().toUpperCase();
-    try{if(window.BNS_V399_COLORS&&window.BNS_V399_COLORS.getColor)return normHex(window.BNS_V399_COLORS.getColor(cat));}catch(e){}
-    var input=E('bns391ColorInput');
-    return normHex(input&&input.value);
-  }
-  function setColor(cat,color){
-    cat=String(cat||currentCat()).trim().toUpperCase();
-    color=normHex(color);
-    var input=E('bns391ColorInput');
-    if(input)input.value=color;
-    var btn=E('bnsV402ColorButton');
-    if(btn){btn.style.background=color;btn.title='Kleur kiezen: '+color;btn.setAttribute('aria-label','Kleur kiezen '+color);}
-    var txt=E('bns391ColorText');
-    if(txt)txt.textContent=(cat?cat+' ':'')+color;
-
-    try{if(window.BNS_V399_COLORS&&window.BNS_V399_COLORS.setColor)window.BNS_V399_COLORS.setColor(cat,color);}catch(e){}
-    try{if(window.BNS_V400_setRubriekColor)window.BNS_V400_setRubriekColor(cat,color);}catch(e){}
-
-    try{if(typeof window.renderMaterials==='function')window.renderMaterials(window.currentCat||cat);}catch(e){}
-    try{if(typeof window.renderAdminMaterials==='function')window.renderAdminMaterials();}catch(e){}
-    try{if(typeof window.renderMaterialAdmin==='function')window.renderMaterialAdmin();}catch(e){}
-
-    syncActive(color);
-  }
-  function ensureStyle(){
-    if(E('bns-v402-style'))return;
-    var s=document.createElement('style');
-    s.id='bns-v402-style';
-    s.textContent='\
-      #bnsV400ColorPicker,#bnsV50ColorRow,.bns-v50-colorrow,.bns-color-row{display:none!important}\
-      #bns391Dots{display:none!important}\
-      #bns391ColorPreview{display:none!important}\
-      #bns391ColorInput{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}\
-      #bns391ColorLine{position:relative!important;display:flex!important;align-items:center!important;gap:10px!important;flex-wrap:wrap!important;margin:10px 0 12px!important}\
-      #bnsV402ColorButton{width:42px!important;height:30px!important;border:2px solid #334155!important;border-radius:8px!important;cursor:pointer!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.65),0 1px 4px rgba(15,23,42,.18)!important}\
-      #bnsV402Palette{display:none;position:absolute;left:0;top:42px;z-index:2147483646;background:#fff;border:2px solid #cbd5e1;border-radius:14px;box-shadow:0 18px 45px rgba(15,23,42,.28);padding:10px;width:312px;max-width:calc(100vw - 40px)}\
-      #bnsV402Palette.open{display:block!important}\
-      #bnsV402Palette .bns-v402-title{font-weight:900;color:#0f172a;margin:0 0 8px;font-size:13px}\
-      #bnsV402Palette .bns-v402-grid{display:grid;grid-template-columns:repeat(8,28px);gap:8px}\
-      #bnsV402Palette .bns-v402-dot{width:28px!important;height:28px!important;border-radius:999px!important;border:2px solid #fff!important;box-shadow:0 0 0 1px #94a3b8!important;cursor:pointer!important;padding:0!important}\
-      #bnsV402Palette .bns-v402-dot.active{outline:3px solid #0f172a!important;transform:scale(1.08)}\
-    ';
-    document.head.appendChild(s);
-  }
-  function buildPalette(){
-    var line=E('bns391ColorLine');
-    var input=E('bns391ColorInput');
-    if(!line||!input)return;
-
-    var btn=E('bnsV402ColorButton');
-    if(!btn){
-      btn=document.createElement('button');
-      btn.type='button';
-      btn.id='bnsV402ColorButton';
-      input.insertAdjacentElement('afterend',btn);
-    }
-
-    var pal=E('bnsV402Palette');
-    if(!pal){
-      pal=document.createElement('div');
-      pal.id='bnsV402Palette';
-      pal.innerHTML='<div class="bns-v402-title">Kies rubriekkleur</div><div class="bns-v402-grid">'+COLORS.map(function(c){return '<button type="button" class="bns-v402-dot" data-color="'+esc(c)+'" style="background:'+esc(c)+'" title="'+esc(c)+'"></button>';}).join('')+'</div>';
-      line.appendChild(pal);
-      pal.addEventListener('click',function(ev){
-        var d=ev.target&&ev.target.closest&&ev.target.closest('.bns-v402-dot');
-        if(!d)return;
-        ev.preventDefault();
-        ev.stopPropagation();
-        setColor(currentCat(),d.getAttribute('data-color'));
-        pal.classList.remove('open');
-      },true);
-    }
-
-    btn.onclick=function(ev){
-      ev.preventDefault();
-      ev.stopPropagation();
-      pal.classList.toggle('open');
-      syncActive(getColor(currentCat()));
-      return false;
-    };
-    syncButton();
-  }
-  function syncActive(color){
-    color=normHex(color||getColor(currentCat()));
-    document.querySelectorAll('#bnsV402Palette .bns-v402-dot').forEach(function(d){
-      d.classList.toggle('active',normHex(d.getAttribute('data-color'))===color);
-    });
-  }
-  function syncButton(){
-    var cat=currentCat();
-    var col=getColor(cat);
-    var btn=E('bnsV402ColorButton');
-    if(btn){btn.style.background=col;btn.title='Kleur kiezen: '+col;btn.setAttribute('aria-label','Kleur kiezen '+col);}
-    var txt=E('bns391ColorText');
-    if(txt)txt.textContent=(cat?cat+' ':'')+col;
-    var input=E('bns391ColorInput');
-    if(input)input.value=col;
-    syncActive(col);
-  }
-  function cleanup(){
-    var p=E('bnsV400ColorPicker');
-    if(p)p.remove();
-    document.querySelectorAll('#bnsV50ColorRow,.bns-v50-colorrow,.bns-color-row').forEach(function(el){el.remove();});
-  }
-  function install(){
-    ensureStyle();
-    cleanup();
-    buildPalette();
-    syncButton();
-  }
-
-  document.addEventListener('click',function(ev){
-    var pal=E('bnsV402Palette');
-    var btn=E('bnsV402ColorButton');
-    if(!pal||!pal.classList.contains('open'))return;
-    if((btn&&btn.contains(ev.target))||pal.contains(ev.target))return;
-    pal.classList.remove('open');
-  },true);
-  document.addEventListener('input',function(ev){
-    if(ev.target&&ev.target.id==='bns391Cat')setTimeout(syncButton,0);
-  },true);
-  document.addEventListener('change',function(ev){
-    if(ev.target&&ev.target.id==='bns391Cat')setTimeout(syncButton,0);
-  },true);
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,350);});
-  else setTimeout(install,350);
-  setInterval(install,1500);
 })();
