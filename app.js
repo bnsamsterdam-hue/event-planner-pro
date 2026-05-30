@@ -11228,7 +11228,7 @@ const st = (typeof fixedMaterialStatus === 'function') ? fixedMaterialStatus(m) 
 const lab = (st && st.label) ? st.label : fallback[0];
 const cls = (st && st.key) ? st.key : fallback[1];
         const sel=chosenArr.some(x=>x.id===m.id);
-        return `<div class="material-row ${cls} ${sel?'selected':''}" style="${rowStyle(m.cat)}" onclick="addMat('${esc(m.id)}')"><div><b><span class="bns-cat-dot"></span>${esc(m.code)}</b> ${esc(m.name)}<br><small>${esc(m.price||'')}</small></div><div><span class="bns-status-pill ${cls}">${sel?'Toegevoegd':lab}</span></div></div>`
+        return `<div class="material-row ${cls} ${sel?'selected':''}" style="${rowStyle(m.cat)}" onclick="addMat('${esc(m.id)}')"><div><b><span class="bns-cat-dot"></span>${esc(m.code)}</b> ${esc(m.name)}<br><small>${esc(m.description || m.beschrijving || m.desc || m.notes || '')}</small></div><div><span class="bns-status-pill ${cls}">${sel?'Toegevoegd':lab}</span></div></div>`
       }).join('')||'<p>Geen materiaal</p>';
     };
   }
