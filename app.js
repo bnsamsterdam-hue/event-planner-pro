@@ -37743,29 +37743,33 @@ setTimeout(()=>{
   function renderOpruimen(){
     var box=document.getElementById('bns350OpBox');if(!box)return;
     var s=S();if(!s)return;
-    // Boekhouding jaar bepalen uit factuur of opdracht
+    // Boekhouding jaar bepalen: werkt met zowel accounting.documents als orders
     function bYear(d){
-      // Probeer jaar uit factuurNummer (bv 2023-3149)
-      var fn=String(d.invoiceNumber||d.factuurNr||d.number||'');
+      if(!d) return 'Geen jaar';
+      // Probeer jaar uit factuurNummer
+      var fn=String(d.invoiceNumber||d.factuurNr||(d.invoice&&(d.invoice.invoiceNumber||d.invoice.number))||d.number||'');
       var m=fn.match(/\b(20\d{2})\b/); if(m) return m[1];
-      // Uit einddatum of startdatum
-      var y=String(d.year||d.end||d.start||d.date||d.createdAt||'');
-      var m2=y.match(/\b(20\d{2})\b/); return m2?m2[1]:(y.slice(0,4)||'Geen jaar');
+      // Uit year veld (accounting.documents)
+      if(d.year) return String(d.year);
+      // Uit einddatum of startdatum (orders)
+      var y=String(d.end||d.start||d.date||d.createdAt||d.time||'');
+      var m2=y.match(/\b(20\d{2})\b/); if(m2) return m2[1];
+      return 'Geen jaar';
     }
-    // Haal boekhouding-orders op: alle opdrachten met een factuur
-    // Dit zijn uitgevoerde/bevestigde orders die een factuurNummer hebben
-    var boekhoudOrders=(s.orders||[]).filter(function(o){
-      var fn=String(o.invoiceNumber||o.factuurNr||(o.invoice&&(o.invoice.invoiceNumber||o.invoice.number))||'');
-      return fn.length>0;
-    });
-    // Ook uit s.accounting.documents als die al gevuld is
-    var accDocs=[];
+    // Boekhouding items: gebruik s.accounting.documents als die gevuld is,
+    // anders alle orders (elk order heeft een factuur-document)
+    var boekhoudItems=[];
     try{
       var acc=typeof accounting==='function'?accounting():{documents:[],payments:[]};
-      if(Array.isArray(acc.documents)&&acc.documents.length>0) accDocs=acc.documents;
+      if(Array.isArray(acc.documents)&&acc.documents.length>0){
+        boekhoudItems=acc.documents;
+      }
     }catch(e){}
-    // Gebruik de langste lijst
-    var boekhoudItems=accDocs.length>=boekhoudOrders.length?accDocs:boekhoudOrders;
+    // Als accounting.documents nog leeg is (tab nog niet geopend),
+    // gebruik dan alle orders als basis — elk heeft een factuurdocument
+    if(!boekhoudItems.length){
+      boekhoudItems=s.orders||[];
+    }
     var CATS=[
       {id:'done',        label:'Uitgevoerde opdrachten', items:(s.orders||[]).filter(isDone), yFn:oYear},
       {id:'cancelled',   label:'Geannuleerde opdrachten',items:(s.orders||[]).filter(isCan),  yFn:oYear},
