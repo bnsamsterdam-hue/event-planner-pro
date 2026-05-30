@@ -11223,7 +11223,10 @@ setTimeout(()=>{
       const chosenArr=(typeof chosen!=='undefined'&&chosen)||[];
       const rows=(appState().materials||[]).filter(m=>cat==='ALL'||catKey(m.cat)===catKey(cat)).filter(m=>JSON.stringify(m).toLowerCase().includes(search)).slice(0,150);
       list.innerHTML=rows.map(m=>{
-        const [lab,cls]=statusInfo(m.status);
+        const fallback = statusInfo(m.status);
+const st = (typeof fixedMaterialStatus === 'function') ? fixedMaterialStatus(m) : null;
+const lab = (st && st.label) ? st.label : fallback[0];
+const cls = (st && st.key) ? st.key : fallback[1];
         const sel=chosenArr.some(x=>x.id===m.id);
         return `<div class="material-row ${cls} ${sel?'selected':''}" style="${rowStyle(m.cat)}" onclick="addMat('${esc(m.id)}')"><div><b><span class="bns-cat-dot"></span>${esc(m.code)}</b> ${esc(m.name)}<br><small>${esc(m.price||'')}</small></div><div><span class="bns-status-pill ${cls}">${sel?'Toegevoegd':lab}</span></div></div>`
       }).join('')||'<p>Geen materiaal</p>';
