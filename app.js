@@ -41392,3 +41392,177 @@ setTimeout(()=>{
   setInterval(exposeOnce, 2000);
   console.info('[BNS v393] Materiaal render-lock actief: v386/v392 stoppen met elkaar overschrijven.');
 })();
+
+/* =========================================================
+   BNS V399 - RUBRIEK KLEUREN STABIEL / MEERDERE KLEUREN OPSLAAN
+   - kleur wordt per rubriek opgeslagen in catColors EN categoryColors
+   - werkt ook als oude/V50 kleurknoppen actief zijn
+   - hertekent rubriekknoppen en materiaalregels na kleurkeuze
+   ========================================================= */
+(function bnsV399StableCategoryColors(){
+  "use strict";
+  if (window.__bnsV399StableCategoryColors) return;
+  window.__bnsV399StableCategoryColors = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function S(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e) {}
+    window.state = window.state || {};
+    return window.state;
+  }
+  function saveState(){
+    try { if (typeof save === "function") save(); } catch(e) {}
+    try { localStorage.setItem("eventPlannerState", JSON.stringify(S())); } catch(e) {}
+  }
+  function key(cat){
+    return String(cat || "EXTRA").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8) || "EXTRA";
+  }
+  function hex(c){
+    c = String(c || "").trim();
+    if (/^#[0-9a-f]{3}$/i.test(c)) {
+      return "#" + c.slice(1).split("").map(function(x){ return x+x; }).join("").toLowerCase();
+    }
+    if (/^#[0-9a-f]{6}$/i.test(c)) return c.toLowerCase();
+    var m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (m) return "#" + [m[1],m[2],m[3]].map(function(n){ return ("0"+(+n).toString(16)).slice(-2); }).join("");
+    return c;
+  }
+  function maps(){
+    var s = S();
+    s.settings = s.settings || {};
+    s.settings.catColors = s.settings.catColors || {};
+    s.settings.categoryColors = s.settings.categoryColors || {};
+    try {
+      var local = JSON.parse(localStorage.getItem("bnsCatColors") || "{}");
+      Object.keys(local || {}).forEach(function(k){
+        if (!s.settings.catColors[k]) s.settings.catColors[k] = local[k];
+        if (!s.settings.categoryColors[k]) s.settings.categoryColors[k] = local[k];
+      });
+    } catch(e) {}
+    // Houd beide oude opslagplaatsen gelijk, want sommige renderers lezen catColors en andere categoryColors.
+    Object.keys(s.settings.categoryColors).forEach(function(k){
+      if (!s.settings.catColors[k]) s.settings.catColors[k] = s.settings.categoryColors[k];
+    });
+    Object.keys(s.settings.catColors).forEach(function(k){
+      if (!s.settings.categoryColors[k]) s.settings.categoryColors[k] = s.settings.catColors[k];
+    });
+    return { catColors:s.settings.catColors, categoryColors:s.settings.categoryColors };
+  }
+  function getColor(cat){
+    var k = key(cat), m = maps();
+    var def = { TW:"#dc2626", TO:"#f97316", KW:"#0ea5e9", KAS:"#0ea5e9", TAPW:"#dc2626", CONT:"#0ea5e9", EXTRA:"#334155" };
+    return hex(m.catColors[k] || m.categoryColors[k] || def[k] || def.EXTRA);
+  }
+  function setColor(cat, color){
+    var k = key(cat), c = hex(color);
+    if (!k || !/^#[0-9a-f]{6}$/i.test(c)) return;
+    var m = maps();
+    m.catColors[k] = c;
+    m.categoryColors[k] = c;
+    try { localStorage.setItem("bnsCatColors", JSON.stringify(m.catColors)); } catch(e) {}
+    saveState();
+    refreshUI();
+    redraw();
+  }
+  function removeColor(cat){
+    var k = key(cat), m = maps();
+    delete m.catColors[k];
+    delete m.categoryColors[k];
+    try { localStorage.setItem("bnsCatColors", JSON.stringify(m.catColors)); } catch(e) {}
+    saveState();
+    refreshUI();
+    redraw();
+  }
+  function currentCat(){
+    var inp = E("adminMatCat");
+    if (inp && inp.value) return inp.value;
+    try { if (window.currentCat) return window.currentCat; } catch(e) {}
+    return "EXTRA";
+  }
+  function activeColorFromUI(){
+    var active = document.querySelector(".bns-v50-dot.active,.bns-color-dot.active,.bns-v48-dot.active");
+    if (active) return active.dataset.color || active.getAttribute("data-color") || active.style.backgroundColor || active.style.getPropertyValue("--dot");
+    var input = E("adminMatColor") || E("adminMatCatColor");
+    if (input && input.value) return input.value;
+    var prev = E("bnsV50ColorPreview");
+    if (prev) return prev.style.backgroundColor || prev.style.background;
+    return getColor(currentCat());
+  }
+  function refreshUI(){
+    var cat = currentCat(), col = getColor(cat);
+    var prev = E("bnsV50ColorPreview");
+    if (prev) prev.style.background = col;
+    var input = E("adminMatColor") || E("adminMatCatColor");
+    if (input && input.tagName === "INPUT") input.value = col;
+    A(".bns-v50-dot,.bns-color-dot,.bns-v48-dot").forEach(function(dot){
+      var c = hex(dot.dataset.color || dot.getAttribute("data-color") || dot.style.backgroundColor || dot.style.getPropertyValue("--dot"));
+      dot.classList.toggle("active", c.toLowerCase() === col.toLowerCase());
+    });
+    A("#materialCats button,#materialPanel button").forEach(function(btn){
+      var c = btn.getAttribute("data-bns-v50-cat") || btn.getAttribute("data-bns-v49-cat") || btn.getAttribute("data-bns-v45-cat") || btn.getAttribute("data-cat") || btn.textContent;
+      if (c) {
+        btn.style.setProperty("--cat-color", getColor(c));
+        btn.style.borderBottomColor = getColor(c);
+      }
+    });
+    A("#adminMatList [style],#materialList [style]").forEach(function(row){
+      var mid = row.getAttribute("data-material-id") || row.getAttribute("data-admin-material-id");
+      if (!mid) return;
+      var mat = (S().materials || []).find(function(x){ return String(x.id) === String(mid); });
+      if (mat) row.style.setProperty("--cat-color", getColor(mat.cat || mat.rubriek || mat.category));
+    });
+  }
+  function redraw(){
+    try { if (typeof window.renderCats === "function") window.renderCats(); } catch(e) {}
+    try { if (typeof window.renderMaterials === "function") window.renderMaterials(window.currentCat || currentCat()); } catch(e) {}
+    try { if (typeof window.adminRender === "function") window.adminRender(); } catch(e) {}
+    setTimeout(refreshUI, 60);
+  }
+  function ensureExtraColors(){
+    var row = E("bnsV50ColorRow") || document.querySelector(".bns-v50-colorrow,.bns-color-row");
+    if (!row || row.dataset.bnsV399ExtraColors) return;
+    row.dataset.bnsV399ExtraColors = "1";
+    var colors = ["#0ea5e9","#dc2626","#f97316","#eab308","#22c55e","#16a34a","#2563eb","#4f46e5","#7c3aed","#64748b","#111827","#ec4899","#14b8a6","#84cc16","#f59e0b","#6b7280"];
+    colors.forEach(function(c){
+      if (row.querySelector('[data-color="'+c+'"]')) return;
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = row.classList.contains("bns-v50-colorrow") ? "bns-v50-dot" : "bns-color-dot";
+      b.dataset.color = c;
+      b.style.background = c;
+      b.title = c;
+      row.appendChild(b);
+    });
+  }
+  document.addEventListener("click", function(ev){
+    var dot = ev.target && ev.target.closest ? ev.target.closest(".bns-v50-dot,.bns-color-dot,.bns-v48-dot,[data-color]") : null;
+    if (dot && dot.getAttribute("data-color")) {
+      var cat = currentCat();
+      var color = dot.getAttribute("data-color") || dot.dataset.color;
+      setTimeout(function(){ setColor(cat, color); }, 0);
+      return;
+    }
+    var btn = ev.target && ev.target.closest ? ev.target.closest("button") : null;
+    if (!btn) return;
+    var txt = String(btn.textContent || "").toLowerCase().trim();
+    if (/favoriet\s*opslaan|kleur\s*opslaan/.test(txt)) {
+      ev.preventDefault();
+      setColor(currentCat(), activeColorFromUI());
+    } else if (/favoriet\s*wissen|kleur\s*wissen/.test(txt)) {
+      ev.preventDefault();
+      removeColor(currentCat());
+    }
+  }, true);
+  document.addEventListener("input", function(ev){
+    if (ev.target && ev.target.id === "adminMatCat") setTimeout(refreshUI, 0);
+    if (ev.target && (ev.target.id === "adminMatColor" || ev.target.id === "adminMatCatColor")) setColor(currentCat(), ev.target.value);
+  }, true);
+  document.addEventListener("change", function(ev){
+    if (ev.target && ev.target.id === "adminMatCat") setTimeout(refreshUI, 0);
+  }, true);
+  window.BNS_V399_COLORS = { getColor:getColor, setColor:setColor, refresh:refreshUI };
+  setTimeout(function(){ maps(); ensureExtraColors(); refreshUI(); }, 200);
+  setTimeout(function(){ maps(); ensureExtraColors(); refreshUI(); }, 900);
+  setInterval(function(){ ensureExtraColors(); refreshUI(); }, 2500);
+})();
