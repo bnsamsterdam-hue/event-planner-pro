@@ -48,8 +48,13 @@
     return ["Vrij", "free"];
   }
 
+  function firstCat(){
+    const all = [...new Set(mats().map(m => cleanCat(m.cat || m.rubriek || m.category)).filter(Boolean))].sort();
+    return all[0] || "TW";
+  }
+
   function activeCat(){
-    let cat = "TW";
+    let cat = firstCat();
     try { if (typeof currentCat !== "undefined" && currentCat) cat = currentCat; } catch(e){}
     if (window.currentCat) cat = window.currentCat;
     return cleanCat(cat);
@@ -73,7 +78,7 @@
     const allCats = [...new Set(mats().map(m => cleanCat(m.cat)))].sort();
     const cats = allCats.length ? allCats : ["TW","TO","KW","EXTRA"];
     let active = activeCat();
-    if (!cats.includes(active)) active = cats.includes("TW") ? "TW" : cats[0];
+    if (!cats.includes(active)) active = cats[0] || firstCat();
     setActiveCat(active);
 
     box.innerHTML = cats.map(cat => `
@@ -135,15 +140,20 @@
       });
 
     list.innerHTML = rows.length ? rows.map(m => {
-      const [txt, cls] = statusInfo(m.status);
+      const st = window.BNS_V392 && typeof window.BNS_V392.statusFor === "function" ? window.BNS_V392.statusFor(m) : null;
+      const fallback = statusInfo(m.status);
+      const txt = st && st.label ? st.label : fallback[0];
+      const cls = st && st.key ? st.key : fallback[1];
       const color = catColor(m.cat);
       const id = esc(m.id || "");
+      const productNaam = m.product || m.searchName || m.zoeknaam || m.type || m.name || "";
+      const productOmschrijving = m.description || m.beschrijving || m.desc || m.notes || "";
       return `
         <div class="material-row status-${cls}" style="--cat-color:${color};--mat-cat-color:${color}" onclick="if(window.addMat){addMat('${id}')}">
           <div class="catbar" aria-hidden="true"></div>
           <div class="mat-text">
-            <b>${esc(m.code || "")}</b> ${esc(m.name || "")}
-            <br><small>${esc(m.price || "oude prijs: € 0")}</small>
+            <b>${esc(m.code || "")}</b> ${esc(productNaam)}
+            <br><small>${esc(productOmschrijving)}</small>
           </div>
           <span class="badge status-${cls}"><i></i>${esc(txt)}</span>
         </div>
@@ -154,6 +164,15 @@
   }
 
   function install(){
+    if (window.BNS_V392 && typeof window.BNS_V392.renderMaterials === "function") {
+      window.renderMaterials = window.BNS_V392.renderMaterials;
+      if (typeof window.BNS_V392.toggleMaterial === "function") window.addMat = window.BNS_V392.toggleMaterial;
+      try { renderMaterials = window.BNS_V392.renderMaterials; } catch(e){}
+      try { addMat = window.BNS_V392.toggleMaterial; } catch(e){}
+      try { window.BNS_V392.renderMaterials(window.currentCat || firstCat(), true); } catch(e){}
+      return;
+    }
+
     window.renderMaterials = renderMaterialsFixed;
     window.renderCats = renderCatsFixed;
 
