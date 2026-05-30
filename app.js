@@ -8119,6 +8119,8 @@ function renderCats(){
   materialCats.innerHTML=cs.map(c=>`<button class="${c===currentCat?'active':''}" onclick="currentCat='${c}';renderCats();renderMaterials('${c}')">${c}</button>`).join('')
 }
 function renderMaterials(cat){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
   let q=materialSearch.value.toLowerCase();
   let rows=state.materials.filter(m=>(m.cat||'').toUpperCase()===cat.toUpperCase()).filter(m=>!q||JSON.stringify(m).toLowerCase().includes(q));
   materialList.innerHTML=rows.map(m=>{
@@ -12018,6 +12020,8 @@ setTimeout(()=>{
     });
   }
   function renderMaterialsPro(cat){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     var box=byId('materialList');
     if(!box)return;
     var active=setCat(cat||getCat()), search=((byId('materialSearch')||{
@@ -15210,6 +15214,8 @@ setTimeout(()=>{
     document.head.appendChild(s);
   }
   function renderMaterialsFinal(cat){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     var list = $("materialList");
     if (!list) return;
     var active = setCategory(cat || currentCategory());
@@ -20989,6 +20995,8 @@ setTimeout(()=>{
     });
   }
   function renderMaterialsV45(cat){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     ensureCss();
     var box = E("materialList");
     if (!box) return;
@@ -21722,6 +21730,18 @@ setTimeout(()=>{
     return codeFromFields(a).toLowerCase()===codeFromFields(b).toLowerCase() && catKey(a.cat||a.rubriek)===catKey(b.cat||b.rubriek);
   }
   function statusFor(m){
+    // Gebruik v392's live berekening als beschikbaar
+    if(window.BNS_V392 && typeof window.BNS_V392.statusFor === 'function') return window.BNS_V392.statusFor(m);
+    // Gebruik v392's live berekening als beschikbaar
+    if(window.BNS_V392 && typeof window.BNS_V392.statusFor === 'function') return window.BNS_V392.statusFor(m);
+    // Gebruik v392's live berekening als beschikbaar
+    if(window.BNS_V392 && typeof window.BNS_V392.statusFor === 'function') return window.BNS_V392.statusFor(m);
+    // Gebruik v392's live berekening als beschikbaar
+    if(window.BNS_V392 && typeof window.BNS_V392.statusFor === 'function') return window.BNS_V392.statusFor(m);
+    // Gebruik v392's live berekening als beschikbaar
+    if(window.BNS_V392 && typeof window.BNS_V392.statusFor === 'function'){
+      return window.BNS_V392.statusFor(m);
+    }
     var raw=norm(m&&m.status);
     if(raw==="inactive"||raw.indexOf("niet actief")>=0||raw.indexOf("niet beschikbaar")>=0) return {
       key:"inactive",label:"Niet actief"
@@ -21825,6 +21845,8 @@ setTimeout(()=>{
     });
   }
   function renderMaterialsV49(){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     var box=E("materialList");
     if(!box) return;
     var q=norm((E("materialSearch")||{
@@ -22288,6 +22310,8 @@ setTimeout(()=>{
     });
   }
   function renderMaterialsV50(){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     var box = E("materialList");
     if (!box) return;
     var search = E("materialSearch");
@@ -22952,6 +22976,8 @@ setTimeout(()=>{
     });
   }
   function renderMaterials(){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     var box=E('materialList');
     if(!box) return;
     var c=currentCat();
@@ -25828,6 +25854,8 @@ setTimeout(()=>{
     }).join("");
   }
   function renderMaterials(cat){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     var box=E("materialList");
     if(!box) return;
     css();
@@ -27970,6 +27998,8 @@ setTimeout(()=>{
     }).join('')+' <span style="font-weight:800;color:#64748b">Klik rubriek, zoek daarna alleen binnen die rubriek.</span>';
   }
   function renderMaterials83(cat,force){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     var list=E('materialList');
     if(!list) return;
     css();
@@ -30680,6 +30710,8 @@ setTimeout(()=>{
     modal.className='';
   }
   function renderMaterials93(cat){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     css();
     var box=E('materialList');
     if(!box) return;
@@ -38939,6 +38971,8 @@ setTimeout(()=>{
   }
   var _lastMatsHtml='', _lastMatsCat='';
   function renderMaterialsStable(cat){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     var box=E('materialList'); if(!box) return;
     var c=currentCatSafe(cat);
     var q=low(E('materialSearch')&&E('materialSearch').value);
@@ -40298,6 +40332,8 @@ setTimeout(()=>{
     box.innerHTML=cats.map(function(k){return '<button type="button" class="bns386-cat '+(k===c?'active':'')+'" data-bns386-cat="'+esc(k)+'">'+esc(k)+'</button>';}).join('');
   }
   function renderMaterials(cat){
+    if(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function') return window.BNS_V392.renderMaterials.apply(this,arguments);
+
     var box=E('materialList'); if(!box) return;
     var c=currentCat(cat);
     var q=low(E('materialSearch')&&E('materialSearch').value);
