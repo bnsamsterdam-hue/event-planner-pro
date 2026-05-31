@@ -41350,7 +41350,7 @@ setTimeout(()=>{
     var box=E('materialList'); if(!box) return;
     var c=setCat(cat);
     var q=L(E('materialSearch')&&E('materialSearch').value);
-    var list=mats().filter(function(m){ return catOf(m)===c; }).filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0; });
+    var list=(q ? mats() : mats().filter(function(m){ return catOf(m)===c; })).filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0; });
     var sig=c+'|'+q+'|'+list.map(function(m){ var st=statusFor(m); return T(m.id)+':'+codeOf(m)+':'+nameOf(m)+':'+st.key; }).join(',')+'|chosen:'+chosenList().map(function(m){return codeOf(m)||T(m.id);}).join(',');
     renderCats();
     if(!force && sig===lastSig && box.querySelector('.bns392-row')) return;
@@ -42404,4 +42404,134 @@ setTimeout(()=>{
   setInterval(cleanup,1500);
   setTimeout(cleanup,300); setTimeout(cleanup,1400); setTimeout(cleanup,3000);
   console.info('[BNS v412] Huisstijl upload alleen in Huisstijl & Documenten actief. Factuur/offerte tab verborgen.');
+})();
+
+
+/* =========================================================
+   BNS v413 - Zoek alle rubrieken + admin opruimen + Routenet + opslagbevestiging
+   - Materiaalzoeker zoekt bij invoer door alle rubrieken heen.
+   - Admin-tab Factuur/offerte wordt definitief verborgen/verwijderd.
+   - Routenet staat compact naast Waze in Nieuwe opdracht.
+   - Opslaan opdracht vraagt eerst eigen bevestiging met status.
+   ========================================================= */
+(function BNS_V413_UI_FLOW_FIXES(){
+  'use strict';
+  if(window.__BNS_V413_UI_FLOW_FIXES__) return;
+  window.__BNS_V413_UI_FLOW_FIXES__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function visible(el){ return !!(el && el.offsetParent !== null); }
+  function activeNewOrder(){ var p=E('newOrder'); return !!(p && p.classList.contains('active')); }
+
+  function injectCss(){
+    if(E('bns413Css')) return;
+    var st=document.createElement('style'); st.id='bns413Css';
+    st.textContent = ''+
+      '#bnsPlannerTools{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;margin:8px 0 10px!important}\n'+
+      '#bnsPlannerTools b{flex-basis:100%!important;margin-bottom:2px!important}\n'+
+      '#bnsPlannerTools button{width:auto!important;min-width:0!important;max-width:none!important;padding:9px 13px!important;border-radius:11px!important;font-size:13px!important;line-height:1.15!important;white-space:nowrap!important;font-weight:900!important}\n'+
+      '#bnsWazePlannerBtn{background:#16a34a!important;color:#fff!important}\n'+
+      '#bnsRoutenetPlannerBtn{background:#0ea5e9!important;color:#fff!important;border:0!important}\n'+
+      '#bnsMapsPlannerBtn{background:#334155!important;color:#fff!important}\n'+
+      '#bns413Confirm{position:fixed!important;inset:0!important;background:rgba(15,23,42,.45)!important;z-index:999999!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:18px!important}\n'+
+      '#bns413Confirm .card{background:#fff!important;border-radius:20px!important;max-width:520px!important;width:100%!important;padding:22px!important;box-shadow:0 18px 60px rgba(0,0,0,.25)!important;font-family:inherit!important}\n'+
+      '#bns413Confirm h2{margin:0 0 10px!important;font-size:22px!important;color:#0f172a!important}\n'+
+      '#bns413Confirm .status{font-size:24px!important;font-weight:950!important;background:#eef6ff!important;border:1px solid #cfe5ff!important;border-radius:14px!important;padding:12px 14px!important;margin:12px 0!important;color:#0f172a!important}\n'+
+      '#bns413Confirm .meta{font-size:14px!important;color:#334155!important;line-height:1.45!important}\n'+
+      '#bns413Confirm .actions{display:flex!important;gap:10px!important;flex-wrap:wrap!important;margin-top:16px!important}\n'+
+      '#bns413Confirm button{border:0!important;border-radius:13px!important;padding:12px 16px!important;font-weight:900!important;cursor:pointer!important}\n'+
+      '#bns413DoSave{background:#16a34a!important;color:#fff!important}\n'+
+      '#bns413CancelSave{background:#64748b!important;color:#fff!important}\n'+
+      '.bns413-hide-admin-tab{display:none!important}\n';
+    document.head.appendChild(st);
+  }
+
+  function hideEmptyInvoiceOfferTab(){
+    A('button,a').forEach(function(el){
+      var tx=T(el.textContent).toLowerCase().replace(/\s+/g,' ');
+      if(tx==='factuur / offerte' || tx==='factuur/offerte' || tx==='factuur offerte'){
+        el.classList.add('bns413-hide-admin-tab');
+        el.style.display='none';
+        el.setAttribute('aria-hidden','true');
+      }
+    });
+  }
+
+  function addressFromForm(){
+    var parts=[];
+    ['locationName','locationStreet','locationZip','locationCity'].forEach(function(id){ var el=E(id); if(el && T(el.value)) parts.push(T(el.value)); });
+    if(!parts.length){ ['customerStreet','customerZip','customerCity'].forEach(function(id){ var el=E(id); if(el && T(el.value)) parts.push(T(el.value)); }); }
+    return parts.join(' ');
+  }
+  function ensureRoutenetPlanner(){
+    var box=E('bnsPlannerTools'); if(!box) return;
+    var w=E('bnsWazePlannerBtn');
+    if(w) w.textContent='Waze route';
+    var m=E('bnsMapsPlannerBtn');
+    if(m) m.textContent='Google Maps';
+    if(E('bnsRoutenetPlannerBtn')) return;
+    var b=document.createElement('button');
+    b.id='bnsRoutenetPlannerBtn';
+    b.type='button';
+    b.textContent='Routenet';
+    b.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); var a=addressFromForm(); window.open('https://www.routenet.nl/routeplanner?locatie='+encodeURIComponent(a),'_blank'); return false; };
+    if(w && w.nextSibling) w.parentNode.insertBefore(b,w.nextSibling); else box.appendChild(b);
+  }
+
+  function currentStatusLabel(){
+    var s=T(E('orderStatus') && E('orderStatus').value) || 'Onbekend';
+    if(/opdrachtbevestiging|bevestigd/i.test(s)) return 'Bevestigd / opdrachtbevestiging';
+    if(/14/.test(s) && /optie/i.test(s)) return '14 dagen optie';
+    if(/offerte/i.test(s)) return 'Offerte';
+    if(/geannuleerd/i.test(s)) return 'Geannuleerd';
+    return s;
+  }
+  function showSaveConfirm(btn){
+    if(E('bns413Confirm')) return;
+    var num=T(E('orderNumber') && E('orderNumber').value) || 'nieuwe opdracht';
+    var title=T(E('orderTitle') && E('orderTitle').value) || 'zonder titel';
+    var status=currentStatusLabel();
+    var d1=T(E('dateStart') && E('dateStart').value), d2=T(E('dateEnd') && E('dateEnd').value) || d1;
+    var wrap=document.createElement('div'); wrap.id='bns413Confirm';
+    wrap.innerHTML='<div class="card" role="dialog" aria-modal="true">'
+      +'<h2>Opdracht opslaan?</h2>'
+      +'<div class="meta">Controleer eerst de status. Daarna wordt de opdracht opgeslagen.</div>'
+      +'<div class="status">Status: '+H(status)+'</div>'
+      +'<div class="meta"><b>Opdracht:</b> '+H(num)+'<br><b>Titel:</b> '+H(title)+'<br><b>Datum:</b> '+H(d1)+' tot '+H(d2)+'</div>'
+      +'<div class="actions"><button id="bns413DoSave" type="button">Ja, opslaan als '+H(status)+'</button><button id="bns413CancelSave" type="button">Terug</button></div>'
+      +'</div>';
+    document.body.appendChild(wrap);
+    E('bns413CancelSave').onclick=function(){ wrap.remove(); };
+    E('bns413DoSave').onclick=function(){
+      wrap.remove();
+      window.__bns413AllowSave = true;
+      try{ btn.click(); }catch(e){ try{ if(typeof saveCurrentOrder === 'function') saveCurrentOrder(); }catch(_e){} }
+      setTimeout(function(){ window.__bns413AllowSave = false; }, 500);
+    };
+  }
+  function installSaveConfirm(){
+    document.addEventListener('click',function(ev){
+      var btn=ev.target && ev.target.closest && ev.target.closest('#saveOrder');
+      if(!btn || !activeNewOrder()) return;
+      if(window.__bns413AllowSave) return;
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      showSaveConfirm(btn);
+      return false;
+    },true);
+  }
+
+  function improveSearchPlaceholder(){
+    var inp=E('materialSearch');
+    if(inp) inp.setAttribute('placeholder','Zoek materiaal / rubriek / product nr / omschrijving');
+  }
+  function tick(){ injectCss(); hideEmptyInvoiceOfferTab(); ensureRoutenetPlanner(); improveSearchPlaceholder(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,250); }); else setTimeout(tick,100);
+  document.addEventListener('click',function(){ setTimeout(tick,80); },true);
+  document.addEventListener('input',function(ev){ if(ev.target && ev.target.id==='materialSearch' && window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function'){ setTimeout(function(){ window.BNS_V392.renderMaterials(window.currentCat,true); },30); } },true);
+  setInterval(tick,1200);
+  installSaveConfirm();
+  console.info('[BNS v413] Zoek alle rubrieken, Factuur/offerte verborgen, Routenet compact, opslagbevestiging actief.');
 })();
