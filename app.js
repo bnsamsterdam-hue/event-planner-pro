@@ -42652,10 +42652,10 @@ setTimeout(()=>{
 })();
 
 
-/* BNS v425 - schone documentmodule: admin huisstijl leidend, oude werking/data, statuskop, knoppen opruimen */
+/* BNS v426 - schone documentmodule: admin huisstijl leidend, oude werking/data, statuskop, knoppen opruimen */
 (function(){
-  if(window.__BNS_V425_DOCS_CLEAN__) return;
-  window.__BNS_V425_DOCS_CLEAN__ = true;
+  if(window.__BNS_V426_DOCS_CLEAN__) return;
+  window.__BNS_V426_DOCS_CLEAN__ = true;
 
   var STYLE_KEY = 'bns_documentstijl_v425';
 
@@ -42737,12 +42737,41 @@ setTimeout(()=>{
   function setField(id,v){ var el=E(id); if(el) el.value=v||''; }
   function getField(id){ var el=E(id); return el && 'value' in el ? el.value : ''; }
 
-  function enhanceAdmin(){
-    var admin=document.querySelector('#adminArea') || document.querySelector('.adminArea') || document.querySelector('main') || document.body;
-    if(!admin || E('bns425DocumentStyle')) return;
+  function isVisible(el){
+    try{
+      if(!el) return false;
+      var r=el.getBoundingClientRect();
+      var cs=getComputedStyle(el);
+      return r.width>0 && r.height>0 && cs.display!=='none' && cs.visibility!=='hidden' && cs.opacity!=='0';
+    }catch(e){ return false; }
+  }
 
-    var bodyText=txt(document.body.innerText).toLowerCase();
-    if(bodyText.indexOf('huisstijl')<0 && bodyText.indexOf('document')<0 && bodyText.indexOf('briefpapier')<0) return;
+  function currentVisibleHeading(){
+    return A('h1,h2,h3').filter(isVisible).map(function(x){return txt(x.textContent);}).join(' | ');
+  }
+
+  function onAdminHuisstijlPage(){
+    var h=currentVisibleHeading().toLowerCase();
+    if(h.indexOf('admin')<0) return false;
+    // Alleen zichtbaar op Admin/Huisstijl & Documenten, nooit op Nieuwe opdracht > Documenten.
+    var active=A('button,a,.tab,.adminTab,[data-admin]').filter(isVisible).filter(function(x){
+      return /huisstijl|documenten/i.test(txt(x.textContent)) && /active|selected|black|current/i.test((x.className||'')+' '+(x.getAttribute('aria-selected')||''));
+    });
+    if(active.length) return true;
+    // Fallback: als het huisstijl-blok met briefpapier zichtbaar is binnen Admin.
+    var visibleText=A('body *').filter(isVisible).map(function(x){return txt(x.textContent);}).join(' ').toLowerCase();
+    return visibleText.indexOf('huisstijl')>=0 && visibleText.indexOf('briefpapier')>=0 && visibleText.indexOf('nieuwe opdracht')<0;
+  }
+
+  function enhanceAdmin(){
+    var existing=E('bns425DocumentStyle');
+    if(!onAdminHuisstijlPage()){
+      if(existing) existing.remove();
+      return;
+    }
+
+    var admin=document.querySelector('#adminArea') || document.querySelector('.adminArea') || document.querySelector('main') || document.body;
+    if(!admin || existing) return;
 
     var st=getStyle();
     var box=document.createElement('div');
@@ -43023,6 +43052,6 @@ setTimeout(()=>{
   setInterval(function(){ enhanceAdmin(); patchButtons(); },700);
   setTimeout(function(){ enhanceAdmin(); patchButtons(); },200);
   setTimeout(function(){ enhanceAdmin(); patchButtons(); },1500);
-  console.info('[BNS v425] Schone documentmodule actief.');
+  console.info('[BNS v426] Admin documentstijl alleen op Huisstijl actief.');
 })();
 
