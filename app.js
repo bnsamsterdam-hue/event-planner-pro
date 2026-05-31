@@ -42510,9 +42510,13 @@ setTimeout(()=>{
       window.__bns413AllowSave = true;
       window.__bns414SavingOnly = true;
       try{
-        // Niet opnieuw op de knop klikken: sommige oude lagen openen dan direct de opdrachtbevestiging.
-        // Direct de stabiele opslaan-route gebruiken zodat hij alleen opslaat en teruggaat naar Opdrachten.
-        if(window.BNS_STABLE_CORE && typeof window.BNS_STABLE_CORE.save === 'function') {
+        // BNS v415: oude opslaan-route gebruiken, alleen met popup ervoor.
+        // De stabiele save-listener op #saveOrder bewaart de opdracht en stopt oude document-openers.
+        var saveBtn = E('saveOrder');
+        if(saveBtn){
+          var ev = new MouseEvent('click',{bubbles:true,cancelable:true,view:window});
+          saveBtn.dispatchEvent(ev);
+        } else if(window.BNS_STABLE_CORE && typeof window.BNS_STABLE_CORE.save === 'function') {
           window.BNS_STABLE_CORE.save();
         } else if(typeof window.saveCurrentOrder === 'function') {
           window.saveCurrentOrder();
@@ -42520,10 +42524,15 @@ setTimeout(()=>{
           saveCurrentOrder();
         }
       }catch(e){
-        console.error('[BNS v414] opslaan via bevestiging mislukt', e);
+        console.error('[BNS v415] opslaan via bevestiging mislukt', e);
         try{ alert('Opslaan mislukt. Kijk in de console.'); }catch(_e){}
       }
-      setTimeout(function(){ window.__bns413AllowSave = false; window.__bns414SavingOnly = false; }, 800);
+      setTimeout(function(){
+        window.__bns413AllowSave = false;
+        window.__bns414SavingOnly = false;
+        try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
+        try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+      }, 900);
     };
   }
   function installSaveConfirm(){
@@ -42631,4 +42640,54 @@ setTimeout(()=>{
   setInterval(repairOrderTitles,1800);
   setTimeout(repairOrderTitles,800);
   console.info('[BNS v414] Opslaan opent geen opdrachtbevestiging meer; titelkoppen hersteld.');
+})();
+
+
+/* =========================================================
+   BNS v415 - Opslaan popup gebruikt oude opslaan-route
+   - Klik op "Ja, opslaan" doet hetzelfde als vroeger op Opslaan klikken.
+   - Alleen de popup komt ervoor.
+   - Opdrachtbevestiging/factuur openen wordt tijdens opslaan geblokkeerd.
+   ========================================================= */
+(function BNS_V415_SAVE_CONFIRM_OLD_ROUTE(){
+  'use strict';
+  if(window.__BNS_V415_SAVE_CONFIRM_OLD_ROUTE__) return;
+  window.__BNS_V415_SAVE_CONFIRM_OLD_ROUTE__ = true;
+  function E(id){return document.getElementById(id);}
+  function goOldSaveRoute(){
+    window.__bns413AllowSave = true;
+    window.__bns414SavingOnly = true;
+    try{
+      var btn = E('saveOrder');
+      if(btn){
+        btn.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));
+      } else if(window.BNS_STABLE_CORE && typeof window.BNS_STABLE_CORE.save === 'function'){
+        window.BNS_STABLE_CORE.save();
+      }
+    }catch(e){
+      console.error('[BNS v415] oude opslaan-route mislukt', e);
+      try{ alert('Opslaan mislukt. Kijk in de console.'); }catch(_e){}
+    }
+    setTimeout(function(){
+      window.__bns413AllowSave = false;
+      window.__bns414SavingOnly = false;
+      try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+      try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
+    }, 1000);
+  }
+
+  // Extra vangnet: als een oudere v413/v414 onclick alsnog op de popupknop zit,
+  // nemen wij deze klik over voordat die oude handler een document kan openen.
+  document.addEventListener('click',function(ev){
+    var t = ev.target && ev.target.closest && ev.target.closest('#bns413DoSave');
+    if(!t) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    var modal = E('bns413Confirm');
+    if(modal) modal.remove();
+    goOldSaveRoute();
+    return false;
+  }, true);
+  console.info('[BNS v415] Opslaan popup gebruikt oude opslaan-route; geen document-open.');
 })();
