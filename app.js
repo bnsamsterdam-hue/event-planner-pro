@@ -9264,13 +9264,7 @@ setTimeout(()=>{
     const tabs=document.querySelector('.admin-tabs') || document.querySelector('.tabs.admin-tabs');
     const area=byId('adminArea');
     if(!area) return;
-    if(tabs && !document.querySelector('[data-admin="adminInvoice"]')){
-      const btn=document.createElement('button');
-      btn.className='adminTab';
-      btn.dataset.admin='adminInvoice';
-      btn.textContent='Factuur / offerte';
-      tabs.appendChild(btn);
-    }
+    /* Factuur / offerte tab uitgeschakeld - vervangen door Huisstijl & Documenten */
     if(!byId('adminInvoice')){
       const pane=document.createElement('div');
       pane.id='adminInvoice';
