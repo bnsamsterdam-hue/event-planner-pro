@@ -39010,8 +39010,7 @@ setTimeout(()=>{
     var box=E('materialList'); if(!box) return;
     var c=currentCatSafe(cat);
     var q=low(E('materialSearch')&&E('materialSearch').value);
-    var allRows=mats();
-    var rows=(q?allRows:allRows.filter(function(m){return txt(m.cat||'EXTRA').toUpperCase()===c;})).filter(function(m){return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0;});
+    var rows=mats().filter(function(m){return txt(m.cat||'EXTRA').toUpperCase()===c;}).filter(function(m){return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0;});
     var newHtml=rows.map(function(m){
       var st=statusFor(m);
       var cls=st.key;
@@ -41351,8 +41350,7 @@ setTimeout(()=>{
     var box=E('materialList'); if(!box) return;
     var c=setCat(cat);
     var q=L(E('materialSearch')&&E('materialSearch').value);
-    var allMaterials=mats();
-    var list=(q?allMaterials:allMaterials.filter(function(m){ return catOf(m)===c; })).filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0; });
+    var list=(q ? mats() : mats().filter(function(m){ return catOf(m)===c; })).filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0; });
     var sig=c+'|'+q+'|'+list.map(function(m){ var st=statusFor(m); return T(m.id)+':'+codeOf(m)+':'+nameOf(m)+':'+st.key; }).join(',')+'|chosen:'+chosenList().map(function(m){return codeOf(m)||T(m.id);}).join(',');
     renderCats();
     if(!force && sig===lastSig && box.querySelector('.bns392-row')) return;
@@ -42409,110 +42407,171 @@ setTimeout(()=>{
 })();
 
 
-// =============================================================================
-// BNS v416 - Terug naar goede basis: algemene materiaalzoeker + status-popup voor oude opslaan
-// Datum: 2026-05-31
-// Doel:
-// - Zoekveld materiaal zoekt bij tekst door ALLE rubrieken; zonder tekst blijft actieve rubriek zichtbaar.
-// - Opslaan blijft de oude/stabiele opslaan-route gebruiken, maar krijgt eerst een eigen systeem-popup met statuscontrole.
-// - Geen opdrachtbevestiging/factuur automatisch openen door de popup.
-// =============================================================================
-(function BNS_V416_SEARCH_AND_SAVE_CONFIRM(){
+/* ==========================================================
+   BNS v416 - Basisfix: zoeken alle rubrieken + opslaan-popup zonder document-open
+   Basis: teruggezet vanaf BNS 1.zip
+   Doel:
+   - Materiaalzoeker zoekt bij tekst door alle rubrieken.
+   - Zonder zoektekst blijft actieve rubriek zichtbaar.
+   - Opslaan blijft de oude bedoeling: alleen opslaan, geen opdrachtbevestiging openen.
+   - Status wordt hard bewaard uit de dropdown: Offerte blijft Offerte; Bevestigd wordt Opdrachtbevestiging; Optie blijft optie.
+   ========================================================== */
+(function BNS_V416_SEARCH_AND_SAVE_POPUP(){
   'use strict';
-  if(window.__BNS_V416_SEARCH_AND_SAVE_CONFIRM__) return;
-  window.__BNS_V416_SEARCH_AND_SAVE_CONFIRM__ = true;
+  if(window.__BNS_V416_SEARCH_AND_SAVE_POPUP__) return;
+  window.__BNS_V416_SEARCH_AND_SAVE_POPUP__ = true;
 
   function E(id){ return document.getElementById(id); }
   function T(v){ return String(v == null ? '' : v).trim(); }
-  function H(s){ return T(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function N(v){ return Number(String(v||'').replace(/[^0-9.,-]/g,'').replace(',','.')) || 0; }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} window.state=window.state||{}; return window.state; }
+  function chosenList(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
+  function editingId(){ try{ return T(editing); }catch(e){} return T(window.editing||''); }
+  function makeId(){ try{ return id(); }catch(e){ return 'ord_'+Date.now()+'_'+Math.floor(Math.random()*9999); } }
+  function clone(x){ try{return JSON.parse(JSON.stringify(x));}catch(e){return Object.assign({},x||{});} }
+  function saveState(){ try{ if(typeof save === 'function') save(); else localStorage.setItem('event-planner-pro-v87',JSON.stringify(S())); }catch(e){} }
+  function toast(msg){ try{ if(typeof toastMsg==='function') toastMsg(msg); else window.bnsAlert?window.bnsAlert(msg,'Opgeslagen'):alert(msg); }catch(e){} }
+  function currentStatusRaw(){
+    var sel=E('orderStatus');
+    if(!sel) return 'Offerte';
+    var opt=sel.options && sel.selectedIndex>=0 ? sel.options[sel.selectedIndex] : null;
+    return T(sel.value || (opt && opt.textContent) || 'Offerte');
+  }
+  function normalizeStatus(v){
+    var l=L(v).replace(/[_-]+/g,' ');
+    if(!l) return 'Offerte';
+    if(/offerte/.test(l)) return 'Offerte';
+    if(/optie|14/.test(l)) return 'optie 14 dagen';
+    if(/annul|geann|cancel/.test(l)) return 'Geannuleerd';
+    if(/verwijder|deleted|trash/.test(l)) return 'Verwijderd';
+    if(/bevestig|opdracht/.test(l)) return 'Opdrachtbevestiging';
+    return T(v);
+  }
   function statusLabel(v){
-    var s=T(v).toLowerCase();
-    if(s.indexOf('14')>=0 || s.indexOf('optie')>=0) return '14 dagen optie';
-    if(s.indexOf('bevest')>=0 || s.indexOf('opdracht')>=0) return 'Bevestigd / opdrachtbevestiging';
-    if(s.indexOf('offerte')>=0) return 'Offerte';
-    return T(v)||'Offerte';
+    var s=normalizeStatus(v), l=L(s);
+    if(/offerte/.test(l)) return 'Offerte';
+    if(/optie/.test(l)) return '14 dagen optie';
+    if(/geann|annul/.test(l)) return 'Geannuleerd';
+    if(/verwijder/.test(l)) return 'Verwijderd';
+    if(/opdrachtbevestiging|bevestigd/.test(l)) return 'Bevestigd / opdrachtbevestiging';
+    return s;
   }
-  function setSearchPlaceholder(){
-    var i=E('materialSearch');
-    if(i) i.setAttribute('placeholder','Zoek materiaal / rubriek / product nr / omschrijving');
+  function materialStatusForOrder(st){
+    var l=L(st);
+    if(/offerte|geann|annul|verwijder|deleted|uitgevoerd|afgerond/.test(l)) return 'free';
+    return 'reserved';
   }
-  setSearchPlaceholder();
-  setInterval(setSearchPlaceholder,2000);
-
-  function currentOrderInfo(){
-    return {
-      number:T(E('orderNumber')&&E('orderNumber').value),
-      title:T(E('orderTitle')&&E('orderTitle').value)||'Zonder titel',
-      status:T(E('orderStatus')&&E('orderStatus').value)||'Offerte',
-      start:T(E('dateStart')&&E('dateStart').value),
-      end:T(E('dateEnd')&&E('dateEnd').value)||T(E('dateStart')&&E('dateStart').value)
+  function preparedMaterials(st){
+    var ms=materialStatusForOrder(st);
+    return chosenList().map(function(m){ var x=clone(m); x.status=ms; if(x.qty==null) x.qty=1; return x; });
+  }
+  function totals(){
+    try{ if(typeof calcLineTotals==='function') return calcLineTotals() || {}; }catch(e){}
+    try{ if(typeof calcTotals==='function') return calcTotals() || {}; }catch(e){}
+    return {materials:N(E('priceExcl')&&E('priceExcl').value),deposit:N(E('depositAmount')&&E('depositAmount').value),vat:N(E('vatPercent')&&E('vatPercent').value),grand:N(E('grandTotal')&&E('grandTotal').value)};
+  }
+  function upserts(o){
+    try{ if(typeof upsertCustomer==='function') upsertCustomer(o.customer); }catch(e){}
+    try{ if(typeof upsertLocation==='function') upsertLocation(o.location); }catch(e){}
+  }
+  function sync(o){ try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){} }
+  function saveDirect(){
+    var s=S(); s.orders=s.orders||[];
+    var curId=editingId();
+    var curNum=T(E('orderNumber')&&E('orderNumber').value);
+    var idx=-1;
+    if(curId) idx=s.orders.findIndex(function(o){ return T(o.id)===curId; });
+    if(idx<0 && curNum) idx=s.orders.findIndex(function(o){ return T(o.number)===curNum; });
+    var old=idx>=0?s.orders[idx]:null;
+    var st=normalizeStatus(currentStatusRaw());
+    var driver=T(E('orderDriver')&&E('orderDriver').value);
+    var o={
+      id: old?old.id:(curId||makeId()),
+      number: curNum,
+      status: st,
+      title: T(E('orderTitle')&&E('orderTitle').value) || 'Zonder titel',
+      start: T(E('dateStart')&&E('dateStart').value),
+      end: T(E('dateEnd')&&E('dateEnd').value) || T(E('dateStart')&&E('dateStart').value),
+      brand: T(E('orderBrand')&&E('orderBrand').value),
+      customer:{name:T(E('customerName')&&E('customerName').value),street:T(E('customerStreet')&&E('customerStreet').value),zip:T(E('customerZip')&&E('customerZip').value),city:T(E('customerCity')&&E('customerCity').value),phone:T(E('customerPhone')&&E('customerPhone').value),email:T(E('customerEmail')&&E('customerEmail').value)},
+      location:{name:T(E('locationName')&&E('locationName').value),street:T(E('locationStreet')&&E('locationStreet').value),zip:T(E('locationZip')&&E('locationZip').value),city:T(E('locationCity')&&E('locationCity').value),contact:T(E('locationContact')&&E('locationContact').value),phone:T(E('locationPhone')&&E('locationPhone').value),show:E('showLocationOnDocs')?E('showLocationOnDocs').checked:true},
+      materials: preparedMaterials(st),
+      driver:driver, driverName:driver, bezorger:driver,
+      vehicle:T(E('orderVehicle')&&E('orderVehicle').value),
+      extra:T(E('orderExtra')&&E('orderExtra').value),
+      pricing: totals(),
+      confirmationText:T(E('confirmationText')&&E('confirmationText').value),
+      updatedAt:new Date().toISOString()
     };
+    if(/optie/.test(L(st)) && !(old&&old.optionCreatedAt)) o.optionCreatedAt=new Date().toISOString().slice(0,10);
+    upserts(o);
+    if(idx>=0) s.orders[idx]=Object.assign({},old,o); else s.orders.push(o);
+    try{ editing=null; }catch(e){} window.editing='';
+    saveState(); sync(o);
+    try{ if(typeof clearOrder==='function') clearOrder(); }catch(e){}
+    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
+    toast('Opdracht opgeslagen als '+statusLabel(st));
+    return o;
   }
-  function closePopup(){
-    var old=E('bns416SaveOverlay');
-    if(old) old.remove();
-  }
-  function runOldSaveRoute(){
-    closePopup();
-    // Gebruik bewust de oude/stabiele save-functie, niet opnieuw op de knop klikken.
-    // Zo wordt er geen opdrachtbevestiging geopend door een extra click-handler.
-    try{
-      if(window.BNS_STABLE_CORE && typeof window.BNS_STABLE_CORE.save === 'function'){
-        return window.BNS_STABLE_CORE.save();
-      }
-    }catch(e){ console.warn('[BNS v416] BNS_STABLE_CORE.save mislukt',e); }
-    try{
-      if(typeof window.saveCurrentOrder === 'function') return window.saveCurrentOrder();
-    }catch(e){ console.warn('[BNS v416] saveCurrentOrder mislukt',e); }
-    try{
-      if(typeof saveCurrentOrder === 'function') return saveCurrentOrder();
-    }catch(e){ console.warn('[BNS v416] lokale saveCurrentOrder mislukt',e); }
-    alert('Opslaan kon niet worden gestart. Oude opslaan-route niet gevonden.');
-    return false;
-  }
-  function showSavePopup(){
-    closePopup();
-    var o=currentOrderInfo();
-    var label=statusLabel(o.status);
-    var overlay=document.createElement('div');
-    overlay.id='bns416SaveOverlay';
-    overlay.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.36);z-index:999999;display:flex;align-items:center;justify-content:center;padding:18px;';
-    overlay.innerHTML='<div style="width:min(520px,96vw);background:#fff;border-radius:22px;box-shadow:0 24px 60px rgba(0,0,0,.28);padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#172033">'
-      +'<h2 style="margin:0 0 8px;font-size:24px">Opdracht opslaan?</h2>'
-      +'<p style="margin:0 0 14px;color:#64748b;font-weight:700">Controleer eerst de status. Daarna wordt de opdracht opgeslagen zoals voorheen.</p>'
-      +'<div style="border:1px solid #dbeafe;background:#f8fbff;border-radius:16px;padding:16px;margin-bottom:14px">'
-      +'<div style="font-size:24px;font-weight:1000;margin-bottom:10px">Status: '+H(label)+'</div>'
-      +'<div><b>Opdracht:</b> '+H(o.number||'nieuw')+'</div>'
-      +'<div><b>Titel:</b> '+H(o.title)+'</div>'
-      +'<div><b>Datum:</b> '+H(o.start||'-')+' tot '+H(o.end||'-')+'</div>'
-      +'</div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
-      +'<button id="bns416SaveYes" type="button" style="background:#16a34a;color:#fff;border:0;border-radius:14px;padding:13px 18px;font-weight:1000;font-size:15px;cursor:pointer">Ja, opslaan als '+H(label)+'</button>'
-      +'<button id="bns416SaveNo" type="button" style="background:#475569;color:#fff;border:0;border-radius:14px;padding:13px 18px;font-weight:1000;font-size:15px;cursor:pointer">Terug</button>'
+  function modalHtml(){
+    var st=statusLabel(currentStatusRaw());
+    var no=T(E('orderNumber')&&E('orderNumber').value)||'-';
+    var ti=T(E('orderTitle')&&E('orderTitle').value)||'Zonder titel';
+    var ds=T(E('dateStart')&&E('dateStart').value)||'-';
+    var de=T(E('dateEnd')&&E('dateEnd').value)||ds;
+    return '<div id="bns416SaveOverlay" style="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px">'
+      +'<div style="background:white;border-radius:22px;box-shadow:0 24px 80px rgba(0,0,0,.28);max-width:520px;width:min(520px,96vw);padding:26px;font-family:inherit;color:#172033">'
+      +'<h2 style="margin:0 0 10px">Opdracht opslaan?</h2>'
+      +'<p style="margin:0 0 16px;font-weight:800;color:#334155">Controleer eerst de status. Daarna wordt de opdracht opgeslagen zoals voorheen.</p>'
+      +'<div style="border:1px solid #dbe3ef;background:#f8fafc;border-radius:16px;padding:16px;margin-bottom:16px">'
+      +'<div style="font-size:25px;font-weight:1000;margin-bottom:12px">Status: '+H(st)+'</div>'
+      +'<b>Opdracht:</b> '+H(no)+'<br><b>Titel:</b> '+H(ti)+'<br><b>Datum:</b> '+H(ds)+' tot '+H(de)+'</div>'
+      +'<button type="button" id="bns416ConfirmSave" style="border:0;border-radius:12px;background:#22c55e;color:white;font-weight:1000;padding:13px 18px;margin-right:10px;cursor:pointer">Ja, opslaan</button>'
+      +'<button type="button" id="bns416CancelSave" style="border:0;border-radius:12px;background:#475569;color:white;font-weight:1000;padding:13px 18px;cursor:pointer">Terug</button>'
       +'</div></div>';
-    document.body.appendChild(overlay);
-    E('bns416SaveNo').onclick=closePopup;
-    E('bns416SaveYes').onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); runOldSaveRoute(); return false; };
   }
+  function openSavePopup(){
+    var old=E('bns416SaveOverlay'); if(old) old.remove();
+    document.body.insertAdjacentHTML('beforeend',modalHtml());
+  }
+  function closeSavePopup(){ var x=E('bns416SaveOverlay'); if(x) x.remove(); }
 
+  // Zorg dat de v408 document-click-listener onze akkoordknop nooit als "opdrachtbevestiging" ziet.
   document.addEventListener('click',function(ev){
-    var btn=ev.target && ev.target.closest && ev.target.closest('#saveOrder');
-    if(!btn) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    showSavePopup();
-    return false;
-  },true);
-
-  // Zorg dat live zoeken opnieuw rendert, ook als een oudere handler alleen binnen de rubriek zoekt.
-  document.addEventListener('input',function(ev){
-    if(ev.target && ev.target.id==='materialSearch'){
-      setTimeout(function(){
-        try{ if(typeof window.renderMaterials==='function') window.renderMaterials(window.currentCat||'',true); }catch(e){}
-      },30);
+    var b=ev.target && ev.target.closest && ev.target.closest('#bns416ConfirmSave,#bns416CancelSave');
+    if(b){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      if(b.id==='bns416CancelSave') closeSavePopup();
+      else { closeSavePopup(); saveDirect(); }
+      return false;
+    }
+    var saveBtn=ev.target && ev.target.closest && ev.target.closest('#saveOrder');
+    if(saveBtn){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      openSavePopup();
+      return false;
     }
   },true);
 
-  console.info('[BNS v416] Algemene materiaalzoeker + status-popup voor oude opslaan actief.');
+  function polishSearch(){
+    var ms=E('materialSearch');
+    if(ms){
+      ms.placeholder='Zoek materiaal / rubriek / product nr / omschrijving';
+      if(!ms.__bns416){
+        ms.__bns416=true;
+        ms.addEventListener('input',function(){ try{ if(window.BNS_V392 && window.BNS_V392.renderMaterials) window.BNS_V392.renderMaterials(window.currentCat,true); else if(typeof renderMaterials==='function') renderMaterials(window.currentCat); }catch(e){} },true);
+      }
+    }
+  }
+  function patchV392Search(){
+    if(!(window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function')) return;
+    // De broncode van v392 is ook al aangepast in dit bestand; dit is alleen om bij late renders de placeholder te herstellen.
+    polishSearch();
+  }
+  setInterval(function(){ polishSearch(); patchV392Search(); },1000);
+  setTimeout(function(){ polishSearch(); patchV392Search(); },300);
+  console.info('[BNS v416] Zoeken alle rubrieken + opslaan-popup zonder document-open actief.');
 })();
