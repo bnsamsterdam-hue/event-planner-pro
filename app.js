@@ -42575,3 +42575,84 @@ setTimeout(()=>{
   setTimeout(function(){ polishSearch(); patchV392Search(); },300);
   console.info('[BNS v416] Zoeken alle rubrieken + opslaan-popup zonder document-open actief.');
 })();
+
+/* BNS v418 - live materiaalstatus bij datumwijziging */
+(function(){
+  if (window.__bns418DateMaterialLive) return;
+  window.__bns418DateMaterialLive = true;
+
+  function refreshMaterialsNow(){
+    try {
+      if (typeof window.renderMaterials === 'function') {
+        window.renderMaterials(window.currentCat);
+      }
+    } catch(e) {}
+
+    try {
+      if (typeof renderMaterials === 'function' && renderMaterials !== window.renderMaterials) {
+        renderMaterials(window.currentCat);
+      }
+    } catch(e) {}
+  }
+
+  function refreshSoon(){
+    refreshMaterialsNow();
+    setTimeout(refreshMaterialsNow, 50);
+    setTimeout(refreshMaterialsNow, 150);
+  }
+
+  document.addEventListener('change', function(e){
+    const t = e.target;
+    if (!t) return;
+
+    const txt = [
+      t.id || '',
+      t.name || '',
+      t.className || '',
+      t.placeholder || '',
+      t.type || ''
+    ].join(' ').toLowerCase();
+
+    if (
+      t.type === 'date' ||
+      txt.includes('start') ||
+      txt.includes('begin') ||
+      txt.includes('end') ||
+      txt.includes('einde') ||
+      txt.includes('date') ||
+      txt.includes('datum')
+    ) {
+      refreshSoon();
+    }
+  }, true);
+
+  document.addEventListener('input', function(e){
+    const t = e.target;
+    if (!t) return;
+
+    if (t.type === 'date') {
+      refreshSoon();
+    }
+  }, true);
+
+  document.addEventListener('click', function(e){
+    const btn = e.target && e.target.closest ? e.target.closest('button') : null;
+    if (!btn) return;
+
+    const txt = (btn.textContent || '').trim();
+    const cls = String(btn.className || '').toLowerCase();
+
+    if (
+      txt === '+' ||
+      txt === '-' ||
+      cls.includes('date') ||
+      cls.includes('datum') ||
+      cls.includes('plus') ||
+      cls.includes('minus')
+    ) {
+      refreshSoon();
+    }
+  }, true);
+
+  console.log('[BNS v418] Live materiaalstatus bij datumwijziging actief.');
+})();
