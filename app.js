@@ -42508,8 +42508,22 @@ setTimeout(()=>{
     E('bns413DoSave').onclick=function(){
       wrap.remove();
       window.__bns413AllowSave = true;
-      try{ btn.click(); }catch(e){ try{ if(typeof saveCurrentOrder === 'function') saveCurrentOrder(); }catch(_e){} }
-      setTimeout(function(){ window.__bns413AllowSave = false; }, 500);
+      window.__bns414SavingOnly = true;
+      try{
+        // Niet opnieuw op de knop klikken: sommige oude lagen openen dan direct de opdrachtbevestiging.
+        // Direct de stabiele opslaan-route gebruiken zodat hij alleen opslaat en teruggaat naar Opdrachten.
+        if(window.BNS_STABLE_CORE && typeof window.BNS_STABLE_CORE.save === 'function') {
+          window.BNS_STABLE_CORE.save();
+        } else if(typeof window.saveCurrentOrder === 'function') {
+          window.saveCurrentOrder();
+        } else if(typeof saveCurrentOrder === 'function') {
+          saveCurrentOrder();
+        }
+      }catch(e){
+        console.error('[BNS v414] opslaan via bevestiging mislukt', e);
+        try{ alert('Opslaan mislukt. Kijk in de console.'); }catch(_e){}
+      }
+      setTimeout(function(){ window.__bns413AllowSave = false; window.__bns414SavingOnly = false; }, 800);
     };
   }
   function installSaveConfirm(){
@@ -42534,4 +42548,87 @@ setTimeout(()=>{
   setInterval(tick,1200);
   installSaveConfirm();
   console.info('[BNS v413] Zoek alle rubrieken, Factuur/offerte verborgen, Routenet compact, opslagbevestiging actief.');
+})();
+
+
+/* =========================================================
+   BNS v414 - Opslaan bevestiging mag geen document openen
+   - De eigen opslagbevestiging slaat nu alleen op.
+   - Oude auto-open opdrachtbevestiging/factuur wordt tijdens opslaan geblokkeerd.
+   - Orderkaarten krijgen altijd nummer + titel terug als kop.
+   ========================================================= */
+(function BNS_V414_SAVE_NO_DOC_OPEN_AND_TITLE_FIX(){
+  'use strict';
+  if(window.__BNS_V414_SAVE_NO_DOC_OPEN_AND_TITLE_FIX__) return;
+  window.__BNS_V414_SAVE_NO_DOC_OPEN_AND_TITLE_FIX__ = true;
+  function E(id){return document.getElementById(id);}
+  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
+  function T(v){return String(v==null?'':v).trim();}
+  function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function S(){try{return window.state || (typeof state!=='undefined'?state:null);}catch(e){return null;}}
+  function findOrderByText(text){
+    var s=S(); if(!s || !Array.isArray(s.orders)) return null;
+    text=T(text).toLowerCase();
+    return s.orders.find(function(o){
+      return text.indexOf(T(o.number).toLowerCase())>-1 || (o.id && text.indexOf(T(o.id).toLowerCase())>-1);
+    }) || null;
+  }
+
+  // Hard blokkeren dat oude lagen na Opslaan meteen een documentvenster openen.
+  var nativeOpen = window.open;
+  if(nativeOpen && !nativeOpen.__bns414Wrapped){
+    var wrapped=function(url,name,features){
+      if(window.__bns414SavingOnly){
+        console.info('[BNS v414] document-open geblokkeerd tijdens opslaan:', url||'');
+        return null;
+      }
+      return nativeOpen.apply(window, arguments);
+    };
+    wrapped.__bns414Wrapped=true;
+    window.open=wrapped;
+  }
+
+  // Als oude documentfuncties direct worden aangeroepen tijdens opslaan: blokkeren.
+  ['openConfirmation','openOrderConfirmation','openInvoice','printOrder','makeConfirmation','openDoc','openOrderDoc'].forEach(function(name){
+    try{
+      var fn=window[name];
+      if(typeof fn==='function' && !fn.__bns414NoAutoDoc){
+        window[name]=function(){
+          if(window.__bns414SavingOnly){
+            console.info('[BNS v414] '+name+' geblokkeerd tijdens opslaan');
+            return false;
+          }
+          return fn.apply(this,arguments);
+        };
+        window[name].__bns414NoAutoDoc=true;
+      }
+    }catch(e){}
+  });
+
+  function repairOrderTitles(){
+    A('.order-card').forEach(function(card){
+      var head=card.querySelector('.order-title') || card.querySelector('b');
+      var o=null;
+      var did=card.getAttribute('data-bns-order-id') || card.getAttribute('data-oid') || card.dataset && (card.dataset.orderId||card.dataset.oid);
+      var s=S();
+      if(did && s && Array.isArray(s.orders)) o=s.orders.find(function(x){return T(x.id)===T(did);});
+      if(!o) o=findOrderByText(card.textContent||'');
+      if(!o || !head) return;
+      var wanted=T(o.number||'') + (T(o.title||o.name||o.naam) ? ' - ' + T(o.title||o.name||o.naam) : '');
+      if(!wanted || T(head.textContent).indexOf(T(o.title||''))>-1) return;
+      // Alleen kop herstellen; statusbadge/andere inhoud blijft intact.
+      if(head.classList && head.classList.contains('order-title')){
+        var status=head.querySelector('.status,.bns356-confirmed,.tw-v309-count');
+        head.innerHTML=H(wanted)+' ';
+        if(status) head.appendChild(status);
+      }else{
+        head.textContent=wanted;
+      }
+    });
+  }
+
+  document.addEventListener('click',function(){setTimeout(repairOrderTitles,120);},true);
+  setInterval(repairOrderTitles,1800);
+  setTimeout(repairOrderTitles,800);
+  console.info('[BNS v414] Opslaan opent geen opdrachtbevestiging meer; titelkoppen hersteld.');
 })();
