@@ -39010,7 +39010,8 @@ setTimeout(()=>{
     var box=E('materialList'); if(!box) return;
     var c=currentCatSafe(cat);
     var q=low(E('materialSearch')&&E('materialSearch').value);
-    var rows=mats().filter(function(m){return txt(m.cat||'EXTRA').toUpperCase()===c;}).filter(function(m){return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0;});
+    var allRows=mats();
+    var rows=(q?allRows:allRows.filter(function(m){return txt(m.cat||'EXTRA').toUpperCase()===c;})).filter(function(m){return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0;});
     var newHtml=rows.map(function(m){
       var st=statusFor(m);
       var cls=st.key;
@@ -41350,7 +41351,8 @@ setTimeout(()=>{
     var box=E('materialList'); if(!box) return;
     var c=setCat(cat);
     var q=L(E('materialSearch')&&E('materialSearch').value);
-    var list=(q ? mats() : mats().filter(function(m){ return catOf(m)===c; })).filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0; });
+    var allMaterials=mats();
+    var list=(q?allMaterials:allMaterials.filter(function(m){ return catOf(m)===c; })).filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0; });
     var sig=c+'|'+q+'|'+list.map(function(m){ var st=statusFor(m); return T(m.id)+':'+codeOf(m)+':'+nameOf(m)+':'+st.key; }).join(',')+'|chosen:'+chosenList().map(function(m){return codeOf(m)||T(m.id);}).join(',');
     renderCats();
     if(!force && sig===lastSig && box.querySelector('.bns392-row')) return;
@@ -42407,287 +42409,110 @@ setTimeout(()=>{
 })();
 
 
-/* =========================================================
-   BNS v413 - Zoek alle rubrieken + admin opruimen + Routenet + opslagbevestiging
-   - Materiaalzoeker zoekt bij invoer door alle rubrieken heen.
-   - Admin-tab Factuur/offerte wordt definitief verborgen/verwijderd.
-   - Routenet staat compact naast Waze in Nieuwe opdracht.
-   - Opslaan opdracht vraagt eerst eigen bevestiging met status.
-   ========================================================= */
-(function BNS_V413_UI_FLOW_FIXES(){
+// =============================================================================
+// BNS v416 - Terug naar goede basis: algemene materiaalzoeker + status-popup voor oude opslaan
+// Datum: 2026-05-31
+// Doel:
+// - Zoekveld materiaal zoekt bij tekst door ALLE rubrieken; zonder tekst blijft actieve rubriek zichtbaar.
+// - Opslaan blijft de oude/stabiele opslaan-route gebruiken, maar krijgt eerst een eigen systeem-popup met statuscontrole.
+// - Geen opdrachtbevestiging/factuur automatisch openen door de popup.
+// =============================================================================
+(function BNS_V416_SEARCH_AND_SAVE_CONFIRM(){
   'use strict';
-  if(window.__BNS_V413_UI_FLOW_FIXES__) return;
-  window.__BNS_V413_UI_FLOW_FIXES__ = true;
+  if(window.__BNS_V416_SEARCH_AND_SAVE_CONFIRM__) return;
+  window.__BNS_V416_SEARCH_AND_SAVE_CONFIRM__ = true;
 
   function E(id){ return document.getElementById(id); }
-  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
   function T(v){ return String(v == null ? '' : v).trim(); }
-  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function visible(el){ return !!(el && el.offsetParent !== null); }
-  function activeNewOrder(){ var p=E('newOrder'); return !!(p && p.classList.contains('active')); }
+  function H(s){ return T(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function statusLabel(v){
+    var s=T(v).toLowerCase();
+    if(s.indexOf('14')>=0 || s.indexOf('optie')>=0) return '14 dagen optie';
+    if(s.indexOf('bevest')>=0 || s.indexOf('opdracht')>=0) return 'Bevestigd / opdrachtbevestiging';
+    if(s.indexOf('offerte')>=0) return 'Offerte';
+    return T(v)||'Offerte';
+  }
+  function setSearchPlaceholder(){
+    var i=E('materialSearch');
+    if(i) i.setAttribute('placeholder','Zoek materiaal / rubriek / product nr / omschrijving');
+  }
+  setSearchPlaceholder();
+  setInterval(setSearchPlaceholder,2000);
 
-  function injectCss(){
-    if(E('bns413Css')) return;
-    var st=document.createElement('style'); st.id='bns413Css';
-    st.textContent = ''+
-      '#bnsPlannerTools{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;margin:8px 0 10px!important}\n'+
-      '#bnsPlannerTools b{flex-basis:100%!important;margin-bottom:2px!important}\n'+
-      '#bnsPlannerTools button{width:auto!important;min-width:0!important;max-width:none!important;padding:9px 13px!important;border-radius:11px!important;font-size:13px!important;line-height:1.15!important;white-space:nowrap!important;font-weight:900!important}\n'+
-      '#bnsWazePlannerBtn{background:#16a34a!important;color:#fff!important}\n'+
-      '#bnsRoutenetPlannerBtn{background:#0ea5e9!important;color:#fff!important;border:0!important}\n'+
-      '#bnsMapsPlannerBtn{background:#334155!important;color:#fff!important}\n'+
-      '#bns413Confirm{position:fixed!important;inset:0!important;background:rgba(15,23,42,.45)!important;z-index:999999!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:18px!important}\n'+
-      '#bns413Confirm .card{background:#fff!important;border-radius:20px!important;max-width:520px!important;width:100%!important;padding:22px!important;box-shadow:0 18px 60px rgba(0,0,0,.25)!important;font-family:inherit!important}\n'+
-      '#bns413Confirm h2{margin:0 0 10px!important;font-size:22px!important;color:#0f172a!important}\n'+
-      '#bns413Confirm .status{font-size:24px!important;font-weight:950!important;background:#eef6ff!important;border:1px solid #cfe5ff!important;border-radius:14px!important;padding:12px 14px!important;margin:12px 0!important;color:#0f172a!important}\n'+
-      '#bns413Confirm .meta{font-size:14px!important;color:#334155!important;line-height:1.45!important}\n'+
-      '#bns413Confirm .actions{display:flex!important;gap:10px!important;flex-wrap:wrap!important;margin-top:16px!important}\n'+
-      '#bns413Confirm button{border:0!important;border-radius:13px!important;padding:12px 16px!important;font-weight:900!important;cursor:pointer!important}\n'+
-      '#bns413DoSave{background:#16a34a!important;color:#fff!important}\n'+
-      '#bns413CancelSave{background:#64748b!important;color:#fff!important}\n'+
-      '.bns413-hide-admin-tab{display:none!important}\n';
-    document.head.appendChild(st);
-  }
-
-  function hideEmptyInvoiceOfferTab(){
-    A('button,a').forEach(function(el){
-      var tx=T(el.textContent).toLowerCase().replace(/\s+/g,' ');
-      if(tx==='factuur / offerte' || tx==='factuur/offerte' || tx==='factuur offerte'){
-        el.classList.add('bns413-hide-admin-tab');
-        el.style.display='none';
-        el.setAttribute('aria-hidden','true');
-      }
-    });
-  }
-
-  function addressFromForm(){
-    var parts=[];
-    ['locationName','locationStreet','locationZip','locationCity'].forEach(function(id){ var el=E(id); if(el && T(el.value)) parts.push(T(el.value)); });
-    if(!parts.length){ ['customerStreet','customerZip','customerCity'].forEach(function(id){ var el=E(id); if(el && T(el.value)) parts.push(T(el.value)); }); }
-    return parts.join(' ');
-  }
-  function ensureRoutenetPlanner(){
-    var box=E('bnsPlannerTools'); if(!box) return;
-    var w=E('bnsWazePlannerBtn');
-    if(w) w.textContent='Waze route';
-    var m=E('bnsMapsPlannerBtn');
-    if(m) m.textContent='Google Maps';
-    if(E('bnsRoutenetPlannerBtn')) return;
-    var b=document.createElement('button');
-    b.id='bnsRoutenetPlannerBtn';
-    b.type='button';
-    b.textContent='Routenet';
-    b.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); var a=addressFromForm(); window.open('https://www.routenet.nl/routeplanner?locatie='+encodeURIComponent(a),'_blank'); return false; };
-    if(w && w.nextSibling) w.parentNode.insertBefore(b,w.nextSibling); else box.appendChild(b);
-  }
-
-  function currentStatusLabel(){
-    var s=T(E('orderStatus') && E('orderStatus').value) || 'Onbekend';
-    if(/opdrachtbevestiging|bevestigd/i.test(s)) return 'Bevestigd / opdrachtbevestiging';
-    if(/14/.test(s) && /optie/i.test(s)) return '14 dagen optie';
-    if(/offerte/i.test(s)) return 'Offerte';
-    if(/geannuleerd/i.test(s)) return 'Geannuleerd';
-    return s;
-  }
-  function showSaveConfirm(btn){
-    if(E('bns413Confirm')) return;
-    var num=T(E('orderNumber') && E('orderNumber').value) || 'nieuwe opdracht';
-    var title=T(E('orderTitle') && E('orderTitle').value) || 'zonder titel';
-    var status=currentStatusLabel();
-    var d1=T(E('dateStart') && E('dateStart').value), d2=T(E('dateEnd') && E('dateEnd').value) || d1;
-    var wrap=document.createElement('div'); wrap.id='bns413Confirm';
-    wrap.innerHTML='<div class="card" role="dialog" aria-modal="true">'
-      +'<h2>Opdracht opslaan?</h2>'
-      +'<div class="meta">Controleer eerst de status. Daarna wordt de opdracht opgeslagen.</div>'
-      +'<div class="status">Status: '+H(status)+'</div>'
-      +'<div class="meta"><b>Opdracht:</b> '+H(num)+'<br><b>Titel:</b> '+H(title)+'<br><b>Datum:</b> '+H(d1)+' tot '+H(d2)+'</div>'
-      +'<div class="actions"><button id="bns413DoSave" type="button">Ja, opslaan als '+H(status)+'</button><button id="bns413CancelSave" type="button">Terug</button></div>'
-      +'</div>';
-    document.body.appendChild(wrap);
-    E('bns413CancelSave').onclick=function(){ wrap.remove(); };
-    E('bns413DoSave').onclick=function(){
-      wrap.remove();
-      window.__bns413AllowSave = true;
-      window.__bns414SavingOnly = true;
-      try{
-        // BNS v415: oude opslaan-route gebruiken, alleen met popup ervoor.
-        // De stabiele save-listener op #saveOrder bewaart de opdracht en stopt oude document-openers.
-        var saveBtn = E('saveOrder');
-        if(saveBtn){
-          var ev = new MouseEvent('click',{bubbles:true,cancelable:true,view:window});
-          saveBtn.dispatchEvent(ev);
-        } else if(window.BNS_STABLE_CORE && typeof window.BNS_STABLE_CORE.save === 'function') {
-          window.BNS_STABLE_CORE.save();
-        } else if(typeof window.saveCurrentOrder === 'function') {
-          window.saveCurrentOrder();
-        } else if(typeof saveCurrentOrder === 'function') {
-          saveCurrentOrder();
-        }
-      }catch(e){
-        console.error('[BNS v415] opslaan via bevestiging mislukt', e);
-        try{ alert('Opslaan mislukt. Kijk in de console.'); }catch(_e){}
-      }
-      setTimeout(function(){
-        window.__bns413AllowSave = false;
-        window.__bns414SavingOnly = false;
-        try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
-        try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
-      }, 900);
+  function currentOrderInfo(){
+    return {
+      number:T(E('orderNumber')&&E('orderNumber').value),
+      title:T(E('orderTitle')&&E('orderTitle').value)||'Zonder titel',
+      status:T(E('orderStatus')&&E('orderStatus').value)||'Offerte',
+      start:T(E('dateStart')&&E('dateStart').value),
+      end:T(E('dateEnd')&&E('dateEnd').value)||T(E('dateStart')&&E('dateStart').value)
     };
   }
-  function installSaveConfirm(){
-    document.addEventListener('click',function(ev){
-      var btn=ev.target && ev.target.closest && ev.target.closest('#saveOrder');
-      if(!btn || !activeNewOrder()) return;
-      if(window.__bns413AllowSave) return;
-      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      showSaveConfirm(btn);
-      return false;
-    },true);
+  function closePopup(){
+    var old=E('bns416SaveOverlay');
+    if(old) old.remove();
   }
-
-  function improveSearchPlaceholder(){
-    var inp=E('materialSearch');
-    if(inp) inp.setAttribute('placeholder','Zoek materiaal / rubriek / product nr / omschrijving');
-  }
-  function tick(){ injectCss(); hideEmptyInvoiceOfferTab(); ensureRoutenetPlanner(); improveSearchPlaceholder(); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,250); }); else setTimeout(tick,100);
-  document.addEventListener('click',function(){ setTimeout(tick,80); },true);
-  document.addEventListener('input',function(ev){ if(ev.target && ev.target.id==='materialSearch' && window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function'){ setTimeout(function(){ window.BNS_V392.renderMaterials(window.currentCat,true); },30); } },true);
-  setInterval(tick,1200);
-  installSaveConfirm();
-  console.info('[BNS v413] Zoek alle rubrieken, Factuur/offerte verborgen, Routenet compact, opslagbevestiging actief.');
-})();
-
-
-/* =========================================================
-   BNS v414 - Opslaan bevestiging mag geen document openen
-   - De eigen opslagbevestiging slaat nu alleen op.
-   - Oude auto-open opdrachtbevestiging/factuur wordt tijdens opslaan geblokkeerd.
-   - Orderkaarten krijgen altijd nummer + titel terug als kop.
-   ========================================================= */
-(function BNS_V414_SAVE_NO_DOC_OPEN_AND_TITLE_FIX(){
-  'use strict';
-  if(window.__BNS_V414_SAVE_NO_DOC_OPEN_AND_TITLE_FIX__) return;
-  window.__BNS_V414_SAVE_NO_DOC_OPEN_AND_TITLE_FIX__ = true;
-  function E(id){return document.getElementById(id);}
-  function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
-  function T(v){return String(v==null?'':v).trim();}
-  function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-  function S(){try{return window.state || (typeof state!=='undefined'?state:null);}catch(e){return null;}}
-  function findOrderByText(text){
-    var s=S(); if(!s || !Array.isArray(s.orders)) return null;
-    text=T(text).toLowerCase();
-    return s.orders.find(function(o){
-      return text.indexOf(T(o.number).toLowerCase())>-1 || (o.id && text.indexOf(T(o.id).toLowerCase())>-1);
-    }) || null;
-  }
-
-  // Hard blokkeren dat oude lagen na Opslaan meteen een documentvenster openen.
-  var nativeOpen = window.open;
-  if(nativeOpen && !nativeOpen.__bns414Wrapped){
-    var wrapped=function(url,name,features){
-      if(window.__bns414SavingOnly){
-        console.info('[BNS v414] document-open geblokkeerd tijdens opslaan:', url||'');
-        return null;
-      }
-      return nativeOpen.apply(window, arguments);
-    };
-    wrapped.__bns414Wrapped=true;
-    window.open=wrapped;
-  }
-
-  // Als oude documentfuncties direct worden aangeroepen tijdens opslaan: blokkeren.
-  ['openConfirmation','openOrderConfirmation','openInvoice','printOrder','makeConfirmation','openDoc','openOrderDoc'].forEach(function(name){
+  function runOldSaveRoute(){
+    closePopup();
+    // Gebruik bewust de oude/stabiele save-functie, niet opnieuw op de knop klikken.
+    // Zo wordt er geen opdrachtbevestiging geopend door een extra click-handler.
     try{
-      var fn=window[name];
-      if(typeof fn==='function' && !fn.__bns414NoAutoDoc){
-        window[name]=function(){
-          if(window.__bns414SavingOnly){
-            console.info('[BNS v414] '+name+' geblokkeerd tijdens opslaan');
-            return false;
-          }
-          return fn.apply(this,arguments);
-        };
-        window[name].__bns414NoAutoDoc=true;
+      if(window.BNS_STABLE_CORE && typeof window.BNS_STABLE_CORE.save === 'function'){
+        return window.BNS_STABLE_CORE.save();
       }
-    }catch(e){}
-  });
-
-  function repairOrderTitles(){
-    A('.order-card').forEach(function(card){
-      var head=card.querySelector('.order-title') || card.querySelector('b');
-      var o=null;
-      var did=card.getAttribute('data-bns-order-id') || card.getAttribute('data-oid') || card.dataset && (card.dataset.orderId||card.dataset.oid);
-      var s=S();
-      if(did && s && Array.isArray(s.orders)) o=s.orders.find(function(x){return T(x.id)===T(did);});
-      if(!o) o=findOrderByText(card.textContent||'');
-      if(!o || !head) return;
-      var wanted=T(o.number||'') + (T(o.title||o.name||o.naam) ? ' - ' + T(o.title||o.name||o.naam) : '');
-      if(!wanted || T(head.textContent).indexOf(T(o.title||''))>-1) return;
-      // Alleen kop herstellen; statusbadge/andere inhoud blijft intact.
-      if(head.classList && head.classList.contains('order-title')){
-        var status=head.querySelector('.status,.bns356-confirmed,.tw-v309-count');
-        head.innerHTML=H(wanted)+' ';
-        if(status) head.appendChild(status);
-      }else{
-        head.textContent=wanted;
-      }
-    });
-  }
-
-  document.addEventListener('click',function(){setTimeout(repairOrderTitles,120);},true);
-  setInterval(repairOrderTitles,1800);
-  setTimeout(repairOrderTitles,800);
-  console.info('[BNS v414] Opslaan opent geen opdrachtbevestiging meer; titelkoppen hersteld.');
-})();
-
-
-/* =========================================================
-   BNS v415 - Opslaan popup gebruikt oude opslaan-route
-   - Klik op "Ja, opslaan" doet hetzelfde als vroeger op Opslaan klikken.
-   - Alleen de popup komt ervoor.
-   - Opdrachtbevestiging/factuur openen wordt tijdens opslaan geblokkeerd.
-   ========================================================= */
-(function BNS_V415_SAVE_CONFIRM_OLD_ROUTE(){
-  'use strict';
-  if(window.__BNS_V415_SAVE_CONFIRM_OLD_ROUTE__) return;
-  window.__BNS_V415_SAVE_CONFIRM_OLD_ROUTE__ = true;
-  function E(id){return document.getElementById(id);}
-  function goOldSaveRoute(){
-    window.__bns413AllowSave = true;
-    window.__bns414SavingOnly = true;
+    }catch(e){ console.warn('[BNS v416] BNS_STABLE_CORE.save mislukt',e); }
     try{
-      var btn = E('saveOrder');
-      if(btn){
-        btn.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));
-      } else if(window.BNS_STABLE_CORE && typeof window.BNS_STABLE_CORE.save === 'function'){
-        window.BNS_STABLE_CORE.save();
-      }
-    }catch(e){
-      console.error('[BNS v415] oude opslaan-route mislukt', e);
-      try{ alert('Opslaan mislukt. Kijk in de console.'); }catch(_e){}
-    }
-    setTimeout(function(){
-      window.__bns413AllowSave = false;
-      window.__bns414SavingOnly = false;
-      try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
-      try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
-    }, 1000);
+      if(typeof window.saveCurrentOrder === 'function') return window.saveCurrentOrder();
+    }catch(e){ console.warn('[BNS v416] saveCurrentOrder mislukt',e); }
+    try{
+      if(typeof saveCurrentOrder === 'function') return saveCurrentOrder();
+    }catch(e){ console.warn('[BNS v416] lokale saveCurrentOrder mislukt',e); }
+    alert('Opslaan kon niet worden gestart. Oude opslaan-route niet gevonden.');
+    return false;
+  }
+  function showSavePopup(){
+    closePopup();
+    var o=currentOrderInfo();
+    var label=statusLabel(o.status);
+    var overlay=document.createElement('div');
+    overlay.id='bns416SaveOverlay';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.36);z-index:999999;display:flex;align-items:center;justify-content:center;padding:18px;';
+    overlay.innerHTML='<div style="width:min(520px,96vw);background:#fff;border-radius:22px;box-shadow:0 24px 60px rgba(0,0,0,.28);padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#172033">'
+      +'<h2 style="margin:0 0 8px;font-size:24px">Opdracht opslaan?</h2>'
+      +'<p style="margin:0 0 14px;color:#64748b;font-weight:700">Controleer eerst de status. Daarna wordt de opdracht opgeslagen zoals voorheen.</p>'
+      +'<div style="border:1px solid #dbeafe;background:#f8fbff;border-radius:16px;padding:16px;margin-bottom:14px">'
+      +'<div style="font-size:24px;font-weight:1000;margin-bottom:10px">Status: '+H(label)+'</div>'
+      +'<div><b>Opdracht:</b> '+H(o.number||'nieuw')+'</div>'
+      +'<div><b>Titel:</b> '+H(o.title)+'</div>'
+      +'<div><b>Datum:</b> '+H(o.start||'-')+' tot '+H(o.end||'-')+'</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+      +'<button id="bns416SaveYes" type="button" style="background:#16a34a;color:#fff;border:0;border-radius:14px;padding:13px 18px;font-weight:1000;font-size:15px;cursor:pointer">Ja, opslaan als '+H(label)+'</button>'
+      +'<button id="bns416SaveNo" type="button" style="background:#475569;color:#fff;border:0;border-radius:14px;padding:13px 18px;font-weight:1000;font-size:15px;cursor:pointer">Terug</button>'
+      +'</div></div>';
+    document.body.appendChild(overlay);
+    E('bns416SaveNo').onclick=closePopup;
+    E('bns416SaveYes').onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); runOldSaveRoute(); return false; };
   }
 
-  // Extra vangnet: als een oudere v413/v414 onclick alsnog op de popupknop zit,
-  // nemen wij deze klik over voordat die oude handler een document kan openen.
   document.addEventListener('click',function(ev){
-    var t = ev.target && ev.target.closest && ev.target.closest('#bns413DoSave');
-    if(!t) return;
+    var btn=ev.target && ev.target.closest && ev.target.closest('#saveOrder');
+    if(!btn) return;
     ev.preventDefault();
     ev.stopPropagation();
     if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    var modal = E('bns413Confirm');
-    if(modal) modal.remove();
-    goOldSaveRoute();
+    showSavePopup();
     return false;
-  }, true);
-  console.info('[BNS v415] Opslaan popup gebruikt oude opslaan-route; geen document-open.');
+  },true);
+
+  // Zorg dat live zoeken opnieuw rendert, ook als een oudere handler alleen binnen de rubriek zoekt.
+  document.addEventListener('input',function(ev){
+    if(ev.target && ev.target.id==='materialSearch'){
+      setTimeout(function(){
+        try{ if(typeof window.renderMaterials==='function') window.renderMaterials(window.currentCat||'',true); }catch(e){}
+      },30);
+    }
+  },true);
+
+  console.info('[BNS v416] Algemene materiaalzoeker + status-popup voor oude opslaan actief.');
 })();
