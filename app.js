@@ -14,6 +14,30 @@ function safeMail(text, subject){
 function phoneMode(){ return false; }
 function patchMaterial(){ return false; }
 
+// ===== BNS v410 safety globals vroeg laden =====
+// Deze helpers moeten bovenin staan, omdat oude patches ze al vroeg kunnen aanroepen.
+function css(v){ return String(v==null?'':v); }
+function matKey(m){
+  if(!m) return '';
+  return String(m.id || m.code || ((m.cat||m.rubriek||m.category||'') + ':' + (m.nr||m.number||m.productNr||'')) || '').toLowerCase();
+}
+function catKey(v){ return String(v==null?'':v).trim().toUpperCase(); }
+function bnsIsOldImportOrder(o){
+  if(!o) return false;
+  var id = String(o.id || '');
+  var src = String(o.source || '');
+  return /^old_/i.test(id) || /access vanaf 2023/i.test(src);
+}
+function bnsIsDeletedOrder(o){
+  var s = String(o && o.status || '').toLowerCase();
+  return !!(o && (o.deletedAt || o.deleted === true || /verwijderd|deleted|gewist|trash/.test(s)));
+}
+function bnsIsArchivedOnlyOrder(o){
+  // Oude importdata blijft bewaard voor Admin -> Opruimen/Archief, maar mag niet terug in actieve lijsten.
+  return bnsIsOldImportOrder(o) || bnsIsDeletedOrder(o);
+}
+
+
 const INITIAL_STATE = {
   "version": "2023-import-v1", "seq": 1, "users": [{
     "id": "u_admin", "name": "Admin", "phone": "", "pin": "1111", "role": "Admin", "rights": {
@@ -41964,4 +41988,157 @@ setTimeout(()=>{
   document.addEventListener('click',function(){ setTimeout(ensureTemplateAdmin,120); },true);
   setInterval(ensureTemplateAdmin,2000); setTimeout(ensureTemplateAdmin,900); setTimeout(ensureTemplateAdmin,2500);
   console.info('[BNS v408] backup 31-5 fixes actief.');
+})();
+
+// =============================================================================
+// BNS v410 - Oude Firebase data bewaren, actieve schermen schoon + defect knipper uit
+// Datum: 2026-05-31
+// Doel:
+// - Oude Access/Firebase importorders blijven bewaard voor Admin -> Opruimen/Archief.
+// - Ze worden niet teruggezet in actieve/opdracht/offerte schermen.
+// - Geen agressieve Firebase-delete vanuit startscherm.
+// - Defect-status in nieuwe opdracht/materialen knippert niet meer.
+// - Vroege ReferenceErrors css/matKey/catKey afvangen.
+// =============================================================================
+(function BNS_V410(){
+  'use strict';
+  if(window.__BNS_V410__) return;
+  window.__BNS_V410__ = true;
+
+  function T(v){ return String(v==null?'':v); }
+  function byId(id){ return document.getElementById(id); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || {}; }
+  function norm(v){ return T(v).toLowerCase(); }
+  function orderById(id){
+    var s=S();
+    return (s.orders||[]).find(function(o){ return T(o.id)===T(id); });
+  }
+  function isOldImport(o){
+    if(!o) return false;
+    return /^old_/i.test(T(o.id)) || /access vanaf 2023/i.test(T(o.source));
+  }
+  function isDeleted(o){
+    var st = norm(o && o.status);
+    return !!(o && (o.deletedAt || o.deleted === true || /verwijderd|deleted|gewist|trash/.test(st)));
+  }
+  function isArchivedOnly(o){
+    return isOldImport(o) || isDeleted(o);
+  }
+  window.bnsIsOldImportOrder = window.bnsIsOldImportOrder || isOldImport;
+  window.bnsIsDeletedOrder = window.bnsIsDeletedOrder || isDeleted;
+  window.bnsIsArchivedOnlyOrder = window.bnsIsArchivedOnlyOrder || isArchivedOnly;
+
+  // Nogmaals defensief zetten voor oude patches die via window zoeken.
+  if(typeof window.css !== 'function') window.css = function(v){ return T(v); };
+  if(typeof window.catKey !== 'function') window.catKey = function(v){ return T(v).trim().toUpperCase(); };
+  if(typeof window.matKey !== 'function') window.matKey = function(m){
+    if(!m) return '';
+    return T(m.id || m.code || ((m.cat||m.rubriek||m.category||'') + ':' + (m.nr||m.number||m.productNr||''))).toLowerCase();
+  };
+
+  function inCleanupOrArchive(){
+    var activeAdmin = document.querySelector('.adminTab.active,.adminTab.bns-final-active-filter,.adminTab[aria-selected="true"]');
+    var txt = norm((activeAdmin && activeAdmin.textContent) || '');
+    var body = norm(document.body && document.body.innerText || '');
+    // Op deze schermen mag oude data zichtbaar blijven.
+    if(/oude data opruimen|uitgevoerde opdrachten|geannuleerde opdrachten|verwijderde opdrachten|schade meldingen|boekhouding \(facturen\)/.test(body)) return true;
+    if(/opruimen|archief/.test(txt)) return true;
+    var visibleCleanup = Array.from(document.querySelectorAll('h1,h2,h3')).some(function(h){
+      var r=h.getBoundingClientRect();
+      return r.width && r.height && /oude data opruimen|uitgevoerde opdrachten|verwijderde opdrachten|geannuleerde opdrachten/.test(norm(h.textContent));
+    });
+    return visibleCleanup;
+  }
+
+  function pruneActiveCards(){
+    if(inCleanupOrArchive()) return;
+    // Main opdracht/offerte/dashboard/driver kaarten: verwijder alleen uit zicht, nooit uit state/Firebase.
+    var cards = document.querySelectorAll('[data-bns-order-id], .order-card[data-bns-order-id], .bns350-card[data-oid]');
+    cards.forEach(function(card){
+      var id = card.getAttribute('data-bns-order-id') || card.getAttribute('data-oid');
+      var o = orderById(id);
+      if(o && isArchivedOnly(o)) card.remove();
+    });
+
+    // Fallback voor oude kaarten zonder data-attribuut: alleen in actieve schermen, en alleen herkenbare old_* tekst.
+    document.querySelectorAll('.order-card').forEach(function(card){
+      if(card.getAttribute('data-bns-order-id') || card.getAttribute('data-oid')) return;
+      var text = norm(card.textContent);
+      if(/\bold_\d+\b/.test(text) || /access vanaf 2023/.test(text)) card.remove();
+    });
+  }
+
+  function wrapRender(name){
+    var fn = window[name] || null;
+    try{ if(!fn && typeof eval(name) === 'function') fn = eval(name); }catch(e){}
+    if(typeof fn !== 'function' || fn.__bns410Wrapped) return;
+    var wrapped = function(){
+      var res = fn.apply(this, arguments);
+      setTimeout(pruneActiveCards, 0);
+      setTimeout(pruneActiveCards, 120);
+      return res;
+    };
+    wrapped.__bns410Wrapped = true;
+    window[name] = wrapped;
+    try{ eval(name + ' = wrapped'); }catch(e){}
+  }
+
+  function installNoBlinkCss(){
+    if(byId('bnsV410NoBlinkCss')) return;
+    var st=document.createElement('style');
+    st.id='bnsV410NoBlinkCss';
+    st.textContent = [
+      '#materialList .defect',
+      '#materialList [class*="defect"]',
+      '#materialList .badge.defect',
+      '#materialList .bns392-defect',
+      '#materialList .bns386-defect',
+      '#materialList .bns-v93-pill.defect',
+      '.v111-pill.v111-defect',
+      '.v112-pill.v112-defect',
+      '.mat-status-badge.mat-defect',
+      '.mat-status-badge.status-defect',
+      '.status-defect',
+      '.bns-v45-pill.defect',
+      '.bns-v49-pill.defect',
+      '.bns-v50-pill.defect',
+      '.bns-v56-defect',
+      '.bns-v72-pill.defect',
+      '.bns-v83-defect',
+      '.bns-v93-pill.defect'
+    ].join(',') + '{animation:none!important;transition:none!important;filter:none!important;opacity:1!important;transform:none!important}' +
+    '\n#materialList .badge.defect{background:#fee2e2!important;color:#991b1b!important}' +
+    '\n.bns-v410-note{font-size:12px;color:#64748b;font-weight:700;margin:6px 0}';
+    document.head.appendChild(st);
+  }
+
+  function removeAggressiveCleanupButton(){
+    // BNS409-knop mag in deze bewaarversie niet zichtbaar/bruikbaar zijn.
+    var b = byId('bnsV409CleanupOldOrders');
+    if(b){
+      var p = b.parentElement;
+      if(p) p.remove(); else b.remove();
+    }
+  }
+
+  function install(){
+    installNoBlinkCss();
+    removeAggressiveCleanupButton();
+    ['renderOrders','renderDashboard','renderDriver','renderAll'].forEach(wrapRender);
+    pruneActiveCards();
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    install();
+    setTimeout(install, 400);
+    setTimeout(install, 1500);
+  });
+  setInterval(function(){
+    installNoBlinkCss();
+    removeAggressiveCleanupButton();
+    pruneActiveCards();
+  }, 2000);
+  try{ install(); }catch(e){}
+
+  console.info('[BNS v410] Oude data bewaard; actieve schermen gefilterd; defect knipper uit.');
 })();
