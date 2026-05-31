@@ -42741,3 +42741,127 @@ setTimeout(()=>{
   setTimeout(function(){ patchButtons(); installAdminPanel(); },500);
   console.log('[BNS v419] Tapwagen document templates actief.');
 })();
+
+/* BNS v420 - Nieuwe opdracht documentknoppen naar Tapwagen template + logo upload */
+(function(){
+  if(window.__bns420DocButtonsLogo) return;
+  window.__bns420DocButtonsLogo = true;
+
+  function E(id){return document.getElementById(id);} 
+  function H(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function T(v){return String(v==null?'':v).trim();}
+  function V(id){var el=E(id); return el && 'value' in el ? T(el.value) : '';}
+  function N(v){var n=parseFloat(String(v||'').replace(/[^0-9,.-]/g,'').replace(',','.')); return isNaN(n)?0:n;}
+  function money(v){return '€ '+N(v).toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function today(){try{return new Date().toLocaleDateString('nl-NL');}catch(e){return '';}}
+  function niceDate(v){if(!v)return ''; var s=String(v); if(/^\d{4}-\d{2}-\d{2}$/.test(s)){var a=s.split('-');return a[2]+'-'+a[1]+'-'+a[0];} return s;}
+
+  function settings(){
+    var base={company:'Tapwagen.nl',slogan:'WE KEEP YOUR PARTY COOL!!!',address:'Molenlaan 30\n1422 ZA Uithoorn',phone:'088-1888000',email:'Info@tapwagen.nl',kvk:'32157678',btw:'NL001611849B73',bank:'NL97ABNA0409126675',logoData:''};
+    try{var raw=localStorage.getItem('bns_v419_doc_settings'); if(raw) Object.assign(base, JSON.parse(raw)||{});}catch(e){}
+    try{var raw2=localStorage.getItem('bns_v420_doc_settings'); if(raw2) Object.assign(base, JSON.parse(raw2)||{});}catch(e){}
+    try{if(window.state&&state.settings&&state.settings.tapwagenDocs) Object.assign(base,state.settings.tapwagenDocs);}catch(e){}
+    return base;
+  }
+  function saveSettings(d){
+    try{localStorage.setItem('bns_v419_doc_settings',JSON.stringify(d||{}));}catch(e){}
+    try{localStorage.setItem('bns_v420_doc_settings',JSON.stringify(d||{}));}catch(e){}
+    try{if(window.state){state.settings=state.settings||{};state.settings.tapwagenDocs=d;if(typeof save==='function')save();}}catch(e){}
+  }
+
+  function findValue(labels){
+    labels=labels.map(function(x){return String(x).toLowerCase();});
+    var els=Array.prototype.slice.call(document.querySelectorAll('input,textarea,select'));
+    for(var i=0;i<els.length;i++){
+      var el=els[i]; var hay=[el.id,el.name,el.placeholder,el.getAttribute('aria-label'),el.className].join(' ').toLowerCase();
+      if(labels.some(function(l){return hay.indexOf(l)>=0;})) return T(el.value);
+    }
+    return '';
+  }
+  function order(){
+    var o={};
+    o.number=V('orderNumber')||findValue(['opdr','order number','ordernumber'])||'';
+    o.status=V('orderStatus')||findValue(['status'])||'';
+    o.title=V('orderTitle')||findValue(['titel','opdrachtnaam','event','evenement'])||'';
+    o.brand=V('orderBrand')||findValue(['uitstraling','merk'])||'';
+    o.start=V('dateStart')||findValue(['begin','start']);
+    o.end=V('dateEnd')||findValue(['einde','end']);
+    o.customer={name:V('customerName')||findValue(['klant','customer']),street:V('customerStreet')||findValue(['klant straat','customer street']),zip:V('customerZip'),city:V('customerCity'),phone:V('customerPhone'),email:V('customerEmail')};
+    o.location={name:V('locationName')||findValue(['locatie','location']),street:V('locationStreet')||findValue(['locatie straat','adres','address']),zip:V('locationZip'),city:V('locationCity'),contact:V('locationContact'),phone:V('locationPhone')};
+    o.materials=materials();
+    return o;
+  }
+  function materials(){
+    var list=[];
+    try{if(Array.isArray(window.chosen)) list=window.chosen.slice();}catch(e){}
+    try{if(!list.length&&Array.isArray(chosen)) list=chosen.slice();}catch(e){}
+    try{if(!list.length&&Array.isArray(window.selectedMaterials)) list=window.selectedMaterials.slice();}catch(e){}
+    if(!list.length){
+      var roots=['#chosenMaterials','#selectedMaterials','#materialChosen','#materialsForCustomer','.chosenMaterials','.selected-materials'];
+      roots.forEach(function(sel){Array.prototype.slice.call(document.querySelectorAll(sel+' tr,'+sel+' .row,'+sel+' .material-row,'+sel+' > div')).forEach(function(r){var txt=T((r.textContent||'').replace(/\s+/g,' ')); if(txt&&!/subtotaal|btw|eindtotaal/i.test(txt)) list.push({qty:1,name:txt,desc:''});});});
+    }
+    return list.map(function(m){
+      var qty=m.qty||m.count||m.aantal||m.amount||1;
+      var code=m.code||m.productCode||m.productNr||m.nr||m.id||'';
+      var name=m.product||m.searchName||m.zoeknaam||m.type||m.name||'';
+      var desc=m.description||m.beschrijving||m.desc||m.notes||m.omschrijving||'';
+      var price=m.linePrice!=null?m.linePrice:(m.priceAmount!=null?m.priceAmount:(m.price||m.prijs||0));
+      var cat=m.cat||m.rubriek||m.category||'';
+      return {qty:qty,code:code,name:name,desc:desc,price:price,cat:cat};
+    });
+  }
+  function totals(){
+    var sub=N(V('priceExcl'))||N((E('materialsTotal')||{}).textContent), vat=N((E('vatTotal')||{}).textContent), grand=N((E('grandTotal')||{}).textContent);
+    if(!sub){materials().forEach(function(m){sub+=N(m.price)*N(m.qty||1);});}
+    if(!vat)vat=sub*0.21; if(!grand)grand=sub+vat; return {sub:sub,vat:vat,grand:grand};
+  }
+  function logoHtml(s){
+    if(s.logoData) return '<div class="tw-logo-img"><img src="'+H(s.logoData)+'" alt="Logo"></div>';
+    return '<div class="tw-logo"><div class="tw-logo-main">🍺 '+H(s.company).toUpperCase()+' 🍺</div><div class="tw-logo-sub">'+H(s.slogan)+'</div></div>';
+  }
+  function rows(){
+    var ms=materials(); if(!ms.length) return '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
+    return ms.map(function(m){return '<tr><td class="qty">'+H(m.qty||1)+'</td><td class="code">'+H(m.code)+'</td><td>'+H([m.name,m.desc].filter(Boolean).join(', '))+'</td><td class="money">'+money(m.price)+'</td></tr>';}).join('');
+  }
+  function css(){return '@page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;background:#d9dde3;font-family:Arial,Helvetica,sans-serif;color:#111}.actions{position:fixed;top:10px;left:10px;display:flex;gap:6px;z-index:9}.actions button{border:0;border-radius:5px;background:#2563eb;color:white;font-weight:700;padding:8px 10px}.page{width:210mm;min-height:297mm;margin:0 auto 12px;background:#fff;padding:13mm 15mm 10mm}.tw-logo,.tw-logo-img{text-align:center;margin-bottom:4mm}.tw-logo-img img{max-width:130mm;max-height:32mm;object-fit:contain}.tw-logo-main{font-size:34px;font-weight:900;color:#0693d1;text-shadow:1px 1px #111;letter-spacing:1px}.tw-logo-sub{font-size:17px;font-weight:900;font-style:italic}.doc-title{text-align:center;font-size:19px;font-weight:800;margin:3mm 0}.line{border-top:1.5px solid #222;margin:4mm 0}.row{display:flex;justify-content:space-between;gap:18mm}.company{white-space:pre-line;font-size:14px;line-height:1.16}.meta{font-size:14px;line-height:1.45}.meta table td{padding:1px 8px}.block{font-size:14px;line-height:1.45}.label{font-weight:900}.indent{margin-left:22mm}.doc-table{width:100%;border-collapse:collapse;margin-top:3mm;font-size:13.5px}.doc-table th{text-align:left;text-decoration:underline}.doc-table td,.doc-table th{padding:2.2mm 2mm}.doc-table .qty{width:16mm;text-align:center}.doc-table .code{width:22mm}.money{text-align:right;white-space:nowrap}.totals{margin-left:auto;width:70mm;border-collapse:collapse;font-size:14px;margin-top:5mm}.totals td{padding:1.6mm 2mm}.totals tr.sep td{border-top:1px solid #222}.totals .bold td{font-weight:900}.footer{margin-top:8mm;font-size:13.5px;line-height:1.35}.page-no{text-align:center;font-size:10px;margin-top:10mm}.terms{font-size:14px;line-height:1.45;margin-top:15mm}@media print{body{background:white}.actions{display:none}.page{margin:0;page-break-after:always}.page:last-child{page-break-after:auto}}';}
+  function actions(){return '<div class="actions"><button onclick="window.print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="window.close()">Terug</button></div>';}
+  function totalsTable(t,pay){return '<table class="totals"><tr class="sep"><td>Subtotaal (Excl. Btw) :</td><td class="money">'+money(t.sub)+'</td></tr><tr><td>BTW &nbsp;&nbsp;&nbsp;&nbsp; 21%</td><td class="money">'+money(t.vat)+'</td></tr><tr class="sep bold"><td>Totaal:</td><td class="money">'+money(t.grand)+'</td></tr>'+(pay?'<tr class="bold"><td>Te betalen:</td><td class="money">'+money(t.grand)+'</td></tr>':'')+'</table>';}
+  function openHtml(html,title){var w=window.open('','_blank'); if(!w){alert('Pop-up geblokkeerd. Sta pop-ups toe om het document te openen.');return false;} w.document.open(); w.document.write(html); w.document.close(); try{w.document.title=title;}catch(e){} return false;}
+  function invoiceHtml(){var s=settings(),o=order(),t=totals(),inv='F-'+(o.number||'');return '<!doctype html><html><head><meta charset="utf-8"><title>Factuur '+H(o.number)+'</title><style>'+css()+'</style></head><body>'+actions()+'<main class="page">'+logoHtml(s)+'<div class="doc-title">FACTUUR</div><div class="row"><div class="company">'+H(s.company)+'\n'+H(s.address)+'\nTel.: '+H(s.phone)+'\n'+H(s.email)+'\nKVK: '+H(s.kvk)+'\nBTW NR:'+H(s.btw)+'\nBank: '+H(s.bank)+'</div><div class="meta"><table><tr><td><b>Factuur-nr:</b></td><td>'+H(inv)+'</td></tr><tr><td><b>Datum:</b></td><td>'+H(today())+'</td></tr></table></div></div><div class="line"></div><div class="block"><b><i>'+H(o.customer.name)+'</i></b><br><b>'+H(o.customer.street)+'</b><br><b>'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'</b></div><div class="line"></div><div class="block"><span class="label">Evenement:</span> &nbsp; '+H(o.title)+'<br><span class="label">Periode:</span> &nbsp; '+H(niceDate(o.start))+(o.end?' tot '+H(niceDate(o.end)):'')+'</div><div class="line"></div><div class="block"><span class="label">Lokatie:</span> <span class="indent">'+H(o.location.name)+'</span><br><span class="indent">Adres: '+H(o.location.street)+'</span><br><span class="indent">'+H(o.location.city)+'</span><br>Bijzonderheden:<br><span class="indent">Contact: '+H(o.location.contact||o.location.phone||'')+'</span></div><h3 style="font-size:15px;margin:5mm 0 0">Omschrijving:</h3><table class="doc-table"><thead><tr><th>Aantal:</th><th>Item:</th><th></th><th class="money">Bedrag:</th></tr></thead><tbody>'+rows()+'</tbody></table>'+totalsTable(t,true)+'<div class="footer">Wij verzoeken u om deze factuur binnen gesteld termijn te voldoen, onder vermelding van het<br>Factuurnummer en opdracht nummer<br>Facturen dienen 8 dagen voor levering of ophalen betaald te zijn.</div><div class="page-no">Pagina 1 van 1</div></main></body></html>';}
+  function confirmHtml(){var s=settings(),o=order(),t=totals(),title=/offerte/i.test(o.status)?'Offerte':'Opdracht-Informatie';return '<!doctype html><html><head><meta charset="utf-8"><title>Opdrachtbevestiging '+H(o.number)+'</title><style>'+css()+'</style></head><body>'+actions()+'<main class="page">'+logoHtml(s)+'<div class="row"><div></div><div class="meta">'+H(today())+'</div></div><div class="doc-title">'+H(title)+'</div><div class="company">'+H(s.company)+'\n'+H(s.address)+'\nTel.: '+H(s.phone)+'\n'+H(s.email)+'\nk.v.K.: '+H(s.kvk)+'\nB.T.W. nr: '+H(s.btw)+'\nBank: '+H(s.bank)+'</div><div class="line"></div><div class="block"><span class="label">Opdracht-nr:</span> <span class="indent">'+H(o.number)+'</span><br><span class="label">Evenement:</span> <span class="indent">'+H(o.title)+'</span><br><span class="label">Periode:</span> <span class="indent">'+H(niceDate(o.start))+(o.end?' tot '+H(niceDate(o.end)):'')+'</span><br><span class="label">Referentie:</span><br><span class="label">Merk:</span> '+H(o.brand)+'<br><span class="label">Status:</span> <span class="indent">'+H(o.status)+'</span><br>Bijzonderheden:</div><div class="line"></div><div class="block"><span class="label">Opdrachtgever:</span> <b><i>'+H(o.customer.name)+'</i></b><br><span class="indent">Adres: '+H(o.customer.street)+'</span><br><span class="indent">'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'</span><br>Bijzonderheden:<br><span class="indent">Contact: '+H(o.customer.phone||o.customer.email||'')+'</span></div><div class="line"></div><div class="block"><span class="label">Lokatie:</span> <span class="indent">'+H(o.location.name)+'</span><br><span class="indent">Adres: '+H(o.location.street)+'</span><br><span class="indent">'+H(o.location.city)+'</span><br>Bijzonderheden:<br><span class="indent">Contact: '+H(o.location.contact||o.location.phone||'')+'</span></div><h3 style="font-size:15px;margin:5mm 0 0">Omschrijving:</h3><table class="doc-table"><thead><tr><th>Aantal:</th><th>Item:</th><th></th><th class="money">Bedrag:</th></tr></thead><tbody>'+rows()+'</tbody></table>'+totalsTable(t,false)+'<div class="page-no">Pagina 1 van 2</div></main>'+termsPage(s,t)+'</body></html>';}
+  function termsPage(s,t){return '<main class="page"><div class="terms"><p><b>Totaal:</b> '+money(t.grand)+'</p><p><b>Te betalen:</b> '+money(t.grand)+'</p><p>Op alle overeenkomsten die u met '+H(s.company)+' aangaat zijn de algemene voorwaarden van '+H(s.company)+' van toepassing. De algemene voorwaarden zijn als bijlage te vinden op ons site onder rubriek Home. Door akkoord te gaan met deze offerte/opdrachtbevestiging verklaart u tevens akkoord te gaan met de algemene voorwaarden van '+H(s.company)+' en deze algemene voorwaarden te hebben gelezen.</p><p>U dient als huurder zorg te dragen dat materialen na uw evenement altijd schoon en schadevrij terug komen bij verhuurder. Bij niet schoon inleveren van gehuurde materialen zullen wij u een factuur sturen van € 350 per product dat niet schoon is ingeleverd.</p><p>Het reinigen van de Tap installatie laten wij uitvoeren door de tapwacht.</p></div><div class="page-no">Pagina 2 van 2</div></main>';}
+  function openInvoice(){return openHtml(invoiceHtml(),'Factuur');}
+  function openConfirm(){return openHtml(confirmHtml(),'Opdrachtbevestiging');}
+
+  window.makeInvoice=openInvoice; window.makeConfirmation=openConfirm; window.openInvoice=openInvoice; window.openConfirmation=openConfirm;
+  window.bns420OpenInvoice=openInvoice; window.bns420OpenConfirm=openConfirm;
+
+  function installAdmin(){
+    var panel=E('bns419DocPanel'); if(!panel||E('bns420LogoUpload')) return;
+    var s=settings();
+    var div=document.createElement('div'); div.style.margin='12px 0'; div.innerHTML='<label><b>Logo uploaden</b><br><input id="bns420LogoUpload" type="file" accept="image/*"></label><button id="bns420LogoWis" type="button" class="grey" style="margin-left:8px">Logo wissen</button><div id="bns420LogoPreview" style="margin-top:8px"></div>';
+    panel.insertBefore(div,panel.firstChild.nextSibling);
+    function preview(){var p=E('bns420LogoPreview'),d=settings(); if(p)p.innerHTML=d.logoData?'<img src="'+H(d.logoData)+'" style="max-width:260px;max-height:90px;object-fit:contain;border:1px solid #dbe3ef;border-radius:8px;padding:6px;background:#fff">':'Geen eigen logo ingesteld';}
+    E('bns420LogoUpload').onchange=function(ev){var f=ev.target.files&&ev.target.files[0]; if(!f)return; var r=new FileReader(); r.onload=function(){var d=settings(); d.logoData=r.result; saveSettings(d); preview(); try{toast('Logo opgeslagen');}catch(e){alert('Logo opgeslagen');}}; r.readAsDataURL(f);};
+    E('bns420LogoWis').onclick=function(){var d=settings(); d.logoData=''; saveSettings(d); preview();};
+    preview();
+  }
+  function shouldDocButton(el){
+    var text=T(el.textContent||el.value||'').toLowerCase();
+    if(!text) return '';
+    if(/copy opdracht/.test(text)) return '';
+    if(/factuur/.test(text) && /(maak|maken|open|print|document|factuur)/.test(text)) return 'invoice';
+    if(/opdracht\s*bevestiging|opdrachtbevestiging|bevestiging|overzicht\s*\/\s*opdracht/.test(text)) return 'confirm';
+    return '';
+  }
+  document.addEventListener('click',function(ev){
+    var el=ev.target&&ev.target.closest?ev.target.closest('button,a,input[type="button"],input[type="submit"]'):null; if(!el)return;
+    var kind=shouldDocButton(el); if(!kind)return;
+    ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();
+    if(kind==='invoice') openInvoice(); else openConfirm();
+    return false;
+  },true);
+  setInterval(function(){window.makeInvoice=openInvoice;window.makeConfirmation=openConfirm;installAdmin();},700);
+  setTimeout(function(){installAdmin();},500);
+  console.log('[BNS v420] Nieuwe opdracht documentknoppen + logo upload actief.');
+})();
