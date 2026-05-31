@@ -41949,8 +41949,14 @@ setTimeout(()=>{
   function readFile(file,cb){ var r=new FileReader(); r.onload=function(){cb(r.result, file);}; r.readAsDataURL(file); }
   function readText(file,cb){ var r=new FileReader(); r.onload=function(){cb(String(r.result||''), file);}; r.readAsText(file); }
   function ensureTemplateAdmin(){
-    var pane=E('bnsV361Pane') || E('twV309DocStylePane') || E('adminArea');
-    if(!pane || E('bnsV408Templates')) return;
+    // BNS v412: eigen layout upload hoort ALLEEN in Huisstijl & Documenten.
+    // Niet meer fallbacken naar adminArea, anders verschijnt dit blok onder Materialen/Klanten/Data.
+    var pane=E('bnsV361Pane');
+    var visible=pane && !pane.classList.contains('hidden') && pane.offsetParent!==null;
+    document.querySelectorAll('#bnsV408Templates').forEach(function(x){
+      if(!pane || x.parentNode!==pane || !visible) x.remove();
+    });
+    if(!pane || !visible || E('bnsV408Templates')) return;
     var box=document.createElement('div'); box.id='bnsV408Templates';
     box.style.cssText='margin:18px 0;padding:14px;border:2px solid #dbe3ef;border-radius:16px;background:#f8fafc';
     box.innerHTML='<h4 style="margin:0 0 8px;color:#0f172a">Eigen layout uploaden</h4><p style="margin:0 0 10px;color:#64748b">Upload jullie eigen factuur of opdrachtbevestiging als afbeelding/briefpapier. HTML-template mag ook met placeholders zoals {{klant}}, {{opdracht}}, {{datum}}, {{materialen}}, {{totaal}}.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><b>Factuur layout</b><br><label style="display:inline-block;margin-top:7px;background:#2563eb;color:white;border-radius:10px;padding:9px 13px;font-weight:900;cursor:pointer">Bestand kiezen<input id="v408FactuurLayout" type="file" accept="image/*,.html,.htm" style="display:none"></label><button id="v408FactuurWis" type="button" style="margin-left:6px;border:0;border-radius:10px;padding:9px 12px;font-weight:900;background:#fee2e2;color:#991b1b">Wis</button><div id="v408FactuurInfo" style="font-size:12px;color:#64748b;margin-top:6px"></div></div><div><b>Opdrachtbevestiging layout</b><br><label style="display:inline-block;margin-top:7px;background:#2563eb;color:white;border-radius:10px;padding:9px 13px;font-weight:900;cursor:pointer">Bestand kiezen<input id="v408OpdrachtLayout" type="file" accept="image/*,.html,.htm" style="display:none"></label><button id="v408OpdrachtWis" type="button" style="margin-left:6px;border:0;border-radius:10px;padding:9px 12px;font-weight:900;background:#fee2e2;color:#991b1b">Wis</button><div id="v408OpdrachtInfo" style="font-size:12px;color:#64748b;margin-top:6px"></div></div></div>';
@@ -42141,4 +42147,261 @@ setTimeout(()=>{
   try{ install(); }catch(e){}
 
   console.info('[BNS v410] Oude data bewaard; actieve schermen gefilterd; defect knipper uit.');
+})();
+
+/* =========================================================
+   BNS V411 - Telefoon foto/handtekening naar klantmeldingen + overzicht bestelling
+   - Foto voor/na en handtekening worden opgeslagen als klantmelding/media.
+   - Geen systeemmelding: type foto/handtekening wordt buiten systeemmeldingen gehouden.
+   - Overzicht bestelling leest nu zowel alerts als order.media/photos/signatures/driverUploads.
+   ========================================================= */
+(function BNS_V411_PHONE_MEDIA_TO_CUSTOMER_MESSAGES(){
+  'use strict';
+  if(window.__BNS_V411_PHONE_MEDIA_TO_CUSTOMER_MESSAGES__) return;
+  window.__BNS_V411_PHONE_MEDIA_TO_CUSTOMER_MESSAGES__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
+  function saveAll(){
+    try{ if(typeof save === 'function') save(); }catch(e){}
+    try{ if(typeof saveState === 'function') saveState(); }catch(e){}
+    try{ if(typeof saveBns === 'function') saveBns(); }catch(e){}
+    try{ var s=S(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); localStorage.setItem('bns_state', JSON.stringify(s)); localStorage.setItem('bns_app_state', JSON.stringify(s)); } }catch(e){}
+  }
+  function fbSet(coll,id,obj){
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc && id){
+        window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db, coll, String(id)), Object.assign({}, obj, {updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){});
+      }
+    }catch(e){}
+  }
+  function syncOrder(o){
+    if(!o) return;
+    fbSet('orders', String(o.id || o.number || ''), o);
+    try{ if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase === 'function') window.BNSFirebaseSync.uploadLocalToFirebase('v411-media'); }catch(e){}
+  }
+  function toast(msg){ try{ if(typeof window.toast === 'function') return window.toast(msg); }catch(e){} try{ alert(msg); }catch(e){} }
+  function orderById(id){ var s=S(); return s && Array.isArray(s.orders) ? s.orders.find(function(o){ return String(o.id||'')===String(id||'') || String(o.number||'')===String(id||''); }) : null; }
+  function currentDriverName(){
+    try{ if(typeof currentUser === 'function' && currentUser()) return currentUser().name || ''; }catch(e){}
+    try{ var u=JSON.parse(localStorage.getItem('bns_current_user')||'null'); return u && u.name || ''; }catch(e){}
+    return '';
+  }
+  function customerName(o){ return T((o&&o.customer&&o.customer.name) || o.customerName || o.klant || 'Onbekende klant'); }
+  function modal(html){
+    var old=E('bnsV411MediaModal'); if(old) old.remove();
+    var m=document.createElement('div');
+    m.id='bnsV411MediaModal';
+    m.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.72);display:flex;align-items:center;justify-content:center;padding:18px';
+    m.innerHTML='<div style="background:#fff;color:#172033;border-radius:22px;padding:18px;max-width:560px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.35)">'+html+'</div>';
+    document.body.appendChild(m);
+    return m;
+  }
+  function closeModal(){ var m=E('bnsV411MediaModal'); if(m) m.remove(); }
+  function compressImage(file, done){
+    var r=new FileReader();
+    r.onload=function(){
+      var img=new Image();
+      img.onload=function(){
+        var max=1200,w=img.width,h=img.height;
+        if(w>h && w>max){ h=Math.round(h*max/w); w=max; }
+        else if(h>max){ w=Math.round(w*max/h); h=max; }
+        var c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        done(c.toDataURL('image/jpeg',0.78));
+      };
+      img.src=r.result;
+    };
+    r.readAsDataURL(file);
+  }
+  function addMediaToOrderAndAlerts(o,item){
+    if(!o || !item) return;
+    o.media = Array.isArray(o.media) ? o.media : [];
+    o.driverUploads = Array.isArray(o.driverUploads) ? o.driverUploads : [];
+    if(/foto|photo/i.test(item.type||'')) o.photos = Array.isArray(o.photos) ? o.photos : [];
+    if(/handtekening|signature/i.test(item.type||'')) o.signatures = Array.isArray(o.signatures) ? o.signatures : [];
+
+    o.media.push(item);
+    o.driverUploads.push(item);
+    if(o.photos && /foto|photo/i.test(item.type||'')) o.photos.push(item);
+    if(o.signatures && /handtekening|signature/i.test(item.type||'')){
+      o.signatures.push(item);
+      o.customerSignature = item.signatureData || item.signature || item.data || '';
+      o.customerSignedName = item.signedName || item.customerName || '';
+      o.customerSignedAt = item.createdAt || new Date().toISOString();
+    }
+    o.updatedAt = new Date().toISOString();
+
+    var s=S();
+    if(s){
+      s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
+      var exists = s.alerts.some(function(a){ return String(a.id||'') === String(item.id||''); });
+      if(!exists) s.alerts.push(item);
+    }
+    saveAll();
+    syncOrder(o);
+    fbSet('alerts', item.id, item);
+  }
+  function makeBaseItem(o,type,note){
+    var now=new Date();
+    return {
+      id:'media_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),
+      type:type,
+      title:type,
+      note:note || type,
+      text:note || type,
+      message:note || type,
+      orderId:o.id || '',
+      orderNumber:o.number || '',
+      linkedOrder:o.id || '',
+      linkedOrderNumber:o.number || '',
+      orderTitle:o.title || '',
+      customerName:customerName(o),
+      driverName:currentDriverName(),
+      from:currentDriverName() || 'Bezorger',
+      source:'telefoon',
+      system:false,
+      isCustomerMessage:true,
+      isCustomerMedia:true,
+      resolved:false,
+      createdAt:now.toISOString(),
+      time:now.toLocaleString('nl-NL')
+    };
+  }
+  function openPhotoFixed(orderId,type){
+    var o=orderById(orderId); if(!o){ toast('Opdracht niet gevonden voor foto.'); return; }
+    type = type || 'Foto bezorger';
+    modal('<h2 style="margin:0 0 12px">'+H(type)+'</h2><input id="v411File" type="file" accept="image/*" capture="environment" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px;margin:8px 0"><textarea id="v411Note" placeholder="Opmerking bij foto" style="width:100%;min-height:90px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px;margin:8px 0"></textarea><div id="v411Preview"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button id="v411SavePhoto" type="button" style="background:#2563eb;color:#fff;border:0;border-radius:14px;padding:12px 14px;font-weight:900">Foto opslaan</button><button id="v411Cancel" type="button" style="background:#64748b;color:#fff;border:0;border-radius:14px;padding:12px 14px;font-weight:900">Annuleren</button></div>');
+    var data='';
+    E('v411Cancel').onclick=closeModal;
+    E('v411File').onchange=function(){ var f=this.files&&this.files[0]; if(!f) return; compressImage(f,function(d){ data=d; E('v411Preview').innerHTML='<img src="'+d+'" style="max-width:100%;border-radius:14px;border:1px solid #dbe3ef;margin-top:8px">'; }); };
+    E('v411SavePhoto').onclick=function(){
+      if(!data){ toast('Maak of kies eerst een foto.'); return; }
+      var note=T(E('v411Note').value) || type;
+      var item=makeBaseItem(o,type,note);
+      item.data=data; item.photoData=data; item.photo=data; item.image=data;
+      addMediaToOrderAndAlerts(o,item);
+      closeModal();
+      toast('Foto opgeslagen bij klantmeldingen en overzicht bestelling.');
+    };
+  }
+  function openSignFixed(orderId){
+    var o=orderById(orderId); if(!o){ toast('Opdracht niet gevonden voor handtekening.'); return; }
+    modal('<h2 style="margin:0 0 12px">Handtekening klant</h2><input id="v411SignName" placeholder="Naam klant" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px;margin:8px 0"><canvas id="v411Canvas" style="width:100%;height:230px;border:2px solid #cbd5e1;border-radius:14px;background:#fff;touch-action:none"></canvas><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button id="v411SaveSign" type="button" style="background:#0f766e;color:#fff;border:0;border-radius:14px;padding:12px 14px;font-weight:900">Handtekening opslaan</button><button id="v411ClearSign" type="button" style="background:#334155;color:#fff;border:0;border-radius:14px;padding:12px 14px;font-weight:900">Opnieuw tekenen</button><button id="v411CancelSign" type="button" style="background:#64748b;color:#fff;border:0;border-radius:14px;padding:12px 14px;font-weight:900">Annuleren</button></div>');
+    var c=E('v411Canvas'), ctx=c.getContext('2d'), drawing=false, has=false;
+    function fit(){ var r=c.getBoundingClientRect(); c.width=Math.max(320,Math.floor(r.width)); c.height=230; ctx.lineWidth=3; ctx.lineCap='round'; ctx.strokeStyle='#111827'; ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height); }
+    function pos(ev){ var e=(ev.touches&&ev.touches[0])||ev, r=c.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; }
+    function start(ev){ ev.preventDefault(); drawing=true; has=true; var p=pos(ev); ctx.beginPath(); ctx.moveTo(p.x,p.y); }
+    function move(ev){ if(!drawing) return; ev.preventDefault(); var p=pos(ev); ctx.lineTo(p.x,p.y); ctx.stroke(); }
+    function end(ev){ if(ev) ev.preventDefault(); drawing=false; }
+    fit(); ['mousedown','touchstart'].forEach(function(n){ c.addEventListener(n,start,{passive:false}); }); ['mousemove','touchmove'].forEach(function(n){ c.addEventListener(n,move,{passive:false}); }); ['mouseup','mouseleave','touchend','touchcancel'].forEach(function(n){ c.addEventListener(n,end,{passive:false}); });
+    E('v411ClearSign').onclick=function(){ fit(); has=false; };
+    E('v411CancelSign').onclick=closeModal;
+    E('v411SaveSign').onclick=function(){
+      if(!has){ toast('Laat eerst tekenen.'); return; }
+      var data=c.toDataURL('image/png');
+      var name=T(E('v411SignName').value) || customerName(o);
+      var item=makeBaseItem(o,'Handtekening klant','Handtekening klant opgeslagen');
+      item.data=data; item.signatureData=data; item.signature=data; item.signedName=name; item.customerName=name || customerName(o);
+      addMediaToOrderAndAlerts(o,item);
+      closeModal();
+      toast('Handtekening opgeslagen bij klantmeldingen en overzicht bestelling.');
+    };
+  }
+
+  window.openSign = openSignFixed;
+  window.BNS_V411_OPEN_PHOTO = openPhotoFixed;
+  window.BNS_V411_OPEN_SIGN = openSignFixed;
+
+  document.addEventListener('click',function(ev){
+    var p=ev.target && ev.target.closest && ev.target.closest('[data-v95-photo],[data-photo]');
+    if(p){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); openPhotoFixed(p.getAttribute('data-v95-photo') || p.getAttribute('data-photo'), p.getAttribute('data-type') || p.getAttribute('data-kind') || 'Foto bezorger'); return false; }
+    var s=ev.target && ev.target.closest && ev.target.closest('[data-v95-sign],[data-sign]');
+    if(s){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); openSignFixed(s.getAttribute('data-v95-sign') || s.getAttribute('data-sign')); return false; }
+  },true);
+
+  function mediaSrc(a){ return a.photoData || a.photo || a.image || a.signatureData || a.signature || a.data || (a.media && a.media.data) || ''; }
+  function mediaType(a){ var t=T(a.type||a.title||'Melding'); if(!t && (a.signatureData||a.signature)) t='Handtekening klant'; if(!t && (a.photoData||a.photo||a.image)) t='Foto'; return t || 'Melding'; }
+  function mediaHtml(a){ var src=mediaSrc(a); if(!src) return ''; var isSig=/handtekening|signature/i.test(mediaType(a)); return '<div style="margin-top:8px"><b>'+H(isSig?'Handtekening':'Foto')+'</b><br><img src="'+H(src)+'" style="max-width:100%;max-height:260px;border-radius:12px;border:1px solid #dbe3ef;background:#fff"></div>'; }
+  function alertMatch(a,o){ return String(a.orderId||a.linkedOrder||'')===String(o.id||'') || String(a.orderNumber||a.linkedOrderNumber||'')===String(o.number||''); }
+  function mediaRowsForOrder(o){
+    var rows=[], seen={};
+    function add(x){ if(!x) return; var id=String(x.id || x.createdAt || mediaSrc(x) || Math.random()); if(seen[id]) return; if(!mediaSrc(x) && !/foto|photo|handtekening|signature/i.test([x.type,x.title].join(' '))) return; seen[id]=1; rows.push(x); }
+    ['media','driverUploads','photos','signatures','handtekeningen'].forEach(function(k){ (Array.isArray(o&&o[k])?o[k]:[]).forEach(add); });
+    var s=S(); (s&&Array.isArray(s.alerts)?s.alerts:[]).forEach(function(a){ if(alertMatch(a,o)) add(a); });
+    rows.sort(function(a,b){ return String(b.createdAt||'').localeCompare(String(a.createdAt||'')); });
+    return rows;
+  }
+  function mediaBlock(o){
+    var rows=mediaRowsForOrder(o);
+    if(!rows.length) return '';
+    return '<div class="tw-v141-order-media bns-v411-order-media" style="border:2px solid #dbeafe;border-radius:18px;padding:14px;margin-top:16px;background:#f8fbff"><h3>Foto\'s / handtekeningen / klantmeldingen</h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">'+rows.map(function(a){ return '<div style="border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff"><b>'+H(mediaType(a))+'</b><br><small>'+H(a.time||a.createdAt||'')+'</small><div>'+H(a.note||a.message||a.text||'')+'</div>'+mediaHtml(a)+'</div>'; }).join('')+'</div></div>';
+  }
+  function patchOverview(){
+    var fn=window.BNS_V128_SHOW_ORDER_OVERVIEW;
+    if(!fn || fn.__bnsV411) return;
+    var wrapped=function(id){
+      var res=fn.apply(this,arguments);
+      setTimeout(function(){
+        try{
+          var m=E('bnsOrderOverviewModal'); if(!m) return;
+          var o=orderById(id); if(!o) return;
+          var card=m.querySelector('.bns-order-overview-card') || m.firstElementChild; if(!card) return;
+          var old=card.querySelector('.bns-v411-order-media'); if(old) old.remove();
+          var html=mediaBlock(o); if(html) card.insertAdjacentHTML('beforeend', html);
+        }catch(e){}
+      },180);
+      return res;
+    };
+    wrapped.__bnsV411=true;
+    window.BNS_V128_SHOW_ORDER_OVERVIEW=wrapped;
+  }
+  patchOverview();
+  setTimeout(patchOverview,800);
+  setTimeout(patchOverview,2000);
+  setInterval(patchOverview,3500);
+  console.log('[BNS v411] telefoon foto/handtekening naar klantmeldingen + overzicht actief.');
+})();
+
+
+// =============================================================================
+// BNS v412 - Huisstijl upload alleen in Huisstijl & Documenten + lege Factuur/offerte tab weg
+// Datum: 2026-05-31
+// Doel:
+// - Eigen layout upload niet meer tonen onder Materialen/Klanten/Locaties/Data enz.
+// - Oude lege tab "Factuur / offerte" definitief uit admin-navigatie verwijderen.
+// - Verkeerd geplaatste layout-blokken direct opruimen.
+// =============================================================================
+(function BNS_V412_HUISSTIJL_ONLY(){
+  'use strict';
+  if(window.__BNS_V412_HUISSTIJL_ONLY__) return;
+  window.__BNS_V412_HUISSTIJL_ONLY__ = true;
+  function txt(el){ return String((el&&el.textContent)||'').replace(/\s+/g,' ').trim(); }
+  function isVisible(el){ return !!(el && !el.classList.contains('hidden') && el.offsetParent !== null); }
+  function cleanup(){
+    var huis=document.getElementById('bnsV361Pane');
+    var huisVisible=isVisible(huis);
+    document.querySelectorAll('#bnsV408Templates').forEach(function(x){
+      if(!huis || x.parentNode!==huis || !huisVisible) x.remove();
+    });
+    document.querySelectorAll('.adminTab,button,[data-admin]').forEach(function(b){
+      var t=txt(b).toLowerCase();
+      if(t==='factuur / offerte' || t==='factuur/offerte' || t==='factuur offerte'){
+        try{ b.remove(); }catch(e){ b.style.display='none'; }
+      }
+      if(t==='documenten / huisstijl'){
+        try{ b.remove(); }catch(e){ b.style.display='none'; }
+      }
+    });
+    ['adminInvoice','twV309DocStylePane'].forEach(function(id){
+      var el=document.getElementById(id); if(el) try{el.remove();}catch(e){el.style.display='none';}
+    });
+  }
+  document.addEventListener('click',function(){ setTimeout(cleanup,50); setTimeout(cleanup,300); },true);
+  setInterval(cleanup,1500);
+  setTimeout(cleanup,300); setTimeout(cleanup,1400); setTimeout(cleanup,3000);
+  console.info('[BNS v412] Huisstijl upload alleen in Huisstijl & Documenten actief. Factuur/offerte tab verborgen.');
 })();
