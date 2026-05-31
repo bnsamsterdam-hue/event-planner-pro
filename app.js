@@ -42652,10 +42652,10 @@ setTimeout(()=>{
 })();
 
 
-/* BNS v428 - documenten schoon: knoppen laten staan, admin huisstijl leidend, statuskop correct */
+/* BNS v429 - documenten schoon: knoppen laten staan, admin huisstijl leidend, statuskop correct */
 (function(){
-  if(window.__BNS_V428_DOCS_CLEAN__) return;
-  window.__BNS_V428_DOCS_CLEAN__ = true;
+  if(window.__BNS_V429_DOCS_CLEAN__) return;
+  window.__BNS_V429_DOCS_CLEAN__ = true;
 
   var STYLE_KEY = 'bns_huisstijl_v361';
 
@@ -43000,7 +43000,7 @@ setTimeout(()=>{
     var topRight='<table><tr><td>'+(fact?'Factuur-nr:':'Opdracht-nr:')+'</td><td>'+H(fact?invoiceNr:(o.number||''))+'</td></tr><tr><td>Datum:</td><td>'+H(today())+'</td></tr></table>';
 
     var doc='<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>'+H((fact?'Factuur':title)+' '+(o.number||''))+'</title><style>'+css()+'</style></head><body>'+
-      '<div class="actions"><button onclick="window.print()">Print</button><button onclick="location.href=\\'mailto:?subject=\\'+encodeURIComponent(document.title)+\\'&body=\\'+encodeURIComponent(document.body.innerText)">Mail</button><button class="grey" onclick="try{window.close()}catch(e){}; if(!window.closed){history.back()}">Terug</button></div>'+
+      '<div class="actions"><button onclick="window.print()">Print</button><button onclick="window.location.href=&quot;mailto:?subject=&quot;+encodeURIComponent(document.title)+&quot;&amp;body=&quot;+encodeURIComponent(document.body.innerText)">Mail</button><button class="grey" onclick="try{window.close()}catch(e){}; if(!window.closed){history.back()}">Terug</button></div>'+
       '<div class="page"><div class="logo">'+logoHtml(st)+'</div><div class="doc-title">'+H(title)+'</div>'+
       '<div class="top"><div class="company">'+companyHtml(st)+'</div><div class="meta">'+topRight+'</div></div>'+
       '<div class="line"></div>'+(intro?'<div class="intro">'+H(intro)+'</div>':'')+
@@ -43055,6 +43055,6 @@ setTimeout(()=>{
   setInterval(enhanceAdmin, 800);
   setTimeout(enhanceAdmin, 200);
   setTimeout(enhanceAdmin, 1200);
-  console.info('[BNS v428] Documenten schoon actief: knoppen blijven staan, admin huisstijl leidend.');
+  console.info('[BNS v429] Mailto syntax fix actief.');
 })();
 
