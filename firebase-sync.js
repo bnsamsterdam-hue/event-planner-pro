@@ -76,7 +76,14 @@ function keep(local,remote,k){
   if((local[k]===undefined||local[k]===null||local[k]==="")&&remote[k]!==undefined&&remote[k]!==null&&remote[k]!=="")local[k]=remote[k];
 }
 function preserveOrder(local,remote){
-  ["driverId","bezorgerId","userId","driverName","driver","bezorger"].forEach(k=>keep(local,remote,k));
+  // Enkelvoudige velden
+  ["driverId","bezorgerId","userId","driverName","driver","bezorger","assignedDriver"].forEach(k=>keep(local,remote,k));
+  // Array velden: als remote rijker is, bewaar die
+  ["driverIds","bezorgerIds","driverNames","bezorgerNames","drivers","bezorgers"].forEach(k=>{
+    if(remote&&Array.isArray(remote[k])&&remote[k].length>(Array.isArray(local[k])?local[k].length:0)){
+      local[k]=remote[k];
+    }
+  });
   return local;
 }
 async function upload(reason){
@@ -96,6 +103,11 @@ async function upload(reason){
         if(col==="orders"){
           const rem=await remoteDoc("orders",row.id);
           preserveOrder(row,rem);
+          // Niet overschrijven als remote nieuwer is (bv bezorger heeft afgemeld)
+          if(rem&&rem.updatedAt&&(!row.updatedAt||rem.updatedAt>row.updatedAt)){
+            const keepFields=["status","phoneDone","afgemeld","completed","doneAt","doneBy"];
+            keepFields.forEach(k=>{if(rem[k]!==undefined)row[k]=rem[k];});
+          }
         }
         row.updatedAt=row.updatedAt||new Date().toISOString();
         await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row,{merge:true});
@@ -121,7 +133,24 @@ async function download(){
         continue;
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
-      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      const remoteRows=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(col==="orders"){
+        const localOrders=Array.isArray(s.orders)?s.orders:[];
+        s.orders=remoteRows.map(remote=>{
+          const local=localOrders.find(l=>String(l.id)===String(remote.id));
+          if(local){
+            // Bewaar rijkere lokale bezorger-arrays
+            ["driverIds","bezorgerIds","driverNames","bezorgerNames","drivers","bezorgers"].forEach(k=>{
+              if(Array.isArray(local[k])&&local[k].length>(Array.isArray(remote[k])?remote[k].length:0)){
+                remote[k]=local[k];
+              }
+            });
+          }
+          return remote;
+        });
+      } else {
+        s[col]=remoteRows;
+      }
       if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
@@ -175,7 +204,24 @@ t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
 t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
-      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      const remoteRows=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(col==="orders"){
+        const localOrders=Array.isArray(s.orders)?s.orders:[];
+        s.orders=remoteRows.map(remote=>{
+          const local=localOrders.find(l=>String(l.id)===String(remote.id));
+          if(local){
+            // Bewaar rijkere lokale bezorger-arrays
+            ["driverIds","bezorgerIds","driverNames","bezorgerNames","drivers","bezorgers"].forEach(k=>{
+              if(Array.isArray(local[k])&&local[k].length>(Array.isArray(remote[k])?remote[k].length:0)){
+                remote[k]=local[k];
+              }
+            });
+          }
+          return remote;
+        });
+      } else {
+        s[col]=remoteRows;
+      }
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
