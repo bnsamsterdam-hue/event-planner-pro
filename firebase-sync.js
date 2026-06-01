@@ -113,6 +113,7 @@ async function upload(reason){
           }
         }
         row.updatedAt=row.updatedAt||new Date().toISOString();
+        if(col==='orders' && window.BNS_v433_beforeUploadOrder){ row = window.BNS_v433_beforeUploadOrder(row, (typeof rem!=='undefined'?rem:null)); if(row && row.__BNS_SKIP_UPLOAD__){ console.warn('[BNS v433] order upload overgeslagen', row.id||row.number); continue; } }
         await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row,{merge:true});
       }
     }
@@ -284,3 +285,98 @@ window.BNS=window.BNS||{};
 window.BNS.syncDoc=syncDoc;
 window.BNS.deleteDoc=deleteDocPublic;
 })();
+
+
+/* BNS v433 firebase sync guard - old_ archief isoleren + driver velden veilig */
+(function(){
+  if (window.__BNS_V433_SYNC_GUARD__) return;
+  window.__BNS_V433_SYNC_GUARD__ = true;
+
+  function s(v){ return String(v == null ? '' : v).trim(); }
+  function isOld(o){
+    var id = s(o && (o.id || o.orderId || o.docId || o.number || o.nr));
+    return id.indexOf('old_') === 0 || o && (o.archive === true || o.archived === true || o.isArchive === true);
+  }
+  function splitList(v){
+    if (v == null) return [];
+    if (Array.isArray(v)) {
+      var out = [];
+      v.forEach(function(x){ out = out.concat(splitList(x)); });
+      return out;
+    }
+    if (typeof v === 'object') return [v.id, v.uid, v.name, v.naam, v.displayName].filter(Boolean);
+    return String(v).split(/[,\n;|]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function unique(a){
+    var seen={}, out=[];
+    a.forEach(function(x){
+      var k=s(x).toLowerCase();
+      if(!k || seen[k]) return;
+      seen[k]=1; out.push(s(x));
+    });
+    return out;
+  }
+  function driverVals(o){
+    if(!o) return [];
+    var vals=[];
+    [
+      'bezorger','bezorgerId','bezorgerIds','bezorgerName','bezorgerNames',
+      'driver','driverId','driverIds','driverName','driverNames',
+      'assignedDriver','assignedDriverId','assignedDriverIds','assignedDriverName',
+      'drivers','driverList','bezorgers'
+    ].forEach(function(k){ if(o[k]!==undefined) vals=vals.concat(splitList(o[k])); });
+    return unique(vals);
+  }
+  function preserveRicherDrivers(target, source){
+    if(!target || !source) return target;
+    var vals = driverVals(target);
+    var src = driverVals(source);
+    if(src.length > vals.length){
+      var ids = unique([].concat(splitList(source.bezorgerIds), splitList(source.driverIds), splitList(source.assignedDriverIds)));
+      var names = unique([].concat(splitList(source.bezorgerNames), splitList(source.driverNames), splitList(source.bezorger), splitList(source.driver), splitList(source.driverName)));
+      target.bezorgerIds = ids;
+      target.driverIds = ids;
+      target.assignedDriverIds = ids;
+      target.bezorgerNames = names;
+      target.driverNames = names;
+      target.bezorger = names.join(', ');
+      target.driver = names.join(', ');
+      target.driverName = names.join(', ');
+    }
+    return target;
+  }
+
+  window.BNS_v433_isOldArchiveOrder = window.BNS_v433_isOldArchiveOrder || isOld;
+  window.BNS_v433_preserveRicherDrivers = preserveRicherDrivers;
+  window.BNS_v433_skipOrderForLive = function(o){ return isOld(o); };
+  window.BNS_v433_beforeUploadOrder = function(row, remote){
+    if(!row) return row;
+    if(isOld(row)) {
+      row.__BNS_SKIP_UPLOAD__ = true;
+      return row;
+    }
+    preserveRicherDrivers(row, remote);
+    if(remote && remote.updatedAt && (!row.updatedAt || remote.updatedAt > row.updatedAt)){
+      // Firebase is nieuwer: lokale oude versie niet terugduwen.
+      Object.keys(row).forEach(function(k){ delete row[k]; });
+      Object.assign(row, remote);
+      row.__BNS_SKIP_UPLOAD__ = true;
+      return row;
+    }
+    return row;
+  };
+
+  console.info('[BNS v433] sync guard actief');
+})();
+
+
+
+/* BNS v433 extra helper: live lijsten mogen old_ archief overslaan */
+window.BNS_v433_filterLiveOrders = function(list){
+  try{
+    if(!Array.isArray(list)) return list;
+    return list.filter(function(o){
+      return !(window.BNS_v433_skipOrderForLive && window.BNS_v433_skipOrderForLive(o));
+    });
+  }catch(e){ return list; }
+};

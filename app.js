@@ -43071,154 +43071,206 @@ setTimeout(()=>{
 })();
 
 
-/* BNS v432 - tijdelijke Firebase orders batch leegmaakknop + syncslot */
+/* BNS v433 - old_ archief isoleren + bezorger telefoonfilter + terughalen schoon */
 (function(){
-  if (window.__BNS_V430_ORDERS_CLEAR_BUTTON__) return;
-  window.__BNS_V430_ORDERS_CLEAR_BUTTON__ = true;
+  if (window.__BNS_V433_DRIVER_ARCHIVE_FIX__) return;
+  window.__BNS_V433_DRIVER_ARCHIVE_FIX__ = true;
 
-  function isAdminView(){
-    var txt = String(document.body && document.body.innerText || '').toLowerCase();
-    return txt.indexOf('admin') >= 0 || txt.indexOf('opruimen') >= 0 || txt.indexOf('data') >= 0;
+  function s(v){ return String(v == null ? '' : v).trim(); }
+  function norm(v){
+    return s(v).toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/\s+/g,' ');
   }
-
-  function ensureButton(){
-    if (document.getElementById('bnsClearAllOrdersFirebaseBtn')) return;
-    if (!isAdminView()) return;
-
-    var target =
-      document.getElementById('adminArea') ||
-      document.querySelector('.adminArea') ||
-      document.querySelector('main') ||
-      document.body;
-
-    var box = document.createElement('div');
-    box.id = 'bnsClearAllOrdersFirebaseBox';
-    box.style.cssText = 'margin:16px 0;padding:14px;border:2px solid #dc2626;border-radius:14px;background:#fff7f7;color:#111;';
-    box.innerHTML =
-      '<h3 style="margin:0 0 8px;color:#991b1b">Tijdelijk: Firebase opdrachten leegmaken</h3>' +
-      '<p style="margin:0 0 10px">Deze knop wist alleen de collectie <b>orders</b> uit Firebase. Materialen, klanten, locaties, gebruikers en instellingen blijven staan.</p>' +
-      '<button id="bnsClearAllOrdersFirebaseBtn" type="button" style="background:#dc2626;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:900">Alle Firebase opdrachten wissen</button>';
-
-    target.appendChild(box);
-
-    document.getElementById('bnsClearAllOrdersFirebaseBtn').onclick = async function(){
-      var a = prompt('Typ exact: WIS ALLE OPDRACHTEN');
-      if (a !== 'WIS ALLE OPDRACHTEN') {
-        alert('Niet gewist. Bevestiging klopte niet.');
-        return;
+  function splitList(v){
+    if (v == null) return [];
+    if (Array.isArray(v)) {
+      var out = [];
+      v.forEach(function(x){ out = out.concat(splitList(x)); });
+      return out;
+    }
+    if (typeof v === 'object') {
+      if (v.id || v.name || v.naam || v.displayName) {
+        return [v.id, v.name, v.naam, v.displayName].filter(Boolean);
       }
-
-      var b = prompt('Laatste controle. Typ nogmaals exact: WIS ALLE OPDRACHTEN');
-      if (b !== 'WIS ALLE OPDRACHTEN') {
-        alert('Niet gewist. Tweede bevestiging klopte niet.');
-        return;
-      }
-
+      return [];
+    }
+    return String(v).split(/[,\n;|]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function unique(arr){
+    var seen = {}, out = [];
+    arr.forEach(function(x){
+      var k = norm(x);
+      if (!k || seen[k]) return;
+      seen[k] = true;
+      out.push(String(x).trim());
+    });
+    return out;
+  }
+  function idOf(o){ return s(o && (o.id || o.orderId || o.docId || o.number || o.nr)); }
+  function isOldArchiveOrder(o){
+    var id = idOf(o);
+    return id.indexOf('old_') === 0 || o && (o.archive === true || o.archived === true || o.isArchive === true);
+  }
+  function isInactiveForPhone(o){
+    if (!o) return true;
+    if (isOldArchiveOrder(o)) return true;
+    var st = norm(o.status || o.state || o.orderStatus);
+    if (o.deleted === true || o.removed === true || o.cancelled === true || o.canceled === true) return true;
+    // Geannuleerd hoeft niet bij bezorger actief te staan.
+    if (st.indexOf('geann') >= 0 || st.indexOf('annul') >= 0) return true;
+    // Als opdracht expliciet teruggetrokken is.
+    if (o.driverCleared === true || o.bezorgerCleared === true || o.withdrawnFromDriver === true) return true;
+    return false;
+  }
+  function orderDriverValues(o){
+    if (!o) return [];
+    var vals = [];
+    [
+      'bezorger','bezorgerId','bezorgerIds','bezorgerName','bezorgerNames',
+      'driver','driverId','driverIds','driverName','driverNames',
+      'assignedDriver','assignedDriverId','assignedDriverIds','assignedDriverName',
+      'drivers','driverList','bezorgers','couriers','courierIds','courierNames'
+    ].forEach(function(k){
+      if (o[k] !== undefined) vals = vals.concat(splitList(o[k]));
+    });
+    return unique(vals);
+  }
+  function currentDriverValues(){
+    var vals = [];
+    [
+      'CURRENT_DRIVER','currentDriver','loggedInDriver','activeDriver','driverUser',
+      'currentUser','loggedInUser','activeUser','user'
+    ].forEach(function(k){
       try {
-        this.disabled = true;
-        this.textContent = 'Bezig met wissen...';
-
-        if (!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN') {
-          throw new Error('Firebase config ontbreekt');
-        }
-
-        var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
-        var fsMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
-        var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
-        var db = fsMod.getFirestore(app);
-
-        var count = 0;
-        var round = 0;
-
-        // Batch wissen is stabieler dan 1-voor-1 wissen.
-        // Firestore batch max is 500; we gebruiken 300 per ronde voor veiligheid.
-        while (true) {
-          round++;
-          var q = fsMod.query(fsMod.collection(db, 'orders'), fsMod.limit(300));
-          var snap = await fsMod.getDocs(q);
-
-          if (snap.empty) break;
-
-          var batch = fsMod.writeBatch(db);
-          snap.docs.forEach(function(d){
-            batch.delete(d.ref);
-          });
-
-          await batch.commit();
-          count += snap.docs.length;
-
-          this.textContent = 'Bezig met wissen... ' + count + ' verwijderd';
-          console.info('[BNS v432] orders batch gewist ronde', round, 'totaal', count);
-
-          // Kleine pauze zodat browser/Firebase niet vastloopt.
-          await new Promise(function(resolve){ setTimeout(resolve, 150); });
-
-          // Veiligheid tegen oneindige loop.
-          if (round > 50) {
-            throw new Error('Te veel rondes gestopt na ' + count + ' documenten. Herhaal de knop nogmaals.');
-          }
-        }
-
-        // Lokale orders veel breder leegmaken zodat oude localStorage niet meteen terug uploadt.
-        // Dit wist GEEN materialen/klanten/locaties/users; alleen velden met orders/opdrachten in opgeslagen JSON.
-        try {
-          function scrubStorage(store){
-            var changedCount = 0;
-            for (var si = store.length - 1; si >= 0; si--) {
-              var k = store.key(si);
-              var raw = store.getItem(k);
-              if (!raw || raw.charAt(0) !== '{' && raw.charAt(0) !== '[') continue;
-              try {
-                var s = JSON.parse(raw);
-                var changed = false;
-                if (s && typeof s === 'object' && !Array.isArray(s)) {
-                  ['orders','opdrachten','jobs','planningOrders'].forEach(function(field){
-                    if (Array.isArray(s[field])) { s[field] = []; changed = true; }
-                  });
-                  if (s.state && typeof s.state === 'object') {
-                    ['orders','opdrachten','jobs','planningOrders'].forEach(function(field){
-                      if (Array.isArray(s.state[field])) { s.state[field] = []; changed = true; }
-                    });
-                  }
-                }
-                if (changed) {
-                  store.setItem(k, JSON.stringify(s));
-                  changedCount++;
-                }
-              } catch(parseErr) {}
-            }
-            return changedCount;
-          }
-
-          var n1 = scrubStorage(localStorage);
-          var n2 = scrubStorage(sessionStorage);
-          if (window.state && typeof window.state === 'object') {
-            window.state.orders = [];
-            window.state.opdrachten = [];
-          }
-          window.__BNS_ORDERS_CLEARED_LOCK__ = true;
-          localStorage.setItem('bns_orders_clear_lock_v431', String(Date.now()));
-          console.info('[BNS v431] lokale orders opgeschoond in storage:', n1, n2);
-        } catch(e) { console.warn('[BNS v431] lokale cleanup fout', e); }
-
-        alert('Klaar. ' + count + ' opdracht(en) in batches uit Firebase orders gewist en lokale orders opgeschoond. Sluit nu ALLE planner/telefoon tabs en open opnieuw met nieuwe cache-url.');
-        this.textContent = 'Klaar: orders gewist';
-      } catch (err) {
-        console.error(err);
-        alert('Wissen mislukt: ' + (err && err.message ? err.message : err));
-        this.disabled = false;
-        this.textContent = 'Alle Firebase opdrachten wissen';
-      }
-    };
+        var u = window[k];
+        if (!u) return;
+        vals = vals.concat(splitList(u));
+        if (typeof u === 'object') vals = vals.concat(splitList([u.id,u.uid,u.name,u.naam,u.displayName,u.pin,u.phone]));
+      } catch(e){}
+    });
+    try {
+      ['driverId','driverName','bezorgerId','bezorgerName','userId','userName','pin'].forEach(function(k){
+        var v = localStorage.getItem(k) || sessionStorage.getItem(k);
+        if (v) vals = vals.concat(splitList(v));
+      });
+    } catch(e){}
+    return unique(vals);
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(ensureButton, 500);
-    setTimeout(ensureButton, 1500);
-  });
-  setTimeout(ensureButton, 800);
-  setInterval(ensureButton, 3000);
+  window.BNS_v433_isOldArchiveOrder = isOldArchiveOrder;
+  window.BNS_v433_isInactiveForPhone = isInactiveForPhone;
+  window.BNS_v433_orderDriverValues = orderDriverValues;
 
-  console.info('[BNS v432] Firebase orders batch leegmaakknop + lokale cleanup actief.');
+  window.BNS_v433_belongsToCurrentDriver = function(order, driver){
+    if (!order || isInactiveForPhone(order)) return false;
+    var a = orderDriverValues(order).map(norm);
+    if (!a.length) return false;
+
+    var b = [];
+    if (driver) b = b.concat(splitList(driver));
+    b = b.concat(currentDriverValues());
+    b = unique(b).map(norm).filter(Boolean);
+    if (!b.length) return false;
+
+    return b.some(function(x){ return a.indexOf(x) >= 0; });
+  };
+
+  // Bestaande functie overschrijven als die globaal bestaat.
+  try {
+    window.belongsToCurrentDriver = function(order, driver){
+      return window.BNS_v433_belongsToCurrentDriver(order, driver);
+    };
+  } catch(e){}
+
+  function readCheckedDriversFromScreen(){
+    var ids = [], names = [];
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('input[type="checkbox"]'));
+    boxes.forEach(function(cb){
+      var labelText = '';
+      try {
+        var lab = cb.closest('label') || (cb.id && document.querySelector('label[for="'+cb.id+'"]'));
+        if (lab) labelText = lab.innerText || lab.textContent || '';
+        if (!labelText && cb.parentElement) labelText = cb.parentElement.innerText || cb.parentElement.textContent || '';
+      } catch(e){}
+      var looksDriver = /bezorger|driver|chauffeur|bob|marc|mandy/i.test(labelText + ' ' + cb.name + ' ' + cb.id + ' ' + cb.className);
+      if (!looksDriver) return;
+      if (cb.checked) {
+        var val = cb.value && cb.value !== 'on' ? cb.value : '';
+        if (val) ids.push(val);
+        if (labelText) names.push(labelText.replace(/\s+/g,' ').trim());
+      }
+    });
+    return { ids: unique(ids), names: unique(names) };
+  }
+
+  function normalizeOrderDrivers(order, selected){
+    if (!order || typeof order !== 'object') return order;
+    selected = selected || readCheckedDriversFromScreen();
+
+    if (!selected.ids.length && !selected.names.length) {
+      // Belangrijk: als planner de bezorger terughaalt, alle oude bezorgervelden leeg.
+      order.bezorger = '';
+      order.bezorgerId = '';
+      order.bezorgerIds = [];
+      order.bezorgerName = '';
+      order.bezorgerNames = [];
+      order.driver = '';
+      order.driverId = '';
+      order.driverIds = [];
+      order.driverName = '';
+      order.driverNames = [];
+      order.assignedDriver = '';
+      order.assignedDriverId = '';
+      order.assignedDriverIds = [];
+      order.assignedDriverName = '';
+      order.drivers = [];
+      order.driverList = [];
+      order.bezorgers = [];
+      order.driverCleared = true;
+      order.bezorgerCleared = true;
+      order.withdrawnFromDriver = true;
+    } else {
+      order.bezorgerIds = selected.ids.slice();
+      order.driverIds = selected.ids.slice();
+      order.assignedDriverIds = selected.ids.slice();
+      order.bezorgerNames = selected.names.slice();
+      order.driverNames = selected.names.slice();
+      order.bezorger = selected.names.join(', ');
+      order.driver = selected.names.join(', ');
+      order.driverName = selected.names.join(', ');
+      order.driverCleared = false;
+      order.bezorgerCleared = false;
+      order.withdrawnFromDriver = false;
+    }
+    order.updatedAt = new Date().toISOString();
+    return order;
+  }
+
+  window.BNS_v433_normalizeOrderDrivers = normalizeOrderDrivers;
+
+  // Extra veiligheid: bij klikken op Opslaan in Nieuwe opdracht de huidige state-order normaliseren.
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest && ev.target.closest('button,a');
+    if (!b) return;
+    var t = s(b.textContent).toLowerCase();
+    if (t !== 'opslaan' && t.indexOf('opslaan') < 0) return;
+
+    try {
+      var selected = readCheckedDriversFromScreen();
+      if (window.state && Array.isArray(window.state.orders)) {
+        var nrEl = document.getElementById('orderNumber') || document.getElementById('opdrachtNr') || document.querySelector('input[placeholder*="Opdr"]');
+        var nr = nrEl ? s(nrEl.value || nrEl.textContent) : '';
+        window.state.orders.forEach(function(o){
+          if (!nr || s(o.number || o.nr || o.id) === nr) normalizeOrderDrivers(o, selected);
+        });
+      }
+      if (window.currentOrder && typeof window.currentOrder === 'object') normalizeOrderDrivers(window.currentOrder, selected);
+    } catch(e) {
+      console.warn('[BNS v433] normalize bij opslaan fout', e);
+    }
+  }, true);
+
+  console.info('[BNS v433] old_ archief/bezorgerfilter actief');
 })();
 
