@@ -125,11 +125,23 @@ function userAllowed(u){
 function assignedToUser(o){
   const uid=String(BNS.user.id||""),un=lower(BNS.user.name||"");
   const ids=[];
-  [o.driverId,o.bezorgerId,o.userId].forEach(v=>{if(v!=null)ids.push(String(v))});
-  [o.driverIds,o.bezorgerIds,o.userIds].forEach(a=>{if(Array.isArray(a))a.forEach(v=>ids.push(String(v)))});
+  function addId(v){
+    String(v==null?"":v).split(/[;,|\n]+/).forEach(x=>{
+      x=String(x).trim();
+      if(x&&!ids.includes(x))ids.push(x);
+    });
+  }
+  function addName(v){
+    String(v==null?"":v).split(/[;,|\n]+/).forEach(x=>{
+      x=lower(x);
+      if(x&&!names.includes(x))names.push(x);
+    });
+  }
+  [o.driverId,o.bezorgerId,o.userId].forEach(addId);
+  [o.driverIds,o.bezorgerIds,o.userIds].forEach(a=>{if(Array.isArray(a))a.forEach(addId);else addId(a)});
   const names=[];
-  [o.driverName,o.driver,o.bezorger].forEach(v=>{if(v!=null)names.push(lower(v))});
-  [o.driverNames,o.bezorgerNames].forEach(a=>{if(Array.isArray(a))a.forEach(v=>names.push(lower(v)))});
+  [o.driverName,o.driver,o.bezorger].forEach(addName);
+  [o.driverNames,o.bezorgerNames].forEach(a=>{if(Array.isArray(a))a.forEach(addName);else addName(a)});
   if(uid&&ids.includes(uid))return true;
   if(un&&names.includes(un))return true;
   if((lower(BNS.user.role)==="planner"||lower(BNS.user.role)==="admin")&&hasRight("orders"))return true;
@@ -472,106 +484,4 @@ boot();
     findOrder = function(id){ var o=oldFind(id); if(deletedFlag(o)) return null; return o; };
     window.findOrder = findOrder;
   }catch(e){}
-})();
-
-/* =========================================================
-   BNS V207N DRIVER - melding altijd gekoppeld naar Firebase alerts + opdracht
-   Kleine fix: alleen melden/koppelen, geen layout wijziging.
-   ========================================================= */
-(function(){
-  'use strict';
-  if (window.__BNS_DRIVER_V207N_REPORT_FIX__) return;
-  window.__BNS_DRIVER_V207N_REPORT_FIX__ = true;
-
-  function clean2(v){ return String(v == null ? '' : v).trim(); }
-  function low2(v){ return clean2(v).toLowerCase(); }
-  function active2(o){ return o && !isCancelled(o) && !isDone(o) && !isDeleted(o) && dateTime(orderEnd(o)) >= todayTime(); }
-  function makeId2(){ return 'alert_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
-  function allDriverNames(o){
-    var out = [];
-    [o.driverName,o.driver,o.bezorger,o.driver_name,o.bezorgerNaam,o.assignedDriver,o.assignedTo,o.deliveryDriver].forEach(function(v){ if (v) out.push(low2(v)); });
-    [o.driverNames,o.bezorgerNames,o.drivers,o.bezorgers,o.assignedDrivers].forEach(function(arr){
-      if (Array.isArray(arr)) arr.forEach(function(v){
-        if (typeof v === 'string') out.push(low2(v));
-        else if (v && typeof v === 'object') [v.name,v.displayName,v.driverName].forEach(function(x){ if (x) out.push(low2(x)); });
-      });
-    });
-    return out.filter(Boolean);
-  }
-  function allDriverIds(o){
-    var out = [];
-    [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId,o.assignedToId,o.deliveryDriverId].forEach(function(v){ if (v != null) out.push(String(v)); });
-    [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds].forEach(function(arr){
-      if (Array.isArray(arr)) arr.forEach(function(v){
-        if (typeof v === 'string' || typeof v === 'number') out.push(String(v));
-        else if (v && typeof v === 'object') [v.id,v.userId,v.driverId].forEach(function(x){ if (x != null) out.push(String(x)); });
-      });
-    });
-    return out.filter(Boolean);
-  }
-  try {
-    var oldAssigned = assignedToUser;
-    assignedToUser = function(o){
-      try { if (oldAssigned(o)) return true; } catch(e) {}
-      if (!BNS || !BNS.user || !o) return false;
-      var uid = String(BNS.user.id || '');
-      var uname = low2(BNS.user.name || '');
-      var ids = allDriverIds(o);
-      var names = allDriverNames(o);
-      if (uid && ids.indexOf(uid) >= 0) return true;
-      if (uname && names.indexOf(uname) >= 0) return true;
-      if (low2(BNS.user.role) === 'admin' || low2(BNS.user.role) === 'planner') return true;
-      if (hasRight('orders') || hasRight('meldingen') || hasRight('reports')) return true;
-      return false;
-    };
-    window.assignedToUser = assignedToUser;
-  } catch(e) {}
-
-  window.BNS_DRIVER_SEND_REPORT_V207N = async function(order, type, extra){
-    if (!order || !order.id) { toast('Geen gekoppelde opdracht gevonden'); return; }
-    var nowIso = new Date().toISOString();
-    var item = {
-      id: makeId2(),
-      source: 'telefoon',
-      portal: 'driver',
-      orderId: order.id || '',
-      linkedOrder: order.id || '',
-      orderNumber: order.number || '',
-      linkedOrderNumber: order.number || '',
-      orderTitle: order.title || '',
-      customerName: customerName(order) || '',
-      driverName: BNS.user && BNS.user.name || '',
-      from: BNS.user && BNS.user.name || '',
-      userId: BNS.user && BNS.user.id || '',
-      title: type || 'Melding',
-      type: type || 'Melding',
-      text: extra || '',
-      note: extra || '',
-      message: extra || '',
-      resolved: false,
-      createdAt: nowIso,
-      time: new Date().toLocaleString('nl-NL')
-    };
-    await addAlert(item);
-    order.alerts = Array.isArray(order.alerts) ? order.alerts : [];
-    order.alerts.unshift(item);
-    order.hasDriverAlert = true;
-    order.lastDriverAlertAt = nowIso;
-    order.lastDriverAlertText = extra || '';
-    await updateOrder(order);
-    toast((type || 'Melding') + ' verstuurd naar planner');
-  };
-
-  try {
-    sendReport = async function(order,type){
-      var extra = '';
-      if(type === 'Schade') extra = await askText('Schade melden', 'Omschrijving schade');
-      else if(type === 'Storing') extra = await askText('Storing melden', 'Omschrijving storing');
-      else if(type === 'Vermissing') extra = await askText('Vermissing melden', 'Wat mist er?');
-      else extra = await askText('Melding voor planning', 'Melding');
-      if(!extra) return;
-      await window.BNS_DRIVER_SEND_REPORT_V207N(order, type || 'Melding', extra);
-    };
-    window.sendReport = sendReport;
-  } catch(e) {}
 })();
