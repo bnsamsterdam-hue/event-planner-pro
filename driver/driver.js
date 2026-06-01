@@ -121,9 +121,17 @@ let CURRENT_DETAIL_ID="";
 function userAllowed(u){
   const r=lower(u.role||u.type||u.functie||"");
   const rights = u.rights || {};
-  // BNS v441: telefoon-login moet ook bezorgers zonder role="bezorger" tonen.
-  // In jullie Firebase staan bezorgers vaak vooral met rechten zoals afmelden/complete.
-  return r==="bezorger"||r==="driver"||r==="planner"||r==="admin"||
+  if(!u) return false;
+  if(u.deleted===true || u.disabled===true || u.active===false) return false;
+
+  // BNS v442: telefoonnaam-lijst komt uit Admin/Firebase users.
+  // Een bezorger moet zichtbaar zijn zodra er een naam + PIN is, ook als role leeg is.
+  // Admin/planner tonen we niet als bezorger-login.
+  if(r==="admin" || r==="planner" || rights.admin===true) return false;
+
+  if(String(u.pin||"").trim() && String(u.name||"").trim()) return true;
+
+  return r==="bezorger"||r==="driver"||
     !!(rights && (
       rights.gps || rights.route || rights.waze ||
       rights.agenda ||
