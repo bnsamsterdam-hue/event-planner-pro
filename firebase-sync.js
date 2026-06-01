@@ -1,4 +1,4 @@
-/* BNS FIREBASE AUTO SYNC V2 */
+/* BNS FIREBASE AUTO SYNC V438 - v437 + strenge telefoon onSnapshot folder filter */
 (function(){
 "use strict";
 if(window.__bnsFirebaseAutoSyncV2)return; window.__bnsFirebaseAutoSyncV2=true;
@@ -75,9 +75,89 @@ function keep(local,remote,k){
   if(!remote)return;
   if((local[k]===undefined||local[k]===null||local[k]==="")&&remote[k]!==undefined&&remote[k]!==null&&remote[k]!=="")local[k]=remote[k];
 }
+function splitList(v){
+  if(v==null)return[];
+  if(Array.isArray(v)){let out=[];v.forEach(x=>out=out.concat(splitList(x)));return out;}
+  if(typeof v==="object")return [v.id,v.uid,v.name,v.naam,v.displayName].filter(Boolean);
+  return String(v).split(/[;,|\n]+/).map(x=>x.trim()).filter(Boolean);
+}
+function uniq(a){const seen={};const out=[];a.forEach(x=>{const k=String(x||"").trim().toLowerCase();if(k&&!seen[k]){seen[k]=1;out.push(String(x).trim())}});return out;}
+function folderFromStatus(st){
+  const s=String(st||"").toLowerCase();
+  if(/offerte/.test(s))return "offerte";
+  if(/optie\s*14|optie14|14 dagen|optie/.test(s))return "optie14";
+  if(/geannuleerd|annul|cancel/.test(s))return "geannuleerd";
+  if(/verwijderd|deleted|trash/.test(s))return "verwijderd";
+  if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(s))return "uitgevoerd";
+  if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|gereserveerd|actief|lopend/.test(s))return "lopend";
+  return "offerte";
+}
+function orderFolder(o){
+  const id=String(o&&(o.id||o.docId||o.orderId)||"");
+  if(id.indexOf("old_")===0||o&&o.archived===true||o&&o.archive===true)return "old";
+  const f=String(o&&(o.folder||o.map||o.orderFolder)||"").toLowerCase();
+  return f||folderFromStatus(o&&o.status);
+}
+function clearDrivers(o){
+  ["driver","driverName","driverId","assignedDriver","assignedDriverId","assignedDriverName","bezorger","bezorgerId","bezorgerName"].forEach(k=>o[k]="");
+  ["driverIds","driverNames","assignedDriverIds","bezorgerIds","bezorgerNames","drivers","bezorgers","driverList"].forEach(k=>o[k]=[]);
+  o.driverCleared=true;o.bezorgerCleared=true;o.withdrawnFromDriver=true;
+}
+function normalizeOrder(row){
+  if(!row)return row;
+  row.folder=orderFolder(row);
+  if(row.folder!=="lopend")clearDrivers(row);
+  else{
+    const ids=uniq([].concat(splitList(row.driverIds),splitList(row.bezorgerIds),splitList(row.assignedDriverIds),splitList(row.driverId),splitList(row.bezorgerId)));
+    const names=uniq([].concat(splitList(row.driverNames),splitList(row.bezorgerNames),splitList(row.driver),splitList(row.driverName),splitList(row.bezorger),splitList(row.assignedDriver)));
+    row.driverIds=ids;row.bezorgerIds=ids;row.assignedDriverIds=ids;
+    row.driverNames=names;row.bezorgerNames=names;
+    if(names.length){row.driver=names.join(", ");row.driverName=row.driver;row.bezorger=row.driver;}
+    row.driverCleared=false;row.bezorgerCleared=false;row.withdrawnFromDriver=false;
+  }
+  return row;
+}
+function isDriverDevice(){
+  try{
+    const path=String(location.pathname||"").toLowerCase();
+    const search=String(location.search||"").toLowerCase();
+    const hash=String(location.hash||"").toLowerCase();
+    if(path.indexOf('/driver')>=0||search.indexOf('driver')>=0||search.indexOf('bezorger')>=0||hash.indexOf('driver')>=0||hash.indexOf('bezorger')>=0)return true;
+  }catch(e){}
+  try{
+    const u=(window.BNS&&window.BNS.user)||window.currentUser||window.loggedInUser||window.activeUser||{};
+    const r=String(u.role||u.type||u.kind||"").toLowerCase();
+    if(/driver|bezorger|chauffeur/.test(r))return true;
+  }catch(e){}
+  try{
+    const r=String(localStorage.getItem('role')||localStorage.getItem('userRole')||localStorage.getItem('bnsRole')||sessionStorage.getItem('role')||"").toLowerCase();
+    if(/driver|bezorger|chauffeur/.test(r))return true;
+  }catch(e){}
+  return false;
+}
+function ordersCollectionRef(t){
+  const base=t.fsMod.collection(t.db,"orders");
+  // Op telefoon/bezo rger: Firebase stuurt alleen lopende opdrachten door.
+  // Planner/admin blijft alle mappen zien voor tabs/archief.
+  if(isDriverDevice())return t.fsMod.query(base,t.fsMod.where("folder","==","lopend"));
+  return base;
+}
+function liveOrdersRows(rows){
+  rows=(rows||[]).map(normalizeOrder);
+  if(isDriverDevice())rows=rows.filter(o=>String(o.folder||"").toLowerCase()==="lopend");
+  return rows;
+}
 function preserveOrder(local,remote){
-  ["driverId","bezorgerId","userId","driverName","driver","bezorger"].forEach(k=>keep(local,remote,k));
-  return local;
+  if(!local)return local;
+  normalizeOrder(local);
+  if(remote){
+    normalizeOrder(remote);
+    ["driverId","bezorgerId","userId","driverName","driver","bezorger","folder"].forEach(k=>keep(local,remote,k));
+    ["driverIds","bezorgerIds","driverNames","bezorgerNames","drivers","bezorgers","assignedDriverIds"].forEach(k=>{
+      if(Array.isArray(remote[k])&&remote[k].length>(Array.isArray(local[k])?local[k].length:0))local[k]=remote[k];
+    });
+  }
+  return normalizeOrder(local);
 }
 async function upload(reason){
   if(uploading||downloading)return;
@@ -96,6 +176,12 @@ async function upload(reason){
         if(col==="orders"){
           const rem=await remoteDoc("orders",row.id);
           preserveOrder(row,rem);
+          if(rem&&rem.updatedAt&&(!row.updatedAt||rem.updatedAt>row.updatedAt)){
+            // Firebase is nieuwer; overschrijf afgemeld/teruggehaald niet met oude lokale data.
+            Object.keys(row).forEach(k=>delete row[k]);
+            Object.assign(row,normalizeOrder(rem));
+            continue;
+          }
         }
         row.updatedAt=row.updatedAt||new Date().toISOString();
         await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row,{merge:true});
@@ -120,8 +206,9 @@ async function download(){
         if(snap.exists())s.settings=snap.data()||{};
         continue;
       }
-      const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
+      const snap=await t.fsMod.getDocs(col==="orders"?ordersCollectionRef(t):t.fsMod.collection(t.db,col));
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(col==="orders")s[col]=liveOrdersRows(s[col]);
       if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
@@ -172,10 +259,11 @@ t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
       });
       return;
     }
-t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
+t.fsMod.onSnapshot(col==="orders"?ordersCollectionRef(t):t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
       s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(col==="orders")s[col]=liveOrdersRows(s[col]);
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
@@ -235,3 +323,5 @@ window.BNS=window.BNS||{};
 window.BNS.syncDoc=syncDoc;
 window.BNS.deleteDoc=deleteDocPublic;
 })();
+
+console.info("[BNS v438 strict phone folder filter] actief");
