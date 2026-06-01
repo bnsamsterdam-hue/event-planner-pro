@@ -19497,12 +19497,16 @@ setTimeout(()=>{
     var names = [];
     var ids = [];
     function addName(v){
-      v = lower(v);
-      if (v && names.indexOf(v) < 0) names.push(v);
+      String(v == null ? "" : v).split(/[;,|\n]+/).forEach(function(part){
+        part = lower(part);
+        if (part && names.indexOf(part) < 0) names.push(part);
+      });
     }
     function addId(v){
-      v = clean(v);
-      if (v && ids.indexOf(v) < 0) ids.push(v);
+      String(v == null ? "" : v).split(/[;,|\n]+/).forEach(function(part){
+        part = clean(part);
+        if (part && ids.indexOf(part) < 0) ids.push(part);
+      });
     }
     addName(orderDriverName(order));
     addName(order.driverName);
