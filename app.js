@@ -19498,25 +19498,37 @@ setTimeout(()=>{
       v = clean(v);
       if (v && ids.indexOf(v) < 0) ids.push(v);
     }
-    addName(orderDriverName(order));
-    addName(order.driverName);
-    addName(order.driver);
-    addName(order.bezorger);
-    addName(order.bezorgerName);
+    // Splits kommalijsten zodat meerdere bezorgers elk apart matchen
+    function addNameOrList(v){
+      if(!v) return;
+      String(v).split(/[,;]/).forEach(function(part){ addName(part.trim()); });
+    }
+    addNameOrList(orderDriverName(order));
+    addNameOrList(order.driverName);
+    addNameOrList(order.driver);
+    addNameOrList(order.bezorger);
+    addNameOrList(order.bezorgerName);
     addId(order.driverId);
     addId(order.bezorgerId);
-    [order.driverNames, order.bezorgerNames, order.drivers].forEach(function(arr){
+    [order.driverNames, order.bezorgerNames, order.drivers, order.bezorgers].forEach(function(arr){
       if (!Array.isArray(arr)) return;
       arr.forEach(function(x){
-        if (typeof x === "string") addName(x);
+        if (typeof x === "string") addNameOrList(x);
         else if (x) {
-          addName(x.name);
+          addNameOrList(x.name);
+          addNameOrList(x.driverName);
+          addNameOrList(x.bezorger);
           addId(x.id);
         }
       });
     });
+    function addIdOrList(v){
+      if(!v) return;
+      String(v).split(/[,;]/).forEach(function(part){ addId(part.trim()); });
+    }
     [order.driverIds, order.bezorgerIds].forEach(function(arr){
-      if (Array.isArray(arr)) arr.forEach(addId);
+      if (Array.isArray(arr)) arr.forEach(addIdOrList);
+      else addIdOrList(arr);
     });
     if (id && ids.indexOf(id) >= 0) return true;
     if (name && names.indexOf(name) >= 0) return true;
@@ -28407,20 +28419,9 @@ setTimeout(()=>{
             if(o&&o.id) by[String(o.id)]=o;
           });
           rows.forEach(function(o){
-            var key=String(o.id);
-            var local=by[key]||{};
-            var merged=Object.assign({},local,o);
-
-            // BNS v435: bewaar meerdere bezorgers bij Firebase-download.
-            // Als remote nog oude enkelvoudige velden heeft, mogen lokale arrays niet verdwijnen.
-            ['driverIds','bezorgerIds','assignedDriverIds','assignedDrivers','phoneDriverIds',
-             'driverNames','bezorgerNames','assignedDriverNames','drivers','bezorgers'].forEach(function(k){
-              if((!Array.isArray(o[k]) || !o[k].length) && Array.isArray(local[k]) && local[k].length){
-                merged[k]=local[k].slice ? local[k].slice() : local[k];
-              }
-            });
-
-            by[key]=merged;
+            by[String(o.id)]=Object.assign({
+            },by[String(o.id)]||{
+            },o);
           });
           S().orders=Object.keys(by).map(function(k){
             return by[k];
@@ -28498,16 +28499,6 @@ setTimeout(()=>{
       i.onchange=function(){
         var ids=selectedDriverIds();
         sel.value=ids[0]||'';
-
-        // BNS v435: direct bewaren op bestaande opdracht, zonder renderAll/flikker.
-        var nr=val('orderNumber');
-        var o=findOrderByNumber(nr);
-        if(o){
-          applyDriversToOrder(o);
-          saveLocal();
-          try{ syncDoc('orders',o.id,o); }catch(e){}
-          try{ renderPhone83(); }catch(e){}
-        }
       };
     });
   }
@@ -28523,46 +28514,25 @@ setTimeout(()=>{
   function applyDriversToOrder(o){
     if(!o) return o;
     var ids=selectedDriverIds();
-
-    // BNS v435: als de checkboxen net opnieuw gerenderd zijn, behoud eerst bestaande arrays.
-    if(!ids.length) ids=driverIdsFromOrder(o);
-
-    // Alleen als er echt nog niets is, mag de oude enkelvoudige select fallback zijn.
     if(!ids.length && val('orderDriver')) ids=[val('orderDriver')];
-
-    ids=Array.from(new Set(ids.map(String).filter(Boolean)));
-
     var ds=users().filter(function(u){
       return ids.indexOf(String(u.id))>=0 || ids.indexOf(String(u.name))>=0;
     });
     var names=ds.map(driverName).filter(Boolean);
-
     o.driverIds=ds.map(function(u){
       return String(u.id);
     });
     o.bezorgerIds=o.driverIds.slice();
-    o.assignedDriverIds=o.driverIds.slice();
-    o.assignedDrivers=o.driverIds.slice();
-    o.phoneDriverIds=o.driverIds.slice();
-
     o.driverNames=names;
     o.bezorgerNames=names;
-    o.assignedDriverNames=names;
-
     o.drivers=ds.map(function(u){
       return {
         id:u.id,name:u.name,role:u.role
       };
     });
-    o.bezorgers=o.drivers.slice();
-
     o.driver=names.join(', ');
     o.driverName=names.join(', ');
     o.bezorger=names.join(', ');
-    o.assignedDriver=names.join(', ');
-    o.phoneSent=o.driverIds.length>0;
-    o.sentToPhone=o.driverIds.length>0;
-    o.updatedAt=new Date().toISOString();
     return o;
   }
   function findOrderByNumber(nr){
@@ -42694,10 +42664,10 @@ setTimeout(()=>{
 })();
 
 
-/* BNS v430 - documenten schoon: knoppen laten staan, admin huisstijl leidend, statuskop correct */
+/* BNS v429 - documenten schoon: knoppen laten staan, admin huisstijl leidend, statuskop correct */
 (function(){
-  if(window.__BNS_V430_DOCS_CLEAN__) return;
-  window.__BNS_V430_DOCS_CLEAN__ = true;
+  if(window.__BNS_V429_DOCS_CLEAN__) return;
+  window.__BNS_V429_DOCS_CLEAN__ = true;
 
   var STYLE_KEY = 'bns_huisstijl_v361';
 
@@ -43053,11 +43023,11 @@ setTimeout(()=>{
       (!fact?'<tr><td class="label">Referentie:</td><td>'+H(o.reference||'')+'</td></tr><tr><td class="label">Merk:</td><td>'+H(o.brand||'')+'</td></tr>':'')+
       '<tr><td class="label">Bijzonderheden:</td><td>'+H(o.extra||'')+'</td></tr><tr><td class="label center">Contact:</td><td>'+H(c.contact||c.name||'')+' '+H(c.phone||'')+'</td></tr></table></div>'+locBlock+
       '<div class="section-title">Omschrijving:</div><table class="items"><thead><tr><th>Aantal:</th><th>Item:</th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table>'+
-      '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(tt.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;21%</td><td>'+H(money(tt.btw))+'</td></tr><tr class="strong"><td>Totaal incl. BTW:</td><td>'+H(money(tt.total))+'</td></tr><tr><td>Borg:</td><td>'+H(money(tt.dep))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div>';
+      '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(tt.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;21%</td><td>'+H(money(tt.btw))+'</td></tr><tr class="strong"><td>Totaal:</td><td>'+H(money(tt.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div>';
     if(fact){
       doc+='<div class="footer" style="margin-top:12mm">'+H(footer||'')+'</div><div class="page-num">Pagina 1 van 1</div></div>';
     }else{
-      doc+='<div class="page-num">Pagina 1 van 2</div></div><div class="page"><div class="terms">'+H(footer||'')+'</div><div class="page-num">Pagina 2 van 2</div></div>';
+      doc+='<div class="page-num">Pagina 1 van 2</div></div><div class="page"><div class="totals"><table><tr class="strong"><td>Totaal:</td><td>'+H(money(tt.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div><div class="terms">'+H(footer||'')+'</div><div class="page-num">Pagina 2 van 2</div></div>';
     }
     return doc+'</body></html>';
   }
@@ -43097,58 +43067,6 @@ setTimeout(()=>{
   setInterval(enhanceAdmin, 800);
   setTimeout(enhanceAdmin, 200);
   setTimeout(enhanceAdmin, 1200);
-  console.info('[BNS v430] Borgregel + dubbel totaal fix actief.');
-})();
-
-
-/* =========================================================
-   BNS v435 - laatste borging meerdere bezorgers + Routenet stil
-   - V83 blijft leidend.
-   - Geen tweede bezorger-systeem.
-   - Geen renderAll bij bezorger aanvinken.
-   - Alleen Routenet rustig verbergen.
-   ========================================================= */
-(function bnsV435LaatsteBorging(){
-  "use strict";
-  if(window.__bnsV435LaatsteBorging) return;
-  window.__bnsV435LaatsteBorging = true;
-
-  function L(v){ return String(v==null?'':v).toLowerCase(); }
-  function A(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
-
-  if(!document.getElementById("bnsV435RouteHideCss")){
-    var style=document.createElement("style");
-    style.id="bnsV435RouteHideCss";
-    style.textContent=".routenet,.routenet-box,[class*='routenet' i],[id*='routenet' i]{display:none!important}";
-    document.head.appendChild(style);
-  }
-
-  function hideRoutenet(){
-    A("button,a,.btn,[role='button']").forEach(function(el){
-      var s=L((el.innerText||el.textContent||'')+' '+(el.id||'')+' '+(el.className||'')+' '+(el.getAttribute('href')||''));
-      if(s.indexOf("routenet")>=0){
-        el.style.setProperty("display","none","important");
-        el.setAttribute("aria-hidden","true");
-      }
-    });
-  }
-
-  document.addEventListener("click",function(ev){
-    var el=ev.target && ev.target.closest ? ev.target.closest("button,a,.btn,[role='button']") : null;
-    if(!el) return;
-    var s=L((el.innerText||el.textContent||'')+' '+(el.id||'')+' '+(el.className||'')+' '+(el.getAttribute('href')||''));
-    if(s.indexOf("routenet")>=0){
-      ev.preventDefault();
-      ev.stopPropagation();
-      if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      el.style.setProperty("display","none","important");
-      return false;
-    }
-  },true);
-
-  setTimeout(hideRoutenet,300);
-  setTimeout(hideRoutenet,1500);
-
-  console.info("[BNS v435] V83 meerdere bezorgers schoon geborgd. Firebase merge bewaart arrays.");
+  console.info('[BNS v429] Mailto syntax fix actief.');
 })();
 

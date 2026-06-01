@@ -1,4 +1,4 @@
-/* BNS FIREBASE AUTO SYNC V2 */
+/* BNS FIREBASE AUTO SYNC V3 - bezorger arrays + remote nieuwer wint */
 (function(){
 "use strict";
 if(window.__bnsFirebaseAutoSyncV2)return; window.__bnsFirebaseAutoSyncV2=true;
@@ -103,10 +103,13 @@ async function upload(reason){
         if(col==="orders"){
           const rem=await remoteDoc("orders",row.id);
           preserveOrder(row,rem);
-          // Niet overschrijven als remote nieuwer is (bv bezorger heeft afgemeld)
+          // Veiligheid: als Firebase nieuwer is, NIET terugschrijven vanuit oude lokale data.
+          // Dit voorkomt dat een afgemelde/afgeronde telefoon-opdracht later weer actief terugkomt.
           if(rem&&rem.updatedAt&&(!row.updatedAt||rem.updatedAt>row.updatedAt)){
-            const keepFields=["status","phoneDone","afgemeld","completed","doneAt","doneBy"];
-            keepFields.forEach(k=>{if(rem[k]!==undefined)row[k]=rem[k];});
+            preserveOrder(rem,row);
+            Object.keys(row).forEach(k=>delete row[k]);
+            Object.assign(row,rem);
+            continue;
           }
         }
         row.updatedAt=row.updatedAt||new Date().toISOString();
