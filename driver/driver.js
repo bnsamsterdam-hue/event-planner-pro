@@ -123,13 +123,20 @@ function userAllowed(u){
   return r==="bezorger"||r==="planner"||r==="admin"||!!(u.rights&&(u.rights.gps||u.rights.agenda||u.rights.resolve||u.rights.orders||u.rights.damage||u.rights.schade||u.rights.storing||u.rights.materials||u.rights.prices));
 }
 function assignedToUser(o){
+  function folderFromStatus(st){const s=lower(st||""); if(/offerte/.test(s))return "offerte"; if(/optie|14/.test(s))return "optie14"; if(/geann|annul|cancel/.test(s))return "geannuleerd"; if(/verwijderd|deleted|trash/.test(s))return "verwijderd"; if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return "uitgevoerd"; if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return "lopend"; return "offerte";}
+  function folder(o){const id=String((o&&(o.id||o.docId||o.orderId))||""); if(id.indexOf("old_")===0)return "old"; return lower((o&&(o.folder||o.map||o.orderFolder))||"")||folderFromStatus(o&&o.status);}
+  if(!o||folder(o)!=="lopend")return false;
+  if(isCancelled(o)||isDone(o)||isDeleted(o)||o.afgemeld===true||o.phoneDone===true||o.completed===true)return false;
   const uid=String(BNS.user.id||""),un=lower(BNS.user.name||"");
-  const ids=[];
-  [o.driverId,o.bezorgerId,o.userId].forEach(v=>{if(v!=null)ids.push(String(v))});
-  [o.driverIds,o.bezorgerIds,o.userIds].forEach(a=>{if(Array.isArray(a))a.forEach(v=>ids.push(String(v)))});
-  const names=[];
-  [o.driverName,o.driver,o.bezorger].forEach(v=>{if(v!=null)names.push(lower(v))});
-  [o.driverNames,o.bezorgerNames].forEach(a=>{if(Array.isArray(a))a.forEach(v=>names.push(lower(v)))});
+  const ids=[]; const names=[];
+  function addId(v){String(v==null?"":v).split(/[;,|
+]+/).forEach(x=>{x=String(x).trim();if(x&&!ids.includes(x))ids.push(x)})}
+  function addName(v){String(v==null?"":v).split(/[;,|
+]+/).forEach(x=>{x=lower(x);if(x&&!names.includes(x))names.push(x)})}
+  [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId].forEach(addId);
+  [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds].forEach(a=>{if(Array.isArray(a))a.forEach(addId);else addId(a)});
+  [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver].forEach(addName);
+  [o.driverNames,o.bezorgerNames].forEach(a=>{if(Array.isArray(a))a.forEach(addName);else addName(a)});
   if(uid&&ids.includes(uid))return true;
   if(un&&names.includes(un))return true;
   if((lower(BNS.user.role)==="planner"||lower(BNS.user.role)==="admin")&&hasRight("orders"))return true;

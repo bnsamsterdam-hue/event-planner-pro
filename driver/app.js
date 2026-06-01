@@ -7976,6 +7976,7 @@ setInterval(install,1500);
   }
 
   function belongsToCurrentDriver(order) {
+    if (window.BNS_orderIsLiveForPhone && !window.BNS_orderIsLiveForPhone(order)) return false;
     var u = currentUser();
     if (!u) return false;
 
@@ -7984,8 +7985,18 @@ setInterval(install,1500);
     var names = [];
     var ids = [];
 
-    function addName(v){ v = lower(v); if (v && names.indexOf(v) < 0) names.push(v); }
-    function addId(v){ v = clean(v); if (v && ids.indexOf(v) < 0) ids.push(v); }
+    function addName(v){
+      String(v == null ? '' : v).split(/[;,|\n]+/).forEach(function(part){
+        part = lower(part);
+        if (part && names.indexOf(part) < 0) names.push(part);
+      });
+    }
+    function addId(v){
+      String(v == null ? '' : v).split(/[;,|\n]+/).forEach(function(part){
+        part = clean(part);
+        if (part && ids.indexOf(part) < 0) ids.push(part);
+      });
+    }
 
     addName(orderDriverName(order));
     addName(order.driverName); addName(order.driver); addName(order.bezorger); addName(order.bezorgerName);
@@ -14320,4 +14331,16 @@ setInterval(install,1500);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(install,250); }); else setTimeout(install,150);
   setTimeout(install,1200); setTimeout(install,3000);
+})();
+
+
+/* BNS v437 driver helpers */
+(function(){
+  if(window.__BNS_V437_DRIVER_HELPERS__) return; window.__BNS_V437_DRIVER_HELPERS__=true;
+  function T(v){return String(v==null?'':v).trim();} function L(v){return T(v).toLowerCase();}
+  function split(v){ if(v==null)return[]; if(Array.isArray(v)){var o=[];v.forEach(function(x){o=o.concat(split(x));});return o;} if(typeof v==='object')return [v.id,v.uid,v.name,v.naam,v.displayName].filter(Boolean); return String(v).split(/[;,|\n]+/).map(function(x){return x.trim();}).filter(Boolean); }
+  function folderFromStatus(st){var s=L(st); if(/offerte/.test(s))return'offerte'; if(/optie|14/.test(s))return'optie14'; if(/geann|annul|cancel/.test(s))return'geannuleerd'; if(/verwijderd|deleted|trash/.test(s))return'verwijderd'; if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return'uitgevoerd'; if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return'lopend'; return'offerte';}
+  window.BNS_orderFolder=window.BNS_orderFolder||function(o){var id=T(o&&(o.id||o.docId||o.orderId)); if(id.indexOf('old_')===0)return'old'; var f=L(o&&(o.folder||o.map||o.orderFolder)); return f||folderFromStatus(o&&o.status);};
+  window.BNS_orderDriverValues=window.BNS_orderDriverValues||function(o){var vals=[]; ['driver','driverName','driverId','driverIds','driverNames','assignedDriver','bezorger','bezorgerId','bezorgerIds','bezorgerNames','drivers','bezorgers'].forEach(function(k){vals=vals.concat(split(o&&o[k]));}); return vals.filter(Boolean);};
+  window.BNS_orderIsLiveForPhone=window.BNS_orderIsLiveForPhone||function(o){ if(!o||window.BNS_orderFolder(o)!=='lopend')return false; var s=L(o.status); if(/geann|annul|verwijderd|deleted|uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return false; if(o.deleted===true||o.completed===true||o.afgemeld===true||o.phoneDone===true)return false; return window.BNS_orderDriverValues(o).length>0;};
 })();
