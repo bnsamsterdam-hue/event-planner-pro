@@ -42652,10 +42652,10 @@ setTimeout(()=>{
 })();
 
 
-/* BNS v429 - documenten schoon: knoppen laten staan, admin huisstijl leidend, statuskop correct */
+/* BNS v430 - documenten schoon: knoppen laten staan, admin huisstijl leidend, statuskop correct */
 (function(){
-  if(window.__BNS_V429_DOCS_CLEAN__) return;
-  window.__BNS_V429_DOCS_CLEAN__ = true;
+  if(window.__BNS_V430_DOCS_CLEAN__) return;
+  window.__BNS_V430_DOCS_CLEAN__ = true;
 
   var STYLE_KEY = 'bns_huisstijl_v361';
 
@@ -43011,11 +43011,11 @@ setTimeout(()=>{
       (!fact?'<tr><td class="label">Referentie:</td><td>'+H(o.reference||'')+'</td></tr><tr><td class="label">Merk:</td><td>'+H(o.brand||'')+'</td></tr>':'')+
       '<tr><td class="label">Bijzonderheden:</td><td>'+H(o.extra||'')+'</td></tr><tr><td class="label center">Contact:</td><td>'+H(c.contact||c.name||'')+' '+H(c.phone||'')+'</td></tr></table></div>'+locBlock+
       '<div class="section-title">Omschrijving:</div><table class="items"><thead><tr><th>Aantal:</th><th>Item:</th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table>'+
-      '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(tt.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;21%</td><td>'+H(money(tt.btw))+'</td></tr><tr class="strong"><td>Totaal:</td><td>'+H(money(tt.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div>';
+      '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(tt.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;21%</td><td>'+H(money(tt.btw))+'</td></tr><tr class="strong"><td>Totaal incl. BTW:</td><td>'+H(money(tt.total))+'</td></tr><tr><td>Borg:</td><td>'+H(money(tt.dep))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div>';
     if(fact){
       doc+='<div class="footer" style="margin-top:12mm">'+H(footer||'')+'</div><div class="page-num">Pagina 1 van 1</div></div>';
     }else{
-      doc+='<div class="page-num">Pagina 1 van 2</div></div><div class="page"><div class="totals"><table><tr class="strong"><td>Totaal:</td><td>'+H(money(tt.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div><div class="terms">'+H(footer||'')+'</div><div class="page-num">Pagina 2 van 2</div></div>';
+      doc+='<div class="page-num">Pagina 1 van 2</div></div><div class="page"><div class="terms">'+H(footer||'')+'</div><div class="page-num">Pagina 2 van 2</div></div>';
     }
     return doc+'</body></html>';
   }
@@ -43055,6 +43055,6 @@ setTimeout(()=>{
   setInterval(enhanceAdmin, 800);
   setTimeout(enhanceAdmin, 200);
   setTimeout(enhanceAdmin, 1200);
-  console.info('[BNS v429] Mailto syntax fix actief.');
+  console.info('[BNS v430] Borgregel + dubbel totaal fix actief.');
 })();
 
