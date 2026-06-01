@@ -125,23 +125,11 @@ function userAllowed(u){
 function assignedToUser(o){
   const uid=String(BNS.user.id||""),un=lower(BNS.user.name||"");
   const ids=[];
-  function addId(v){
-    String(v==null?"":v).split(/[;,|\n]+/).forEach(x=>{
-      x=String(x).trim();
-      if(x&&!ids.includes(x))ids.push(x);
-    });
-  }
-  function addName(v){
-    String(v==null?"":v).split(/[;,|\n]+/).forEach(x=>{
-      x=lower(x);
-      if(x&&!names.includes(x))names.push(x);
-    });
-  }
-  [o.driverId,o.bezorgerId,o.userId].forEach(addId);
-  [o.driverIds,o.bezorgerIds,o.userIds].forEach(a=>{if(Array.isArray(a))a.forEach(addId);else addId(a)});
+  [o.driverId,o.bezorgerId,o.userId].forEach(v=>{if(v!=null)ids.push(String(v))});
+  [o.driverIds,o.bezorgerIds,o.userIds].forEach(a=>{if(Array.isArray(a))a.forEach(v=>ids.push(String(v)))});
   const names=[];
-  [o.driverName,o.driver,o.bezorger].forEach(addName);
-  [o.driverNames,o.bezorgerNames].forEach(a=>{if(Array.isArray(a))a.forEach(addName);else addName(a)});
+  [o.driverName,o.driver,o.bezorger].forEach(v=>{if(v!=null)names.push(lower(v))});
+  [o.driverNames,o.bezorgerNames].forEach(a=>{if(Array.isArray(a))a.forEach(v=>names.push(lower(v)))});
   if(uid&&ids.includes(uid))return true;
   if(un&&names.includes(un))return true;
   if((lower(BNS.user.role)==="planner"||lower(BNS.user.role)==="admin")&&hasRight("orders"))return true;

@@ -7984,18 +7984,8 @@ setInterval(install,1500);
     var names = [];
     var ids = [];
 
-    function addName(v){
-      String(v == null ? "" : v).split(/[;,|\n]+/).forEach(function(part){
-        part = lower(part);
-        if (part && names.indexOf(part) < 0) names.push(part);
-      });
-    }
-    function addId(v){
-      String(v == null ? "" : v).split(/[;,|\n]+/).forEach(function(part){
-        part = clean(part);
-        if (part && ids.indexOf(part) < 0) ids.push(part);
-      });
-    }
+    function addName(v){ v = lower(v); if (v && names.indexOf(v) < 0) names.push(v); }
+    function addId(v){ v = clean(v); if (v && ids.indexOf(v) < 0) ids.push(v); }
 
     addName(orderDriverName(order));
     addName(order.driverName); addName(order.driver); addName(order.bezorger); addName(order.bezorgerName);
