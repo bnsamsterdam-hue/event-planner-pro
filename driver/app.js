@@ -12419,18 +12419,14 @@ setInterval(install,1500);
   }
   function ensureDriverChooser(){
     var sel=E('orderDriver'); if(!sel) return;
+    var oldVal=sel.value;
     var box=E('bnsV83DriverBox'); if(!box){ box=document.createElement('div'); box.id='bnsV83DriverBox'; sel.insertAdjacentElement('afterend',box); }
-
-    // BNS v442: vinkjes komen alleen uit de huidige bestaande opdracht.
-    // Nieuwe opdracht = leeg, dus geen bezorgers blijven hangen van vorige opdracht.
-    var nr=''; try{ var nrEl=E('orderNumber')||E('opdrachtNr')||E('orderNr')||E('orderNo'); if(nrEl) nr=T(nrEl.value||nrEl.textContent||''); }catch(e){}
-    var current = nr ? findOrderByNumber(nr) : null;
-    var selected = current ? driverIdsFromOrder(current).map(String) : [];
-
+    var selected=selectedDriverIds();
+    if(!selected.length && oldVal){ var u=driverUsers().find(function(x){ return String(x.id)===String(oldVal) || x.name===oldVal; }); if(u) selected=[String(u.id)]; }
     var ds=driverUsers();
     box.innerHTML='<h4>Bezorgers voor deze opdracht</h4><div class="grid">'+(ds.length?ds.map(function(u){return '<label><input type="checkbox" value="'+H(u.id)+'" '+(selected.indexOf(String(u.id))>=0?'checked':'')+'> <span>'+H(u.name||'')+'</span></label>';}).join(''):'<small>Geen bezorgers aangemaakt.</small>')+'</div>';
     sel.innerHTML='<option value="">Geen</option>'+ds.map(function(u){return '<option value="'+H(u.id)+'">'+H(u.name||'')+'</option>';}).join('');
-    sel.value=selected[0]||'';
+    if(selected[0]) sel.value=selected[0];
     A('input',box).forEach(function(i){ i.onchange=function(){ var ids=selectedDriverIds(); sel.value=ids[0]||''; }; });
   }
   function setSelectedDrivers(ids){ ensureDriverChooser(); ids=(ids||[]).map(String); A('#bnsV83DriverBox input[type=checkbox]').forEach(function(i){ i.checked=ids.indexOf(String(i.value))>=0; }); var sel=E('orderDriver'); if(sel) sel.value=ids[0]||''; }
@@ -14348,3 +14344,73 @@ setInterval(install,1500);
   window.BNS_orderDriverValues=window.BNS_orderDriverValues||function(o){var vals=[]; ['driver','driverName','driverId','driverIds','driverNames','assignedDriver','bezorger','bezorgerId','bezorgerIds','bezorgerNames','drivers','bezorgers'].forEach(function(k){vals=vals.concat(split(o&&o[k]));}); return vals.filter(Boolean);};
   window.BNS_orderIsLiveForPhone=window.BNS_orderIsLiveForPhone||function(o){ if(!o||window.BNS_orderFolder(o)!=='lopend')return false; var s=L(o.status); if(/geann|annul|verwijderd|deleted|uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return false; if(o.deleted===true||o.completed===true||o.afgemeld===true||o.phoneDone===true)return false; return window.BNS_orderDriverValues(o).length>0;};
 })();
+
+
+
+/* BNS v445 - nieuwe opdracht: bezorgers niet automatisch aangevinkt */
+(function(){
+  if(window.__BNS_V445_DRIVER_CHECKBOX_RESET__) return;
+  window.__BNS_V445_DRIVER_CHECKBOX_RESET__ = true;
+
+  function txt(v){ return String(v == null ? '' : v).trim(); }
+  function isNewOrderScreen(){
+    var body = String(document.body && document.body.innerText || '').toLowerCase();
+    return body.indexOf('nieuwe opdracht') >= 0;
+  }
+  function currentOrderNumber(){
+    var ids = ['orderNumber','opdrachtNr','orderNr','orderNo'];
+    for(var i=0;i<ids.length;i++){
+      var el=document.getElementById(ids[i]);
+      if(el) return txt(el.value || el.textContent);
+    }
+    var maybe = document.querySelector('input[readonly], .order-number, .opdracht-nr');
+    return maybe ? txt(maybe.value || maybe.textContent) : '';
+  }
+  function orderExists(nr){
+    if(!nr) return false;
+    try{
+      var arr = (window.state && Array.isArray(window.state.orders)) ? window.state.orders : [];
+      return arr.some(function(o){
+        return txt(o.id)===nr || txt(o.nr)===nr || txt(o.number)===nr || txt(o.orderNo)===nr;
+      });
+    }catch(e){ return false; }
+  }
+  function isDriverCheckbox(cb){
+    if(!cb || cb.type !== 'checkbox') return false;
+    var near = '';
+    try{
+      var lab = cb.closest('label') || (cb.id && document.querySelector('label[for="'+cb.id+'"]'));
+      near = (lab && (lab.innerText || lab.textContent)) || (cb.parentElement && (cb.parentElement.innerText || cb.parentElement.textContent)) || '';
+    }catch(e){}
+    var meta = String(cb.name+' '+cb.id+' '+cb.className+' '+near).toLowerCase();
+    return meta.indexOf('bezorger')>=0 || meta.indexOf('driver')>=0 || meta.indexOf('chauffeur')>=0 ||
+           meta.indexOf('bob')>=0 || meta.indexOf('marc')>=0;
+  }
+  function resetIfNew(){
+    if(!isNewOrderScreen()) return;
+    var nr = currentOrderNumber();
+    // Alleen resetten als het ordernummer nog niet als bestaande opdracht bekend is.
+    if(orderExists(nr)) return;
+
+    Array.prototype.slice.call(document.querySelectorAll('input[type="checkbox"]')).forEach(function(cb){
+      if(isDriverCheckbox(cb)) cb.checked = false;
+    });
+
+    var sel = document.getElementById('orderDriver');
+    if(sel) sel.value = '';
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(resetIfNew, 300);
+    setTimeout(resetIfNew, 1000);
+  });
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest && e.target.closest('button,a');
+    if(!b) return;
+    var t = String(b.textContent||'').toLowerCase();
+    if(t.indexOf('nieuwe opdracht')>=0 || t.indexOf('nieuw')>=0) setTimeout(resetIfNew, 300);
+  }, true);
+  setInterval(resetIfNew, 1500);
+  console.info('[BNS v445] bezorger-vink reset actief.');
+})();
+

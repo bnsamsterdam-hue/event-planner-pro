@@ -119,27 +119,8 @@ const LOCKED_USER_KEY="tapwagen_driver_locked_user_id";
 let CURRENT_DETAIL_ID="";
 
 function userAllowed(u){
-  const r=lower(u.role||u.type||u.functie||"");
-  const rights = u.rights || {};
-  if(!u) return false;
-  if(u.deleted===true || u.disabled===true || u.active===false) return false;
-
-  // BNS v442: telefoonnaam-lijst komt uit Admin/Firebase users.
-  // Een bezorger moet zichtbaar zijn zodra er een naam + PIN is, ook als role leeg is.
-  // Admin/planner tonen we niet als bezorger-login.
-  if(r==="admin" || r==="planner" || rights.admin===true) return false;
-
-  if(String(u.pin||"").trim() && String(u.name||"").trim()) return true;
-
-  return r==="bezorger"||r==="driver"||
-    !!(rights && (
-      rights.gps || rights.route || rights.waze ||
-      rights.agenda ||
-      rights.resolve || rights.orders ||
-      rights.afmelden || rights.afmeldenMelding || rights.complete || rights.done || rights.uitgevoerd ||
-      rights.damage || rights.schade || rights.storing ||
-      rights.materials || rights.materialen || rights.prices || rights.prijzen
-    ));
+  const r=lower(u.role);
+  return r==="bezorger"||r==="planner"||r==="admin"||!!(u.rights&&(u.rights.gps||u.rights.agenda||u.rights.resolve||u.rights.orders||u.rights.damage||u.rights.schade||u.rights.storing||u.rights.materials||u.rights.prices));
 }
 function assignedToUser(o){
   function folderFromStatus(st){const s=lower(st||""); if(/offerte/.test(s))return "offerte"; if(/optie|14/.test(s))return "optie14"; if(/geann|annul|cancel/.test(s))return "geannuleerd"; if(/verwijderd|deleted|trash/.test(s))return "verwijderd"; if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return "uitgevoerd"; if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return "lopend"; return "offerte";}
@@ -499,3 +480,112 @@ boot();
     window.findOrder = findOrder;
   }catch(e){}
 })();
+
+
+
+/* BNS v445 - herstel ontbrekende renderLogin voor telefoon */
+function renderLogin(){
+  try{
+    var root =
+      document.getElementById('app') ||
+      document.getElementById('root') ||
+      document.querySelector('main') ||
+      document.body;
+
+    function esc(v){
+      return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+    function lower(v){ return String(v == null ? '' : v).trim().toLowerCase(); }
+
+    var users = [];
+    try{
+      if (window.BNS && Array.isArray(window.BNS.users)) users = window.BNS.users;
+      else if (Array.isArray(window.users)) users = window.users;
+      else if (window.state && Array.isArray(window.state.users)) users = window.state.users;
+      else {
+        try {
+          var raw = localStorage.getItem('bns_users') || localStorage.getItem('users');
+          if (raw) users = JSON.parse(raw);
+        } catch(e){}
+      }
+    }catch(e){}
+
+    function allowed(u){
+      if(!u) return false;
+      if(u.deleted===true || u.disabled===true || u.active===false) return false;
+      var id = lower(u.id || u.uid || '');
+      var name = lower(u.name || u.naam || u.displayName || '');
+      var role = lower(u.role || u.type || u.functie || '');
+      var rights = u.rights || {};
+      if(id==='u_admin' || id==='u_planner' || name==='admin' || name==='planner') return false;
+      if(String(u.pin||'').trim() && String(u.name||u.naam||u.displayName||'').trim()) return true;
+      return role==='bezorger' || role==='driver' ||
+        !!(rights.afmelden || rights.afmeldenMelding || rights.complete || rights.done ||
+           rights.uitgevoerd || rights.bellen || rights.callCustomer || rights.customerSignature ||
+           rights.schade || rights.damage || rights.storing || rights.gps || rights.route || rights.waze);
+    }
+
+    users = users.filter(allowed);
+
+    var savedName = '';
+    try{ savedName = localStorage.getItem('bns_driver_name') || localStorage.getItem('driverName') || ''; }catch(e){}
+
+    root.innerHTML =
+      '<div class="login-card" style="max-width:720px;margin:24px auto;padding:22px;border-radius:18px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.08)">' +
+        '<h1>Inloggen</h1>' +
+        '<p>Kies je naam en vul je PIN in.</p>' +
+        '<label><b>Naam</b></label>' +
+        '<select id="driverLoginName" style="width:100%;padding:14px;margin:8px 0 18px;border-radius:14px;border:1px solid #cbd5e1">' +
+          '<option value="">Kies naam</option>' +
+          users.map(function(u){
+            var nm = String(u.name || u.naam || u.displayName || '');
+            var sel = savedName && lower(savedName)===lower(nm) ? ' selected' : '';
+            return '<option value="'+esc(u.id || u.uid || nm)+'"'+sel+'>'+esc(nm)+'</option>';
+          }).join('') +
+        '</select>' +
+        '<label><b>PIN</b></label>' +
+        '<input id="driverLoginPin" type="password" inputmode="numeric" placeholder="PIN" style="width:100%;padding:14px;margin:8px 0 18px;border-radius:14px;border:1px solid #cbd5e1">' +
+        '<button id="driverLoginBtn" type="button" style="width:100%;padding:14px;border:0;border-radius:14px;background:#0b63ce;color:#fff;font-weight:900">Inloggen</button>' +
+        '<div id="driverLoginMsg" style="margin-top:12px;color:#b91c1c;font-weight:700"></div>' +
+      '</div>';
+
+    var btn = document.getElementById('driverLoginBtn');
+    if(btn){
+      btn.onclick = function(){
+        var sel = document.getElementById('driverLoginName');
+        var pin = String((document.getElementById('driverLoginPin')||{}).value || '').trim();
+        var val = sel ? sel.value : '';
+        var u = users.find(function(x){
+          return String(x.id||x.uid||x.name||x.naam||x.displayName) === String(val);
+        });
+        if(!u || String(u.pin||'').trim() !== pin){
+          var m=document.getElementById('driverLoginMsg');
+          if(m) m.textContent='Naam of PIN klopt niet.';
+          return;
+        }
+
+        try{
+          localStorage.setItem('bns_driver_id', String(u.id || u.uid || ''));
+          localStorage.setItem('bns_driver_name', String(u.name || u.naam || u.displayName || ''));
+          localStorage.setItem('driverId', String(u.id || u.uid || ''));
+          localStorage.setItem('driverName', String(u.name || u.naam || u.displayName || ''));
+        }catch(e){}
+
+        window.currentUser = u;
+        window.loggedInUser = u;
+        window.currentDriver = u;
+        if(window.BNS) window.BNS.user = u;
+
+        if(typeof renderOrders === 'function') renderOrders();
+        else if(typeof renderApp === 'function') renderApp();
+        else location.reload();
+      };
+    }
+  }catch(err){
+    console.error('[BNS v445] renderLogin fout', err);
+  }
+}
+console.info('[BNS v445] renderLogin fallback geladen.');
+
