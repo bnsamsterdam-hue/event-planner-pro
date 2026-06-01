@@ -119,8 +119,19 @@ const LOCKED_USER_KEY="tapwagen_driver_locked_user_id";
 let CURRENT_DETAIL_ID="";
 
 function userAllowed(u){
-  const r=lower(u.role);
-  return r==="bezorger"||r==="planner"||r==="admin"||!!(u.rights&&(u.rights.gps||u.rights.agenda||u.rights.resolve||u.rights.orders||u.rights.damage||u.rights.schade||u.rights.storing||u.rights.materials||u.rights.prices));
+  const r=lower(u.role||u.type||u.functie||"");
+  const rights = u.rights || {};
+  // BNS v441: telefoon-login moet ook bezorgers zonder role="bezorger" tonen.
+  // In jullie Firebase staan bezorgers vaak vooral met rechten zoals afmelden/complete.
+  return r==="bezorger"||r==="driver"||r==="planner"||r==="admin"||
+    !!(rights && (
+      rights.gps || rights.route || rights.waze ||
+      rights.agenda ||
+      rights.resolve || rights.orders ||
+      rights.afmelden || rights.afmeldenMelding || rights.complete || rights.done || rights.uitgevoerd ||
+      rights.damage || rights.schade || rights.storing ||
+      rights.materials || rights.materialen || rights.prices || rights.prijzen
+    ));
 }
 function assignedToUser(o){
   function folderFromStatus(st){const s=lower(st||""); if(/offerte/.test(s))return "offerte"; if(/optie|14/.test(s))return "optie14"; if(/geann|annul|cancel/.test(s))return "geannuleerd"; if(/verwijderd|deleted|trash/.test(s))return "verwijderd"; if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return "uitgevoerd"; if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return "lopend"; return "offerte";}
