@@ -43070,3 +43070,104 @@ setTimeout(()=>{
   console.info('[BNS v429] Mailto syntax fix actief.');
 })();
 
+
+/* BNS v430 - tijdelijke Firebase orders leegmaakknop */
+(function(){
+  if (window.__BNS_V430_ORDERS_CLEAR_BUTTON__) return;
+  window.__BNS_V430_ORDERS_CLEAR_BUTTON__ = true;
+
+  function isAdminView(){
+    var txt = String(document.body && document.body.innerText || '').toLowerCase();
+    return txt.indexOf('admin') >= 0 || txt.indexOf('opruimen') >= 0 || txt.indexOf('data') >= 0;
+  }
+
+  function ensureButton(){
+    if (document.getElementById('bnsClearAllOrdersFirebaseBtn')) return;
+    if (!isAdminView()) return;
+
+    var target =
+      document.getElementById('adminArea') ||
+      document.querySelector('.adminArea') ||
+      document.querySelector('main') ||
+      document.body;
+
+    var box = document.createElement('div');
+    box.id = 'bnsClearAllOrdersFirebaseBox';
+    box.style.cssText = 'margin:16px 0;padding:14px;border:2px solid #dc2626;border-radius:14px;background:#fff7f7;color:#111;';
+    box.innerHTML =
+      '<h3 style="margin:0 0 8px;color:#991b1b">Tijdelijk: Firebase opdrachten leegmaken</h3>' +
+      '<p style="margin:0 0 10px">Deze knop wist alleen de collectie <b>orders</b> uit Firebase. Materialen, klanten, locaties, gebruikers en instellingen blijven staan.</p>' +
+      '<button id="bnsClearAllOrdersFirebaseBtn" type="button" style="background:#dc2626;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:900">Alle Firebase opdrachten wissen</button>';
+
+    target.appendChild(box);
+
+    document.getElementById('bnsClearAllOrdersFirebaseBtn').onclick = async function(){
+      var a = prompt('Typ exact: WIS ALLE OPDRACHTEN');
+      if (a !== 'WIS ALLE OPDRACHTEN') {
+        alert('Niet gewist. Bevestiging klopte niet.');
+        return;
+      }
+
+      var b = prompt('Laatste controle. Typ nogmaals exact: WIS ALLE OPDRACHTEN');
+      if (b !== 'WIS ALLE OPDRACHTEN') {
+        alert('Niet gewist. Tweede bevestiging klopte niet.');
+        return;
+      }
+
+      try {
+        this.disabled = true;
+        this.textContent = 'Bezig met wissen...';
+
+        if (!window.BNS_FIREBASE_CONFIG || window.BNS_FIREBASE_CONFIG.apiKey === 'VUL_HIER_IN') {
+          throw new Error('Firebase config ontbreekt');
+        }
+
+        var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+        var fsMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+        var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+        var db = fsMod.getFirestore(app);
+
+        var snap = await fsMod.getDocs(fsMod.collection(db, 'orders'));
+        var count = 0;
+
+        for (var i = 0; i < snap.docs.length; i++) {
+          await fsMod.deleteDoc(fsMod.doc(db, 'orders', snap.docs[i].id));
+          count++;
+        }
+
+        // Lokale orders leegmaken zodat oude localStorage niet meteen terug uploadt.
+        try {
+          var keys = ['event-planner-pro-v87','event-planner-pro-v8','event-planner-pro','bns_event_planner'];
+          keys.forEach(function(k){
+            var raw = localStorage.getItem(k);
+            if (!raw) return;
+            var s = JSON.parse(raw);
+            if (s && typeof s === 'object') {
+              s.orders = [];
+              localStorage.setItem(k, JSON.stringify(s));
+            }
+          });
+          if (window.state && typeof window.state === 'object') window.state.orders = [];
+        } catch(e) {}
+
+        alert('Klaar. ' + count + ' opdracht(en) uit Firebase orders gewist. Ververs nu planner en telefoon met Ctrl+F5 / nieuwe cache-url.');
+        this.textContent = 'Klaar: orders gewist';
+      } catch (err) {
+        console.error(err);
+        alert('Wissen mislukt: ' + (err && err.message ? err.message : err));
+        this.disabled = false;
+        this.textContent = 'Alle Firebase opdrachten wissen';
+      }
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(ensureButton, 500);
+    setTimeout(ensureButton, 1500);
+  });
+  setTimeout(ensureButton, 800);
+  setInterval(ensureButton, 3000);
+
+  console.info('[BNS v430] Tijdelijke Firebase orders leegmaakknop actief.');
+})();
+
