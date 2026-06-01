@@ -43195,3 +43195,326 @@ setTimeout(()=>{
   console.info("[BNS v431] Routenet uitgeschakeld. Waze en Google Maps blijven actief.");
 })();
 
+/* =========================================================
+   BNS v432 - Bezorger aanvinken = direct naar telefoon
+   PLAATSEN HELEMAAL ONDERAAN app.js
+
+   Doel:
+   - Oude werking herstellen:
+     Planner/Admin vinkt bezorger(s) aan in Nieuwe opdracht.
+     De opdracht wordt direct gekoppeld aan hun telefoon-login.
+   - Snel en stabiel:
+     Alleen bij wijziging van bezorger-checkboxen.
+     Geen interval-loop die blijft renderen.
+   - Laat alles verder met rust:
+     Geen knoppen verwijderen.
+     Geen Routenet terugzetten.
+     Geen materialen/klanten wissen.
+   ========================================================= */
+(function bnsV432BezorgerDirectNaarTelefoon(){
+  "use strict";
+
+  if (window.__bnsV432BezorgerDirectNaarTelefoon) return;
+  window.__bnsV432BezorgerDirectNaarTelefoon = true;
+
+  var pendingTimer = null;
+  var lastSignature = "";
+
+  function S(){
+    try { if (typeof state !== "undefined" && state) return state; } catch(e){}
+    try { if (window.state) return window.state; } catch(e){}
+    try { return JSON.parse(localStorage.getItem("event-planner-pro-v87") || "null"); } catch(e){}
+    return null;
+  }
+
+  function saveState(){
+    try { if (typeof save === "function") { save(); return; } } catch(e){}
+    try {
+      var s = S();
+      if (s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    } catch(e){}
+  }
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+
+  function E(id){ return document.getElementById(id); }
+
+  function qsa(sel, root){
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
+
+  function val(id){
+    var el = E(id);
+    return el && "value" in el ? T(el.value) : "";
+  }
+
+  function checked(id, fallback){
+    var el = E(id);
+    return el && "checked" in el ? !!el.checked : !!fallback;
+  }
+
+  function id(){
+    return "ord_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,7);
+  }
+
+  function isDriverUser(u){
+    if(!u) return false;
+    var role = L(u.role);
+    if(role.indexOf("bezorger") >= 0 || role.indexOf("driver") >= 0) return true;
+    var r = u.rights || {};
+    return !!(r.route || r.navigation || r.waze || r.maps || r.phone || r.uitgevoerd || r.done);
+  }
+
+  function users(){
+    var s = S();
+    return s && Array.isArray(s.users) ? s.users : [];
+  }
+
+  function orders(){
+    var s = S();
+    if(!s) return [];
+    s.orders = Array.isArray(s.orders) ? s.orders : [];
+    return s.orders;
+  }
+
+  function userByIdOrName(x){
+    var key = L(x);
+    if(!key) return null;
+    return users().find(function(u){
+      return L(u.id) === key || L(u.name) === key || L(u.pin) === key;
+    }) || null;
+  }
+
+  function selectedDriverIds(){
+    var ids = [];
+    qsa("#bnsV83DriverBox input[type='checkbox']:checked, #bnsV83DriverBox input[type=checkbox]:checked").forEach(function(i){
+      if(T(i.value)) ids.push(T(i.value));
+    });
+
+    // Fallback: oude select orderDriver.
+    if(!ids.length){
+      var v = val("orderDriver");
+      if(v) ids.push(v);
+    }
+
+    // Fallback: eventuele andere bezorger-checkboxen bij nieuwe opdracht.
+    if(!ids.length){
+      qsa("input[type='checkbox'], input[type=checkbox]").forEach(function(i){
+        var label = T((i.closest && i.closest("label") && i.closest("label").innerText) || "");
+        var name = T(i.name || i.id || i.getAttribute("data-driver") || i.getAttribute("data-bezorger") || "");
+        if(i.checked && /bezorger|driver|chauffeur/i.test(label + " " + name)){
+          if(T(i.value)) ids.push(T(i.value));
+        }
+      });
+    }
+
+    ids = ids.map(String).filter(Boolean);
+    return Array.from(new Set(ids));
+  }
+
+  function selectedDrivers(){
+    var ids = selectedDriverIds();
+    var ds = [];
+
+    ids.forEach(function(x){
+      var u = userByIdOrName(x);
+      if(u && ds.indexOf(u) < 0) ds.push(u);
+    });
+
+    // Als value de naam is en niet id.
+    if(!ds.length && ids.length){
+      users().filter(isDriverUser).forEach(function(u){
+        if(ids.map(L).indexOf(L(u.name)) >= 0) ds.push(u);
+      });
+    }
+
+    return ds;
+  }
+
+  function currentOrderNumber(){
+    return val("orderNumber") || val("opdrachtNr") || val("orderNo");
+  }
+
+  function findOrderByNumber(nr){
+    if(!nr) return null;
+    return orders().find(function(o){
+      return String(o.number || o.nr || o.orderNumber || "") === String(nr);
+    }) || null;
+  }
+
+  function currentChosenMaterials(existing){
+    try { if (Array.isArray(chosen) && chosen.length) return chosen; } catch(e){}
+    try { if (Array.isArray(window.chosen) && window.chosen.length) return window.chosen; } catch(e){}
+    try { if (Array.isArray(chosenMaterials) && chosenMaterials.length) return chosenMaterials; } catch(e){}
+    try { if (Array.isArray(window.chosenMaterials) && window.chosenMaterials.length) return window.chosenMaterials; } catch(e){}
+    try { if (Array.isArray(selectedMaterials) && selectedMaterials.length) return selectedMaterials; } catch(e){}
+    try { if (Array.isArray(window.selectedMaterials) && window.selectedMaterials.length) return window.selectedMaterials; } catch(e){}
+    return existing && Array.isArray(existing.materials) ? existing.materials : [];
+  }
+
+  function currentOrderSnapshot(existing){
+    var o = existing || {};
+    var nr = currentOrderNumber() || o.number || o.nr || "";
+
+    var customer = Object.assign({}, o.customer || {});
+    customer.name = val("customerName") || val("klantNaam") || customer.name || o.customerName || "";
+    customer.street = val("customerStreet") || val("klantStraat") || customer.street || o.customerStreet || "";
+    customer.zip = val("customerZip") || val("customerPostcode") || val("klantPostcode") || customer.zip || o.customerZip || "";
+    customer.city = val("customerCity") || val("customerPlace") || val("klantPlaats") || customer.city || o.customerCity || "";
+    customer.phone = val("customerPhone") || val("klantTelefoon") || customer.phone || o.customerPhone || "";
+    customer.email = val("customerEmail") || val("klantEmail") || customer.email || o.customerEmail || "";
+
+    var location = Object.assign({}, o.location || {});
+    location.name = val("locationName") || val("locatieNaam") || location.name || o.locationName || "";
+    location.street = val("locationStreet") || val("locatieStraat") || location.street || o.locationStreet || "";
+    location.zip = val("locationZip") || val("locationPostcode") || val("locatiePostcode") || location.zip || o.locationZip || "";
+    location.city = val("locationCity") || val("locationPlace") || val("locatiePlaats") || location.city || o.locationCity || "";
+    location.phone = val("locationPhone") || val("locatieTelefoon") || location.phone || o.locationPhone || "";
+    location.show = checked("showLocationOnDocs", location.show !== false);
+
+    return Object.assign({}, o, {
+      id: o.id || id(),
+      number: nr,
+      title: val("orderTitle") || val("title") || val("opdrachtTitel") || o.title || "Zonder titel",
+      start: val("dateStart") || val("startDate") || val("beginDate") || o.start || "",
+      end: val("dateEnd") || val("endDate") || val("eindeDate") || o.end || val("dateStart") || o.start || "",
+      status: val("orderStatus") || val("status") || o.status || "Bevestigd",
+      brand: val("orderBrand") || val("brand") || o.brand || "",
+      vehicle: val("orderVehicle") || val("vehicle") || o.vehicle || "",
+      extra: val("orderExtra") || val("extra") || val("notes") || o.extra || o.notes || "",
+      customer: customer,
+      location: location,
+      materials: currentChosenMaterials(o)
+    });
+  }
+
+  function applyDrivers(o, ds){
+    ds = ds || [];
+    var ids = ds.map(function(u){ return String(u.id); }).filter(Boolean);
+    var names = ds.map(function(u){ return T(u.name); }).filter(Boolean);
+
+    o.driverIds = ids.slice();
+    o.bezorgerIds = ids.slice();
+    o.driverNames = names.slice();
+    o.bezorgerNames = names.slice();
+    o.drivers = ds.map(function(u){ return { id: u.id, name: u.name, role: u.role || "Bezorger" }; });
+
+    o.driver = names.join(", ");
+    o.driverName = names.join(", ");
+    o.bezorger = names.join(", ");
+
+    // Deze velden zijn alleen markering; bestaande telefoonfilter blijft op driverIds/namen werken.
+    o.phoneSent = ids.length > 0;
+    o.phoneSentAt = ids.length > 0 ? new Date().toISOString() : (o.phoneSentAt || "");
+    o.sentToPhone = ids.length > 0;
+    o.updatedAt = new Date().toISOString();
+
+    return o;
+  }
+
+  function syncOrder(o){
+    if(!o) return;
+
+    // Firebase direct updaten als Firestore beschikbaar is.
+    try {
+      if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc){
+        window.BNS.fs.setDoc(
+          window.BNS.fs.doc(window.BNS.db, "orders", String(o.id || o.number)),
+          Object.assign({}, o, { updatedAt: new Date().toISOString() }),
+          { merge: true }
+        ).catch(function(){});
+      }
+    } catch(e){}
+
+    // Bestaande sync-laag laten meedoen, zonder extra loops te maken.
+    try {
+      if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase === "function"){
+        window.BNSFirebaseSync.uploadLocalToFirebase("v432-driver-direct");
+      }
+    } catch(e){}
+  }
+
+  function toast(msg){
+    try { if(typeof window.toast === "function") return window.toast(msg); } catch(e){}
+    try { if(typeof toastMsg === "function") return toastMsg(msg); } catch(e){}
+    try { console.log(msg); } catch(e){}
+  }
+
+  function sendDriversNow(reason){
+    var nr = currentOrderNumber();
+    var ds = selectedDrivers();
+
+    var signature = nr + "|" + ds.map(function(u){ return u.id; }).join(",");
+    if(signature === lastSignature && reason !== "force") return;
+    lastSignature = signature;
+
+    if(!nr){
+      // Nog geen opdrachtnummer, dan niets forceren.
+      return;
+    }
+
+    var list = orders();
+    var existing = findOrderByNumber(nr);
+    var o = currentOrderSnapshot(existing);
+    applyDrivers(o, ds);
+
+    if(existing){
+      Object.assign(existing, o);
+      o = existing;
+    }else{
+      // Alleen aanmaken als er echt bezorgers gekozen zijn.
+      // Zo maken we geen lege opdracht door alleen de pagina te openen.
+      if(!ds.length) return;
+      list.push(o);
+    }
+
+    saveState();
+    syncOrder(o);
+
+    try { if(typeof window.renderPhone83 === "function") window.renderPhone83(); } catch(e){}
+    try { if(typeof renderPhone83 === "function") renderPhone83(); } catch(e){}
+    try { if(typeof renderAll === "function") renderAll(); } catch(e){}
+
+    if(ds.length){
+      toast("Opdracht naar telefoon: " + ds.map(function(u){ return u.name; }).join(", "));
+    }
+  }
+
+  function scheduleSend(){
+    clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(function(){ sendDriversNow("change"); }, 80);
+  }
+
+  // Exacte oude werking: aanvinken = meteen koppelen/syncen.
+  document.addEventListener("change", function(ev){
+    var t = ev.target;
+    if(!t || !t.matches || !t.matches("input[type='checkbox'], input[type=checkbox], select")) return;
+
+    var inDriverBox = !!(t.closest && t.closest("#bnsV83DriverBox"));
+    var isOrderDriver = t.id === "orderDriver" || t.name === "orderDriver";
+    var label = T((t.closest && t.closest("label") && t.closest("label").innerText) || "");
+    var meta = T(t.id + " " + t.name + " " + (t.getAttribute("data-driver") || "") + " " + (t.getAttribute("data-bezorger") || ""));
+
+    if(inDriverBox || isOrderDriver || /bezorger|driver|chauffeur/i.test(label + " " + meta)){
+      scheduleSend();
+    }
+  }, true);
+
+  // Als de oude driverbox opnieuw gerenderd wordt, blijft deze patch automatisch werken via event delegation.
+  // Bij opslaan ook nog één keer forceren, zodat de uiteindelijke opdracht dezelfde bezorgerkoppeling houdt.
+  document.addEventListener("click", function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest("button,a") : null;
+    if(!b) return;
+    var text = T(b.innerText || b.textContent).toLowerCase();
+    if(/opslaan|bewaar|save/.test(text)){
+      setTimeout(function(){ sendDriversNow("force"); }, 180);
+      setTimeout(function(){ sendDriversNow("force"); }, 700);
+    }
+  }, true);
+
+  window.BNS_V432_SEND_DRIVERS_TO_PHONE = function(){ sendDriversNow("force"); };
+
+  console.info("[BNS v432] Bezorger aanvinken stuurt opdracht direct naar telefoon.");
+})();
+
