@@ -43058,3 +43058,140 @@ setTimeout(()=>{
   console.info('[BNS v430] Borgregel + dubbel totaal fix actief.');
 })();
 
+/* =========================================================
+   BNS v431 - Routenet volledig uitzetten / anti-flikker
+   PLAATSEN HELEMAAL ONDERAAN app.js
+
+   Doel:
+   - Routenet knoppen verwijderen
+   - Oude Routenet patches stoppen
+   - Waze en Google Maps met rust laten
+   - Geen Firebase/data/materialen aanpassen
+   ========================================================= */
+(function bnsV431RoutenetUit(){
+  "use strict";
+
+  if (window.__bnsV431RoutenetUit) return;
+  window.__bnsV431RoutenetUit = true;
+
+  function txt(el){
+    return String((el && (el.innerText || el.textContent || el.value)) || "").trim().toLowerCase();
+  }
+
+  function isRoutenetElement(el){
+    if(!el) return false;
+    var t = txt(el);
+    var id = String(el.id || "").toLowerCase();
+    var cls = String(el.className || "").toLowerCase();
+    var href = String(el.getAttribute && (el.getAttribute("href") || "") || "").toLowerCase();
+    var data = String(el.getAttribute && (
+      el.getAttribute("data-route") ||
+      el.getAttribute("data-action") ||
+      el.getAttribute("data-bns") ||
+      ""
+    ) || "").toLowerCase();
+
+    return (
+      t === "routenet" ||
+      t.indexOf("routenet") !== -1 ||
+      id.indexOf("routenet") !== -1 ||
+      cls.indexOf("routenet") !== -1 ||
+      href.indexOf("routenet") !== -1 ||
+      data.indexOf("routenet") !== -1
+    );
+  }
+
+  function removeRoutenetButtons(root){
+    root = root || document;
+
+    var nodes = root.querySelectorAll
+      ? root.querySelectorAll("button,a,.btn,[role='button'],input[type='button'],input[type='submit']")
+      : [];
+
+    nodes.forEach(function(el){
+      try{
+        if(isRoutenetElement(el)){
+          el.remove();
+        }
+      }catch(e){}
+    });
+
+    var boxes = root.querySelectorAll ? root.querySelectorAll(".tapV301BRouteBox,[data-bns-routebox],.routenet-box") : [];
+    boxes.forEach(function(box){
+      try{
+        if(txt(box).indexOf("routenet") !== -1){
+          box.remove();
+        }
+      }catch(e){}
+    });
+  }
+
+  var noopNames = [
+    "bnsV126OpdrachtenMeldingenRoutenet",
+    "bnsV301RouteNet",
+    "bnsV301BRouteBox",
+    "bnsRoutenet",
+    "addRoutenet",
+    "renderRoutenet",
+    "patchRoutenet",
+    "injectRoutenet",
+    "ensureRoutenet"
+  ];
+
+  noopNames.forEach(function(name){
+    try{
+      if(typeof window[name] === "function"){
+        window[name] = function(){ return false; };
+      }
+    }catch(e){}
+  });
+
+  document.addEventListener("click", function(ev){
+    var el = ev.target && ev.target.closest
+      ? ev.target.closest("button,a,.btn,[role='button'],input[type='button'],input[type='submit']")
+      : null;
+
+    if(isRoutenetElement(el)){
+      ev.preventDefault();
+      ev.stopPropagation();
+      if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      try{ el.remove(); }catch(e){}
+      return false;
+    }
+  }, true);
+
+  removeRoutenetButtons(document);
+
+  setTimeout(function(){ removeRoutenetButtons(document); }, 100);
+  setTimeout(function(){ removeRoutenetButtons(document); }, 500);
+  setTimeout(function(){ removeRoutenetButtons(document); }, 1500);
+
+  var busy = false;
+  var obs = new MutationObserver(function(muts){
+    if(busy) return;
+    busy = true;
+    requestAnimationFrame(function(){
+      try{
+        muts.forEach(function(m){
+          if(m.addedNodes){
+            m.addedNodes.forEach(function(n){
+              if(n && n.nodeType === 1) removeRoutenetButtons(n);
+            });
+          }
+        });
+        removeRoutenetButtons(document);
+      }catch(e){}
+      busy = false;
+    });
+  });
+
+  try{
+    obs.observe(document.documentElement || document.body, {
+      childList: true,
+      subtree: true
+    });
+  }catch(e){}
+
+  console.info("[BNS v431] Routenet uitgeschakeld. Waze en Google Maps blijven actief.");
+})();
+
