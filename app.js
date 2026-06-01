@@ -28407,9 +28407,20 @@ setTimeout(()=>{
             if(o&&o.id) by[String(o.id)]=o;
           });
           rows.forEach(function(o){
-            by[String(o.id)]=Object.assign({
-            },by[String(o.id)]||{
-            },o);
+            var key=String(o.id);
+            var local=by[key]||{};
+            var merged=Object.assign({},local,o);
+
+            // BNS v435: bewaar meerdere bezorgers bij Firebase-download.
+            // Als remote nog oude enkelvoudige velden heeft, mogen lokale arrays niet verdwijnen.
+            ['driverIds','bezorgerIds','assignedDriverIds','assignedDrivers','phoneDriverIds',
+             'driverNames','bezorgerNames','assignedDriverNames','drivers','bezorgers'].forEach(function(k){
+              if((!Array.isArray(o[k]) || !o[k].length) && Array.isArray(local[k]) && local[k].length){
+                merged[k]=local[k].slice ? local[k].slice() : local[k];
+              }
+            });
+
+            by[key]=merged;
           });
           S().orders=Object.keys(by).map(function(k){
             return by[k];
@@ -28487,6 +28498,16 @@ setTimeout(()=>{
       i.onchange=function(){
         var ids=selectedDriverIds();
         sel.value=ids[0]||'';
+
+        // BNS v435: direct bewaren op bestaande opdracht, zonder renderAll/flikker.
+        var nr=val('orderNumber');
+        var o=findOrderByNumber(nr);
+        if(o){
+          applyDriversToOrder(o);
+          saveLocal();
+          try{ syncDoc('orders',o.id,o); }catch(e){}
+          try{ renderPhone83(); }catch(e){}
+        }
       };
     });
   }
@@ -28502,25 +28523,46 @@ setTimeout(()=>{
   function applyDriversToOrder(o){
     if(!o) return o;
     var ids=selectedDriverIds();
+
+    // BNS v435: als de checkboxen net opnieuw gerenderd zijn, behoud eerst bestaande arrays.
+    if(!ids.length) ids=driverIdsFromOrder(o);
+
+    // Alleen als er echt nog niets is, mag de oude enkelvoudige select fallback zijn.
     if(!ids.length && val('orderDriver')) ids=[val('orderDriver')];
+
+    ids=Array.from(new Set(ids.map(String).filter(Boolean)));
+
     var ds=users().filter(function(u){
       return ids.indexOf(String(u.id))>=0 || ids.indexOf(String(u.name))>=0;
     });
     var names=ds.map(driverName).filter(Boolean);
+
     o.driverIds=ds.map(function(u){
       return String(u.id);
     });
     o.bezorgerIds=o.driverIds.slice();
+    o.assignedDriverIds=o.driverIds.slice();
+    o.assignedDrivers=o.driverIds.slice();
+    o.phoneDriverIds=o.driverIds.slice();
+
     o.driverNames=names;
     o.bezorgerNames=names;
+    o.assignedDriverNames=names;
+
     o.drivers=ds.map(function(u){
       return {
         id:u.id,name:u.name,role:u.role
       };
     });
+    o.bezorgers=o.drivers.slice();
+
     o.driver=names.join(', ');
     o.driverName=names.join(', ');
     o.bezorger=names.join(', ');
+    o.assignedDriver=names.join(', ');
+    o.phoneSent=o.driverIds.length>0;
+    o.sentToPhone=o.driverIds.length>0;
+    o.updatedAt=new Date().toISOString();
     return o;
   }
   function findOrderByNumber(nr){
@@ -43058,327 +43100,55 @@ setTimeout(()=>{
   console.info('[BNS v430] Borgregel + dubbel totaal fix actief.');
 })();
 
+
 /* =========================================================
-   BNS v433 - Meerdere bezorgers stabiel + Routenet stil weg
-   PLAATSEN HELEMAAL ONDERAAN app.js
-
-   Fix t.o.v. v432:
-   - Geen renderAll meer bij bezorger aanvinken, dus geen flikker.
-   - Meerdere bezorgers per opdracht worden opgeslagen.
-   - Routenet wordt via CSS/direct blokkade verborgen, niet steeds aangemaakt/verwijderd.
-   - Verder niets wijzigen/verwijderen.
+   BNS v435 - laatste borging meerdere bezorgers + Routenet stil
+   - V83 blijft leidend.
+   - Geen tweede bezorger-systeem.
+   - Geen renderAll bij bezorger aanvinken.
+   - Alleen Routenet rustig verbergen.
    ========================================================= */
-(function bnsV433BezorgersMeerdereStabiel(){
+(function bnsV435LaatsteBorging(){
   "use strict";
+  if(window.__bnsV435LaatsteBorging) return;
+  window.__bnsV435LaatsteBorging = true;
 
-  if(window.__bnsV433BezorgersMeerdereStabiel) return;
-  window.__bnsV433BezorgersMeerdereStabiel = true;
+  function L(v){ return String(v==null?'':v).toLowerCase(); }
+  function A(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
 
-  var lastKey = "";
-  var timer = null;
-
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function E(id){ return document.getElementById(id); }
-  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-
-  function st(){
-    try{ if(typeof state !== "undefined" && state) return state; }catch(e){}
-    try{ if(window.state) return window.state; }catch(e){}
-    return null;
-  }
-
-  function saveSoft(){
-    try{ if(typeof save === "function"){ save(); return; } }catch(e){}
-    try{
-      var s = st();
-      if(s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
-    }catch(e){}
-  }
-
-  function users(){
-    var s = st();
-    return s && Array.isArray(s.users) ? s.users : [];
-  }
-
-  function orders(){
-    var s = st();
-    if(!s) return [];
-    if(!Array.isArray(s.orders)) s.orders = [];
-    return s.orders;
-  }
-
-  function isDriver(u){
-    if(!u) return false;
-    var role = L(u.role);
-    if(role.indexOf("bezorger") >= 0 || role.indexOf("driver") >= 0 || role.indexOf("chauffeur") >= 0) return true;
-    var r = u.rights || {};
-    return !!(r.route || r.navigation || r.waze || r.maps || r.phone || r.uitgevoerd || r.done || r.afmelden);
-  }
-
-  function userMatch(value){
-    var v = L(value);
-    if(!v) return null;
-    return users().find(function(u){
-      return L(u.id) === v || L(u.name) === v || L(u.pin) === v;
-    }) || null;
-  }
-
-  function val(id){
-    var el = E(id);
-    return el && "value" in el ? T(el.value) : "";
-  }
-
-  function orderNumber(){
-    return val("orderNumber") || val("opdrachtNr") || val("orderNo") || val("number");
-  }
-
-  function findOrder(nr){
-    if(!nr) return null;
-    return orders().find(function(o){
-      return String(o.number || o.nr || o.orderNumber || "") === String(nr);
-    }) || null;
-  }
-
-  function makeId(){
-    return "ord_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,7);
-  }
-
-  function selectedDrivers(){
-    var found = [];
-    var add = function(v){
-      var u = userMatch(v);
-      if(u && isDriver(u) && !found.some(function(x){ return String(x.id) === String(u.id); })){
-        found.push(u);
-      }
-    };
-
-    // Belangrijkste huidige systeem: bnsV83DriverBox met checkboxen.
-    A("#bnsV83DriverBox input[type='checkbox']:checked, #bnsV83DriverBox input[type=checkbox]:checked").forEach(function(i){
-      add(i.value || i.getAttribute("data-id") || i.getAttribute("data-user") || i.id || "");
-      var label = i.closest && i.closest("label") ? T(i.closest("label").innerText) : "";
-      if(label) add(label);
-    });
-
-    // Oude select-fallback.
-    var od = E("orderDriver");
-    if(od){
-      if(od.multiple){
-        A("option:checked", od).forEach(function(o){ add(o.value || o.textContent); });
-      }else if(T(od.value)){
-        add(od.value);
-      }
-    }
-
-    // Algemene fallback: checkbox met bezorgernaam in label.
-    if(!found.length){
-      var driverUsers = users().filter(isDriver);
-      A("input[type='checkbox']:checked, input[type=checkbox]:checked").forEach(function(i){
-        var label = i.closest && i.closest("label") ? T(i.closest("label").innerText) : "";
-        var meta = T(i.value + " " + i.id + " " + i.name + " " + label + " " + (i.getAttribute("data-driver") || "") + " " + (i.getAttribute("data-bezorger") || ""));
-        driverUsers.forEach(function(u){
-          if(meta && (L(meta).indexOf(L(u.id)) >= 0 || L(meta).indexOf(L(u.name)) >= 0)){
-            add(u.id);
-          }
-        });
-      });
-    }
-
-    return found;
-  }
-
-  function chosenMaterials(existing){
-    try{ if(Array.isArray(chosen) && chosen.length) return chosen; }catch(e){}
-    try{ if(Array.isArray(window.chosen) && window.chosen.length) return window.chosen; }catch(e){}
-    try{ if(Array.isArray(chosenMaterials) && chosenMaterials.length) return chosenMaterials; }catch(e){}
-    try{ if(Array.isArray(window.chosenMaterials) && window.chosenMaterials.length) return window.chosenMaterials; }catch(e){}
-    try{ if(Array.isArray(selectedMaterials) && selectedMaterials.length) return selectedMaterials; }catch(e){}
-    try{ if(Array.isArray(window.selectedMaterials) && window.selectedMaterials.length) return window.selectedMaterials; }catch(e){}
-    return existing && Array.isArray(existing.materials) ? existing.materials : [];
-  }
-
-  function snapshot(existing){
-    var o = existing || {};
-    var customer = Object.assign({}, o.customer || {});
-    var location = Object.assign({}, o.location || {});
-
-    customer.name = val("customerName") || val("klantNaam") || customer.name || o.customerName || "";
-    customer.street = val("customerStreet") || val("klantStraat") || customer.street || o.customerStreet || "";
-    customer.zip = val("customerZip") || val("customerPostcode") || val("klantPostcode") || customer.zip || o.customerZip || "";
-    customer.city = val("customerCity") || val("customerPlace") || val("klantPlaats") || customer.city || o.customerCity || "";
-    customer.phone = val("customerPhone") || val("klantTelefoon") || customer.phone || o.customerPhone || "";
-    customer.email = val("customerEmail") || val("klantEmail") || customer.email || o.customerEmail || "";
-
-    location.name = val("locationName") || val("locatieNaam") || location.name || o.locationName || "";
-    location.street = val("locationStreet") || val("locatieStraat") || location.street || o.locationStreet || "";
-    location.zip = val("locationZip") || val("locationPostcode") || val("locatiePostcode") || location.zip || o.locationZip || "";
-    location.city = val("locationCity") || val("locationPlace") || val("locatiePlaats") || location.city || o.locationCity || "";
-    location.phone = val("locationPhone") || val("locatieTelefoon") || location.phone || o.locationPhone || "";
-
-    return Object.assign({}, o, {
-      id: o.id || makeId(),
-      number: orderNumber() || o.number || o.nr || "",
-      title: val("orderTitle") || val("title") || val("opdrachtTitel") || o.title || "Zonder titel",
-      start: val("dateStart") || val("startDate") || val("beginDate") || o.start || "",
-      end: val("dateEnd") || val("endDate") || val("eindeDate") || o.end || val("dateStart") || o.start || "",
-      status: val("orderStatus") || val("status") || o.status || "Bevestigd",
-      brand: val("orderBrand") || val("brand") || o.brand || "",
-      vehicle: val("orderVehicle") || val("vehicle") || o.vehicle || "",
-      extra: val("orderExtra") || val("extra") || val("notes") || o.extra || o.notes || "",
-      customer: customer,
-      location: location,
-      materials: chosenMaterials(o)
-    });
-  }
-
-  function applyDriverFields(o, ds){
-    var ids = ds.map(function(u){ return String(u.id); }).filter(Boolean);
-    var names = ds.map(function(u){ return T(u.name); }).filter(Boolean);
-
-    // Meerdere namen/ids op alle gangbare veldnamen, zodat bestaande telefoonfilters blijven werken.
-    o.driverIds = ids.slice();
-    o.bezorgerIds = ids.slice();
-    o.assignedDriverIds = ids.slice();
-    o.assignedDrivers = ids.slice();
-    o.phoneDriverIds = ids.slice();
-
-    o.driverNames = names.slice();
-    o.bezorgerNames = names.slice();
-    o.assignedDriverNames = names.slice();
-
-    o.drivers = ds.map(function(u){ return { id: u.id, name: u.name, role: u.role || "Bezorger" }; });
-    o.bezorgers = o.drivers.slice();
-
-    // Oude velden blijven als komma-lijst voor compatibiliteit.
-    o.driver = names.join(", ");
-    o.driverName = names.join(", ");
-    o.bezorger = names.join(", ");
-    o.assignedDriver = names.join(", ");
-
-    o.phoneSent = ids.length > 0;
-    o.sentToPhone = ids.length > 0;
-    o.phoneSentAt = ids.length > 0 ? (o.phoneSentAt || new Date().toISOString()) : "";
-    o.updatedAt = new Date().toISOString();
-    return o;
-  }
-
-  function syncFirebase(o){
-    // Geen zware render, alleen data syncen.
-    try{
-      if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc){
-        window.BNS.fs.setDoc(
-          window.BNS.fs.doc(window.BNS.db, "orders", String(o.id || o.number)),
-          Object.assign({}, o, { updatedAt: new Date().toISOString() }),
-          { merge: true }
-        ).catch(function(){});
-      }
-    }catch(e){}
-
-    try{
-      if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase === "function"){
-        window.BNSFirebaseSync.uploadLocalToFirebase("v433-driver-direct");
-      }
-    }catch(e){}
-  }
-
-  function toast(msg){
-    try{ if(typeof window.toast === "function") return window.toast(msg); }catch(e){}
-    try{ if(typeof toastMsg === "function") return toastMsg(msg); }catch(e){}
-    try{ console.log(msg); }catch(e){}
-  }
-
-  function send(reason){
-    var nr = orderNumber();
-    var ds = selectedDrivers();
-
-    // Zonder opdrachtnummer niets aanmaken.
-    if(!nr) return;
-
-    var key = nr + "|" + ds.map(function(u){ return u.id; }).join(",");
-    if(key === lastKey && reason !== "force") return;
-    lastKey = key;
-
-    var existing = findOrder(nr);
-    var o = snapshot(existing);
-    applyDriverFields(o, ds);
-
-    if(existing){
-      Object.assign(existing, o);
-      o = existing;
-    }else{
-      // Alleen een voorlopige opdracht aanmaken als er daadwerkelijk bezorgers zijn aangevinkt.
-      if(!ds.length) return;
-      orders().push(o);
-    }
-
-    saveSoft();
-    syncFirebase(o);
-
-    // Alleen telefoonlijst zacht verversen als functie bestaat; geen renderAll meer.
-    try{ if(typeof window.renderPhone83 === "function") window.renderPhone83(); }catch(e){}
-    try{ if(typeof renderPhone83 === "function") renderPhone83(); }catch(e){}
-
-    if(ds.length) toast("Opdracht naar telefoon: " + ds.map(function(u){ return u.name; }).join(", "));
-  }
-
-  function schedule(reason){
-    clearTimeout(timer);
-    timer = setTimeout(function(){ send(reason || "change"); }, 90);
-  }
-
-  function looksLikeDriverControl(el){
-    if(!el) return false;
-    if(el.closest && el.closest("#bnsV83DriverBox")) return true;
-    if(el.id === "orderDriver" || el.name === "orderDriver") return true;
-    var label = el.closest && el.closest("label") ? T(el.closest("label").innerText) : "";
-    var meta = T(el.id + " " + el.name + " " + (el.getAttribute("data-driver") || "") + " " + (el.getAttribute("data-bezorger") || ""));
-    return /bezorger|driver|chauffeur/i.test(label + " " + meta);
-  }
-
-  document.addEventListener("change", function(ev){
-    var el = ev.target;
-    if(!el || !el.matches || !el.matches("input[type='checkbox'], input[type=checkbox], select")) return;
-    if(looksLikeDriverControl(el)) schedule("change");
-  }, true);
-
-  document.addEventListener("click", function(ev){
-    var b = ev.target && ev.target.closest ? ev.target.closest("button,a") : null;
-    if(!b) return;
-    var text = L(b.innerText || b.textContent);
-    if(/opslaan|bewaar|save/.test(text)){
-      setTimeout(function(){ send("force"); }, 250);
-    }
-  }, true);
-
-  // Routenet: direct onzichtbaar maken zonder remove-loop.
-  function injectRoutenetCss(){
-    if(E("bnsV433RoutenetHideCss")) return;
-    var style = document.createElement("style");
-    style.id = "bnsV433RoutenetHideCss";
-    style.textContent =
-      "button,a,.btn,[role='button']{animation-duration:initial}" +
-      "button[data-route='routenet'],a[data-route='routenet']{display:none!important}" +
-      ".routenet,.routenet-box,[class*='routenet' i],[id*='routenet' i]{display:none!important}";
+  if(!document.getElementById("bnsV435RouteHideCss")){
+    var style=document.createElement("style");
+    style.id="bnsV435RouteHideCss";
+    style.textContent=".routenet,.routenet-box,[class*='routenet' i],[id*='routenet' i]{display:none!important}";
     document.head.appendChild(style);
   }
 
-  injectRoutenetCss();
+  function hideRoutenet(){
+    A("button,a,.btn,[role='button']").forEach(function(el){
+      var s=L((el.innerText||el.textContent||'')+' '+(el.id||'')+' '+(el.className||'')+' '+(el.getAttribute('href')||''));
+      if(s.indexOf("routenet")>=0){
+        el.style.setProperty("display","none","important");
+        el.setAttribute("aria-hidden","true");
+      }
+    });
+  }
 
-  document.addEventListener("click", function(ev){
-    var el = ev.target && ev.target.closest ? ev.target.closest("button,a,.btn,[role='button']") : null;
+  document.addEventListener("click",function(ev){
+    var el=ev.target && ev.target.closest ? ev.target.closest("button,a,.btn,[role='button']") : null;
     if(!el) return;
-    var txt = L((el.innerText || el.textContent || "") + " " + (el.id || "") + " " + (el.className || "") + " " + (el.getAttribute("href") || ""));
-    if(txt.indexOf("routenet") >= 0){
+    var s=L((el.innerText||el.textContent||'')+' '+(el.id||'')+' '+(el.className||'')+' '+(el.getAttribute('href')||''));
+    if(s.indexOf("routenet")>=0){
       ev.preventDefault();
       ev.stopPropagation();
       if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      el.style.display = "none";
+      el.style.setProperty("display","none","important");
       return false;
     }
-  }, true);
+  },true);
 
-  window.BNS_V433_SEND_DRIVERS_TO_PHONE = function(){ send("force"); };
+  setTimeout(hideRoutenet,300);
+  setTimeout(hideRoutenet,1500);
 
-  console.info("[BNS v433] Meerdere bezorgers direct naar telefoon, zonder render-flikker. Routenet blijft verborgen.");
+  console.info("[BNS v435] V83 meerdere bezorgers schoon geborgd. Firebase merge bewaart arrays.");
 })();
 
