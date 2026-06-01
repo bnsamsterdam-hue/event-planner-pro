@@ -43071,7 +43071,7 @@ setTimeout(()=>{
 })();
 
 
-/* BNS v430 - tijdelijke Firebase orders leegmaakknop */
+/* BNS v432 - tijdelijke Firebase orders batch leegmaakknop + syncslot */
 (function(){
   if (window.__BNS_V430_ORDERS_CLEAR_BUTTON__) return;
   window.__BNS_V430_ORDERS_CLEAR_BUTTON__ = true;
@@ -43127,30 +43127,81 @@ setTimeout(()=>{
         var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
         var db = fsMod.getFirestore(app);
 
-        var snap = await fsMod.getDocs(fsMod.collection(db, 'orders'));
         var count = 0;
+        var round = 0;
 
-        for (var i = 0; i < snap.docs.length; i++) {
-          await fsMod.deleteDoc(fsMod.doc(db, 'orders', snap.docs[i].id));
-          count++;
+        // Batch wissen is stabieler dan 1-voor-1 wissen.
+        // Firestore batch max is 500; we gebruiken 300 per ronde voor veiligheid.
+        while (true) {
+          round++;
+          var q = fsMod.query(fsMod.collection(db, 'orders'), fsMod.limit(300));
+          var snap = await fsMod.getDocs(q);
+
+          if (snap.empty) break;
+
+          var batch = fsMod.writeBatch(db);
+          snap.docs.forEach(function(d){
+            batch.delete(d.ref);
+          });
+
+          await batch.commit();
+          count += snap.docs.length;
+
+          this.textContent = 'Bezig met wissen... ' + count + ' verwijderd';
+          console.info('[BNS v432] orders batch gewist ronde', round, 'totaal', count);
+
+          // Kleine pauze zodat browser/Firebase niet vastloopt.
+          await new Promise(function(resolve){ setTimeout(resolve, 150); });
+
+          // Veiligheid tegen oneindige loop.
+          if (round > 50) {
+            throw new Error('Te veel rondes gestopt na ' + count + ' documenten. Herhaal de knop nogmaals.');
+          }
         }
 
-        // Lokale orders leegmaken zodat oude localStorage niet meteen terug uploadt.
+        // Lokale orders veel breder leegmaken zodat oude localStorage niet meteen terug uploadt.
+        // Dit wist GEEN materialen/klanten/locaties/users; alleen velden met orders/opdrachten in opgeslagen JSON.
         try {
-          var keys = ['event-planner-pro-v87','event-planner-pro-v8','event-planner-pro','bns_event_planner'];
-          keys.forEach(function(k){
-            var raw = localStorage.getItem(k);
-            if (!raw) return;
-            var s = JSON.parse(raw);
-            if (s && typeof s === 'object') {
-              s.orders = [];
-              localStorage.setItem(k, JSON.stringify(s));
+          function scrubStorage(store){
+            var changedCount = 0;
+            for (var si = store.length - 1; si >= 0; si--) {
+              var k = store.key(si);
+              var raw = store.getItem(k);
+              if (!raw || raw.charAt(0) !== '{' && raw.charAt(0) !== '[') continue;
+              try {
+                var s = JSON.parse(raw);
+                var changed = false;
+                if (s && typeof s === 'object' && !Array.isArray(s)) {
+                  ['orders','opdrachten','jobs','planningOrders'].forEach(function(field){
+                    if (Array.isArray(s[field])) { s[field] = []; changed = true; }
+                  });
+                  if (s.state && typeof s.state === 'object') {
+                    ['orders','opdrachten','jobs','planningOrders'].forEach(function(field){
+                      if (Array.isArray(s.state[field])) { s.state[field] = []; changed = true; }
+                    });
+                  }
+                }
+                if (changed) {
+                  store.setItem(k, JSON.stringify(s));
+                  changedCount++;
+                }
+              } catch(parseErr) {}
             }
-          });
-          if (window.state && typeof window.state === 'object') window.state.orders = [];
-        } catch(e) {}
+            return changedCount;
+          }
 
-        alert('Klaar. ' + count + ' opdracht(en) uit Firebase orders gewist. Ververs nu planner en telefoon met Ctrl+F5 / nieuwe cache-url.');
+          var n1 = scrubStorage(localStorage);
+          var n2 = scrubStorage(sessionStorage);
+          if (window.state && typeof window.state === 'object') {
+            window.state.orders = [];
+            window.state.opdrachten = [];
+          }
+          window.__BNS_ORDERS_CLEARED_LOCK__ = true;
+          localStorage.setItem('bns_orders_clear_lock_v431', String(Date.now()));
+          console.info('[BNS v431] lokale orders opgeschoond in storage:', n1, n2);
+        } catch(e) { console.warn('[BNS v431] lokale cleanup fout', e); }
+
+        alert('Klaar. ' + count + ' opdracht(en) in batches uit Firebase orders gewist en lokale orders opgeschoond. Sluit nu ALLE planner/telefoon tabs en open opnieuw met nieuwe cache-url.');
         this.textContent = 'Klaar: orders gewist';
       } catch (err) {
         console.error(err);
@@ -43168,6 +43219,6 @@ setTimeout(()=>{
   setTimeout(ensureButton, 800);
   setInterval(ensureButton, 3000);
 
-  console.info('[BNS v430] Tijdelijke Firebase orders leegmaakknop actief.');
+  console.info('[BNS v432] Firebase orders batch leegmaakknop + lokale cleanup actief.');
 })();
 
