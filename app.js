@@ -43059,189 +43059,69 @@ setTimeout(()=>{
 })();
 
 /* =========================================================
-   BNS v431 - Routenet volledig uitzetten / anti-flikker
+   BNS v433 - Meerdere bezorgers stabiel + Routenet stil weg
    PLAATSEN HELEMAAL ONDERAAN app.js
 
-   Doel:
-   - Routenet knoppen verwijderen
-   - Oude Routenet patches stoppen
-   - Waze en Google Maps met rust laten
-   - Geen Firebase/data/materialen aanpassen
+   Fix t.o.v. v432:
+   - Geen renderAll meer bij bezorger aanvinken, dus geen flikker.
+   - Meerdere bezorgers per opdracht worden opgeslagen.
+   - Routenet wordt via CSS/direct blokkade verborgen, niet steeds aangemaakt/verwijderd.
+   - Verder niets wijzigen/verwijderen.
    ========================================================= */
-(function bnsV431RoutenetUit(){
+(function bnsV433BezorgersMeerdereStabiel(){
   "use strict";
 
-  if (window.__bnsV431RoutenetUit) return;
-  window.__bnsV431RoutenetUit = true;
+  if(window.__bnsV433BezorgersMeerdereStabiel) return;
+  window.__bnsV433BezorgersMeerdereStabiel = true;
 
-  function txt(el){
-    return String((el && (el.innerText || el.textContent || el.value)) || "").trim().toLowerCase();
-  }
-
-  function isRoutenetElement(el){
-    if(!el) return false;
-    var t = txt(el);
-    var id = String(el.id || "").toLowerCase();
-    var cls = String(el.className || "").toLowerCase();
-    var href = String(el.getAttribute && (el.getAttribute("href") || "") || "").toLowerCase();
-    var data = String(el.getAttribute && (
-      el.getAttribute("data-route") ||
-      el.getAttribute("data-action") ||
-      el.getAttribute("data-bns") ||
-      ""
-    ) || "").toLowerCase();
-
-    return (
-      t === "routenet" ||
-      t.indexOf("routenet") !== -1 ||
-      id.indexOf("routenet") !== -1 ||
-      cls.indexOf("routenet") !== -1 ||
-      href.indexOf("routenet") !== -1 ||
-      data.indexOf("routenet") !== -1
-    );
-  }
-
-  function removeRoutenetButtons(root){
-    root = root || document;
-
-    var nodes = root.querySelectorAll
-      ? root.querySelectorAll("button,a,.btn,[role='button'],input[type='button'],input[type='submit']")
-      : [];
-
-    nodes.forEach(function(el){
-      try{
-        if(isRoutenetElement(el)){
-          el.remove();
-        }
-      }catch(e){}
-    });
-
-    var boxes = root.querySelectorAll ? root.querySelectorAll(".tapV301BRouteBox,[data-bns-routebox],.routenet-box") : [];
-    boxes.forEach(function(box){
-      try{
-        if(txt(box).indexOf("routenet") !== -1){
-          box.remove();
-        }
-      }catch(e){}
-    });
-  }
-
-  var noopNames = [
-    "bnsV126OpdrachtenMeldingenRoutenet",
-    "bnsV301RouteNet",
-    "bnsV301BRouteBox",
-    "bnsRoutenet",
-    "addRoutenet",
-    "renderRoutenet",
-    "patchRoutenet",
-    "injectRoutenet",
-    "ensureRoutenet"
-  ];
-
-  noopNames.forEach(function(name){
-    try{
-      if(typeof window[name] === "function"){
-        window[name] = function(){ return false; };
-      }
-    }catch(e){}
-  });
-
-  document.addEventListener("click", function(ev){
-    var el = ev.target && ev.target.closest
-      ? ev.target.closest("button,a,.btn,[role='button'],input[type='button'],input[type='submit']")
-      : null;
-
-    if(isRoutenetElement(el)){
-      ev.preventDefault();
-      ev.stopPropagation();
-      if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      try{ el.remove(); }catch(e){}
-      return false;
-    }
-  }, true);
-
-  removeRoutenetButtons(document);
-
-  setTimeout(function(){ removeRoutenetButtons(document); }, 100);
-  setTimeout(function(){ removeRoutenetButtons(document); }, 500);
-  setTimeout(function(){ removeRoutenetButtons(document); }, 1500);
-
-  var busy = false;
-  var obs = new MutationObserver(function(muts){
-    if(busy) return;
-    busy = true;
-    requestAnimationFrame(function(){
-      try{
-        muts.forEach(function(m){
-          if(m.addedNodes){
-            m.addedNodes.forEach(function(n){
-              if(n && n.nodeType === 1) removeRoutenetButtons(n);
-            });
-          }
-        });
-        removeRoutenetButtons(document);
-      }catch(e){}
-      busy = false;
-    });
-  });
-
-  try{
-    obs.observe(document.documentElement || document.body, {
-      childList: true,
-      subtree: true
-    });
-  }catch(e){}
-
-  console.info("[BNS v431] Routenet uitgeschakeld. Waze en Google Maps blijven actief.");
-})();
-
-/* =========================================================
-   BNS v432 - Bezorger aanvinken = direct naar telefoon
-   PLAATSEN HELEMAAL ONDERAAN app.js
-
-   Doel:
-   - Oude werking herstellen:
-     Planner/Admin vinkt bezorger(s) aan in Nieuwe opdracht.
-     De opdracht wordt direct gekoppeld aan hun telefoon-login.
-   - Snel en stabiel:
-     Alleen bij wijziging van bezorger-checkboxen.
-     Geen interval-loop die blijft renderen.
-   - Laat alles verder met rust:
-     Geen knoppen verwijderen.
-     Geen Routenet terugzetten.
-     Geen materialen/klanten wissen.
-   ========================================================= */
-(function bnsV432BezorgerDirectNaarTelefoon(){
-  "use strict";
-
-  if (window.__bnsV432BezorgerDirectNaarTelefoon) return;
-  window.__bnsV432BezorgerDirectNaarTelefoon = true;
-
-  var pendingTimer = null;
-  var lastSignature = "";
-
-  function S(){
-    try { if (typeof state !== "undefined" && state) return state; } catch(e){}
-    try { if (window.state) return window.state; } catch(e){}
-    try { return JSON.parse(localStorage.getItem("event-planner-pro-v87") || "null"); } catch(e){}
-    return null;
-  }
-
-  function saveState(){
-    try { if (typeof save === "function") { save(); return; } } catch(e){}
-    try {
-      var s = S();
-      if (s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
-    } catch(e){}
-  }
+  var lastKey = "";
+  var timer = null;
 
   function T(v){ return String(v == null ? "" : v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
-
   function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
-  function qsa(sel, root){
-    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  function st(){
+    try{ if(typeof state !== "undefined" && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+
+  function saveSoft(){
+    try{ if(typeof save === "function"){ save(); return; } }catch(e){}
+    try{
+      var s = st();
+      if(s) localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+    }catch(e){}
+  }
+
+  function users(){
+    var s = st();
+    return s && Array.isArray(s.users) ? s.users : [];
+  }
+
+  function orders(){
+    var s = st();
+    if(!s) return [];
+    if(!Array.isArray(s.orders)) s.orders = [];
+    return s.orders;
+  }
+
+  function isDriver(u){
+    if(!u) return false;
+    var role = L(u.role);
+    if(role.indexOf("bezorger") >= 0 || role.indexOf("driver") >= 0 || role.indexOf("chauffeur") >= 0) return true;
+    var r = u.rights || {};
+    return !!(r.route || r.navigation || r.waze || r.maps || r.phone || r.uitgevoerd || r.done || r.afmelden);
+  }
+
+  function userMatch(value){
+    var v = L(value);
+    if(!v) return null;
+    return users().find(function(u){
+      return L(u.id) === v || L(u.name) === v || L(u.pin) === v;
+    }) || null;
   }
 
   function val(id){
@@ -43249,115 +43129,79 @@ setTimeout(()=>{
     return el && "value" in el ? T(el.value) : "";
   }
 
-  function checked(id, fallback){
-    var el = E(id);
-    return el && "checked" in el ? !!el.checked : !!fallback;
+  function orderNumber(){
+    return val("orderNumber") || val("opdrachtNr") || val("orderNo") || val("number");
   }
 
-  function id(){
-    return "ord_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,7);
-  }
-
-  function isDriverUser(u){
-    if(!u) return false;
-    var role = L(u.role);
-    if(role.indexOf("bezorger") >= 0 || role.indexOf("driver") >= 0) return true;
-    var r = u.rights || {};
-    return !!(r.route || r.navigation || r.waze || r.maps || r.phone || r.uitgevoerd || r.done);
-  }
-
-  function users(){
-    var s = S();
-    return s && Array.isArray(s.users) ? s.users : [];
-  }
-
-  function orders(){
-    var s = S();
-    if(!s) return [];
-    s.orders = Array.isArray(s.orders) ? s.orders : [];
-    return s.orders;
-  }
-
-  function userByIdOrName(x){
-    var key = L(x);
-    if(!key) return null;
-    return users().find(function(u){
-      return L(u.id) === key || L(u.name) === key || L(u.pin) === key;
-    }) || null;
-  }
-
-  function selectedDriverIds(){
-    var ids = [];
-    qsa("#bnsV83DriverBox input[type='checkbox']:checked, #bnsV83DriverBox input[type=checkbox]:checked").forEach(function(i){
-      if(T(i.value)) ids.push(T(i.value));
-    });
-
-    // Fallback: oude select orderDriver.
-    if(!ids.length){
-      var v = val("orderDriver");
-      if(v) ids.push(v);
-    }
-
-    // Fallback: eventuele andere bezorger-checkboxen bij nieuwe opdracht.
-    if(!ids.length){
-      qsa("input[type='checkbox'], input[type=checkbox]").forEach(function(i){
-        var label = T((i.closest && i.closest("label") && i.closest("label").innerText) || "");
-        var name = T(i.name || i.id || i.getAttribute("data-driver") || i.getAttribute("data-bezorger") || "");
-        if(i.checked && /bezorger|driver|chauffeur/i.test(label + " " + name)){
-          if(T(i.value)) ids.push(T(i.value));
-        }
-      });
-    }
-
-    ids = ids.map(String).filter(Boolean);
-    return Array.from(new Set(ids));
-  }
-
-  function selectedDrivers(){
-    var ids = selectedDriverIds();
-    var ds = [];
-
-    ids.forEach(function(x){
-      var u = userByIdOrName(x);
-      if(u && ds.indexOf(u) < 0) ds.push(u);
-    });
-
-    // Als value de naam is en niet id.
-    if(!ds.length && ids.length){
-      users().filter(isDriverUser).forEach(function(u){
-        if(ids.map(L).indexOf(L(u.name)) >= 0) ds.push(u);
-      });
-    }
-
-    return ds;
-  }
-
-  function currentOrderNumber(){
-    return val("orderNumber") || val("opdrachtNr") || val("orderNo");
-  }
-
-  function findOrderByNumber(nr){
+  function findOrder(nr){
     if(!nr) return null;
     return orders().find(function(o){
       return String(o.number || o.nr || o.orderNumber || "") === String(nr);
     }) || null;
   }
 
-  function currentChosenMaterials(existing){
-    try { if (Array.isArray(chosen) && chosen.length) return chosen; } catch(e){}
-    try { if (Array.isArray(window.chosen) && window.chosen.length) return window.chosen; } catch(e){}
-    try { if (Array.isArray(chosenMaterials) && chosenMaterials.length) return chosenMaterials; } catch(e){}
-    try { if (Array.isArray(window.chosenMaterials) && window.chosenMaterials.length) return window.chosenMaterials; } catch(e){}
-    try { if (Array.isArray(selectedMaterials) && selectedMaterials.length) return selectedMaterials; } catch(e){}
-    try { if (Array.isArray(window.selectedMaterials) && window.selectedMaterials.length) return window.selectedMaterials; } catch(e){}
+  function makeId(){
+    return "ord_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,7);
+  }
+
+  function selectedDrivers(){
+    var found = [];
+    var add = function(v){
+      var u = userMatch(v);
+      if(u && isDriver(u) && !found.some(function(x){ return String(x.id) === String(u.id); })){
+        found.push(u);
+      }
+    };
+
+    // Belangrijkste huidige systeem: bnsV83DriverBox met checkboxen.
+    A("#bnsV83DriverBox input[type='checkbox']:checked, #bnsV83DriverBox input[type=checkbox]:checked").forEach(function(i){
+      add(i.value || i.getAttribute("data-id") || i.getAttribute("data-user") || i.id || "");
+      var label = i.closest && i.closest("label") ? T(i.closest("label").innerText) : "";
+      if(label) add(label);
+    });
+
+    // Oude select-fallback.
+    var od = E("orderDriver");
+    if(od){
+      if(od.multiple){
+        A("option:checked", od).forEach(function(o){ add(o.value || o.textContent); });
+      }else if(T(od.value)){
+        add(od.value);
+      }
+    }
+
+    // Algemene fallback: checkbox met bezorgernaam in label.
+    if(!found.length){
+      var driverUsers = users().filter(isDriver);
+      A("input[type='checkbox']:checked, input[type=checkbox]:checked").forEach(function(i){
+        var label = i.closest && i.closest("label") ? T(i.closest("label").innerText) : "";
+        var meta = T(i.value + " " + i.id + " " + i.name + " " + label + " " + (i.getAttribute("data-driver") || "") + " " + (i.getAttribute("data-bezorger") || ""));
+        driverUsers.forEach(function(u){
+          if(meta && (L(meta).indexOf(L(u.id)) >= 0 || L(meta).indexOf(L(u.name)) >= 0)){
+            add(u.id);
+          }
+        });
+      });
+    }
+
+    return found;
+  }
+
+  function chosenMaterials(existing){
+    try{ if(Array.isArray(chosen) && chosen.length) return chosen; }catch(e){}
+    try{ if(Array.isArray(window.chosen) && window.chosen.length) return window.chosen; }catch(e){}
+    try{ if(Array.isArray(chosenMaterials) && chosenMaterials.length) return chosenMaterials; }catch(e){}
+    try{ if(Array.isArray(window.chosenMaterials) && window.chosenMaterials.length) return window.chosenMaterials; }catch(e){}
+    try{ if(Array.isArray(selectedMaterials) && selectedMaterials.length) return selectedMaterials; }catch(e){}
+    try{ if(Array.isArray(window.selectedMaterials) && window.selectedMaterials.length) return window.selectedMaterials; }catch(e){}
     return existing && Array.isArray(existing.materials) ? existing.materials : [];
   }
 
-  function currentOrderSnapshot(existing){
+  function snapshot(existing){
     var o = existing || {};
-    var nr = currentOrderNumber() || o.number || o.nr || "";
-
     var customer = Object.assign({}, o.customer || {});
+    var location = Object.assign({}, o.location || {});
+
     customer.name = val("customerName") || val("klantNaam") || customer.name || o.customerName || "";
     customer.street = val("customerStreet") || val("klantStraat") || customer.street || o.customerStreet || "";
     customer.zip = val("customerZip") || val("customerPostcode") || val("klantPostcode") || customer.zip || o.customerZip || "";
@@ -43365,17 +43209,15 @@ setTimeout(()=>{
     customer.phone = val("customerPhone") || val("klantTelefoon") || customer.phone || o.customerPhone || "";
     customer.email = val("customerEmail") || val("klantEmail") || customer.email || o.customerEmail || "";
 
-    var location = Object.assign({}, o.location || {});
     location.name = val("locationName") || val("locatieNaam") || location.name || o.locationName || "";
     location.street = val("locationStreet") || val("locatieStraat") || location.street || o.locationStreet || "";
     location.zip = val("locationZip") || val("locationPostcode") || val("locatiePostcode") || location.zip || o.locationZip || "";
     location.city = val("locationCity") || val("locationPlace") || val("locatiePlaats") || location.city || o.locationCity || "";
     location.phone = val("locationPhone") || val("locatieTelefoon") || location.phone || o.locationPhone || "";
-    location.show = checked("showLocationOnDocs", location.show !== false);
 
     return Object.assign({}, o, {
-      id: o.id || id(),
-      number: nr,
+      id: o.id || makeId(),
+      number: orderNumber() || o.number || o.nr || "",
       title: val("orderTitle") || val("title") || val("opdrachtTitel") || o.title || "Zonder titel",
       start: val("dateStart") || val("startDate") || val("beginDate") || o.start || "",
       end: val("dateEnd") || val("endDate") || val("eindeDate") || o.end || val("dateStart") || o.start || "",
@@ -43385,39 +43227,44 @@ setTimeout(()=>{
       extra: val("orderExtra") || val("extra") || val("notes") || o.extra || o.notes || "",
       customer: customer,
       location: location,
-      materials: currentChosenMaterials(o)
+      materials: chosenMaterials(o)
     });
   }
 
-  function applyDrivers(o, ds){
-    ds = ds || [];
+  function applyDriverFields(o, ds){
     var ids = ds.map(function(u){ return String(u.id); }).filter(Boolean);
     var names = ds.map(function(u){ return T(u.name); }).filter(Boolean);
 
+    // Meerdere namen/ids op alle gangbare veldnamen, zodat bestaande telefoonfilters blijven werken.
     o.driverIds = ids.slice();
     o.bezorgerIds = ids.slice();
+    o.assignedDriverIds = ids.slice();
+    o.assignedDrivers = ids.slice();
+    o.phoneDriverIds = ids.slice();
+
     o.driverNames = names.slice();
     o.bezorgerNames = names.slice();
-    o.drivers = ds.map(function(u){ return { id: u.id, name: u.name, role: u.role || "Bezorger" }; });
+    o.assignedDriverNames = names.slice();
 
+    o.drivers = ds.map(function(u){ return { id: u.id, name: u.name, role: u.role || "Bezorger" }; });
+    o.bezorgers = o.drivers.slice();
+
+    // Oude velden blijven als komma-lijst voor compatibiliteit.
     o.driver = names.join(", ");
     o.driverName = names.join(", ");
     o.bezorger = names.join(", ");
+    o.assignedDriver = names.join(", ");
 
-    // Deze velden zijn alleen markering; bestaande telefoonfilter blijft op driverIds/namen werken.
     o.phoneSent = ids.length > 0;
-    o.phoneSentAt = ids.length > 0 ? new Date().toISOString() : (o.phoneSentAt || "");
     o.sentToPhone = ids.length > 0;
+    o.phoneSentAt = ids.length > 0 ? (o.phoneSentAt || new Date().toISOString()) : "";
     o.updatedAt = new Date().toISOString();
-
     return o;
   }
 
-  function syncOrder(o){
-    if(!o) return;
-
-    // Firebase direct updaten als Firestore beschikbaar is.
-    try {
+  function syncFirebase(o){
+    // Geen zware render, alleen data syncen.
+    try{
       if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc){
         window.BNS.fs.setDoc(
           window.BNS.fs.doc(window.BNS.db, "orders", String(o.id || o.number)),
@@ -43425,96 +43272,113 @@ setTimeout(()=>{
           { merge: true }
         ).catch(function(){});
       }
-    } catch(e){}
+    }catch(e){}
 
-    // Bestaande sync-laag laten meedoen, zonder extra loops te maken.
-    try {
+    try{
       if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase === "function"){
-        window.BNSFirebaseSync.uploadLocalToFirebase("v432-driver-direct");
+        window.BNSFirebaseSync.uploadLocalToFirebase("v433-driver-direct");
       }
-    } catch(e){}
+    }catch(e){}
   }
 
   function toast(msg){
-    try { if(typeof window.toast === "function") return window.toast(msg); } catch(e){}
-    try { if(typeof toastMsg === "function") return toastMsg(msg); } catch(e){}
-    try { console.log(msg); } catch(e){}
+    try{ if(typeof window.toast === "function") return window.toast(msg); }catch(e){}
+    try{ if(typeof toastMsg === "function") return toastMsg(msg); }catch(e){}
+    try{ console.log(msg); }catch(e){}
   }
 
-  function sendDriversNow(reason){
-    var nr = currentOrderNumber();
+  function send(reason){
+    var nr = orderNumber();
     var ds = selectedDrivers();
 
-    var signature = nr + "|" + ds.map(function(u){ return u.id; }).join(",");
-    if(signature === lastSignature && reason !== "force") return;
-    lastSignature = signature;
+    // Zonder opdrachtnummer niets aanmaken.
+    if(!nr) return;
 
-    if(!nr){
-      // Nog geen opdrachtnummer, dan niets forceren.
-      return;
-    }
+    var key = nr + "|" + ds.map(function(u){ return u.id; }).join(",");
+    if(key === lastKey && reason !== "force") return;
+    lastKey = key;
 
-    var list = orders();
-    var existing = findOrderByNumber(nr);
-    var o = currentOrderSnapshot(existing);
-    applyDrivers(o, ds);
+    var existing = findOrder(nr);
+    var o = snapshot(existing);
+    applyDriverFields(o, ds);
 
     if(existing){
       Object.assign(existing, o);
       o = existing;
     }else{
-      // Alleen aanmaken als er echt bezorgers gekozen zijn.
-      // Zo maken we geen lege opdracht door alleen de pagina te openen.
+      // Alleen een voorlopige opdracht aanmaken als er daadwerkelijk bezorgers zijn aangevinkt.
       if(!ds.length) return;
-      list.push(o);
+      orders().push(o);
     }
 
-    saveState();
-    syncOrder(o);
+    saveSoft();
+    syncFirebase(o);
 
-    try { if(typeof window.renderPhone83 === "function") window.renderPhone83(); } catch(e){}
-    try { if(typeof renderPhone83 === "function") renderPhone83(); } catch(e){}
-    try { if(typeof renderAll === "function") renderAll(); } catch(e){}
+    // Alleen telefoonlijst zacht verversen als functie bestaat; geen renderAll meer.
+    try{ if(typeof window.renderPhone83 === "function") window.renderPhone83(); }catch(e){}
+    try{ if(typeof renderPhone83 === "function") renderPhone83(); }catch(e){}
 
-    if(ds.length){
-      toast("Opdracht naar telefoon: " + ds.map(function(u){ return u.name; }).join(", "));
-    }
+    if(ds.length) toast("Opdracht naar telefoon: " + ds.map(function(u){ return u.name; }).join(", "));
   }
 
-  function scheduleSend(){
-    clearTimeout(pendingTimer);
-    pendingTimer = setTimeout(function(){ sendDriversNow("change"); }, 80);
+  function schedule(reason){
+    clearTimeout(timer);
+    timer = setTimeout(function(){ send(reason || "change"); }, 90);
   }
 
-  // Exacte oude werking: aanvinken = meteen koppelen/syncen.
+  function looksLikeDriverControl(el){
+    if(!el) return false;
+    if(el.closest && el.closest("#bnsV83DriverBox")) return true;
+    if(el.id === "orderDriver" || el.name === "orderDriver") return true;
+    var label = el.closest && el.closest("label") ? T(el.closest("label").innerText) : "";
+    var meta = T(el.id + " " + el.name + " " + (el.getAttribute("data-driver") || "") + " " + (el.getAttribute("data-bezorger") || ""));
+    return /bezorger|driver|chauffeur/i.test(label + " " + meta);
+  }
+
   document.addEventListener("change", function(ev){
-    var t = ev.target;
-    if(!t || !t.matches || !t.matches("input[type='checkbox'], input[type=checkbox], select")) return;
-
-    var inDriverBox = !!(t.closest && t.closest("#bnsV83DriverBox"));
-    var isOrderDriver = t.id === "orderDriver" || t.name === "orderDriver";
-    var label = T((t.closest && t.closest("label") && t.closest("label").innerText) || "");
-    var meta = T(t.id + " " + t.name + " " + (t.getAttribute("data-driver") || "") + " " + (t.getAttribute("data-bezorger") || ""));
-
-    if(inDriverBox || isOrderDriver || /bezorger|driver|chauffeur/i.test(label + " " + meta)){
-      scheduleSend();
-    }
+    var el = ev.target;
+    if(!el || !el.matches || !el.matches("input[type='checkbox'], input[type=checkbox], select")) return;
+    if(looksLikeDriverControl(el)) schedule("change");
   }, true);
 
-  // Als de oude driverbox opnieuw gerenderd wordt, blijft deze patch automatisch werken via event delegation.
-  // Bij opslaan ook nog één keer forceren, zodat de uiteindelijke opdracht dezelfde bezorgerkoppeling houdt.
   document.addEventListener("click", function(ev){
     var b = ev.target && ev.target.closest ? ev.target.closest("button,a") : null;
     if(!b) return;
-    var text = T(b.innerText || b.textContent).toLowerCase();
+    var text = L(b.innerText || b.textContent);
     if(/opslaan|bewaar|save/.test(text)){
-      setTimeout(function(){ sendDriversNow("force"); }, 180);
-      setTimeout(function(){ sendDriversNow("force"); }, 700);
+      setTimeout(function(){ send("force"); }, 250);
     }
   }, true);
 
-  window.BNS_V432_SEND_DRIVERS_TO_PHONE = function(){ sendDriversNow("force"); };
+  // Routenet: direct onzichtbaar maken zonder remove-loop.
+  function injectRoutenetCss(){
+    if(E("bnsV433RoutenetHideCss")) return;
+    var style = document.createElement("style");
+    style.id = "bnsV433RoutenetHideCss";
+    style.textContent =
+      "button,a,.btn,[role='button']{animation-duration:initial}" +
+      "button[data-route='routenet'],a[data-route='routenet']{display:none!important}" +
+      ".routenet,.routenet-box,[class*='routenet' i],[id*='routenet' i]{display:none!important}";
+    document.head.appendChild(style);
+  }
 
-  console.info("[BNS v432] Bezorger aanvinken stuurt opdracht direct naar telefoon.");
+  injectRoutenetCss();
+
+  document.addEventListener("click", function(ev){
+    var el = ev.target && ev.target.closest ? ev.target.closest("button,a,.btn,[role='button']") : null;
+    if(!el) return;
+    var txt = L((el.innerText || el.textContent || "") + " " + (el.id || "") + " " + (el.className || "") + " " + (el.getAttribute("href") || ""));
+    if(txt.indexOf("routenet") >= 0){
+      ev.preventDefault();
+      ev.stopPropagation();
+      if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      el.style.display = "none";
+      return false;
+    }
+  }, true);
+
+  window.BNS_V433_SEND_DRIVERS_TO_PHONE = function(){ send("force"); };
+
+  console.info("[BNS v433] Meerdere bezorgers direct naar telefoon, zonder render-flikker. Routenet blijft verborgen.");
 })();
 
