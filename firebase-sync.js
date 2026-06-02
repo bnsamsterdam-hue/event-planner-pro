@@ -392,3 +392,27 @@ console.log('[BNS v461] firebase-sync lege bezorger blijft leeg.');
 
 
 console.log('[BNS v473] BNSFirebaseSync veilig aangemaakt met loadArchief.');
+
+
+
+/* BNS v474 sync: lege bezorger blijft leeg, geen remote driver terugzetten */
+(function(){
+  if(typeof preserveOrder === 'function' && !preserveOrder.__bns474){
+    var old=preserveOrder;
+    function countDrivers(o){
+      if(!o)return 0;
+      var vals=[];
+      ['driverIds','bezorgerIds','userIds','assignedDriverIds','driverNames','bezorgerNames','assignedDriverNames'].forEach(function(k){ if(Array.isArray(o[k])) vals=vals.concat(o[k]); });
+      ['driver','driverName','bezorger','bezorgerName','driverId','bezorgerId','userId','assignedDriverId'].forEach(function(k){ if(o[k]) vals=vals.concat(String(o[k]).split(/[,;|\n]+/)); });
+      return vals.map(function(x){return String(x||'').trim();}).filter(Boolean).length;
+    }
+    preserveOrder=function(local,remote){
+      try{
+        if(local && local.folder==='lopend' && countDrivers(local)===0) return local;
+      }catch(e){}
+      return old(local,remote);
+    };
+    preserveOrder.__bns474=true;
+  }
+  console.log('[BNS v474] firebase-sync lege bezorger blijft leeg actief.');
+})();
