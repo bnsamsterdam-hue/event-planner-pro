@@ -1,4 +1,4 @@
-/* BNS FIREBASE AUTO SYNC V450 - folder/driver sync */
+/* BNS FIREBASE AUTO SYNC V2 */
 (function(){
 "use strict";
 if(window.__bnsFirebaseAutoSyncV2)return; window.__bnsFirebaseAutoSyncV2=true;
@@ -75,83 +75,8 @@ function keep(local,remote,k){
   if(!remote)return;
   if((local[k]===undefined||local[k]===null||local[k]==="")&&remote[k]!==undefined&&remote[k]!==null&&remote[k]!=="")local[k]=remote[k];
 }
-// ── Folder & bezorger helpers ─────────────────────────────
-function splitList(v){
-  if(!v) return [];
-  if(Array.isArray(v)) return v.map(x=>String(x||'').trim()).filter(Boolean);
-  return String(v).split(/[,;|\n]+/).map(s=>s.trim()).filter(Boolean);
-}
-function folderFromStatus(st){
-  const s=String(st||'').toLowerCase();
-  if(/offerte/.test(s)) return 'offerte';
-  if(/optie|14/.test(s)) return 'optie';
-  if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return 'geannuleerd';
-  if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return 'uitgevoerd';
-  if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend|gereserveerd/.test(s)) return 'lopend';
-  return '';
-}
-function orderFolder(o){
-  if(!o) return '';
-  const id=String(o.id||'');
-  if(id.startsWith('old_')) return 'old';
-  const f=String(o.folder||o.map||o.orderFolder||'').toLowerCase().trim();
-  return f || folderFromStatus(o.status);
-}
-function clearDrivers(o){
-  ['driver','driverName','driverId','assignedDriver','assignedDriverName',
-   'bezorger','bezorgerId','bezorgerName'].forEach(k=>{ o[k]=''; });
-  ['driverIds','driverNames','assignedDriverIds','bezorgerIds','bezorgerNames','drivers','bezorgers'].forEach(k=>{ o[k]=[]; });
-  o.driverCleared=true;
-}
-function normalizeOrder(row){
-  if(!row) return row;
-  row.folder = orderFolder(row);
-  if(row.folder !== 'lopend'){
-    clearDrivers(row);
-  } else {
-    // Normaliseer meerdere bezorgers
-    const ids = [...new Set([
-      ...splitList(row.driverIds), ...splitList(row.bezorgerIds),
-      ...splitList(row.assignedDriverIds), ...splitList(row.driverId),
-      ...splitList(row.bezorgerId)
-    ].filter(Boolean))];
-    const names = [...new Set([
-      ...splitList(row.driverNames), ...splitList(row.bezorgerNames),
-      ...splitList(row.driver), ...splitList(row.driverName),
-      ...splitList(row.bezorger), ...splitList(row.assignedDriver)
-    ].filter(Boolean))];
-    row.driverIds = ids; row.bezorgerIds = ids; row.assignedDriverIds = ids;
-    row.driverNames = names; row.bezorgerNames = names;
-    if(names.length){ row.driver = names.join(', '); row.driverName = row.driver; row.bezorger = row.driver; }
-    row.driverCleared = false;
-  }
-  return row;
-}
-
-
-function bnsDriverCount(o){
-  try{
-    return [].concat(
-      splitList(o&&o.driverIds),splitList(o&&o.bezorgerIds),splitList(o&&o.assignedDriverIds),
-      splitList(o&&o.driverNames),splitList(o&&o.bezorgerNames),
-      splitList(o&&o.driver),splitList(o&&o.bezorger),splitList(o&&o.driverName),splitList(o&&o.bezorgerName)
-    ).filter(Boolean).length;
-  }catch(e){return 0;}
-}
-
 function preserveOrder(local,remote){
-  if(!local)return local;
-  normalizeOrder(local);
-  if(!remote)return local;
-  normalizeOrder(remote);
-
-  // Als planner lokaal bezorgers leeg heeft gemaakt, remote niet terug-preserven.
-  const localDrivers=bnsDriverCount(local);
-  const remoteDrivers=bnsDriverCount(remote);
-  if(local.folder==="lopend" && localDrivers>0 && remoteDrivers>localDrivers){
-    ["driverId","bezorgerId","userId","driverName","driver","bezorger","bezorgerName","assignedDriver"].forEach(k=>keep(local,remote,k));
-    normalizeOrder(local);
-  }
+  ["driverId","bezorgerId","userId","driverName","driver","bezorger"].forEach(k=>keep(local,remote,k));
   return local;
 }
 async function upload(reason){
@@ -169,20 +94,7 @@ async function upload(reason){
       for(const row of rows){
         id(row,col.slice(0,1));
         if(col==="orders"){
-          normalizeOrder(row);
-          // old_ is archief: niet vanuit lokale storage opnieuw uploaden als live data.
-          if(row.folder==="old"){
-            console.warn("[BNS v450] old_ order niet geupload", row.id);
-            continue;
-          }
           const rem=await remoteDoc("orders",row.id);
-          if(rem&&rem.updatedAt&&(!row.updatedAt||rem.updatedAt>row.updatedAt)){
-            // Firebase is nieuwer: niet overschrijven met oude lokale data.
-            normalizeOrder(rem);
-            Object.keys(row).forEach(k=>delete row[k]);
-            Object.assign(row,rem);
-            continue;
-          }
           preserveOrder(row,rem);
         }
         row.updatedAt=row.updatedAt||new Date().toISOString();
@@ -209,13 +121,7 @@ async function download(){
         continue;
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
-      let remoteRows=snap.docs.map(d=>({id:d.id,...d.data()}));
-      if(col==="orders") remoteRows=remoteRows.map(normalizeOrder);
-      // Telefoon krijgt alleen lopende orders
-      if(typeof window!=='undefined' && window.BNS_filterOrdersForClient){
-        remoteRows=window.BNS_filterOrdersForClient(remoteRows);
-      }
-      s[col]=remoteRows;
+      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
       if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
@@ -269,13 +175,7 @@ t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
 t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
-      let remoteRows=snap.docs.map(d=>({id:d.id,...d.data()}));
-      if(col==="orders") remoteRows=remoteRows.map(normalizeOrder);
-      // Telefoon krijgt alleen lopende orders
-      if(typeof window!=='undefined' && window.BNS_filterOrdersForClient){
-        remoteRows=window.BNS_filterOrdersForClient(remoteRows);
-      }
-      s[col]=remoteRows;
+      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{

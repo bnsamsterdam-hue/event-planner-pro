@@ -119,106 +119,24 @@ const LOCKED_USER_KEY="tapwagen_driver_locked_user_id";
 let CURRENT_DETAIL_ID="";
 
 function userAllowed(u){
-  if(!u) return false;
-  const r=lower(u.role||u.type||u.functie||"");
-  const nm=lower(u.name||u.naam||u.displayName||"");
-  const id=lower(u.id||u.uid||"");
-  const rights=u.rights||{};
-  if(u.deleted===true || u.disabled===true || u.active===false) return false;
-  if(id==="u_admin" || id==="u_planner" || id==="admin" || id==="planner") return false;
-  if(nm==="admin" || nm==="planner") return false;
-  if(String(u.pin||"").trim() && String(u.name||u.naam||u.displayName||"").trim()) return true;
-  return r==="bezorger" || r==="driver" ||
-    !!(rights && (
-      rights.gps || rights.route || rights.waze || rights.agenda || rights.resolve || rights.orders ||
-      rights.afmelden || rights.afmeldenMelding || rights.complete || rights.done || rights.uitgevoerd ||
-      rights.bellen || rights.callCustomer || rights.customerSignature ||
-      rights.damage || rights.schade || rights.storing || rights.materials || rights.prices
-    ));
+  const r=lower(u.role);
+  return r==="bezorger"||r==="planner"||r==="admin"||!!(u.rights&&(u.rights.gps||u.rights.agenda||u.rights.resolve||u.rights.orders||u.rights.damage||u.rights.schade||u.rights.storing||u.rights.materials||u.rights.prices));
 }
-
-
-/* BNS v454 - globale folder helper voor telefoon */
-function BNS_driverFolderFromStatus(st){
-  const s=lower(st||"");
-  if(/offerte/.test(s))return "offerte";
-  if(/optie|14/.test(s))return "optie14";
-  if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s))return "geannuleerd";
-  if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return "uitgevoerd";
-  if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return "lopend";
-  return "";
-}
-function BNS_driverFolder(o){
-  const id=String((o&&(o.id||o.docId||o.orderId))||"");
-  if(id.indexOf("old_")===0)return "old";
-  return lower((o&&(o.folder||o.map||o.orderFolder))||"") || BNS_driverFolderFromStatus(o&&o.status);
-}
-function BNS_orderIsLiveForPhone(o){
-  return !!(o && BNS_driverFolder(o)==="lopend" &&
-    o.afgemeld!==true && o.phoneDone!==true && o.completed!==true &&
-    !isCancelled(o) && !isDone(o) && !isDeleted(o));
-}
-window.BNS_orderIsLiveForPhone = BNS_orderIsLiveForPhone;
-
 function assignedToUser(o){
-  if(!o || !BNS.user) return false;
-
-  function folderFromStatus(st){
-    const s=lower(st||"");
-    if(/offerte/.test(s))return "offerte";
-    if(/optie|14/.test(s))return "optie14";
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s))return "geannuleerd";
-    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return "uitgevoerd";
-    if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return "lopend";
-    return "";
-  }
-  function folder(o){
-    const id=String((o&&(o.id||o.docId||o.orderId))||"");
-    if(id.indexOf("old_")===0)return "old";
-    return lower((o&&(o.folder||o.map||o.orderFolder))||"") || folderFromStatus(o&&o.status);
-  }
-
-  // Telefoon mag alleen lopende/bevestigde opdrachten beoordelen.
-  if(BNS_driverFolder(o)!=="lopend") return false;
-  if(isCancelled(o)||isDone(o)||isDeleted(o)||o.afgemeld===true||o.phoneDone===true||o.completed===true) return false;
-
-  const uid=String(BNS.user.id||BNS.user.uid||"");
-  const un=lower(BNS.user.name||BNS.user.naam||BNS.user.displayName||"");
+  const uid=String(BNS.user.id||""),un=lower(BNS.user.name||"");
   const ids=[];
+  [o.driverId,o.bezorgerId,o.userId].forEach(v=>{if(v!=null)ids.push(String(v))});
+  [o.driverIds,o.bezorgerIds,o.userIds].forEach(a=>{if(Array.isArray(a))a.forEach(v=>ids.push(String(v)))});
   const names=[];
-
-  function addId(v){
-    String(v==null?"":v).split(/[;,|\n]+/).forEach(x=>{
-      x=String(x).trim();
-      if(x && !ids.includes(x)) ids.push(x);
-    });
-  }
-  function addName(v){
-    String(v==null?"":v).split(/[;,|\n]+/).forEach(x=>{
-      x=lower(x);
-      if(x && !names.includes(x)) names.push(x);
-    });
-  }
-
-  [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId].forEach(addId);
-  [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds].forEach(a=>{
-    if(Array.isArray(a)) a.forEach(addId); else addId(a);
-  });
-
-  [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver,o.assignedDriverName].forEach(addName);
-  [o.driverNames,o.bezorgerNames,o.assignedDriverNames].forEach(a=>{
-    if(Array.isArray(a)) a.forEach(addName); else addName(a);
-  });
-
-  if(uid && ids.includes(uid)) return true;
-  if(un && names.includes(un)) return true;
-
+  [o.driverName,o.driver,o.bezorger].forEach(v=>{if(v!=null)names.push(lower(v))});
+  [o.driverNames,o.bezorgerNames].forEach(a=>{if(Array.isArray(a))a.forEach(v=>names.push(lower(v)))});
+  if(uid&&ids.includes(uid))return true;
+  if(un&&names.includes(un))return true;
   if((lower(BNS.user.role)==="planner"||lower(BNS.user.role)==="admin")&&hasRight("orders"))return true;
   return false;
 }
 function visibleOrder(o){
-  // BNS v454: telefoon ziet strikt alleen live/lopend en gebruikt globale folder helper.
-  if(!BNS_orderIsLiveForPhone(o)) return false;
+  if(isCancelled(o)||isDone(o)||isDeleted(o))return false;
   if(dateTime(orderEnd(o))<todayTime())return false;
   return assignedToUser(o);
 }
