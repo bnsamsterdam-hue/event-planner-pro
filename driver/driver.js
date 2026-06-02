@@ -559,36 +559,3 @@ boot();
     renderDriver.__bns461 = true;
   }
 })();
-
-
-
-/* BNS v462 driver: live orders moeten gekoppelde bezorger hebben */
-(function(){
-  if(window.__BNS_V462_DRIVER_STRICT__) return;
-  window.__BNS_V462_DRIVER_STRICT__=true;
-
-  function hasAssigned(o){
-    try{
-      var ids=[].concat(o.driverIds||[],o.bezorgerIds||[],o.userIds||[],o.assignedDriverIds||[],o.driverId||[],o.bezorgerId||[],o.userId||[]);
-      var names=[].concat(o.driverNames||[],o.bezorgerNames||[],o.assignedDriverNames||[],o.driverName||[],o.driver||[],o.bezorger||[]);
-      ids=ids.join(",").trim();
-      names=names.join(",").trim();
-      return !!(ids || names);
-    }catch(e){return false;}
-  }
-
-  if(typeof visibleOrder==="function" && !visibleOrder.__bns462){
-    var oldVisible=visibleOrder;
-    visibleOrder=function(o){
-      if(!hasAssigned(o)) return false;
-      return oldVisible(o);
-    };
-    visibleOrder.__bns462=true;
-  }
-
-  function refreshMedia(){
-    try{ if(typeof enhanceDriverButtons==="function") enhanceDriverButtons(); }catch(e){}
-  }
-  setInterval(refreshMedia,1500);
-})();
-
