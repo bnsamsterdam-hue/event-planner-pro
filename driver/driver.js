@@ -559,3 +559,32 @@ boot();
     renderDriver.__bns461 = true;
   }
 })();
+
+
+
+/* BNS v474 driver: alleen lopend + gekoppeld, media direct verversen */
+(function(){
+  if(window.__BNS_V474_DRIVER_STRICT__) return;
+  window.__BNS_V474_DRIVER_STRICT__=true;
+  function T(v){return String(v==null?'':v).trim();}
+  function hasAssigned(o){
+    try{
+      var vals=[];
+      ['driverIds','bezorgerIds','userIds','assignedDriverIds','driverNames','bezorgerNames','assignedDriverNames'].forEach(function(k){if(Array.isArray(o[k])) vals=vals.concat(o[k]);});
+      ['driver','driverName','bezorger','bezorgerName','driverId','bezorgerId','userId','assignedDriverId'].forEach(function(k){if(o[k]) vals=vals.concat(String(o[k]).split(/[,;|\n]+/));});
+      return vals.map(T).filter(Boolean).length>0;
+    }catch(e){return false;}
+  }
+  if(typeof visibleOrder==='function' && !visibleOrder.__bns474){
+    var old=visibleOrder;
+    visibleOrder=function(o){ if(!hasAssigned(o)) return false; return old(o); };
+    visibleOrder.__bns474=true;
+  }
+  function refresh(){try{if(typeof loadPhoneData==='function' && BNS&&BNS.user) loadPhoneData().then(function(){try{render();}catch(e){}});}catch(e){}}
+  var oldUpdate = typeof updateOrder==='function'?updateOrder:null;
+  if(oldUpdate && !oldUpdate.__bns474){
+    updateOrder=async function(o){ var r=await oldUpdate.apply(this,arguments); setTimeout(refresh,500); return r; };
+    updateOrder.__bns474=true;
+  }
+  console.log('[BNS v474] driver strikt gekoppeld + media refresh actief.');
+})();
