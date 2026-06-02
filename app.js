@@ -28461,20 +28461,26 @@ setTimeout(()=>{
   function ensureDriverChooser(){
     var sel=E('orderDriver');
     if(!sel) return;
-    var oldVal=sel.value;
     var box=E('bnsV83DriverBox');
     if(!box){
       box=document.createElement('div');
       box.id='bnsV83DriverBox';
       sel.insertAdjacentElement('afterend',box);
     }
-    var selected=selectedDriverIds();
-    if(!selected.length && oldVal){
-      var u=driverUsers().find(function(x){
-        return String(x.id)===String(oldVal) || x.name===oldVal;
-      });
-      if(u) selected=[String(u.id)];
-    }
+
+    /*
+      BNS v447:
+      Vinkjes NIET meer overnemen van het scherm.
+      Nieuwe opdracht = leeg.
+      Bestaande opdracht = alleen vinkjes uit die specifieke opdracht.
+    */
+    var selected=[];
+    try{
+      var nr=val('orderNumber');
+      var existing = nr ? findOrderByNumber(nr) : null;
+      if(existing) selected=driverIdsFromOrder(existing).map(String);
+    }catch(e){ selected=[]; }
+
     var ds=driverUsers();
     box.innerHTML='<h4>Bezorgers voor deze opdracht</h4><div class="grid">'+(ds.length?ds.map(function(u){
       return '<label><input type="checkbox" value="'+H(u.id)+'" '+(selected.indexOf(String(u.id))>=0?'checked':'')+'> <span>'+H(u.name||'')+'</span></label>';
@@ -28482,7 +28488,7 @@ setTimeout(()=>{
     sel.innerHTML='<option value="">Geen</option>'+ds.map(function(u){
       return '<option value="'+H(u.id)+'">'+H(u.name||'')+'</option>';
     }).join('');
-    if(selected[0]) sel.value=selected[0];
+    sel.value=selected[0]||'';
     A('input',box).forEach(function(i){
       i.onchange=function(){
         var ids=selectedDriverIds();
