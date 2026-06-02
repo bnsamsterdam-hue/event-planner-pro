@@ -138,87 +138,57 @@ function userAllowed(u){
   const nm=lower(u.name||u.naam||u.displayName||"");
   const id=lower(u.id||u.uid||"");
   const rights=u.rights||{};
-
   if(u.deleted===true || u.disabled===true || u.active===false) return false;
   if(id==="u_admin" || id==="u_planner" || id==="admin" || id==="planner") return false;
   if(nm==="admin" || nm==="planner") return false;
-
-  // Belangrijk: Admin maakt bezorger aan met naam + PIN.
-  // Dan moet hij in de telefoonlijst komen, ook als role/rechten anders staan.
-  if(String(u.pin||"").trim() && String(u.name||u.naam||u.displayName||"").trim()) return true;
-
-  return r==="bezorger" || r==="driver" ||
-    !!(rights && (
-      rights.gps || rights.route || rights.waze ||
-      rights.agenda || rights.resolve || rights.orders ||
-      rights.afmelden || rights.afmeldenMelding || rights.complete || rights.done || rights.uitgevoerd ||
-      rights.bellen || rights.callCustomer || rights.customerSignature ||
-      rights.damage || rights.schade || rights.storing || rights.materials || rights.prices
-    ));
+  if(clean(u.pin) && clean(u.name||u.naam||u.displayName)) return true;
+  return r==="bezorger" || r==="driver" || !!(rights && (
+    rights.gps || rights.route || rights.waze || rights.agenda || rights.resolve || rights.orders ||
+    rights.afmelden || rights.afmeldenMelding || rights.complete || rights.done || rights.uitgevoerd ||
+    rights.bellen || rights.callCustomer || rights.customerSignature ||
+    rights.damage || rights.schade || rights.storing || rights.materials || rights.prices
+  ));
 }
+
+/* BNS v460 telefoon folder helpers */
+function BNS_driverFolderFromStatus(st){
+  const s=lower(st||"");
+  if(/offerte/.test(s))return"offerte";
+  if(/optie|14/.test(s))return"optie14";
+  if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s))return"geannuleerd";
+  if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return"uitgevoerd";
+  if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return"lopend";
+  return"";
+}
+function BNS_driverFolder(o){
+  const id=String((o&&(o.id||o.docId||o.orderId))||"");
+  if(id.indexOf("old_")===0)return"archief";
+  const f=lower((o&&(o.folder||o.map||o.orderFolder))||"");
+  if(f){ if(f==="live")return"lopend"; if(f==="optie")return"optie14"; if(f==="old")return"archief"; return f; }
+  return BNS_driverFolderFromStatus(o&&o.status);
+}
+function BNS_orderIsLiveForPhone(o){
+  return !!(o && BNS_driverFolder(o)==="lopend" && o.afgemeld!==true && o.phoneDone!==true && o.completed!==true && !isCancelled(o) && !isDone(o) && !isDeleted(o));
+}
+
 function assignedToUser(o){
-  if(!o || !BNS.user) return false;
-
-  function folderFromStatus(st){
-    const s=lower(st||"");
-    if(/offerte/.test(s))return "offerte";
-    if(/optie|14/.test(s))return "optie14";
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s))return "geannuleerd";
-    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return "uitgevoerd";
-    if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return "lopend";
-    return "";
-  }
-  function folder(o){
-    const id=String((o&&(o.id||o.docId||o.orderId))||"");
-    if(id.indexOf("old_")===0)return "old";
-    return lower((o&&(o.folder||o.map||o.orderFolder))||"") || folderFromStatus(o&&o.status);
-  }
-
-  // Telefoon mag alleen lopende/bevestigde opdrachten beoordelen.
-  if(folder(o) && folder(o)!=="lopend") return false;
-  if(isCancelled(o)||isDone(o)||isDeleted(o)||o.afgemeld===true||o.phoneDone===true||o.completed===true) return false;
-
-  const uid=String(BNS.user.id||BNS.user.uid||"");
-  const un=lower(BNS.user.name||BNS.user.naam||BNS.user.displayName||"");
+  if(!BNS.user || !o) return false;
+  const uid=String(BNS.user.id||""), un=lower(BNS.user.name||"");
   const ids=[];
-  const names=[];
-
-  function addId(v){
-    String(v==null?"":v).split(/[;,|\\n]+/).forEach(x=>{
-      x=String(x).trim();
-      if(x && !ids.includes(x)) ids.push(x);
-    });
-  }
-  function addName(v){
-    String(v==null?"":v).split(/[;,|\\n]+/).forEach(x=>{
-      x=lower(x);
-      if(x && !names.includes(x)) names.push(x);
-    });
-  }
-
+  const addId=v=>{ String(v==null?"":v).split(/[;,\n|]+/).map(clean).filter(Boolean).forEach(x=>ids.push(String(x))); };
   [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId].forEach(addId);
-  [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds].forEach(a=>{
-    if(Array.isArray(a)) a.forEach(addId); else addId(a);
-  });
-
-  [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver].forEach(addName);
-  [o.driverNames,o.bezorgerNames,o.assignedDriverNames].forEach(a=>{
-    if(Array.isArray(a)) a.forEach(addName); else addName(a);
-  });
-
-  if(uid && ids.includes(uid)) return true;
-  if(un && names.includes(un)) return true;
-
+  [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds].forEach(a=>{ if(Array.isArray(a))a.forEach(addId); });
+  const names=[];
+  const addName=v=>{ String(v==null?"":v).split(/[;,\n|]+/).map(lower).filter(Boolean).forEach(x=>names.push(x)); };
+  [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver,o.assignedDriverName].forEach(addName);
+  [o.driverNames,o.bezorgerNames,o.assignedDriverNames].forEach(a=>{ if(Array.isArray(a))a.forEach(addName); });
+  if(uid&&ids.includes(uid))return true;
+  if(un&&names.includes(un))return true;
   if((lower(BNS.user.role)==="planner"||lower(BNS.user.role)==="admin")&&hasRight("orders"))return true;
   return false;
 }
 function visibleOrder(o){
-  if(!o) return false;
-  if(isCancelled(o)||isDone(o)||isDeleted(o)||o.afgemeld===true||o.phoneDone===true||o.completed===true)return false;
-  const f=lower(o.folder||o.map||o.orderFolder||"");
-  const st=statusOf(o);
-  if(f && f!=="lopend") return false;
-  if(!f && /offerte|optie|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st)) return false;
+  if(!BNS_orderIsLiveForPhone(o))return false;
   if(dateTime(orderEnd(o))<todayTime())return false;
   return assignedToUser(o);
 }
@@ -457,9 +427,7 @@ async function sendPhoto(order,type){
   order.photos=Array.isArray(order.photos)?order.photos:[];
   order.media.push(item);
   order.photos.push(item);
-  order.updatedAt=new Date().toISOString();
   await updateOrder(order);
-  try{ await loadPhoneData(); }catch(e){}
   toast(type+" opgeslagen bij opdracht");
 }
 function openSignatureModal(order){
@@ -473,15 +441,30 @@ function openSignatureModal(order){
   function start(e){e.preventDefault();down=true;last=pos(e)} function move(e){if(!down)return;e.preventDefault();const p=pos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p} function end(){down=false;last=null}
   ["mousedown","touchstart"].forEach(ev=>c.addEventListener(ev,start,{passive:false})); ["mousemove","touchmove"].forEach(ev=>c.addEventListener(ev,move,{passive:false})); ["mouseup","mouseleave","touchend","touchcancel"].forEach(ev=>c.addEventListener(ev,end));
   wrap.querySelector("#sigClear").onclick=()=>ctx.clearRect(0,0,c.width,c.height); wrap.querySelector("#sigCancel").onclick=()=>wrap.remove();
-  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); const item={id:"sig_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),type:"Handtekening klant",data:data,signatureData:data,note:"Handtekening toegevoegd",createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL"),driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||""}; order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedAt=new Date().toISOString(); order.customerSignedBy=BNS.user.name||""; order.updatedAt=new Date().toISOString(); await updateOrder(order); try{ await loadPhoneData(); }catch(e){} wrap.remove(); toast("Handtekening opgeslagen bij opdracht");};
+  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); const item={id:"sig_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),type:"Handtekening klant",data:data,signatureData:data,note:"Handtekening toegevoegd",createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL"),driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||""}; order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedAt=new Date().toISOString(); order.customerSignedBy=BNS.user.name||""; await updateOrder(order); wrap.remove(); toast("Handtekening opgeslagen bij opdracht");};
 }
 function enhanceDriverButtons(){
-  qsa(".order-card").forEach(card=>{
-    const id=card.getAttribute("data-id"); const grid=card.querySelector(".action-grid"); if(!id||!grid||grid.dataset.media143)return; grid.dataset.media143="1";
+  function addMediaButtons(grid,id){
+    if(!id||!grid||grid.dataset.media143)return;
+    grid.dataset.media143="1";
     if(canPhotoBefore()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-dark" data-photo-before="${esc(id)}">Foto voor</button>`);
     if(canPhotoAfter()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-dark" data-photo-after="${esc(id)}">Foto na</button>`);
     if(canSignature()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-purple wide" data-signature="${esc(id)}">Handtekening klant</button>`);
+  }
+
+  qsa(".order-card").forEach(card=>{
+    addMediaButtons(card.querySelector(".action-grid"), card.getAttribute("data-id"));
   });
+
+  // BNS v459: detailpagina heeft geen .order-card, dus daar ook toevoegen.
+  try{
+    if(CURRENT_DETAIL_ID){
+      qsa("#detailView .report-grid,#detailView .action-grid").forEach(grid=>{
+        addMediaButtons(grid, CURRENT_DETAIL_ID);
+      });
+    }
+  }catch(e){}
+
   qsa("[data-photo-before]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoBefore); if(o)sendPhoto(o,"Foto voor levering")}});
   qsa("[data-photo-after]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoAfter); if(o)sendPhoto(o,"Foto na levering")}});
   qsa("[data-signature]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.signature); if(o)openSignatureModal(o)}});

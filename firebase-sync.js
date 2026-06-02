@@ -1,4 +1,4 @@
-/* BNS FIREBASE AUTO SYNC V2 */
+/* BNS FIREBASE AUTO SYNC V460 */
 (function(){
 "use strict";
 if(window.__bnsFirebaseAutoSyncV2)return; window.__bnsFirebaseAutoSyncV2=true;
@@ -75,10 +75,84 @@ function keep(local,remote,k){
   if(!remote)return;
   if((local[k]===undefined||local[k]===null||local[k]==="")&&remote[k]!==undefined&&remote[k]!==null&&remote[k]!=="")local[k]=remote[k];
 }
+
+/* BNS v460 sync helpers */
+function bns460SplitList(v){
+  if(v===undefined||v===null)return[];
+  if(Array.isArray(v)){let out=[];v.forEach(x=>out=out.concat(bns460SplitList(x)));return out;}
+  if(typeof v==="object")return bns460SplitList([v.id,v.uid,v.name,v.naam,v.displayName].filter(Boolean));
+  return String(v).split(/[;,\n|]+/).map(x=>String(x||"").trim()).filter(Boolean);
+}
+function bns460Unique(a){
+  const s={}; const out=[];
+  (a||[]).forEach(x=>{const v=String(x||"").trim();const k=v.toLowerCase();if(v&&!s[k]){s[k]=1;out.push(v);}});
+  return out;
+}
+function bns460Lower(v){return String(v||"").trim().toLowerCase();}
+function bns460Folder(o){
+  const id=String(o&&(o.id||o.docId||o.orderId)||"");
+  if(id.indexOf("old_")===0)return"archief";
+  const f=bns460Lower(o&&(o.folder||o.map||o.orderFolder));
+  if(f){ if(f==="live")return"lopend"; if(f==="optie")return"optie14"; if(f==="old")return"archief"; return f; }
+  const s=bns460Lower(o&&(o.status||o.state||o.orderStatus));
+  if(/offerte/.test(s))return"offerte";
+  if(/optie|14/.test(s))return"optie14";
+  if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s))return"geannuleerd";
+  if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return"uitgevoerd";
+  if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s))return"lopend";
+  return"";
+}
+function bns460ClearDrivers(o){
+  if(!o)return o;
+  ["driver","driverId","driverName","bezorger","bezorgerId","bezorgerName","assignedDriver","assignedDriverId","assignedDriverName","userId"].forEach(k=>o[k]="");
+  ["driverIds","driverNames","bezorgerIds","bezorgerNames","assignedDriverIds","assignedDriverNames","userIds","drivers","bezorgers","driverList"].forEach(k=>o[k]=[]);
+  return o;
+}
+function bns460NormalizeDrivers(o){
+  if(!o)return o;
+  const ids=bns460Unique([].concat(bns460SplitList(o.driverIds),bns460SplitList(o.bezorgerIds),bns460SplitList(o.assignedDriverIds),bns460SplitList(o.userIds),bns460SplitList(o.driverId),bns460SplitList(o.bezorgerId),bns460SplitList(o.assignedDriverId),bns460SplitList(o.userId)));
+  const names=bns460Unique([].concat(bns460SplitList(o.driverNames),bns460SplitList(o.bezorgerNames),bns460SplitList(o.assignedDriverNames),bns460SplitList(o.driverName),bns460SplitList(o.driver),bns460SplitList(o.bezorger),bns460SplitList(o.bezorgerName),bns460SplitList(o.assignedDriver),bns460SplitList(o.assignedDriverName)));
+  o.driverIds=ids; o.bezorgerIds=ids; o.assignedDriverIds=ids; o.userIds=ids;
+  o.driverNames=names; o.bezorgerNames=names; o.assignedDriverNames=names;
+  o.driver=names.join(", "); o.bezorger=names.join(", "); o.driverName=names.join(", "); o.bezorgerName=names.join(", ");
+  return o;
+}
+function bns460DriverCount(o){
+  return bns460Unique([].concat(bns460SplitList(o&&o.driverIds),bns460SplitList(o&&o.bezorgerIds),bns460SplitList(o&&o.driverNames),bns460SplitList(o&&o.bezorgerNames),bns460SplitList(o&&o.driver),bns460SplitList(o&&o.bezorger),bns460SplitList(o&&o.driverName),bns460SplitList(o&&o.bezorgerName))).length;
+}
+function bns460NormalizeOrder(o){
+  if(!o)return o;
+  o.folder=bns460Folder(o);
+  if(o.folder!=="lopend")bns460ClearDrivers(o);
+  else bns460NormalizeDrivers(o);
+  return o;
+}
+function bns460IsPhoneClient(){
+  const h=String(location.href||"").toLowerCase();
+  const b=String(document.body&&document.body.innerText||"").toLowerCase();
+  return h.indexOf("/driver")>=0||h.indexOf("bezorger")>=0||h.indexOf("telefoon")>=0||b.indexOf("mobiele opdrachten")>=0||b.indexOf("bezorger tapwagen")>=0;
+}
+function bns460FilterRows(col,rows){
+  rows=(rows||[]).map(o=>col==="orders"?bns460NormalizeOrder(o):o);
+  if(col==="orders"&&bns460IsPhoneClient())return rows.filter(o=>o.folder==="lopend");
+  return rows;
+}
+
 function preserveOrder(local,remote){
-  // BNS v459:
-  // Geen oude remote bezorger terugzetten. Als planner bezorger weghaalt,
-  // moet Firebase leeg worden en moet de opdracht van de telefoon verdwijnen.
+  if(!local)return local;
+  bns460NormalizeOrder(local);
+  if(!remote)return local;
+  bns460NormalizeOrder(remote);
+
+  // BNS v460: als planner lokaal bezorgers heeft gewist, remote niet terugzetten.
+  const lc=bns460DriverCount(local), rc=bns460DriverCount(remote);
+  if(local.folder==="lopend" && lc>0 && rc>lc){
+    ["driverId","bezorgerId","userId","assignedDriverId","driverName","driver","bezorger","bezorgerName","assignedDriver"].forEach(k=>keep(local,remote,k));
+    ["driverIds","bezorgerIds","userIds","assignedDriverIds","driverNames","bezorgerNames","assignedDriverNames","drivers","bezorgers"].forEach(k=>{
+      if(Array.isArray(remote[k])&&remote[k].length>(Array.isArray(local[k])?local[k].length:0))local[k]=remote[k];
+    });
+    bns460NormalizeDrivers(local);
+  }
   return local;
 }
 async function upload(reason){
@@ -96,8 +170,21 @@ async function upload(reason){
       for(const row of rows){
         id(row,col.slice(0,1));
         if(col==="orders"){
+          bns460NormalizeOrder(row);
+          if(row.folder==="archief"){
+            console.warn("[BNS v460] old_/archief order niet opnieuw als live geupload", row.id);
+            continue;
+          }
           const rem=await remoteDoc("orders",row.id);
+          if(rem && rem.updatedAt && (!row.updatedAt || rem.updatedAt>row.updatedAt)){
+            // Firebase is nieuwer: lokale oude versie niet terugschrijven.
+            bns460NormalizeOrder(rem);
+            Object.keys(row).forEach(k=>delete row[k]);
+            Object.assign(row,rem);
+            continue;
+          }
           preserveOrder(row,rem);
+          bns460NormalizeOrder(row);
         }
         row.updatedAt=row.updatedAt||new Date().toISOString();
         await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row,{merge:true});
@@ -123,7 +210,7 @@ async function download(){
         continue;
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
-      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      s[col]=bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()})));
       if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
@@ -167,17 +254,17 @@ async function live(){
   const t = await fb(); if(!t)return;
   COLLECTIONS.forEach(col=>{
     if(col==="settings"){
-t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
+      t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
         if(uploading)return;
         const s=norm(loadLocal()||{}); if(snap.exists())s.settings=snap.data()||{};
         downloading=true; saveLocal(s); downloading=false; lastJson=json();
       });
       return;
     }
-t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
+    t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
-      s[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      s[col]=bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()})));
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
@@ -188,15 +275,13 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
           if(ab){var oc=(window.__bnsState||loadLocal()||{}).alerts||[];ab.textContent="Systeemmeldingen ("+(oc.filter(function(a){return !a.resolved;}).length)+")";}
           try{if(typeof toastMsg==="function")toastMsg("Nieuwe bezorger melding ontvangen");}catch(e){}
         }
-        // Materials: alleen renderen als materialPanel zichtbaar is, met debounce
         if(col==="materials"){
           clearTimeout(window.__bnsFbMatTimer);
           window.__bnsFbMatTimer=setTimeout(function(){
             try{
               var panel=document.getElementById("materialPanel");
               var isVisible=panel&&!panel.classList.contains("hidden");
-              if(isVisible&&typeof renderMaterials==="function")
-                renderMaterials(window.currentCat||"TW");
+              if(isVisible&&typeof renderMaterials==="function")renderMaterials(window.currentCat||"TW");
             }catch(e){}
           },300);
         }
