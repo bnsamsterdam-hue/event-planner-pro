@@ -76,7 +76,9 @@ function keep(local,remote,k){
   if((local[k]===undefined||local[k]===null||local[k]==="")&&remote[k]!==undefined&&remote[k]!==null&&remote[k]!=="")local[k]=remote[k];
 }
 function preserveOrder(local,remote){
-  ["driverId","bezorgerId","userId","driverName","driver","bezorger"].forEach(k=>keep(local,remote,k));
+  // BNS v459:
+  // Geen oude remote bezorger terugzetten. Als planner bezorger weghaalt,
+  // moet Firebase leeg worden en moet de opdracht van de telefoon verdwijnen.
   return local;
 }
 async function upload(reason){
