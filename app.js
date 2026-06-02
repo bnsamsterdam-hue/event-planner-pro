@@ -44968,19 +44968,64 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 
 
+
+/* BNS v470: oude v468 guard verwijderd; login-safe guard actief */
+
+
+
+
 /* =========================================================
-   BNS v468 - HARD WIT-SCHERM HERSTEL
-   v467 detecteert het probleem, maar herstelde niet altijd een echte pagina.
-   Deze patch zet bij wit scherm expliciet Dashboard/Orders terug zichtbaar.
-   Raakt reservering, Firebase, mappen en materiaal niet aan.
+   BNS v470 - v468 guard login-safe
+   Fix:
+   1. Guard doet niets zolang login/PIN-scherm zichtbaar is.
+   2. Restore verbergt login nooit als er geen actieve gebruiker is.
+   3. Geen flikker-loop tijdens PIN invoer.
+   Raakt reservering, archief, materiaal en Firebase niet aan.
    ========================================================= */
 (function(){
-  if(window.__BNS_V468_HARD_WHITE_RECOVERY__) return;
-  window.__BNS_V468_HARD_WHITE_RECOVERY__ = true;
+  if(window.__BNS_V470_LOGIN_SAFE_GUARD__) return;
+  window.__BNS_V470_LOGIN_SAFE_GUARD__ = true;
 
   function T(v){ return String(v == null ? "" : v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
   function E(id){ return document.getElementById(id); }
+
+  function isVisible(el){
+    if(!el) return false;
+    var st = getComputedStyle(el);
+    return st.display !== "none" &&
+           st.visibility !== "hidden" &&
+           st.opacity !== "0" &&
+           !el.classList.contains("hidden") &&
+           el.offsetHeight > 0;
+  }
+
+  function hasActiveUser(){
+    try{
+      if(window.currentUser || window.curUser || window.user || window.loggedInUser) return true;
+    }catch(e){}
+    try{
+      if(window.state && window.state.currentUser) return true;
+    }catch(e){}
+    try{
+      var raw = localStorage.getItem("bns_user") ||
+                localStorage.getItem("currentUser") ||
+                localStorage.getItem("driverUser") ||
+                localStorage.getItem("tapwagen_user");
+      if(raw && raw !== "null" && raw !== "{}") return true;
+    }catch(e){}
+    return false;
+  }
+
+  function loginVisible(){
+    var login = E("login") || E("loginScreen") || E("pinScreen") || document.querySelector(".login,.login-screen,.pin-screen");
+    if(login && isVisible(login)) return true;
+
+    // Fallback: als er een zichtbaar PIN veld is, beschouwen we dit als loginfase.
+    var pin = Array.from(document.querySelectorAll('input[type="password"],input[placeholder*="PIN" i],input[id*="pin" i],input[name*="pin" i]'))
+      .find(isVisible);
+    return !!pin && !hasActiveUser();
+  }
 
   function show(el){
     if(!el) return;
@@ -44999,6 +45044,14 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     el.style.display = "none";
   }
 
+  function showLoginOnly(reason){
+    var login = E("login") || E("loginScreen") || E("pinScreen") || document.querySelector(".login,.login-screen,.pin-screen");
+    if(login) show(login);
+    var app = E("app");
+    if(app && !hasActiveUser()) hide(app);
+    console.log("[BNS v470] login zichtbaar gelaten:", reason);
+  }
+
   function activatePage(el){
     if(!el) return false;
     document.querySelectorAll(".page,.screen,.view,section").forEach(function(p){
@@ -45012,88 +45065,88 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function pickMainPage(){
     var ids = ["dashboard","orders","planning","opdrachten","newOrder","admin"];
     for(var i=0;i<ids.length;i++){
-      var el=E(ids[i]);
+      var el = E(ids[i]);
       if(el) return el;
     }
     var candidates = Array.from(document.querySelectorAll(".page,.screen,.view,section,main > div"));
     return candidates.find(function(el){
-      var txt=L(el.textContent);
-      return txt.indexOf("dashboard")>=0 || txt.indexOf("planning")>=0 || txt.indexOf("opdrachten")>=0;
+      var txt = L(el.textContent);
+      return txt.indexOf("dashboard") >= 0 || txt.indexOf("planning") >= 0 || txt.indexOf("opdrachten") >= 0;
     }) || candidates[0] || null;
   }
 
   function appVisible(){
-    var app=E("app");
+    var app = E("app");
     if(!app) return true;
-    var st=getComputedStyle(app);
-    return st.display!=="none" && st.visibility!=="hidden" && app.offsetHeight>0;
+    return isVisible(app);
   }
 
   function hasVisiblePage(){
-    var pages=Array.from(document.querySelectorAll(".page,.screen,.view,section"));
+    var pages = Array.from(document.querySelectorAll(".page,.screen,.view,section"));
     return pages.some(function(el){
-      var st=getComputedStyle(el);
-      return st.display!=="none" && st.visibility!=="hidden" && el.offsetHeight>20 && T(el.textContent).length>20;
+      return isVisible(el) && T(el.textContent).length > 20;
     });
   }
 
   function restore(reason){
-    try{
-      var app=E("app");
-      var login=E("login");
-      show(app || document.body);
-      if(login) hide(login);
-
-      var page = document.querySelector(".page.active,.screen.active,.view.active,section.active") || pickMainPage();
-      activatePage(page);
-
-      // Navigatie/zijbalk ook terugzetten als die verborgen is geraakt.
-      ["sidebar","nav","menu"].forEach(function(id){ show(E(id)); });
-      document.querySelectorAll("aside,nav,.sidebar,.side").forEach(show);
-
-      try{ if(typeof renderDashboard==="function") renderDashboard(); }catch(e){}
-      try{ if(typeof renderOrders==="function") renderOrders(); }catch(e){}
-      try{ if(typeof renderAll==="function") renderAll(); }catch(e){}
-
-      console.warn("[BNS v468] wit scherm hard hersteld:", reason);
-    }catch(e){
-      console.error("[BNS v468] herstel fout", e);
+    // Belangrijk: geen gebruiker = login tonen en NIET verbergen.
+    if(!hasActiveUser()){
+      showLoginOnly(reason);
+      return;
     }
+
+    var app = E("app");
+    var login = E("login") || E("loginScreen") || E("pinScreen");
+    show(app || document.body);
+    if(login) hide(login);
+
+    var page = document.querySelector(".page.active,.screen.active,.view.active,section.active") || pickMainPage();
+    activatePage(page);
+
+    ["sidebar","nav","menu"].forEach(function(id){ show(E(id)); });
+    document.querySelectorAll("aside,nav,.sidebar,.side").forEach(show);
+
+    try{ if(typeof renderDashboard === "function") renderDashboard(); }catch(e){}
+    try{ if(typeof renderOrders === "function") renderOrders(); }catch(e){}
+    try{ if(typeof renderAll === "function") renderAll(); }catch(e){}
+
+    console.warn("[BNS v470] wit scherm hersteld:", reason);
   }
 
   function guard(){
-    var text=T(document.body && document.body.innerText);
+    // Belangrijk: tijdens login/PIN nooit ingrijpen.
+    if(loginVisible()) return;
+
+    var text = T(document.body && document.body.innerText);
     if(!appVisible() || !hasVisiblePage() || text.length < 40){
-      restore("app niet zichtbaar / geen pagina / lege body");
+      restore("app niet zichtbaar / geen pagina / korte body");
     }
   }
 
-  // PIN-knoppen en admin-open veroorzaken nu direct herstelcontrole.
   document.addEventListener("click", function(e){
-    var b=e.target && e.target.closest && e.target.closest("button,a");
+    var b = e.target && e.target.closest && e.target.closest("button,a");
     if(!b) return;
-    var txt=L(b.textContent || b.value || b.title || b.id);
-    if(txt.indexOf("pin")>=0 || txt.indexOf("open beheer")>=0 || txt.indexOf("inloggen")>=0 || b.id==="unlockAdmin"){
-      setTimeout(guard,80);
-      setTimeout(guard,500);
-      setTimeout(guard,1400);
+    var txt = L(b.textContent || b.value || b.title || b.id);
+    if(txt.indexOf("pin") >= 0 || txt.indexOf("open beheer") >= 0 || txt.indexOf("inloggen") >= 0 || b.id === "unlockAdmin"){
+      setTimeout(guard, 180);
+      setTimeout(guard, 900);
+      setTimeout(guard, 1800);
     }
   }, true);
 
   document.addEventListener("keydown", function(e){
-    if(e.key==="Enter"){
-      var a=document.activeElement;
-      if(a && /pin|password/i.test(String(a.id||a.name||a.placeholder||a.type||""))){
-        setTimeout(guard,80);
-        setTimeout(guard,500);
-        setTimeout(guard,1400);
-      }
+    if(e.key !== "Enter") return;
+    var a = document.activeElement;
+    if(a && /pin|password/i.test(String(a.id || a.name || a.placeholder || a.type || ""))){
+      setTimeout(guard, 180);
+      setTimeout(guard, 900);
+      setTimeout(guard, 1800);
     }
   }, true);
 
-  setInterval(guard, 1200);
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", guard);
-  else setTimeout(guard,200);
+  setInterval(guard, 1800);
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", guard);
+  else setTimeout(guard, 300);
 
-  console.log("[BNS v468] hard wit-scherm herstel actief.");
+  console.log("[BNS v470] login-safe wit-scherm guard actief.");
 })();
