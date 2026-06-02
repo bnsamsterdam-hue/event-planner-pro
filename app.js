@@ -44789,328 +44789,108 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 
 /* =========================================================
-   BNS v467 - PIN / wit scherm herstel
-   Doel:
-   - PIN veld mag niet verdwijnen naar leeg wit scherm.
-   - Main login en Admin "Open beheer" blijven zichtbaar/bruikbaar.
-   - Raakt reservering, materiaal, folders en Firebase niet aan.
+   BNS v471 - minimale Admin PIN helper
+   Geen wit-scherm guard, geen intervals, geen app/login verbergen.
+   Alleen Admin beheer openen als PIN klopt.
    ========================================================= */
 (function(){
-  if(window.__BNS_V467_PIN_WHITE_SCREEN_FIX__) return;
-  window.__BNS_V467_PIN_WHITE_SCREEN_FIX__ = true;
+  if(window.__BNS_V471_MIN_ADMIN_PIN__) return;
+  window.__BNS_V471_MIN_ADMIN_PIN__ = true;
 
-  function E(id){ return document.getElementById(id); }
   function T(v){ return String(v == null ? "" : v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
 
-  function visible(el){
-    if(!el) return false;
-    var s=getComputedStyle(el);
-    return s.display !== "none" && s.visibility !== "hidden" && !el.classList.contains("hidden");
+  function getState(){
+    try{ if(window.state) return window.state; }catch(e){}
+    try{ if(typeof state !== "undefined") return state; }catch(e){}
+    return {};
   }
 
   function pinOk(pin){
-    pin=T(pin);
+    pin = T(pin);
     if(!pin) return false;
     try{
-      if(typeof adminPinOk === "function" && adminPinOk(pin)) return true;
-    }catch(e){}
-    try{
-      var s = window.state || state || {};
+      var s = getState();
       if(T(s.adminPin) && T(s.adminPin) === pin) return true;
-      if(pin === "1111") return true;
       var users = Array.isArray(s.users) ? s.users : [];
-      return users.some(function(u){
-        return !u.deleted && T(u.pin) === pin && (L(u.role) === "admin" || u.rights && u.rights.admin);
-      });
+      if(users.some(function(u){
+        var rights = u.rights || {};
+        return !u.deleted && !u.disabled && T(u.pin) === pin &&
+          (L(u.role || u.type || u.functie) === "admin" || rights.admin || rights.adminBeheer || rights.materials || rights.materialen);
+      })) return true;
     }catch(e){}
     return pin === "1111";
   }
 
-  function showAdminArea(){
-    var area = E("adminArea");
-    if(area){
-      area.classList.remove("hidden");
-      area.style.display = "";
-      area.style.visibility = "visible";
-    }
-    var admin = E("admin");
-    if(admin){
-      admin.classList.add("active");
-      admin.style.display = "";
-      admin.style.visibility = "visible";
-    }
-    try{
-      if(typeof renderAdmin === "function") renderAdmin();
-      if(typeof renderAdminMaterialsPro === "function") renderAdminMaterialsPro();
-    }catch(e){}
-  }
-
-  function showAppFallback(){
-    var app = E("app");
-    var login = E("login");
-    if(app){
-      app.classList.remove("hidden");
-      app.style.display = "";
-      app.style.visibility = "visible";
-    }
-    if(login){
-      login.classList.add("hidden");
-      login.style.display = "none";
-    }
-
-    var active = document.querySelector(".page.active");
-    if(!active){
-      var dash = E("dashboard") || E("orders") || document.querySelector(".page");
-      if(dash){
-        dash.classList.add("active");
-        dash.style.display = "";
-        dash.style.visibility = "visible";
-      }
-    }
-
-    try{
-      if(typeof renderAll === "function") renderAll();
-    }catch(e){}
-  }
-
-  function blankScreenGuard(){
-    try{
-      var app = E("app"), login = E("login");
-      var hasActive = !!document.querySelector(".page.active");
-      var bodyText = T(document.body && document.body.innerText);
-      if(app && !visible(app) && login && !visible(login)){
-        console.warn("[BNS v467] wit scherm voorkomen: app/login beide verborgen, app hersteld.");
-        showAppFallback();
-        return;
-      }
-      if(app && visible(app) && !hasActive && bodyText.length < 80){
-        console.warn("[BNS v467] wit scherm voorkomen: geen actieve pagina, dashboard hersteld.");
-        showAppFallback();
-        return;
-      }
-    }catch(e){}
-  }
-
-  function bindAdminPin(){
-    var pin = E("adminPin");
-    var btn = E("unlockAdmin");
-    if(btn && btn.dataset.bnsV467 !== "1"){
-      btn.dataset.bnsV467 = "1";
-      btn.addEventListener("click", function(ev){
-        var p = pin ? pin.value : "";
-        if(pinOk(p)){
-          ev.preventDefault();
-          ev.stopPropagation();
-          showAdminArea();
-          if(pin) pin.value = "";
-          return false;
-        }
-      }, true);
-    }
-    if(pin && pin.dataset.bnsV467 !== "1"){
-      pin.dataset.bnsV467 = "1";
-      try{ pin.type = "password"; }catch(e){}
-      pin.setAttribute("autocomplete","new-password");
-      pin.addEventListener("keydown", function(ev){
-        if(ev.key === "Enter"){
-          var p = pin.value;
-          if(pinOk(p)){
-            ev.preventDefault();
-            ev.stopPropagation();
-            showAdminArea();
-            pin.value = "";
-            return false;
-          }
-        }
-      }, true);
-    }
-  }
-
-  function bindMainPin(){
-    ["pinOk","pinClear"].forEach(function(id){
-      var el=E(id);
-      if(el && el.dataset.bnsV467Guard !== "1"){
-        el.dataset.bnsV467Guard = "1";
-        el.addEventListener("click", function(){
-          setTimeout(blankScreenGuard, 120);
-          setTimeout(blankScreenGuard, 800);
-        }, true);
-      }
-    });
-    document.querySelectorAll("[data-pin]").forEach(function(el){
-      if(el.dataset.bnsV467Guard === "1") return;
-      el.dataset.bnsV467Guard = "1";
-      el.addEventListener("click", function(){
-        setTimeout(blankScreenGuard, 120);
-        setTimeout(blankScreenGuard, 800);
-      }, true);
-    });
-  }
-
-  function boot(){
-    bindAdminPin();
-    bindMainPin();
-    blankScreenGuard();
-  }
-
-  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else boot();
-
-  setInterval(function(){
-    bindAdminPin();
-    bindMainPin();
-    blankScreenGuard();
-  }, 1500);
-
-  console.log("[BNS v467] PIN/wit-scherm fix actief.");
-})();
-
-
-
-/* =========================================================
-   BNS v468 - HARD WIT-SCHERM HERSTEL
-   v467 detecteert het probleem, maar herstelde niet altijd een echte pagina.
-   Deze patch zet bij wit scherm expliciet Dashboard/Orders terug zichtbaar.
-   Raakt reservering, Firebase, mappen en materiaal niet aan.
-   ========================================================= */
-(function(){
-  if(window.__BNS_V468_HARD_WHITE_RECOVERY__) return;
-  window.__BNS_V468_HARD_WHITE_RECOVERY__ = true;
-
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function E(id){ return document.getElementById(id); }
-
-  function show(el){
-    if(!el) return;
-    el.classList.remove("hidden");
-    el.style.removeProperty("display");
-    el.style.removeProperty("visibility");
-    el.style.removeProperty("opacity");
-    el.style.display = "";
-    el.style.visibility = "visible";
-    el.style.opacity = "1";
-  }
-
-  function hide(el){
-    if(!el) return;
-    el.classList.add("hidden");
-    el.style.display = "none";
-  }
-
-  function activatePage(el){
+  function visible(el){
     if(!el) return false;
-    document.querySelectorAll(".page,.screen,.view,section").forEach(function(p){
-      if(p !== el && p.classList.contains("active")) p.classList.remove("active");
+    var st = getComputedStyle(el);
+    return st.display !== "none" && st.visibility !== "hidden" && el.offsetParent !== null;
+  }
+
+  function findPin(btn){
+    var root = btn && (btn.closest("section,.page,.card,.panel,main,body") || document);
+    var inputs = Array.from((root || document).querySelectorAll('input[type="password"],input[placeholder*="PIN" i],input[id*="pin" i],input[name*="pin" i]'));
+    return inputs.find(visible) || inputs[0] || null;
+  }
+
+  function openAdmin(){
+    ["adminArea","adminPanel","adminContent","adminBeheer","beheer","beheerPanel"].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el){
+        el.classList.remove("hidden");
+        el.style.display = "";
+        el.style.visibility = "visible";
+        el.style.opacity = "1";
+      }
     });
-    el.classList.add("active");
-    show(el);
+    document.querySelectorAll(".admin-hidden,.beheer-hidden,[data-admin-hidden]").forEach(function(el){
+      el.classList.remove("hidden","admin-hidden","beheer-hidden");
+      el.style.display = "";
+      el.style.visibility = "visible";
+      el.style.opacity = "1";
+    });
+    try{ if(typeof renderAdmin === "function") renderAdmin(); }catch(e){}
+    try{ if(typeof renderAdminMaterialsPro === "function") renderAdminMaterialsPro(); }catch(e){}
+    try{ if(typeof renderMaterialsAdmin === "function") renderMaterialsAdmin(); }catch(e){}
+    console.log("[BNS v471] Admin beheer geopend.");
+  }
+
+  function tryAdmin(ev, btn){
+    var pin = findPin(btn);
+    if(pinOk(pin ? pin.value : "")){
+      ev.preventDefault();
+      ev.stopPropagation();
+      if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      openAdmin();
+      if(pin) pin.value = "";
+      return false;
+    }
     return true;
   }
 
-  function pickMainPage(){
-    var ids = ["dashboard","orders","planning","opdrachten","newOrder","admin"];
-    for(var i=0;i<ids.length;i++){
-      var el=E(ids[i]);
-      if(el) return el;
+  document.addEventListener("click", function(ev){
+    var btn = ev.target && ev.target.closest && ev.target.closest("button,a,input[type='button'],input[type='submit']");
+    if(!btn) return;
+    var txt = L(btn.textContent || btn.value || btn.title || btn.id);
+    if(txt.indexOf("open beheer") >= 0 || txt.indexOf("beheer openen") >= 0 || btn.id === "unlockAdmin"){
+      return tryAdmin(ev, btn);
     }
-    var candidates = Array.from(document.querySelectorAll(".page,.screen,.view,section,main > div"));
-    return candidates.find(function(el){
-      var txt=L(el.textContent);
-      return txt.indexOf("dashboard")>=0 || txt.indexOf("planning")>=0 || txt.indexOf("opdrachten")>=0;
-    }) || candidates[0] || null;
-  }
+  }, true);
 
-  function appVisible(){
-    var app=E("app");
-    if(!app) return true;
-    var st=getComputedStyle(app);
-    return st.display!=="none" && st.visibility!=="hidden" && app.offsetHeight>0;
-  }
-
-  function hasVisiblePage(){
-    var pages=Array.from(document.querySelectorAll(".page,.screen,.view,section"));
-    return pages.some(function(el){
-      var st=getComputedStyle(el);
-      return st.display!=="none" && st.visibility!=="hidden" && el.offsetHeight>20 && T(el.textContent).length>20;
+  document.addEventListener("keydown", function(ev){
+    if(ev.key !== "Enter") return;
+    var a = document.activeElement;
+    if(!a) return;
+    var hint = L(a.placeholder || a.id || a.name || a.type);
+    if(hint.indexOf("pin") < 0 && a.type !== "password") return;
+    var root = a.closest("section,.page,.card,.panel,main,body") || document;
+    var btn = Array.from(root.querySelectorAll("button,a,input[type='button'],input[type='submit']")).find(function(b){
+      var txt = L(b.textContent || b.value || b.title || b.id);
+      return txt.indexOf("open beheer") >= 0 || txt.indexOf("beheer openen") >= 0 || b.id === "unlockAdmin";
     });
-  }
-
-  function restore(reason){
-    try{
-      var app=E("app");
-      var login=E("login");
-      // Controleer of gebruiker al ingelogd is
-      var isLoggedIn = false;
-      try{
-        isLoggedIn = !!(typeof user !== 'undefined' && user) ||
-                     !!(window.state && window.state.currentUser) ||
-                     !!(typeof currentUser === 'function' && currentUser());
-      }catch(e){}
-      // Als niet ingelogd: login tonen, niet verbergen
-      if(!isLoggedIn && login){
-        show(login);
-        return; // Niet verder herstellen - login is correct
-      }
-      show(app || document.body);
-      if(login) hide(login);
-
-      var page = document.querySelector(".page.active,.screen.active,.view.active,section.active") || pickMainPage();
-      activatePage(page);
-
-      // Navigatie/zijbalk ook terugzetten als die verborgen is geraakt.
-      ["sidebar","nav","menu"].forEach(function(id){ show(E(id)); });
-      document.querySelectorAll("aside,nav,.sidebar,.side").forEach(show);
-
-      try{ if(typeof renderDashboard==="function") renderDashboard(); }catch(e){}
-      try{ if(typeof renderOrders==="function") renderOrders(); }catch(e){}
-      try{ if(typeof renderAll==="function") renderAll(); }catch(e){}
-
-      console.warn("[BNS v468] wit scherm hard hersteld:", reason);
-    }catch(e){
-      console.error("[BNS v468] herstel fout", e);
-    }
-  }
-
-  function guard(){
-    // Niet ingrijpen als loginscherm zichtbaar is (PIN invoer)
-    var login=E("login");
-    if(login && !login.classList.contains("hidden") && 
-       getComputedStyle(login).display !== "none") return;
-    var text=T(document.body && document.body.innerText);
-    // Verhoogde drempel - 40 is te weinig tijdens rendering
-    if(!appVisible() || !hasVisiblePage() || text.length < 10){
-      restore("app niet zichtbaar / geen pagina / lege body");
-    }
-  }
-
-  // PIN-knoppen en admin-open veroorzaken nu direct herstelcontrole.
-  document.addEventListener("click", function(e){
-    var b=e.target && e.target.closest && e.target.closest("button,a");
-    if(!b) return;
-    var txt=L(b.textContent || b.value || b.title || b.id);
-    if(txt.indexOf("pin")>=0 || txt.indexOf("open beheer")>=0 || txt.indexOf("inloggen")>=0 || b.id==="unlockAdmin"){
-      setTimeout(guard,80);
-      setTimeout(guard,500);
-      setTimeout(guard,1400);
-    }
+    if(btn) return tryAdmin(ev, btn);
   }, true);
 
-  document.addEventListener("keydown", function(e){
-    if(e.key==="Enter"){
-      var a=document.activeElement;
-      if(a && /pin|password/i.test(String(a.id||a.name||a.placeholder||a.type||""))){
-        setTimeout(guard,80);
-        setTimeout(guard,500);
-        setTimeout(guard,1400);
-      }
-    }
-  }, true);
-
-  setInterval(guard, 1200);
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", guard);
-  else setTimeout(guard,200);
-
-  console.log("[BNS v468] hard wit-scherm herstel actief.");
+  console.log("[BNS v471] minimale admin-PIN actief; geen wit-scherm guards.");
 })();
