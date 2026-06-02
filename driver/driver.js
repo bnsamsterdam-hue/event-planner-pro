@@ -43,21 +43,7 @@ async function initFirebase(){
 }
 async function loadCollection(n){
   const s=await BNS.firebase.getDocs(BNS.firebase.collection(BNS.db,n));
-  let rows=s.docs.map(d=>({id:d.id,...d.data()}));
-
-  // BNS v446: alleen orders filteren voor telefoon. Users nooit filteren.
-  if(n==="orders"){
-    rows=rows.filter(o=>{
-      const id=String((o&&(o.id||o.docId||o.orderId))||"");
-      if(id.indexOf("old_")===0) return false;
-      const f=lower((o&&(o.folder||o.map||o.orderFolder))||"");
-      if(f) return f==="lopend";
-      const st=lower(o&&o.status);
-      return /bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(st) &&
-        !/offerte|optie|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st);
-    });
-  }
-  return rows;
+  return s.docs.map(d=>({id:d.id,...d.data()}));
 }
 async function loadInitial(){
   setStatus("Data laden...");
@@ -133,28 +119,8 @@ const LOCKED_USER_KEY="tapwagen_driver_locked_user_id";
 let CURRENT_DETAIL_ID="";
 
 function userAllowed(u){
-  if(!u) return false;
-  const r=lower(u.role||u.type||u.functie||"");
-  const nm=lower(u.name||u.naam||u.displayName||"");
-  const id=lower(u.id||u.uid||"");
-  const rights=u.rights||{};
-
-  if(u.deleted===true || u.disabled===true || u.active===false) return false;
-  if(id==="u_admin" || id==="u_planner" || id==="admin" || id==="planner") return false;
-  if(nm==="admin" || nm==="planner") return false;
-
-  // Belangrijk: Admin maakt bezorger aan met naam + PIN.
-  // Dan moet hij in de telefoonlijst komen, ook als role/rechten anders staan.
-  if(String(u.pin||"").trim() && String(u.name||u.naam||u.displayName||"").trim()) return true;
-
-  return r==="bezorger" || r==="driver" ||
-    !!(rights && (
-      rights.gps || rights.route || rights.waze ||
-      rights.agenda || rights.resolve || rights.orders ||
-      rights.afmelden || rights.afmeldenMelding || rights.complete || rights.done || rights.uitgevoerd ||
-      rights.bellen || rights.callCustomer || rights.customerSignature ||
-      rights.damage || rights.schade || rights.storing || rights.materials || rights.prices
-    ));
+  const r=lower(u.role);
+  return r==="bezorger"||r==="planner"||r==="admin"||!!(u.rights&&(u.rights.gps||u.rights.agenda||u.rights.resolve||u.rights.orders||u.rights.damage||u.rights.schade||u.rights.storing||u.rights.materials||u.rights.prices));
 }
 function assignedToUser(o){
   if(!o || !BNS.user) return false;
@@ -213,6 +179,10 @@ function assignedToUser(o){
   return false;
 }
 function visibleOrder(o){
+  // BNS v449 visibleOrder folder filter: telefoon ziet alleen lopende opdrachten.
+  if(folder(o) && folder(o)!=="lopend") return false;
+  if(o && (o.afgemeld===true || o.phoneDone===true)) return false;
+
   if(isCancelled(o)||isDone(o)||isDeleted(o))return false;
   if(dateTime(orderEnd(o))<todayTime())return false;
   return assignedToUser(o);
@@ -549,4 +519,106 @@ boot();
     findOrder = function(id){ var o=oldFind(id); if(deletedFlag(o)) return null; return o; };
     window.findOrder = findOrder;
   }catch(e){}
+})();
+
+/* =========================================================
+   BNS V207N DRIVER - melding altijd gekoppeld naar Firebase alerts + opdracht
+   Kleine fix: alleen melden/koppelen, geen layout wijziging.
+   ========================================================= */
+(function(){
+  'use strict';
+  if (window.__BNS_DRIVER_V207N_REPORT_FIX__) return;
+  window.__BNS_DRIVER_V207N_REPORT_FIX__ = true;
+
+  function clean2(v){ return String(v == null ? '' : v).trim(); }
+  function low2(v){ return clean2(v).toLowerCase(); }
+  function active2(o){ return o && !isCancelled(o) && !isDone(o) && !isDeleted(o) && dateTime(orderEnd(o)) >= todayTime(); }
+  function makeId2(){ return 'alert_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+  function allDriverNames(o){
+    var out = [];
+    [o.driverName,o.driver,o.bezorger,o.driver_name,o.bezorgerNaam,o.assignedDriver,o.assignedTo,o.deliveryDriver].forEach(function(v){ if (v) out.push(low2(v)); });
+    [o.driverNames,o.bezorgerNames,o.drivers,o.bezorgers,o.assignedDrivers].forEach(function(arr){
+      if (Array.isArray(arr)) arr.forEach(function(v){
+        if (typeof v === 'string') out.push(low2(v));
+        else if (v && typeof v === 'object') [v.name,v.displayName,v.driverName].forEach(function(x){ if (x) out.push(low2(x)); });
+      });
+    });
+    return out.filter(Boolean);
+  }
+  function allDriverIds(o){
+    var out = [];
+    [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId,o.assignedToId,o.deliveryDriverId].forEach(function(v){ if (v != null) out.push(String(v)); });
+    [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds].forEach(function(arr){
+      if (Array.isArray(arr)) arr.forEach(function(v){
+        if (typeof v === 'string' || typeof v === 'number') out.push(String(v));
+        else if (v && typeof v === 'object') [v.id,v.userId,v.driverId].forEach(function(x){ if (x != null) out.push(String(x)); });
+      });
+    });
+    return out.filter(Boolean);
+  }
+  try {
+    var oldAssigned = assignedToUser;
+    assignedToUser = function(o){
+      try { if (oldAssigned(o)) return true; } catch(e) {}
+      if (!BNS || !BNS.user || !o) return false;
+      var uid = String(BNS.user.id || '');
+      var uname = low2(BNS.user.name || '');
+      var ids = allDriverIds(o);
+      var names = allDriverNames(o);
+      if (uid && ids.indexOf(uid) >= 0) return true;
+      if (uname && names.indexOf(uname) >= 0) return true;
+      if (low2(BNS.user.role) === 'admin' || low2(BNS.user.role) === 'planner') return true;
+      if (hasRight('orders') || hasRight('meldingen') || hasRight('reports')) return true;
+      return false;
+    };
+    window.assignedToUser = assignedToUser;
+  } catch(e) {}
+
+  window.BNS_DRIVER_SEND_REPORT_V207N = async function(order, type, extra){
+    if (!order || !order.id) { toast('Geen gekoppelde opdracht gevonden'); return; }
+    var nowIso = new Date().toISOString();
+    var item = {
+      id: makeId2(),
+      source: 'telefoon',
+      portal: 'driver',
+      orderId: order.id || '',
+      linkedOrder: order.id || '',
+      orderNumber: order.number || '',
+      linkedOrderNumber: order.number || '',
+      orderTitle: order.title || '',
+      customerName: customerName(order) || '',
+      driverName: BNS.user && BNS.user.name || '',
+      from: BNS.user && BNS.user.name || '',
+      userId: BNS.user && BNS.user.id || '',
+      title: type || 'Melding',
+      type: type || 'Melding',
+      text: extra || '',
+      note: extra || '',
+      message: extra || '',
+      resolved: false,
+      createdAt: nowIso,
+      time: new Date().toLocaleString('nl-NL')
+    };
+    await addAlert(item);
+    order.alerts = Array.isArray(order.alerts) ? order.alerts : [];
+    order.alerts.unshift(item);
+    order.hasDriverAlert = true;
+    order.lastDriverAlertAt = nowIso;
+    order.lastDriverAlertText = extra || '';
+    await updateOrder(order);
+    toast((type || 'Melding') + ' verstuurd naar planner');
+  };
+
+  try {
+    sendReport = async function(order,type){
+      var extra = '';
+      if(type === 'Schade') extra = await askText('Schade melden', 'Omschrijving schade');
+      else if(type === 'Storing') extra = await askText('Storing melden', 'Omschrijving storing');
+      else if(type === 'Vermissing') extra = await askText('Vermissing melden', 'Wat mist er?');
+      else extra = await askText('Melding voor planning', 'Melding');
+      if(!extra) return;
+      await window.BNS_DRIVER_SEND_REPORT_V207N(order, type || 'Melding', extra);
+    };
+    window.sendReport = sendReport;
+  } catch(e) {}
 })();
