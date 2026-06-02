@@ -44965,3 +44965,135 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.log("[BNS v467] PIN/wit-scherm fix actief.");
 })();
+
+
+
+/* =========================================================
+   BNS v468 - HARD WIT-SCHERM HERSTEL
+   v467 detecteert het probleem, maar herstelde niet altijd een echte pagina.
+   Deze patch zet bij wit scherm expliciet Dashboard/Orders terug zichtbaar.
+   Raakt reservering, Firebase, mappen en materiaal niet aan.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V468_HARD_WHITE_RECOVERY__) return;
+  window.__BNS_V468_HARD_WHITE_RECOVERY__ = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function E(id){ return document.getElementById(id); }
+
+  function show(el){
+    if(!el) return;
+    el.classList.remove("hidden");
+    el.style.removeProperty("display");
+    el.style.removeProperty("visibility");
+    el.style.removeProperty("opacity");
+    el.style.display = "";
+    el.style.visibility = "visible";
+    el.style.opacity = "1";
+  }
+
+  function hide(el){
+    if(!el) return;
+    el.classList.add("hidden");
+    el.style.display = "none";
+  }
+
+  function activatePage(el){
+    if(!el) return false;
+    document.querySelectorAll(".page,.screen,.view,section").forEach(function(p){
+      if(p !== el && p.classList.contains("active")) p.classList.remove("active");
+    });
+    el.classList.add("active");
+    show(el);
+    return true;
+  }
+
+  function pickMainPage(){
+    var ids = ["dashboard","orders","planning","opdrachten","newOrder","admin"];
+    for(var i=0;i<ids.length;i++){
+      var el=E(ids[i]);
+      if(el) return el;
+    }
+    var candidates = Array.from(document.querySelectorAll(".page,.screen,.view,section,main > div"));
+    return candidates.find(function(el){
+      var txt=L(el.textContent);
+      return txt.indexOf("dashboard")>=0 || txt.indexOf("planning")>=0 || txt.indexOf("opdrachten")>=0;
+    }) || candidates[0] || null;
+  }
+
+  function appVisible(){
+    var app=E("app");
+    if(!app) return true;
+    var st=getComputedStyle(app);
+    return st.display!=="none" && st.visibility!=="hidden" && app.offsetHeight>0;
+  }
+
+  function hasVisiblePage(){
+    var pages=Array.from(document.querySelectorAll(".page,.screen,.view,section"));
+    return pages.some(function(el){
+      var st=getComputedStyle(el);
+      return st.display!=="none" && st.visibility!=="hidden" && el.offsetHeight>20 && T(el.textContent).length>20;
+    });
+  }
+
+  function restore(reason){
+    try{
+      var app=E("app");
+      var login=E("login");
+      show(app || document.body);
+      if(login) hide(login);
+
+      var page = document.querySelector(".page.active,.screen.active,.view.active,section.active") || pickMainPage();
+      activatePage(page);
+
+      // Navigatie/zijbalk ook terugzetten als die verborgen is geraakt.
+      ["sidebar","nav","menu"].forEach(function(id){ show(E(id)); });
+      document.querySelectorAll("aside,nav,.sidebar,.side").forEach(show);
+
+      try{ if(typeof renderDashboard==="function") renderDashboard(); }catch(e){}
+      try{ if(typeof renderOrders==="function") renderOrders(); }catch(e){}
+      try{ if(typeof renderAll==="function") renderAll(); }catch(e){}
+
+      console.warn("[BNS v468] wit scherm hard hersteld:", reason);
+    }catch(e){
+      console.error("[BNS v468] herstel fout", e);
+    }
+  }
+
+  function guard(){
+    var text=T(document.body && document.body.innerText);
+    if(!appVisible() || !hasVisiblePage() || text.length < 40){
+      restore("app niet zichtbaar / geen pagina / lege body");
+    }
+  }
+
+  // PIN-knoppen en admin-open veroorzaken nu direct herstelcontrole.
+  document.addEventListener("click", function(e){
+    var b=e.target && e.target.closest && e.target.closest("button,a");
+    if(!b) return;
+    var txt=L(b.textContent || b.value || b.title || b.id);
+    if(txt.indexOf("pin")>=0 || txt.indexOf("open beheer")>=0 || txt.indexOf("inloggen")>=0 || b.id==="unlockAdmin"){
+      setTimeout(guard,80);
+      setTimeout(guard,500);
+      setTimeout(guard,1400);
+    }
+  }, true);
+
+  document.addEventListener("keydown", function(e){
+    if(e.key==="Enter"){
+      var a=document.activeElement;
+      if(a && /pin|password/i.test(String(a.id||a.name||a.placeholder||a.type||""))){
+        setTimeout(guard,80);
+        setTimeout(guard,500);
+        setTimeout(guard,1400);
+      }
+    }
+  }, true);
+
+  setInterval(guard, 1200);
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", guard);
+  else setTimeout(guard,200);
+
+  console.log("[BNS v468] hard wit-scherm herstel actief.");
+})();
