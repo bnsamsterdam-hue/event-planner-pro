@@ -24906,7 +24906,7 @@ setTimeout(()=>{
 
   function renderLogin(melding){
     var s=appState();
-    var bezorgers=(s.users||[]).filter(function(u){ var id=String(u&&u.id||'').toLowerCase(); var nm=String(u&&(u.name||u.naam||u.displayName)||'').toLowerCase(); if(!u||u.deleted===true||u.disabled===true||u.active===false) return false; if(id==='u_admin'||id==='u_planner'||nm==='admin'||nm==='planner') return false; return String(u.pin||'').trim() && String(u.name||u.naam||u.displayName||'').trim(); });
+    var bezorgers=(s.users||[]).filter(function(u){ return u && /bezorger/i.test(u.role||''); });
     var html='<div style="max-width:380px;margin:40px auto;padding:24px;font-family:sans-serif">';
     html+='<h2 style="text-align:center;color:#0f172a;margin-bottom:4px">Tapwagen.nl</h2>';
     html+='<p style="text-align:center;color:#64748b;margin-bottom:20px">Bezorger portal</p>';
@@ -43275,3 +43275,248 @@ setTimeout(()=>{
     });
   };
 })();
+
+
+
+/* =========================================================
+   BNS v453 - HARDE MATERIAAL RESERVERING GUARD
+   Doel:
+   - Reservering is leidend en mag nooit het verkeerde materiaal melden.
+   - Alleen exact hetzelfde materiaal mag blokkeren: id > code > cat+product.
+   - Alleen lopende/bevestigde opdrachten blokkeren.
+   - Offerte/geannuleerd/uitgevoerd/old blokkeren nooit.
+   - Bij opslaan wordt alleen de huidige gekozen lijst gecontroleerd.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V453_HARDE_MATERIAAL_GUARD__) return;
+  window.__BNS_V453_HARDE_MATERIAAL_GUARD__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function compact(v){ return L(v).replace(/[^a-z0-9]+/g,''); }
+  function st(o){ return L(o && (o.status || o.state || o.orderStatus)); }
+  function folder(o){
+    var id=T(o && (o.id || o.docId || o.orderId));
+    if(id.indexOf('old_')===0) return 'old';
+    var f=L(o && (o.folder || o.map || o.orderFolder));
+    if(f==='live') return 'lopend';
+    if(f==='optie') return 'optie14';
+    return f;
+  }
+  function blocksOrder(o){
+    if(!o || o.deleted===true || o.afgemeld===true || o.phoneDone===true || o.completed===true) return false;
+    var f=folder(o);
+    if(f) return f === 'lopend'; // strikt: alleen lopend blokkeert
+    var s=st(o);
+    if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return false;
+    return /bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend|gereserveerd|reserved|active/.test(s);
+  }
+  function parseDate(v){
+    v=T(v);
+    if(!v) return null;
+    var m=v.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    if(m){ var d=new Date(+m[1],+m[2]-1,+m[3]); d.setHours(0,0,0,0); return d; }
+    m=v.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+    if(m){ var d2=new Date(+m[3],+m[2]-1,+m[1]); d2.setHours(0,0,0,0); return d2; }
+    var d3=new Date(v);
+    if(isNaN(d3.getTime())) return null;
+    d3.setHours(0,0,0,0);
+    return d3;
+  }
+  function periodFromVals(){
+    var s=parseDate((E('dateStart')||E('orderStart')||E('startDate')||{}).value);
+    var e=parseDate((E('dateEnd')||E('orderEnd')||E('endDate')||{}).value) || s;
+    if(!s && e) s=e;
+    return s ? {start:s,end:e||s} : null;
+  }
+  function orderPeriod(o){
+    var s=parseDate(o && (o.start || o.dateStart || o.startDate || o.datumStart || o.date || o.datum));
+    var e=parseDate(o && (o.end || o.dateEnd || o.endDate || o.datumEnd || o.start || o.dateStart || o.startDate || o.date || o.datum)) || s;
+    if(!s && e) s=e;
+    return s ? {start:s,end:e||s} : null;
+  }
+  function overlaps(a,b){
+    return !!(a && b && a.start <= b.end && b.start <= a.end);
+  }
+  function stateObj(){
+    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    try{
+      var raw=localStorage.getItem('event-planner-pro-v87') || localStorage.getItem('event-planner-pro-v8') || localStorage.getItem('event-planner-pro') || localStorage.getItem('bns_event_planner');
+      return raw ? JSON.parse(raw) : {};
+    }catch(e){ return {}; }
+  }
+  function materialList(){
+    var s=stateObj();
+    return Array.isArray(s.materials) ? s.materials : [];
+  }
+  function chosenList(){
+    try{ if(typeof chosen !== 'undefined' && Array.isArray(chosen)) return chosen; }catch(e){}
+    return [];
+  }
+  function editingId(){
+    try{ if(typeof editing !== 'undefined' && editing) return T(editing); }catch(e){}
+    try{
+      var nr=(E('orderNumber')||{}).value;
+      var s=stateObj();
+      var o=(s.orders||[]).find(function(x){ return T(x.number)===T(nr); });
+      return o ? T(o.id) : '';
+    }catch(e){}
+    return '';
+  }
+  function matId(m){ return T(m && (m.id || m.materialId)); }
+  function matCode(m){ return compact(m && (m.code || m.productNr || m.nr || m.type || m.naam)); }
+  function matCat(m){ return compact(m && (m.cat || m.rubriek || m.category)); }
+  function matProduct(m){ return compact(m && (m.productNr || m.nr || m.code || m.type || m.naam)); }
+  function matName(m){ return compact(m && (m.name || m.product || m.description || m.beschrijving)); }
+  function materialKey(m){
+    if(!m) return '';
+    var id=matId(m); if(id) return 'id:'+id;
+    var code=matCode(m); if(code) return 'code:'+code;
+    var cp=matCat(m)+'|'+matProduct(m); if(cp !== '|') return 'catprod:'+cp;
+    var n=matName(m); return n ? 'name:'+n : '';
+  }
+  function sameMat(a,b){
+    if(!a || !b) return false;
+    var aid=matId(a), bid=matId(b);
+    if(aid || bid) return !!(aid && bid && aid === bid);
+    var ac=matCode(a), bc=matCode(b);
+    if(ac || bc) return !!(ac && bc && ac === bc);
+    var acp=matCat(a)+'|'+matProduct(a), bcp=matCat(b)+'|'+matProduct(b);
+    return acp !== '|' && acp === bcp;
+  }
+  function findMat(x){
+    if(!x) return null;
+    if(typeof x === 'object') return x;
+    var key=T(x);
+    var ck=compact(key);
+    return materialList().find(function(m){
+      return T(m.id)===key || T(m.materialId)===key || compact(m.code)===ck || compact(m.productNr)===ck || compact(m.nr)===ck;
+    }) || null;
+  }
+  function currentChosenCanonical(){
+    var out=[], seen={};
+    chosenList().forEach(function(m){
+      var base=findMat(m && (m.id || m.materialId || m.code || m.productNr || m.nr)) || m;
+      var k=materialKey(base);
+      if(k && !seen[k]){
+        seen[k]=1;
+        out.push(base);
+      }
+    });
+    return out;
+  }
+  function reservationForMaterial(mat, range){
+    mat=findMat(mat) || mat;
+    if(!mat) return null;
+    range = range || periodFromVals();
+    if(!range) return null;
+    var ignore=editingId();
+    var s=stateObj();
+    var orders=Array.isArray(s.orders) ? s.orders : [];
+    for(var i=0;i<orders.length;i++){
+      var o=orders[i];
+      if(!blocksOrder(o)) continue;
+      if(ignore && T(o.id)===ignore) continue;
+      var op=orderPeriod(o);
+      if(!overlaps(range,op)) continue;
+      var list=Array.isArray(o.materials) ? o.materials : [];
+      for(var j=0;j<list.length;j++){
+        if(sameMat(list[j],mat)) return {order:o, material:list[j], period:op, wanted:range};
+      }
+    }
+    return null;
+  }
+  function labelMat(m){
+    return T(m && (m.code || m.productNr || m.nr || m.type || m.naam || m.name)) || 'Materiaal';
+  }
+  function alertMsg(msg,title){
+    try{ if(typeof window.bnsAlert === 'function') return window.bnsAlert(msg,title||'Materiaal reservering'); }catch(e){}
+    try{ if(typeof toastMsg === 'function') return toastMsg(msg); }catch(e){}
+    alert(msg);
+  }
+  function validateChosenHard(){
+    var list=currentChosenCanonical();
+    var range=periodFromVals();
+    for(var i=0;i<list.length;i++){
+      var m=list[i];
+      var raw=L(m && m.status);
+      if(/inactive|niet actief|niet beschikbaar/.test(raw)){
+        alertMsg('Opslaan geblokkeerd: '+labelMat(m)+' is niet inzetbaar.','Materiaal niet beschikbaar');
+        return false;
+      }
+      if(/defect|damage|schade|missing|vermist|vermissing/.test(raw)){
+        alertMsg('Opslaan geblokkeerd: '+labelMat(m)+' is defect/vermist.','Materiaal defect');
+        return false;
+      }
+      var r=reservationForMaterial(m,range);
+      if(r){
+        var o=r.order || {};
+        var msg='Opslaan geblokkeerd: '+labelMat(m)+' is al geblokkeerd door Opdrachtbevestiging opdracht '+T(o.number||o.title||o.id||'')+'.';
+        alertMsg(msg,'Dubbele reservering');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Publiek maken zodat oude patches ook deze harde guard gebruiken.
+  window.BNS_v453_reservationForMaterial = reservationForMaterial;
+  window.BNS_v453_validateChosenHard = validateChosenHard;
+  window.TW_V309_materialIsBlocked = function(mid, range){
+    var mat=findMat(mid);
+    return !!reservationForMaterial(mat || mid, range || periodFromVals());
+  };
+
+  // addMat afvangen: exact aangeklikt materiaal controleren, niet eerste gereserveerde in de lijst.
+  try{
+    if(typeof window.addMat === 'function' && !window.addMat.__bnsV453){
+      var oldAdd = window.addMat;
+      var wrappedAdd = function(mid){
+        var mat=findMat(mid);
+        var r=reservationForMaterial(mat || mid, periodFromVals());
+        if(r){
+          var o=r.order||{};
+          alertMsg(labelMat(mat||mid)+' is gereserveerd door opdracht '+T(o.number||o.title||o.id||'')+'.','Materiaal status');
+          return false;
+        }
+        return oldAdd.apply(this, arguments);
+      };
+      wrappedAdd.__bnsV453 = true;
+      window.addMat = wrappedAdd;
+      try{ addMat = wrappedAdd; }catch(e){}
+    }
+  }catch(e){}
+
+  // saveCurrentOrder afvangen: zwaarste beveiliging net vóór opslaan.
+  try{
+    if(typeof window.saveCurrentOrder === 'function' && !window.saveCurrentOrder.__bnsV453){
+      var oldSave = window.saveCurrentOrder;
+      var wrappedSave = function(){
+        if(!validateChosenHard()) return false;
+        return oldSave.apply(this, arguments);
+      };
+      wrappedSave.__bnsV453 = true;
+      window.saveCurrentOrder = wrappedSave;
+      try{ saveCurrentOrder = wrappedSave; }catch(e){}
+    }
+  }catch(e){}
+
+  // Als saveStable bestaat, ook die beveiligen.
+  try{
+    if(typeof window.saveStable === 'function' && !window.saveStable.__bnsV453){
+      var oldStable = window.saveStable;
+      var wrappedStable = function(){
+        if(!validateChosenHard()) return false;
+        return oldStable.apply(this, arguments);
+      };
+      wrappedStable.__bnsV453 = true;
+      window.saveStable = wrappedStable;
+      try{ saveStable = wrappedStable; }catch(e){}
+    }
+  }catch(e){}
+
+  console.info('[BNS v453] Harde materiaal reservering guard actief.');
+})();
+

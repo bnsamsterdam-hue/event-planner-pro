@@ -1,4 +1,4 @@
-/* BNS FIREBASE AUTO SYNC V452 - juiste versie */
+/* BNS FIREBASE AUTO SYNC V450 - folder/driver sync */
 (function(){
 "use strict";
 if(window.__bnsFirebaseAutoSyncV2)return; window.__bnsFirebaseAutoSyncV2=true;
@@ -129,47 +129,15 @@ function normalizeOrder(row){
 }
 
 
-/* BNS v452 - definitieve folder/driver helpers */
-function bns452PhoneClient(){
+function bnsDriverCount(o){
   try{
-    const h=String(location.href||'').toLowerCase();
-    const b=String(document.body&&document.body.innerText||'').toLowerCase();
-    return h.includes('driver')||h.includes('bezorger')||h.includes('telefoon')||b.includes('mobiele opdrachten')||b.includes('bezorger tapwagen');
-  }catch(e){return false;}
+    return [].concat(
+      splitList(o&&o.driverIds),splitList(o&&o.bezorgerIds),splitList(o&&o.assignedDriverIds),
+      splitList(o&&o.driverNames),splitList(o&&o.bezorgerNames),
+      splitList(o&&o.driver),splitList(o&&o.bezorger),splitList(o&&o.driverName),splitList(o&&o.bezorgerName)
+    ).filter(Boolean).length;
+  }catch(e){return 0;}
 }
-function bns452FilterOrdersForClient(rows){
-  rows=(rows||[]).map(normalizeOrder);
-  return bns452PhoneClient()?rows.filter(o=>o&&o.folder==='lopend'):rows;
-}
-function driverCount(o){
-  if(!o)return 0;
-  return [...new Set([
-    ...splitList(o.driverIds),...splitList(o.bezorgerIds),...splitList(o.assignedDriverIds),
-    ...splitList(o.driverId),...splitList(o.bezorgerId),...splitList(o.assignedDriverId),
-    ...splitList(o.driverNames),...splitList(o.bezorgerNames),...splitList(o.assignedDriverNames),
-    ...splitList(o.driver),...splitList(o.driverName),...splitList(o.bezorger),...splitList(o.bezorgerName),...splitList(o.assignedDriver)
-  ].filter(Boolean).map(x=>String(x).trim().toLowerCase()))].length;
-}
-function normalizeDrivers(o){
-  if(!o)return o;
-  const ids=[...new Set([
-    ...splitList(o.driverIds),...splitList(o.bezorgerIds),...splitList(o.assignedDriverIds),
-    ...splitList(o.driverId),...splitList(o.bezorgerId),...splitList(o.assignedDriverId)
-  ].filter(Boolean))];
-  const names=[...new Set([
-    ...splitList(o.driverNames),...splitList(o.bezorgerNames),...splitList(o.assignedDriverNames),
-    ...splitList(o.driver),...splitList(o.driverName),...splitList(o.bezorger),...splitList(o.bezorgerName),...splitList(o.assignedDriver),...splitList(o.assignedDriverName)
-  ].filter(Boolean))];
-  o.driverIds=ids; o.bezorgerIds=ids; o.assignedDriverIds=ids;
-  o.driverNames=names; o.bezorgerNames=names; o.assignedDriverNames=names;
-  o.driver=names.join(', '); o.driverName=o.driver; o.bezorger=o.driver; o.bezorgerName=o.driver;
-  return o;
-}
-// Aliassen zodat oude half-patches niet meer kunnen crashen
-const bnsNormalizeOrder = normalizeOrder;
-const bnsNormalizeDrivers = normalizeDrivers;
-const bnsDriverCount = driverCount;
-window.BNS_filterOrdersForClient = bns452FilterOrdersForClient;
 
 function preserveOrder(local,remote){
   if(!local)return local;
@@ -177,15 +145,12 @@ function preserveOrder(local,remote){
   if(!remote)return local;
   normalizeOrder(remote);
 
-  const lc=driverCount(local);
-  const rc=driverCount(remote);
-  // Alleen remote bezorgers bewaren als lokaal NIET leeg is gemaakt.
-  if(local.folder==='lopend' && lc>0 && rc>lc){
-    ['driverId','bezorgerId','assignedDriverId','userId','driverName','driver','bezorger','bezorgerName','assignedDriver','assignedDriverName'].forEach(k=>keep(local,remote,k));
-    ['driverIds','bezorgerIds','assignedDriverIds','driverNames','bezorgerNames','assignedDriverNames','drivers','bezorgers'].forEach(k=>{
-      if(Array.isArray(remote[k]) && remote[k].length>(Array.isArray(local[k])?local[k].length:0)) local[k]=remote[k];
-    });
-    normalizeDrivers(local);
+  // Als planner lokaal bezorgers leeg heeft gemaakt, remote niet terug-preserven.
+  const localDrivers=bnsDriverCount(local);
+  const remoteDrivers=bnsDriverCount(remote);
+  if(local.folder==="lopend" && localDrivers>0 && remoteDrivers>localDrivers){
+    ["driverId","bezorgerId","userId","driverName","driver","bezorger","bezorgerName","assignedDriver"].forEach(k=>keep(local,remote,k));
+    normalizeOrder(local);
   }
   return local;
 }
@@ -245,7 +210,11 @@ async function download(){
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
       let remoteRows=snap.docs.map(d=>({id:d.id,...d.data()}));
-      if(col==="orders") remoteRows=bns452FilterOrdersForClient(remoteRows);
+      if(col==="orders") remoteRows=remoteRows.map(normalizeOrder);
+      // Telefoon krijgt alleen lopende orders
+      if(typeof window!=='undefined' && window.BNS_filterOrdersForClient){
+        remoteRows=window.BNS_filterOrdersForClient(remoteRows);
+      }
       s[col]=remoteRows;
       if(col==="materials")cleanMaterialStatuses(s);
     }
@@ -301,7 +270,11 @@ t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
       let remoteRows=snap.docs.map(d=>({id:d.id,...d.data()}));
-      if(col==="orders") remoteRows=bns452FilterOrdersForClient(remoteRows);
+      if(col==="orders") remoteRows=remoteRows.map(normalizeOrder);
+      // Telefoon krijgt alleen lopende orders
+      if(typeof window!=='undefined' && window.BNS_filterOrdersForClient){
+        remoteRows=window.BNS_filterOrdersForClient(remoteRows);
+      }
       s[col]=remoteRows;
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
