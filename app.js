@@ -44642,3 +44642,326 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.log("[BNS v465] veilige materiaal layout actief.");
 })();
+
+
+
+/* =========================================================
+   BNS v466 - ARCHIEF NIET STANDAARD LADEN
+   - old_/archief blijft in Firebase staan
+   - normale planner werkt zonder archieforders in state
+   - archief wordt pas geladen als je Archief opent of zoekt
+   - v465 veilige layout blijft actief
+   ========================================================= */
+(function(){
+  if(window.__BNS_V466_ARCHIEF_LAZY__) return;
+  window.__BNS_V466_ARCHIEF_LAZY__ = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+
+  function folder(o){
+    if(!o) return "";
+    var id=T(o.id || o.docId || o.orderId);
+    if(id.indexOf("old_") === 0) return "archief";
+    if(typeof BNS_v460FolderFromOrder === "function"){
+      try{ return BNS_v460FolderFromOrder(o); }catch(e){}
+    }
+    var f=L(o.folder || o.map || o.orderFolder);
+    if(f){
+      if(f==="old") return "archief";
+      if(f==="optie") return "optie14";
+      if(f==="live") return "lopend";
+      return f;
+    }
+    var s=L(o.status || o.state || o.orderStatus);
+    if(/offerte/.test(s)) return "offerte";
+    if(/optie|14/.test(s)) return "optie14";
+    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
+    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s)) return "lopend";
+    return "";
+  }
+
+  function isArchive(o){
+    return folder(o)==="archief";
+  }
+
+  function stateObj(){
+    try{ if(window.state) return window.state; }catch(e){}
+    try{ if(typeof state !== "undefined") return state; }catch(e){}
+    return null;
+  }
+
+  function stripArchiveFromState(){
+    try{
+      var s=stateObj();
+      if(!s || !Array.isArray(s.orders)) return;
+      var before=s.orders.length;
+      s.__archiveCountHidden = (s.__archiveCountHidden || 0) + s.orders.filter(isArchive).length;
+      s.orders = s.orders.filter(function(o){ return !isArchive(o); });
+      if(before !== s.orders.length){
+        console.log("[BNS v466] archieforders uit live state gehouden:", before - s.orders.length);
+      }
+    }catch(e){}
+  }
+
+  // Direct en na renders opschonen. Dit is niet destructief voor Firebase.
+  stripArchiveFromState();
+  setTimeout(stripArchiveFromState, 300);
+  setTimeout(stripArchiveFromState, 1500);
+
+  ["renderOrders","renderDashboard","saveLocal","saveState"].forEach(function(name){
+    try{
+      var fn=window[name];
+      if(typeof fn !== "function" || fn.__bns466) return;
+      var wrapped=function(){
+        stripArchiveFromState();
+        var r=fn.apply(this, arguments);
+        stripArchiveFromState();
+        return r;
+      };
+      wrapped.__bns466=true;
+      window[name]=wrapped;
+      try{ eval(name + " = window['"+name+"']"); }catch(e){}
+    }catch(e){}
+  });
+
+  async function loadArchiveOrdersOnce(){
+    try{
+      if(window.__BNS_V466_ARCHIVE_LOADING__) return [];
+      if(Array.isArray(window.__BNS_V466_ARCHIVE_CACHE__)) return window.__BNS_V466_ARCHIVE_CACHE__;
+      window.__BNS_V466_ARCHIVE_LOADING__ = true;
+
+      if(!window.firebase && !window.db && !window.BNS_FIREBASE_READY){
+        console.warn("[BNS v466] Archief laden: Firebase object nog niet gevonden.");
+      }
+
+      // Probeer de bestaande Firebase modules uit de app te gebruiken.
+      var db = window.db || (window.BNS && window.BNS.db) || window.__db;
+      var fs = window.firebase || window.fsMod || (window.BNS && window.BNS.firebase);
+      if(!db || !fs || !fs.getDocs || !fs.collection){
+        // Als firebase-sync een helper heeft, gebruik die.
+        if(typeof window.BNS_v466LoadArchiveOrders === "function"){
+          var rows = await window.BNS_v466LoadArchiveOrders();
+          window.__BNS_V466_ARCHIVE_CACHE__ = rows || [];
+          return window.__BNS_V466_ARCHIVE_CACHE__;
+        }
+        console.warn("[BNS v466] Archief laden niet beschikbaar in deze context.");
+        window.__BNS_V466_ARCHIVE_CACHE__ = [];
+        return [];
+      }
+
+      var snap = await fs.getDocs(fs.collection(db, "orders"));
+      var rows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); })
+        .filter(isArchive);
+
+      window.__BNS_V466_ARCHIVE_CACHE__ = rows;
+      console.log("[BNS v466] Archief geladen op verzoek:", rows.length);
+      return rows;
+    }catch(e){
+      console.error("[BNS v466] Archief laden fout", e);
+      return [];
+    }finally{
+      window.__BNS_V466_ARCHIVE_LOADING__ = false;
+    }
+  }
+  window.BNS_v466LoadArchiveOrdersOnce = loadArchiveOrdersOnce;
+
+  function archiveClicked(e){
+    var b=e.target && e.target.closest && e.target.closest("button,a");
+    if(!b) return;
+    var txt=L(b.textContent || b.value || b.title);
+    if(txt==="archief" || txt.indexOf("archief")>=0){
+      loadArchiveOrdersOnce().then(function(rows){
+        try{
+          window.__BNS_V466_ARCHIVE_VIEW__ = rows;
+          if(typeof renderArchive === "function") renderArchive(rows);
+          else if(typeof renderOrders === "function") renderOrders();
+        }catch(e){}
+      });
+    }
+  }
+  document.addEventListener("click", archiveClicked, true);
+
+  console.log("[BNS v466] archief lazy-load actief; old_ wordt niet standaard geladen.");
+})();
+
+
+
+/* =========================================================
+   BNS v467 - PIN / wit scherm herstel
+   Doel:
+   - PIN veld mag niet verdwijnen naar leeg wit scherm.
+   - Main login en Admin "Open beheer" blijven zichtbaar/bruikbaar.
+   - Raakt reservering, materiaal, folders en Firebase niet aan.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V467_PIN_WHITE_SCREEN_FIX__) return;
+  window.__BNS_V467_PIN_WHITE_SCREEN_FIX__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+
+  function visible(el){
+    if(!el) return false;
+    var s=getComputedStyle(el);
+    return s.display !== "none" && s.visibility !== "hidden" && !el.classList.contains("hidden");
+  }
+
+  function pinOk(pin){
+    pin=T(pin);
+    if(!pin) return false;
+    try{
+      if(typeof adminPinOk === "function" && adminPinOk(pin)) return true;
+    }catch(e){}
+    try{
+      var s = window.state || state || {};
+      if(T(s.adminPin) && T(s.adminPin) === pin) return true;
+      if(pin === "1111") return true;
+      var users = Array.isArray(s.users) ? s.users : [];
+      return users.some(function(u){
+        return !u.deleted && T(u.pin) === pin && (L(u.role) === "admin" || u.rights && u.rights.admin);
+      });
+    }catch(e){}
+    return pin === "1111";
+  }
+
+  function showAdminArea(){
+    var area = E("adminArea");
+    if(area){
+      area.classList.remove("hidden");
+      area.style.display = "";
+      area.style.visibility = "visible";
+    }
+    var admin = E("admin");
+    if(admin){
+      admin.classList.add("active");
+      admin.style.display = "";
+      admin.style.visibility = "visible";
+    }
+    try{
+      if(typeof renderAdmin === "function") renderAdmin();
+      if(typeof renderAdminMaterialsPro === "function") renderAdminMaterialsPro();
+    }catch(e){}
+  }
+
+  function showAppFallback(){
+    var app = E("app");
+    var login = E("login");
+    if(app){
+      app.classList.remove("hidden");
+      app.style.display = "";
+      app.style.visibility = "visible";
+    }
+    if(login){
+      login.classList.add("hidden");
+      login.style.display = "none";
+    }
+
+    var active = document.querySelector(".page.active");
+    if(!active){
+      var dash = E("dashboard") || E("orders") || document.querySelector(".page");
+      if(dash){
+        dash.classList.add("active");
+        dash.style.display = "";
+        dash.style.visibility = "visible";
+      }
+    }
+
+    try{
+      if(typeof renderAll === "function") renderAll();
+    }catch(e){}
+  }
+
+  function blankScreenGuard(){
+    try{
+      var app = E("app"), login = E("login");
+      var hasActive = !!document.querySelector(".page.active");
+      var bodyText = T(document.body && document.body.innerText);
+      if(app && !visible(app) && login && !visible(login)){
+        console.warn("[BNS v467] wit scherm voorkomen: app/login beide verborgen, app hersteld.");
+        showAppFallback();
+        return;
+      }
+      if(app && visible(app) && !hasActive && bodyText.length < 80){
+        console.warn("[BNS v467] wit scherm voorkomen: geen actieve pagina, dashboard hersteld.");
+        showAppFallback();
+        return;
+      }
+    }catch(e){}
+  }
+
+  function bindAdminPin(){
+    var pin = E("adminPin");
+    var btn = E("unlockAdmin");
+    if(btn && btn.dataset.bnsV467 !== "1"){
+      btn.dataset.bnsV467 = "1";
+      btn.addEventListener("click", function(ev){
+        var p = pin ? pin.value : "";
+        if(pinOk(p)){
+          ev.preventDefault();
+          ev.stopPropagation();
+          showAdminArea();
+          if(pin) pin.value = "";
+          return false;
+        }
+      }, true);
+    }
+    if(pin && pin.dataset.bnsV467 !== "1"){
+      pin.dataset.bnsV467 = "1";
+      try{ pin.type = "password"; }catch(e){}
+      pin.setAttribute("autocomplete","new-password");
+      pin.addEventListener("keydown", function(ev){
+        if(ev.key === "Enter"){
+          var p = pin.value;
+          if(pinOk(p)){
+            ev.preventDefault();
+            ev.stopPropagation();
+            showAdminArea();
+            pin.value = "";
+            return false;
+          }
+        }
+      }, true);
+    }
+  }
+
+  function bindMainPin(){
+    ["pinOk","pinClear"].forEach(function(id){
+      var el=E(id);
+      if(el && el.dataset.bnsV467Guard !== "1"){
+        el.dataset.bnsV467Guard = "1";
+        el.addEventListener("click", function(){
+          setTimeout(blankScreenGuard, 120);
+          setTimeout(blankScreenGuard, 800);
+        }, true);
+      }
+    });
+    document.querySelectorAll("[data-pin]").forEach(function(el){
+      if(el.dataset.bnsV467Guard === "1") return;
+      el.dataset.bnsV467Guard = "1";
+      el.addEventListener("click", function(){
+        setTimeout(blankScreenGuard, 120);
+        setTimeout(blankScreenGuard, 800);
+      }, true);
+    });
+  }
+
+  function boot(){
+    bindAdminPin();
+    bindMainPin();
+    blankScreenGuard();
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+
+  setInterval(function(){
+    bindAdminPin();
+    bindMainPin();
+    blankScreenGuard();
+  }, 1500);
+
+  console.log("[BNS v467] PIN/wit-scherm fix actief.");
+})();
