@@ -44578,158 +44578,67 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 
 /* =========================================================
-   BNS v464 - materiaal/rubrieken layout rustiger
-   Alleen visueel. Geen wijziging aan opslaan/reservering/Firebase.
+   BNS v465 - VEILIGE materiaal layout
+   Alleen CSS. Verplaatst geen knoppen en raakt login/admin niet aan.
    ========================================================= */
 (function(){
-  if(window.__BNS_V464_MATERIAL_LAYOUT__) return;
-  window.__BNS_V464_MATERIAL_LAYOUT__ = true;
-
-  var css = `
-  #materialPanel .cat-grid,
-  #materialPanel .category-grid,
-  #materialPanel .material-cats,
-  #materialPanel .rubriek-grid,
-  #materialPanel .tabs,
-  #materialPanel .chips,
-  .material-cats,
-  .rubriek-grid {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)) !important;
-    gap: 8px !important;
-    align-items: stretch !important;
-    max-height: 260px !important;
-    overflow-y: auto !important;
-    padding: 6px !important;
-    border-radius: 14px !important;
-    background: rgba(255,255,255,.35) !important;
-  }
-
-  #materialPanel button,
-  .materials button,
-  .materiaal button {
-    white-space: nowrap;
-  }
-
-  #materialPanel .cat-grid button,
-  #materialPanel .category-grid button,
-  #materialPanel .material-cats button,
-  #materialPanel .rubriek-grid button,
-  #materialPanel .tabs button,
-  #materialPanel .chips button,
-  .material-cats button,
-  .rubriek-grid button {
-    min-height: 48px !important;
-    padding: 9px 10px !important;
-    border-radius: 10px !important;
-    font-size: 14px !important;
-    line-height: 1.05 !important;
-    text-align: center !important;
-    box-shadow: 0 2px 0 rgba(0,0,0,.15) !important;
-  }
-
-  #materialPanel .material-list,
-  #materialPanel .materials-list,
-  #materialPanel .material-results,
-  .material-list,
-  .materials-list,
-  .material-results {
-    max-height: 390px !important;
-    overflow-y: auto !important;
-    padding-right: 4px !important;
-  }
-
-  #materialPanel .material-card,
-  #materialPanel .material-row,
-  .material-card,
-  .material-row {
-    display: grid !important;
-    grid-template-columns: auto 1fr auto !important;
-    gap: 8px !important;
-    align-items: center !important;
-    min-height: 58px !important;
-    padding: 10px 12px !important;
-    border-radius: 12px !important;
-  }
-
-  #materialPanel input[type="search"],
-  #materialPanel input[placeholder*="Zoek" i],
-  .materials input[placeholder*="Zoek" i] {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 5 !important;
-    background: #fff !important;
-    border: 1px solid #d8e2ef !important;
-    border-radius: 12px !important;
-    min-height: 44px !important;
-    font-size: 15px !important;
-    padding: 10px 12px !important;
-  }
-
-  @media (max-width: 900px) {
-    #materialPanel .cat-grid,
-    #materialPanel .category-grid,
-    #materialPanel .material-cats,
-    #materialPanel .rubriek-grid,
-    #materialPanel .tabs,
-    #materialPanel .chips,
-    .material-cats,
-    .rubriek-grid {
-      grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)) !important;
-      gap: 7px !important;
-      max-height: 230px !important;
-    }
-    #materialPanel .cat-grid button,
-    #materialPanel .category-grid button,
-    #materialPanel .material-cats button,
-    #materialPanel .rubriek-grid button,
-    #materialPanel .tabs button,
-    #materialPanel .chips button,
-    .material-cats button,
-    .rubriek-grid button {
-      font-size: 13px !important;
-      min-height: 44px !important;
-      padding: 8px 7px !important;
-    }
-  }
-  `;
+  if(window.__BNS_V465_SAFE_MATERIAL_LAYOUT__) return;
+  window.__BNS_V465_SAFE_MATERIAL_LAYOUT__ = true;
 
   function addStyle(){
-    if(document.getElementById("bns-v464-material-layout-css")) return;
+    if(document.getElementById("bns-v465-safe-material-layout-css")) return;
     var st=document.createElement("style");
-    st.id="bns-v464-material-layout-css";
-    st.textContent=css;
+    st.id="bns-v465-safe-material-layout-css";
+    st.textContent = `
+      /* Alleen materiaalpaneel mooier; geen andere schermen aanraken */
+      #materialPanel .cat-grid,
+      #materialPanel .category-grid,
+      #materialPanel .material-cats,
+      #materialPanel .rubriek-grid,
+      #materialPanel .chips {
+        display:grid!important;
+        grid-template-columns:repeat(auto-fit,minmax(82px,1fr))!important;
+        gap:8px!important;
+        align-items:stretch!important;
+        max-height:245px!important;
+        overflow-y:auto!important;
+        padding:6px!important;
+        border-radius:14px!important;
+      }
+
+      #materialPanel .cat-grid button,
+      #materialPanel .category-grid button,
+      #materialPanel .material-cats button,
+      #materialPanel .rubriek-grid button,
+      #materialPanel .chips button {
+        min-height:44px!important;
+        padding:8px 8px!important;
+        border-radius:10px!important;
+        font-size:13px!important;
+        line-height:1.05!important;
+        white-space:nowrap!important;
+        text-align:center!important;
+      }
+
+      #materialPanel input[placeholder*="Zoek" i],
+      #materialPanel input[type="search"] {
+        min-height:42px!important;
+        border-radius:12px!important;
+        padding:9px 11px!important;
+        font-size:14px!important;
+      }
+
+      #materialPanel .material-list,
+      #materialPanel .materials-list,
+      #materialPanel .material-results {
+        max-height:380px!important;
+        overflow-y:auto!important;
+      }
+    `;
     document.head.appendChild(st);
   }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", addStyle);
+  else addStyle();
 
-  function enhance(){
-    addStyle();
-    try{
-      var materialHeads = Array.from(document.querySelectorAll("h2,h3,strong,div")).filter(function(el){
-        return /materiaal kiezen/i.test(el.textContent || "");
-      });
-      materialHeads.forEach(function(head){
-        var parent = head.parentElement;
-        if(!parent || parent.dataset.bns464Done) return;
-        var buttons = Array.from(parent.querySelectorAll("button")).filter(function(b){
-          var t=(b.textContent||"").trim();
-          return t && t.length <= 14 && !/opslaan|annuleren|afdrukken|overzicht|zoek/i.test(t);
-        });
-        if(buttons.length >= 8){
-          var wrap=document.createElement("div");
-          wrap.className="rubriek-grid";
-          buttons[0].parentNode.insertBefore(wrap, buttons[0]);
-          buttons.forEach(function(b){ wrap.appendChild(b); });
-          parent.dataset.bns464Done="1";
-        }
-      });
-    }catch(e){}
-  }
-
-  addStyle();
-  setTimeout(enhance,100);
-  setTimeout(enhance,800);
-  try{ new MutationObserver(function(){ setTimeout(enhance,80); }).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
-
-  console.log("[BNS v464] materiaal/rubrieken layout rustiger actief.");
+  console.log("[BNS v465] veilige materiaal layout actief.");
 })();

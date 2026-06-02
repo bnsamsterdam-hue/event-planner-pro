@@ -178,7 +178,7 @@ async function upload(reason){
         if(col==="orders"){
           bns460NormalizeOrder(row);
           if(row.folder==="archief"){
-            console.warn("[BNS v460] old_/archief order niet opnieuw als live geupload", row.id);
+            if(!window.__bns460OldWarned){ console.warn("[BNS v460] old_/archief orders worden overgeslagen bij live upload"); window.__bns460OldWarned=true; }
             continue;
           }
           const rem=await remoteDoc("orders",row.id);
