@@ -184,13 +184,13 @@ function assignedToUser(o){
   const names=[];
 
   function addId(v){
-    String(v==null?"":v).split(/[;,|\\n]+/).forEach(x=>{
+    String(v==null?"":v).split(/[;,|\n]+/).forEach(x=>{
       x=String(x).trim();
       if(x && !ids.includes(x)) ids.push(x);
     });
   }
   function addName(v){
-    String(v==null?"":v).split(/[;,|\\n]+/).forEach(x=>{
+    String(v==null?"":v).split(/[;,|\n]+/).forEach(x=>{
       x=lower(x);
       if(x && !names.includes(x)) names.push(x);
     });
@@ -201,8 +201,8 @@ function assignedToUser(o){
     if(Array.isArray(a)) a.forEach(addId); else addId(a);
   });
 
-  [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver].forEach(addName);
-  [o.driverNames,o.bezorgerNames].forEach(a=>{
+  [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver,o.assignedDriverName].forEach(addName);
+  [o.driverNames,o.bezorgerNames,o.assignedDriverNames].forEach(a=>{
     if(Array.isArray(a)) a.forEach(addName); else addName(a);
   });
 
