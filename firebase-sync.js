@@ -355,8 +355,13 @@ async function deleteDocPublic(col,id){
   }catch(e){console.error(e);status("Firebase delete fout");return false;}
   finally{uploading=false;}
 }
-window.BNSFirebaseSync.loadArchief=bns466LoadArchief;
-window.BNSFirebaseSync={uploadLocalToFirebase:upload,downloadFirebaseToLocal:download,startRealtimeSync:live,syncDoc:syncDoc,deleteDoc:deleteDocPublic};
+window.BNSFirebaseSync = window.BNSFirebaseSync || {};
+window.BNSFirebaseSync.uploadLocalToFirebase = upload;
+window.BNSFirebaseSync.downloadFirebaseToLocal = download;
+window.BNSFirebaseSync.startRealtimeSync = live;
+window.BNSFirebaseSync.syncDoc = syncDoc;
+window.BNSFirebaseSync.deleteDoc = deleteDocPublic;
+window.BNSFirebaseSync.loadArchief = bns466LoadArchief;
 window.BNS=window.BNS||{};
 window.BNS.syncDoc=syncDoc;
 window.BNS.deleteDoc=deleteDocPublic;
@@ -385,3 +390,5 @@ console.log('[BNS v461] firebase-sync lege bezorger blijft leeg.');
   }
 })();
 
+
+console.log('[BNS v473] BNSFirebaseSync veilig aangemaakt met loadArchief.');
