@@ -44101,3 +44101,173 @@ console.log('[BNS v459] bezorger-vinkjes, Routenet uit, document-terug en telefo
 })();
 
 console.log('[BNS v460] mappen/folder + v459 fixes actief.');
+
+
+
+/* =========================================================
+   BNS v461 RUSTFIX
+   - Nieuwe opdracht: bezorgers leeg.
+   - Opslaan is onthouden.
+   - Planner kan bij wijzigen bezorgers uitzetten en opslaan.
+   - Routenet rustig/overal weg.
+   - Verwijderde/geannuleerde/uitgevoerde/old orders blokkeren materiaal nooit.
+   - Terugknoppen fallback.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V461_RUSTFIX__) return;
+  window.__BNS_V461_RUSTFIX__ = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+
+  var st=document.createElement("style");
+  st.id="bns-v461-routenet-hide";
+  st.textContent='a[href*="routenet" i],button[data-routenet],a[data-routenet],.routenet,.routeNet,.route-net{display:none!important;visibility:hidden!important;}';
+  document.head.appendChild(st);
+
+  function hideRoutenet(){
+    try{
+      document.querySelectorAll("button,a").forEach(function(el){
+        var txt=L(el.textContent || el.value || el.title || el.getAttribute("aria-label"));
+        var href=L(el.href || el.getAttribute("href"));
+        if(txt.indexOf("routenet")>=0 || href.indexOf("routenet")>=0 || href.indexOf("route-net")>=0){
+          el.style.setProperty("display","none","important");
+          el.style.setProperty("visibility","hidden","important");
+          el.dataset.bnsRoutenetHidden="1";
+        }
+      });
+    }catch(e){}
+  }
+  ["openRouteNet","openRoutenet","routenet","routeNet","BNS_openRoutenet"].forEach(function(k){
+    try{ window[k]=function(){ return false; }; }catch(e){}
+  });
+  hideRoutenet();
+  try{ new MutationObserver(hideRoutenet).observe(document.documentElement,{childList:true,subtree:true,characterData:true}); }catch(e){}
+  window.addEventListener("load", hideRoutenet);
+
+  window.__bns461DriverTouched = false;
+  window.__bns461DriverSelection = [];
+
+  function isDriverCheckbox(el){
+    if(!el || el.type !== "checkbox") return false;
+    var txt="";
+    try{ txt=L((el.closest(".card,.section,.tab,.panel,div")||{}).textContent); }catch(e){}
+    var named = L(el.name || el.id || el.value || el.getAttribute("data-driver-id") || el.getAttribute("data-id"));
+    return txt.indexOf("bezorgers voor deze opdracht")>=0 ||
+           txt.indexOf("bezorger")>=0 ||
+           named.indexOf("driver")>=0 ||
+           named.indexOf("bezorger")>=0;
+  }
+  function boxes(){
+    return Array.from(document.querySelectorAll('input[type="checkbox"]')).filter(isDriverCheckbox);
+  }
+  function key(b){
+    var label="";
+    try{ label=T((b.closest("label,button,div")||{}).textContent); }catch(e){}
+    return L(b.value || b.dataset.id || b.getAttribute("data-driver-id") || b.name || label);
+  }
+  function readSel(){
+    return boxes().filter(function(b){return b.checked;}).map(key).filter(Boolean);
+  }
+  function applySel(){
+    var sel=window.__bns461DriverSelection || [];
+    boxes().forEach(function(b){ b.checked = sel.indexOf(key(b)) >= 0; });
+  }
+  function isEditingExisting(){
+    try{ if(typeof editing !== "undefined" && editing) return true; }catch(e){}
+    try{ if(window.editing) return true; }catch(e){}
+    return false;
+  }
+  function calm(){
+    var bs=boxes();
+    if(!bs.length) return;
+    if(window.__bns461DriverTouched){
+      applySel();
+      return;
+    }
+    if(!isEditingExisting()){
+      bs.forEach(function(b){ b.checked=false; });
+      window.__bns461DriverSelection=[];
+    }
+  }
+  document.addEventListener("change", function(e){
+    if(isDriverCheckbox(e.target)){
+      window.__bns461DriverTouched=true;
+      window.__bns458DriverTouched=true;
+      window.__bns459DriverTouched=true;
+      window.__bns461DriverSelection=readSel();
+      [0,300,1200,3000,5000].forEach(function(ms){ setTimeout(applySel, ms); });
+    }
+  }, true);
+  document.addEventListener("click", function(e){
+    var b=e.target && e.target.closest && e.target.closest("button,a");
+    if(!b) return;
+    var txt=L(b.textContent);
+    if(txt.indexOf("nieuwe opdracht")>=0 || txt==="nieuw"){
+      window.__bns461DriverTouched=false;
+      window.__bns461DriverSelection=[];
+      [100,800,2200,4500].forEach(function(ms){ setTimeout(calm,ms); });
+    }
+    if(txt==="opslaan"){
+      window.__bns461DriverTouched=true;
+      window.__bns461DriverSelection=readSel();
+    }
+  }, true);
+  setInterval(calm, 700);
+  try{ new MutationObserver(function(){ setTimeout(calm,60); }).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+
+  function orderIsLive(o){
+    if(!o || o.deleted===true || o.afgemeld===true || o.phoneDone===true || o.completed===true) return false;
+    var id=T(o.id || o.docId || o.orderId);
+    if(id.indexOf("old_")===0) return false;
+    if(typeof BNS_v460FolderFromOrder === "function") return BNS_v460FolderFromOrder(o)==="lopend";
+    var f=L(o.folder || o.map || o.orderFolder);
+    if(f) return f==="lopend";
+    var s=L(o.status || o.state || o.orderStatus);
+    if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return false;
+    return /bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s);
+  }
+  window.BNS_v461OrderBlocksMaterial = orderIsLive;
+
+  if(typeof window.BNS_v460BlockingOrdersForMaterial === "function" && !window.BNS_v460BlockingOrdersForMaterial.__bns461){
+    var oldBlockList = window.BNS_v460BlockingOrdersForMaterial;
+    var wrappedBlockList = function(mat, range, ignoreId){
+      try{ return (oldBlockList(mat, range, ignoreId) || []).filter(orderIsLive); }
+      catch(e){ return []; }
+    };
+    wrappedBlockList.__bns461 = true;
+    window.BNS_v460BlockingOrdersForMaterial = wrappedBlockList;
+  }
+  if(typeof window.TW_V309_materialIsBlocked === "function" && !window.TW_V309_materialIsBlocked.__bns461){
+    var oldIsBlocked = window.TW_V309_materialIsBlocked;
+    var wrappedIsBlocked = function(mid, range){
+      try{
+        if(typeof window.BNS_v460BlockingOrdersForMaterial === "function"){
+          return window.BNS_v460BlockingOrdersForMaterial(mid, range).some(orderIsLive);
+        }
+      }catch(e){}
+      try{ return oldIsBlocked(mid, range); }catch(e){ return false; }
+    };
+    wrappedIsBlocked.__bns461 = true;
+    window.TW_V309_materialIsBlocked = wrappedIsBlocked;
+  }
+
+  document.addEventListener("click", function(e){
+    var b=e.target && e.target.closest && e.target.closest("button,a");
+    if(!b) return;
+    var txt=L(b.textContent);
+    if(txt==="terug"){
+      try{
+        var modal=b.closest(".modal,.overlay,.dialog,[role='dialog']");
+        if(modal){ modal.style.display="none"; modal.classList.add("hidden"); e.preventDefault(); return false; }
+      }catch(x){}
+      try{
+        if(location.href==="about:blank" || location.protocol==="about:"){
+          if(window.opener){ window.close(); e.preventDefault(); return false; }
+        }
+      }catch(x){}
+    }
+  }, true);
+
+  console.log("[BNS v461] rustfix actief: bezorger-vinkjes, routenet, materiaal live-only, terugknop.");
+})();

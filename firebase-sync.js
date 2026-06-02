@@ -138,6 +138,12 @@ function bns460FilterRows(col,rows){
   return rows;
 }
 
+
+/* BNS v461 sync extra: lege bezorger blijft leeg */
+function bns461IsEmptyDriverOrder(o){
+  try{ return bns460DriverCount(o)===0; }catch(e){ return false; }
+}
+
 function preserveOrder(local,remote){
   if(!local)return local;
   bns460NormalizeOrder(local);
@@ -322,3 +328,5 @@ window.BNS=window.BNS||{};
 window.BNS.syncDoc=syncDoc;
 window.BNS.deleteDoc=deleteDocPublic;
 })();
+
+console.log('[BNS v461] firebase-sync lege bezorger blijft leeg.');
