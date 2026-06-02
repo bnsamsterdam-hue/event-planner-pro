@@ -540,3 +540,22 @@ boot();
     window.findOrder = findOrder;
   }catch(e){}
 })();
+
+
+
+/* BNS v461 telefoon media refresh */
+(function(){
+  if(window.__BNS_V461_DRIVER_MEDIA_REFRESH__) return;
+  window.__BNS_V461_DRIVER_MEDIA_REFRESH__ = true;
+
+  var oldRenderDriver = typeof renderDriver === "function" ? renderDriver : null;
+  if(oldRenderDriver && !oldRenderDriver.__bns461){
+    window.renderDriver = renderDriver = function(){
+      var r = oldRenderDriver.apply(this, arguments);
+      setTimeout(function(){ try{ if(typeof enhanceDriverButtons==="function") enhanceDriverButtons(); }catch(e){} }, 80);
+      setTimeout(function(){ try{ if(typeof enhanceDriverButtons==="function") enhanceDriverButtons(); }catch(e){} }, 900);
+      return r;
+    };
+    renderDriver.__bns461 = true;
+  }
+})();
