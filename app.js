@@ -44789,16 +44789,46 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 
 /* =========================================================
-   BNS v471 - minimale Admin PIN helper
-   Geen wit-scherm guard, geen intervals, geen app/login verbergen.
-   Alleen Admin beheer openen als PIN klopt.
+   BNS v472 - LOGIN GUARD LOOPS UIT
+   Alleen app.js.
+   Oorzaak flikkeren:
+   oude v467/v468 setInterval guards zagen PIN/login als leeg scherm.
+   Oplossing:
+   - geen herstel-loop meer tijdens login
+   - minimale admin-PIN zonder interval
+   - raakt reservering, archief, materiaal en Firebase niet aan
    ========================================================= */
 (function(){
-  if(window.__BNS_V471_MIN_ADMIN_PIN__) return;
-  window.__BNS_V471_MIN_ADMIN_PIN__ = true;
+  if(window.__BNS_V472_LOGIN_GUARDS_OFF__) return;
+  window.__BNS_V472_LOGIN_GUARDS_OFF__ = true;
 
   function T(v){ return String(v == null ? "" : v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
+
+  function visible(el){
+    if(!el) return false;
+    var st = getComputedStyle(el);
+    return st.display !== "none" &&
+           st.visibility !== "hidden" &&
+           st.opacity !== "0" &&
+           !el.classList.contains("hidden") &&
+           el.offsetHeight > 0;
+  }
+
+  function loginVisible(){
+    var login = document.getElementById("login") ||
+                document.getElementById("loginScreen") ||
+                document.getElementById("pinScreen") ||
+                document.querySelector(".login,.login-screen,.pin-screen");
+    if(login && visible(login)) return true;
+
+    var pin = Array.from(document.querySelectorAll('input[type="password"],input[placeholder*="PIN" i],input[id*="pin" i],input[name*="pin" i]'))
+      .find(visible);
+    return !!pin;
+  }
+
+  // Alleen informatief beschikbaar maken voor andere patches.
+  window.BNS_loginVisible = loginVisible;
 
   function getState(){
     try{ if(window.state) return window.state; }catch(e){}
@@ -44816,16 +44846,11 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       if(users.some(function(u){
         var rights = u.rights || {};
         return !u.deleted && !u.disabled && T(u.pin) === pin &&
-          (L(u.role || u.type || u.functie) === "admin" || rights.admin || rights.adminBeheer || rights.materials || rights.materialen);
+          (L(u.role || u.type || u.functie) === "admin" ||
+           rights.admin || rights.adminBeheer || rights.materials || rights.materialen);
       })) return true;
     }catch(e){}
     return pin === "1111";
-  }
-
-  function visible(el){
-    if(!el) return false;
-    var st = getComputedStyle(el);
-    return st.display !== "none" && st.visibility !== "hidden" && el.offsetParent !== null;
   }
 
   function findPin(btn){
@@ -44844,16 +44869,19 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         el.style.opacity = "1";
       }
     });
+
     document.querySelectorAll(".admin-hidden,.beheer-hidden,[data-admin-hidden]").forEach(function(el){
       el.classList.remove("hidden","admin-hidden","beheer-hidden");
       el.style.display = "";
       el.style.visibility = "visible";
       el.style.opacity = "1";
     });
+
     try{ if(typeof renderAdmin === "function") renderAdmin(); }catch(e){}
     try{ if(typeof renderAdminMaterialsPro === "function") renderAdminMaterialsPro(); }catch(e){}
     try{ if(typeof renderMaterialsAdmin === "function") renderMaterialsAdmin(); }catch(e){}
-    console.log("[BNS v471] Admin beheer geopend.");
+
+    console.log("[BNS v472] Admin beheer geopend.");
   }
 
   function tryAdmin(ev, btn){
@@ -44884,6 +44912,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(!a) return;
     var hint = L(a.placeholder || a.id || a.name || a.type);
     if(hint.indexOf("pin") < 0 && a.type !== "password") return;
+
     var root = a.closest("section,.page,.card,.panel,main,body") || document;
     var btn = Array.from(root.querySelectorAll("button,a,input[type='button'],input[type='submit']")).find(function(b){
       var txt = L(b.textContent || b.value || b.title || b.id);
@@ -44892,5 +44921,5 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(btn) return tryAdmin(ev, btn);
   }, true);
 
-  console.log("[BNS v471] minimale admin-PIN actief; geen wit-scherm guards.");
+  console.log("[BNS v472] login guard loops uit; PIN/login wordt niet meer verborgen.");
 })();
