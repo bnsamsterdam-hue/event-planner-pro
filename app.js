@@ -24906,7 +24906,7 @@ setTimeout(()=>{
 
   function renderLogin(melding){
     var s=appState();
-    var bezorgers=(s.users||[]).filter(function(u){ return u && /bezorger/i.test(u.role||''); });
+    var bezorgers=(s.users||[]).filter(function(u){ var id=String(u&&u.id||'').toLowerCase(); var nm=String(u&&(u.name||u.naam||u.displayName)||'').toLowerCase(); if(!u||u.deleted===true||u.disabled===true||u.active===false) return false; if(id==='u_admin'||id==='u_planner'||nm==='admin'||nm==='planner') return false; return String(u.pin||'').trim() && String(u.name||u.naam||u.displayName||'').trim(); });
     var html='<div style="max-width:380px;margin:40px auto;padding:24px;font-family:sans-serif">';
     html+='<h2 style="text-align:center;color:#0f172a;margin-bottom:4px">Tapwagen.nl</h2>';
     html+='<p style="text-align:center;color:#64748b;margin-bottom:20px">Bezorger portal</p>';
