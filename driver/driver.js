@@ -43,7 +43,21 @@ async function initFirebase(){
 }
 async function loadCollection(n){
   const s=await BNS.firebase.getDocs(BNS.firebase.collection(BNS.db,n));
-  return s.docs.map(d=>({id:d.id,...d.data()}));
+  let rows=s.docs.map(d=>({id:d.id,...d.data()}));
+
+  // BNS v446: alleen orders filteren voor telefoon. Users nooit filteren.
+  if(n==="orders"){
+    rows=rows.filter(o=>{
+      const id=String((o&&(o.id||o.docId||o.orderId))||"");
+      if(id.indexOf("old_")===0) return false;
+      const f=lower((o&&(o.folder||o.map||o.orderFolder))||"");
+      if(f) return f==="lopend";
+      const st=lower(o&&o.status);
+      return /bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(st) &&
+        !/offerte|optie|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st);
+    });
+  }
+  return rows;
 }
 async function loadInitial(){
   setStatus("Data laden...");
@@ -119,19 +133,82 @@ const LOCKED_USER_KEY="tapwagen_driver_locked_user_id";
 let CURRENT_DETAIL_ID="";
 
 function userAllowed(u){
-  const r=lower(u.role);
-  return r==="bezorger"||r==="planner"||r==="admin"||!!(u.rights&&(u.rights.gps||u.rights.agenda||u.rights.resolve||u.rights.orders||u.rights.damage||u.rights.schade||u.rights.storing||u.rights.materials||u.rights.prices));
+  if(!u) return false;
+  const r=lower(u.role||u.type||u.functie||"");
+  const nm=lower(u.name||u.naam||u.displayName||"");
+  const id=lower(u.id||u.uid||"");
+  const rights=u.rights||{};
+
+  if(u.deleted===true || u.disabled===true || u.active===false) return false;
+  if(id==="u_admin" || id==="u_planner" || id==="admin" || id==="planner") return false;
+  if(nm==="admin" || nm==="planner") return false;
+
+  // Belangrijk: Admin maakt bezorger aan met naam + PIN.
+  // Dan moet hij in de telefoonlijst komen, ook als role/rechten anders staan.
+  if(String(u.pin||"").trim() && String(u.name||u.naam||u.displayName||"").trim()) return true;
+
+  return r==="bezorger" || r==="driver" ||
+    !!(rights && (
+      rights.gps || rights.route || rights.waze ||
+      rights.agenda || rights.resolve || rights.orders ||
+      rights.afmelden || rights.afmeldenMelding || rights.complete || rights.done || rights.uitgevoerd ||
+      rights.bellen || rights.callCustomer || rights.customerSignature ||
+      rights.damage || rights.schade || rights.storing || rights.materials || rights.prices
+    ));
 }
 function assignedToUser(o){
-  const uid=String(BNS.user.id||""),un=lower(BNS.user.name||"");
+  if(!o || !BNS.user) return false;
+
+  function folderFromStatus(st){
+    const s=lower(st||"");
+    if(/offerte/.test(s))return "offerte";
+    if(/optie|14/.test(s))return "optie14";
+    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s))return "geannuleerd";
+    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return "uitgevoerd";
+    if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return "lopend";
+    return "";
+  }
+  function folder(o){
+    const id=String((o&&(o.id||o.docId||o.orderId))||"");
+    if(id.indexOf("old_")===0)return "old";
+    return lower((o&&(o.folder||o.map||o.orderFolder))||"") || folderFromStatus(o&&o.status);
+  }
+
+  // Telefoon mag alleen lopende/bevestigde opdrachten beoordelen.
+  if(folder(o) && folder(o)!=="lopend") return false;
+  if(isCancelled(o)||isDone(o)||isDeleted(o)||o.afgemeld===true||o.phoneDone===true||o.completed===true) return false;
+
+  const uid=String(BNS.user.id||BNS.user.uid||"");
+  const un=lower(BNS.user.name||BNS.user.naam||BNS.user.displayName||"");
   const ids=[];
-  [o.driverId,o.bezorgerId,o.userId].forEach(v=>{if(v!=null)ids.push(String(v))});
-  [o.driverIds,o.bezorgerIds,o.userIds].forEach(a=>{if(Array.isArray(a))a.forEach(v=>ids.push(String(v)))});
   const names=[];
-  [o.driverName,o.driver,o.bezorger].forEach(v=>{if(v!=null)names.push(lower(v))});
-  [o.driverNames,o.bezorgerNames].forEach(a=>{if(Array.isArray(a))a.forEach(v=>names.push(lower(v)))});
-  if(uid&&ids.includes(uid))return true;
-  if(un&&names.includes(un))return true;
+
+  function addId(v){
+    String(v==null?"":v).split(/[;,|\\n]+/).forEach(x=>{
+      x=String(x).trim();
+      if(x && !ids.includes(x)) ids.push(x);
+    });
+  }
+  function addName(v){
+    String(v==null?"":v).split(/[;,|\\n]+/).forEach(x=>{
+      x=lower(x);
+      if(x && !names.includes(x)) names.push(x);
+    });
+  }
+
+  [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId].forEach(addId);
+  [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds].forEach(a=>{
+    if(Array.isArray(a)) a.forEach(addId); else addId(a);
+  });
+
+  [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver].forEach(addName);
+  [o.driverNames,o.bezorgerNames].forEach(a=>{
+    if(Array.isArray(a)) a.forEach(addName); else addName(a);
+  });
+
+  if(uid && ids.includes(uid)) return true;
+  if(un && names.includes(un)) return true;
+
   if((lower(BNS.user.role)==="planner"||lower(BNS.user.role)==="admin")&&hasRight("orders"))return true;
   return false;
 }
