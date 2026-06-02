@@ -330,3 +330,25 @@ window.BNS.deleteDoc=deleteDocPublic;
 })();
 
 console.log('[BNS v461] firebase-sync lege bezorger blijft leeg.');
+
+
+
+/* BNS v462 sync: geen bezorger terugpreserven als planner leeg opslaat */
+(function(){
+  if(typeof preserveOrder === "function" && !preserveOrder.__bns462){
+    var oldPreserve = preserveOrder;
+    preserveOrder = function(local, remote){
+      try{
+        if(local && typeof bns460NormalizeOrder==="function") bns460NormalizeOrder(local);
+        var lc = (typeof bns460DriverCount==="function") ? bns460DriverCount(local) : 0;
+        if(local && local.folder==="lopend" && lc===0){
+          // Leeg is bewust leeg: remote driverdata niet terugzetten.
+          return local;
+        }
+      }catch(e){}
+      return oldPreserve(local, remote);
+    };
+    preserveOrder.__bns462 = true;
+  }
+})();
+
