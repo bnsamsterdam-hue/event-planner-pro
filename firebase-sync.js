@@ -77,33 +77,6 @@ function keep(local,remote,k){
 }
 
 /* BNS v460 sync helpers */
-
-/* =========================================================
-   BNS v466 Firebase sync - archief niet standaard laden
-   ========================================================= */
-function bns466IsArchiveOrder(o){
-  try{
-    const id=String((o&&(o.id||o.docId||o.orderId))||"");
-    if(id.indexOf("old_")===0)return true;
-    const f=String((o&&(o.folder||o.map||o.orderFolder))||"").trim().toLowerCase();
-    if(f==="archief"||f==="old")return true;
-    return false;
-  }catch(e){return false;}
-}
-function bns466LiveRows(col, rows){
-  rows=rows||[];
-  if(col==="orders") return rows.filter(o=>!bns466IsArchiveOrder(o));
-  return rows;
-}
-async function BNS_v466LoadArchiveOrders(){
-  const t=await fb(); if(!t)return [];
-  const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,"orders"));
-  return snap.docs.map(d=>({id:d.id,...d.data()})).filter(bns466IsArchiveOrder);
-}
-if(typeof window!=="undefined"){
-  window.BNS_v466LoadArchiveOrders = BNS_v466LoadArchiveOrders;
-}
-
 function bns460SplitList(v){
   if(v===undefined||v===null)return[];
   if(Array.isArray(v)){let out=[];v.forEach(x=>out=out.concat(bns460SplitList(x)));return out;}
@@ -159,10 +132,43 @@ function bns460IsPhoneClient(){
   const b=String(document.body&&document.body.innerText||"").toLowerCase();
   return h.indexOf("/driver")>=0||h.indexOf("bezorger")>=0||h.indexOf("telefoon")>=0||b.indexOf("mobiele opdrachten")>=0||b.indexOf("bezorger tapwagen")>=0;
 }
-function bns460FilterRows(col,rows){
+function bns460FilterRows(col,rows,includeArchief){
   rows=(rows||[]).map(o=>col==="orders"?bns460NormalizeOrder(o):o);
-  if(col==="orders"&&bns460IsPhoneClient())return rows.filter(o=>o.folder==="lopend");
+  if(col==="orders"){
+    // Telefoon: alleen lopend
+    if(bns460IsPhoneClient()) return rows.filter(o=>o.folder==="lopend");
+    // Planner: standaard geen archief/old laden (tenzij expliciet gevraagd)
+    if(!includeArchief){
+      rows=rows.filter(o=>{
+        if(!o||!o.id) return false;
+        if(String(o.id).match(/^old[_-]/i)) return false;  // old_ prefix
+        if(o.folder==="old"||o.folder==="archief") return false;  // archief folder
+        return true;
+      });
+    }
+  }
   return rows;
+}
+
+// Laad archief on-demand (alleen als je de archief tab opent)
+async function bns466LoadArchief(jaar){
+  const t=await fb(); if(!t) return [];
+  try{
+    const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,"orders"));
+    const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const archief=all.filter(o=>{
+      if(!o) return false;
+      const isOld=String(o.id||"").match(/^old[_-]/i)||o.folder==="old"||o.folder==="archief";
+      if(!isOld) return false;
+      if(jaar){
+        // Filter op jaar via einddatum of opdrachtnummer
+        const y=String(o.end||o.start||o.number||o.id||"");
+        return y.indexOf(String(jaar))>=0;
+      }
+      return true;
+    }).map(bns460NormalizeOrder);
+    return archief;
+  }catch(e){ console.error("[BNS466] Archief laden fout:",e); return []; }
 }
 
 
@@ -204,9 +210,8 @@ async function upload(reason){
         id(row,col.slice(0,1));
         if(col==="orders"){
           bns460NormalizeOrder(row);
-          if(row.folder==="archief"){
-            if(!window.__bns466OldWarned){ console.log("[BNS v466] archieforders blijven in Firebase en worden niet als live geupload"); window.__bns466OldWarned=true; }
-            continue;
+          if(row.folder==="archief"||row.folder==="old"||String(row.id||"").match(/^old[_-]/i)){
+            continue; // Stil overslaan
           }
           const rem=await remoteDoc("orders",row.id);
           if(rem && rem.updatedAt && (!row.updatedAt || rem.updatedAt>row.updatedAt)){
@@ -243,7 +248,7 @@ async function download(){
         continue;
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
-      s[col]=bns466LiveRows(col,bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()}))));
+      s[col]=bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()})),false);
       if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
@@ -297,7 +302,7 @@ async function live(){
     t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
-      s[col]=bns466LiveRows(col,bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()}))));
+      s[col]=bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()})),false);
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
@@ -350,6 +355,7 @@ async function deleteDocPublic(col,id){
   }catch(e){console.error(e);status("Firebase delete fout");return false;}
   finally{uploading=false;}
 }
+window.BNSFirebaseSync.loadArchief=bns466LoadArchief;
 window.BNSFirebaseSync={uploadLocalToFirebase:upload,downloadFirebaseToLocal:download,startRealtimeSync:live,syncDoc:syncDoc,deleteDoc:deleteDocPublic};
 window.BNS=window.BNS||{};
 window.BNS.syncDoc=syncDoc;
@@ -379,5 +385,3 @@ console.log('[BNS v461] firebase-sync lege bezorger blijft leeg.');
   }
 })();
 
-
-console.log("[BNS v466] firebase-sync archief lazy-load actief.");

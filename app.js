@@ -44272,654 +44272,197 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   console.log("[BNS v461] rustfix actief: bezorger-vinkjes, routenet, materiaal live-only, terugknop.");
 })();
 
+// ============================================================
+// BNS PATCH v462 — Harde reservering fix
+// Alleen sameMat exact id-check + validateChosenHard
+// Geen layout, geen login, geen scherm aanpassingen
+// ============================================================
+(function BNS_V462_RESERVERING(){
+  'use strict';
+  if(window.__BNS_V462__) return;
+  window.__BNS_V462__ = true;
 
-
-/* =========================================================
-   BNS v462 - telefoon leeg is weg + routenet hard weg + status/tabs + terug/media knoppen
-   ========================================================= */
-(function(){
-  if(window.__BNS_V462_FIX__) return;
-  window.__BNS_V462_FIX__ = true;
-
-  function T(v){ return String(v == null ? "" : v).trim(); }
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
 
-  /* ---------- Routenet: harder verbergen, ook bestaande knoppen ---------- */
-  function injectCss(){
-    if(document.getElementById("bns-v462-routenet-hard-hide")) return;
-    var st=document.createElement("style");
-    st.id="bns-v462-routenet-hard-hide";
-    st.textContent=[
-      'a[href*="routenet" i]',
-      'button[data-routenet]',
-      'a[data-routenet]',
-      '.routenet',
-      '.routeNet',
-      '.route-net',
-      '[class*="routenet" i]',
-      '[id*="routenet" i]'
-    ].join(',')+'{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;width:0!important;max-width:0!important;overflow:hidden!important;}';
-    document.head.appendChild(st);
+  // ── Hulpfuncties materiaal ──────────────────────────────
+  function matId(m){
+    if(!m) return '';
+    var id=T(m.id||m.materialId||m.matId||'');
+    // old_/add_ zijn geen echte materiaal-ids
+    if(id.match(/^(old|add)[_-]/i)) return '';
+    return id;
   }
-  function killRoutenet(){
-    injectCss();
-    try{
-      document.querySelectorAll("button,a,span,div").forEach(function(el){
-        var txt=L(el.textContent || el.value || el.title || el.getAttribute("aria-label"));
-        var href=L(el.href || el.getAttribute("href"));
-        var cls=L(el.className || "");
-        var id=L(el.id || "");
-        if(txt.indexOf("routenet")>=0 || href.indexOf("routenet")>=0 || cls.indexOf("routenet")>=0 || id.indexOf("routenet")>=0){
-          el.style.setProperty("display","none","important");
-          el.style.setProperty("visibility","hidden","important");
-          el.style.setProperty("opacity","0","important");
-          el.style.setProperty("pointer-events","none","important");
-          el.dataset.bnsRoutenetHidden="1";
-        }
-      });
-    }catch(e){}
+  function matCode(m){
+    if(!m) return '';
+    var c=T(m.code||m.productNr||m.nr||m.number||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    // Puur rubrieknamen zijn geen code
+    if(/^(EXTRA|TW|KW|TO|NVT|GEEN|LOS|OVERIG)$/.test(c)) return '';
+    // Moet letter+cijfer combinatie zijn (bv TW17, TAPW18)
+    return /^[A-Z]+\d+$/.test(c) ? c : '';
   }
-  ["openRouteNet","openRoutenet","routenet","routeNet","BNS_openRoutenet"].forEach(function(k){
-    try{ window[k]=function(){ return false; }; }catch(e){}
-  });
-  killRoutenet();
-  setInterval(killRoutenet, 350);
-  try{ new MutationObserver(killRoutenet).observe(document.documentElement,{childList:true,subtree:true,characterData:true,attributes:true}); }catch(e){}
+  function matCat(m){
+    return T(m&&(m.cat||m.rubriek||m.category||'')).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  }
+  function matProduct(m){
+    return T(m&&(m.productNr||m.nr||m.number||'')).replace(/[^0-9]/g,'');
+  }
+  function matName(m){
+    return L(m&&(m.name||m.searchName||m.zoeknaam||m.description||''));
+  }
 
-  /* ---------- Folder/status tabs overal tonen als ze ontbreken ---------- */
-  function folderFromStatusText(st){
-    var s=L(st);
-    if(/offerte/.test(s)) return "offerte";
-    if(/optie|14/.test(s)) return "optie14";
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
-    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
-    if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s)) return "lopend";
-    return "";
+  // ── Exacte materiaalvergelijking ────────────────────────
+  // Volgorde: id → code → cat+productnr (GEEN brede naam-match)
+  function sameMat(a, b){
+    if(!a || !b) return false;
+    var aid=matId(a), bid=matId(b);
+    // Exact id match - als beide een id hebben moeten die gelijk zijn
+    if(aid || bid) return !!(aid && bid && aid === bid);
+    var ac=matCode(a), bc=matCode(b);
+    // Exact code match (bv TW17 === TW17, TAPW18 ≠ TAPW19)
+    if(ac || bc) return !!(ac && bc && ac === bc);
+    // Fallback: rubriek + productnummer
+    var acp=matCat(a)+'|'+matProduct(a), bcp=matCat(b)+'|'+matProduct(b);
+    return acp !== '|' && acp === bcp;
   }
-  function statusLabel(folder){
-    folder=L(folder);
-    if(folder==="offerte") return "Offerte";
-    if(folder==="optie14") return "Optie 14 dagen";
-    if(folder==="geannuleerd") return "Geannuleerd";
-    if(folder==="uitgevoerd") return "Uitgevoerd";
-    if(folder==="archief") return "Archief";
-    return "Lopende opdrachten";
-  }
-  function orderFolder(o){
-    if(!o) return "";
-    if(typeof BNS_v460FolderFromOrder==="function") return BNS_v460FolderFromOrder(o);
-    var id=T(o.id||o.docId||o.orderId); if(id.indexOf("old_")===0) return "archief";
-    var f=L(o.folder||o.map||o.orderFolder); if(f) return f==="old"?"archief":(f==="optie"?"optie14":f);
-    return folderFromStatusText(o.status||o.state||o.orderStatus);
-  }
-  window.BNS_v462OrderFolder = orderFolder;
 
-  function ensureTabs(){
-    try{
-      var h = Array.from(document.querySelectorAll("h1,h2,h3,.page-title,.title")).find(function(x){
-        return /planning|opdrachten/i.test(x.textContent||"");
-      });
-      if(!h) return;
-      if(document.getElementById("bns-v462-folder-tabs")) return;
-      var wrap=document.createElement("div");
-      wrap.id="bns-v462-folder-tabs";
-      wrap.style.cssText="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px 0";
-      [
-        ["lopend","Lopende opdrachten"],
-        ["optie14","14 dagen opties"],
-        ["offerte","Offertes"],
-        ["uitgevoerd","Uitgevoerd"],
-        ["geannuleerd","Geannuleerd"],
-        ["archief","Archief"]
-      ].forEach(function(p){
-        var b=document.createElement("button");
-        b.type="button";
-        b.textContent=p[1];
-        b.dataset.folder=p[0];
-        b.style.cssText="border:0;border-radius:10px;padding:9px 12px;background:#1f3b5b;color:#fff;font-weight:800";
-        b.onclick=function(){
-          window.__bnsActiveFolder=p[0];
-          try{ if(typeof renderOrders==="function") renderOrders(); }catch(e){}
-          setTimeout(filterCards,80);
-        };
-        wrap.appendChild(b);
-      });
-      h.parentNode.insertBefore(wrap, h.nextSibling);
-    }catch(e){}
+  // ── folder/blokkeert check ──────────────────────────────
+  function orderLive462(o){
+    if(!o || o.deleted===true || o.afgemeld===true || o.phoneDone===true) return false;
+    var f=L(o.folder||o.map||o.orderFolder||'');
+    if(f) return f === 'lopend';
+    var s=L(o.status||'');
+    if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return false;
+    return /bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
   }
-  function cardOrderId(card){
-    return T(card.dataset.id||card.getAttribute("data-id")||card.dataset.orderId||card.getAttribute("data-order-id"));
-  }
-  function stateOrders(){
-    try{ if(window.state && Array.isArray(window.state.orders)) return window.state.orders; }catch(e){}
-    try{ if(typeof state!=="undefined" && Array.isArray(state.orders)) return state.orders; }catch(e){}
-    return [];
-  }
-  function filterCards(){
-    try{
-      var active=window.__bnsActiveFolder;
-      if(!active) return;
-      var orders=stateOrders();
-      document.querySelectorAll(".order-card,[data-order-id],[data-id]").forEach(function(card){
-        if(!/opdracht|order|kaart|card/i.test(card.className+" "+card.textContent)) return;
-        var id=cardOrderId(card);
-        if(!id) return;
-        var o=orders.find(function(x){ return T(x.id)===id; });
-        if(!o) return;
-        var show=orderFolder(o)===active;
-        card.style.display=show?"":"none";
-      });
-    }catch(e){}
-  }
-  setInterval(function(){ ensureTabs(); filterCards(); }, 1200);
 
-  /* ---------- Bezorger opslaan: leeg = echt leeg en telefoon weg ---------- */
-  function split(v){
-    if(v==null) return [];
-    if(Array.isArray(v)){ var out=[]; v.forEach(function(x){ out=out.concat(split(x)); }); return out; }
-    return String(v).split(/[;,\n|]+/).map(T).filter(Boolean);
+  // ── Datumperiode lezen ──────────────────────────────────
+  function parseDate462(v){
+    v=T(v); if(!v) return null;
+    var m=v.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(m){ var d=new Date(+m[1],+m[2]-1,+m[3]); d.setHours(0,0,0,0); return isNaN(d)?null:d; }
+    m=v.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+    if(m){ var d2=new Date(+m[3],+m[2]-1,+m[1]); d2.setHours(0,0,0,0); return isNaN(d2)?null:d2; }
+    var d3=new Date(v); d3.setHours(0,0,0,0); return isNaN(d3)?null:d3;
   }
-  function uniq(a){
-    var seen={}, out=[];
-    (a||[]).forEach(function(x){ var v=T(x), k=L(v); if(v&&!seen[k]){seen[k]=1;out.push(v);} });
-    return out;
+  function currentRange462(){
+    var s=parseDate462((E('dateStart')||{}).value);
+    var e=parseDate462((E('dateEnd')||{}).value)||s;
+    if(!s) return null;
+    return {start:s, end:e};
   }
-  function driverBoxes(){
-    return Array.from(document.querySelectorAll('input[type="checkbox"]')).filter(function(el){
-      var txt="";
-      try{ txt=L((el.closest("label,button,div,.card,.section,.panel")||{}).textContent); }catch(e){}
-      var named=L(el.name||el.id||el.value||el.getAttribute("data-driver-id")||el.getAttribute("data-id"));
-      return txt.indexOf("bezorgers voor deze opdracht")>=0 || named.indexOf("driver")>=0 || named.indexOf("bezorger")>=0;
-    });
+  function orderRange462(o){
+    var s=parseDate462(T(o&&(o.start||o.dateStart||o.startDate||o.date)));
+    var e=parseDate462(T(o&&(o.end||o.dateEnd||o.endDate)))||s;
+    if(!s) return null;
+    return {start:s, end:e};
   }
-  function selectedDrivers(){
-    var ids=[], names=[];
-    driverBoxes().forEach(function(b){
-      if(!b.checked) return;
-      var id=T(b.value||b.dataset.id||b.getAttribute("data-driver-id"));
-      var label="";
-      try{ label=T((b.closest("label,button,div")||{}).textContent); }catch(e){}
-      if(id) ids.push(id);
-      if(label) names.push(label.replace(/^\s*✓?\s*/,""));
-    });
-    return {ids:uniq(ids), names:uniq(names)};
+  function overlap462(a, b){
+    if(!a||!b||!a.start||!a.end||!b.start||!b.end) return true;
+    return a.start <= b.end && b.start <= a.end;
   }
-  function clearOrderDrivers(o){
-    ["driver","driverId","driverName","bezorger","bezorgerId","bezorgerName","assignedDriver","assignedDriverId","assignedDriverName","userId"].forEach(function(k){ o[k]=""; });
-    ["driverIds","driverNames","bezorgerIds","bezorgerNames","assignedDriverIds","assignedDriverNames","userIds","drivers","bezorgers","driverList"].forEach(function(k){ o[k]=[]; });
-    return o;
+
+  // ── State ophalen ───────────────────────────────────────
+  function getState462(){
+    try{ return (typeof state!=='undefined'?state:null)||window.state||{}; }catch(e){ return window.state||{}; }
   }
-  function setOrderDrivers(o, d){
-    clearOrderDrivers(o);
-    if(d.ids.length || d.names.length){
-      o.driverIds=d.ids; o.bezorgerIds=d.ids; o.assignedDriverIds=d.ids; o.userIds=d.ids;
-      o.driverNames=d.names; o.bezorgerNames=d.names; o.assignedDriverNames=d.names;
-      o.driver=d.names.join(", "); o.bezorger=d.names.join(", "); o.driverName=d.names.join(", "); o.bezorgerName=d.names.join(", ");
-    }
-    return o;
+  function editingId462(){
+    try{ return T(typeof editing!=='undefined'?editing:'')||T(window.editing||''); }catch(e){ return T(window.editing||''); }
   }
-  function currentOrderObject(){
-    var orders=stateOrders();
-    var nr=T((document.getElementById("orderNumber")||{}).value);
-    var title=T((document.getElementById("orderTitle")||{}).value || (document.querySelector('input[placeholder*="Titel" i]')||{}).value);
-    try{ if(typeof editing!=="undefined" && editing) return orders.find(function(o){return T(o.id)===T(editing);}); }catch(e){}
-    if(window.editing) return orders.find(function(o){return T(o.id)===T(window.editing);});
-    if(nr) return orders.find(function(o){return T(o.number)===nr;});
-    if(title) return orders.find(function(o){return T(o.title)===title;});
-    return null;
+  function chosenList462(){
+    try{ return Array.isArray(typeof chosen!=='undefined'?chosen:[])?chosen:[]; }catch(e){ return Array.isArray(window.chosen)?window.chosen:[]; }
   }
-  document.addEventListener("click", function(e){
-    var b=e.target && e.target.closest && e.target.closest("button,a");
-    if(!b) return;
-    var txt=L(b.textContent||b.value);
-    if(txt==="opslaan"){
-      var o=currentOrderObject();
-      if(o){
-        var d=selectedDrivers();
-        setOrderDrivers(o,d);
-        if(typeof BNS_v460NormalizeOrder==="function") BNS_v460NormalizeOrder(o);
-        try{ if(typeof saveState==="function") saveState(); }catch(x){}
-        try{ if(typeof saveLocal==="function") saveLocal(window.state||state); }catch(x){}
+
+  // ── Reservering check per materiaal ────────────────────
+  function reservationFor462(mat){
+    mat = mat || {};
+    var range = currentRange462();
+    if(!range) return null;
+    var ignore = editingId462();
+    var s = getState462();
+    var orders = Array.isArray(s.orders)?s.orders:[];
+    for(var i=0; i<orders.length; i++){
+      var o = orders[i];
+      if(!orderLive462(o)) continue;
+      if(ignore && T(o.id)===ignore) continue;
+      var or = orderRange462(o);
+      if(!overlap462(range, or)) continue;
+      var mats = Array.isArray(o.materials)?o.materials:[];
+      for(var j=0; j<mats.length; j++){
+        if(sameMat(mats[j], mat)) return {order:o};
       }
     }
-  }, true);
-
-  /* ---------- Terugknop document/about:blank robuuster ---------- */
-  document.addEventListener("click", function(e){
-    var b=e.target && e.target.closest && e.target.closest("button,a");
-    if(!b) return;
-    var txt=L(b.textContent);
-    if(txt==="terug"){
-      try{ e.preventDefault(); }catch(x){}
-      try{
-        if(window.opener && !window.opener.closed){ window.close(); return false; }
-      }catch(x){}
-      try{
-        if(history.length>1){ history.back(); return false; }
-      }catch(x){}
-      try{ location.replace(document.referrer || "./"); return false; }catch(x){}
-    }
-  }, true);
-
-  console.log("[BNS v462] telefoon leeg-is-weg, Routenet hard uit, tabs/status en terugknop actief.");
-})();
-
-
-
-
-/* =========================================================
-   BNS v463 - materiaalcode weergave duidelijker
-   Belangrijk:
-   - Opslag/code blijft compact voor reservering: TAPW5, TW17, BIERTANK1500L
-   - Alleen de zichtbare lijst wordt rustiger: TAPW 5, TW 17, BIERTANK 1500L
-   - Reservering blijft exact op code/id werken.
-   ========================================================= */
-(function(){
-  if(window.__BNS_V463_MAT_DISPLAY_SPACING__) return;
-  window.__BNS_V463_MAT_DISPLAY_SPACING__ = true;
-
-  function spacedCode(raw){
-    var s=String(raw==null?"":raw).trim();
-    if(!s) return s;
-
-    // Voorbeelden:
-    // TAPW5 -> TAPW 5
-    // TW17 -> TW 17
-    // BIERTANK1500L -> BIERTANK 1500L
-    // KOELW95 -> KOELW 95
-    return s.replace(/^([A-Z]{2,12})(\d+[A-Z]?)\b/, function(_, p, n){
-      return p + " " + n;
-    });
-  }
-
-  function fixTextNode(node){
-    if(!node || node.nodeType !== 3) return;
-    var t=node.nodeValue;
-    if(!t || !/[A-Z]{2,12}\d/.test(t)) return;
-
-    var nt=t.replace(/\b([A-Z]{2,12})(\d+[A-Z]?)\b/g, function(all,p,n){
-      // Niet in datums of bedragen rommelen, alleen echte materiaalkoppen/codes.
-      if(/^(BTW|KVK|NL|IBAN)$/i.test(p)) return all;
-      return p+" "+n;
-    });
-    if(nt !== t) node.nodeValue = nt;
-  }
-
-  function walk(el){
-    if(!el) return;
-    var w=document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-    var nodes=[];
-    while(w.nextNode()) nodes.push(w.currentNode);
-    nodes.forEach(fixTextNode);
-  }
-
-  function fixMaterialDisplay(){
-    try{
-      // Alleen in materiaal/admin/nieuwe opdracht gebieden, niet overal in documenten.
-      document.querySelectorAll(
-        '#materialPanel, #adminPanel, .materials, .material-list, .material-card, .material-row, .admin, main, body'
-      ).forEach(function(el){
-        walk(el);
-      });
-    }catch(e){}
-  }
-
-  // Ook beschikbaar maken voor bestaande renderfuncties.
-  window.BNS_formatMaterialCodeDisplay = spacedCode;
-
-  fixMaterialDisplay();
-  setTimeout(fixMaterialDisplay, 200);
-  setTimeout(fixMaterialDisplay, 900);
-  try{ new MutationObserver(function(){ setTimeout(fixMaterialDisplay,50); }).observe(document.documentElement,{childList:true,subtree:true,characterData:true}); }catch(e){}
-
-  console.log("[BNS v463] materiaalcode weergave met spatie actief.");
-})();
-
-
-
-/* =========================================================
-   BNS v465 - VEILIGE materiaal layout
-   Alleen CSS. Verplaatst geen knoppen en raakt login/admin niet aan.
-   ========================================================= */
-(function(){
-  if(window.__BNS_V465_SAFE_MATERIAL_LAYOUT__) return;
-  window.__BNS_V465_SAFE_MATERIAL_LAYOUT__ = true;
-
-  function addStyle(){
-    if(document.getElementById("bns-v465-safe-material-layout-css")) return;
-    var st=document.createElement("style");
-    st.id="bns-v465-safe-material-layout-css";
-    st.textContent = `
-      /* Alleen materiaalpaneel mooier; geen andere schermen aanraken */
-      #materialPanel .cat-grid,
-      #materialPanel .category-grid,
-      #materialPanel .material-cats,
-      #materialPanel .rubriek-grid,
-      #materialPanel .chips {
-        display:grid!important;
-        grid-template-columns:repeat(auto-fit,minmax(82px,1fr))!important;
-        gap:8px!important;
-        align-items:stretch!important;
-        max-height:245px!important;
-        overflow-y:auto!important;
-        padding:6px!important;
-        border-radius:14px!important;
-      }
-
-      #materialPanel .cat-grid button,
-      #materialPanel .category-grid button,
-      #materialPanel .material-cats button,
-      #materialPanel .rubriek-grid button,
-      #materialPanel .chips button {
-        min-height:44px!important;
-        padding:8px 8px!important;
-        border-radius:10px!important;
-        font-size:13px!important;
-        line-height:1.05!important;
-        white-space:nowrap!important;
-        text-align:center!important;
-      }
-
-      #materialPanel input[placeholder*="Zoek" i],
-      #materialPanel input[type="search"] {
-        min-height:42px!important;
-        border-radius:12px!important;
-        padding:9px 11px!important;
-        font-size:14px!important;
-      }
-
-      #materialPanel .material-list,
-      #materialPanel .materials-list,
-      #materialPanel .material-results {
-        max-height:380px!important;
-        overflow-y:auto!important;
-      }
-    `;
-    document.head.appendChild(st);
-  }
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", addStyle);
-  else addStyle();
-
-  console.log("[BNS v465] veilige materiaal layout actief.");
-})();
-
-
-
-/* =========================================================
-   BNS v466 - ARCHIEF NIET STANDAARD LADEN
-   - old_/archief blijft in Firebase staan
-   - normale planner werkt zonder archieforders in state
-   - archief wordt pas geladen als je Archief opent of zoekt
-   - v465 veilige layout blijft actief
-   ========================================================= */
-(function(){
-  if(window.__BNS_V466_ARCHIEF_LAZY__) return;
-  window.__BNS_V466_ARCHIEF_LAZY__ = true;
-
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-
-  function folder(o){
-    if(!o) return "";
-    var id=T(o.id || o.docId || o.orderId);
-    if(id.indexOf("old_") === 0) return "archief";
-    if(typeof BNS_v460FolderFromOrder === "function"){
-      try{ return BNS_v460FolderFromOrder(o); }catch(e){}
-    }
-    var f=L(o.folder || o.map || o.orderFolder);
-    if(f){
-      if(f==="old") return "archief";
-      if(f==="optie") return "optie14";
-      if(f==="live") return "lopend";
-      return f;
-    }
-    var s=L(o.status || o.state || o.orderStatus);
-    if(/offerte/.test(s)) return "offerte";
-    if(/optie|14/.test(s)) return "optie14";
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
-    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
-    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s)) return "lopend";
-    return "";
-  }
-
-  function isArchive(o){
-    return folder(o)==="archief";
-  }
-
-  function stateObj(){
-    try{ if(window.state) return window.state; }catch(e){}
-    try{ if(typeof state !== "undefined") return state; }catch(e){}
     return null;
   }
 
-  function stripArchiveFromState(){
-    try{
-      var s=stateObj();
-      if(!s || !Array.isArray(s.orders)) return;
-      var before=s.orders.length;
-      s.__archiveCountHidden = (s.__archiveCountHidden || 0) + s.orders.filter(isArchive).length;
-      s.orders = s.orders.filter(function(o){ return !isArchive(o); });
-      if(before !== s.orders.length){
-        console.log("[BNS v466] archieforders uit live state gehouden:", before - s.orders.length);
+  // ── Validatie bij opslaan ───────────────────────────────
+  function validateChosenHard462(){
+    var list = chosenList462();
+    var range = currentRange462();
+    for(var i=0; i<list.length; i++){
+      var m = list[i];
+      if(!m) continue;
+      var raw = L(m.status||'');
+      if(/inactive|niet actief|niet beschikbaar/.test(raw)){
+        try{ window.bnsAlert('Opslaan geblokkeerd: '+T(m.code||m.name)+' is niet inzetbaar.','Niet inzetbaar'); }
+        catch(e){ alert('Opslaan geblokkeerd: '+T(m.code||m.name)+' is niet inzetbaar.'); }
+        return false;
       }
-    }catch(e){}
-  }
-
-  // Direct en na renders opschonen. Dit is niet destructief voor Firebase.
-  stripArchiveFromState();
-  setTimeout(stripArchiveFromState, 300);
-  setTimeout(stripArchiveFromState, 1500);
-
-  ["renderOrders","renderDashboard","saveLocal","saveState"].forEach(function(name){
-    try{
-      var fn=window[name];
-      if(typeof fn !== "function" || fn.__bns466) return;
-      var wrapped=function(){
-        stripArchiveFromState();
-        var r=fn.apply(this, arguments);
-        stripArchiveFromState();
-        return r;
-      };
-      wrapped.__bns466=true;
-      window[name]=wrapped;
-      try{ eval(name + " = window['"+name+"']"); }catch(e){}
-    }catch(e){}
-  });
-
-  async function loadArchiveOrdersOnce(){
-    try{
-      if(window.__BNS_V466_ARCHIVE_LOADING__) return [];
-      if(Array.isArray(window.__BNS_V466_ARCHIVE_CACHE__)) return window.__BNS_V466_ARCHIVE_CACHE__;
-      window.__BNS_V466_ARCHIVE_LOADING__ = true;
-
-      if(!window.firebase && !window.db && !window.BNS_FIREBASE_READY){
-        console.warn("[BNS v466] Archief laden: Firebase object nog niet gevonden.");
+      if(/defect|damage|schade|vermist|missing/.test(raw)){
+        try{ window.bnsAlert('Opslaan geblokkeerd: '+T(m.code||m.name)+' is defect.','Defect'); }
+        catch(e){ alert('Opslaan geblokkeerd: '+T(m.code||m.name)+' is defect.'); }
+        return false;
       }
-
-      // Probeer de bestaande Firebase modules uit de app te gebruiken.
-      var db = window.db || (window.BNS && window.BNS.db) || window.__db;
-      var fs = window.firebase || window.fsMod || (window.BNS && window.BNS.firebase);
-      if(!db || !fs || !fs.getDocs || !fs.collection){
-        // Als firebase-sync een helper heeft, gebruik die.
-        if(typeof window.BNS_v466LoadArchiveOrders === "function"){
-          var rows = await window.BNS_v466LoadArchiveOrders();
-          window.__BNS_V466_ARCHIVE_CACHE__ = rows || [];
-          return window.__BNS_V466_ARCHIVE_CACHE__;
-        }
-        console.warn("[BNS v466] Archief laden niet beschikbaar in deze context.");
-        window.__BNS_V466_ARCHIVE_CACHE__ = [];
-        return [];
+      if(!range) continue;
+      var r = reservationFor462(m);
+      if(r){
+        var o = r.order||{};
+        var msg = 'Opslaan geblokkeerd: '+T(m.code||m.name)+
+          ' is al gereserveerd door opdracht '+T(o.number||o.title||o.id)+
+          ' ('+T(o.status)+').';
+        try{ window.bnsAlert(msg,'Dubbele reservering'); }
+        catch(e){ alert(msg); }
+        return false;
       }
-
-      var snap = await fs.getDocs(fs.collection(db, "orders"));
-      var rows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); })
-        .filter(isArchive);
-
-      window.__BNS_V466_ARCHIVE_CACHE__ = rows;
-      console.log("[BNS v466] Archief geladen op verzoek:", rows.length);
-      return rows;
-    }catch(e){
-      console.error("[BNS v466] Archief laden fout", e);
-      return [];
-    }finally{
-      window.__BNS_V466_ARCHIVE_LOADING__ = false;
-    }
-  }
-  window.BNS_v466LoadArchiveOrdersOnce = loadArchiveOrdersOnce;
-
-  function archiveClicked(e){
-    var b=e.target && e.target.closest && e.target.closest("button,a");
-    if(!b) return;
-    var txt=L(b.textContent || b.value || b.title);
-    if(txt==="archief" || txt.indexOf("archief")>=0){
-      loadArchiveOrdersOnce().then(function(rows){
-        try{
-          window.__BNS_V466_ARCHIVE_VIEW__ = rows;
-          if(typeof renderArchive === "function") renderArchive(rows);
-          else if(typeof renderOrders === "function") renderOrders();
-        }catch(e){}
-      });
-    }
-  }
-  document.addEventListener("click", archiveClicked, true);
-
-  console.log("[BNS v466] archief lazy-load actief; old_ wordt niet standaard geladen.");
-})();
-
-
-
-/* =========================================================
-   BNS v472 - LOGIN GUARD LOOPS UIT
-   Alleen app.js.
-   Oorzaak flikkeren:
-   oude v467/v468 setInterval guards zagen PIN/login als leeg scherm.
-   Oplossing:
-   - geen herstel-loop meer tijdens login
-   - minimale admin-PIN zonder interval
-   - raakt reservering, archief, materiaal en Firebase niet aan
-   ========================================================= */
-(function(){
-  if(window.__BNS_V472_LOGIN_GUARDS_OFF__) return;
-  window.__BNS_V472_LOGIN_GUARDS_OFF__ = true;
-
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-
-  function visible(el){
-    if(!el) return false;
-    var st = getComputedStyle(el);
-    return st.display !== "none" &&
-           st.visibility !== "hidden" &&
-           st.opacity !== "0" &&
-           !el.classList.contains("hidden") &&
-           el.offsetHeight > 0;
-  }
-
-  function loginVisible(){
-    var login = document.getElementById("login") ||
-                document.getElementById("loginScreen") ||
-                document.getElementById("pinScreen") ||
-                document.querySelector(".login,.login-screen,.pin-screen");
-    if(login && visible(login)) return true;
-
-    var pin = Array.from(document.querySelectorAll('input[type="password"],input[placeholder*="PIN" i],input[id*="pin" i],input[name*="pin" i]'))
-      .find(visible);
-    return !!pin;
-  }
-
-  // Alleen informatief beschikbaar maken voor andere patches.
-  window.BNS_loginVisible = loginVisible;
-
-  function getState(){
-    try{ if(window.state) return window.state; }catch(e){}
-    try{ if(typeof state !== "undefined") return state; }catch(e){}
-    return {};
-  }
-
-  function pinOk(pin){
-    pin = T(pin);
-    if(!pin) return false;
-    try{
-      var s = getState();
-      if(T(s.adminPin) && T(s.adminPin) === pin) return true;
-      var users = Array.isArray(s.users) ? s.users : [];
-      if(users.some(function(u){
-        var rights = u.rights || {};
-        return !u.deleted && !u.disabled && T(u.pin) === pin &&
-          (L(u.role || u.type || u.functie) === "admin" ||
-           rights.admin || rights.adminBeheer || rights.materials || rights.materialen);
-      })) return true;
-    }catch(e){}
-    return pin === "1111";
-  }
-
-  function findPin(btn){
-    var root = btn && (btn.closest("section,.page,.card,.panel,main,body") || document);
-    var inputs = Array.from((root || document).querySelectorAll('input[type="password"],input[placeholder*="PIN" i],input[id*="pin" i],input[name*="pin" i]'));
-    return inputs.find(visible) || inputs[0] || null;
-  }
-
-  function openAdmin(){
-    ["adminArea","adminPanel","adminContent","adminBeheer","beheer","beheerPanel"].forEach(function(id){
-      var el = document.getElementById(id);
-      if(el){
-        el.classList.remove("hidden");
-        el.style.display = "";
-        el.style.visibility = "visible";
-        el.style.opacity = "1";
-      }
-    });
-
-    document.querySelectorAll(".admin-hidden,.beheer-hidden,[data-admin-hidden]").forEach(function(el){
-      el.classList.remove("hidden","admin-hidden","beheer-hidden");
-      el.style.display = "";
-      el.style.visibility = "visible";
-      el.style.opacity = "1";
-    });
-
-    try{ if(typeof renderAdmin === "function") renderAdmin(); }catch(e){}
-    try{ if(typeof renderAdminMaterialsPro === "function") renderAdminMaterialsPro(); }catch(e){}
-    try{ if(typeof renderMaterialsAdmin === "function") renderMaterialsAdmin(); }catch(e){}
-
-    console.log("[BNS v472] Admin beheer geopend.");
-  }
-
-  function tryAdmin(ev, btn){
-    var pin = findPin(btn);
-    if(pinOk(pin ? pin.value : "")){
-      ev.preventDefault();
-      ev.stopPropagation();
-      if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      openAdmin();
-      if(pin) pin.value = "";
-      return false;
     }
     return true;
   }
 
-  document.addEventListener("click", function(ev){
-    var btn = ev.target && ev.target.closest && ev.target.closest("button,a,input[type='button'],input[type='submit']");
-    if(!btn) return;
-    var txt = L(btn.textContent || btn.value || btn.title || btn.id);
-    if(txt.indexOf("open beheer") >= 0 || txt.indexOf("beheer openen") >= 0 || btn.id === "unlockAdmin"){
-      return tryAdmin(ev, btn);
-    }
-  }, true);
-
-  document.addEventListener("keydown", function(ev){
-    if(ev.key !== "Enter") return;
-    var a = document.activeElement;
-    if(!a) return;
-    var hint = L(a.placeholder || a.id || a.name || a.type);
-    if(hint.indexOf("pin") < 0 && a.type !== "password") return;
-
-    var root = a.closest("section,.page,.card,.panel,main,body") || document;
-    var btn = Array.from(root.querySelectorAll("button,a,input[type='button'],input[type='submit']")).find(function(b){
-      var txt = L(b.textContent || b.value || b.title || b.id);
-      return txt.indexOf("open beheer") >= 0 || txt.indexOf("beheer openen") >= 0 || b.id === "unlockAdmin";
+  // ── Patch de opslaan knop ───────────────────────────────
+  function patchSave(){
+    var btns = ['saveOrder','btnSave','opslaan','saveBtn'];
+    btns.forEach(function(id){
+      var btn = E(id);
+      if(btn && !btn.__bns462){
+        btn.__bns462 = true;
+        btn.addEventListener('click', function(ev){
+          if(!validateChosenHard462()){
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            return false;
+          }
+        }, true);
+      }
     });
-    if(btn) return tryAdmin(ev, btn);
-  }, true);
+  }
 
-  console.log("[BNS v472] login guard loops uit; PIN/login wordt niet meer verborgen.");
+  // ── Exporteer voor gebruik door andere IIFEs ────────────
+  window.BNS_V462 = {
+    sameMat: sameMat,
+    reservationFor: reservationFor462,
+    validateChosenHard: validateChosenHard462,
+    orderLive: orderLive462
+  };
+
+  // Patch de opslaan-knop bij laden en na klikken
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(patchSave,500); });
+  } else {
+    setTimeout(patchSave, 300);
+  }
+  document.addEventListener('click', function(){ setTimeout(patchSave,100); }, true);
+  setInterval(patchSave, 3000);
+
+  console.info('[BNS v462] Harde reservering: exact id/code match, validateChosenHard actief.');
 })();
