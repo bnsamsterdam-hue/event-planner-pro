@@ -202,7 +202,7 @@ function assignedToUser(o){
   });
 
   [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver].forEach(addName);
-  [o.driverNames,o.bezorgerNames].forEach(a=>{
+  [o.driverNames,o.bezorgerNames,o.assignedDriverNames].forEach(a=>{
     if(Array.isArray(a)) a.forEach(addName); else addName(a);
   });
 
@@ -213,7 +213,12 @@ function assignedToUser(o){
   return false;
 }
 function visibleOrder(o){
-  if(isCancelled(o)||isDone(o)||isDeleted(o))return false;
+  if(!o) return false;
+  if(isCancelled(o)||isDone(o)||isDeleted(o)||o.afgemeld===true||o.phoneDone===true||o.completed===true)return false;
+  const f=lower(o.folder||o.map||o.orderFolder||"");
+  const st=statusOf(o);
+  if(f && f!=="lopend") return false;
+  if(!f && /offerte|optie|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st)) return false;
   if(dateTime(orderEnd(o))<todayTime())return false;
   return assignedToUser(o);
 }
@@ -452,7 +457,9 @@ async function sendPhoto(order,type){
   order.photos=Array.isArray(order.photos)?order.photos:[];
   order.media.push(item);
   order.photos.push(item);
+  order.updatedAt=new Date().toISOString();
   await updateOrder(order);
+  try{ await loadPhoneData(); }catch(e){}
   toast(type+" opgeslagen bij opdracht");
 }
 function openSignatureModal(order){
@@ -466,7 +473,7 @@ function openSignatureModal(order){
   function start(e){e.preventDefault();down=true;last=pos(e)} function move(e){if(!down)return;e.preventDefault();const p=pos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p} function end(){down=false;last=null}
   ["mousedown","touchstart"].forEach(ev=>c.addEventListener(ev,start,{passive:false})); ["mousemove","touchmove"].forEach(ev=>c.addEventListener(ev,move,{passive:false})); ["mouseup","mouseleave","touchend","touchcancel"].forEach(ev=>c.addEventListener(ev,end));
   wrap.querySelector("#sigClear").onclick=()=>ctx.clearRect(0,0,c.width,c.height); wrap.querySelector("#sigCancel").onclick=()=>wrap.remove();
-  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); const item={id:"sig_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),type:"Handtekening klant",data:data,signatureData:data,note:"Handtekening toegevoegd",createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL"),driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||""}; order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedAt=new Date().toISOString(); order.customerSignedBy=BNS.user.name||""; await updateOrder(order); wrap.remove(); toast("Handtekening opgeslagen bij opdracht");};
+  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); const item={id:"sig_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),type:"Handtekening klant",data:data,signatureData:data,note:"Handtekening toegevoegd",createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL"),driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||""}; order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedAt=new Date().toISOString(); order.customerSignedBy=BNS.user.name||""; order.updatedAt=new Date().toISOString(); await updateOrder(order); try{ await loadPhoneData(); }catch(e){} wrap.remove(); toast("Handtekening opgeslagen bij opdracht");};
 }
 function enhanceDriverButtons(){
   qsa(".order-card").forEach(card=>{
