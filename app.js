@@ -45234,3 +45234,135 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.log("[BNS v483] media-overzicht knoppen/live-refresh actief.");
 })();
+
+
+
+/* =========================================================
+   BNS v484 - media knoppen niet dubbel
+   - De bovenste dubbele knoppenrijen worden verwijderd.
+   - Alleen de knoppen IN de klantmelding/foto/handtekening kaart blijven.
+   - Geen extra media-section meer toevoegen als de originele klantmeldingen-sectie al bestaat.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V484_MEDIA_NO_DUPLICATES__) return;
+  window.__BNS_V484_MEDIA_NO_DUPLICATES__ = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function A(sel,root){ return Array.from((root||document).querySelectorAll(sel)); }
+
+  function activeOverview(){
+    return document.getElementById("bnsOrderOverviewModal") ||
+           document.querySelector(".bns-order-overview-modal,.order-overview-modal,.modal");
+  }
+
+  function isMediaHeading(el){
+    var t=L(el && el.textContent);
+    return t.indexOf("klantmeldingen")>=0 || t.indexOf("handtekeningen")>=0 || t.indexOf("foto")>=0;
+  }
+
+  function isRealMediaCard(el){
+    if(!el) return false;
+    var txt=T(el.textContent);
+    if(txt.length < 8 || txt.length > 900) return false;
+    if(el.querySelector("img,canvas,svg")) return true;
+    return /handtekening|foto|schade|storing|vermissing|melding|toegevoegd/i.test(txt);
+  }
+
+  function removeFloatingButtonRows(root){
+    A(".bns-v483-media-actions,.bns-v484-media-actions", root).forEach(function(row){
+      var card = row.closest(".bns-v483-media-card,.bns-v484-media-card");
+      if(card) return;
+
+      var parent=row.parentElement;
+      var text=L(parent && parent.textContent);
+      var hasMediaText=/handtekening|foto|schade|storing|vermissing|melding|toegevoegd/.test(text||"");
+      var hasImg=parent && parent.querySelector("img,canvas,svg");
+
+      // Als de parent bijna alleen knoppen is, is dit de foute bovenste rij.
+      var onlyButtons = parent && T(parent.textContent).replace(/delen|print|wis/gi,"").trim().length < 8;
+      if(onlyButtons || (!hasMediaText && !hasImg)){
+        row.remove();
+      }
+    });
+
+    // Oude fout: losse blauwe Delen/Print kolommen.
+    A("button,a", root).forEach(function(btn){
+      var txt=L(btn.textContent||btn.value||btn.title);
+      if(!/^(delen|print|wis)$/.test(txt)) return;
+      var row=btn.closest(".bns-v483-media-actions,.bns-v484-media-actions");
+      if(row) return;
+      var parent=btn.parentElement;
+      if(!parent) return;
+      var mediaCard=btn.closest(".bns-v483-media-card,.bns-v484-media-card");
+      if(mediaCard) return;
+      var ptxt=T(parent.textContent).replace(/delen|print|wis/gi,"").trim();
+      if(ptxt.length < 8){
+        parent.remove();
+      }
+    });
+  }
+
+  function findCustomerMediaSection(root){
+    var heads=A("h3,h4,b,strong",root).filter(isMediaHeading);
+    for(var i=0;i<heads.length;i++){
+      var h=heads[i];
+      var section=h.parentElement;
+      if(section && /klantmeldingen|handtekeningen|foto/i.test(section.textContent||"")) return section;
+    }
+    return null;
+  }
+
+  function addButtonsOnlyToRealCards(root){
+    var section=findCustomerMediaSection(root);
+    if(!section) return;
+
+    A("div", section).forEach(function(card){
+      if(card.id==="bnsV483MediaSection" || card.id==="bnsV484MediaSection") return;
+      if(card.closest("#bnsV483MediaSection,#bnsV484MediaSection")) return;
+      if(card.querySelector(".bns-v483-media-actions,.bns-v484-media-actions")) return;
+      if(!isRealMediaCard(card)) return;
+
+      var key="v484dom"+Math.random().toString(36).slice(2);
+      window.BNS_v483MediaMap = window.BNS_v483MediaMap || {};
+      window.BNS_v483MediaMap[key] = {
+        type:"Klantmelding",
+        message:T(card.textContent),
+        time:"",
+        __dom:true
+      };
+      card.insertAdjacentHTML("beforeend",
+        '<div class="bns-v484-media-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+
+        '<button type="button" onclick="BNS_v483ShareMedia(\''+key+'\')">Delen</button>'+
+        '<button type="button" onclick="BNS_v483PrintMedia(\''+key+'\')">Print</button>'+
+        '<button type="button" class="danger" onclick="BNS_v483DeleteMedia(\'\',\''+key+'\')">Wis</button>'+
+        '</div>'
+      );
+    });
+  }
+
+  function cleanup(){
+    var modal=activeOverview();
+    if(!modal) return;
+
+    // Als originele klantmeldingen/foto/handtekening sectie bestaat, verwijder de extra v483-sectie.
+    var original=findCustomerMediaSection(modal);
+    var extra=document.getElementById("bnsV483MediaSection");
+    if(original && extra && !original.contains(extra)){
+      extra.remove();
+    }
+
+    removeFloatingButtonRows(modal);
+    addButtonsOnlyToRealCards(modal);
+  }
+
+  setInterval(cleanup, 700);
+  try{
+    new MutationObserver(function(){ setTimeout(cleanup,80); })
+      .observe(document.body,{childList:true,subtree:true});
+  }catch(e){}
+  setTimeout(cleanup,200);
+  setTimeout(cleanup,1000);
+
+  console.log("[BNS v484] dubbele media-knoppen opgeschoond; bovenste knoppen weg.");
+})();
