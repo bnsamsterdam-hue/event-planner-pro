@@ -559,32 +559,3 @@ boot();
     renderDriver.__bns461 = true;
   }
 })();
-
-
-
-/* BNS v474 driver: media blijft zichtbaar en opdracht zonder bezorger niet tonen */
-(function(){
-  if(window.__BNS_V474_DRIVER_FIX__) return;
-  window.__BNS_V474_DRIVER_FIX__=true;
-  function hasAssigned(o){
-    try{
-      var ids=[].concat(o.driverIds||[],o.bezorgerIds||[],o.userIds||[],o.assignedDriverIds||[],o.driverId||[],o.bezorgerId||[],o.userId||[]).join(",").trim();
-      var names=[].concat(o.driverNames||[],o.bezorgerNames||[],o.assignedDriverNames||[],o.driverName||[],o.driver||[],o.bezorger||[],o.bezorgerName||[]).join(",").trim();
-      return !!(ids||names);
-    }catch(e){ return false; }
-  }
-  if(typeof visibleOrder==="function" && !visibleOrder.__bns474){
-    var oldVisible=visibleOrder;
-    visibleOrder=function(o){
-      if(!hasAssigned(o)) return false;
-      return oldVisible(o);
-    };
-    visibleOrder.__bns474=true;
-  }
-  function refreshMedia(){
-    try{ if(typeof enhanceDriverButtons==="function") enhanceDriverButtons(); }catch(e){}
-  }
-  setTimeout(refreshMedia,500);
-  setInterval(refreshMedia,2000);
-  console.log("[BNS v474 driver] telefoon media/lege bezorger fix actief.");
-})();
