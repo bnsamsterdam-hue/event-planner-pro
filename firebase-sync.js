@@ -497,3 +497,26 @@ console.log('[BNS v473] BNSFirebaseSync veilig aangemaakt met loadArchief.');
 console.log("[BNS v481 sync] folderfix actief vanaf werkende zip.");
 
 console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu folder=lopend strikt.");
+
+/* BNS v483: meld app dat Firebase/telefoondata vernieuwd is */
+(function(){
+  try{
+    const fire=function(){
+      try{ window.dispatchEvent(new Event("storage")); }catch(e){}
+      try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated")); }catch(e){}
+      try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
+    };
+    if(typeof download === "function" && !download.__bns483){
+      const oldDownload=download;
+      download=async function(){
+        const res=await oldDownload.apply(this,arguments);
+        setTimeout(fire,100);
+        return res;
+      };
+      download.__bns483=true;
+    }
+    if(typeof window !== "undefined") window.BNS_v483FireSyncUpdate=fire;
+    setInterval(fire, 5000);
+  }catch(e){}
+})();
+console.log("[BNS v483 sync] live media refresh events actief.");
