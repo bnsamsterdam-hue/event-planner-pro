@@ -392,26 +392,3 @@ console.log('[BNS v461] firebase-sync lege bezorger blijft leeg.');
 
 
 console.log('[BNS v473] BNSFirebaseSync veilig aangemaakt met loadArchief.');
-
-
-/* BNS v474 sync lege bezorger definitief:
-   Als de planner een opdracht zonder bezorger opslaat, mag Firebase geen oude bezorger terugzetten. */
-(function(){
-  try{
-    if(typeof preserveOrder === "function" && !preserveOrder.__bns474){
-      var oldPreserve = preserveOrder;
-      preserveOrder = function(local, remote){
-        try{
-          if(local && typeof bns460NormalizeOrder === "function") bns460NormalizeOrder(local);
-          var lc = (typeof bns460DriverCount === "function") ? bns460DriverCount(local) : 0;
-          if(local && local.folder === "lopend" && lc === 0){
-            return local;
-          }
-        }catch(e){}
-        return oldPreserve(local, remote);
-      };
-      preserveOrder.__bns474 = true;
-      console.log("[BNS v474 sync] lege bezorger blijft leeg.");
-    }
-  }catch(e){}
-})();
