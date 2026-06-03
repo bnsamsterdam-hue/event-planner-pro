@@ -45018,207 +45018,343 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 
 /* =========================================================
-   BNS v486 - JJ4 stabiel + media knoppen gericht
-   Geen extra media-sectie, geen interval, geen render-loop.
-   - Voegt Delen / Print / Wis alleen toe aan bestaande klantmelding/foto/handtekening kaarten.
-   - Verwijdert losse/dubbele bovenste knoprijen.
-   - Verbergt dubbele bovenste mappenbalk als er twee mappenbalken staan.
+   BNS v485 - rustige media knoppen zonder dubbel/flikker
+   Vanaf v482. Geen extra media-sectie, geen interval.
+   Alleen bestaande foto/handtekening/klantmelding kaarten krijgen 1 knoppenrij.
    ========================================================= */
 (function(){
-  if(window.__BNS_V486_MEDIA_BUTTONS_TARGETED__) return;
-  window.__BNS_V486_MEDIA_BUTTONS_TARGETED__ = true;
+  if(window.__BNS_V485_MEDIA_ACTIONS_STABLE__) return;
+  window.__BNS_V485_MEDIA_ACTIONS_STABLE__ = true;
 
   function T(v){ return String(v == null ? "" : v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
   function A(sel,root){ return Array.from((root||document).querySelectorAll(sel)); }
   function H(v){ return T(v).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
 
-  window.BNS_v486MediaMap = window.BNS_v486MediaMap || {};
+  window.BNS_v485Media = window.BNS_v485Media || {};
 
-  function activeModal(){
+  function modal(){
     return document.getElementById("bnsOrderOverviewModal") ||
-      document.querySelector(".bns-order-overview-modal,.order-overview-modal,.modal,[role='dialog']");
+           document.querySelector(".bns-order-overview-modal,.order-overview-modal,.modal");
   }
 
-  function hasMediaHeading(el){
-    var t=L(el && el.textContent);
-    return t.indexOf("klantmeldingen")>=0 || t.indexOf("handtekeningen")>=0 || t.indexOf("foto")>=0;
-  }
-
-  function sectionRoots(modal){
-    var heads=A("h3,h4,h2,b,strong",modal).filter(hasMediaHeading);
-    var roots=[];
-    heads.forEach(function(h){
-      var r=h.parentElement;
-      if(r && roots.indexOf(r)<0) roots.push(r);
-      var n=h.nextElementSibling;
-      if(n && roots.indexOf(n)<0) roots.push(n);
+  function mediaSectionRoots(root){
+    var heads=A("h3,h4,b,strong",root).filter(function(h){
+      var t=L(h.textContent);
+      return t.indexOf("foto")>=0 || t.indexOf("handtekening")>=0 || t.indexOf("klantmelding")>=0 || t.indexOf("bezorger melding")>=0;
     });
-    return roots;
+    return heads.map(function(h){
+      // Meestal is de hele sectie de parent van de heading.
+      return h.parentElement || h;
+    }).filter(Boolean);
   }
 
-  function isButtonTextOnly(el){
-    var text=T(el.textContent).replace(/delen|print|wis/gi,"").trim();
-    return text.length < 8;
+  function isActionOnly(el){
+    if(!el) return false;
+    var txt=T(el.textContent).replace(/delen|print|wis/gi,"").trim();
+    return txt.length < 3 && el.querySelectorAll("button,a").length > 0;
   }
 
-  function removeLooseDuplicateButtons(modal){
-    // Verwijder rijen/kolommen die alleen uit Delen/Print/Wis bestaan.
-    A("div,section,p,span", modal).forEach(function(el){
-      if(el.classList.contains("bns-v486-actions")) return;
-      var btns=A("button,a",el).filter(function(b){
-        return /^(delen|print|wis)$/i.test(T(b.textContent||b.value||b.title));
-      });
-      if(btns.length >= 2 && isButtonTextOnly(el) && !el.closest(".bns-v486-card-done")){
-        el.remove();
-      }
-    });
+  function isCard(el){
+    if(!el || el.classList.contains("bns-v485-actions")) return false;
+    if(el.closest(".bns-v485-actions")) return false;
+    if(el.id==="bnsV483MediaSection" || el.id==="bnsV484MediaSection") return false;
+
+    var txt=T(el.textContent);
+    if(txt.length < 12 || txt.length > 700) return false;
+
+    // Kaart moet inhoud hebben die lijkt op melding/foto/handtekening.
+    if(/handtekening|foto|schade|storing|vermissing|melding|toegevoegd/i.test(txt)) return true;
+    if(el.querySelector("img,canvas,svg")) return true;
+    return false;
   }
 
-  function cardLooksLikeMedia(card){
-    if(!card || card.closest(".bns-v486-actions")) return false;
-    if(card.querySelector(".bns-v486-actions")) return false;
-    var txt=T(card.textContent);
-    if(txt.length < 10 || txt.length > 900) return false;
-    if(/^(delen|print|wis|\s)+$/i.test(txt.replace(/\s+/g," "))) return false;
-    if(card.querySelector("img,canvas,svg")) return true;
-    return /handtekening|foto|schade|storing|vermissing|melding|toegevoegd|voor levering|na levering/i.test(txt);
+  function itemFromCard(card){
+    var txt=T(card.textContent).replace(/delen|print|wis/gi,"").trim();
+    var img=card.querySelector("img");
+    return {
+      title: (txt.match(/^(Handtekening klant|Foto voor levering|Foto|Schade|Storing|Vermissing|Melding)/i)||[])[1] || "Melding",
+      text: txt,
+      image: img ? img.src : ""
+    };
   }
 
-  function findMediaCards(modal){
-    var roots=sectionRoots(modal);
-    var cards=[];
-    roots.forEach(function(root){
-      A("div,article,li",root).forEach(function(el){
-        if(el.id==="bnsV483MediaSection" || el.id==="bnsV484MediaSection") return;
-        if(el.closest("#bnsV483MediaSection,#bnsV484MediaSection")) return;
-        if(cardLooksLikeMedia(el)) cards.push(el);
-      });
-    });
-
-    // Filter nested cards: keep smaller/deeper item card, not big wrapper.
-    return cards.filter(function(el){
-      return !cards.some(function(other){
-        return other !== el && el.contains(other) && cardLooksLikeMedia(other);
-      });
-    });
+  function actionHtml(key){
+    return '<div class="bns-v485-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+
+      '<button type="button" onclick="BNS_v485Share(\''+key+'\')">Delen</button>'+
+      '<button type="button" onclick="BNS_v485Print(\''+key+'\')">Print</button>'+
+      '<button type="button" class="danger" onclick="BNS_v485Delete(\''+key+'\')">Wis</button>'+
+      '</div>';
   }
 
-  function mediaType(card){
-    var t=L(card.textContent);
-    if(t.indexOf("handtekening")>=0) return "Handtekening klant";
-    if(t.indexOf("foto")>=0) return "Foto";
-    if(t.indexOf("schade")>=0) return "Schade";
-    if(t.indexOf("storing")>=0) return "Storing";
-    if(t.indexOf("vermissing")>=0) return "Vermissing";
-    return "Klantmelding";
-  }
-
-  function keyFor(card){
-    var key=card.getAttribute("data-bns-v486-key");
-    if(key) return key;
-    key="v486_"+Math.random().toString(36).slice(2);
-    card.setAttribute("data-bns-v486-key",key);
-    window.BNS_v486MediaMap[key]={type:mediaType(card),text:T(card.textContent),html:card.innerHTML};
-    return key;
-  }
-
-  window.BNS_v486ShareMedia=function(key){
-    var it=window.BNS_v486MediaMap[key]; if(!it) return;
-    var txt=(it.type||"Klantmelding")+"\n"+(it.text||"");
-    if(navigator.share){ navigator.share({text:txt}).catch(function(){}); }
-    else{
+  window.BNS_v485Share=function(key){
+    var it=window.BNS_v485Media[key]; if(!it) return;
+    var txt=(it.title||"Melding")+"\n"+(it.text||"");
+    if(navigator.share) navigator.share({text:txt}).catch(function(){});
+    else {
       try{ navigator.clipboard && navigator.clipboard.writeText(txt); }catch(e){}
       alert("Tekst gekopieerd om te delen.");
     }
   };
 
-  window.BNS_v486PrintMedia=function(key){
-    var it=window.BNS_v486MediaMap[key]; if(!it) return;
+  window.BNS_v485Print=function(key){
+    var it=window.BNS_v485Media[key]; if(!it) return;
     var w=window.open("","_blank"); if(!w) return;
-    w.document.write("<!doctype html><html><head><title>"+H(it.type||"Melding")+"</title><style>body{font-family:Arial;padding:24px;color:#172033}img{max-width:100%;border:1px solid #ddd;border-radius:12px}.box{border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0}</style></head><body><h1>"+H(it.type||"Melding")+"</h1><div class='box'>"+(it.html||H(it.text||""))+"</div></body></html>");
+    w.document.write('<!doctype html><html><head><title>'+H(it.title||"Melding")+'</title><style>body{font-family:Arial;padding:24px}img{max-width:100%;border:1px solid #ddd;border-radius:12px}</style></head><body><h1>'+H(it.title||"Melding")+'</h1><p>'+H(it.text||"")+'</p>'+(it.image?'<img src="'+H(it.image)+'">':'')+'</body></html>');
     w.document.close(); w.focus(); setTimeout(function(){ w.print(); },300);
   };
 
-  window.BNS_v486DeleteMedia=function(key){
-    var card=document.querySelector('[data-bns-v486-key="'+key+'"]');
-    if(!card) return;
+  window.BNS_v485Delete=function(key){
+    var it=window.BNS_v485Media[key]; if(!it || !it.card) return;
     if(!confirm("Deze melding/foto/handtekening wissen?")) return;
-    card.remove();
-    // Dit wist nu veilig visueel. Definitief uit data wissen doen we pas als de bestaande data-structuur exact bekend is.
-    try{ console.warn("[BNS v486] media visueel gewist; data-wis veilig gelaten om stabiele basis niet te beschadigen."); }catch(e){}
+    // UI verwijderen; echte database delete blijft via bestaande Wis-knop als die aanwezig was.
+    it.card.remove();
+    try{ if(typeof saveLocal==="function") saveLocal(); }catch(e){}
+    try{ if(typeof save==="function") save(); }catch(e){}
   };
 
-  function addButtons(card){
-    if(card.querySelector(".bns-v486-actions")) return;
-    var key=keyFor(card);
-    card.classList.add("bns-v486-card-done");
-    card.insertAdjacentHTML("beforeend",
-      '<div class="bns-v486-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+
-      '<button type="button" onclick="BNS_v486ShareMedia(\''+key+'\')">Delen</button>'+
-      '<button type="button" onclick="BNS_v486PrintMedia(\''+key+'\')">Print</button>'+
-      '<button type="button" class="danger" onclick="BNS_v486DeleteMedia(\''+key+'\')">Wis</button>'+
-      '</div>'
-    );
-  }
+  function cleanup(root){
+    // Verwijder extra v483/v484 secties en losse action-only blokken.
+    A("#bnsV483MediaSection,#bnsV484MediaSection",root).forEach(function(el){ el.remove(); });
 
-  function hideDuplicateFolderBars(){
-    var bars=A("div,nav,section").filter(function(el){
-      if(el.offsetParent===null) return false;
-      var t=L(el.textContent);
-      var score=0;
-      ["lopende opdrachten","14 dagen opties","offertes","geannuleerd","uitgevoerd"].forEach(function(w){ if(t.indexOf(w)>=0) score++; });
-      var btns=A("button,a",el).length;
-      var r=el.getBoundingClientRect();
-      return score>=3 && btns>=3 && btns<=8 && r.height>20 && r.height<100;
-    });
-    if(bars.length>=2){
-      bars.sort(function(a,b){ return a.getBoundingClientRect().top-b.getBoundingClientRect().top; });
-      for(var i=0;i<bars.length-1;i++){
-        bars[i].style.display="none";
-        bars[i].setAttribute("data-bns-v486-hidden-folderbar","1");
+    A(".bns-v483-media-actions,.bns-v484-media-actions,.bns-v485-actions",root).forEach(function(row){
+      var card=row.closest("[data-bns-v485-card='1']");
+      if(card && card.contains(row)) return;
+      if(isActionOnly(row) || isActionOnly(row.parentElement)) {
+        (isActionOnly(row.parentElement) ? row.parentElement : row).remove();
       }
-    }
+    });
   }
 
-  function apply(){
-    var modal=activeModal();
-    if(modal){
-      // Verwijder oude extra secties van eerdere pogingen als ze er nog zijn.
-      var extra=document.getElementById("bnsV483MediaSection");
-      if(extra) extra.remove();
-      var extra2=document.getElementById("bnsV484MediaSection");
-      if(extra2) extra2.remove();
+  function enhance(){
+    var m=modal();
+    if(!m) return;
+    cleanup(m);
 
-      removeLooseDuplicateButtons(modal);
-      findMediaCards(modal).forEach(addButtons);
-    }
-    hideDuplicateFolderBars();
+    mediaSectionRoots(m).forEach(function(section){
+      A("div",section).forEach(function(card){
+        if(!isCard(card)) return;
+        if(card.dataset.bnsV485Card==="1") return;
+        if(card.querySelector(".bns-v485-actions")) return;
+
+        card.dataset.bnsV485Card="1";
+        var key="k"+Math.random().toString(36).slice(2);
+        var item=itemFromCard(card);
+        item.card=card;
+        window.BNS_v485Media[key]=item;
+        card.insertAdjacentHTML("beforeend", actionHtml(key));
+      });
+    });
   }
 
-  var scheduled=false;
+  var t=null;
   function schedule(){
-    if(scheduled) return;
-    scheduled=true;
-    setTimeout(function(){ scheduled=false; apply(); },120);
+    clearTimeout(t);
+    t=setTimeout(enhance,180);
   }
-
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", schedule);
-  else setTimeout(apply,150);
 
   document.addEventListener("click", function(e){
-    var b=e.target && e.target.closest && e.target.closest("button,a");
-    if(!b) return;
-    var txt=L(b.textContent||b.value||b.title);
-    if(txt.indexOf("overzicht")>=0 || txt.indexOf("bestelling")>=0 || txt.indexOf("openen")>=0){
-      setTimeout(apply,250);
-      setTimeout(apply,900);
-    }
+    if(e.target && e.target.closest && e.target.closest("button,a")) setTimeout(schedule,80);
   }, true);
+  document.addEventListener("bns:firebase-updated", schedule);
+  document.addEventListener("bns:phone-media-updated", schedule);
+  window.addEventListener("storage", schedule);
 
   try{
-    new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});
+    new MutationObserver(function(){ schedule(); }).observe(document.body,{childList:true,subtree:true});
   }catch(e){}
 
-  console.log("[BNS v486] media-knoppen gericht actief; geen extra sectie/geen interval.");
+  setTimeout(schedule,300);
+  setTimeout(schedule,1200);
+
+  console.log("[BNS v485] rustige media knoppen actief; geen interval/dubbel.");
+})();
+
+
+
+/* =========================================================
+   BNS v486 - media Wis blijft + live zichtbaar zonder F5
+   Vanaf v485/v482. Geen login/showPage/folder wijzigingen.
+   - Als kaart al Delen/Print heeft, voegt hij alleen Wis toe.
+   - Wis wordt opnieuw gezet na her-render.
+   - Phone/Firebase update ververst overzicht rustig/debounced.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V486_MEDIA_WIS_LIVE__) return;
+  window.__BNS_V486_MEDIA_WIS_LIVE__ = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function A(sel,root){ return Array.from((root||document).querySelectorAll(sel)); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
+
+  window.BNS_v486Media = window.BNS_v486Media || {};
+
+  function modal(){
+    return document.getElementById("bnsOrderOverviewModal") ||
+           document.querySelector(".bns-order-overview-modal,.order-overview-modal,.modal");
+  }
+
+  function stateObj(){
+    try{ if(window.state) return window.state; }catch(e){}
+    try{ if(typeof state !== "undefined") return state; }catch(e){}
+    return {};
+  }
+  function orders(){ var s=stateObj(); return Array.isArray(s.orders)?s.orders:[]; }
+
+  function overviewOrder(m){
+    if(!m) return null;
+    var txt=T(m.textContent);
+    var nr=(txt.match(/\b20\d{2}-\d{4}\b/)||[])[0] || "";
+    if(!nr) return null;
+    return orders().find(function(o){ return T(o.number)===nr || T(o.id)===nr; }) || null;
+  }
+
+  function mediaRoots(root){
+    var heads=A("h3,h4,b,strong",root).filter(function(h){
+      var t=L(h.textContent);
+      return t.indexOf("foto")>=0 || t.indexOf("handtekening")>=0 || t.indexOf("klantmelding")>=0 || t.indexOf("bezorger melding")>=0 || t.indexOf("bezorger meldingen")>=0;
+    });
+    return heads.map(function(h){ return h.parentElement || h; }).filter(Boolean);
+  }
+
+  function isMediaCard(el){
+    if(!el || el.closest(".bns-v485-actions,.bns-v486-actions")) return false;
+    var txt=T(el.textContent);
+    if(txt.length < 8 || txt.length > 900) return false;
+    if(/handtekening|foto|schade|storing|vermissing|melding|toegevoegd/i.test(txt)) return true;
+    if(el.querySelector("img,canvas,svg")) return true;
+    return false;
+  }
+
+  function cardItem(card){
+    var clean=T(card.textContent).replace(/delen|print|wis/gi,"").trim();
+    var img=card.querySelector("img");
+    return {
+      title:(clean.match(/^(Handtekening klant|Foto voor levering|Foto|Schade|Storing|Vermissing|Melding)/i)||[])[1] || "Melding",
+      text:clean,
+      image:img ? img.src : "",
+      card:card
+    };
+  }
+
+  function keyFor(card){
+    if(!card.dataset.bnsV486Key){
+      card.dataset.bnsV486Key = "v486_"+Math.random().toString(36).slice(2);
+    }
+    var key=card.dataset.bnsV486Key;
+    window.BNS_v486Media[key]=cardItem(card);
+    return key;
+  }
+
+  window.BNS_v486Share=function(key){
+    var it=window.BNS_v486Media[key]; if(!it) return;
+    var txt=(it.title||"Melding")+"\n"+(it.text||"");
+    if(navigator.share) navigator.share({text:txt}).catch(function(){});
+    else{
+      try{ navigator.clipboard && navigator.clipboard.writeText(txt); }catch(e){}
+      alert("Tekst gekopieerd om te delen.");
+    }
+  };
+  window.BNS_v486Print=function(key){
+    var it=window.BNS_v486Media[key]; if(!it) return;
+    var w=window.open("","_blank"); if(!w) return;
+    w.document.write('<!doctype html><html><head><title>'+H(it.title||"Melding")+'</title><style>body{font-family:Arial;padding:24px}img{max-width:100%;border:1px solid #ddd;border-radius:12px}</style></head><body><h1>'+H(it.title||"Melding")+'</h1><p>'+H(it.text||"")+'</p>'+(it.image?'<img src="'+H(it.image)+'">':'')+'</body></html>');
+    w.document.close(); w.focus(); setTimeout(function(){ w.print(); },300);
+  };
+  window.BNS_v486Delete=function(key){
+    var it=window.BNS_v486Media[key]; if(!it || !it.card) return;
+    if(!confirm("Deze melding/foto/handtekening wissen?")) return;
+    it.card.remove();
+    try{ if(typeof saveLocal==="function") saveLocal(); }catch(e){}
+    try{ if(typeof save==="function") save(); }catch(e){}
+  };
+
+  function ensureRow(card){
+    var key=keyFor(card);
+
+    // Als oude row bestaat met Delen/Print, hergebruik die en voeg Wis toe.
+    var row = card.querySelector(".bns-v486-actions,.bns-v485-actions,.bns-v484-media-actions,.bns-v483-media-actions");
+    if(!row){
+      row=document.createElement("div");
+      row.className="bns-v486-actions";
+      row.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px";
+      card.appendChild(row);
+    }else{
+      row.classList.add("bns-v486-actions");
+      row.style.display="flex";
+      row.style.gap="6px";
+      row.style.flexWrap="wrap";
+      row.style.marginTop="8px";
+    }
+
+    var texts=A("button,a",row).map(function(b){ return L(b.textContent||b.value||b.title); });
+    if(!texts.includes("delen")){
+      row.insertAdjacentHTML("beforeend", '<button type="button" onclick="BNS_v486Share(\''+key+'\')">Delen</button>');
+    }
+    if(!texts.includes("print")){
+      row.insertAdjacentHTML("beforeend", '<button type="button" onclick="BNS_v486Print(\''+key+'\')">Print</button>');
+    }
+
+    // Wis altijd via v486 zetten; als oude Wis ontbreekt of weggehaald is, komt hij terug.
+    if(!texts.includes("wis")){
+      row.insertAdjacentHTML("beforeend", '<button type="button" class="danger" onclick="BNS_v486Delete(\''+key+'\')">Wis</button>');
+    }
+
+    // Update oude Delen/Print waar mogelijk naar v486 zodat ze op dit kaartje werken.
+    A("button,a",row).forEach(function(btn){
+      var t=L(btn.textContent||btn.value||btn.title);
+      if(t==="delen") btn.setAttribute("onclick","BNS_v486Share('"+key+"')");
+      if(t==="print") btn.setAttribute("onclick","BNS_v486Print('"+key+"')");
+      if(t==="wis") btn.setAttribute("onclick","BNS_v486Delete('"+key+"')");
+    });
+  }
+
+  function cleanupOrphans(root){
+    // Losse knoppenrijen die niet in media-card zitten weghalen.
+    A(".bns-v483-media-actions,.bns-v484-media-actions,.bns-v485-actions,.bns-v486-actions",root).forEach(function(row){
+      var card=row.closest("[data-bns-v486-key], [data-bns-v485-card='1']");
+      if(card && card.contains(row)) return;
+      var p=row.parentElement;
+      var rest=T((p||row).textContent).replace(/delen|print|wis/gi,"").trim();
+      if(rest.length < 6) (p||row).remove();
+    });
+    A("#bnsV483MediaSection,#bnsV484MediaSection",root).forEach(function(x){ x.remove(); });
+  }
+
+  function enhance(){
+    var m=modal(); if(!m) return;
+    cleanupOrphans(m);
+    mediaRoots(m).forEach(function(root){
+      A("div",root).forEach(function(card){
+        if(!isMediaCard(card)) return;
+        ensureRow(card);
+      });
+    });
+  }
+
+  var timer=null;
+  function schedule(){
+    clearTimeout(timer);
+    timer=setTimeout(enhance,160);
+  }
+
+  // Rustige live refresh: alleen bij echte wijzigingen / modal mutatie.
+  try{
+    new MutationObserver(function(){ schedule(); }).observe(document.body,{childList:true,subtree:true,characterData:false});
+  }catch(e){}
+  document.addEventListener("bns:firebase-updated", schedule);
+  document.addEventListener("bns:phone-media-updated", schedule);
+  window.addEventListener("storage", schedule);
+  document.addEventListener("click",function(e){
+    if(e.target && e.target.closest && e.target.closest("button,a")) setTimeout(schedule,120);
+  },true);
+
+  // Als sync wel binnenkomt maar geen DOM-mutatie geeft, rustig 1x per 6 sec checken alleen zolang modal open is.
+  setInterval(function(){ if(modal()) schedule(); }, 6000);
+
+  setTimeout(schedule,300);
+  setTimeout(schedule,1200);
+
+  console.log("[BNS v486] media Wis blijft + live refresh actief.");
 })();
