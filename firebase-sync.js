@@ -495,3 +495,5 @@ console.log('[BNS v473] BNSFirebaseSync veilig aangemaakt met loadArchief.');
   }catch(e){}
 })();
 console.log("[BNS v481 sync] folderfix actief vanaf werkende zip.");
+
+console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu folder=lopend strikt.");
