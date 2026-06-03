@@ -44771,7 +44771,9 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       if(!id) return;
       var o=os.find(function(x){ return T(x.id)===id; });
       if(!o) return;
-      card.style.display = (folderOf(o)===active) ? "" : "none";
+      var cardFolder = folderOf(o);
+      // Als order geen folder heeft, altijd tonen (veilige fallback)
+      card.style.display = (!cardFolder || cardFolder===active) ? "" : "none";
     });
   }
   setTimeout(ensureStatusTabs,800);
