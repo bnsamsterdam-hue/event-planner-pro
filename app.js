@@ -28135,28 +28135,11 @@ setTimeout(()=>{
     return String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear();
   }
   function statusBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      var f = String((o.folder || o.map || o.orderFolder) || "").trim().toLowerCase();
-      if(f){
-        if(f === "live") f = "lopend";
-        if(f === "optie") f = "optie14";
-        if(f === "old") f = "archief";
-        return f === "lopend";
-      }
-
-      var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
-      if(!s) return false;
-
-      // Alleen echte lopende/opdrachtbevestigde opdrachten blokkeren materiaal.
-      // Offerte, optie, geannuleerd, verwijderd, uitgevoerd en archief blokkeren nooit.
-      if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=L(o&&o.status);
+    if(!s) return false;
+    if(/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd/.test(s)) return false;
+    if(s.indexOf('offerte')>=0) return false;
+    return /opdrachtbevestiging|opdracht bevestigd|bevestigd|optie 14|optie14/.test(s);
   }
   function editingId(){
     try{
@@ -29539,28 +29522,10 @@ setTimeout(()=>{
     return T(e && e.value);
   }
   function statusBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      var f = String((o.folder || o.map || o.orderFolder) || "").trim().toLowerCase();
-      if(f){
-        if(f === "live") f = "lopend";
-        if(f === "optie") f = "optie14";
-        if(f === "old") f = "archief";
-        return f === "lopend";
-      }
-
-      var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
-      if(!s) return false;
-
-      // Alleen echte lopende/opdrachtbevestigde opdrachten blokkeren materiaal.
-      // Offerte, optie, geannuleerd, verwijderd, uitgevoerd en archief blokkeren nooit.
-      if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=L(o && o.status);
+    if(/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd|deleted/.test(s)) return false;
+    if(s.indexOf('offerte')>=0) return false;
+    return true;
   }
   function materialToken(m){
     if(!m) return '';
@@ -31439,25 +31404,14 @@ setTimeout(()=>{
   function orderBlocks(o){
     try{
       if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      var f = String((o.folder || o.map || o.orderFolder) || "").trim().toLowerCase();
-      if(f){
-        if(f === "live") f = "lopend";
-        if(f === "optie") f = "optie14";
-        if(f === "old") f = "archief";
-        return f === "lopend";
+      if(typeof BNS_v460FolderFromOrder === "function"){
+        return BNS_v460FolderFromOrder(o) === "lopend";
       }
-
-      var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
-      if(!s) return false;
-
-      // Alleen echte lopende/opdrachtbevestigde opdrachten blokkeren materiaal.
-      // Offerte, optie, geannuleerd, verwijderd, uitgevoerd en archief blokkeren nooit.
-      if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
+      var f=String((o.folder||o.map||o.orderFolder)||"").toLowerCase();
+      if(f) return f === "lopend";
+      var s=String(o.status||"").toLowerCase();
+      if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return false;
+      return /bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s);
     }catch(e){ return false; }
   }
   function sameMaterial(a,b){
@@ -35219,28 +35173,14 @@ setTimeout(()=>{
     return parseDate(o && (o.end || o.dateEnd || o.endDate || o.start || o.date));
   }
   function orderBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      var f = String((o.folder || o.map || o.orderFolder) || "").trim().toLowerCase();
-      if(f){
-        if(f === "live") f = "lopend";
-        if(f === "optie") f = "optie14";
-        if(f === "old") f = "archief";
-        return f === "lopend";
-      }
-
-      var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
-      if(!s) return false;
-
-      // Alleen echte lopende/opdrachtbevestigde opdrachten blokkeren materiaal.
-      // Offerte, optie, geannuleerd, verwijderd, uitgevoerd en archief blokkeren nooit.
-      if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    if(!o) return false;
+    var st=o.status;
+    if(isDoneStatus(st) || isCancelledStatus(st) || isOfferteStatus(st)) return false;
+    if(!isBlockStatus(st)) return false;
+    var e=orderEnd(o);
+    // Uitgevoerde/afgeronde afgelopen opdrachten blokkeren niet. Andere bevestigde opdrachten wel tot en met einddatum.
+    if((isDoneStatus(st) || normStatus(st)==='afgerond') && e && e < today()) return false;
+    return true;
   }
   function rangesOverlap(a1,a2,b1,b2){
     a1=a1||a2||today();
@@ -36569,28 +36509,13 @@ setTimeout(()=>{
     return p.end.getTime() <= today().getTime();
   }
   function orderBlocksMaterial(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      var f = String((o.folder || o.map || o.orderFolder) || "").trim().toLowerCase();
-      if(f){
-        if(f === "live") f = "lopend";
-        if(f === "optie") f = "optie14";
-        if(f === "old") f = "archief";
-        return f === "lopend";
-      }
-
-      var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
-      if(!s) return false;
-
-      // Alleen echte lopende/opdrachtbevestigde opdrachten blokkeren materiaal.
-      // Offerte, optie, geannuleerd, verwijderd, uitgevoerd en archief blokkeren nooit.
-      if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=L(o && o.status);
+    if(!s) return false;
+    if(/geannuleerd|geannuleer|cancel|verwijderd|deleted|verwijder/.test(s)) return false;
+    if(s.indexOf('offerte')>=0) return false;
+    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return !orderEndIsPast(o);
+    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|optie\s*14|optie14|gereserveerd|actief/.test(s)) return true;
+    return false;
   }
   function materialToken(m){
     if(!m) return '';
@@ -39339,28 +39264,14 @@ setTimeout(()=>{
     return todayMs() >= expire;
   }
   function orderBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      var f = String((o.folder || o.map || o.orderFolder) || "").trim().toLowerCase();
-      if(f){
-        if(f === "live") f = "lopend";
-        if(f === "optie") f = "optie14";
-        if(f === "old") f = "archief";
-        return f === "lopend";
-      }
-
-      var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
-      if(!s) return false;
-
-      // Alleen echte lopende/opdrachtbevestigde opdrachten blokkeren materiaal.
-      // Offerte, optie, geannuleerd, verwijderd, uitgevoerd en archief blokkeren nooit.
-      if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=low(o&&o.status);
+    if(!s) return false;
+    if(/geannuleerd|cancel|verwijderd|deleted|trash/.test(s)) return false;
+    if(/offerte/.test(s)) return false;
+    if(/optie\s*14|optie14/.test(s)) return !optionExpired(o);
+    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return !endIsPast(o);
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(s)) return !endIsPast(o);
+    return false;
   }
   function materialKey(m){
     if(!m) return '';
@@ -40756,28 +40667,14 @@ setTimeout(()=>{
     return todayMs() >= d.getTime() + 14*24*60*60*1000;
   }
   function orderBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      var f = String((o.folder || o.map || o.orderFolder) || "").trim().toLowerCase();
-      if(f){
-        if(f === "live") f = "lopend";
-        if(f === "optie") f = "optie14";
-        if(f === "old") f = "archief";
-        return f === "lopend";
-      }
-
-      var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
-      if(!s) return false;
-
-      // Alleen echte lopende/opdrachtbevestigde opdrachten blokkeren materiaal.
-      // Offerte, optie, geannuleerd, verwijderd, uitgevoerd en archief blokkeren nooit.
-      if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=low(o&&o.status);
+    if(!s) return false;
+    if(/geannuleerd|cancel|verwijderd|deleted|trash/.test(s)) return false;
+    if(/offerte/.test(s)) return false;
+    if(/optie\s*14|optie14/.test(s)) return !optionExpired(o);
+    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return false;
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(s)) return !endIsPast(o);
+    return false;
   }
   function realCodeFrom(v){
     var c=txt(v).toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -44989,133 +44886,63 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 
 /* =========================================================
-   BNS v476 - centrale reservering + folder correctie
-   Basis: v474. Geen login/showPage/wit-scherm patches.
-   Fix:
-   - badge en popup gebruiken dezelfde reserveringscheck
-   - alleen folder=lopend blokkeert
-   - oude/verkeerde folder=lopend wordt lokaal gecorrigeerd op status
+   BNS v477 - veilige reservering zonder wit-scherm risico
+   Geen folder-state schrijfactie in app.js.
+   Alleen centrale check: materiaal blokkeert alleen bij folder=lopend.
    ========================================================= */
 (function(){
-  if(window.__BNS_V476_RESERVATION_FOLDER_SYNC__) return;
-  window.__BNS_V476_RESERVATION_FOLDER_SYNC__ = true;
+  if(window.__BNS_V477_SAFE_RESERVATION__) return;
+  window.__BNS_V477_SAFE_RESERVATION__ = true;
 
   function T(v){ return String(v == null ? "" : v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
 
-  function stateObj(){
-    try{ if(window.state) return window.state; }catch(e){}
-    try{ if(typeof state !== "undefined") return state; }catch(e){}
-    return {};
-  }
+  function liveFolder(o){
+    if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
+    var id = T(o.id || o.docId || o.orderId);
+    if(id.indexOf("old_") === 0) return false;
 
-  function orders(){
-    var s=stateObj();
-    return Array.isArray(s.orders) ? s.orders : [];
-  }
+    // Status mag nooit door fout folder=lopend alsnog blokkeren.
+    var s = L(o.status || o.state || o.orderStatus);
+    if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
 
-  function correctFolder(o){
-    if(!o) return "";
-    var id=T(o.id||o.docId||o.orderId);
-    if(id.indexOf("old_")===0){ o.folder="archief"; return "archief"; }
-
-    var s=L(o.status||o.state||o.orderStatus);
-    var f=L(o.folder||o.map||o.orderFolder);
-
-    // Status is leidend wanneer folder nog fout op lopend staat.
-    if(/offerte/.test(s)){ o.folder="offerte"; return "offerte"; }
-    if(/optie|14/.test(s)){ o.folder="optie14"; return "optie14"; }
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)){ o.folder="geannuleerd"; return "geannuleerd"; }
-    if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(s)){ o.folder="uitgevoerd"; return "uitgevoerd"; }
-    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s)){ o.folder="lopend"; return "lopend"; }
-
+    var f = L(o.folder || o.map || o.orderFolder);
     if(f){
-      if(f==="live") f="lopend";
-      if(f==="optie") f="optie14";
-      if(f==="old") f="archief";
-      o.folder=f;
-      return f;
+      if(f === "live") f = "lopend";
+      if(f === "optie") f = "optie14";
+      if(f === "old") f = "archief";
+      return f === "lopend";
     }
-    return "";
-  }
-  window.BNS_v476CorrectFolder = correctFolder;
 
-  function orderBlocksMaterialCentral(o){
-    if(!o || o.deleted===true || o.afgemeld===true || o.phoneDone===true || o.completed===true) return false;
-    var id=T(o.id||o.docId||o.orderId);
-    if(id.indexOf("old_")===0) return false;
-    return correctFolder(o)==="lopend";
-  }
-  window.BNS_v476OrderBlocksMaterial = orderBlocksMaterialCentral;
-
-  function normalizeAllFoldersLocal(){
-    var changed=0;
-    orders().forEach(function(o){
-      var before=L(o.folder||"");
-      var after=correctFolder(o);
-      if(before!==after) changed++;
-    });
-    if(changed){
-      console.log("[BNS v476] folders lokaal gecorrigeerd:", changed);
-      try{ if(typeof saveLocal==="function") saveLocal(); }catch(e){}
-    }
+    return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
   }
 
-  // Direct na laden, en na Firebase updates.
-  setTimeout(normalizeAllFoldersLocal,200);
-  setTimeout(normalizeAllFoldersLocal,1500);
-  document.addEventListener("visibilitychange", function(){
-    if(!document.hidden) setTimeout(normalizeAllFoldersLocal,100);
-  });
+  window.BNS_v477OrderBlocksMaterial = liveFolder;
 
-  // Centrale reserveringslijst gebruiken als die functie aanwezig is.
-  if(typeof window.BNS_v460BlockingOrdersForMaterial === "function" && !window.BNS_v460BlockingOrdersForMaterial.__bns476){
+  if(typeof window.BNS_v460BlockingOrdersForMaterial === "function" && !window.BNS_v460BlockingOrdersForMaterial.__bns477){
     var oldList = window.BNS_v460BlockingOrdersForMaterial;
     var wrappedList = function(mat, range, ignoreId){
       try{
-        return (oldList(mat, range, ignoreId) || []).filter(orderBlocksMaterialCentral);
+        return (oldList(mat, range, ignoreId) || []).filter(liveFolder);
       }catch(e){ return []; }
     };
-    wrappedList.__bns476 = true;
+    wrappedList.__bns477 = true;
     window.BNS_v460BlockingOrdersForMaterial = wrappedList;
   }
 
-  // Centrale boolean voor badge + popup.
-  if(typeof window.TW_V309_materialIsBlocked === "function" && !window.TW_V309_materialIsBlocked.__bns476){
+  if(typeof window.TW_V309_materialIsBlocked === "function" && !window.TW_V309_materialIsBlocked.__bns477){
     var oldBlocked = window.TW_V309_materialIsBlocked;
     var wrappedBlocked = function(mid, range){
       try{
         if(typeof window.BNS_v460BlockingOrdersForMaterial === "function"){
-          return window.BNS_v460BlockingOrdersForMaterial(mid, range).some(orderBlocksMaterialCentral);
+          return window.BNS_v460BlockingOrdersForMaterial(mid, range).some(liveFolder);
         }
       }catch(e){}
       try{ return oldBlocked(mid, range); }catch(e){ return false; }
     };
-    wrappedBlocked.__bns476 = true;
+    wrappedBlocked.__bns477 = true;
     window.TW_V309_materialIsBlocked = wrappedBlocked;
   }
 
-  // Als er een reservationFor functie is, filter de bron op dezelfde centrale regel.
-  ["BNS_V462_reservationFor","BNS_v462_reservationFor","reservationFor","statusFor"].forEach(function(name){
-    try{
-      var fn=window[name];
-      if(typeof fn==="function" && !fn.__bns476){
-        var wrapped=function(){
-          var res = fn.apply(this, arguments);
-          try{
-            if(res && res.order && !orderBlocksMaterialCentral(res.order)) return null;
-            if(res && !res.order && res.id){
-              var o=orders().find(function(x){ return T(x.id)===T(res.id) || T(x.number)===T(res.number); });
-              if(o && !orderBlocksMaterialCentral(o)) return null;
-            }
-          }catch(e){}
-          return res;
-        };
-        wrapped.__bns476=true;
-        window[name]=wrapped;
-      }
-    }catch(e){}
-  });
-
-  console.log("[BNS v476] centrale reservering actief: badge + popup alleen folder=lopend; folders worden gecorrigeerd.");
+  console.log("[BNS v477] veilige reservering actief: alleen lopend blokkeert, geen app-state schrijfactie.");
 })();
