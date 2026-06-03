@@ -56,6 +56,69 @@ function norm(s){
   return s;
 }
 function json(){try{return JSON.stringify(loadLocal()||{})}catch(e){return""}}
+
+/* =========================================================
+   BNS v481 firebase-sync folderfix vanaf werkende zip
+   Corrigeert vervuilde folders in Firebase:
+   status geannuleerd/uitgevoerd/verwijderd/offerte/optie wint van folder=lopend.
+   ========================================================= */
+function bns481FolderFromOrder(o){
+  try{
+    if(!o) return "";
+    const id = String(o.id || o.docId || o.orderId || "").trim();
+    if(id.startsWith("old_")) return "archief";
+
+    const s = String(o.status || o.state || o.orderStatus || "").trim().toLowerCase();
+    if(/offerte/.test(s)) return "offerte";
+    if(/optie|14/.test(s)) return "optie14";
+    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
+    if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
+    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s)) return "lopend";
+
+    let f = String(o.folder || o.map || o.orderFolder || "").trim().toLowerCase();
+    if(f === "live") f = "lopend";
+    if(f === "optie") f = "optie14";
+    if(f === "old") f = "archief";
+    return f;
+  }catch(e){ return ""; }
+}
+function bns481NormalizeFolder(o){
+  try{
+    const f = bns481FolderFromOrder(o);
+    if(f) o.folder = f;
+  }catch(e){}
+  return o;
+}
+async function bns481CorrectFoldersInFirebase(rows){
+  try{
+    if(!Array.isArray(rows) || !rows.length) return;
+    const t = await fb(); if(!t) return;
+    const batch = t.fsMod.writeBatch(t.db);
+    let n = 0;
+    rows.forEach(o=>{
+      if(!o || !o.id) return;
+      const before = String(o.folder || "").trim().toLowerCase();
+      const after = bns481FolderFromOrder(o);
+      if(after && before !== after){
+        batch.set(t.fsMod.doc(t.db, "orders", String(o.id)), {folder: after, updatedAt: Date.now()}, {merge:true});
+        o.folder = after;
+        n++;
+      }
+    });
+    if(n){
+      await batch.commit();
+      console.log("[BNS v481 sync] folders in Firebase gecorrigeerd:", n);
+    }
+  }catch(e){
+    console.warn("[BNS v481 sync] folder correctie overgeslagen", e);
+  }
+}
+if(typeof window !== "undefined"){
+  window.BNS_v481FolderFromOrder = bns481FolderFromOrder;
+  window.BNS_v481NormalizeFolder = bns481NormalizeFolder;
+  window.BNS_v481CorrectFoldersInFirebase = bns481CorrectFoldersInFirebase;
+}
+
 async function fb(){
   if(tools)return tools;
   if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){status("Firebase config ontbreekt");return null}
@@ -155,7 +218,7 @@ async function bns466LoadArchief(jaar){
   const t=await fb(); if(!t) return [];
   try{
     const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,"orders"));
-    const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const all=snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()}));
     const archief=all.filter(o=>{
       if(!o) return false;
       const isOld=String(o.id||"").match(/^old[_-]/i)||o.folder==="old"||o.folder==="archief";
@@ -248,7 +311,7 @@ async function download(){
         continue;
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
-      s[col]=bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()})),false);
+      s[col]=bns460FilterRows(col,snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()})),false);
       if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
@@ -302,7 +365,7 @@ async function live(){
     t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
-      s[col]=bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()})),false);
+      s[col]=bns460FilterRows(col,snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()})),false);
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
@@ -392,3 +455,43 @@ console.log('[BNS v461] firebase-sync lege bezorger blijft leeg.');
 
 
 console.log('[BNS v473] BNSFirebaseSync veilig aangemaakt met loadArchief.');
+
+
+
+/* BNS v474 sync: lege bezorger blijft leeg, geen remote driver terugzetten */
+(function(){
+  if(typeof preserveOrder === 'function' && !preserveOrder.__bns474){
+    var old=preserveOrder;
+    function countDrivers(o){
+      if(!o)return 0;
+      var vals=[];
+      ['driverIds','bezorgerIds','userIds','assignedDriverIds','driverNames','bezorgerNames','assignedDriverNames'].forEach(function(k){ if(Array.isArray(o[k])) vals=vals.concat(o[k]); });
+      ['driver','driverName','bezorger','bezorgerName','driverId','bezorgerId','userId','assignedDriverId'].forEach(function(k){ if(o[k]) vals=vals.concat(String(o[k]).split(/[,;|\n]+/)); });
+      return vals.map(function(x){return String(x||'').trim();}).filter(Boolean).length;
+    }
+    preserveOrder=function(local,remote){
+      try{
+        if(local && local.folder==='lopend' && countDrivers(local)===0) return local;
+      }catch(e){}
+      return old(local,remote);
+    };
+    preserveOrder.__bns474=true;
+  }
+  console.log('[BNS v474] firebase-sync lege bezorger blijft leeg actief.');
+})();
+
+/* BNS v481 download folder correction wrapper */
+(function(){
+  try{
+    if(typeof download === "function" && !download.__bns481){
+      const oldDownload = download;
+      download = async function(){
+        const s = await oldDownload.apply(this, arguments);
+        try{ if(s && Array.isArray(s.orders)) await bns481CorrectFoldersInFirebase(s.orders); }catch(e){}
+        return s;
+      };
+      download.__bns481 = true;
+    }
+  }catch(e){}
+})();
+console.log("[BNS v481 sync] folderfix actief vanaf werkende zip.");
