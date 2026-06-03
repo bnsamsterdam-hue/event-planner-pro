@@ -20883,49 +20883,11 @@ setTimeout(()=>{
     return a.start.getTime() < b.end.getTime() && b.start.getTime() < a.end.getTime();
   }
   function statusBlocksOrder(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      function low(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
-      function parseDateSafe(v){
-        if(!v) return null;
-        if(v && typeof v.toDate === "function") v = v.toDate();
-        var d = v instanceof Date ? v : new Date(v);
-        return isNaN(d.getTime()) ? null : d;
-      }
-      function optionStartDate(x){
-        return parseDateSafe(x.optionCreatedAt || x.optionDate || x.optionAt || x.createdAt || x.created || x.savedAt || x.updatedAt || x.start || x.dateStart || x.startDate || x.date);
-      }
-      function optionAgeDays(x){
-        var d = optionStartDate(x);
-        if(!d) return 0; // onbekende datum: veilig blokkeren
-        var now = new Date();
-        var start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        return Math.floor((today - start) / 86400000) + 1;
-      }
-      function optionStillBlocks(x){ return optionAgeDays(x) <= 14; }
-
-      var s = low(o.status || o.state || o.orderStatus);
-      var f = low(o.folder || o.map || o.orderFolder);
-
-      if(f === "live") f = "lopend";
-      if(f === "optie") f = "optie14";
-      if(f === "old") f = "archief";
-
-      // Status die echt beëindigd is, wint altijd van een fout folder=lopend.
-      if(/geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-      if(/offerte/.test(s)) return false;
-
-      // Optie 14 dagen blokkeert tijdelijk.
-      if(f === "optie14" || /optie\s*14|optie14|optie/.test(s)) return optionStillBlocks(o);
-
-      // Lopend/opdrachtbevestiging blokkeert.
-      if(f) return f === "lopend";
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s = norm(o && o.status);
+    if (!s) return false;
+    if (s.indexOf("geannuleerd") >= 0 || s.indexOf("cancel") >= 0 || s.indexOf("uitgevoerd") >= 0 || s.indexOf("afgerond") >= 0 || s.indexOf("verwijderd") >= 0) return false;
+    if (s.indexOf("offerte") >= 0) return false;
+    return s.indexOf("bevestigd") >= 0 || s.indexOf("opdracht") >= 0 || s.indexOf("optie 14") >= 0 || s === "optie14";
   }
   function materialKey(m){
     if(!m) return '';
@@ -28173,49 +28135,11 @@ setTimeout(()=>{
     return String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear();
   }
   function statusBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      function low(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
-      function parseDateSafe(v){
-        if(!v) return null;
-        if(v && typeof v.toDate === "function") v = v.toDate();
-        var d = v instanceof Date ? v : new Date(v);
-        return isNaN(d.getTime()) ? null : d;
-      }
-      function optionStartDate(x){
-        return parseDateSafe(x.optionCreatedAt || x.optionDate || x.optionAt || x.createdAt || x.created || x.savedAt || x.updatedAt || x.start || x.dateStart || x.startDate || x.date);
-      }
-      function optionAgeDays(x){
-        var d = optionStartDate(x);
-        if(!d) return 0; // onbekende datum: veilig blokkeren
-        var now = new Date();
-        var start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        return Math.floor((today - start) / 86400000) + 1;
-      }
-      function optionStillBlocks(x){ return optionAgeDays(x) <= 14; }
-
-      var s = low(o.status || o.state || o.orderStatus);
-      var f = low(o.folder || o.map || o.orderFolder);
-
-      if(f === "live") f = "lopend";
-      if(f === "optie") f = "optie14";
-      if(f === "old") f = "archief";
-
-      // Status die echt beëindigd is, wint altijd van een fout folder=lopend.
-      if(/geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-      if(/offerte/.test(s)) return false;
-
-      // Optie 14 dagen blokkeert tijdelijk.
-      if(f === "optie14" || /optie\s*14|optie14|optie/.test(s)) return optionStillBlocks(o);
-
-      // Lopend/opdrachtbevestiging blokkeert.
-      if(f) return f === "lopend";
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=L(o&&o.status);
+    if(!s) return false;
+    if(/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd/.test(s)) return false;
+    if(s.indexOf('offerte')>=0) return false;
+    return /opdrachtbevestiging|opdracht bevestigd|bevestigd|optie 14|optie14/.test(s);
   }
   function editingId(){
     try{
@@ -29598,49 +29522,10 @@ setTimeout(()=>{
     return T(e && e.value);
   }
   function statusBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      function low(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
-      function parseDateSafe(v){
-        if(!v) return null;
-        if(v && typeof v.toDate === "function") v = v.toDate();
-        var d = v instanceof Date ? v : new Date(v);
-        return isNaN(d.getTime()) ? null : d;
-      }
-      function optionStartDate(x){
-        return parseDateSafe(x.optionCreatedAt || x.optionDate || x.optionAt || x.createdAt || x.created || x.savedAt || x.updatedAt || x.start || x.dateStart || x.startDate || x.date);
-      }
-      function optionAgeDays(x){
-        var d = optionStartDate(x);
-        if(!d) return 0; // onbekende datum: veilig blokkeren
-        var now = new Date();
-        var start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        return Math.floor((today - start) / 86400000) + 1;
-      }
-      function optionStillBlocks(x){ return optionAgeDays(x) <= 14; }
-
-      var s = low(o.status || o.state || o.orderStatus);
-      var f = low(o.folder || o.map || o.orderFolder);
-
-      if(f === "live") f = "lopend";
-      if(f === "optie") f = "optie14";
-      if(f === "old") f = "archief";
-
-      // Status die echt beëindigd is, wint altijd van een fout folder=lopend.
-      if(/geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-      if(/offerte/.test(s)) return false;
-
-      // Optie 14 dagen blokkeert tijdelijk.
-      if(f === "optie14" || /optie\s*14|optie14|optie/.test(s)) return optionStillBlocks(o);
-
-      // Lopend/opdrachtbevestiging blokkeert.
-      if(f) return f === "lopend";
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=L(o && o.status);
+    if(/geannuleerd|cancel|uitgevoerd|afgerond|verwijderd|deleted/.test(s)) return false;
+    if(s.indexOf('offerte')>=0) return false;
+    return true;
   }
   function materialToken(m){
     if(!m) return '';
@@ -31519,46 +31404,14 @@ setTimeout(()=>{
   function orderBlocks(o){
     try{
       if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      function low(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
-      function parseDateSafe(v){
-        if(!v) return null;
-        if(v && typeof v.toDate === "function") v = v.toDate();
-        var d = v instanceof Date ? v : new Date(v);
-        return isNaN(d.getTime()) ? null : d;
+      if(typeof BNS_v460FolderFromOrder === "function"){
+        return BNS_v460FolderFromOrder(o) === "lopend";
       }
-      function optionStartDate(x){
-        return parseDateSafe(x.optionCreatedAt || x.optionDate || x.optionAt || x.createdAt || x.created || x.savedAt || x.updatedAt || x.start || x.dateStart || x.startDate || x.date);
-      }
-      function optionAgeDays(x){
-        var d = optionStartDate(x);
-        if(!d) return 0; // onbekende datum: veilig blokkeren
-        var now = new Date();
-        var start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        return Math.floor((today - start) / 86400000) + 1;
-      }
-      function optionStillBlocks(x){ return optionAgeDays(x) <= 14; }
-
-      var s = low(o.status || o.state || o.orderStatus);
-      var f = low(o.folder || o.map || o.orderFolder);
-
-      if(f === "live") f = "lopend";
-      if(f === "optie") f = "optie14";
-      if(f === "old") f = "archief";
-
-      // Status die echt beëindigd is, wint altijd van een fout folder=lopend.
-      if(/geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-      if(/offerte/.test(s)) return false;
-
-      // Optie 14 dagen blokkeert tijdelijk.
-      if(f === "optie14" || /optie\s*14|optie14|optie/.test(s)) return optionStillBlocks(o);
-
-      // Lopend/opdrachtbevestiging blokkeert.
+      var f=String((o.folder||o.map||o.orderFolder)||"").toLowerCase();
       if(f) return f === "lopend";
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
+      var s=String(o.status||"").toLowerCase();
+      if(/offerte|optie|14|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return false;
+      return /bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s);
     }catch(e){ return false; }
   }
   function sameMaterial(a,b){
@@ -35320,49 +35173,14 @@ setTimeout(()=>{
     return parseDate(o && (o.end || o.dateEnd || o.endDate || o.start || o.date));
   }
   function orderBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      function low(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
-      function parseDateSafe(v){
-        if(!v) return null;
-        if(v && typeof v.toDate === "function") v = v.toDate();
-        var d = v instanceof Date ? v : new Date(v);
-        return isNaN(d.getTime()) ? null : d;
-      }
-      function optionStartDate(x){
-        return parseDateSafe(x.optionCreatedAt || x.optionDate || x.optionAt || x.createdAt || x.created || x.savedAt || x.updatedAt || x.start || x.dateStart || x.startDate || x.date);
-      }
-      function optionAgeDays(x){
-        var d = optionStartDate(x);
-        if(!d) return 0; // onbekende datum: veilig blokkeren
-        var now = new Date();
-        var start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        return Math.floor((today - start) / 86400000) + 1;
-      }
-      function optionStillBlocks(x){ return optionAgeDays(x) <= 14; }
-
-      var s = low(o.status || o.state || o.orderStatus);
-      var f = low(o.folder || o.map || o.orderFolder);
-
-      if(f === "live") f = "lopend";
-      if(f === "optie") f = "optie14";
-      if(f === "old") f = "archief";
-
-      // Status die echt beëindigd is, wint altijd van een fout folder=lopend.
-      if(/geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-      if(/offerte/.test(s)) return false;
-
-      // Optie 14 dagen blokkeert tijdelijk.
-      if(f === "optie14" || /optie\s*14|optie14|optie/.test(s)) return optionStillBlocks(o);
-
-      // Lopend/opdrachtbevestiging blokkeert.
-      if(f) return f === "lopend";
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    if(!o) return false;
+    var st=o.status;
+    if(isDoneStatus(st) || isCancelledStatus(st) || isOfferteStatus(st)) return false;
+    if(!isBlockStatus(st)) return false;
+    var e=orderEnd(o);
+    // Uitgevoerde/afgeronde afgelopen opdrachten blokkeren niet. Andere bevestigde opdrachten wel tot en met einddatum.
+    if((isDoneStatus(st) || normStatus(st)==='afgerond') && e && e < today()) return false;
+    return true;
   }
   function rangesOverlap(a1,a2,b1,b2){
     a1=a1||a2||today();
@@ -36691,49 +36509,13 @@ setTimeout(()=>{
     return p.end.getTime() <= today().getTime();
   }
   function orderBlocksMaterial(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      function low(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
-      function parseDateSafe(v){
-        if(!v) return null;
-        if(v && typeof v.toDate === "function") v = v.toDate();
-        var d = v instanceof Date ? v : new Date(v);
-        return isNaN(d.getTime()) ? null : d;
-      }
-      function optionStartDate(x){
-        return parseDateSafe(x.optionCreatedAt || x.optionDate || x.optionAt || x.createdAt || x.created || x.savedAt || x.updatedAt || x.start || x.dateStart || x.startDate || x.date);
-      }
-      function optionAgeDays(x){
-        var d = optionStartDate(x);
-        if(!d) return 0; // onbekende datum: veilig blokkeren
-        var now = new Date();
-        var start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        return Math.floor((today - start) / 86400000) + 1;
-      }
-      function optionStillBlocks(x){ return optionAgeDays(x) <= 14; }
-
-      var s = low(o.status || o.state || o.orderStatus);
-      var f = low(o.folder || o.map || o.orderFolder);
-
-      if(f === "live") f = "lopend";
-      if(f === "optie") f = "optie14";
-      if(f === "old") f = "archief";
-
-      // Status die echt beëindigd is, wint altijd van een fout folder=lopend.
-      if(/geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-      if(/offerte/.test(s)) return false;
-
-      // Optie 14 dagen blokkeert tijdelijk.
-      if(f === "optie14" || /optie\s*14|optie14|optie/.test(s)) return optionStillBlocks(o);
-
-      // Lopend/opdrachtbevestiging blokkeert.
-      if(f) return f === "lopend";
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=L(o && o.status);
+    if(!s) return false;
+    if(/geannuleerd|geannuleer|cancel|verwijderd|deleted|verwijder/.test(s)) return false;
+    if(s.indexOf('offerte')>=0) return false;
+    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return !orderEndIsPast(o);
+    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|optie\s*14|optie14|gereserveerd|actief/.test(s)) return true;
+    return false;
   }
   function materialToken(m){
     if(!m) return '';
@@ -39482,49 +39264,14 @@ setTimeout(()=>{
     return todayMs() >= expire;
   }
   function orderBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      function low(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
-      function parseDateSafe(v){
-        if(!v) return null;
-        if(v && typeof v.toDate === "function") v = v.toDate();
-        var d = v instanceof Date ? v : new Date(v);
-        return isNaN(d.getTime()) ? null : d;
-      }
-      function optionStartDate(x){
-        return parseDateSafe(x.optionCreatedAt || x.optionDate || x.optionAt || x.createdAt || x.created || x.savedAt || x.updatedAt || x.start || x.dateStart || x.startDate || x.date);
-      }
-      function optionAgeDays(x){
-        var d = optionStartDate(x);
-        if(!d) return 0; // onbekende datum: veilig blokkeren
-        var now = new Date();
-        var start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        return Math.floor((today - start) / 86400000) + 1;
-      }
-      function optionStillBlocks(x){ return optionAgeDays(x) <= 14; }
-
-      var s = low(o.status || o.state || o.orderStatus);
-      var f = low(o.folder || o.map || o.orderFolder);
-
-      if(f === "live") f = "lopend";
-      if(f === "optie") f = "optie14";
-      if(f === "old") f = "archief";
-
-      // Status die echt beëindigd is, wint altijd van een fout folder=lopend.
-      if(/geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-      if(/offerte/.test(s)) return false;
-
-      // Optie 14 dagen blokkeert tijdelijk.
-      if(f === "optie14" || /optie\s*14|optie14|optie/.test(s)) return optionStillBlocks(o);
-
-      // Lopend/opdrachtbevestiging blokkeert.
-      if(f) return f === "lopend";
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=low(o&&o.status);
+    if(!s) return false;
+    if(/geannuleerd|cancel|verwijderd|deleted|trash/.test(s)) return false;
+    if(/offerte/.test(s)) return false;
+    if(/optie\s*14|optie14/.test(s)) return !optionExpired(o);
+    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return !endIsPast(o);
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(s)) return !endIsPast(o);
+    return false;
   }
   function materialKey(m){
     if(!m) return '';
@@ -40920,49 +40667,14 @@ setTimeout(()=>{
     return todayMs() >= d.getTime() + 14*24*60*60*1000;
   }
   function orderBlocks(o){
-    try{
-      if(!o || o.deleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
-      var id = String((o.id || o.docId || o.orderId) || "").trim();
-      if(id.indexOf("old_") === 0) return false;
-
-      function low(v){ return String(v == null ? "" : v).trim().toLowerCase(); }
-      function parseDateSafe(v){
-        if(!v) return null;
-        if(v && typeof v.toDate === "function") v = v.toDate();
-        var d = v instanceof Date ? v : new Date(v);
-        return isNaN(d.getTime()) ? null : d;
-      }
-      function optionStartDate(x){
-        return parseDateSafe(x.optionCreatedAt || x.optionDate || x.optionAt || x.createdAt || x.created || x.savedAt || x.updatedAt || x.start || x.dateStart || x.startDate || x.date);
-      }
-      function optionAgeDays(x){
-        var d = optionStartDate(x);
-        if(!d) return 0; // onbekende datum: veilig blokkeren
-        var now = new Date();
-        var start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        return Math.floor((today - start) / 86400000) + 1;
-      }
-      function optionStillBlocks(x){ return optionAgeDays(x) <= 14; }
-
-      var s = low(o.status || o.state || o.orderStatus);
-      var f = low(o.folder || o.map || o.orderFolder);
-
-      if(f === "live") f = "lopend";
-      if(f === "optie") f = "optie14";
-      if(f === "old") f = "archief";
-
-      // Status die echt beëindigd is, wint altijd van een fout folder=lopend.
-      if(/geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
-      if(/offerte/.test(s)) return false;
-
-      // Optie 14 dagen blokkeert tijdelijk.
-      if(f === "optie14" || /optie\s*14|optie14|optie/.test(s)) return optionStillBlocks(o);
-
-      // Lopend/opdrachtbevestiging blokkeert.
-      if(f) return f === "lopend";
-      return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
-    }catch(e){ return false; }
+    var s=low(o&&o.status);
+    if(!s) return false;
+    if(/geannuleerd|cancel|verwijderd|deleted|trash/.test(s)) return false;
+    if(/offerte/.test(s)) return false;
+    if(/optie\s*14|optie14/.test(s)) return !optionExpired(o);
+    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return false;
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(s)) return !endIsPast(o);
+    return false;
   }
   function realCodeFrom(v){
     var c=txt(v).toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -45159,7 +44871,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       html+="<div style=\"border:1px solid #ddd;border-radius:12px;padding:12px\">Geen foto\'s, handtekeningen of klantmeldingen.</div>";
     }else{
       items.forEach(function(a,i){
-        var key="m"+i; window.__bnsV474Media[key]=a;        html += `<div style="border:1px solid #ddd;border-radius:12px;padding:12px;background:#fff"><b>${H(itemType(a))}</b><br><small>${H(a.createdAt||a.time||"")}</small><p>${H(a.note||a.message||a.text||"")}</p>${mediaHtml(a)}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button type="button" onclick="BNS_v474ShareMedia('${key}')">Delen</button><button type="button" onclick="BNS_v474PrintMedia('${key}')">Print</button><button type="button" class="danger" onclick="BNS_v474DeleteMedia('${H(o.id)}','${key}')">Wis</button></div></div>`;
+        var key="m"+i; window.__bnsV474Media[key]=a;
+        html += `<div style="border:1px solid #ddd;border-radius:12px;padding:12px;background:#fff"><b>${H(itemType(a))}</b><br><small>${H(a.createdAt||a.time||"")}</small><p>${H(a.note||a.message||a.text||"")}</p>${mediaHtml(a)}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button type="button" onclick="BNS_v474ShareMedia('${key}')">Delen</button><button type="button" onclick="BNS_v474PrintMedia('${key}')">Print</button><button type="button" class="danger" onclick="BNS_v474DeleteMedia('${H(o.id)}','${key}')">Wis</button></div></div>`;
       });
     }
     html+='</div>';
@@ -45169,77 +44882,4 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setInterval(enhanceOverview,700);
 
   console.log("[BNS v474] schone herstart fixes actief: bezorger/status/routenet/media.");
-})();
-
-
-
-/* =========================================================
-   BNS v479 - optie14 waarschuwing dag 13
-   - optie blokkeert t/m dag 14 via bestaande reserveringsfuncties
-   - op dag 13 komt een systeemmelding die planner moet afmelden/zien
-   - vanaf dag 15 blokkeert optie niet meer
-   - geen login/showPage/wit-scherm code
-   ========================================================= */
-(function(){
-  if(window.__BNS_V479_OPTION14_ALERT__) return;
-  window.__BNS_V479_OPTION14_ALERT__ = true;
-
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function stateObj(){ try{ return window.state || state || {}; }catch(e){ return window.state || {}; } }
-  function parseDateSafe(v){
-    if(!v) return null;
-    if(v && typeof v.toDate === "function") v = v.toDate();
-    var d = v instanceof Date ? v : new Date(v);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  function optionDate(o){
-    return parseDateSafe(o && (o.optionCreatedAt || o.optionDate || o.optionAt || o.createdAt || o.created || o.savedAt || o.updatedAt || o.start || o.dateStart || o.startDate || o.date));
-  }
-  function ageDays(d){
-    if(!d) return 0;
-    var now = new Date();
-    var a = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    var b = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    return Math.floor((b-a)/86400000)+1;
-  }
-  function isOption(o){
-    var f=L(o && (o.folder || o.map || o.orderFolder));
-    var s=L(o && (o.status || o.state || o.orderStatus));
-    return f==="optie14" || f==="optie" || /optie\s*14|optie14|optie/.test(s);
-  }
-  function makeOptionAlerts(){
-    var s=stateObj();
-    if(!Array.isArray(s.orders)) return;
-    s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
-    var changed=false;
-    s.orders.forEach(function(o){
-      if(!o || !isOption(o)) return;
-      var d=optionDate(o);
-      var age=ageDays(d);
-      if(age !== 13) return;
-      var oid=T(o.id || o.number);
-      var aid="optie13_"+oid;
-      var exists=s.alerts.some(function(a){ return T(a.id)===aid || (T(a.orderId)===T(o.id) && L(a.title).indexOf("optie")>=0 && L(a.title).indexOf("13")>=0 && !a.resolved); });
-      if(exists) return;
-      s.alerts.push({
-        id: aid,
-        orderId: o.id || "",
-        title: "Optie 14 dagen - dag 13",
-        note: "Optie "+T(o.number||"")+" loopt morgen af. Planner moet bevestigen dat dit gezien is. Op dag 15 wordt materiaal vrijgegeven.",
-        source: "optie14",
-        time: new Date().toLocaleString(),
-        resolved: false
-      });
-      changed=true;
-    });
-    if(changed){
-      try{ if(typeof saveLocal === "function") saveLocal(); else if(typeof save === "function") save(); }catch(e){}
-      try{ if(typeof renderAlarmV91 === "function") renderAlarmV91(); }catch(e){}
-      console.log("[BNS v479] optie14 dag-13 melding aangemaakt.");
-    }
-  }
-  setTimeout(makeOptionAlerts, 1200);
-  setTimeout(makeOptionAlerts, 5000);
-  console.log("[BNS v479] optie14 regel actief: dag 1-14 blokkeert, dag 13 melding, dag 15 vrij.");
 })();

@@ -56,67 +56,6 @@ function norm(s){
   return s;
 }
 function json(){try{return JSON.stringify(loadLocal()||{})}catch(e){return""}}
-
-/* =========================================================
-   BNS v479 firebase-sync folder correctie met optie14
-   - optie14 blijft optie14 en blokkeert in app t/m dag 14
-   - geannuleerd/uitgevoerd/verwijderd/offerte worden uit lopend gehaald
-   ========================================================= */
-function bns479FolderFromOrder(o){
-  try{
-    if(!o) return "";
-    const id=String(o.id||o.docId||o.orderId||"").trim();
-    if(id.startsWith("old_")) return "archief";
-    const s=String(o.status||o.state||o.orderStatus||"").trim().toLowerCase();
-    if(/offerte/.test(s)) return "offerte";
-    if(/optie|14/.test(s)) return "optie14";
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
-    if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
-    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s)) return "lopend";
-    let f=String(o.folder||o.map||o.orderFolder||"").trim().toLowerCase();
-    if(f==="live") f="lopend";
-    if(f==="optie") f="optie14";
-    if(f==="old") f="archief";
-    return f;
-  }catch(e){ return ""; }
-}
-function bns479NormalizeFolder(o){
-  try{
-    const f=bns479FolderFromOrder(o);
-    if(f) o.folder=f;
-  }catch(e){}
-  return o;
-}
-async function bns479CorrectFoldersInFirebase(rows){
-  try{
-    if(!Array.isArray(rows) || !rows.length) return;
-    const t=await fb(); if(!t) return;
-    const batch=t.fsMod.writeBatch(t.db);
-    let n=0;
-    rows.forEach(o=>{
-      if(!o || !o.id) return;
-      const before=String(o.folder||"").trim().toLowerCase();
-      const after=bns479FolderFromOrder(o);
-      if(after && before!==after){
-        batch.set(t.fsMod.doc(t.db,"orders",String(o.id)), {folder:after, updatedAt:Date.now()}, {merge:true});
-        o.folder=after;
-        n++;
-      }
-    });
-    if(n){
-      await batch.commit();
-      console.log("[BNS v479 sync] folders in Firebase gecorrigeerd:", n);
-    }
-  }catch(e){
-    console.warn("[BNS v479 sync] folder correctie overgeslagen", e);
-  }
-}
-if(typeof window!=="undefined"){
-  window.BNS_v479FolderFromOrder=bns479FolderFromOrder;
-  window.BNS_v479NormalizeFolder=bns479NormalizeFolder;
-  window.BNS_v479CorrectFoldersInFirebase=bns479CorrectFoldersInFirebase;
-}
-
 async function fb(){
   if(tools)return tools;
   if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){status("Firebase config ontbreekt");return null}
@@ -216,7 +155,7 @@ async function bns466LoadArchief(jaar){
   const t=await fb(); if(!t) return [];
   try{
     const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,"orders"));
-    const all=snap.docs.map(d=>bns479NormalizeFolder({id:d.id,...d.data()}));
+    const all=snap.docs.map(d=>({id:d.id,...d.data()}));
     const archief=all.filter(o=>{
       if(!o) return false;
       const isOld=String(o.id||"").match(/^old[_-]/i)||o.folder==="old"||o.folder==="archief";
@@ -309,7 +248,7 @@ async function download(){
         continue;
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
-      s[col]=bns460FilterRows(col,snap.docs.map(d=>bns479NormalizeFolder({id:d.id,...d.data()})),false);
+      s[col]=bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()})),false);
       if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
@@ -363,7 +302,7 @@ async function live(){
     t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
-      s[col]=bns460FilterRows(col,snap.docs.map(d=>bns479NormalizeFolder({id:d.id,...d.data()})),false);
+      s[col]=bns460FilterRows(col,snap.docs.map(d=>({id:d.id,...d.data()})),false);
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
@@ -476,19 +415,3 @@ console.log('[BNS v473] BNSFirebaseSync veilig aangemaakt met loadArchief.');
     }
   }catch(e){}
 })();
-
-/* BNS v479 download folder correction wrapper */
-(function(){
-  try{
-    if(typeof download === "function" && !download.__bns479){
-      const oldDownload = download;
-      download = async function(){
-        const s = await oldDownload.apply(this, arguments);
-        try{ if(s && Array.isArray(s.orders)) await bns479CorrectFoldersInFirebase(s.orders); }catch(e){}
-        return s;
-      };
-      download.__bns479 = true;
-    }
-  }catch(e){}
-})();
-console.log("[BNS v479 sync] folder correctie actief met optie14-regel.");
