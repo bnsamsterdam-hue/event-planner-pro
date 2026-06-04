@@ -497,3 +497,33 @@ console.log('[BNS v473] BNSFirebaseSync veilig aangemaakt met loadArchief.');
 console.log("[BNS v481 sync] folderfix actief vanaf werkende zip.");
 
 console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu folder=lopend strikt.");
+
+/* BNS v491: open dossieroverzicht bijwerken na Firebase wijzigingen */
+(function(){
+  try{
+    function fire(){
+      try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated")); }catch(e){}
+      try{ if(typeof window.BNS_V491_RENDER_MEDIA==="function") window.BNS_V491_RENDER_MEDIA(); }catch(e){}
+    }
+    if(typeof download === "function" && !download.__bns491){
+      const oldDownload=download;
+      download=async function(){
+        const res=await oldDownload.apply(this,arguments);
+        setTimeout(fire,150);
+        return res;
+      };
+      download.__bns491=true;
+    }
+    if(typeof saveLocal === "function" && !saveLocal.__bns491){
+      const oldSaveLocal=saveLocal;
+      saveLocal=function(s){
+        const res=oldSaveLocal.apply(this,arguments);
+        setTimeout(fire,120);
+        return res;
+      };
+      saveLocal.__bns491=true;
+    }
+    window.BNS_V491_FIRE_MEDIA_UPDATE=fire;
+  }catch(e){}
+})();
+console.log("[BNS v491 sync] live media update-signaal actief.");
