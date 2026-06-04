@@ -498,33 +498,33 @@ console.log("[BNS v481 sync] folderfix actief vanaf werkende zip.");
 
 console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu folder=lopend strikt.");
 
-/* BNS v488: signaal voor open overzicht wanneer Firebase/telefoondata binnenkomt */
+/* BNS v489: update-signaal voor open dossieroverzicht */
 (function(){
   try{
     const fire=function(){
       try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated")); }catch(e){}
       try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
-      try{ if(typeof window.BNS_v488RenderOpenOverview==="function") window.BNS_v488RenderOpenOverview(); }catch(e){}
+      try{ if(typeof window.BNS_v489RenderOpenOverview==="function") window.BNS_v489RenderOpenOverview(); }catch(e){}
     };
-    if(typeof download === "function" && !download.__bns488){
+    if(typeof download === "function" && !download.__bns489){
       const oldDownload=download;
       download=async function(){
         const res=await oldDownload.apply(this,arguments);
         setTimeout(fire,150);
         return res;
       };
-      download.__bns488=true;
+      download.__bns489=true;
     }
-    if(typeof saveLocal === "function" && !saveLocal.__bns488){
+    if(typeof saveLocal === "function" && !saveLocal.__bns489){
       const oldSaveLocal=saveLocal;
       saveLocal=function(){
         const res=oldSaveLocal.apply(this,arguments);
         setTimeout(fire,120);
         return res;
       };
-      saveLocal.__bns488=true;
+      saveLocal.__bns489=true;
     }
-    window.BNS_v488FireMediaUpdate=fire;
+    window.BNS_v489FireMediaUpdate=fire;
   }catch(e){}
 })();
-console.log("[BNS v488 sync] media update-signaal actief.");
+console.log("[BNS v489 sync] dossier update-signaal actief.");
