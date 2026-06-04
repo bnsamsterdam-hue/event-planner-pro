@@ -42570,7 +42570,8 @@ setTimeout(()=>{
       o.customerSignature=data; o.customerSignedName=name; o.customerSignedAt=new Date().toISOString(); o.updatedAt=new Date().toISOString();
       var s=S(); if(s){ s.alerts=Array.isArray(s.alerts)?s.alerts:[]; s.alerts.push(Object.assign({},item,{resolved:true,note:'Handtekening klant opgeslagen',text:'Handtekening klant opgeslagen'})); }
       saveAll(); syncOrder(o); m.remove(); toast('Handtekening opgeslagen bij opdracht en klantmap.');
-      setTimeout(function(){ if(typeof window.BNS_V490_REFRESH==='function') window.BNS_V490_REFRESH(o.id||o.number); },300);
+      item.orderId = o.id||o.number;
+      if(typeof window.BNS_V411_INJECT==='function') window.BNS_V411_INJECT(item);
     };
   }
   window.openSign = openSignFixed;
@@ -42964,7 +42965,8 @@ setTimeout(()=>{
       addMediaToOrderAndAlerts(o,item);
       closeModal();
       toast('Foto opgeslagen bij klantmeldingen en overzicht bestelling.');
-      setTimeout(function(){ if(typeof window.BNS_V490_REFRESH==='function') window.BNS_V490_REFRESH(o.id||o.number); },300);
+      item.orderId = o.id||o.number;
+      if(typeof window.BNS_V411_INJECT==='function') window.BNS_V411_INJECT(item);
     };
   }
   function openSignFixed(orderId){
@@ -42988,8 +42990,8 @@ setTimeout(()=>{
       addMediaToOrderAndAlerts(o,item);
       closeModal();
       toast('Handtekening opgeslagen bij klantmeldingen en overzicht bestelling.');
-      setTimeout(function(){ if(typeof window.BNS_V490_REFRESH==='function') window.BNS_V490_REFRESH(o.id||o.number); },300);
-      // Vernieuw media sectie in overview modal
+      item.orderId = o.id||o.number;
+      if(typeof window.BNS_V411_INJECT==='function') window.BNS_V411_INJECT(item);
       setTimeout(function(){
         try{
           var modal=document.getElementById('bnsOrderOverviewModal');
@@ -43070,6 +43072,45 @@ setTimeout(()=>{
           +'</div>';
       })(a); }).join('')+'</div></div>';
   }
+
+  // Direct media card injecteren in open modal na opslaan
+  function injectMediaCard(item){
+    try{
+      var modal = document.getElementById('bnsOrderOverviewModal'); if(!modal) return;
+      var section = modal.querySelector('.bns-v474-media, .bns-v411-order-media, .tw-v141-order-media');
+      if(!section){
+        // Geen sectie aanwezig - trigger v493 patch
+        if(typeof window.BNS_v493PatchMediaOverview==='function'){
+          setTimeout(function(){ window.BNS_v493PatchMediaOverview(item.orderId||''); },100);
+        }
+        return;
+      }
+      var grid = section.querySelector('.tw-v141-grid, [style*="grid"]') || section;
+      // Bouw card HTML
+      var src = item.signatureData||item.signature||item.photoData||item.photo||item.image||item.data||'';
+      var isSign = /handtekening|signature/i.test(item.type||'');
+      var imgHtml = src ? '<div style="margin:8px 0"><img src="'+src+'" style="width:100%;max-width:240px;border-radius:8px;border:1px solid #ddd"></div>' : '';
+      var aid = item.id || ('new_'+Date.now());
+      window.__bnsV490Media = window.__bnsV490Media||{};
+      window.__bnsV490Media[aid] = {item:item, orderId:item.orderId||''};
+      var card = document.createElement('div');
+      card.className = 'tw-v141-card';
+      card.setAttribute('data-media-id', aid);
+      card.style.cssText = 'border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff';
+      card.innerHTML = '<b>'+(item.type||'Media')+'</b>'
+        +'<br><small>'+(item.createdAt||new Date().toISOString())+'</small>'
+        +'<div>'+(item.note||item.message||'Toegevoegd')+'</div>'
+        +imgHtml
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
+        +'<button type="button" onclick="BNS_V490_PRINT(\"'+aid+'\")" style="border:0;border-radius:10px;padding:7px 12px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff">Print</button>'
+        +'<button type="button" onclick="BNS_V490_DELETE(\"'+aid+'\")" style="border:0;border-radius:10px;padding:7px 12px;font-weight:900;cursor:pointer;background:#dc2626;color:#fff">Wis</button>'
+        +'</div>';
+      // Bovenaan invoegen (nieuwste eerst)
+      grid.insertBefore(card, grid.firstChild);
+    }catch(e){ console.error('[BNS] injectMediaCard',e); }
+  }
+  window.BNS_V411_INJECT = injectMediaCard;
+
   function patchOverview(){
     var fn=window.BNS_V128_SHOW_ORDER_OVERVIEW;
     if(!fn || fn.__bnsV411) return;
@@ -45353,10 +45394,9 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(oldTabs) oldTabs.remove();
   }
 
-  // Fix 2: Media knoppen worden direct in de HTML gebouwd - geen DOM patch nodig
+  // ensureMediaButtons uitgeschakeld - veroorzaakte dubbele knoppen
   function ensureMediaButtons(){
-    // Alleen bezorger meldingen checken (niet klantmeldingen - die hebben eigen knoppen)
-    var cards = document.querySelectorAll('.bns-v474-media .tw-v141-card');
+    return; // uitgeschakeld
     cards.forEach(function(card){
       var actions = card.querySelector('.tw-v141-actions, .bns-media-actions');
       if(!actions){
@@ -45556,13 +45596,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function refreshMediaInModal(orderId){
     try{
       var modal = document.getElementById('bnsOrderOverviewModal'); if(!modal) return;
-      // Gebruik v493 als beschikbaar, anders v474
+      // Delegeer naar v493
       if(typeof window.BNS_v493PatchMediaOverview === 'function'){
         window.BNS_v493PatchMediaOverview(orderId);
-        return; // v493 doet alles
+        return;
       }
       if(typeof window.BNS_V474_PATCH_OVERVIEW === 'function') window.BNS_V474_PATCH_OVERVIEW(orderId);
-      return; // Niet ook eigen render uitvoeren
+      return;
       // Fallback hieronder wordt niet meer gebruikt maar bewaard
       var s = (typeof state!=='undefined'?state:null)||window.state||{};
       var o = (Array.isArray(s.orders)?s.orders:[]).find(function(x){ return T(x.id)===T(orderId)||T(x.number)===T(orderId); });
