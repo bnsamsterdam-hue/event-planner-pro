@@ -591,71 +591,28 @@ boot();
 
 
 
-/* =========================================================
-   BNS v483 driver - foto kleiner opslaan + direct sync signaal
-   Voorkomt opslaglimiet door grote base64-foto's.
-   ========================================================= */
+/* BNS v486 driver: signaal na foto/handtekening/melding */
 (function(){
-  if(window.__BNS_V483_DRIVER_MEDIA_UPLOAD__) return;
-  window.__BNS_V483_DRIVER_MEDIA_UPLOAD__=true;
-
-  async function compressImageFile(file,maxSide,quality){
-    return new Promise(function(resolve){
-      try{
-        if(!file || !/^image\//i.test(file.type||"")) return resolve(file);
-        var img=new Image();
-        var url=URL.createObjectURL(file);
-        img.onload=function(){
-          try{
-            var w=img.width,h=img.height;
-            var scale=Math.min(1,(maxSide||1280)/Math.max(w,h));
-            var cw=Math.max(1,Math.round(w*scale)), ch=Math.max(1,Math.round(h*scale));
-            var c=document.createElement("canvas");
-            c.width=cw; c.height=ch;
-            c.getContext("2d").drawImage(img,0,0,cw,ch);
-            c.toBlob(function(blob){
-              URL.revokeObjectURL(url);
-              if(!blob) return resolve(file);
-              resolve(new File([blob], file.name || "foto.jpg", {type:"image/jpeg", lastModified:Date.now()}));
-            },"image/jpeg",quality||0.72);
-          }catch(e){ URL.revokeObjectURL(url); resolve(file); }
-        };
-        img.onerror=function(){ URL.revokeObjectURL(url); resolve(file); };
-        img.src=url;
-      }catch(e){ resolve(file); }
-    });
-  }
-
-  document.addEventListener("change", async function(ev){
-    var inp=ev.target;
-    if(!inp || inp.type!=="file" || !inp.files || !inp.files.length) return;
-    try{
-      var dt=new DataTransfer();
-      for(var i=0;i<inp.files.length;i++){
-        dt.items.add(await compressImageFile(inp.files[i],1280,0.72));
-      }
-      inp.files=dt.files;
-      console.log("[BNS v483 driver] foto verkleind voor upload/opslag.");
-    }catch(e){}
-  }, true);
-
+  if(window.__BNS_V486_DRIVER_MEDIA_SIGNAL__) return;
+  window.__BNS_V486_DRIVER_MEDIA_SIGNAL__=true;
   function fire(){
     try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
     try{ window.dispatchEvent(new Event("storage")); }catch(e){}
   }
-  ["save","saveState","saveLocal","sendAlert","submitAlert","completeOrder"].forEach(function(name){
+  ["save","saveState","saveLocal","sendAlert","submitAlert","completeOrder","uploadPhoto","saveSignature"].forEach(function(name){
     try{
       var fn=window[name];
-      if(typeof fn==="function" && !fn.__bns483){
+      if(typeof fn==="function" && !fn.__bns486){
         var wrapped=function(){
           var r=fn.apply(this,arguments);
-          setTimeout(fire,150);
+          setTimeout(fire,200);
           return r;
         };
-        wrapped.__bns483=true;
+        wrapped.__bns486=true;
         window[name]=wrapped;
       }
     }catch(e){}
   });
-  console.log("[BNS v483 driver] media upload/refresh fix actief.");
+  setTimeout(fire,500);
+  console.log("[BNS v486 driver] media signaal actief.");
 })();
