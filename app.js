@@ -44943,7 +44943,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       return T(a.orderId)===T(o.id)||T(a.orderNumber)===T(o.number)||T(a.number)===T(o.number)||T(a.order)===T(o.id);
     }));
     ['media','photos','signatures','customerMessages','klantmeldingen','driverUploads','handtekeningen','bezorgermeldingen','fotos'].forEach(function(k){ if(Array.isArray(o[k])) rows=rows.concat(o[k]); });
-    if(o.customerSignature) rows.push({id:'custsig_'+T(o.id),type:'Handtekening klant',data:o.customerSignature,createdAt:o.customerSignedAt||'',note:o.customerSignedName||'Handtekening toegevoegd'});
+    if(o.customerSignature && o.customerSignature !== 'signed' && o.customerSignature !== '[zie Firebase alerts]' && String(o.customerSignature).length > 10) rows.push({id:'custsig_'+T(o.id),type:'Handtekening klant',data:o.customerSignature,createdAt:o.customerSignedAt||'',note:o.customerSignedName||'Handtekening toegevoegd'});
     var seen={};
     return rows.filter(function(a){ var id=T(a.id||a.createdAt||a.time||a.note||Math.random()); if(seen[id]) return false; seen[id]=1; return true; });
   }
@@ -45926,4 +45926,153 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   window.BNS_V495_CLEANUP = stripBase64FromStorage;
 
   console.info('[BNS v495] localStorage quota fix actief.');
+})();
+
+
+// ============================================================
+// BNS PATCH v497 — Firebase Storage definitief (geen base64 fallback)
+// ============================================================
+(function BNS_V497(){
+  'use strict';
+  if(window.__BNS_V497__) return;
+  window.__BNS_V497__ = true;
+
+  var BIG = ['photoData','photo','image','signatureData','signature','data','customerSignature'];
+
+  // Upload naar Firebase Storage, geeft downloadURL terug of gooit error
+  async function uploadToStorage(base64, storagePath){
+    var storMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js');
+    var appMod  = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+    var fbApp   = appMod.getApps().length ? appMod.getApp() : null;
+    if(!fbApp) throw new Error('Firebase app niet gevonden');
+    var storage = storMod.getStorage(fbApp);
+    var ref     = storMod.ref(storage, storagePath);
+    var b64     = base64.includes(',') ? base64.split(',')[1] : base64;
+    var mime    = (base64.match(/data:([^;]+);/) || ['','image/png'])[1];
+    var binary  = atob(b64);
+    var bytes   = new Uint8Array(binary.length);
+    for(var i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+    var blob = new Blob([bytes],{type:mime});
+    await storMod.uploadBytes(ref, blob);
+    return await storMod.getDownloadURL(ref);
+  }
+
+  // Strip base64 uit een object (in-place)
+  function stripBase64(obj){
+    if(!obj||typeof obj!=='object') return;
+    BIG.forEach(function(f){
+      if(obj[f] && typeof obj[f]==='string' && obj[f].length>200) delete obj[f];
+    });
+  }
+
+  // Hoofdfunctie: media opslaan via Storage
+  async function addMediaViaStorage(o, item){
+    if(!o||!item) return;
+
+    // Zoek base64
+    var base64=null, b64Field=null;
+    BIG.forEach(function(f){
+      if(!base64 && item[f] && String(item[f]).startsWith('data:')){
+        base64=item[f]; b64Field=f;
+      }
+    });
+
+    var downloadURL = null;
+
+    if(base64){
+      var ext  = base64.includes('image/png')?'png':'jpg';
+      var path = 'orders/'+String(o.id||o.number||'unknown')+'/media/'+String(item.id||Date.now())+'.'+ext;
+      item.storagePath = path;
+
+      try{
+        downloadURL = await uploadToStorage(base64, path);
+        item.downloadURL = downloadURL;
+        // Verwijder base64 nu upload gelukt is
+        BIG.forEach(function(f){ delete item[f]; });
+        console.info('[BNS v497] Geüpload naar Storage:', path);
+      } catch(e){
+        // Geen fallback naar base64 - toon duidelijke fout
+        console.error('[BNS v497] Storage upload mislukt:', e.message);
+        var msg = 'Foto uploaden naar Firebase Storage mislukt. Controleer of Storage is ingeschakeld. Fout: '+e.message;
+        var msg = 'Foto uploaden naar Firebase Storage mislukt. Controleer of Storage is ingeschakeld in de Firebase console. Fout: '+e.message;
+        return; // Niet opslaan - geen base64 in systeem
+      }
+    }
+
+    // Referentie zonder base64
+    var ref = Object.assign({}, item);
+    BIG.forEach(function(f){ delete ref[f]; });
+
+    // Order: alleen referentie
+    o.media       = Array.isArray(o.media)       ? o.media       : [];
+    o.driverUploads = Array.isArray(o.driverUploads) ? o.driverUploads : [];
+    o.media.push(ref);
+    o.driverUploads.push(ref);
+
+    if(/foto|photo/i.test(item.type||'')){
+      o.photos = Array.isArray(o.photos) ? o.photos : [];
+      o.photos.push(ref);
+    }
+    if(/handtekening|signature/i.test(item.type||'')){
+      o.signatures = Array.isArray(o.signatures) ? o.signatures : [];
+      o.signatures.push(ref);
+      // customerSignature alleen zetten als er een echte URL is
+      if(downloadURL){
+        o.customerSignature  = downloadURL;
+        o.customerSignedAt   = item.createdAt || new Date().toISOString();
+        o.customerSignedName = item.signedName || item.customerName || '';
+      }
+    }
+    o.updatedAt = new Date().toISOString();
+
+    // State alerts: alleen referentie
+    try{
+      var s=(typeof state!=='undefined'?state:null)||window.state||{};
+      s.alerts=Array.isArray(s.alerts)?s.alerts:[];
+      if(!s.alerts.some(function(a){return String(a.id||'')===String(ref.id||'');}))
+        s.alerts.push(ref);
+    }catch(e){}
+
+    // Opslaan en sync
+    try{ if(typeof saveAll==='function') saveAll(); }catch(e){}
+    try{ if(typeof syncOrder==='function') syncOrder(o); }catch(e){}
+    try{ if(typeof fbSet==='function') fbSet('alerts', ref.id, ref); }catch(e){}
+
+    // Direct injecteren in open modal
+    var injectItem = Object.assign({}, ref);
+    if(downloadURL) injectItem.downloadURL = downloadURL;
+    injectItem.orderId = o.id||o.number;
+    if(typeof window.BNS_V411_INJECT==='function') window.BNS_V411_INJECT(injectItem);
+  }
+
+  // Overschrijf addMediaToOrderAndAlerts - geen fallback naar oud
+  window.addMediaToOrderAndAlerts = function(o, item){
+    addMediaViaStorage(o, item).catch(function(e){
+      console.error('[BNS v497] onverwachte fout:', e);
+    });
+  };
+
+  // mediaSrc: downloadURL heeft prioriteit
+  window.mediaSrc = function(a){
+    return a.downloadURL || a.storagePath && '' ||
+           a.photoData || a.photo || a.image ||
+           a.signatureData || a.signature || a.data || '';
+  };
+
+  // Strip bestaande base64 uit state bij laden (dagelijkse cleanup)
+  function cleanState(){
+    try{
+      var s=(typeof state!=='undefined'?state:null)||window.state||{};
+      function cleanArr(arr){ (arr||[]).forEach(function(x){ stripBase64(x); }); }
+      if(Array.isArray(s.orders)) s.orders.forEach(function(o){
+        stripBase64(o);
+        cleanArr(o.media); cleanArr(o.photos); cleanArr(o.signatures);
+        cleanArr(o.driverUploads); cleanArr(o.handtekeningen);
+      });
+      cleanArr(s.alerts);
+    }catch(e){}
+  }
+  setTimeout(cleanState, 1000);
+
+  console.info('[BNS v497] Firebase Storage actief. Geen base64 fallback. Foto-fout = melding.');
 })();
