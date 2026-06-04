@@ -588,3 +588,35 @@ boot();
   }
   console.log('[BNS v474] driver strikt gekoppeld + media refresh actief.');
 })();
+
+
+
+/* BNS v491 driver: foto/handtekening direct zichtbaar in planner na sync */
+(function(){
+  if(window.__BNS_V491_DRIVER_MEDIA_SIGNAL__) return;
+  window.__BNS_V491_DRIVER_MEDIA_SIGNAL__=true;
+  function fire(){
+    try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
+    try{ window.dispatchEvent(new Event("storage")); }catch(e){}
+  }
+  function putLocalOrder(o){
+    try{
+      if(!o || !BNS || !BNS.state) return;
+      BNS.state.orders=Array.isArray(BNS.state.orders)?BNS.state.orders:[];
+      var ix=BNS.state.orders.findIndex(function(x){return String(x.id)===String(o.id) || String(x.number)===String(o.number);});
+      if(ix>=0) BNS.state.orders[ix]=o; else BNS.state.orders.unshift(o);
+    }catch(e){}
+  }
+  if(typeof updateOrder==="function" && !updateOrder.__bns491){
+    const oldUpdateOrder=updateOrder;
+    updateOrder=async function(o){
+      putLocalOrder(o);
+      const res=await oldUpdateOrder.apply(this,arguments);
+      putLocalOrder(o);
+      setTimeout(fire,200);
+      return res;
+    };
+    updateOrder.__bns491=true;
+  }
+  console.log("[BNS v491 driver] media update-signaal actief.");
+})();
