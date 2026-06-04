@@ -32777,8 +32777,38 @@ setTimeout(()=>{
     }
     return out.length ? out : [""];
   }
+  function stripMediaFromState(s){
+    // Verwijder base64 afbeeldingen uit state voor localStorage opslag
+    if(!s) return s;
+    var clone = JSON.parse(JSON.stringify(s));
+    var bigFields = ['photoData','photo','image','signatureData','signature','data','customerSignature'];
+    function stripObj(obj){
+      if(!obj || typeof obj !== 'object') return;
+      bigFields.forEach(function(k){
+        if(obj[k] && String(obj[k]).length > 200) obj[k] = '[base64-removed]';
+      });
+      Object.keys(obj).forEach(function(k){
+        if(Array.isArray(obj[k])) obj[k].forEach(stripObj);
+        else if(obj[k] && typeof obj[k]==='object') stripObj(obj[k]);
+      });
+    }
+    if(Array.isArray(clone.orders)) clone.orders.forEach(function(o){
+      bigFields.forEach(function(k){ if(o[k] && String(o[k]).length>200) o[k]='[base64-removed]'; });
+      ['media','photos','signatures','driverUploads','handtekeningen'].forEach(function(arr){
+        if(Array.isArray(o[arr])) o[arr].forEach(stripObj);
+      });
+    });
+    if(Array.isArray(clone.alerts)) clone.alerts.forEach(stripObj);
+    return clone;
+  }
   async function saveLocalBackup(json, day){
     try{
+      // Strip media voor localStorage - voorkomt QuotaExceededError
+      try{
+        var parsed = JSON.parse(json);
+        var stripped = stripMediaFromState(parsed);
+        json = JSON.stringify(stripped);
+      }catch(e){}
       localStorage.setItem(LOCAL_JSON_KEY, json);
       localStorage.setItem(LOCAL_DATE_KEY, day);
       setStatus("Lokale dagbackup gemaakt: " + day);
@@ -42866,12 +42896,18 @@ setTimeout(()=>{
     if(/foto|photo/i.test(item.type||'')) o.photos = Array.isArray(o.photos) ? o.photos : [];
     if(/handtekening|signature/i.test(item.type||'')) o.signatures = Array.isArray(o.signatures) ? o.signatures : [];
 
-    o.media.push(item);
-    o.driverUploads.push(item);
-    if(o.photos && /foto|photo/i.test(item.type||'')) o.photos.push(item);
+    // Sla een referentie op in order (zonder grote base64 data) voor localStorage
+    var itemRef = Object.assign({}, item);
+    var bigFields = ['photoData','photo','image','signatureData','signature','data'];
+    bigFields.forEach(function(k){ if(itemRef[k] && String(itemRef[k]).length>200) delete itemRef[k]; });
+    itemRef.hasMedia = true; // Markeer dat er media is in Firebase
+
+    o.media.push(itemRef);
+    o.driverUploads.push(itemRef);
+    if(o.photos && /foto|photo/i.test(item.type||'')) o.photos.push(itemRef);
     if(o.signatures && /handtekening|signature/i.test(item.type||'')){
-      o.signatures.push(item);
-      o.customerSignature = item.signatureData || item.signature || item.data || '';
+      o.signatures.push(itemRef);
+      o.customerSignature = '[zie Firebase alerts]';
       o.customerSignedName = item.signedName || item.customerName || '';
       o.customerSignedAt = item.createdAt || new Date().toISOString();
     }
@@ -45797,4 +45833,57 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   },true);
 
   console.log("[BNS v493] media-overzicht stabiel: v474-sectie leidend, V141 dubbel weg, live refresh zonder F5.");
+})();
+
+
+// BNS PATCH v495 — localStorage quota fix: verwijder base64 data
+(function BNS_V495(){
+  'use strict';
+  if(window.__BNS_V495__) return;
+  window.__BNS_V495__ = true;
+
+  function stripBase64FromStorage(){
+    var KEYS = ["event-planner-pro-v87","event-planner-pro-v8","event-planner-pro","bns_event_planner"];
+    var bigFields = ['photoData','photo','image','signatureData','signature','data','customerSignature'];
+    var cleaned = 0;
+
+    KEYS.forEach(function(k){
+      try{
+        var raw = localStorage.getItem(k);
+        if(!raw) return;
+        var s = JSON.parse(raw);
+
+        function stripObj(obj){
+          if(!obj||typeof obj!=='object') return;
+          bigFields.forEach(function(f){
+            if(obj[f] && typeof obj[f]==='string' && obj[f].length > 500 && obj[f] !== '[base64-removed]'){
+              obj[f] = '[base64-removed]';
+              cleaned++;
+            }
+          });
+        }
+
+        if(Array.isArray(s.orders)) s.orders.forEach(function(o){
+          stripObj(o);
+          ['media','photos','signatures','driverUploads','handtekeningen','klantmeldingen'].forEach(function(arr){
+            if(Array.isArray(o[arr])) o[arr].forEach(stripObj);
+          });
+        });
+        if(Array.isArray(s.alerts)) s.alerts.forEach(stripObj);
+
+        if(cleaned > 0){
+          localStorage.setItem(k, JSON.stringify(s));
+          console.info('[BNS v495] ' + cleaned + ' base64 items verwijderd uit localStorage (' + k + ')');
+        }
+      }catch(e){}
+    });
+  }
+
+  // Direct uitvoeren
+  try{ stripBase64FromStorage(); }catch(e){}
+
+  // Expose voor handmatig aanroepen
+  window.BNS_V495_CLEANUP = stripBase64FromStorage;
+
+  console.info('[BNS v495] localStorage quota fix actief.');
 })();
