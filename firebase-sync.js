@@ -119,6 +119,49 @@ if(typeof window !== "undefined"){
   window.BNS_v481CorrectFoldersInFirebase = bns481CorrectFoldersInFirebase;
 }
 
+
+/* =========================================================
+   BNS v487 firebase-sync folder/status optie-flow
+   Status is leidend:
+   Optie 14 dagen => folder optie14
+   Bevestigd => folder lopend
+   Geannuleerd/verwijderd => folder verwijderd
+   ========================================================= */
+function bns487FolderFromOrder(o){
+  try{
+    if(!o) return "";
+    const id=String(o.id||o.docId||o.orderId||"").trim();
+    if(id.startsWith("old_")) return "archief";
+    const s=String(o.status||o.state||o.orderStatus||"").trim().toLowerCase();
+    if(/offerte/.test(s)) return "offerte";
+    if(/optie|14/.test(s)) return "optie14";
+    if(/geann|annul|cancel|verwijderd|deleted|trash|prullenbak/.test(s)) return "verwijderd";
+    if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
+    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s)) return "lopend";
+    let f=String(o.folder||o.map||o.orderFolder||"").trim().toLowerCase();
+    if(f==="live") f="lopend";
+    if(f==="optie") f="optie14";
+    if(f==="geannuleerd") f="verwijderd";
+    if(f==="old") f="archief";
+    return f;
+  }catch(e){ return ""; }
+}
+function bns487NormalizeOrder(o){
+  try{
+    const f=bns487FolderFromOrder(o);
+    if(f) o.folder=f;
+    if(f==="verwijderd"){
+      o.deleted=false; o.removed=false; o.isDeleted=false;
+      o.deletedAt=o.deletedAt||new Date().toISOString();
+    }
+  }catch(e){}
+  return o;
+}
+if(typeof window!=="undefined"){
+  window.BNS_v487FolderFromOrder=bns487FolderFromOrder;
+  window.BNS_v487NormalizeOrder=bns487NormalizeOrder;
+}
+
 async function fb(){
   if(tools)return tools;
   if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){status("Firebase config ontbreekt");return null}
@@ -498,25 +541,27 @@ console.log("[BNS v481 sync] folderfix actief vanaf werkende zip.");
 
 console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu folder=lopend strikt.");
 
-/* BNS v483: meld app dat Firebase/telefoondata vernieuwd is */
+console.log("[BNS v485 sync] geen live-refresh interval toegevoegd.");
+
+/* BNS v486: geef rustig signaal dat Firebase/telefoondata vernieuwd is */
 (function(){
   try{
     const fire=function(){
-      try{ window.dispatchEvent(new Event("storage")); }catch(e){}
       try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated")); }catch(e){}
       try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
     };
-    if(typeof download === "function" && !download.__bns483){
+    if(typeof download === "function" && !download.__bns486){
       const oldDownload=download;
       download=async function(){
         const res=await oldDownload.apply(this,arguments);
-        setTimeout(fire,100);
+        setTimeout(fire,150);
         return res;
       };
-      download.__bns483=true;
+      download.__bns486=true;
     }
-    if(typeof window !== "undefined") window.BNS_v483FireSyncUpdate=fire;
-    setInterval(fire, 5000);
+    if(typeof window !== "undefined") window.BNS_v486FireSyncUpdate=fire;
   }catch(e){}
 })();
-console.log("[BNS v483 sync] live media refresh events actief.");
+console.log("[BNS v486 sync] live media signaal actief.");
+
+console.log("[BNS v487 sync] optie/folder status-first actief.");

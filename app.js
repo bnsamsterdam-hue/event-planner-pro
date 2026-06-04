@@ -20891,22 +20891,21 @@ setTimeout(()=>{
 
       var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
 
-      // Status is altijd leidend voor niet-blokkerende opdrachten.
+      // Niet-blokkerende statussen.
       if(/offerte|geann|annul|cancel|verwijderd|deleted|trash|prullenbak|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
 
-      // Folder/map is óók leidend. Alleen lopend mag blokkeren.
+      // Optie 14 dagen blokkeert WEL totdat planner bevestigt of annuleert.
+      if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return true;
+
       var f = String((o.folder || o.map || o.orderFolder || o.archiefFolder || o.archiveFolder) || "").trim().toLowerCase();
       if(f){
         if(f === "live") f = "lopend";
         if(f === "optie") f = "optie14";
         if(f === "old") f = "archief";
+        if(f === "optie14") return true;
         if(f !== "lopend") return false;
       }
 
-      // Optie 14 dagen/offerte mag nooit materiaal blokkeren.
-      if(/optie\s*14|optie14|option/.test(s)) return false;
-
-      // Alleen echte lopende opdrachtbevestigingen blokkeren.
       return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
     }catch(e){
       return false;
@@ -28166,22 +28165,21 @@ setTimeout(()=>{
 
       var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
 
-      // Status is altijd leidend voor niet-blokkerende opdrachten.
+      // Niet-blokkerende statussen.
       if(/offerte|geann|annul|cancel|verwijderd|deleted|trash|prullenbak|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
 
-      // Folder/map is óók leidend. Alleen lopend mag blokkeren.
+      // Optie 14 dagen blokkeert WEL totdat planner bevestigt of annuleert.
+      if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return true;
+
       var f = String((o.folder || o.map || o.orderFolder || o.archiefFolder || o.archiveFolder) || "").trim().toLowerCase();
       if(f){
         if(f === "live") f = "lopend";
         if(f === "optie") f = "optie14";
         if(f === "old") f = "archief";
+        if(f === "optie14") return true;
         if(f !== "lopend") return false;
       }
 
-      // Optie 14 dagen/offerte mag nooit materiaal blokkeren.
-      if(/optie\s*14|optie14|option/.test(s)) return false;
-
-      // Alleen echte lopende opdrachtbevestigingen blokkeren.
       return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
     }catch(e){
       return false;
@@ -29576,22 +29574,21 @@ setTimeout(()=>{
 
       var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
 
-      // Status is altijd leidend voor niet-blokkerende opdrachten.
+      // Niet-blokkerende statussen.
       if(/offerte|geann|annul|cancel|verwijderd|deleted|trash|prullenbak|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
 
-      // Folder/map is óók leidend. Alleen lopend mag blokkeren.
+      // Optie 14 dagen blokkeert WEL totdat planner bevestigt of annuleert.
+      if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return true;
+
       var f = String((o.folder || o.map || o.orderFolder || o.archiefFolder || o.archiveFolder) || "").trim().toLowerCase();
       if(f){
         if(f === "live") f = "lopend";
         if(f === "optie") f = "optie14";
         if(f === "old") f = "archief";
+        if(f === "optie14") return true;
         if(f !== "lopend") return false;
       }
 
-      // Optie 14 dagen/offerte mag nooit materiaal blokkeren.
-      if(/optie\s*14|optie14|option/.test(s)) return false;
-
-      // Alleen echte lopende opdrachtbevestigingen blokkeren.
       return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
     }catch(e){
       return false;
@@ -31480,22 +31477,21 @@ setTimeout(()=>{
 
       var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
 
-      // Status is altijd leidend voor niet-blokkerende opdrachten.
+      // Niet-blokkerende statussen.
       if(/offerte|geann|annul|cancel|verwijderd|deleted|trash|prullenbak|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
 
-      // Folder/map is óók leidend. Alleen lopend mag blokkeren.
+      // Optie 14 dagen blokkeert WEL totdat planner bevestigt of annuleert.
+      if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return true;
+
       var f = String((o.folder || o.map || o.orderFolder || o.archiefFolder || o.archiveFolder) || "").trim().toLowerCase();
       if(f){
         if(f === "live") f = "lopend";
         if(f === "optie") f = "optie14";
         if(f === "old") f = "archief";
+        if(f === "optie14") return true;
         if(f !== "lopend") return false;
       }
 
-      // Optie 14 dagen/offerte mag nooit materiaal blokkeren.
-      if(/optie\s*14|optie14|option/.test(s)) return false;
-
-      // Alleen echte lopende opdrachtbevestigingen blokkeren.
       return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
     }catch(e){
       return false;
@@ -35268,22 +35264,21 @@ setTimeout(()=>{
 
       var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
 
-      // Status is altijd leidend voor niet-blokkerende opdrachten.
+      // Niet-blokkerende statussen.
       if(/offerte|geann|annul|cancel|verwijderd|deleted|trash|prullenbak|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
 
-      // Folder/map is óók leidend. Alleen lopend mag blokkeren.
+      // Optie 14 dagen blokkeert WEL totdat planner bevestigt of annuleert.
+      if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return true;
+
       var f = String((o.folder || o.map || o.orderFolder || o.archiefFolder || o.archiveFolder) || "").trim().toLowerCase();
       if(f){
         if(f === "live") f = "lopend";
         if(f === "optie") f = "optie14";
         if(f === "old") f = "archief";
+        if(f === "optie14") return true;
         if(f !== "lopend") return false;
       }
 
-      // Optie 14 dagen/offerte mag nooit materiaal blokkeren.
-      if(/optie\s*14|optie14|option/.test(s)) return false;
-
-      // Alleen echte lopende opdrachtbevestigingen blokkeren.
       return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
     }catch(e){
       return false;
@@ -36624,22 +36619,21 @@ setTimeout(()=>{
 
       var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
 
-      // Status is altijd leidend voor niet-blokkerende opdrachten.
+      // Niet-blokkerende statussen.
       if(/offerte|geann|annul|cancel|verwijderd|deleted|trash|prullenbak|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
 
-      // Folder/map is óók leidend. Alleen lopend mag blokkeren.
+      // Optie 14 dagen blokkeert WEL totdat planner bevestigt of annuleert.
+      if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return true;
+
       var f = String((o.folder || o.map || o.orderFolder || o.archiefFolder || o.archiveFolder) || "").trim().toLowerCase();
       if(f){
         if(f === "live") f = "lopend";
         if(f === "optie") f = "optie14";
         if(f === "old") f = "archief";
+        if(f === "optie14") return true;
         if(f !== "lopend") return false;
       }
 
-      // Optie 14 dagen/offerte mag nooit materiaal blokkeren.
-      if(/optie\s*14|optie14|option/.test(s)) return false;
-
-      // Alleen echte lopende opdrachtbevestigingen blokkeren.
       return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
     }catch(e){
       return false;
@@ -39400,22 +39394,21 @@ setTimeout(()=>{
 
       var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
 
-      // Status is altijd leidend voor niet-blokkerende opdrachten.
+      // Niet-blokkerende statussen.
       if(/offerte|geann|annul|cancel|verwijderd|deleted|trash|prullenbak|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
 
-      // Folder/map is óók leidend. Alleen lopend mag blokkeren.
+      // Optie 14 dagen blokkeert WEL totdat planner bevestigt of annuleert.
+      if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return true;
+
       var f = String((o.folder || o.map || o.orderFolder || o.archiefFolder || o.archiveFolder) || "").trim().toLowerCase();
       if(f){
         if(f === "live") f = "lopend";
         if(f === "optie") f = "optie14";
         if(f === "old") f = "archief";
+        if(f === "optie14") return true;
         if(f !== "lopend") return false;
       }
 
-      // Optie 14 dagen/offerte mag nooit materiaal blokkeren.
-      if(/optie\s*14|optie14|option/.test(s)) return false;
-
-      // Alleen echte lopende opdrachtbevestigingen blokkeren.
       return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
     }catch(e){
       return false;
@@ -40823,22 +40816,21 @@ setTimeout(()=>{
 
       var s = String((o.status || o.state || o.orderStatus) || "").trim().toLowerCase();
 
-      // Status is altijd leidend voor niet-blokkerende opdrachten.
+      // Niet-blokkerende statussen.
       if(/offerte|geann|annul|cancel|verwijderd|deleted|trash|prullenbak|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
 
-      // Folder/map is óók leidend. Alleen lopend mag blokkeren.
+      // Optie 14 dagen blokkeert WEL totdat planner bevestigt of annuleert.
+      if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return true;
+
       var f = String((o.folder || o.map || o.orderFolder || o.archiefFolder || o.archiveFolder) || "").trim().toLowerCase();
       if(f){
         if(f === "live") f = "lopend";
         if(f === "optie") f = "optie14";
         if(f === "old") f = "archief";
+        if(f === "optie14") return true;
         if(f !== "lopend") return false;
       }
 
-      // Optie 14 dagen/offerte mag nooit materiaal blokkeren.
-      if(/optie\s*14|optie14|option/.test(s)) return false;
-
-      // Alleen echte lopende opdrachtbevestigingen blokkeren.
       return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
     }catch(e){
       return false;
@@ -44094,19 +44086,23 @@ console.log('[BNS v459] bezorger-vinkjes, Routenet uit, document-terug en telefo
     if(!o) return "";
     var id=T(o.id || o.docId || o.orderId);
     if(id.indexOf("old_") === 0) return "archief";
+
+    // Status is leidend, zodat oude fout-folder niet blijft blokkeren.
+    var s=statusText(o);
+    if(/offerte/.test(s)) return "offerte";
+    if(/optie|14/.test(s)) return "optie14";
+    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "verwijderd";
+    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s)) return "lopend";
+
     var f=L(o.folder || o.map || o.orderFolder);
     if(f){
       if(f === "live") return "lopend";
       if(f === "optie") return "optie14";
       if(f === "old") return "archief";
+      if(f === "geannuleerd") return "verwijderd";
       return f;
     }
-    var s=statusText(o);
-    if(/offerte/.test(s)) return "offerte";
-    if(/optie|14/.test(s)) return "optie14";
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
-    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
-    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s)) return "lopend";
     return "";
   }
   function BNS_v460StatusForFolder(folder, oldStatus){
@@ -45357,4 +45353,370 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setTimeout(schedule,1200);
 
   console.log("[BNS v486] media Wis blijft + live refresh actief.");
+})();
+
+
+
+/* =========================================================
+   BNS v487 - optie/reservering-flow definitief
+   Vanaf v486.
+   - Optie 14 dagen blokkeert materiaal.
+   - Na dag 13 krijgt planner eigen systeem-popup.
+   - Bevestigen: status Bevestigd + folder lopend vóór save/sync.
+   - Niet door / verwijderen: status Geannuleerd + folder verwijderd, niet definitief wissen.
+   - Materialen worden vrijgegeven bij annuleren/verwijderen.
+   - Geen GitHub/browser confirm-tekst.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V487_OPTION_RESERVATION_FLOW__) return;
+  window.__BNS_V487_OPTION_RESERVATION_FLOW__ = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function A(v){ return Array.isArray(v) ? v : (v ? [v] : []); }
+  function E(v){ return document.getElementById(v); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
+
+  function S(){
+    try{ if(window.state) return window.state; }catch(e){}
+    try{ if(typeof state !== "undefined") return state; }catch(e){}
+    return null;
+  }
+
+  function orders(){ var s=S(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function materials(){ var s=S(); return s && Array.isArray(s.materials) ? s.materials : []; }
+  function orderById(id){ return orders().find(function(o){ return T(o.id)===T(id) || T(o.number)===T(id); }) || null; }
+
+  function statusOf(o){ return L(o && (o.status || o.state || o.orderStatus)); }
+  function isOption(o){ var s=statusOf(o); return /optie\s*14|optie14|14\s*dagen|option|optie/.test(s); }
+  function isOffer(o){ return /offerte/.test(statusOf(o)); }
+
+  function optionStart(o){
+    var raw = T(o && (o.optionCreatedAt || o.optionDate || o.createdAt || o.created || o.start || o.dateStart || o.date));
+    var d = raw ? new Date(raw.slice(0,10)+"T00:00:00") : new Date();
+    if(isNaN(d.getTime())) d = new Date();
+    d.setHours(0,0,0,0);
+    return d;
+  }
+
+  function optionAgeDays(o){
+    var a = optionStart(o);
+    var n = new Date(); n.setHours(0,0,0,0);
+    return Math.floor((n.getTime() - a.getTime()) / 86400000) + 1;
+  }
+
+  function folderFor(o){
+    if(!o) return "";
+    var id=T(o.id || o.docId || o.orderId);
+    if(id.indexOf("old_")===0) return "archief";
+    var s=statusOf(o);
+    if(/offerte/.test(s)) return "offerte";
+    if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return "optie14";
+    if(/geann|annul|cancel|verwijderd|deleted|trash|prullenbak/.test(s)) return "verwijderd";
+    if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
+    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s)) return "lopend";
+    var f=L(o.folder||o.map||o.orderFolder);
+    if(f==="live") return "lopend";
+    if(f==="optie") return "optie14";
+    if(f==="geannuleerd") return "verwijderd";
+    if(f==="old") return "archief";
+    return f;
+  }
+
+  function matCode(m){
+    if(!m) return "";
+    var raw = typeof m === "string" ? m : (m.code || m.materialCode || m.productCode || m.id || m.materialId || m.productNr || m.nr || m.number || m.name || m.title || "");
+    raw = T(raw).toUpperCase().replace(/[^A-Z0-9]/g,"");
+    var mt = raw.match(/^(TAPW|TW|KOELW|KOEL|TRANS|TO|WC|TANK|BIERTANK|BIERSLANG|SLANG|POMP|CONT|KAS|EHBO|TOURN|MBAR|PLASKR)0*(\d{1,6})$/);
+    if(mt){
+      var p=mt[1];
+      if(p==="TAPW") p="TW";
+      return p + String(parseInt(mt[2],10));
+    }
+    return raw;
+  }
+
+  function sameMaterial(a,b){
+    if(!a || !b) return false;
+    var aid=T(a.id||a.materialId||a.oldId), bid=T(b.id||b.materialId||b.oldId);
+    if(aid && bid && aid===bid) return true;
+    var ac=matCode(a), bc=matCode(b);
+    return !!(ac && bc && ac===bc);
+  }
+
+  function orderMats(o){
+    if(!o) return [];
+    return [].concat(
+      A(o.materials), A(o.items), A(o.materialen), A(o.products), A(o.orderMaterials)
+    ).filter(Boolean);
+  }
+
+  function markOrderMaterials(o,status){
+    orderMats(o).forEach(function(m){
+      if(typeof m === "object"){
+        m.status = status;
+        m.materialStatus = status;
+        m.reserved = status !== "free";
+        m.isReserved = status !== "free";
+      }
+    });
+  }
+
+  function freeMaterials(o){
+    var om = orderMats(o);
+    markOrderMaterials(o,"free");
+    materials().forEach(function(m){
+      if(om.some(function(x){ return sameMaterial(m,x); })){
+        m.status="free";
+        m.materialStatus="free";
+        m.reserved=false;
+        m.isReserved=false;
+        m.issueText="";
+        m.usable=true;
+      }
+    });
+  }
+
+  function reserveMaterials(o){
+    var om = orderMats(o);
+    markOrderMaterials(o,"reserved");
+    materials().forEach(function(m){
+      if(om.some(function(x){ return sameMaterial(m,x); })){
+        m.status="reserved";
+        m.materialStatus="reserved";
+        m.reserved=true;
+        m.isReserved=true;
+      }
+    });
+  }
+
+  function normalizeOne(o){
+    if(!o) return o;
+    o.folder = folderFor(o);
+    if(o.folder === "lopend") {
+      o.deleted = false;
+      o.removed = false;
+      o.isDeleted = false;
+    }
+    if(o.folder === "verwijderd"){
+      o.deletedAt = o.deletedAt || new Date().toISOString();
+      o.removedAt = o.removedAt || o.deletedAt;
+      o.deleted = false;     // niet uit systeem halen
+      o.removed = false;     // alleen map/folder bepaalt verwijderd
+      o.isDeleted = false;
+    }
+    return o;
+  }
+
+  function saveAll(){
+    try{ if(typeof save === "function") save(); }catch(e){}
+    try{ if(typeof saveLocal === "function") saveLocal(); }catch(e){}
+    try{ if(typeof saveState === "function") saveState(); }catch(e){}
+    try{ if(typeof saveSt === "function") saveSt(); }catch(e){}
+    try{
+      var s=S();
+      if(s){
+        localStorage.setItem("event-planner-pro-v87", JSON.stringify(s));
+        localStorage.setItem("bns_state", JSON.stringify(s));
+        localStorage.setItem("bns_app_state", JSON.stringify(s));
+      }
+    }catch(e){}
+  }
+
+  function syncOrder(o){
+    if(!o || !o.id) return;
+    try{ if(window.BNS && typeof window.BNS.syncOrder === "function"){ window.BNS.syncOrder(o); return; } }catch(e){}
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc){
+        window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,"orders",String(o.id)), Object.assign({},o,{updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){});
+      }
+    }catch(e){}
+    try{ if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase === "function") window.BNSFirebaseSync.uploadLocalToFirebase("v487-option-flow"); }catch(e){}
+  }
+
+  function refresh(){
+    try{ if(typeof renderAll === "function") renderAll(); }catch(e){}
+    try{ if(typeof renderOrders === "function") renderOrders(); }catch(e){}
+    try{ if(typeof renderDashboard === "function") renderDashboard(); }catch(e){}
+    try{ if(typeof renderMaterials === "function") renderMaterials(); }catch(e){}
+    try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated")); }catch(e){}
+  }
+
+  function ownPopup(title,html,yesText,noText,onYes,onNo){
+    var old=E("bns487Popup"); if(old) old.remove();
+    var el=document.createElement("div");
+    el.id="bns487Popup";
+    el.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px";
+    el.innerHTML='<div style="background:#fff;border-radius:18px;box-shadow:0 20px 60px rgba(15,23,42,.35);max-width:520px;width:100%;padding:22px;font-family:Arial,sans-serif">'+
+      '<h2 style="margin:0 0 10px;font-size:22px;color:#172033">'+H(title)+'</h2>'+
+      '<div style="font-size:15px;line-height:1.45;color:#334155;margin-bottom:18px">'+html+'</div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">'+
+        '<button id="bns487No" type="button" style="border:0;border-radius:10px;background:#dc2626;color:white;font-weight:800;padding:10px 14px">'+H(noText||"Niet doorgaan")+'</button>'+
+        '<button id="bns487Yes" type="button" style="border:0;border-radius:10px;background:#16a34a;color:white;font-weight:800;padding:10px 14px">'+H(yesText||"Bevestigen")+'</button>'+
+      '</div></div>';
+    document.body.appendChild(el);
+    E("bns487Yes").onclick=function(){ el.remove(); if(typeof onYes==="function") onYes(); };
+    E("bns487No").onclick=function(){ el.remove(); if(typeof onNo==="function") onNo(); };
+  }
+
+  function confirmOption(id){
+    var o=orderById(id); if(!o) return;
+    o.status="Bevestigd";
+    o.orderStatus="Bevestigd";
+    o.folder="lopend";
+    o.confirmedAt=new Date().toISOString();
+    o.updatedAt=new Date().toISOString();
+    reserveMaterials(o);
+    normalizeOne(o);
+    saveAll();
+    syncOrder(o);
+    refresh();
+  }
+
+  function cancelOption(id){
+    var o=orderById(id); if(!o) return;
+    o.status="Geannuleerd";
+    o.orderStatus="Geannuleerd";
+    o.folder="verwijderd";
+    o.deletedAt=o.deletedAt || new Date().toISOString();
+    o.cancelledAt=o.cancelledAt || o.deletedAt;
+    o.updatedAt=new Date().toISOString();
+    freeMaterials(o);
+    normalizeOne(o);
+    saveAll();
+    syncOrder(o);
+    refresh();
+  }
+
+  function renewOption(id){
+    var o=orderById(id); if(!o) return;
+    o.status="Optie 14 dagen";
+    o.orderStatus="Optie 14 dagen";
+    o.folder="optie14";
+    o.optionCreatedAt=new Date().toISOString().slice(0,10);
+    o.updatedAt=new Date().toISOString();
+    reserveMaterials(o);
+    normalizeOne(o);
+    saveAll();
+    syncOrder(o);
+    refresh();
+  }
+
+  function confirmWithPopup(id){
+    var o=orderById(id); if(!o) return;
+    ownPopup(
+      "Optie bevestigen",
+      "Wil je deze optie omzetten naar <b>Bevestigd</b>?<br>De opdracht gaat naar <b>Lopende opdrachten</b> en het materiaal blijft geblokkeerd.",
+      "Bevestigen",
+      "Annuleren",
+      function(){ confirmOption(id); },
+      null
+    );
+  }
+
+  function cancelWithPopup(id){
+    var o=orderById(id); if(!o) return;
+    ownPopup(
+      isOffer(o) ? "Offerte verwijderen" : "Optie niet door",
+      "Deze opdracht wordt niet definitief gewist.<br>Status wordt <b>Geannuleerd</b>, map wordt <b>Verwijderd</b> en het materiaal komt vrij.",
+      "Toch doorgaan",
+      "Annuleren",
+      function(){ cancelOption(id); },
+      null
+    );
+  }
+
+  // Override bestaande knoppen/functies.
+  window.BNS350_ok = confirmWithPopup;
+  window.BNS350_no = cancelWithPopup;
+  window.BNS350_ext = function(id){
+    ownPopup(
+      "Optie verlengen",
+      "De optietermijn wordt opnieuw ingesteld. De optie blijft materiaal blokkeren.",
+      "Verlengen",
+      "Annuleren",
+      function(){ renewOption(id); },
+      null
+    );
+  };
+  window.BNS_V356_CONFIRM = confirmWithPopup;
+  window.BNS_V356_CANCEL = cancelWithPopup;
+  window.BNS_V356_RENEW = function(id){ renewOption(id); };
+
+  // Klikken op oude offerte-verwijderknoppen ombuigen naar status/folder, niet deleteDoc.
+  document.addEventListener("click", function(ev){
+    var btn = ev.target && ev.target.closest && ev.target.closest("button,a");
+    if(!btn) return;
+    var txt=L(btn.textContent||btn.value||btn.title||"");
+    if(txt.indexOf("verwijderen")<0 && txt.indexOf("niet door")<0) return;
+    var card = btn.closest("[data-id],[data-oid],[data-order-id],.order-card,.bns350-card");
+    var id = card && T(card.dataset.id || card.dataset.oid || card.dataset.orderId);
+    if(!id) return;
+    var o=orderById(id);
+    if(!o || (!isOffer(o) && !isOption(o))) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    cancelWithPopup(id);
+    return false;
+  }, true);
+
+  // Materiaalblokkering: optie14 + lopend blokkeren, offerte/verwijderd/geannuleerd/uitgevoerd niet.
+  window.BNS_v487OrderBlocksMaterial = function(o){
+    if(!o || o.deleted === true || o.removed === true || o.isDeleted === true || o.afgemeld === true || o.phoneDone === true || o.completed === true) return false;
+    var s=statusOf(o);
+    if(/offerte|geann|annul|cancel|verwijderd|deleted|trash|prullenbak|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld|archief|old/.test(s)) return false;
+    if(/optie\s*14|optie14|14\s*dagen|option|optie/.test(s)) return true;
+    var f=folderFor(o);
+    if(f==="optie14") return true;
+    if(f!=="lopend") return false;
+    return /opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s);
+  };
+
+  if(typeof window.BNS_v460BlockingOrdersForMaterial === "function" && !window.BNS_v460BlockingOrdersForMaterial.__bns487){
+    var oldList = window.BNS_v460BlockingOrdersForMaterial;
+    var wrappedList = function(mat, range, ignoreId){
+      try{ return (oldList(mat, range, ignoreId) || []).filter(window.BNS_v487OrderBlocksMaterial); }
+      catch(e){ return []; }
+    };
+    wrappedList.__bns487 = true;
+    window.BNS_v460BlockingOrdersForMaterial = wrappedList;
+  }
+
+  // 13e dag popup, 1x per sessie per opdracht. Geen browser/GitHub tekst.
+  var prompted = {};
+  function checkOptionPopup(){
+    var open = E("bns487Popup");
+    if(open) return;
+    var due = orders().find(function(o){
+      return isOption(o) && optionAgeDays(o) >= 13 && !prompted[T(o.id||o.number)];
+    });
+    if(!due) return;
+    prompted[T(due.id||due.number)] = true;
+    ownPopup(
+      "Optie 14 dagen controleren",
+      "<b>"+H(due.number||due.title||"Optie")+"</b><br>Deze optie staat op dag "+optionAgeDays(due)+".<br>Moet deze opdracht doorgaan?",
+      "Doorgaan / bevestigen",
+      "Niet doorgaan",
+      function(){ confirmOption(due.id); },
+      function(){ cancelOption(due.id); }
+    );
+  }
+  setTimeout(checkOptionPopup, 1200);
+  setTimeout(checkOptionPopup, 3500);
+  document.addEventListener("bns:firebase-updated", function(){ setTimeout(checkOptionPopup,600); });
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden) setTimeout(checkOptionPopup,600); });
+
+  // Bestaande orders normaliseren zonder te wissen.
+  setTimeout(function(){
+    var changed=false;
+    orders().forEach(function(o){
+      var before=T(o.folder);
+      normalizeOne(o);
+      if(T(o.folder)!==before) changed=true;
+    });
+    if(changed){ saveAll(); }
+  }, 500);
+
+  console.log("[BNS v487] optie blokkeert, dag-13 popup, bevestigen/verwijderen status/folder correct actief.");
 })();
