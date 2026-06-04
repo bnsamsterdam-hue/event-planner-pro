@@ -119,49 +119,6 @@ if(typeof window !== "undefined"){
   window.BNS_v481CorrectFoldersInFirebase = bns481CorrectFoldersInFirebase;
 }
 
-
-/* =========================================================
-   BNS v487 firebase-sync folder/status optie-flow
-   Status is leidend:
-   Optie 14 dagen => folder optie14
-   Bevestigd => folder lopend
-   Geannuleerd/verwijderd => folder verwijderd
-   ========================================================= */
-function bns487FolderFromOrder(o){
-  try{
-    if(!o) return "";
-    const id=String(o.id||o.docId||o.orderId||"").trim();
-    if(id.startsWith("old_")) return "archief";
-    const s=String(o.status||o.state||o.orderStatus||"").trim().toLowerCase();
-    if(/offerte/.test(s)) return "offerte";
-    if(/optie|14/.test(s)) return "optie14";
-    if(/geann|annul|cancel|verwijderd|deleted|trash|prullenbak/.test(s)) return "verwijderd";
-    if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
-    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s)) return "lopend";
-    let f=String(o.folder||o.map||o.orderFolder||"").trim().toLowerCase();
-    if(f==="live") f="lopend";
-    if(f==="optie") f="optie14";
-    if(f==="geannuleerd") f="verwijderd";
-    if(f==="old") f="archief";
-    return f;
-  }catch(e){ return ""; }
-}
-function bns487NormalizeOrder(o){
-  try{
-    const f=bns487FolderFromOrder(o);
-    if(f) o.folder=f;
-    if(f==="verwijderd"){
-      o.deleted=false; o.removed=false; o.isDeleted=false;
-      o.deletedAt=o.deletedAt||new Date().toISOString();
-    }
-  }catch(e){}
-  return o;
-}
-if(typeof window!=="undefined"){
-  window.BNS_v487FolderFromOrder=bns487FolderFromOrder;
-  window.BNS_v487NormalizeOrder=bns487NormalizeOrder;
-}
-
 async function fb(){
   if(tools)return tools;
   if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){status("Firebase config ontbreekt");return null}
@@ -541,70 +498,33 @@ console.log("[BNS v481 sync] folderfix actief vanaf werkende zip.");
 
 console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu folder=lopend strikt.");
 
-console.log("[BNS v485 sync] geen live-refresh interval toegevoegd.");
-
-/* BNS v486: geef rustig signaal dat Firebase/telefoondata vernieuwd is */
+/* BNS v488: signaal voor open overzicht wanneer Firebase/telefoondata binnenkomt */
 (function(){
   try{
     const fire=function(){
       try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated")); }catch(e){}
       try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
+      try{ if(typeof window.BNS_v488RenderOpenOverview==="function") window.BNS_v488RenderOpenOverview(); }catch(e){}
     };
-    if(typeof download === "function" && !download.__bns486){
+    if(typeof download === "function" && !download.__bns488){
       const oldDownload=download;
       download=async function(){
         const res=await oldDownload.apply(this,arguments);
         setTimeout(fire,150);
         return res;
       };
-      download.__bns486=true;
+      download.__bns488=true;
     }
-    if(typeof window !== "undefined") window.BNS_v486FireSyncUpdate=fire;
-  }catch(e){}
-})();
-console.log("[BNS v486 sync] live media signaal actief.");
-
-console.log("[BNS v487 sync] optie/folder status-first actief.");
-
-
-
-/* =========================================================
-   BNS v498 sync events
-   - Na syncDoc orders/alerts direct signaal naar planner.
-   - Geen polling/interval.
-   ========================================================= */
-(function(){
-  if(window.__BNS_V498_SYNC_EVENTS__) return;
-  window.__BNS_V498_SYNC_EVENTS__ = true;
-
-  function fire(col,row){
-    var orderId="";
-    try{
-      if(row){
-        orderId=String(row.orderId||row.linkedOrderId||row.linkedOrder||row.orderNumber||row.linkedOrderNumber||row.id||row.number||"");
-      }
-    }catch(e){}
-    try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
-    if(col==="orders" || col==="alerts" || col==="storage"){
-      try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
-      try{ if(typeof window.BNS_v498RefreshOpenOverview==="function") window.BNS_v498RefreshOpenOverview(orderId); }catch(e){}
-    }
-  }
-
-  try{
-    if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncDoc==="function" && !window.BNSFirebaseSync.syncDoc.__bns498){
-      var old=window.BNSFirebaseSync.syncDoc;
-      window.BNSFirebaseSync.syncDoc=function(col,row){
-        var r=old.apply(this,arguments);
-        if(col==="orders" || col==="alerts") setTimeout(function(){ fire(col,row); },150);
-        return r;
+    if(typeof saveLocal === "function" && !saveLocal.__bns488){
+      const oldSaveLocal=saveLocal;
+      saveLocal=function(){
+        const res=oldSaveLocal.apply(this,arguments);
+        setTimeout(fire,120);
+        return res;
       };
-      window.BNSFirebaseSync.syncDoc.__bns498=true;
-      window.BNS=window.BNS||{};
-      window.BNS.syncDoc=window.BNSFirebaseSync.syncDoc;
+      saveLocal.__bns488=true;
     }
+    window.BNS_v488FireMediaUpdate=fire;
   }catch(e){}
-
-  window.BNS_v498FireSyncEvent=fire;
-  console.log("[BNS v498 sync] live events actief.");
 })();
+console.log("[BNS v488 sync] media update-signaal actief.");
