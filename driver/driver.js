@@ -591,10 +591,10 @@ boot();
 
 
 
-/* BNS v488 driver: foto/handtekening update-signaal en foto verkleinen */
+/* BNS v489 driver: foto verkleinen + media update-signaal */
 (function(){
-  if(window.__BNS_V488_DRIVER_MEDIA_SIGNAL__) return;
-  window.__BNS_V488_DRIVER_MEDIA_SIGNAL__=true;
+  if(window.__BNS_V489_DRIVER_MEDIA__) return;
+  window.__BNS_V489_DRIVER_MEDIA__=true;
 
   function fire(){
     try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
@@ -642,17 +642,17 @@ boot();
   ["save","saveState","saveLocal","sendAlert","submitAlert","completeOrder","uploadPhoto","saveSignature"].forEach(function(name){
     try{
       var fn=window[name];
-      if(typeof fn==="function" && !fn.__bns488){
+      if(typeof fn==="function" && !fn.__bns489){
         var wrapped=function(){
           var r=fn.apply(this,arguments);
           setTimeout(fire,250);
           return r;
         };
-        wrapped.__bns488=true;
+        wrapped.__bns489=true;
         window[name]=wrapped;
       }
     }catch(e){}
   });
 
-  console.log("[BNS v488 driver] media update-signaal actief.");
+  console.log("[BNS v489 driver] media compress/update actief.");
 })();
