@@ -42950,12 +42950,49 @@ setTimeout(()=>{
       addMediaToOrderAndAlerts(o,item);
       closeModal();
       toast('Handtekening opgeslagen bij klantmeldingen en overzicht bestelling.');
+      // Vernieuw media sectie in overview modal
+      setTimeout(function(){
+        try{
+          var modal=document.getElementById('bnsOrderOverviewModal');
+          if(modal){
+            var old411=modal.querySelector('.bns-v411-order-media'); if(old411) old411.remove();
+            var html=mediaBlock(o); if(html) (modal.querySelector('.bns-order-overview-card')||modal).insertAdjacentHTML('beforeend',html);
+          }
+        }catch(e){}
+      },200);
     };
   }
 
   window.openSign = openSignFixed;
   window.BNS_V411_OPEN_PHOTO = openPhotoFixed;
   window.BNS_V411_OPEN_SIGN = openSignFixed;
+
+  // Knoppen functies voor klantmeldingen
+  window.BNS_V411_SHARE = function(id){
+    var a=window.__bnsV411Media&&window.__bnsV411Media[id];
+    var txt=a?(a.note||a.message||a.text||a.type||'Media'):'';
+    if(navigator.share){ navigator.share({title:'BNS Media',text:txt}).catch(function(){}); }
+    else { window.prompt('Kopieer:',txt); }
+  };
+  window.BNS_V411_PRINT = function(id){
+    var card=document.querySelector('[data-media-id="'+id+'"]');
+    if(!card) return;
+    var w=window.open('','_blank');
+    w.document.write('<html><body style="font-family:sans-serif">'+card.innerHTML+'</body></html>');
+    w.document.close(); w.print();
+  };
+  window.BNS_V411_DELETE = function(id, orderId){
+    var msg='Dit item definitief verwijderen?';
+    Promise.resolve(typeof window.bnsConfirm==='function'
+      ? window.bnsConfirm(msg,'Verwijderen') : window.confirm(msg)
+    ).then(function(ok){
+      if(!ok) return;
+      var o=orderById(orderId);
+      if(o) deleteMedia(orderId, id);
+      var card=document.querySelector('[data-media-id="'+id+'"]');
+      if(card&&card.parentNode) card.parentNode.removeChild(card);
+    });
+  };
 
   document.addEventListener('click',function(ev){
     var p=ev.target && ev.target.closest && ev.target.closest('[data-v95-photo],[data-photo]');
@@ -42979,7 +43016,20 @@ setTimeout(()=>{
   function mediaBlock(o){
     var rows=mediaRowsForOrder(o);
     if(!rows.length) return '';
-    return '<div class="tw-v141-order-media bns-v411-order-media" style="border:2px solid #dbeafe;border-radius:18px;padding:14px;margin-top:16px;background:#f8fbff"><h3>Foto\'s / handtekeningen / klantmeldingen</h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">'+rows.map(function(a){ return '<div style="border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff"><b>'+H(mediaType(a))+'</b><br><small>'+H(a.time||a.createdAt||'')+'</small><div>'+H(a.note||a.message||a.text||'')+'</div>'+mediaHtml(a)+'</div>'; }).join('')+'</div></div>';
+    return '<div class="tw-v141-order-media bns-v411-order-media" style="border:2px solid #dbeafe;border-radius:18px;padding:14px;margin-top:16px;background:#f8fbff"><h3>Foto\'s / handtekeningen / klantmeldingen</h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">'+rows.map(function(a){ return (function(a){
+        var aid=T(a.id)||('ka_'+Date.now()+'_'+Math.random().toString(36).slice(2));
+        a.id=aid; window.__bnsV411Media=window.__bnsV411Media||{}; window.__bnsV411Media[aid]=a;
+        return '<div style="border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff" data-media-id="'+H(aid)+'">'
+          +'<b>'+H(mediaType(a))+'</b><br><small>'+H(a.time||a.createdAt||'')+'</small>'
+          +'<div>'+H(a.note||a.message||a.text||'')+'</div>'
+          +mediaHtml(a)
+          +'<div class="tw-v141-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
+          +'<button type="button" onclick="BNS_V411_SHARE(\''+H(aid)+'\')">Delen</button>'
+          +'<button type="button" onclick="BNS_V411_PRINT(\''+H(aid)+'\')">Print</button>'
+          +'<button type="button" class="danger" style="background:#dc2626;color:#fff" onclick="BNS_V411_DELETE(\''+H(aid)+'\',\''+H(o&&(o.id||o.number)||'')+'\')">Wis</button>'
+          +'</div>'
+          +'</div>';
+      })(a); }).join('')+'</div></div>';
   }
   function patchOverview(){
     var fn=window.BNS_V128_SHOW_ORDER_OVERVIEW;
@@ -45264,10 +45314,10 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(oldTabs) oldTabs.remove();
   }
 
-  // Fix 2: Zorg dat media knoppen altijd aanwezig zijn in het overzicht modal
+  // Fix 2: Media knoppen worden direct in de HTML gebouwd - geen DOM patch nodig
   function ensureMediaButtons(){
-    // Zoek alle media cards zonder knoppen
-    var cards = document.querySelectorAll('.tw-v141-card, .bns-v474-card, [class*="media-card"]');
+    // Alleen bezorger meldingen checken (niet klantmeldingen - die hebben eigen knoppen)
+    var cards = document.querySelectorAll('.bns-v474-media .tw-v141-card');
     cards.forEach(function(card){
       var actions = card.querySelector('.tw-v141-actions, .bns-media-actions');
       if(!actions){
