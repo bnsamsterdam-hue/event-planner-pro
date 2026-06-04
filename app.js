@@ -45637,3 +45637,161 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.info('[BNS v490] Media direct laden bij modal open actief.');
 })();
+
+
+
+/* =========================================================
+   BNS v493 - gericht media overzicht stabiel
+   Vanaf jouw laatste app(49).js.
+   GEEN eigen foto/handtekening modal.
+   GEEN nieuwe knoppen-layout.
+   Fix:
+   - Dubbele bovenste V141 media-sectie wordt weggehaald.
+   - BNS v474 media-sectie met Delen/Print/Wis blijft leidend.
+   - Als render na 20 sec Wis weghaalt, wordt alleen de V474-sectie opnieuw gezet.
+   - Planner-overzicht ververst zonder F5 bij order/alert/localStorage update.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V493_MEDIA_OVERVIEW_STABLE__) return;
+  window.__BNS_V493_MEDIA_OVERVIEW_STABLE__ = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function Q(sel,root){ return Array.from((root||document).querySelectorAll(sel)); }
+
+  function modal(){
+    return document.getElementById("bnsOrderOverviewModal");
+  }
+
+  function stateObj(){
+    try{ if(typeof state !== "undefined" && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    try{
+      var raw=localStorage.getItem("event-planner-pro-v87") || localStorage.getItem("bns_state") || localStorage.getItem("bns_app_state");
+      if(raw){ var s=JSON.parse(raw); if(s && typeof s==="object"){ window.state=s; return s; } }
+    }catch(e){}
+    return {};
+  }
+
+  function orders(){
+    var s=stateObj();
+    return Array.isArray(s.orders) ? s.orders : [];
+  }
+
+  var lastId = "";
+
+  function guessOrderId(m){
+    m=m||modal();
+    if(!m) return lastId || "";
+    var txt=T(m.textContent);
+    var nr=(txt.match(/\b20\d{2}-\d{4}\b/)||[])[0] || "";
+    if(nr){
+      var o=orders().find(function(x){ return T(x.number)===nr; });
+      if(o){ lastId=T(o.id||o.number); return lastId; }
+      lastId=nr;
+      return nr;
+    }
+    var data=m.querySelector("[data-order-id],[data-id],[data-oid],[data-order-number]");
+    if(data){
+      lastId=T(data.getAttribute("data-order-id")||data.getAttribute("data-id")||data.getAttribute("data-oid")||data.getAttribute("data-order-number"));
+      return lastId;
+    }
+    return lastId || "";
+  }
+
+  function cleanupDuplicateSections(m){
+    if(!m) return;
+    // V141 is de dubbele bovenste sectie zonder Wis. V474 is de goede sectie met Wis.
+    Q(".tw-v141-order-media",m).forEach(function(sec){
+      if(!sec.classList.contains("bns-v474-media")) sec.remove();
+    });
+
+    // Verwijder losse actieblokjes die alleen Delen/Print/Wis bevatten buiten de kaart.
+    Q("div,p,section",m).forEach(function(el){
+      if(el.closest(".bns-v474-media")) return;
+      var txt=T(el.textContent).replace(/delen|print|wis/gi,"").trim();
+      if(txt.length<4 && el.querySelectorAll("button,a").length>0) el.remove();
+    });
+  }
+
+  function goodSectionHasWis(m){
+    var good=m && m.querySelector(".bns-v474-media");
+    if(!good) return false;
+    return /wis/i.test(good.textContent || "");
+  }
+
+  function patchOverview(id){
+    var m=modal(); if(!m) return;
+    cleanupDuplicateSections(m);
+
+    id=T(id) || guessOrderId(m);
+    if(!id) return;
+
+    // Als v474 bestaat, laat die de sectie opnieuw bouwen. Die heeft Delen/Print/Wis.
+    try{
+      if(typeof window.BNS_V474_PATCH_OVERVIEW==="function"){
+        window.BNS_V474_PATCH_OVERVIEW(id);
+      }
+    }catch(e){}
+
+    m=modal(); if(!m) return;
+    cleanupDuplicateSections(m);
+
+    // Als een andere render alleen Delen/Print terugzet, nog 1x v474 herstellen.
+    if(!goodSectionHasWis(m)){
+      try{
+        if(typeof window.BNS_V474_PATCH_OVERVIEW==="function"){
+          window.BNS_V474_PATCH_OVERVIEW(id);
+        }
+      }catch(e){}
+      cleanupDuplicateSections(m);
+    }
+  }
+
+  window.BNS_v493PatchMediaOverview = patchOverview;
+
+  if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW==="function" && !window.BNS_V128_SHOW_ORDER_OVERVIEW.__bns493){
+    var oldShow=window.BNS_V128_SHOW_ORDER_OVERVIEW;
+    var wrapped=function(id){
+      lastId=T(id||"");
+      var r=oldShow.apply(this,arguments);
+      setTimeout(function(){ patchOverview(id); },120);
+      setTimeout(function(){ patchOverview(id); },650);
+      setTimeout(function(){ patchOverview(id); },1400);
+      return r;
+    };
+    wrapped.__bns493=true;
+    window.BNS_V128_SHOW_ORDER_OVERVIEW=wrapped;
+  }
+
+  var timer=null;
+  function schedule(id){
+    clearTimeout(timer);
+    timer=setTimeout(function(){ patchOverview(id); },220);
+  }
+
+  document.addEventListener("bns:firebase-updated",function(ev){
+    schedule(ev && ev.detail && ev.detail.orderId);
+  });
+  document.addEventListener("bns:phone-media-updated",function(ev){
+    schedule(ev && ev.detail && ev.detail.orderId);
+  });
+  window.addEventListener("storage",function(){ schedule(""); });
+
+  // Debounced observer alleen op modal-wijzigingen, geen interval/flikker.
+  try{
+    new MutationObserver(function(muts){
+      var relevant=muts.some(function(mu){
+        var n=mu.target;
+        return n && n.closest && n.closest("#bnsOrderOverviewModal");
+      });
+      if(relevant) schedule("");
+    }).observe(document.body,{childList:true,subtree:true});
+  }catch(e){}
+
+  // Patch klikmomenten: als overzicht opent of acties renderen.
+  document.addEventListener("click",function(){
+    setTimeout(function(){ if(modal()) schedule(""); },180);
+  },true);
+
+  console.log("[BNS v493] media-overzicht stabiel: v474-sectie leidend, V141 dubbel weg, live refresh zonder F5.");
+})();

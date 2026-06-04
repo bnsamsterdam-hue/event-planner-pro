@@ -565,3 +565,62 @@ console.log("[BNS v485 sync] geen live-refresh interval toegevoegd.");
 console.log("[BNS v486 sync] live media signaal actief.");
 
 console.log("[BNS v487 sync] optie/folder status-first actief.");
+
+
+
+/* =========================================================
+   BNS v493 sync signalen voor media zonder F5
+   - Fire event als firebase-sync localStorage bijwerkt.
+   - Fire event na syncDoc orders/alerts.
+   - Geen render-loop.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V493_SYNC_MEDIA_EVENTS__) return;
+  window.__BNS_V493_SYNC_MEDIA_EVENTS__ = true;
+
+  var KEYS=["event-planner-pro-v87","event-planner-pro-v8","event-planner-pro","bns_event_planner","bns_state","bns_app_state"];
+
+  function fire(col,row){
+    var orderId="";
+    try{
+      if(row){
+        orderId=String(row.orderId||row.linkedOrderId||row.linkedOrder||row.id||row.number||"");
+        if(col==="alerts") orderId=String(row.orderId||row.linkedOrderId||row.linkedOrder||row.orderNumber||row.linkedOrderNumber||"");
+      }
+    }catch(e){}
+    try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
+    if(col==="orders" || col==="alerts" || col==="storage"){
+      try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
+      try{ if(typeof window.BNS_v493PatchMediaOverview==="function") window.BNS_v493PatchMediaOverview(orderId); }catch(e){}
+    }
+  }
+
+  try{
+    if(!localStorage.__bnsV493MediaEventPatch){
+      localStorage.__bnsV493MediaEventPatch="1";
+      var oldSet=localStorage.setItem.bind(localStorage);
+      localStorage.setItem=function(k,v){
+        var r=oldSet(k,v);
+        if(KEYS.indexOf(k)>=0) setTimeout(function(){ fire("storage"); },120);
+        return r;
+      };
+    }
+  }catch(e){}
+
+  try{
+    if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncDoc==="function" && !window.BNSFirebaseSync.syncDoc.__bns493){
+      var oldSync=window.BNSFirebaseSync.syncDoc;
+      window.BNSFirebaseSync.syncDoc=function(col,row){
+        var r=oldSync.apply(this,arguments);
+        if(col==="orders" || col==="alerts") setTimeout(function(){ fire(col,row); },180);
+        return r;
+      };
+      window.BNSFirebaseSync.syncDoc.__bns493=true;
+      window.BNS=window.BNS||{};
+      window.BNS.syncDoc=window.BNSFirebaseSync.syncDoc;
+    }
+  }catch(e){}
+
+  window.BNS_v493FireMediaUpdate=fire;
+  console.log("[BNS v493 sync] media events actief.");
+})();
