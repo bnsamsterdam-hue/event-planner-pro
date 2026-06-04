@@ -565,3 +565,45 @@ console.log("[BNS v485 sync] geen live-refresh interval toegevoegd.");
 console.log("[BNS v486 sync] live media signaal actief.");
 
 console.log("[BNS v487 sync] optie/folder status-first actief.");
+
+
+
+/* =========================================================
+   BNS v491 firebase-sync media live signaal
+   - Na orders/alerts snapshot krijgt planner een event.
+   - Daardoor foto/handtekening zichtbaar zonder F5.
+   - Geen extra render-loop.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V491_SYNC_MEDIA_EVENTS__) return;
+  window.__BNS_V491_SYNC_MEDIA_EVENTS__ = true;
+  function fire(col){
+    try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated",{detail:{collection:col}})); }catch(e){}
+    if(col==="alerts" || col==="orders"){
+      try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated",{detail:{collection:col}})); }catch(e){}
+      try{ if(typeof window.BNS_v491RefreshOpenOverview==="function") window.BNS_v491RefreshOpenOverview(); }catch(e){}
+    }
+  }
+  window.BNS_v491FireMediaUpdate = fire;
+
+  // Extra: syncDoc geeft meteen event na opslaan via telefoon/planner.
+  try{
+    if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncDoc==="function" && !window.BNSFirebaseSync.syncDoc.__bns491){
+      var oldSyncDoc=window.BNSFirebaseSync.syncDoc;
+      window.BNSFirebaseSync.syncDoc=function(col,row){
+        var r=oldSyncDoc.apply(this,arguments);
+        if(col==="orders" || col==="alerts") setTimeout(function(){ fire(col); },250);
+        return r;
+      };
+      window.BNSFirebaseSync.syncDoc.__bns491=true;
+      if(window.BNS) window.BNS.syncDoc=window.BNSFirebaseSync.syncDoc;
+    }
+  }catch(e){}
+
+  // Vang bestaande onSnapshot-render ook af via localStorage save events.
+  try{
+    window.addEventListener("storage",function(){ setTimeout(function(){ fire("storage"); },150); });
+  }catch(e){}
+
+  console.log("[BNS v491 sync] media live events actief.");
+})();
