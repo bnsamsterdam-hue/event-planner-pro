@@ -565,33 +565,3 @@ console.log("[BNS v485 sync] geen live-refresh interval toegevoegd.");
 console.log("[BNS v486 sync] live media signaal actief.");
 
 console.log("[BNS v487 sync] optie/folder status-first actief.");
-
-
-
-/* BNS v492 sync: signalen voor planner zonder F5 */
-(function(){
-  if(window.__BNS_V492_SYNC_EVENTS__) return;
-  window.__BNS_V492_SYNC_EVENTS__=true;
-  function fire(col){
-    try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated",{detail:{collection:col}})); }catch(e){}
-    if(col==="orders" || col==="alerts" || col==="storage"){
-      try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated",{detail:{collection:col}})); }catch(e){}
-    }
-  }
-  try{
-    if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncDoc==="function" && !window.BNSFirebaseSync.syncDoc.__bns492){
-      var old=window.BNSFirebaseSync.syncDoc;
-      window.BNSFirebaseSync.syncDoc=function(col,row){
-        var r=old.apply(this,arguments);
-        if(col==="orders" || col==="alerts") setTimeout(function(){ fire(col); },200);
-        return r;
-      };
-      window.BNSFirebaseSync.syncDoc.__bns492=true;
-      if(window.BNS) window.BNS.syncDoc=window.BNSFirebaseSync.syncDoc;
-    }
-  }catch(e){}
-  try{
-    window.addEventListener("storage",function(){ setTimeout(function(){ fire("storage"); },120); });
-  }catch(e){}
-  console.log("[BNS v492 sync] media events actief.");
-})();
