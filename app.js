@@ -17791,12 +17791,23 @@ setTimeout(()=>{
     if(old) old.remove();
     var wrap=document.createElement('div');
     wrap.id='bnsOrderOverviewModal';
+    wrap.dataset.orderId=String(id);
     wrap.className='bns-order-overview-backdrop';
     wrap.innerHTML='<div class="bns-order-overview-card">'+orderHtml(o)+'</div>';
     wrap.addEventListener('click',function(e){
       if(e.target===wrap) window.BNS_V128_CLOSE_ORDER_OVERVIEW();
     });
     document.body.appendChild(wrap);
+    // Haal media op uit Firebase en herrender na laden
+    try{
+      if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.downloadFirebaseToLocal==='function'){
+        window.BNSFirebaseSync.downloadFirebaseToLocal().then(function(){
+          // Herrender media sectie
+          if(typeof window.BNS_V474_PATCH_OVERVIEW==='function') window.BNS_V474_PATCH_OVERVIEW(id);
+          else if(typeof window.patchOverviewModal==='function') window.patchOverviewModal(id);
+        }).catch(function(){});
+      }
+    }catch(e){}
     return false;
   };
   window.BNS_V128_CLOSE_ORDER_OVERVIEW=function(){
@@ -38532,6 +38543,8 @@ setTimeout(()=>{
   }
 
   function ensureTabs(){
+    // v474 heeft betere tabs - niet overschrijven
+    if(E('bnsV474StatusTabs')) return;
     var orders=E('orders'); if(!orders)return;
     var bar=E('bns356Tabs');
     if(!bar){
@@ -44819,6 +44832,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       return '<div class="tw-v141-card"><b>'+H(mediaType(a))+'</b><br><small>'+H(a.createdAt||a.time||'')+'</small><div>'+H(a.note||a.message||a.text||'')+'</div>'+mediaHtml(a)+'<div class="tw-v141-actions"><button type="button" onclick="BNS_V474_SHARE_MEDIA(\''+H(mid)+'\')">Delen</button><button type="button" onclick="BNS_V474_PRINT_MEDIA(\''+H(mid)+'\')">Print</button><button class="danger" type="button" onclick="BNS_V474_DELETE_MEDIA(\''+H(o.id||o.number)+'\',\''+H(mid)+'\')">Wis</button></div></div>';
     }).join('')+'</div></div>';
   }
+  window.BNS_V474_PATCH_OVERVIEW=function(id){ patchOverviewModal(id); };
   function patchOverviewModal(id){
     var modal=E('bnsOrderOverviewModal'); if(!modal) return;
     var o=orderById(id) || orders().find(function(x){return T(x.number)===T(id);}); if(!o) return;
@@ -45234,202 +45248,189 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   console.log("[BNS v489] rustig reservering/folder/materialen actief. Media-patches zijn niet actief.");
 })();
 
+// ============================================================
+// BNS PATCH v489 — Dubbele tabs weg + media knoppen fix
+// ============================================================
+(function BNS_V489(){
+  'use strict';
+  if(window.__BNS_V489__) return;
+  window.__BNS_V489__ = true;
 
-
-/* =========================================================
-   BNS v490 - media knoppen goed, zonder dubbel/flikker
-   Vanaf v489.
-   - Verwijdert losse bovenste Delen/Print/Wis rijen.
-   - Zet precies 1 rij Delen / Print / Wis IN elke bestaande media-kaart.
-   - Geen extra media-sectie.
-   - Geen interval.
-   - Debounced observer alleen om knoppen terug te zetten na normale render.
-   ========================================================= */
-(function(){
-  if(window.__BNS_V490_MEDIA_KNOPPEN_GOED__) return;
-  window.__BNS_V490_MEDIA_KNOPPEN_GOED__ = true;
-
-  function T(v){ return String(v == null ? "" : v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function Q(sel,root){ return Array.from((root||document).querySelectorAll(sel)); }
-  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
-
-  window.BNS_v490Media = window.BNS_v490Media || {};
-
-  function activeModal(){
-    return document.getElementById("bnsOrderOverviewModal") ||
-           document.querySelector(".bns-order-overview-modal,.order-overview-modal,.modal,.overlay");
+  // Fix 1: Verwijder bns356Tabs als v474 tabs aanwezig zijn
+  function removeOldTabs(){
+    var v474tabs = document.getElementById('bnsV474StatusTabs');
+    if(!v474tabs) return;
+    var oldTabs = document.getElementById('bns356Tabs');
+    if(oldTabs) oldTabs.remove();
   }
 
-  function onlyActionText(el){
-    if(!el) return false;
-    var txt = T(el.textContent).replace(/delen|print|wis/gi,"").trim();
-    return txt.length < 6 && Q("button,a",el).length > 0;
-  }
+  // Fix 2: Zorg dat media knoppen altijd aanwezig zijn in het overzicht modal
+  function ensureMediaButtons(){
+    // Zoek alle media cards zonder knoppen
+    var cards = document.querySelectorAll('.tw-v141-card, .bns-v474-card, [class*="media-card"]');
+    cards.forEach(function(card){
+      var actions = card.querySelector('.tw-v141-actions, .bns-media-actions');
+      if(!actions){
+        actions = document.createElement('div');
+        actions.className = 'tw-v141-actions';
+        actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px';
+        card.appendChild(actions);
+      }
+      // Controleer of knoppen al aanwezig zijn
+      var btns = actions.querySelectorAll('button');
+      var hasShare = false, hasPrint = false, hasWis = false;
+      btns.forEach(function(b){
+        var t = (b.textContent||'').toLowerCase();
+        if(t.indexOf('deel')>=0) hasShare = true;
+        if(t.indexOf('print')>=0) hasPrint = true;
+        if(t.indexOf('wis')>=0) hasWis = true;
+      });
 
-  function hasMediaWord(txt){
-    return /handtekening|foto|schade|storing|vermissing|melding|toegevoegd|klantmelding|bezorger melding/i.test(txt || "");
-  }
+      // Haal media id op
+      var mid = card.dataset && (card.dataset.mid || card.getAttribute('data-mid'));
+      if(!mid){
+        // Genereer een id op basis van card inhoud
+        var timeEl = card.querySelector('small');
+        var timeStr = timeEl ? timeEl.textContent : '';
+        mid = 'card_' + (timeStr || Math.random().toString(36).slice(2));
+        card.setAttribute('data-mid', mid);
+      }
 
-  function isMediaHeading(el){
-    var t=L(el && el.textContent);
-    return t.indexOf("foto")>=0 ||
-           t.indexOf("handtekening")>=0 ||
-           t.indexOf("klantmelding")>=0 ||
-           t.indexOf("klantmeldingen")>=0 ||
-           t.indexOf("bezorger melding")>=0 ||
-           t.indexOf("bezorger meldingen")>=0;
-  }
+      // Sla card referentie op voor later gebruik
+      window.__bnsV489Cards = window.__bnsV489Cards || {};
+      window.__bnsV489Cards[mid] = card;
 
-  function sectionRoots(root){
-    var heads = Q("h2,h3,h4,b,strong,.section-title", root).filter(isMediaHeading);
-    var roots=[];
-    heads.forEach(function(h){
-      var r = h.closest(".info-box,.card,.panel,.section,.bns-order-overview-card,.modal-content") || h.parentElement;
-      if(r && roots.indexOf(r)<0) roots.push(r);
-    });
-    return roots.length ? roots : [root];
-  }
-
-  function isInsideAction(el){
-    return !!(el && el.closest(".bns-v490-actions,.bns-v489-actions,.bns-v488-actions,.bns-v486-actions,.bns-v485-actions,.bns-v484-media-actions,.bns-v483-media-actions"));
-  }
-
-  function isMediaCard(el){
-    if(!el || isInsideAction(el)) return false;
-    if(el.id==="bnsV483MediaSection" || el.id==="bnsV484MediaSection") return false;
-    if(el.classList && /actions/i.test(el.className || "")) return false;
-
-    var txt=T(el.textContent);
-    if(txt.length < 10 || txt.length > 1200) return false;
-    if(onlyActionText(el)) return false;
-
-    // A real card usually contains an image/canvas OR media words.
-    if(el.querySelector("img,canvas,svg")) return true;
-    return hasMediaWord(txt);
-  }
-
-  function itemFromCard(card){
-    var clean=T(card.textContent).replace(/\b(delen|print|wis)\b/gi,"").replace(/\s+/g," ").trim();
-    var img=card.querySelector("img");
-    var title=(clean.match(/(Handtekening klant|Foto voor levering|Foto|Schade|Storing|Vermissing|Klantmelding|Bezorger melding|Melding)/i)||[])[1] || "Melding";
-    return {card:card,title:title,text:clean,image:img ? img.src : ""};
-  }
-
-  function keyFor(card){
-    if(!card.dataset.bnsV490Key){
-      card.dataset.bnsV490Key = "v490_" + Math.random().toString(36).slice(2);
-    }
-    window.BNS_v490Media[card.dataset.bnsV490Key] = itemFromCard(card);
-    return card.dataset.bnsV490Key;
-  }
-
-  window.BNS_v490Share=function(k){
-    var it=window.BNS_v490Media[k]; if(!it) return;
-    var txt=(it.title||"Melding")+"\n"+(it.text||"");
-    if(navigator.share) navigator.share({text:txt}).catch(function(){});
-    else{
-      try{ navigator.clipboard && navigator.clipboard.writeText(txt); }catch(e){}
-      alert("Tekst gekopieerd om te delen.");
-    }
-  };
-
-  window.BNS_v490Print=function(k){
-    var it=window.BNS_v490Media[k]; if(!it) return;
-    var w=window.open("","_blank"); if(!w) return;
-    w.document.write('<!doctype html><html><head><title>'+H(it.title)+'</title><style>body{font-family:Arial;padding:24px;color:#172033}img{max-width:100%;border:1px solid #ddd;border-radius:12px}.box{border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0}</style></head><body><h1>'+H(it.title)+'</h1><div class="box">'+H(it.text||"")+'</div>'+(it.image?'<img src="'+H(it.image)+'">':'')+'</body></html>');
-    w.document.close(); w.focus(); setTimeout(function(){ w.print(); },250);
-  };
-
-  window.BNS_v490Delete=function(k){
-    var it=window.BNS_v490Media[k]; if(!it || !it.card) return;
-    if(!confirm("Deze melding/foto/handtekening wissen?")) return;
-    it.card.remove();
-    try{ if(typeof saveLocal==="function") saveLocal(); }catch(e){}
-    try{ if(typeof saveSt==="function") saveSt(); }catch(e){}
-    try{ if(typeof save==="function") save(); }catch(e){}
-  };
-
-  function makeRow(card){
-    var k=keyFor(card);
-    var row=card.querySelector(":scope > .bns-v490-actions");
-    if(!row){
-      row=document.createElement("div");
-      row.className="bns-v490-actions";
-      row.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px";
-      card.appendChild(row);
-    }
-    var html='<button type="button" onclick="BNS_v490Share(\''+k+'\')">Delen</button>'+
-             '<button type="button" onclick="BNS_v490Print(\''+k+'\')">Print</button>'+
-             '<button type="button" class="danger" onclick="BNS_v490Delete(\''+k+'\')">Wis</button>';
-    if(row.innerHTML !== html) row.innerHTML = html;
-  }
-
-  function cleanup(root){
-    // Remove generated extra media sections from previous versions.
-    Q("#bnsV483MediaSection,#bnsV484MediaSection",root).forEach(function(x){ x.remove(); });
-
-    // Remove all old media action rows; v490 will rebuild exactly one row per real card.
-    Q(".bns-v483-media-actions,.bns-v484-media-actions,.bns-v485-actions,.bns-v486-actions,.bns-v488-actions,.bns-v489-actions",root).forEach(function(row){
-      row.remove();
-    });
-
-    // Remove loose button-only rows that sit above sections.
-    Q("div,p,section",root).forEach(function(el){
-      if(el.classList && el.classList.contains("bns-v490-actions")) return;
-      if(onlyActionText(el)) el.remove();
+      if(!hasShare){
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Delen';
+        btn.style.cssText = 'border:0;border-radius:10px;padding:8px 12px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff';
+        btn.onclick = function(){ bns489Share(mid); };
+        actions.appendChild(btn);
+      }
+      if(!hasPrint){
+        var btn2 = document.createElement('button');
+        btn2.type = 'button';
+        btn2.textContent = 'Print';
+        btn2.style.cssText = 'border:0;border-radius:10px;padding:8px 12px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff';
+        btn2.onclick = function(){ bns489Print(mid); };
+        actions.appendChild(btn2);
+      }
+      if(!hasWis){
+        var btn3 = document.createElement('button');
+        btn3.type = 'button';
+        btn3.textContent = 'Wis';
+        btn3.className = 'danger';
+        btn3.style.cssText = 'border:0;border-radius:10px;padding:8px 12px;font-weight:900;cursor:pointer;background:#dc2626;color:#fff';
+        btn3.onclick = function(){ bns489Delete(mid, card); };
+        actions.appendChild(btn3);
+      }
     });
   }
 
-  function enhance(){
-    var m=activeModal();
-    if(!m) return;
+  // Delen functie
+  function bns489Share(mid){
+    var card = window.__bnsV489Cards && window.__bnsV489Cards[mid];
+    if(!card){ return; }
+    var text = card.innerText || card.textContent || '';
+    var img = card.querySelector('img, canvas');
+    if(navigator.share){
+      navigator.share({title:'BNS Media', text:text}).catch(function(){});
+    } else {
+      try{
+        var a = window.__bnsV474Media && window.__bnsV474Media[mid];
+        if(a && typeof window.BNS_V474_SHARE_MEDIA==='function'){
+          window.BNS_V474_SHARE_MEDIA(mid); return;
+        }
+        if(typeof window.TapwagenV141ShareAlert==='function'){
+          window.TapwagenV141ShareAlert(mid); return;
+        }
+      }catch(e){}
+      window.prompt('Kopieer deze tekst:', text);
+    }
+  }
 
-    cleanup(m);
+  // Print functie
+  function bns489Print(mid){
+    try{
+      var a = window.__bnsV474Media && window.__bnsV474Media[mid];
+      if(a && typeof window.BNS_V474_PRINT_MEDIA==='function'){
+        window.BNS_V474_PRINT_MEDIA(mid); return;
+      }
+    }catch(e){}
+    var card = window.__bnsV489Cards && window.__bnsV489Cards[mid];
+    if(!card) return;
+    var w = window.open('','_blank');
+    w.document.write('<html><body>'+card.innerHTML+'</body></html>');
+    w.document.close();
+    w.print();
+  }
 
-    var seen=[];
-    sectionRoots(m).forEach(function(sec){
-      Q("div,article,li",sec).forEach(function(card){
-        if(!isMediaCard(card)) return;
+  // Wis functie
+  function bns489Delete(mid, card){
+    var msg = 'Dit item definitief verwijderen?';
+    var confirmed = typeof window.bnsConfirm==='function'
+      ? window.bnsConfirm(msg,'Verwijderen')
+      : Promise.resolve(window.confirm(msg));
+    Promise.resolve(confirmed).then(function(ok){
+      if(!ok) return;
+      try{
+        if(typeof window.BNS_V474_DELETE_MEDIA==='function'){
+          // Zoek order id uit de modal context
+          var modal = document.getElementById('bnsOrderOverviewModal') ||
+                      card.closest('[id*="modal"],[id*="Modal"]') ||
+                      card.closest('.modal, .overlay, .popup');
+          var oid = modal && (modal.dataset.orderId || modal.getAttribute('data-order-id'));
+          if(oid){ window.BNS_V474_DELETE_MEDIA(oid, mid); return; }
+        }
+      }catch(e){}
+      // Fallback: verwijder card visueel
+      if(card && card.parentNode) card.parentNode.removeChild(card);
+    });
+  }
 
-        // Avoid selecting a big parent if a smaller child card exists.
-        var child=Q("div,article,li",card).find(function(x){ return x!==card && isMediaCard(x) && !onlyActionText(x); });
-        if(child) return;
+  // Draai bij elke modal opening
+  function run(){
+    removeOldTabs();
+    ensureMediaButtons();
+  }
 
-        if(seen.indexOf(card)>=0) return;
-        seen.push(card);
-        makeRow(card);
+  // Observer voor modals die openen
+  if(window.MutationObserver){
+    var obs = new MutationObserver(function(mutations){
+      mutations.forEach(function(m){
+        m.addedNodes.forEach(function(n){
+          if(n.nodeType===1 && (
+            n.classList && (n.classList.contains('tw-v141-order-media') ||
+              n.classList.contains('bns-v474-media') ||
+              n.id === 'bnsOrderOverviewModal') ||
+            (n.querySelector && n.querySelector('.tw-v141-card'))
+          )){
+            setTimeout(run, 100);
+          }
+        });
       });
     });
+    obs.observe(document.body||document.documentElement, {childList:true, subtree:true});
   }
 
-  var timer=null;
-  function schedule(){
-    clearTimeout(timer);
-    timer=setTimeout(enhance,220);
-  }
+  // Ook bij klik op overzicht knop
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if(t && (
+      /overzicht|bestell|media|foto|handtek/i.test(t.textContent||'') ||
+      /bns.*overview|overview.*btn/i.test(t.className||'') ||
+      t.id === 'openMedia'
+    )){
+      setTimeout(run, 200);
+      setTimeout(run, 600);
+    }
+  }, true);
 
-  try{
-    new MutationObserver(function(muts){
-      // Ignore mutations caused only inside our own action row.
-      var relevant=muts.some(function(mu){
-        var n=mu.target;
-        return !(n && n.closest && n.closest(".bns-v490-actions"));
-      });
-      if(relevant) schedule();
-    }).observe(document.body,{childList:true,subtree:true});
-  }catch(e){}
+  // Start
+  setTimeout(run, 800);
+  setTimeout(run, 2000);
+  setInterval(removeOldTabs, 2000);
 
-  document.addEventListener("click",function(e){
-    var b=e.target && e.target.closest && e.target.closest("button,a");
-    if(b) setTimeout(schedule,160);
-  },true);
-  document.addEventListener("bns:firebase-updated",schedule);
-  document.addEventListener("bns:phone-media-updated",schedule);
-  window.addEventListener("storage",schedule);
-
-  setTimeout(schedule,250);
-  setTimeout(schedule,1100);
-
-  console.log("[BNS v490] media knoppen goed actief: enkel in kaart, geen dubbele bovenrij.");
+  console.info('[BNS v489] Dubbele tabs weg + media knoppen altijd aanwezig.');
 })();
