@@ -569,98 +569,42 @@ console.log("[BNS v487 sync] optie/folder status-first actief.");
 
 
 /* =========================================================
-   BNS v493 sync signalen voor media zonder F5
-   - Fire event als firebase-sync localStorage bijwerkt.
-   - Fire event na syncDoc orders/alerts.
-   - Geen render-loop.
+   BNS v498 sync events
+   - Na syncDoc orders/alerts direct signaal naar planner.
+   - Geen polling/interval.
    ========================================================= */
 (function(){
-  if(window.__BNS_V493_SYNC_MEDIA_EVENTS__) return;
-  window.__BNS_V493_SYNC_MEDIA_EVENTS__ = true;
-
-  var KEYS=["event-planner-pro-v87","event-planner-pro-v8","event-planner-pro","bns_event_planner","bns_state","bns_app_state"];
+  if(window.__BNS_V498_SYNC_EVENTS__) return;
+  window.__BNS_V498_SYNC_EVENTS__ = true;
 
   function fire(col,row){
     var orderId="";
     try{
       if(row){
-        orderId=String(row.orderId||row.linkedOrderId||row.linkedOrder||row.id||row.number||"");
-        if(col==="alerts") orderId=String(row.orderId||row.linkedOrderId||row.linkedOrder||row.orderNumber||row.linkedOrderNumber||"");
+        orderId=String(row.orderId||row.linkedOrderId||row.linkedOrder||row.orderNumber||row.linkedOrderNumber||row.id||row.number||"");
       }
     }catch(e){}
     try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
     if(col==="orders" || col==="alerts" || col==="storage"){
       try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
-      try{ if(typeof window.BNS_v493PatchMediaOverview==="function") window.BNS_v493PatchMediaOverview(orderId); }catch(e){}
+      try{ if(typeof window.BNS_v498RefreshOpenOverview==="function") window.BNS_v498RefreshOpenOverview(orderId); }catch(e){}
     }
   }
 
   try{
-    if(!localStorage.__bnsV493MediaEventPatch){
-      localStorage.__bnsV493MediaEventPatch="1";
-      var oldSet=localStorage.setItem.bind(localStorage);
-      localStorage.setItem=function(k,v){
-        var r=oldSet(k,v);
-        if(KEYS.indexOf(k)>=0) setTimeout(function(){ fire("storage"); },120);
-        return r;
-      };
-    }
-  }catch(e){}
-
-  try{
-    if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncDoc==="function" && !window.BNSFirebaseSync.syncDoc.__bns493){
-      var oldSync=window.BNSFirebaseSync.syncDoc;
-      window.BNSFirebaseSync.syncDoc=function(col,row){
-        var r=oldSync.apply(this,arguments);
-        if(col==="orders" || col==="alerts") setTimeout(function(){ fire(col,row); },180);
-        return r;
-      };
-      window.BNSFirebaseSync.syncDoc.__bns493=true;
-      window.BNS=window.BNS||{};
-      window.BNS.syncDoc=window.BNSFirebaseSync.syncDoc;
-    }
-  }catch(e){}
-
-  window.BNS_v493FireMediaUpdate=fire;
-  console.log("[BNS v493 sync] media events actief.");
-})();
-
-
-
-/* BNS v494 sync: media events na syncDoc voor live planner */
-(function(){
-  if(window.__BNS_V494_SYNC_MEDIA_EVENTS__) return;
-  window.__BNS_V494_SYNC_MEDIA_EVENTS__=true;
-
-  function fire(col,row){
-    var orderId="";
-    try{
-      if(row){
-        orderId=String(row.orderId||row.linkedOrderId||row.linkedOrder||row.orderNumber||row.linkedOrderNumber||row.id||"");
-      }
-    }catch(e){}
-    try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
-    if(col==="orders" || col==="alerts"){
-      try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
-      try{ if(typeof window.BNS_v493PatchMediaOverview==="function") window.BNS_v493PatchMediaOverview(orderId); }catch(e){}
-      try{ if(typeof window.BNS_v494DedupeOpenOverview==="function") window.BNS_v494DedupeOpenOverview(); }catch(e){}
-    }
-  }
-
-  try{
-    if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncDoc==="function" && !window.BNSFirebaseSync.syncDoc.__bns494){
+    if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncDoc==="function" && !window.BNSFirebaseSync.syncDoc.__bns498){
       var old=window.BNSFirebaseSync.syncDoc;
       window.BNSFirebaseSync.syncDoc=function(col,row){
         var r=old.apply(this,arguments);
-        if(col==="orders" || col==="alerts") setTimeout(function(){ fire(col,row); },180);
+        if(col==="orders" || col==="alerts") setTimeout(function(){ fire(col,row); },150);
         return r;
       };
-      window.BNSFirebaseSync.syncDoc.__bns494=true;
+      window.BNSFirebaseSync.syncDoc.__bns498=true;
       window.BNS=window.BNS||{};
       window.BNS.syncDoc=window.BNSFirebaseSync.syncDoc;
     }
   }catch(e){}
 
-  window.BNS_v494FireMediaEvent=fire;
-  console.log("[BNS v494 sync] media events actief.");
+  window.BNS_v498FireSyncEvent=fire;
+  console.log("[BNS v498 sync] live events actief.");
 })();
