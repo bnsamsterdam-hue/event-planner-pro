@@ -624,3 +624,43 @@ console.log("[BNS v487 sync] optie/folder status-first actief.");
   window.BNS_v493FireMediaUpdate=fire;
   console.log("[BNS v493 sync] media events actief.");
 })();
+
+
+
+/* BNS v494 sync: media events na syncDoc voor live planner */
+(function(){
+  if(window.__BNS_V494_SYNC_MEDIA_EVENTS__) return;
+  window.__BNS_V494_SYNC_MEDIA_EVENTS__=true;
+
+  function fire(col,row){
+    var orderId="";
+    try{
+      if(row){
+        orderId=String(row.orderId||row.linkedOrderId||row.linkedOrder||row.orderNumber||row.linkedOrderNumber||row.id||"");
+      }
+    }catch(e){}
+    try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
+    if(col==="orders" || col==="alerts"){
+      try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated",{detail:{collection:col,orderId:orderId}})); }catch(e){}
+      try{ if(typeof window.BNS_v493PatchMediaOverview==="function") window.BNS_v493PatchMediaOverview(orderId); }catch(e){}
+      try{ if(typeof window.BNS_v494DedupeOpenOverview==="function") window.BNS_v494DedupeOpenOverview(); }catch(e){}
+    }
+  }
+
+  try{
+    if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncDoc==="function" && !window.BNSFirebaseSync.syncDoc.__bns494){
+      var old=window.BNSFirebaseSync.syncDoc;
+      window.BNSFirebaseSync.syncDoc=function(col,row){
+        var r=old.apply(this,arguments);
+        if(col==="orders" || col==="alerts") setTimeout(function(){ fire(col,row); },180);
+        return r;
+      };
+      window.BNSFirebaseSync.syncDoc.__bns494=true;
+      window.BNS=window.BNS||{};
+      window.BNS.syncDoc=window.BNSFirebaseSync.syncDoc;
+    }
+  }catch(e){}
+
+  window.BNS_v494FireMediaEvent=fire;
+  console.log("[BNS v494 sync] media events actief.");
+})();
