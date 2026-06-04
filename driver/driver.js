@@ -591,28 +591,68 @@ boot();
 
 
 
-/* BNS v486 driver: signaal na foto/handtekening/melding */
+/* BNS v488 driver: foto/handtekening update-signaal en foto verkleinen */
 (function(){
-  if(window.__BNS_V486_DRIVER_MEDIA_SIGNAL__) return;
-  window.__BNS_V486_DRIVER_MEDIA_SIGNAL__=true;
+  if(window.__BNS_V488_DRIVER_MEDIA_SIGNAL__) return;
+  window.__BNS_V488_DRIVER_MEDIA_SIGNAL__=true;
+
   function fire(){
     try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
     try{ window.dispatchEvent(new Event("storage")); }catch(e){}
   }
+
+  async function compressImageFile(file,maxSide,quality){
+    return new Promise(function(resolve){
+      try{
+        if(!file || !/^image\//i.test(file.type||"")) return resolve(file);
+        var img=new Image();
+        var url=URL.createObjectURL(file);
+        img.onload=function(){
+          try{
+            var scale=Math.min(1,(maxSide||1280)/Math.max(img.width,img.height));
+            var w=Math.max(1,Math.round(img.width*scale));
+            var h=Math.max(1,Math.round(img.height*scale));
+            var c=document.createElement("canvas");
+            c.width=w; c.height=h;
+            c.getContext("2d").drawImage(img,0,0,w,h);
+            c.toBlob(function(blob){
+              URL.revokeObjectURL(url);
+              if(!blob) return resolve(file);
+              resolve(new File([blob], file.name || "foto.jpg", {type:"image/jpeg", lastModified:Date.now()}));
+            },"image/jpeg",quality||0.72);
+          }catch(e){ URL.revokeObjectURL(url); resolve(file); }
+        };
+        img.onerror=function(){ URL.revokeObjectURL(url); resolve(file); };
+        img.src=url;
+      }catch(e){ resolve(file); }
+    });
+  }
+
+  document.addEventListener("change", async function(ev){
+    var inp=ev.target;
+    if(!inp || inp.type!=="file" || !inp.files || !inp.files.length) return;
+    try{
+      var dt=new DataTransfer();
+      for(var i=0;i<inp.files.length;i++) dt.items.add(await compressImageFile(inp.files[i],1280,0.72));
+      inp.files=dt.files;
+      setTimeout(fire,300);
+    }catch(e){}
+  }, true);
+
   ["save","saveState","saveLocal","sendAlert","submitAlert","completeOrder","uploadPhoto","saveSignature"].forEach(function(name){
     try{
       var fn=window[name];
-      if(typeof fn==="function" && !fn.__bns486){
+      if(typeof fn==="function" && !fn.__bns488){
         var wrapped=function(){
           var r=fn.apply(this,arguments);
-          setTimeout(fire,200);
+          setTimeout(fire,250);
           return r;
         };
-        wrapped.__bns486=true;
+        wrapped.__bns488=true;
         window[name]=wrapped;
       }
     }catch(e){}
   });
-  setTimeout(fire,500);
-  console.log("[BNS v486 driver] media signaal actief.");
+
+  console.log("[BNS v488 driver] media update-signaal actief.");
 })();
