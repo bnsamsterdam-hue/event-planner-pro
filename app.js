@@ -17756,7 +17756,7 @@ setTimeout(()=>{
     '.bns-order-overview-backdrop{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:grid;place-items:center;padding:18px}'+
     '.bns-order-overview-card{width:min(920px,96vw);max-height:90vh;overflow:auto;background:var(--panel,#fff)!important;color:var(--text,#172033)!important;border:2px solid var(--border,#dbe3ef)!important;border-radius:22px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.35);font-size:16px;line-height:1.45}'+
     '.bns-order-overview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border-bottom:2px solid var(--border,#dbe3ef);padding-bottom:12px;margin-bottom:14px}'+
-    '.bns-order-overview-card h2{margin:0;font-size:24px}.bns-order-overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.bns-order-overview-box{background:rgba(148,163,184,.14);border:1px solid var(--border,#dbe3ef);border-radius:14px;padding:12px}.bns-order-overview-table{width:100%;border-collapse:collapse;margin-top:10px}.bns-order-overview-table th,.bns-order-overview-table td{border-bottom:1px solid var(--border,#dbe3ef);padding:9px;text-align:left}.bns-order-overview-extra{white-space:pre-wrap;background:rgba(37,99,235,.08);border-radius:14px;padding:12px;margin-top:10px}.bns-order-overview-close{background:#2563eb!important;color:#fff!important;border:0!important;border-radius:12px!important;padding:10px 16px!important;font-weight:900!important;cursor:pointer!important}.bns-order-overview-total{font-size:18px;font-weight:900;margin-top:12px}@media(max-width:720px){.bns-order-overview-grid{grid-template-columns:1fr}.bns-order-overview-head{display:block}.bns-order-overview-close{margin-top:10px}}';
+    '.bns-order-overview-card{overflow-y:auto;max-height:90vh}.bns-order-overview-card h2{margin:0;font-size:24px}.bns-order-overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.bns-order-overview-box{background:rgba(148,163,184,.14);border:1px solid var(--border,#dbe3ef);border-radius:14px;padding:12px}.bns-order-overview-table{width:100%;border-collapse:collapse;margin-top:10px}.bns-order-overview-table th,.bns-order-overview-table td{border-bottom:1px solid var(--border,#dbe3ef);padding:9px;text-align:left}.bns-order-overview-extra{white-space:pre-wrap;background:rgba(37,99,235,.08);border-radius:14px;padding:12px;margin-top:10px}.bns-order-overview-close{background:#2563eb!important;color:#fff!important;border:0!important;border-radius:12px!important;padding:10px 16px!important;font-weight:900!important;cursor:pointer!important}.bns-order-overview-total{font-size:18px;font-weight:900;margin-top:12px}@media(max-width:720px){.bns-order-overview-grid{grid-template-columns:1fr}.bns-order-overview-head{display:block}.bns-order-overview-close{margin-top:10px}}';
     document.head.appendChild(st);
   }
   function orderHtml(o){
@@ -45302,7 +45302,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(E("bns-v493-style")) return;
     var st=document.createElement("style");
     st.id="bns-v493-style";
-    st.textContent='#bnsV493Modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:18px}.bns-v493-cardmain{background:#fff;border-radius:18px;max-width:min(980px,96vw);max-height:92vh;overflow:auto;padding:18px;color:#172033;box-shadow:0 20px 60px rgba(0,0,0,.3)}.bns-v493-head{display:flex;justify-content:space-between;gap:12px;align-items:start;border-bottom:1px solid #ddd;padding-bottom:10px;margin-bottom:12px}.bns-v493-head button{background:#0b84ff;color:#fff;border:0;border-radius:10px;padding:10px 18px;font-weight:900}.bns-v493-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bns-v493-box{border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin:10px 0;background:#fff}.bns-v493-table{width:100%;border-collapse:collapse;margin:8px 0}.bns-v493-table th,.bns-v493-table td{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}.bns-v493-total{font-weight:900;font-size:18px;margin:12px 0}.bns-v493-media{border:2px solid #dbeafe;border-radius:18px;padding:14px;margin-top:16px;background:#f8fbff}.bns-v493-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.bns-v493-card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff;overflow:hidden}.bns-v493-card img{max-width:100%;max-height:260px;border-radius:10px;border:1px solid #e5e7eb;background:#fff}.bns-v493-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bns-v493-actions button{border:0;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff}.bns-v493-actions .danger{background:#dc2626}.bns-v493-missing{color:#b45309;font-weight:800;margin-top:8px}@media(max-width:700px){.bns-v493-two{grid-template-columns:1fr}.bns-v493-cardmain{padding:12px}}';
+    st.textContent='#bnsV493Modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:18px}.bns-v493-cardmain{background:#fff;border-radius:18px;overflow-y:auto;max-height:90vh;max-width:min(980px,96vw);max-height:92vh;overflow:auto;padding:18px;color:#172033;box-shadow:0 20px 60px rgba(0,0,0,.3)}.bns-v493-head{display:flex;justify-content:space-between;gap:12px;align-items:start;border-bottom:1px solid #ddd;padding-bottom:10px;margin-bottom:12px}.bns-v493-head button{background:#0b84ff;color:#fff;border:0;border-radius:10px;padding:10px 18px;font-weight:900}.bns-v493-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bns-v493-box{border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin:10px 0;background:#fff}.bns-v493-table{width:100%;border-collapse:collapse;margin:8px 0}.bns-v493-table th,.bns-v493-table td{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}.bns-v493-total{font-weight:900;font-size:18px;margin:12px 0}.bns-v493-media{border:2px solid #dbeafe;border-radius:18px;padding:14px;margin-top:16px;background:#f8fbff}.bns-v493-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.bns-v493-card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#fff;overflow:hidden}.bns-v493-card img{max-width:100%;max-height:260px;border-radius:10px;border:1px solid #e5e7eb;background:#fff}.bns-v493-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bns-v493-actions button{border:0;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer;background:#0f172a;color:#fff}.bns-v493-actions .danger{background:#dc2626}.bns-v493-missing{color:#b45309;font-weight:800;margin-top:8px}@media(max-width:700px){.bns-v493-two{grid-template-columns:1fr}.bns-v493-cardmain{padding:12px}}';
     document.head.appendChild(st);
   }
 
@@ -45796,58 +45796,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
   cleanup();
 
-  // Scroll-fix: modal opent zonder scroll-reset
-  var origShow = window.BNS_V128_SHOW_ORDER_OVERVIEW;
-  if(typeof origShow==='function' && !origShow.__bns502){
-    window.BNS_V128_SHOW_ORDER_OVERVIEW = function(){
-      var sy = window.scrollY || window.pageYOffset || 0;
-      var r = origShow.apply(this, arguments);
-      // Herstel scroll na render
-      requestAnimationFrame(function(){ window.scrollTo(0, sy); });
-      setTimeout(function(){ window.scrollTo(0, sy); }, 50);
-      return r;
-    };
-    window.BNS_V128_SHOW_ORDER_OVERVIEW.__bns502 = true;
-  }
-
-  // Patch ook v493 modal open
-  var origV493 = window.BNS_V493_OPEN;
-  if(typeof origV493==='function' && !origV493.__bns502){
-    window.BNS_V493_OPEN = function(){
-      var sy = window.scrollY || window.pageYOffset || 0;
-      var r = origV493.apply(this, arguments);
-      requestAnimationFrame(function(){ window.scrollTo(0, sy); });
-      return r;
-    };
-    window.BNS_V493_OPEN.__bns502 = true;
-  }
-
-  // Patch body.overflow:hidden — voorkomt scroll-reset
-  var origBO = Object.getOwnPropertyDescriptor(document.body.style, 'overflow');
-  document.addEventListener('click', function(){
-    // Na elke klik: zorg dat body.overflow niet hidden is (tenzij modal echt open is)
-    setTimeout(function(){
-      var modal = document.getElementById('bnsOrderOverviewModal') ||
-                  document.querySelector('.bns-order-overview-backdrop');
-      if(!modal) document.body.style.overflow = '';
-    }, 100);
-  });
-
-  setTimeout(function(){
-    // Patch ook de interne modal openers
-    ['BNS_V474_OPEN_OVERVIEW','patchOverviewModal','BNS_v493PatchMediaOverview'].forEach(function(fn){
-      var f = window[fn];
-      if(typeof f==='function' && !f.__bns502scroll){
-        window[fn] = function(){
-          var sy = window.scrollY || window.pageYOffset || 0;
-          var r = f.apply(this, arguments);
-          setTimeout(function(){ window.scrollTo(0, sy); }, 0);
-          return r;
-        };
-        window[fn].__bns502scroll = true;
-      }
-    });
-  }, 2000);
+  // Scroll-patch verwijderd - modal heeft eigen overflow
 
   console.info('[BNS v502] localStorage cleanup + scroll fix actief.');
 })();

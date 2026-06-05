@@ -119,13 +119,6 @@ if(typeof window !== "undefined"){
   window.BNS_v481CorrectFoldersInFirebase = bns481CorrectFoldersInFirebase;
 }
 
-
-function BNS_v495FireFirebaseUpdated(){
-  try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated")); }catch(e){}
-  try{ if(typeof window.BNS_v493PatchMediaOverview==="function") window.BNS_v493PatchMediaOverview(); }catch(e){}
-  try{ if(typeof window.BNS_v495KeepScrollRefresh==="function") window.BNS_v495KeepScrollRefresh(); }catch(e){}
-}
-
 async function fb(){
   if(tools)return tools;
   if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){status("Firebase config ontbreekt");return null}
@@ -321,7 +314,7 @@ async function download(){
       s[col]=bns460FilterRows(col,snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()})),false);
       if(col==="materials")cleanMaterialStatuses(s);
     }
-    saveLocal(s); lastJson=json(); status("Firebase geladen"); BNS_v495FireFirebaseUpdated();
+    saveLocal(s); lastJson=json(); status("Firebase geladen");
     try{if(typeof renderOrders==="function")renderOrders();}catch(e){}
   }catch(e){console.error(e);status("Firebase download fout")}
   finally{downloading=false}
@@ -365,7 +358,7 @@ async function live(){
       t.fsMod.onSnapshot(t.fsMod.doc(t.db,"settings","main"), snap=>{
         if(uploading)return;
         const s=norm(loadLocal()||{}); if(snap.exists())s.settings=snap.data()||{};
-        downloading=true; saveLocal(s); downloading=false; lastJson=json(); BNS_v495FireFirebaseUpdated();
+        downloading=true; saveLocal(s); downloading=false; lastJson=json();
       });
       return;
     }
@@ -374,7 +367,7 @@ async function live(){
       const s=norm(loadLocal()||{});
       s[col]=bns460FilterRows(col,snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()})),false);
       if(col==="materials")cleanMaterialStatuses(s);
-      downloading=true; saveLocal(s); downloading=false; lastJson=json(); BNS_v495FireFirebaseUpdated();
+      downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
         if(col==="orders"&&typeof renderOrders==="function")renderOrders();
         if(col==="alerts"){
@@ -534,11 +527,3 @@ console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu fold
   }catch(e){}
 })();
 console.log("[BNS v493 sync] update-signaal actief.");
-
-/* BNS v495 sync: Firebase live update meldt open dossier zonder F5 */
-(function(){
-  try{
-    window.BNS_v495FireFirebaseUpdated = window.BNS_v495FireFirebaseUpdated || BNS_v495FireFirebaseUpdated;
-  }catch(e){}
-})();
-console.log("[BNS v495 sync] live dossier update actief.");
