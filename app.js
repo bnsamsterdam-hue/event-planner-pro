@@ -29979,12 +29979,23 @@ setTimeout(()=>{
       o.bezorger=o.driver;
       o.driverNames=names;
       o.bezorgerNames=names;
+    } else {
+      // Alle vinkjes uit → wis bezorgervelden expliciet
+      o.driver=''; o.driverName=''; o.bezorger=''; o.bezorgerName='';
+      o.driverNames=[]; o.bezorgerNames=[];
     }
     if(ids.length){
       o.driverIds=ids;
       o.bezorgerIds=ids.slice();
+    } else {
+      // Geen ids → wis id-velden
+      o.driverIds=[]; o.bezorgerIds=[];
+      o.driverId=''; o.bezorgerId=''; o.userId='';
     }
+    o.updatedAt=new Date().toISOString();
     saveLocal();
+    // Sync naar Firebase zodat telefoon ook bijgewerkt wordt
+    try{ if(typeof syncOrder==='function') syncOrder(o); }catch(e){}
   }
   function readEnteredPin(){
     var p='';
@@ -44849,7 +44860,31 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function mediaHtml(a){var d=mediaData(a); if(!d) return ''; if(/^data:image|^https?:|^blob:/.test(String(d))) return '<div style="margin-top:8px"><img src="'+H(d)+'" style="max-width:180px;max-height:140px;border-radius:10px;border:1px solid #dbe3ef"></div>'; return '';}
   function shareMedia(id){ var a=window.__bnsV474Media && window.__bnsV474Media[id]; if(!a) return; var txt=[mediaType(a),a.createdAt||a.time||'',a.note||a.message||a.text||''].filter(Boolean).join('\n'); if(navigator.share) navigator.share({title:mediaType(a),text:txt}).catch(function(){}); else navigator.clipboard&&navigator.clipboard.writeText(txt); }
   function printMedia(id){ var a=window.__bnsV474Media && window.__bnsV474Media[id]; if(!a) return; var w=window.open('','_blank'); if(!w)return; w.document.write('<html><head><title>'+H(mediaType(a))+'</title></head><body><h2>'+H(mediaType(a))+'</h2><p>'+H(a.createdAt||a.time||'')+'</p><p>'+H(a.note||a.message||a.text||'')+'</p>'+mediaHtml(a)+'<script>window.print()<\/script></body></html>'); w.document.close(); }
-  function deleteMedia(orderId,id){ var o=orderById(orderId); if(!o) return; ['media','photos','signatures','customerMessages','klantmeldingen'].forEach(function(k){ if(Array.isArray(o[k])) o[k]=o[k].filter(function(a){return T(a.id)!==T(id);}); }); var s=stateObj(); if(Array.isArray(s.alerts)) s.alerts=s.alerts.filter(function(a){return T(a.id)!==T(id);}); saveNow(); syncOrder(o); var modal=E('bnsOrderOverviewModal'); if(modal) modal.remove(); if(typeof BNS_V128_SHOW_ORDER_OVERVIEW==='function') BNS_V128_SHOW_ORDER_OVERVIEW(orderId); }
+  function deleteMedia(orderId,id){
+    var o=orderById(orderId); if(!o) return;
+    // Verwijder uit alle lokale arrays
+    ['media','photos','signatures','driverUploads','customerMessages','klantmeldingen','handtekeningen'].forEach(function(k){
+      if(Array.isArray(o[k])) o[k]=o[k].filter(function(a){return T(a.id)!==T(id);});
+    });
+    var s=stateObj();
+    if(Array.isArray(s.alerts)) s.alerts=s.alerts.filter(function(a){return T(a.id)!==T(id);});
+    // Verwijder ook uit Firebase alerts — anders komt het terug na F5
+    try{
+      if(typeof fbDel==='function') fbDel('alerts',id);
+    }catch(e){
+      // Probeer ook via Firestore direct
+      try{
+        import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js').then(function(fm){
+          import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js').then(function(fa){
+            var fbApp=fa.getApps().length?fa.getApp():null;
+            if(!fbApp) return;
+            var db=fm.getFirestore(fbApp);
+            fm.deleteDoc(fm.doc(db,'alerts',id));
+          });
+        });
+      }catch(e2){}
+    }
+    saveNow(); syncOrder(o); var modal=E('bnsOrderOverviewModal'); if(modal) modal.remove(); if(typeof BNS_V128_SHOW_ORDER_OVERVIEW==='function') BNS_V128_SHOW_ORDER_OVERVIEW(orderId); }
   window.BNS_V474_SHARE_MEDIA=shareMedia; window.BNS_V474_PRINT_MEDIA=printMedia; window.BNS_V474_DELETE_MEDIA=deleteMedia;
   function mediaBlock(o){
     var rows=alertRowsForOrder(o); if(!rows.length) return '';
