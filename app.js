@@ -46306,3 +46306,68 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   window.BNS_506_applyTruthToState=applyTruthToState;
   console.log('[BNS 510] F5 driver waarheid actief - geen dubbele orderdocumenten');
 })();
+
+
+/* BNS 512 - gewone opdrachtwijziging mag bestaande bezorgers nooit tijdelijk wissen */
+(function(){
+  if(window.__BNS_512_PRESERVE_DRIVERS_ON_ORDER_EDIT__) return;
+  window.__BNS_512_PRESERVE_DRIVERS_ON_ORDER_EDIT__=true;
+  function T(v){return String(v==null?'':v).trim();}
+  function A(v){
+    if(v==null) return [];
+    if(Array.isArray(v)){var out=[]; v.forEach(function(x){out=out.concat(A(x));}); return out;}
+    if(typeof v==='object') return [v.id||v.name||v.naam||''].map(T).filter(Boolean);
+    return String(v).split(/[;,|\n]+/).map(T).filter(Boolean);
+  }
+  function S(){try{return window.state||state||{};}catch(e){return window.state||{};}}
+  function orders(){var s=S(); return Array.isArray(s.orders)?s.orders:[];}
+  function key(o){return T(o&&(o.id||o.number||o.orderNumber||o.nr));}
+  function hasDrivers(o){
+    if(!o || o.phoneHidden===true || o.driverCleared===true) return false;
+    var vals=[];
+    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){vals=vals.concat(A(o&&o[k]));});
+    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers','driverSelectionIds'].forEach(function(k){vals=vals.concat(A(o&&o[k]));});
+    return vals.some(Boolean);
+  }
+  function copyDrivers(from,to){
+    if(!from||!to) return to;
+    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','driverTruthAt','driverChangedAt','driverSyncAt','driverSelectionIds'].forEach(function(k){ if(from[k]!=null && from[k]!=='' ) to[k]=from[k]; });
+    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers','driverSelectionIds'].forEach(function(k){ if(Array.isArray(from[k]) && from[k].length) to[k]=JSON.parse(JSON.stringify(from[k])); });
+    to.phoneHidden=false; to.driverCleared=false;
+    if(hasDrivers(to)) to.folder='lopend';
+    return to;
+  }
+  function findStateOrder(o){
+    var k=key(o); if(!k) return null;
+    return orders().find(function(x){return x && (T(x.id)===k || T(x.number)===k || T(x.orderNumber)===k || T(x.nr)===k || (o&&T(o.number)&&T(x.number)===T(o.number)));});
+  }
+  function preserve(o){
+    if(!o) return o;
+    if(o.phoneHidden===true || o.driverCleared===true) return o; // echt weggehaald blijft weg
+    if(hasDrivers(o)) return o;
+    var old=findStateOrder(o);
+    if(old && hasDrivers(old)) copyDrivers(old,o);
+    return o;
+  }
+  function patch(){
+    try{
+      if(!window.BNS || !window.BNS.syncOrder || window.BNS.syncOrder.__bns512) return;
+      var old=window.BNS.syncOrder;
+      window.BNS.syncOrder=function(o){ try{ preserve(o); }catch(e){} return old.apply(this,arguments); };
+      window.BNS.syncOrder.__bns512=true;
+    }catch(e){}
+  }
+  try{
+    if(typeof window.save==='function' && !window.save.__bns512){
+      var oldSave=window.save;
+      window.save=function(){
+        try{ var cur=(typeof currentOrder==='function')?currentOrder():null; preserve(cur); }catch(e){}
+        return oldSave.apply(this,arguments);
+      };
+      window.save.__bns512=true;
+    }
+  }catch(e){}
+  patch(); setTimeout(patch,500); setInterval(patch,2500);
+  window.BNS_512_preserveDriversOnOrderEdit=preserve;
+  console.log('[BNS 512] gewone wijziging bewaart bestaande bezorger voor telefoon');
+})();
