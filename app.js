@@ -19820,10 +19820,13 @@ setTimeout(()=>{
   function syncDoc(coll, id, obj) {
     try {
       if (window.BNS && window.BNS.fs && window.BNS.db && id && obj && window.BNS.fs.setDoc && window.BNS.fs.doc) {
-        var _bnsData = Object.assign({}, obj, { updatedAt:new Date().toISOString() });
-        var _bnsOpts = (String(coll)==='orders') ? undefined : { merge:true };
-        if(_bnsOpts) window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db, coll, String(id)), _bnsData, _bnsOpts).catch(function(){});
-        else window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db, coll, String(id)), _bnsData).catch(function(){});
+        window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db, coll, String(id)), Object.assign({
+        }, obj, {
+          updatedAt:new Date().toISOString()
+        }), {
+          merge:true
+        }).catch(function(){
+        });
       }
     } catch(e) {
     }
@@ -20310,7 +20313,6 @@ setTimeout(()=>{
     if(!(await initFirebaseBNS())) return;
     const fs = window.BNS.fs;
     try{
-      order.updatedAt = new Date().toISOString();
       await fs.setDoc(fs.doc(window.BNS.db, 'orders', String(order.id)), order);
       setPending(pending().filter(x => String(x.id) !== String(order.id)));
       log('Opdracht naar Firebase opgeslagen', order.number || order.id);
@@ -28584,10 +28586,12 @@ setTimeout(()=>{
     try{
       if(!id || !window.BNS || !window.BNS.firebaseReady || !window.BNS.fs || !window.BNS.db) return;
       var fs=window.BNS.fs;
-      var _bnsData=Object.assign({},data,{updatedAt:new Date().toISOString()});
-      var _bnsOpts=(String(collection)==='orders')?undefined:{merge:true};
-      var _bnsRef=fs.doc(window.BNS.db,collection,String(id));
-      (_bnsOpts ? fs.setDoc(_bnsRef,_bnsData,_bnsOpts) : fs.setDoc(_bnsRef,_bnsData)).catch(function(e){
+      fs.setDoc(fs.doc(window.BNS.db,collection,String(id)),Object.assign({
+      },data,{
+        updatedAt:new Date().toISOString()
+      }),{
+        merge:true
+      }).catch(function(e){
         console.warn('Firebase sync later',e);
       });
     } catch(e){
@@ -28824,25 +28828,46 @@ setTimeout(()=>{
     if(!o) return o;
     var ids=selectedDriverIds();
     if(!ids.length && val('orderDriver')) ids=[val('orderDriver')];
+    ids=Array.from(new Set(ids.map(String).filter(Boolean)));
     var ds=users().filter(function(u){
       return ids.indexOf(String(u.id))>=0 || ids.indexOf(String(u.name))>=0;
     });
     var names=ds.map(driverName).filter(Boolean);
-    o.driverIds=ds.map(function(u){
-      return String(u.id);
-    });
-    o.bezorgerIds=o.driverIds.slice();
-    o.driverNames=names;
-    o.bezorgerNames=names;
-    o.drivers=ds.map(function(u){
-      return {
-        id:u.id,name:u.name,role:u.role
-      };
-    });
-    o.driver=names.join(', ');
-    o.driverName=names.join(', ');
-    o.bezorger=names.join(', ');
+    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','assigned','selectedDrivers'].forEach(function(k){ o[k]=''; });
+    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','assignedDrivers'].forEach(function(k){ o[k]=[]; });
+    if(ds.length){
+      o.driverIds=ds.map(function(u){ return String(u.id); });
+      o.bezorgerIds=o.driverIds.slice();
+      o.assignedDriverIds=o.driverIds.slice();
+      o.userIds=o.driverIds.slice();
+      o.driverNames=names;
+      o.bezorgerNames=names.slice();
+      o.assignedDriverNames=names.slice();
+      o.drivers=ds.map(function(u){ return {id:u.id,name:u.name,role:u.role}; });
+      o.assignedDrivers=o.drivers.slice();
+      o.driver=names.join(', ');
+      o.driverName=o.driver;
+      o.bezorger=o.driver;
+      o.bezorgerName=o.driver;
+      o.assignedDriver=o.driver;
+    }
+    o.driverTruthAt=new Date().toISOString();
+    o.updatedAt=new Date().toISOString();
     return o;
+  }
+  function cloneDriverFields(o){
+    if(!o) return null;
+    var keys=['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','assigned','selectedDrivers','driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','assignedDrivers','driverTruthAt'];
+    var out={};
+    keys.forEach(function(k){ if(o[k]!==undefined){ try{ out[k]=JSON.parse(JSON.stringify(o[k])); }catch(e){ out[k]=o[k]; } } });
+    return out;
+  }
+  function hasDriverFields(o){ return driverIdsFromOrder(o).length>0; }
+  function restoreDriversIfMissing(o, keep){
+    if(!o || !keep || hasDriverFields(o)) return false;
+    Object.keys(keep).forEach(function(k){ try{ o[k]=JSON.parse(JSON.stringify(keep[k])); }catch(e){ o[k]=keep[k]; } });
+    o.updatedAt=new Date().toISOString();
+    return true;
   }
   function findOrderByNumber(nr){
     return orders().find(function(o){
@@ -28862,6 +28887,8 @@ setTimeout(()=>{
           if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
         }
         var nr=val('orderNumber');
+        var touched=!!(window.__bns458DriverTouched || window.__bns459DriverTouched || window.__bns474DriverTouched || window.__bns516DriverTouched);
+        var before=cloneDriverFields(findOrderByNumber(nr));
         var r=false;
         try{
           if(typeof window.saveCurrentOrder==='function') r=window.saveCurrentOrder();
@@ -28873,7 +28900,11 @@ setTimeout(()=>{
         setTimeout(function(){
           var o=findOrderByNumber(nr);
           if(o){
-            applyDriversToOrder(o);
+            if(touched){
+              applyDriversToOrder(o);
+            }else{
+              restoreDriversIfMissing(o,before);
+            }
             saveLocal();
             syncDoc('orders',o.id,o);
             renderPhone83();
@@ -28881,8 +28912,9 @@ setTimeout(()=>{
               if(typeof renderOrders==='function') renderOrders();
             } catch(e){
             }
+            window.__bns458DriverTouched=false; window.__bns459DriverTouched=false; window.__bns474DriverTouched=false; window.__bns516DriverTouched=false;
           }
-        },120);
+        },160);
         return false;
       };
       btn.parentNode.replaceChild(fresh,btn);
@@ -37871,8 +37903,8 @@ setTimeout(()=>{
       if(window.BNS&&typeof window.BNS.syncOrder==='function'){window.BNS.syncOrder(o);return;}
       if(window.BNS&&window.BNS.fs&&window.BNS.db){
         var fs=window.BNS.fs;
-        if(fs.setDoc&&fs.doc){ o.updatedAt=new Date().toISOString(); fs.setDoc(fs.doc(window.BNS.db,'orders',String(o.id)),
-          Object.assign({},o)).catch(function(){}); }
+        if(fs.setDoc&&fs.doc) fs.setDoc(fs.doc(window.BNS.db,'orders',String(o.id)),
+          Object.assign({},o,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){});
       }
     }catch(e){}
   }
@@ -44850,21 +44882,18 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     ids=(ids||[]).map(T).filter(Boolean);
     var ds=users().filter(function(u){return ids.indexOf(T(u.id))>=0 || ids.indexOf(T(u.name))>=0;});
     var names=ds.map(function(u){return T(u.name);}).filter(Boolean);
-    var now=new Date().toISOString();
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){o[k]='';});
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){o[k]=[];});
+    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','assigned','selectedDrivers'].forEach(function(k){o[k]='';});
+    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','assignedDrivers'].forEach(function(k){o[k]=[];});
     if(ids.length || names.length){
       o.driverIds=ds.map(function(u){return T(u.id);});
       o.bezorgerIds=o.driverIds.slice(); o.assignedDriverIds=o.driverIds.slice(); o.userIds=o.driverIds.slice();
       o.driverNames=names; o.bezorgerNames=names.slice(); o.assignedDriverNames=names.slice();
-      o.selectedDrivers=o.driverIds.slice(); o.assignedDriverIds=o.driverIds.slice();
       o.drivers=ds.map(function(u){return {id:u.id,name:u.name,role:u.role};});
-      o.driver=names.join(', '); o.driverName=o.driver; o.bezorger=o.driver; o.bezorgerName=o.driver;
-      if(!o.folder) o.folder='lopend';
+      o.assignedDrivers=o.drivers.slice();
+      o.driver=names.join(', '); o.driverName=o.driver; o.bezorger=o.driver; o.bezorgerName=o.driver; o.assignedDriver=o.driver;
     }
-    o.driverSyncAt=now;
-    o.driverChangedAt=now;
-    o.updatedAt=now;
+    o.driverTruthAt=new Date().toISOString();
+    o.updatedAt=new Date().toISOString();
     return o;
   }
   function findEditingOrder(){
@@ -44881,21 +44910,19 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       setTimeout(function(){driverBoxes().forEach(function(cb){cb.checked=false;}); var sel=E('orderDriver'); if(sel) sel.value='';},150);
     }
     if(txt==='opslaan' || b.id==='saveOrder'){
-      // BNS 515: alleen bezorger opslaan als de bezorger-vinkjes echt zijn aangeraakt.
-      // Gewone wijziging aan naam/klant/datum/materialen mag de telefoonopdracht niet verwijderen.
-      if(!window.__bns474DriverTouched) return;
-      window.__bns458DriverTouched=true; window.__bns459DriverTouched=true;
+      var touched=!!(window.__bns474DriverTouched || window.__bns458DriverTouched || window.__bns459DriverTouched || window.__bns516DriverTouched);
       var ids=selectedDriverIds();
-      setTimeout(function(){
-        var o=findEditingOrder();
-        if(o){ setOrderDrivers(o,ids); normalizeOrderFolder(o); saveNow(); syncOrder(o); }
-        window.__bns474DriverTouched=false;
-      },160);
+      if(touched){
+        setTimeout(function(){
+          var o=findEditingOrder();
+          if(o){ setOrderDrivers(o,ids); normalizeOrderFolder(o); saveNow(); syncOrder(o); window.__bns474DriverTouched=false; window.__bns458DriverTouched=false; window.__bns459DriverTouched=false; window.__bns516DriverTouched=false; }
+        },180);
+      }
     }
   },true);
   document.addEventListener('change',function(ev){
     if(ev.target && ev.target.matches && ev.target.matches('#bnsV83DriverBox input[type=checkbox]')){
-      window.__bns474DriverTouched=true; window.__bns458DriverTouched=true; window.__bns459DriverTouched=true;
+      window.__bns474DriverTouched=true; window.__bns458DriverTouched=true; window.__bns459DriverTouched=true; window.__bns516DriverTouched=true;
       var sel=E('orderDriver'), ids=selectedDriverIds(); if(sel) sel.value=ids[0]||'';
     }
   },true);
@@ -45926,478 +45953,3 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.info('[BNS v502] localStorage cleanup + scroll fix actief.');
 })();
-
-
-/* =========================================================
-   BNS 503 FINAL - bezorger sync waarheid
-   Probleem opgelost: vinkjes kwamen na F5 terug door oude driver-velden,
-   merge:true en Firebase-versie die lokaal wissen kon overrulen.
-   ========================================================= */
-(function(){
-  if(window.__BNS_503_FINAL_DRIVER_SYNC__) return;
-  window.__BNS_503_FINAL_DRIVER_SYNC__ = true;
-  function T(v){return String(v==null?'':v).trim();}
-  function A(v){
-    if(v==null) return [];
-    if(Array.isArray(v)){var out=[]; v.forEach(function(x){out=out.concat(A(x));}); return out;}
-    if(typeof v==='object') return [T(v.id||v.name||v.naam||'')].filter(Boolean);
-    return String(v).split(/[;,|\n]+/).map(T).filter(Boolean);
-  }
-  function hasDriver(o){
-    if(!o) return false;
-    var vals=[];
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){vals=vals.concat(A(o[k]));});
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){vals=vals.concat(A(o[k]));});
-    return vals.some(Boolean);
-  }
-  function clearDrivers(o){
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){o[k]='';});
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){o[k]=[];});
-    return o;
-  }
-  window.BNS_503_clearDrivers = clearDrivers;
-  window.BNS_503_orderHasDriver = hasDriver;
-  function normalizePhoneFolder(o){
-    if(!o) return o;
-    var st=T(o.status||o.state||o.orderStatus).toLowerCase();
-    if(/offerte/.test(st)) o.folder='offerte';
-    else if(/optie|14/.test(st)) o.folder='optie14';
-    else if(/geann|annul|cancel|verwijderd|deleted|trash/.test(st)) o.folder='geannuleerd';
-    else if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(st)) o.folder='uitgevoerd';
-    else if(hasDriver(o)) o.folder='lopend';
-    return o;
-  }
-  function patchBNS(){
-    try{
-      if(!window.BNS || window.BNS.__bns503FinalPatched) return;
-      var old = window.BNS.syncOrder;
-      window.BNS.syncOrder = function(o){
-        try{
-          if(!o || !(o.id||o.number)) return old && old.apply(this, arguments);
-          normalizePhoneFolder(o);
-          o.updatedAt = new Date().toISOString();
-          if(window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc){
-            return window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'orders',String(o.id||o.number)), Object.assign({},o));
-          }
-        }catch(e){}
-        try{return old && old.apply(this, arguments);}catch(e2){}
-      };
-      window.BNS.syncOrder.__bns503Final = true;
-      window.BNS.__bns503FinalPatched = true;
-    }catch(e){}
-  }
-  patchBNS(); setTimeout(patchBNS,500); setTimeout(patchBNS,2000); setInterval(patchBNS,3000);
-  document.addEventListener('click',function(ev){
-    var b=ev.target && ev.target.closest && ev.target.closest('button,a,input[type=button],input[type=submit]');
-    if(!b) return;
-    var txt=T(b.textContent||b.value||b.title||b.id).toLowerCase();
-    if(txt==='opslaan' || b.id==='saveOrder'){
-      setTimeout(function(){
-        try{
-          var s=window.state||{}; var nr=T((document.getElementById('orderNumber')||{}).value);
-          var id=T(window.editing||'');
-          var o=(s.orders||[]).find(function(x){return (id && T(x.id)===id) || (nr && T(x.number)===nr);});
-          if(o){ normalizePhoneFolder(o); o.updatedAt=new Date().toISOString(); if(window.BNS&&window.BNS.syncOrder) window.BNS.syncOrder(o); }
-        }catch(e){}
-      },320);
-    }
-  },true);
-})();
-
-
-/* =========================================================
-   BNS 505 - echte bezorger-keuze als waarheid
-   Fix: vinkjes terug aanzetten syncen direct; F5 mag oude Firebase/localStorage
-   kopieen niet opnieuw naar telefoon duwen.
-   ========================================================= */
-(function(){
-  if(window.__BNS_505_DRIVER_TRUTH__) return;
-  window.__BNS_505_DRIVER_TRUTH__ = true;
-  function T(v){return String(v==null?'':v).trim();}
-  function S(){try{return window.state||state||null;}catch(e){return window.state||null;}}
-  function orders(){var s=S(); s.orders=Array.isArray(s&&s.orders)?s.orders:[]; return s.orders;}
-  function users(){var s=S(); s.users=Array.isArray(s&&s.users)?s.users:[]; return s.users;}
-  function byId(id){return users().find(function(u){return String(u.id)===String(id);});}
-  function checkedIds(){
-    var boxes=Array.prototype.slice.call(document.querySelectorAll('#bnsV83DriverBox input[type=checkbox]'));
-    if(!boxes.length) return null;
-    return boxes.filter(function(i){return i.checked;}).map(function(i){return String(i.value);}).filter(Boolean);
-  }
-  function currentOrder(){
-    var nr=T((document.getElementById('orderNumber')||{}).value);
-    var edit=T(window.editing||'');
-    return orders().find(function(o){return (edit&&T(o.id)===edit)||(nr&&T(o.number)===nr)||(nr&&T(o.id)===nr);});
-  }
-  function setFolder(o){
-    var st=T(o.status||o.state||o.orderStatus).toLowerCase();
-    if(/offerte/.test(st)) o.folder='offerte';
-    else if(/optie|14/.test(st)) o.folder='optie14';
-    else if(/geann|annul|cancel|verwijderd|deleted|trash/.test(st)) o.folder='geannuleerd';
-    else if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(st)) o.folder='uitgevoerd';
-    else if(hasDrivers(o)) o.folder='lopend';
-    else o.folder='';
-  }
-  function hasDrivers(o){
-    var vals=[];
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){if(o&&o[k]) vals.push(T(o[k]));});
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){var v=o&&o[k]; if(Array.isArray(v)) v.forEach(function(x){vals.push(T(x&&typeof x==='object'?(x.id||x.name||x.naam):x));});});
-    return vals.some(Boolean);
-  }
-  function clearAll(o){
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){o[k]='';});
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){o[k]=[];});
-  }
-  function applySelected(o, ids){
-    ids=(ids||checkedIds()).map(String).filter(Boolean);
-    var ds=ids.map(byId).filter(Boolean);
-    var names=ds.map(function(u){return T(u.name||u.naam||u.displayName);}).filter(Boolean);
-    clearAll(o);
-    if(ids.length){
-      o.driverIds=ids.slice(); o.bezorgerIds=ids.slice(); o.assignedDriverIds=ids.slice(); o.userIds=ids.slice(); o.selectedDrivers=ids.slice();
-      o.drivers=ds.map(function(u){return {id:String(u.id), name:T(u.name||u.naam||u.displayName), role:u.role||''};});
-      o.assignedDrivers=o.drivers.slice();
-      o.driverNames=names.slice(); o.bezorgerNames=names.slice(); o.assignedDriverNames=names.slice();
-      o.driver=names.join(', '); o.driverName=o.driver; o.bezorger=o.driver; o.assignedDriver=o.driver;
-      o.driverId=ids[0]||''; o.bezorgerId=ids[0]||''; o.assignedDriverId=ids[0]||''; o.userId=ids[0]||'';
-    }
-    o.driverChangedAt=new Date().toISOString();
-    o.driverSyncAt=o.driverChangedAt;
-    o.updatedAt=o.driverChangedAt;
-    setFolder(o);
-    return o;
-  }
-  function saveAllLocal(){
-    var s=S(); if(!s) return;
-    try{ if(typeof save==='function') save(); }catch(e){}
-    ['event-planner-pro-v87','eventPlannerProState','plannerState','eventPlannerPro','eventPlannerProV91'].forEach(function(k){try{localStorage.setItem(k,JSON.stringify(s));}catch(e){}});
-  }
-  function syncFull(o){
-    if(!o||!(o.id||o.number)) return;
-    saveAllLocal();
-    try{ if(window.BNS&&typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
-    try{
-      var fs=window.BNS&&window.BNS.fs, db=window.BNS&&window.BNS.db;
-      if(fs&&db&&fs.setDoc&&fs.doc){
-        var data=Object.assign({},o,{updatedAt:o.updatedAt||new Date().toISOString()});
-        fs.setDoc(fs.doc(db,'orders',String(o.id||o.number)),data).catch(function(){});
-      }
-    }catch(e){}
-    try{ if(typeof renderPhone83==='function') renderPhone83(); }catch(e){}
-    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
-  }
-  function applyAndSyncNow(){
-    var o=currentOrder(); if(!o) return;
-    var ids=checkedIds(); if(ids==null) return;
-    applySelected(o, ids);
-    syncFull(o);
-  }
-  document.addEventListener('change',function(ev){
-    var t=ev.target;
-    if(t&&t.matches&&t.matches('#bnsV83DriverBox input[type=checkbox], #orderDriver')){
-      // BNS 515: vinkje klikken is alleen concept; pas Opslaan schrijft naar Firebase/telefoon.
-      window.__bns458DriverTouched=true; window.__bns459DriverTouched=true; window.__bns505DriverTouched=true;
-      clearTimeout(window.__BNS_505_DRIVER_TIMER__);
-    }
-  },true);
-  document.addEventListener('click',function(ev){
-    var b=ev.target&&ev.target.closest&&ev.target.closest('button,input[type=button],input[type=submit]');
-    if(!b) return;
-    var txt=T(b.textContent||b.value||b.id).toLowerCase();
-    if(b.id==='saveOrder'||txt==='opslaan'){
-      // BNS 515: alleen schrijven na Opslaan als de bezorger-vinkjes zijn gewijzigd.
-      if(!window.__bns505DriverTouched) return;
-      var ids=checkedIds();
-      if(ids==null) return;
-      setTimeout(function(){var o=currentOrder(); if(o){applySelected(o,ids); syncFull(o);}},80);
-      setTimeout(function(){var o=currentOrder(); if(o){applySelected(o,ids); syncFull(o);} window.__bns505DriverTouched=false;},450);
-    }
-  },true);
-  function patchSyncOrder(){
-    if(!window.BNS||!window.BNS.syncOrder||window.BNS.syncOrder.__bns505) return;
-    var old=window.BNS.syncOrder;
-    window.BNS.syncOrder=function(o){
-      try{ if(o){ setFolder(o); o.updatedAt=o.updatedAt||new Date().toISOString(); } }catch(e){}
-      return old.apply(this,arguments);
-    };
-    window.BNS.syncOrder.__bns505=true;
-  }
-  patchSyncOrder(); setTimeout(patchSyncOrder,600); setInterval(patchSyncOrder,2500);
-  window.BNS_505_applySelectedDrivers=function(){var o=currentOrder(); if(o){applySelected(o,checkedIds()); syncFull(o);} return !!o;};
-  console.log('[BNS 505] bezorger-keuze direct sync + oude telefoon-kopieen geblokkeerd');
-})();
-
-/* =========================================================
-   BNS 510 - F5 driver waarheid zonder dubbele orderdocumenten
-   Probleem: oude Firebase/localStorage orderkopieen zetten vinkjes terug na F5.
-   Oplossing: driver-keuze krijgt een eigen truth-stempel en wordt op alle
-   documenten met hetzelfde opdrachtnummer toegepast. Oude driverdata mag bij
-   laden niet meer winnen.
-   ========================================================= */
-(function(){
-  if(window.__BNS_506_DRIVER_F5_FINAL__) return;
-  window.__BNS_506_DRIVER_F5_FINAL__ = true;
-  var KEY='bns_driver_truth_v506';
-  function T(v){return String(v==null?'':v).trim();}
-  function A(v){
-    if(v==null) return [];
-    if(Array.isArray(v)){var out=[]; v.forEach(function(x){out=out.concat(A(x));}); return out;}
-    if(typeof v==='object') return [v.id||v.name||v.naam||''].map(T).filter(Boolean);
-    return String(v).split(/[;,|\n]+/).map(T).filter(Boolean);
-  }
-  function S(){try{return window.state||state||{};}catch(e){return window.state||{};}}
-  function orders(){var s=S(); if(!Array.isArray(s.orders)) s.orders=[]; return s.orders;}
-  function users(){var s=S(); if(!Array.isArray(s.users)) s.users=[]; return s.users;}
-  function now(){return new Date().toISOString();}
-  function ms(v){var n=Date.parse(v||0); return isNaN(n)?0:n;}
-  function orderKey(o){
-    // BNS 515: waarheid alleen koppelen op exact opdrachtnummer (jaar-volgnummer).
-    if(!o) return '';
-    var k=T(o.number||o.orderNumber||o.nr||o.opdrachtnummer||o.orderNo);
-    if(/^\d{4}-\d+/.test(k)) return k;
-    var id=T(o.id||o.docId||o.orderId);
-    return /^\d{4}-\d+/.test(id) ? id : '';
-  }
-  function readTruth(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){return {};}}
-  function writeTruth(m){try{localStorage.setItem(KEY,JSON.stringify(m||{}));}catch(e){}}
-  function userById(id){id=T(id); return users().find(function(u){return T(u.id)===id;});}
-  function checkedIds(){
-    var boxes=Array.prototype.slice.call(document.querySelectorAll('#bnsV83DriverBox input[type=checkbox]'));
-    if(!boxes.length) return null; // BNS 507: geen bezorger-paneel zichtbaar = bestaande bezorgers NIET leegmaken bij gewone order-wijziging
-    return boxes.filter(function(i){return i.checked;}).map(function(i){return T(i.value);}).filter(Boolean);
-  }
-  function currentOrder(){
-    var nr=T((document.getElementById('orderNumber')||{}).value), edit=T(window.editing||'');
-    // BNS 515: de geopende opdracht exact zoeken. Eerst edit-id, daarna exact opdrachtnummer.
-    var byEdit = edit ? orders().find(function(o){return T(o.id)===edit || T(o.docId)===edit || T(o.orderId)===edit;}) : null;
-    if(byEdit) return byEdit;
-    if(!nr) return null;
-    return orders().find(function(o){return T(o.number)===nr || T(o.orderNumber)===nr || T(o.nr)===nr || T(o.opdrachtnummer)===nr || T(o.id)===nr;});
-  }
-  function clearDrivers(o){
-    if(!o) return o;
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){o[k]='';});
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){o[k]=[];});
-    return o;
-  }
-  function hasDrivers(o){
-    var vals=[];
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){vals=vals.concat(A(o&&o[k]));});
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){vals=vals.concat(A(o&&o[k]));});
-    return vals.some(Boolean);
-  }
-  function setDriverFolder(o){
-    var st=T(o.status||o.state||o.orderStatus).toLowerCase();
-    if(/offerte/.test(st)) o.folder='offerte';
-    else if(/optie|14/.test(st)) o.folder='optie14';
-    else if(/geann|annul|cancel|verwijderd|deleted|trash/.test(st)) o.folder='geannuleerd';
-    else if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(st)) o.folder='uitgevoerd';
-    else if(hasDrivers(o)) o.folder='lopend';
-    else o.folder='';
-    // BNS 507: gewone order-wijzigingen mogen de telefoonopdracht niet verbergen.
-    // Alleen applyIds(..., []) zet expliciet phoneHidden/driverCleared=true.
-    if(hasDrivers(o)){
-      o.phoneHidden=false;
-      o.driverCleared=false;
-    }else if(o.phoneHidden===true || o.driverCleared===true){
-      o.phoneHidden=true;
-      o.driverCleared=true;
-    }
-    return o;
-  }
-  function applyIds(o, ids, stamp){
-    ids=(ids||[]).map(T).filter(Boolean); stamp=stamp||now();
-    var ds=ids.map(userById).filter(Boolean);
-    var names=ds.map(function(u){return T(u.name||u.naam||u.displayName);}).filter(Boolean);
-    clearDrivers(o);
-    if(ids.length){
-      o.driverIds=ids.slice(); o.bezorgerIds=ids.slice(); o.assignedDriverIds=ids.slice(); o.userIds=ids.slice(); o.selectedDrivers=ids.slice();
-      o.drivers=ds.map(function(u){return {id:T(u.id),name:T(u.name||u.naam||u.displayName),role:u.role||''};});
-      o.assignedDrivers=o.drivers.slice();
-      o.driverNames=names.slice(); o.bezorgerNames=names.slice(); o.assignedDriverNames=names.slice();
-      o.driver=names.join(', '); o.driverName=o.driver; o.bezorger=o.driver; o.assignedDriver=o.driver;
-      o.driverId=ids[0]||''; o.bezorgerId=ids[0]||''; o.assignedDriverId=ids[0]||''; o.userId=ids[0]||'';
-      o.driverCleared=false; o.phoneHidden=false;
-    }else{
-      o.driverCleared=true; o.phoneHidden=true; o.driverClearedAt=stamp;
-    }
-    o.driverSelectionIds=ids.slice();
-    o.driverTruthAt=stamp;
-    o.driverChangedAt=stamp;
-    o.driverSyncAt=stamp;
-    o.updatedAt=stamp;
-    setDriverFolder(o);
-    return o;
-  }
-  function remember(o, ids, stamp){
-    if(!o) return;
-    var k=orderKey(o); if(!k) return;
-    var m=readTruth();
-    m[k]={ids:(ids||[]).map(T).filter(Boolean), changedAt:stamp||now(), cleared:!(ids&&ids.length)};
-    if(o.id) m[T(o.id)]=m[k];
-    writeTruth(m);
-  }
-  function applyTruthToOrder(o){
-    if(!o) return o;
-    var m=readTruth(), k=orderKey(o), t=m[k]||m[T(o.id)];
-    if(!t) return o;
-    if(ms(t.changedAt) >= ms(o.driverTruthAt||o.driverChangedAt||o.updatedAt||0) || t.cleared){
-      applyIds(o,t.ids||[],t.changedAt||now());
-    }
-    return o;
-  }
-  function applyTruthToState(){
-    try{ orders().forEach(applyTruthToOrder); }catch(e){}
-  }
-  function saveLocalAll(){
-    var s=S();
-    try{ if(typeof save==='function') save(); }catch(e){}
-    ['event-planner-pro-v87','eventPlannerProState','plannerState','eventPlannerPro','eventPlannerProV91'].forEach(function(k){try{localStorage.setItem(k,JSON.stringify(s));}catch(e){}});
-  }
-  async function writeDriverOrderOnly(o){
-    try{
-      if(!o || !window.BNS || !window.BNS.fs || !window.BNS.db) return;
-      var fs=window.BNS.fs, db=window.BNS.db;
-      var docId=T(o.id||o.number);
-      if(!docId) return;
-      await fs.setDoc(fs.doc(db,'orders',docId),Object.assign({},o));
-    }catch(e){console.warn('[BNS 510] kon order niet schrijven',e);}
-  }
-  function applyAndSync(ids){
-    var o=currentOrder(); if(!o) return false;
-    if(ids==null) ids=checkedIds();
-    if(ids==null) return false; // BNS 507: save vanaf klant/titel/materialen-tab mag driverkeuze niet overschrijven
-    var stamp=now(); ids=(ids||[]).map(T).filter(Boolean);
-    applyIds(o,ids,stamp); remember(o,ids,stamp); applyTruthToState(); saveLocalAll();
-    try{ if(window.BNS&&typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
-    writeDriverOrderOnly(o);
-    try{ if(typeof renderPhone83==='function') renderPhone83(); }catch(e){}
-    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
-    return true;
-  }
-  // Override folder helper: bevestigd/opdracht mag alleen lopend zijn met echte bezorger.
-  window.BNS_v506FolderFromOrder=function(o){
-    if(!o) return '';
-    var id=T(o.id||o.docId||o.orderId); if(id.indexOf('old_')===0) return 'archief';
-    var st=T(o.status||o.state||o.orderStatus).toLowerCase();
-    if(/offerte/.test(st)) return 'offerte';
-    if(/optie|14/.test(st)) return 'optie14';
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(st)) return 'geannuleerd';
-    if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(st)) return 'uitgevoerd';
-    return hasDrivers(o)?'lopend':'';
-  };
-  try{ window.BNS_v460FolderFromOrder=window.BNS_v506FolderFromOrder; }catch(e){}
-  try{ window.BNS_orderIsLiveForPhone=function(o){return !!(o && window.BNS_v506FolderFromOrder(o)==='lopend' && hasDrivers(o) && !o.phoneHidden && !o.driverCleared && o.deleted!==true && o.afgemeld!==true && o.phoneDone!==true && o.completed!==true);}; }catch(e){}
-  document.addEventListener('change',function(ev){
-    var t=ev.target;
-    if(t&&t.matches&&t.matches('#bnsV83DriverBox input[type=checkbox], #orderDriver')){
-      // BNS 515: vinkje klikken niet direct syncen; alleen markeren tot Opslaan.
-      window.__bns458DriverTouched=true; window.__bns459DriverTouched=true; window.__bns506DriverTouched=true;
-      clearTimeout(window.__BNS_506_DRIVER_TIMER__);
-    }
-  },true);
-  document.addEventListener('click',function(ev){
-    var b=ev.target&&ev.target.closest&&ev.target.closest('button,input[type=button],input[type=submit]'); if(!b) return;
-    var txt=T(b.textContent||b.value||b.id).toLowerCase();
-    if(b.id==='saveOrder'||txt==='opslaan'){
-      // BNS 515: alleen bezorger-sync als de bezorgerkeuze echt is gewijzigd.
-      if(!window.__bns506DriverTouched) return;
-      var ids=checkedIds();
-      if(ids==null) return; // geen bezorger-paneel zichtbaar = niet leegmaken
-      setTimeout(function(){applyAndSync(ids);},60);
-      setTimeout(function(){applyAndSync(ids);},550);
-      setTimeout(function(){applyAndSync(ids); window.__bns506DriverTouched=false;},1600);
-    }
-  },true);
-  function patchBnsSync(){
-    if(!window.BNS||!window.BNS.syncOrder||window.BNS.syncOrder.__bns506) return;
-    var old=window.BNS.syncOrder;
-    window.BNS.syncOrder=async function(o){
-      try{ applyTruthToOrder(o); setDriverFolder(o); }catch(e){}
-      var r=await old.apply(this,arguments);
-      try{ writeDriverOrderOnly(o); }catch(e){}
-      return r;
-    };
-    window.BNS.syncOrder.__bns506=true;
-  }
-  patchBnsSync(); setTimeout(patchBnsSync,500); setInterval(patchBnsSync,2500);
-  applyTruthToState(); setTimeout(applyTruthToState,500); setInterval(function(){applyTruthToState();},2000);
-  window.BNS_506_applySelectedDrivers=function(){return applyAndSync(checkedIds());};
-  window.BNS_506_applyTruthToState=applyTruthToState;
-  console.log('[BNS 510] F5 driver waarheid actief - geen dubbele orderdocumenten');
-})();
-
-
-/* BNS 512 - gewone opdrachtwijziging mag bestaande bezorgers nooit tijdelijk wissen */
-(function(){
-  if(window.__BNS_512_PRESERVE_DRIVERS_ON_ORDER_EDIT__) return;
-  window.__BNS_512_PRESERVE_DRIVERS_ON_ORDER_EDIT__=true;
-  function T(v){return String(v==null?'':v).trim();}
-  function A(v){
-    if(v==null) return [];
-    if(Array.isArray(v)){var out=[]; v.forEach(function(x){out=out.concat(A(x));}); return out;}
-    if(typeof v==='object') return [v.id||v.name||v.naam||''].map(T).filter(Boolean);
-    return String(v).split(/[;,|\n]+/).map(T).filter(Boolean);
-  }
-  function S(){try{return window.state||state||{};}catch(e){return window.state||{};}}
-  function orders(){var s=S(); return Array.isArray(s.orders)?s.orders:[];}
-  function key(o){
-    if(!o) return '';
-    var k=T(o.number||o.orderNumber||o.nr||o.opdrachtnummer||o.orderNo);
-    if(/^\d{4}-\d+/.test(k)) return k;
-    var id=T(o.id||o.docId||o.orderId);
-    return /^\d{4}-\d+/.test(id) ? id : '';
-  }
-  function hasDrivers(o){
-    if(!o || o.phoneHidden===true || o.driverCleared===true) return false;
-    var vals=[];
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){vals=vals.concat(A(o&&o[k]));});
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers','driverSelectionIds'].forEach(function(k){vals=vals.concat(A(o&&o[k]));});
-    return vals.some(Boolean);
-  }
-  function copyDrivers(from,to){
-    if(!from||!to) return to;
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','driverTruthAt','driverChangedAt','driverSyncAt','driverSelectionIds'].forEach(function(k){ if(from[k]!=null && from[k]!=='' ) to[k]=from[k]; });
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers','driverSelectionIds'].forEach(function(k){ if(Array.isArray(from[k]) && from[k].length) to[k]=JSON.parse(JSON.stringify(from[k])); });
-    to.phoneHidden=false; to.driverCleared=false;
-    if(hasDrivers(to)) to.folder='lopend';
-    return to;
-  }
-  function findStateOrder(o){
-    var k=key(o); if(!k) return null;
-    // BNS 515: alleen exact opdrachtnummer, geen titel/klant/plaats/bezorger en geen brede fallback.
-    return orders().find(function(x){return x && (T(x.number)===k || T(x.orderNumber)===k || T(x.nr)===k || T(x.opdrachtnummer)===k || T(x.id)===k);});
-  }
-  function preserve(o){
-    if(!o) return o;
-    if(o.phoneHidden===true || o.driverCleared===true) return o; // echt weggehaald blijft weg
-    if(hasDrivers(o)) return o;
-    var old=findStateOrder(o);
-    if(old && hasDrivers(old)) copyDrivers(old,o);
-    return o;
-  }
-  function patch(){
-    try{
-      if(!window.BNS || !window.BNS.syncOrder || window.BNS.syncOrder.__bns512) return;
-      var old=window.BNS.syncOrder;
-      window.BNS.syncOrder=function(o){ try{ preserve(o); }catch(e){} return old.apply(this,arguments); };
-      window.BNS.syncOrder.__bns512=true;
-    }catch(e){}
-  }
-  try{
-    if(typeof window.save==='function' && !window.save.__bns512){
-      var oldSave=window.save;
-      window.save=function(){
-        try{ var cur=(typeof currentOrder==='function')?currentOrder():null; preserve(cur); }catch(e){}
-        return oldSave.apply(this,arguments);
-      };
-      window.save.__bns512=true;
-    }
-  }catch(e){}
-  patch(); setTimeout(patch,500); setInterval(patch,2500);
-  window.BNS_512_preserveDriversOnOrderEdit=preserve;
-  console.log('[BNS 512] gewone wijziging bewaart bestaande bezorger voor telefoon');
-})();
-
-
-/* BNS 515 marker: exacte opdrachtnummer-sync, geen directe telefoonwijziging bij klikken. */
-console.log('[BNS 515] bezorger alleen na Opslaan, exact op opdrachtnummer, geen opdracht-mix');
