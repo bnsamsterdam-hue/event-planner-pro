@@ -88,7 +88,7 @@ async function loadPhoneData(){
 async function updateOrder(o){
   if(!o||!o.id)return;
   o.updatedAt=new Date().toISOString();
-  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"orders",String(o.id)),o,{merge:true});
+  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"orders",String(o.id)),o);
 }
 async function addAlert(a){
   const id=a.id||("a_"+Math.random().toString(36).slice(2,10));
@@ -168,18 +168,29 @@ function BNS_driverFolder(o){
   return BNS_driverFolderFromStatus(o&&o.status);
 }
 function BNS_orderIsLiveForPhone(o){
-  return !!(o && BNS_driverFolder(o)==="lopend" && o.afgemeld!==true && o.phoneDone!==true && o.completed!==true && !isCancelled(o) && !isDone(o) && !isDeleted(o));
+  return !!(o && BNS_driverFolder(o)==="lopend" && BNS_driverHasAssignee(o) && o.afgemeld!==true && o.phoneDone!==true && o.completed!==true && !isCancelled(o) && !isDone(o) && !isDeleted(o));
+}
+function BNS_driverHasAssignee(o){
+  if(!o) return false;
+  const vals=[];
+  ['driverId','bezorgerId','userId','assignedDriverId','driverName','driver','bezorger','bezorgerName','assignedDriver','assignedDriverName'].forEach(k=>{ if(o[k]) vals.push(clean(o[k])); });
+  ['driverIds','bezorgerIds','userIds','assignedDriverIds','driverNames','bezorgerNames','assignedDriverNames','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(k=>{
+    const v=o[k];
+    if(Array.isArray(v)) v.forEach(x=>vals.push(clean((x&&typeof x==='object')?(x.id||x.name||x.naam):x)));
+  });
+  return vals.some(Boolean);
 }
 
 function assignedToUser(o){
   if(!BNS.user || !o) return false;
   const uid=String(BNS.user.id||""), un=lower(BNS.user.name||"");
   const ids=[];
-  const addId=v=>{ String(v==null?"":v).split(/[;,\n|]+/).map(clean).filter(Boolean).forEach(x=>ids.push(String(x))); };
-  [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId].forEach(addId);
-  [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds].forEach(a=>{ if(Array.isArray(a))a.forEach(addId); });
   const names=[];
-  const addName=v=>{ String(v==null?"":v).split(/[;,\n|]+/).map(lower).filter(Boolean).forEach(x=>names.push(x)); };
+  const addId=v=>{ String(v==null?"":v).split(new RegExp('[;,\n|]+')).map(clean).filter(Boolean).forEach(x=>ids.push(String(x))); };
+  const addName=v=>{ String(v==null?"":v).split(new RegExp('[;,\n|]+')).map(lower).filter(Boolean).forEach(x=>names.push(x)); };
+  [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId].forEach(addId);
+  [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds,o.selectedDrivers].forEach(a=>{ if(Array.isArray(a))a.forEach(addId); });
+  [o.drivers,o.bezorgers,o.driverList,o.assigned,o.assignedDrivers].forEach(a=>{ if(Array.isArray(a))a.forEach(x=>{ if(x&&typeof x==='object'){ addId(x.id); addName(x.name||x.naam); } else { addId(x); addName(x); } }); });
   [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver,o.assignedDriverName].forEach(addName);
   [o.driverNames,o.bezorgerNames,o.assignedDriverNames].forEach(a=>{ if(Array.isArray(a))a.forEach(addName); });
   if(uid&&ids.includes(uid))return true;
