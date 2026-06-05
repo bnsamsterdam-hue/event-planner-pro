@@ -1,3 +1,89 @@
+
+// ── Globale localStorage base64 interceptor ────────────────
+// Onderschept ALLE localStorage writes en verwijdert base64 data
+// zodat QuotaExceededError nooit meer optreedt
+(function(){
+  var _BIG = ['photoData','photo','image','signatureData','signature',
+              'data','customerSignature'];
+  var _SKIP = ['bnsCatColors','bns.catColors','bnsV57FavColors',
+               'COLOR_KEY','STYLE_KEY','CLOSED_KEY','INVOICE_KEY',
+               'PENDING_KEY','OVERRIDE_KEY','DOC_KEY','knownUserKey'];
+  
+  function _isStateKey(k){
+    k = String(k||'');
+    return k.indexOf('event-planner')>=0 || k.indexOf('bns_')>=0 ||
+           k.indexOf('eventPlanner')>=0 || k.indexOf('plannerState')>=0 ||
+           k.indexOf('bns-') >=0;
+  }
+  
+  function _strip(obj){
+    if(!obj || typeof obj !== 'object') return;
+    _BIG.forEach(function(f){
+      if(obj[f] && typeof obj[f]==='string' && obj[f].length > 500) delete obj[f];
+    });
+  }
+  
+  function _stripState(s){
+    if(!s || typeof s !== 'object') return s;
+    try{
+      (['orders','alerts']).forEach(function(col){
+        (s[col]||[]).forEach(function(o){
+          _strip(o);
+          ['media','photos','signatures','driverUploads',
+           'handtekeningen','klantmeldingen'].forEach(function(k){
+            (o[k]||[]).forEach(_strip);
+          });
+        });
+      });
+    }catch(e){}
+    return s;
+  }
+
+  var _orig = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function(key, value){
+    // Alleen state-keys strippen, kleine keys doorlaten
+    if(_isStateKey(key) && typeof value === 'string' && value.length > 10000){
+      try{
+        var parsed = JSON.parse(value);
+        _stripState(parsed);
+        value = JSON.stringify(parsed);
+      }catch(e){}
+    }
+    try{
+      _orig(key, value);
+    }catch(e){
+      // Vol: verwijder backup keys en probeer opnieuw
+      try{
+        ['bns_auto_backup_latest_json_v1','bns_auto_backup_date_v1'].forEach(function(k){
+          try{ localStorage.removeItem(k); }catch(_){}
+        });
+        _orig(key, value);
+      }catch(e2){
+        console.warn('[BNS] localStorage vol, sla op in Firebase alleen');
+      }
+    }
+  };
+  console.info('[BNS] localStorage base64 interceptor actief');
+})();
+
+// Eenmalige opruiming bestaande base64 in localStorage
+(function(){
+  var BIG=['photoData','photo','image','signatureData','signature','data','customerSignature'];
+  var KEYS=['event-planner-pro-v87','event-planner-pro-v8','event-planner-pro',
+            'bns_auto_backup_latest_json_v1','bns_event_planner'];
+  KEYS.forEach(function(k){
+    try{
+      var raw=localStorage.getItem(k); if(!raw) return;
+      var s=JSON.parse(raw); var changed=0;
+      function strip(o){ if(!o||typeof o!=='object') return;
+        BIG.forEach(function(f){ if(o[f]&&String(o[f]).length>200){delete o[f];changed++;} }); }
+      (s.orders||[]).forEach(function(o){ strip(o);
+        ['media','photos','signatures','driverUploads'].forEach(function(a){ (o[a]||[]).forEach(strip); }); });
+      (s.alerts||[]).forEach(strip);
+      if(changed){ localStorage.setItem(k,JSON.stringify(s)); console.info('[BNS] '+changed+' base64 items verwijderd uit localStorage'); }
+    }catch(e){}
+  });
+})();
 /* BNS FIREBASE AUTO SYNC V460 */
 (function(){
 "use strict";
@@ -29,7 +115,24 @@ function loadLocal(){
 }
 function saveLocal(s){
   if(!s)return;
-  try{localStorage.setItem(STORAGE_KEYS[0],JSON.stringify(s))}catch(e){}
+  try{
+    // Strip base64 voor localStorage
+    var _BIG=['photoData','photo','image','signatureData','signature','data','customerSignature'];
+    function _stripFs(o){ if(!o||typeof o!=='object') return; _BIG.forEach(function(f){ if(o[f]&&String(o[f]).length>200) delete o[f]; }); }
+    var _sc = JSON.parse(JSON.stringify(s));
+    (_sc.orders||[]).forEach(function(o){
+      _stripFs(o);
+      ['media','photos','signatures','driverUploads','handtekeningen','klantmeldingen'].forEach(function(k){ (o[k]||[]).forEach(_stripFs); });
+    });
+    (_sc.alerts||[]).forEach(_stripFs);
+    localStorage.setItem(STORAGE_KEYS[0],JSON.stringify(_sc));
+  }catch(e){
+    // Als nog vol: probeer zonder alerts
+    try{
+      var _min={orders:s.orders||[],materials:s.materials||[],users:s.users||[],settings:s.settings||{}};
+      localStorage.setItem(STORAGE_KEYS[0],JSON.stringify(_min));
+    }catch(_){}
+  }
   try{window.state=s}catch(e){}
 }
 function arr(s,k){s[k]=Array.isArray(s[k])?s[k]:[]}
@@ -301,7 +404,12 @@ async function upload(reason){
           bns460NormalizeOrder(row);
         }
         row.updatedAt=row.updatedAt||new Date().toISOString();
-        await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row,{merge:true});
+        // Orders zonder merge zodat geclearde velden (driver=[]) echt worden opgeslagen
+        if(col==="orders"){
+          await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row);
+        } else {
+          await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row,{merge:true});
+        }
       }
     }
     localStorage.setItem(AUTO_KEY,"1");
@@ -417,7 +525,15 @@ setInterval(patchSave,3000);
 async function syncDoc(col,row){
   const t=await fb(); if(!t||!col||!row||!row.id)return false;
   try{
-    await t.fsMod.setDoc(t.fsMod.doc(t.db,String(col),String(row.id)),row,{merge:true});
+    // Orders: GEEN merge - volledige overschrijving zodat geclearde velden echt weg zijn
+    const useMerge = col !== 'orders';
+    if(useMerge){
+      await t.fsMod.setDoc(t.fsMod.doc(t.db,String(col),String(row.id)),row,{merge:true});
+    } else {
+      // Order zonder merge: zorgt dat driver=[] echt wordt opgeslagen
+      row.updatedAt = row.updatedAt || new Date().toISOString();
+      await t.fsMod.setDoc(t.fsMod.doc(t.db,String(col),String(row.id)),row);
+    }
     return true;
   }catch(e){console.error(e);status("Firebase syncDoc fout");return false;}
 }

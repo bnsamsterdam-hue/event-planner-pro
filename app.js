@@ -1,5 +1,74 @@
 
 
+// BNS localStorage quota fix - patch setItem globaal
+(function(){
+  if(window.__BNS_STORAGE_PATCHED__) return;
+  window.__BNS_STORAGE_PATCHED__ = true;
+  
+  var _BIG = ['photoData','photo','image','signatureData','signature','data','customerSignature'];
+  
+  function stripBase64(val){
+    // Alleen verwerken als het een JSON string is met state-achtige inhoud
+    if(!val || val.length < 1000) return val;
+    try{
+      var s = JSON.parse(val);
+      if(!s || typeof s !== 'object') return val;
+      // Strip uit orders
+      (s.orders||[]).forEach(function(o){
+        if(!o||typeof o!=='object') return;
+        _BIG.forEach(function(f){ if(o[f]&&String(o[f]).length>200) delete o[f]; });
+        ['media','photos','signatures','driverUploads','handtekeningen','klantmeldingen'].forEach(function(k){
+          (o[k]||[]).forEach(function(m){ if(m&&typeof m==='object') _BIG.forEach(function(f){ if(m[f]&&String(m[f]).length>200) delete m[f]; }); });
+        });
+      });
+      // Strip uit alerts
+      (s.alerts||[]).forEach(function(a){
+        if(!a||typeof a!=='object') return;
+        _BIG.forEach(function(f){ if(a[f]&&String(a[f]).length>200) delete a[f]; });
+      });
+      return JSON.stringify(s);
+    }catch(e){ return val; }
+  }
+  
+  var _orig = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function(key, value){
+    try{
+      // Probeer direct
+      _orig(key, value);
+    }catch(e){
+      // Quota vol - strip base64 en probeer opnieuw
+      try{
+        var stripped = stripBase64(value);
+        _orig(key, stripped);
+        console.info('[BNS] localStorage vol: base64 gestript voor', key);
+      }catch(e2){
+        // Nog steeds vol - verwijder oude backups en probeer minimaal
+        try{ localStorage.removeItem('bns_auto_backup_latest_json_v1'); }catch(_){}
+        try{ localStorage.removeItem('bns_auto_backup_date_v1'); }catch(_){}
+        try{
+          var stripped2 = stripBase64(value);
+          _orig(key, stripped2);
+        }catch(e3){
+          console.warn('[BNS] localStorage vol, kan niet opslaan:', key);
+        }
+      }
+    }
+  };
+  
+  // Ruim ook direct bestaande base64 op
+  try{
+    ['event-planner-pro-v87','event-planner-pro-v8','event-planner-pro','bns_event_planner'].forEach(function(k){
+      var raw = localStorage.getItem(k);
+      if(!raw || raw.length < 10000) return;
+      var clean = stripBase64(raw);
+      if(clean.length < raw.length) _orig(k, clean);
+    });
+  }catch(e){}
+  
+  console.info('[BNS] localStorage quota fix actief - base64 wordt automatisch gestript');
+})();
+
+
 // ===== V9.1 safety fixes =====
 function safePrint(){
   window.print();
@@ -7950,11 +8019,24 @@ function load(){
 }
 function save(){
   try{
-    localStorage.setItem(KEY,JSON.stringify(state))
+    // Strip base64 voor localStorage - voorkomt QuotaExceededError
+    var _BIG=['photoData','photo','image','signatureData','signature','data','customerSignature'];
+    function _stripObj(o){ if(!o||typeof o!=='object') return; _BIG.forEach(function(f){ if(o[f]&&String(o[f]).length>200) delete o[f]; }); }
+    var _s = JSON.parse(JSON.stringify(state));
+    (_s.orders||[]).forEach(function(o){
+      _stripObj(o);
+      ['media','photos','signatures','driverUploads','handtekeningen','klantmeldingen'].forEach(function(k){ (o[k]||[]).forEach(_stripObj); });
+    });
+    (_s.alerts||[]).forEach(_stripObj);
+    localStorage.setItem(KEY, JSON.stringify(_s));
   } catch(e){
     try{
-      console.warn('[Tapwagen] lokale opslag vol, Firebase blijft leidend',e)
+      // Als nog steeds vol: verwijder backup keys om ruimte te maken
+      ['bns_auto_backup_latest_json_v1','bns_auto_backup_date_v1'].forEach(function(k){ try{localStorage.removeItem(k);}catch(_){} });
+      localStorage.setItem(KEY, JSON.stringify({orders:state.orders||[],materials:state.materials||[],users:state.users||[]}));
+      console.warn('[Tapwagen] lokale opslag vol, basis opgeslagen');
     } catch(_){
+      console.warn('[Tapwagen] lokale opslag vol, Firebase blijft leidend');
     }
   }
 }
