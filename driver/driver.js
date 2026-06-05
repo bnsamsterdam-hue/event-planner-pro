@@ -47,14 +47,13 @@ async function loadCollection(n){
 
   // BNS v446: alleen orders filteren voor telefoon. Users nooit filteren.
   if(n==="orders"){
-    rows=BNS_505_dedupeOrders(rows);
     rows=rows.filter(o=>{
       const id=String((o&&(o.id||o.docId||o.orderId))||"");
       if(id.indexOf("old_")===0) return false;
       const f=lower((o&&(o.folder||o.map||o.orderFolder))||"");
-      if(f) return f==="lopend" && BNS_driverHasAssignee(o);
+      if(f) return f==="lopend";
       const st=lower(o&&o.status);
-      return BNS_driverHasAssignee(o) && /bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(st) &&
+      return /bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(st) &&
         !/offerte|optie|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st);
     });
   }
@@ -100,18 +99,6 @@ async function addAlert(a){
   if(ix >= 0) BNS.state.alerts[ix] = a; else BNS.state.alerts.unshift(a);
 }
 
-function BNS_505_dedupeOrders(rows){
-  const by=new Map();
-  (rows||[]).forEach(o=>{
-    if(!o)return;
-    const key=String(o.number||o.orderNumber||o.id||"");
-    const old=by.get(key);
-    const ta=Date.parse(String((old&&old.updatedAt)||0))||Number((old&&old.updatedAt)||0)||0;
-    const tb=Date.parse(String(o.updatedAt||0))||Number(o.updatedAt||0)||0;
-    if(!old || tb>=ta) by.set(key,o);
-  });
-  return Array.from(by.values());
-}
 function populateUsers(f){
   let users=(BNS.state.users||[]).filter(f);
   try{
@@ -181,17 +168,7 @@ function BNS_driverFolder(o){
   return BNS_driverFolderFromStatus(o&&o.status);
 }
 function BNS_orderIsLiveForPhone(o){
-  return !!(o && BNS_driverFolder(o)==="lopend" && BNS_driverHasAssignee(o) && o.afgemeld!==true && o.phoneDone!==true && o.completed!==true && !isCancelled(o) && !isDone(o) && !isDeleted(o));
-}
-function BNS_driverHasAssignee(o){
-  if(!o) return false;
-  const vals=[];
-  ['driverId','bezorgerId','userId','assignedDriverId','driverName','driver','bezorger','bezorgerName','assignedDriver','assignedDriverName'].forEach(k=>{ if(o[k]) vals.push(clean(o[k])); });
-  ['driverIds','bezorgerIds','userIds','assignedDriverIds','driverNames','bezorgerNames','assignedDriverNames','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(k=>{
-    const v=o[k];
-    if(Array.isArray(v)) v.forEach(x=>vals.push(clean((x&&typeof x==='object')?(x.id||x.name||x.naam):x)));
-  });
-  return vals.some(Boolean);
+  return !!(o && BNS_driverFolder(o)==="lopend" && o.afgemeld!==true && o.phoneDone!==true && o.completed!==true && !isCancelled(o) && !isDone(o) && !isDeleted(o));
 }
 
 function assignedToUser(o){
@@ -200,8 +177,7 @@ function assignedToUser(o){
   const ids=[];
   const addId=v=>{ String(v==null?"":v).split(/[;,\n|]+/).map(clean).filter(Boolean).forEach(x=>ids.push(String(x))); };
   [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId].forEach(addId);
-  [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds,o.selectedDrivers].forEach(a=>{ if(Array.isArray(a))a.forEach(addId); });
-  [o.drivers,o.bezorgers,o.driverList,o.assigned,o.assignedDrivers].forEach(a=>{ if(Array.isArray(a))a.forEach(x=>{ if(x&&typeof x==='object'){ addId(x.id); addName(x.name||x.naam); } else { addId(x); addName(x); } }); });
+  [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds].forEach(a=>{ if(Array.isArray(a))a.forEach(addId); });
   const names=[];
   const addName=v=>{ String(v==null?"":v).split(/[;,\n|]+/).map(lower).filter(Boolean).forEach(x=>names.push(x)); };
   [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver,o.assignedDriverName].forEach(addName);
@@ -695,172 +671,30 @@ boot();
   console.log("[BNS v493 driver] update-signaal actief.");
 })();
 
-/* BNS 506 driver phone: verborgen/driverCleared nooit tonen + dedupe per opdrachtnummer */
+
+/* BNS v516 telefoon: realtime orders/users verversen, zonder opdrachten te mixen */
 (function(){
-  if(window.__BNS_506_DRIVER_PHONE_STRICT__) return;
-  window.__BNS_506_DRIVER_PHONE_STRICT__=true;
-  function T(v){return String(v==null?'':v).trim();}
-  function lower(v){return T(v).toLowerCase();}
-  function ms(v){var n=Date.parse(v||0); return isNaN(n)?0:n;}
-  function hasAssigned506(o){
-    if(!o || o.phoneHidden===true || o.driverCleared===true) return false;
-    var vals=[];
-    ['driverId','bezorgerId','userId','assignedDriverId','driverName','driver','bezorger','bezorgerName','assignedDriver','assignedDriverName'].forEach(function(k){if(o[k]) vals.push(T(o[k]));});
-    ['driverIds','bezorgerIds','userIds','assignedDriverIds','driverNames','bezorgerNames','assignedDriverNames','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){var v=o[k]; if(Array.isArray(v)) v.forEach(function(x){vals.push(T(x&&typeof x==='object'?(x.id||x.name||x.naam):x));});});
-    return vals.some(Boolean);
-  }
-  function liveFolder506(o){
-    if(!o) return '';
-    var st=lower(o.status||o.state||o.orderStatus);
-    if(/offerte/.test(st)) return 'offerte';
-    if(/optie|14/.test(st)) return 'optie14';
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(st)) return 'geannuleerd';
-    if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(st)) return 'uitgevoerd';
-    return hasAssigned506(o)?'lopend':'';
-  }
-  try{
-    var oldLive=typeof BNS_orderIsLiveForPhone==='function'?BNS_orderIsLiveForPhone:null;
-    BNS_orderIsLiveForPhone=function(o){
-      if(!hasAssigned506(o)) return false;
-      if(liveFolder506(o)!=='lopend') return false;
-      if(o && (o.afgemeld===true || o.phoneDone===true || o.completed===true || o.deleted===true)) return false;
-      return oldLive ? oldLive(o) !== false : true;
-    };
-    window.BNS_orderIsLiveForPhone=BNS_orderIsLiveForPhone;
-  }catch(e){}
-  try{
-    if(typeof visibleOrder==='function'){
-      var oldVisible=visibleOrder;
-      visibleOrder=function(o){ if(!hasAssigned506(o)) return false; if(liveFolder506(o)!=='lopend') return false; return oldVisible(o); };
-      window.visibleOrder=visibleOrder;
-    }
-  }catch(e){}
-  try{
-    if(typeof getOrders==='function'){
-      var oldGet=getOrders;
-      getOrders=function(){
-        var rows=[]; try{ rows=oldGet.apply(this,arguments)||[]; }catch(e){ rows=(BNS&&BNS.state&&BNS.state.orders)||[]; }
-        var by={};
-        rows.filter(hasAssigned506).forEach(function(o){
-          var k=T(o.number||o.orderNumber||o.nr); if(!k){ var oid=T(o.id||o.docId||o.orderId); if(/^\d{4}-\d+/.test(oid)) k=oid; } if(!k) k=T(o.id);
-          var cur=by[k];
-          var tm=ms(o.driverTruthAt||o.driverChangedAt||o.updatedAt||o.modifiedAt||o.createdAt);
-          var cm=cur?ms(cur.driverTruthAt||cur.driverChangedAt||cur.updatedAt||cur.modifiedAt||cur.createdAt):-1;
-          if(!cur || tm>=cm) by[k]=o;
-        });
-        return Object.keys(by).map(function(k){return by[k];}).filter(function(o){return hasAssigned506(o)&&liveFolder506(o)==='lopend';}).sort(function(a,b){return ms(a.start||a.dateStart||a.date)-ms(b.start||b.dateStart||b.date);});
-      };
-      window.getOrders=getOrders;
-    }
-  }catch(e){}
-  console.log('[BNS 506 driver] phoneHidden/driverCleared + dedupe actief');
-})();
-
-
-/* BNS 511 telefoon: realtime Firebase refresh na planner opslaan */
-(function(){
-  if(window.__BNS_511_PHONE_REALTIME_REFRESH__) return;
-  window.__BNS_511_PHONE_REALTIME_REFRESH__=true;
-  var unsubOrders=null;
-  var refreshTimer=null;
-  var lastSnapAt=0;
-  function T(v){return String(v==null?'':v).trim();}
-  function low(v){return T(v).toLowerCase();}
-  function orderRowsFromSnapshot(snap){
-    var incoming=[];
-    try{ incoming=snap.docs.map(function(d){return Object.assign({id:d.id}, d.data()||{});}); }catch(e){ incoming=[]; }
-    try{ if(typeof BNS_505_dedupeOrders==='function') incoming=BNS_505_dedupeOrders(incoming); }catch(e){}
-
-    // BNS 512: bij een gewone orderwijziging kan Firebase heel kort een order zonder
-    // driver-velden doorgeven. Dan mag de telefoon de opdracht niet laten verdwijnen.
-    // Alleen expliciet phoneHidden/driverCleared betekent: echt van telefoon af.
-    var existing=(BNS&&BNS.state&&Array.isArray(BNS.state.orders))?BNS.state.orders:[];
-    var existingBy={};
-    existing.forEach(function(x){
-      var k=T(x&&(x.number||x.orderNumber||x.nr));
-      if(!k){ var xid=T(x&&(x.id||x.docId||x.orderId)); if(/^\d{4}-\d+/.test(xid)) k=xid; }
-      if(k) existingBy[k]=x;
-    });
-    var rows=[];
-    incoming.forEach(function(o){
-      try{
-        if(!o) return;
-        var id=String((o.id||o.docId||o.orderId)||'');
-        if(id.indexOf('old_')===0) return;
-        if(o.deleted===true || o.removed===true || o.hidden===true || o.isDeleted===true) return;
-        var k=T(o.number||o.orderNumber||o.nr); if(!k){ var oid=T(o.id||o.docId||o.orderId); if(/^\d{4}-\d+/.test(oid)) k=oid; }
-        var old=k?existingBy[k]:null;
-        var has=(typeof BNS_driverHasAssignee==='function') ? BNS_driverHasAssignee(o) : true;
-        if(!has && !(o.phoneHidden===true || o.driverCleared===true) && old){
-          var oldHas=(typeof BNS_driverHasAssignee==='function') ? BNS_driverHasAssignee(old) : true;
-          if(oldHas){ rows.push(Object.assign({}, old, o, {phoneHidden:false, driverCleared:false})); return; }
-        }
-        var f=low((o.folder||o.map||o.orderFolder)||'');
-        if(f){ if(f==='lopend' && has) rows.push(o); return; }
-        var st=low(o.status||o.state||o.orderStatus);
-        if(has && /bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(st) && !/offerte|optie|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st)) rows.push(o);
-      }catch(e){}
-    });
-    return rows;
-  }
-  function rerenderSoon(){
-    clearTimeout(refreshTimer);
-    refreshTimer=setTimeout(function(){
-      try{
-        if(!BNS || !BNS.user) return;
-        if(document.getElementById('detailView') && !document.getElementById('detailView').classList.contains('hidden') && window.CURRENT_DETAIL_ID){
-          try{ showDetail(window.CURRENT_DETAIL_ID); }catch(e){ try{ render(); }catch(e2){} }
-        }else{
-          try{ render(); }catch(e){}
-        }
-      }catch(e){}
-    },120);
-  }
-  function startRealtime(){
+  if(window.__BNS_V516_DRIVER_REALTIME__) return;
+  window.__BNS_V516_DRIVER_REALTIME__=true;
+  function start(){
     try{
-      if(unsubOrders || !BNS || !BNS.firebase || !BNS.db || !BNS.firebase.onSnapshot) return;
-      unsubOrders=BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,'orders'), function(snap){
-        lastSnapAt=Date.now();
-        BNS.state.orders=orderRowsFromSnapshot(snap);
-        rerenderSoon();
-      }, function(err){
-        try{ console.warn('[BNS 511 telefoon realtime] uitgevallen:', err && err.message ? err.message : err); }catch(e){}
+      if(!BNS || !BNS.firebase || !BNS.db || BNS.__v516Live) return;
+      BNS.__v516Live=true;
+      BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,"orders"), function(){
+        try{ if(BNS.user) loadOrdersOnly().then(function(){ try{ render(); }catch(e){} }); }catch(e){}
       });
-      console.log('[BNS 511 telefoon] realtime orders refresh actief');
-    }catch(e){
-      try{ console.warn('[BNS 511 telefoon realtime] kon niet starten:', e && e.message ? e.message : e); }catch(_e){}
-    }
+      BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,"users"), function(){
+        try{ loadUsersOnly().then(function(){
+          if(BNS.user){
+            var fresh=(BNS.state.users||[]).find(function(u){return String(u.id)===String(BNS.user.id);});
+            if(!fresh || fresh.active===false || fresh.deleted===true || fresh.disabled===true){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} location.reload(); return; }
+            BNS.user=fresh;
+          }
+          try{ render(); }catch(e){}
+        }); }catch(e){}
+      });
+    }catch(e){}
   }
-  try{
-    if(typeof showApp==='function' && !showApp.__bns511){
-      var oldShowApp=showApp;
-      showApp=function(){
-        var r=oldShowApp.apply(this,arguments);
-        setTimeout(startRealtime,100);
-        return r;
-      };
-      showApp.__bns511=true;
-      window.showApp=showApp;
-    }
-  }catch(e){}
-  try{
-    var oldLoadPhoneData=typeof loadPhoneData==='function'?loadPhoneData:null;
-    if(oldLoadPhoneData && !oldLoadPhoneData.__bns511){
-      loadPhoneData=async function(){
-        var r=await oldLoadPhoneData.apply(this,arguments);
-        if(Date.now()-lastSnapAt>1500) setTimeout(startRealtime,50);
-        return r;
-      };
-      loadPhoneData.__bns511=true;
-      window.loadPhoneData=loadPhoneData;
-    }
-  }catch(e){}
+  setTimeout(start,1200);
+  setInterval(start,4000);
 })();
-
-
-/* BNS 512 markering: realtime telefoon behoudt bestaande opdracht bij gewone wijziging. */
-console.log('[BNS 512 driver] gewone wijziging haalt telefoonopdracht niet tijdelijk weg');
-
-
-/* BNS 515 driver marker: telefoon behoudt opdracht bij gewone wijziging, sleutel exact opdrachtnummer. */
-console.log('[BNS 515 driver] exact opdrachtnummer');
