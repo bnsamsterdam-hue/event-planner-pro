@@ -165,6 +165,14 @@ function json(){try{return JSON.stringify(loadLocal()||{})}catch(e){return""}}
    Corrigeert vervuilde folders in Firebase:
    status geannuleerd/uitgevoerd/verwijderd/offerte/optie wint van folder=lopend.
    ========================================================= */
+function bns481HasAnyDriver(o){
+  try{
+    const vals=[];
+    ["driver","driverId","driverName","bezorger","bezorgerId","bezorgerName","assignedDriver","assignedDriverId","assignedDriverName","userId"].forEach(k=>{ if(o&&o[k]) vals.push(String(o[k]).trim()); });
+    ["driverIds","driverNames","bezorgerIds","bezorgerNames","assignedDriverIds","assignedDriverNames","userIds","drivers","bezorgers","driverList","selectedDrivers","assigned","assignedDrivers"].forEach(k=>{ const v=o&&o[k]; if(Array.isArray(v)) v.forEach(x=>vals.push(String((x&&typeof x==="object")?(x.id||x.name||x.naam||""):x||"").trim())); });
+    return vals.some(Boolean);
+  }catch(e){return false;}
+}
 function bns481FolderFromOrder(o){
   try{
     if(!o) return "";
@@ -176,7 +184,7 @@ function bns481FolderFromOrder(o){
     if(/optie|14/.test(s)) return "optie14";
     if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
     if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
-    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s)) return "lopend";
+    if(/opdrachtbevestiging|opdracht bevestigd|bevestigd|opdracht|actief|lopend|gereserveerd/.test(s)) return bns481HasAnyDriver(o) ? "lopend" : "";
 
     let f = String(o.folder || o.map || o.orderFolder || "").trim().toLowerCase();
     if(f === "live") f = "lopend";
@@ -265,7 +273,7 @@ function bns460Folder(o){
   if(/optie|14/.test(s))return"optie14";
   if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s))return"geannuleerd";
   if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return"uitgevoerd";
-  if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s))return"lopend";
+  if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s))return bns460DriverCount(o)>0?"lopend":"";
   return"";
 }
 function bns460ClearDrivers(o){
@@ -276,15 +284,15 @@ function bns460ClearDrivers(o){
 }
 function bns460NormalizeDrivers(o){
   if(!o)return o;
-  const ids=bns460Unique([].concat(bns460SplitList(o.driverIds),bns460SplitList(o.bezorgerIds),bns460SplitList(o.assignedDriverIds),bns460SplitList(o.userIds),bns460SplitList(o.selectedDrivers),bns460SplitList(o.driverId),bns460SplitList(o.bezorgerId),bns460SplitList(o.assignedDriverId),bns460SplitList(o.userId)));
+  const ids=bns460Unique([].concat(bns460SplitList(o.driverIds),bns460SplitList(o.bezorgerIds),bns460SplitList(o.assignedDriverIds),bns460SplitList(o.userIds),bns460SplitList(o.selectedDrivers),bns460SplitList(o.assigned),bns460SplitList(o.assignedDrivers),bns460SplitList(o.driverId),bns460SplitList(o.bezorgerId),bns460SplitList(o.assignedDriverId),bns460SplitList(o.userId)));
   const names=bns460Unique([].concat(bns460SplitList(o.driverNames),bns460SplitList(o.bezorgerNames),bns460SplitList(o.assignedDriverNames),bns460SplitList(o.driverName),bns460SplitList(o.driver),bns460SplitList(o.bezorger),bns460SplitList(o.bezorgerName),bns460SplitList(o.assignedDriver),bns460SplitList(o.assignedDriverName)));
-  o.driverIds=ids; o.bezorgerIds=ids; o.assignedDriverIds=ids; o.userIds=ids;
+  o.driverIds=ids; o.bezorgerIds=ids; o.assignedDriverIds=ids; o.userIds=ids; o.selectedDrivers=ids.slice();
   o.driverNames=names; o.bezorgerNames=names; o.assignedDriverNames=names;
   o.driver=names.join(", "); o.bezorger=names.join(", "); o.driverName=names.join(", "); o.bezorgerName=names.join(", ");
   return o;
 }
 function bns460DriverCount(o){
-  return bns460Unique([].concat(bns460SplitList(o&&o.driverIds),bns460SplitList(o&&o.bezorgerIds),bns460SplitList(o&&o.assignedDriverIds),bns460SplitList(o&&o.userIds),bns460SplitList(o&&o.selectedDrivers),bns460SplitList(o&&o.driverNames),bns460SplitList(o&&o.bezorgerNames),bns460SplitList(o&&o.assignedDriverNames),bns460SplitList(o&&o.driver),bns460SplitList(o&&o.bezorger),bns460SplitList(o&&o.driverName),bns460SplitList(o&&o.bezorgerName),bns460SplitList(o&&o.assignedDriver),bns460SplitList(o&&o.assignedDriverName))).length;
+  return bns460Unique([].concat(bns460SplitList(o&&o.driverIds),bns460SplitList(o&&o.bezorgerIds),bns460SplitList(o&&o.assignedDriverIds),bns460SplitList(o&&o.selectedDrivers),bns460SplitList(o&&o.assigned),bns460SplitList(o&&o.assignedDrivers),bns460SplitList(o&&o.driverNames),bns460SplitList(o&&o.bezorgerNames),bns460SplitList(o&&o.driver),bns460SplitList(o&&o.bezorger),bns460SplitList(o&&o.driverName),bns460SplitList(o&&o.bezorgerName),bns460SplitList(o&&o.assignedDriver),bns460SplitList(o&&o.assignedDriverName))).length;
 }
 function bns460NormalizeOrder(o){
   if(!o)return o;
@@ -304,8 +312,21 @@ function bns460IsPhoneClient(){
   const b=String(document.body&&document.body.innerText||"").toLowerCase();
   return h.indexOf("/driver")>=0||h.indexOf("bezorger")>=0||h.indexOf("telefoon")>=0||b.indexOf("mobiele opdrachten")>=0||b.indexOf("bezorger tapwagen")>=0;
 }
+function bns505DedupeOrders(rows){
+  const by=new Map();
+  (rows||[]).forEach(o=>{
+    if(!o)return;
+    const key=String(o.number||o.orderNumber||o.id||"");
+    const old=by.get(key);
+    const ta=Date.parse(String((old&&old.updatedAt)||0))||Number((old&&old.updatedAt)||0)||0;
+    const tb=Date.parse(String(o.updatedAt||0))||Number(o.updatedAt||0)||0;
+    if(!old || tb>=ta) by.set(key,o);
+  });
+  return Array.from(by.values());
+}
 function bns460FilterRows(col,rows,includeArchief){
   rows=(rows||[]).map(o=>col==="orders"?bns460NormalizeOrder(o):o);
+  if(col==="orders") rows=bns505DedupeOrders(rows);
   if(col==="orders"){
     // Telefoon: alleen lopend EN bezorger toegewezen
     if(bns460IsPhoneClient()){
@@ -673,4 +694,51 @@ console.log("[BNS v493 sync] update-signaal actief.");
   if(typeof window==='undefined' || window.__BNS_503_FIREBASE_DRIVER_FINAL__) return;
   window.__BNS_503_FIREBASE_DRIVER_FINAL__=true;
   window.BNS_503_syncVersion='503-final-driver-sync';
+})();
+
+/* BNS 506 firebase-sync: driver-cleared/truth wint van oude remote driverdata */
+(function(){
+  if(typeof window==='undefined' || window.__BNS_506_FIREBASE_TRUTH__) return;
+  window.__BNS_506_FIREBASE_TRUTH__=true;
+  function T(v){return String(v==null?'':v).trim();}
+  function ms(v){var n=Date.parse(v||0); return isNaN(n)?0:n;}
+  function clearDrivers(o){
+    if(!o) return o;
+    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){o[k]='';});
+    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){o[k]=[];});
+    o.folder=''; o.phoneHidden=true; o.driverCleared=true;
+    return o;
+  }
+  try{
+    if(typeof bns481FolderFromOrder==='function'){
+      var old481=bns481FolderFromOrder;
+      bns481FolderFromOrder=function(o){ if(o&&(o.phoneHidden===true||o.driverCleared===true)) return ''; return old481(o); };
+    }
+  }catch(e){}
+  try{
+    if(typeof bns460HasDriver==='function'){
+      var oldHas=bns460HasDriver;
+      bns460HasDriver=function(o){ if(o&&(o.phoneHidden===true||o.driverCleared===true)) return false; return oldHas(o); };
+    }
+  }catch(e){}
+  try{
+    if(typeof preserveOrder==='function' && !preserveOrder.__bns506){
+      var old=preserveOrder;
+      preserveOrder=function(local,remote){
+        try{
+          var lt=ms(local&&(local.driverTruthAt||local.driverChangedAt||local.updatedAt));
+          var rt=ms(remote&&(remote.driverTruthAt||remote.driverChangedAt||remote.updatedAt));
+          if(local && (local.phoneHidden===true || local.driverCleared===true) && lt>=rt){
+            return clearDrivers(Object.assign({},remote||{},local));
+          }
+          if(remote && (remote.phoneHidden===true || remote.driverCleared===true) && rt>=lt){
+            return clearDrivers(Object.assign({},local||{},remote));
+          }
+        }catch(e){}
+        return old(local,remote);
+      };
+      preserveOrder.__bns506=true;
+    }
+  }catch(e){}
+  console.log('[BNS 506 firebase-sync] driver truth/cleared wint van oude remote');
 })();
