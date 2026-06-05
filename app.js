@@ -45821,25 +45821,3 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.info('[BNS v502] localStorage cleanup + scroll fix actief.');
 })();
-
-
-
-/* BNS v503 - planner bezorger verwijderen = telefoon opdracht weg */
-(function(){
-  if(window.__BNS_V503_DRIVER_CLEAR_PLANNER__)return; window.__BNS_V503_DRIVER_CLEAR_PLANNER__=true;
-  function T(v){return String(v==null?'':v).trim();}
-  function split(v){if(v==null)return[]; if(Array.isArray(v)){var o=[];v.forEach(function(x){o=o.concat(split(x));});return o;} if(typeof v==='object')return split([v.id,v.uid,v.name,v.naam,v.displayName].filter(Boolean)); return String(v).split(/[;,\n|]+/).map(T).filter(Boolean);}
-  function uniq(a){var s={},o=[];(a||[]).forEach(function(x){var v=T(x),k=v.toLowerCase();if(v&&!s[k]){s[k]=1;o.push(v);}});return o;}
-  function driverCount(o){if(!o)return 0;var vals=[];['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList'].forEach(function(k){vals=vals.concat(split(o[k]));});['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){vals=vals.concat(split(o[k]));});return uniq(vals).length;}
-  function clearDrivers(o){if(!o)return o;['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','driverList'].forEach(function(k){o[k]='';});['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers'].forEach(function(k){o[k]=[];});o.bnsDriversCleared=true;o.bnsDriversClearedAt=o.bnsDriversClearedAt||new Date().toISOString();o.updatedAt=new Date().toISOString();return o;}
-  function normalizeDrivers(o){if(!o)return o;if(o.bnsDriversCleared||driverCount(o)===0)return clearDrivers(o);var ids=uniq([].concat(split(o.driverIds),split(o.bezorgerIds),split(o.assignedDriverIds),split(o.userIds),split(o.driverId),split(o.bezorgerId),split(o.assignedDriverId),split(o.userId)));var names=uniq([].concat(split(o.driverNames),split(o.bezorgerNames),split(o.assignedDriverNames),split(o.driverName),split(o.driver),split(o.bezorger),split(o.bezorgerName),split(o.assignedDriver),split(o.assignedDriverName)));o.driverIds=ids;o.bezorgerIds=ids;o.assignedDriverIds=ids;o.userIds=ids;o.driverNames=names;o.bezorgerNames=names;o.assignedDriverNames=names;o.driver=names.join(', ');o.driverName=names.join(', ');o.bezorger=names.join(', ');o.bezorgerName=names.join(', ');o.bnsDriversCleared=false;return o;}
-  function folder(o){var f=String(o&&(o.folder||o.map||o.orderFolder)||'').toLowerCase();if(f==='live')f='lopend';return f;}
-  function normalizeOrder(o){if(!o)return o;var f=folder(o);if(f&&f!=='lopend')return clearDrivers(o);return normalizeDrivers(o);}
-  window.BNS_v503ClearDrivers=clearDrivers; window.BNS_v503DriverCount=driverCount; window.BNS_v503NormalizeOrderDrivers=normalizeOrder;
-  function normalizeAll(){try{var s=(typeof state!=='undefined'&&state)?state:(window.state||null);if(!s){var r=localStorage.getItem('event-planner-pro-v87');if(r)s=JSON.parse(r);}if(s&&Array.isArray(s.orders))s.orders.forEach(normalizeOrder);}catch(e){}}
-  function patchSync(){try{if(window.BNS&&typeof window.BNS.syncDoc==='function'&&!window.BNS.syncDoc.__bns503){var old=window.BNS.syncDoc;window.BNS.syncDoc=function(col,row){if(String(col)==='orders')normalizeOrder(row);return old.apply(this,arguments);};window.BNS.syncDoc.__bns503=true;}if(window.BNSFirebaseSync&&typeof window.BNSFirebaseSync.syncDoc==='function'&&!window.BNSFirebaseSync.syncDoc.__bns503){var old2=window.BNSFirebaseSync.syncDoc;window.BNSFirebaseSync.syncDoc=function(col,row){if(String(col)==='orders')normalizeOrder(row);return old2.apply(this,arguments);};window.BNSFirebaseSync.syncDoc.__bns503=true;}}catch(e){}}
-  ['save','saveAll','saveState','saveLocal'].forEach(function(n){try{var fn=window[n];if(typeof fn==='function'&&!fn.__bns503){var w=function(){normalizeAll();return fn.apply(this,arguments);};w.__bns503=true;window[n]=w;}}catch(e){}});
-  document.addEventListener('click',function(ev){var b=ev.target&&ev.target.closest&&ev.target.closest('button');if(!b)return;var t=String(b.textContent||'').toLowerCase();if(/opslaan|bewaar|wijzig|update/.test(t)){setTimeout(normalizeAll,20);setTimeout(patchSync,80);}},true);
-  patchSync();setInterval(patchSync,1500);
-  console.log('[BNS v503] planner bezorger wissen hard actief');
-})();
