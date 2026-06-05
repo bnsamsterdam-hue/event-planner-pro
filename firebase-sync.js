@@ -742,3 +742,39 @@ console.log("[BNS v493 sync] update-signaal actief.");
   }catch(e){}
   console.log('[BNS 506 firebase-sync] driver truth/cleared wint van oude remote');
 })();
+
+
+/* BNS 508 - dedupe Firebase order rows per opdrachtnummer voor planner en telefoon */
+(function(){
+  if(typeof window==='undefined' || window.__BNS_508_FIREBASE_DEDUPE__) return;
+  window.__BNS_508_FIREBASE_DEDUPE__=true;
+  function T(v){return String(v==null?'':v).trim();}
+  function ms(v){var n=Date.parse(v||0); return isNaN(n)?0:n;}
+  function key(o){return T(o&&(o.number||o.orderNumber||o.nr)) || T(o&&o.id);}
+  function isBad(o){var id=T(o&&o.id).toLowerCase(), f=T(o&&o.folder).toLowerCase(); return /^old[_-]/i.test(id)||f==='old'||f==='archief'||(o&&o.deleted===true);}
+  function score(o){
+    var id=T(o&&o.id), nr=T(o&&(o.number||o.orderNumber||o.nr));
+    var sc=Math.max(ms(o&&o.driverTruthAt),ms(o&&o.driverChangedAt),ms(o&&o.updatedAt),ms(o&&o.modifiedAt),ms(o&&o.createdAt));
+    if(isBad(o)) sc-=100000000000000;
+    if(id&&nr&&id!==nr) sc+=1000000;
+    return sc;
+  }
+  function dedupeRows(rows){
+    if(!Array.isArray(rows)) return rows;
+    var map=Object.create(null), order=[];
+    rows.forEach(function(o){var k=key(o); if(!k){order.push({o:o,k:'__'+order.length});return;} if(!map[k])order.push({k:k}); if(!map[k]||score(o)>score(map[k]))map[k]=o;});
+    return order.map(function(x){return x.o||map[x.k];}).filter(Boolean);
+  }
+  try{
+    if(typeof bns460FilterRows==='function' && !bns460FilterRows.__bns508){
+      var old=bns460FilterRows;
+      bns460FilterRows=function(col,rows,includeArchief){
+        var out=old.apply(this,arguments);
+        return col==='orders'?dedupeRows(out):out;
+      };
+      bns460FilterRows.__bns508=true;
+    }
+  }catch(e){}
+  window.BNS_508_dedupeRows=dedupeRows;
+  console.log('[BNS 508 firebase-sync] order dedupe actief');
+})();

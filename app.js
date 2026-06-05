@@ -46240,9 +46240,10 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       var data=Object.assign({},o);
       // schrijf hoofddocument
       if(o.id) await fs.setDoc(fs.doc(db,'orders',T(o.id)),data);
-      // schrijf/overschrijf document met opdrachtnummer ook, zodat telefoon geen oude nummer-kopie houdt
-      if(o.number) await fs.setDoc(fs.doc(db,'orders',T(o.number)),data);
-      // zoek alle oude kopieen met hetzelfde nummer en zet ze exact gelijk of verborgen
+      // BNS 508: maak GEEN extra document met het opdrachtnummer als id.
+      // 506/507 deed dat wel en daardoor werden opdrachten dubbel zichtbaar in de planner.
+      // Bestaande oude kopieen worden hieronder wel gelijkgetrokken, maar niet meer nieuw aangemaakt.
+      // zoek alle oude kopieen met hetzelfde nummer en zet ze exact gelijk
       if(o.number && fs.collection && fs.query && fs.where && fs.getDocs){
         var q=fs.query(fs.collection(db,'orders'),fs.where('number','==',T(o.number)));
         var snap=await fs.getDocs(q);
@@ -46315,4 +46316,85 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   window.BNS_506_applySelectedDrivers=function(){return applyAndSync(checkedIds());};
   window.BNS_506_applyTruthToState=applyTruthToState;
   console.log('[BNS 507] F5 driver waarheid actief - gewone order-wijziging wist telefoon niet');
+})();
+
+
+/* =========================================================
+   BNS 508 - planner dedupe opdrachten per opdrachtnummer
+   Oorzaak 507: oude Firebase/order-number kopieen kwamen naast de echte order
+   in de plannerlijst. Dit verbergt/verwijdert alleen dubbele lokale entries;
+   reserveringen/materialen/orderinhoud blijven ongemoeid.
+   ========================================================= */
+(function(){
+  if(window.__BNS_508_PLANNER_DEDUPE__) return;
+  window.__BNS_508_PLANNER_DEDUPE__=true;
+  function T(v){return String(v==null?'':v).trim();}
+  function ms(v){var n=Date.parse(v||0); return isNaN(n)?0:n;}
+  function key(o){return T(o&&(o.number||o.orderNumber||o.nr)) || T(o&&o.id);}
+  function isBad(o){
+    var id=T(o&&o.id).toLowerCase(), folder=T(o&&o.folder).toLowerCase();
+    return /^old[_-]/i.test(id) || folder==='old' || folder==='archief' || o&&o.deleted===true;
+  }
+  function hasContent(o){
+    return !!(T(o&&o.title) || T(o&&o.customer&&o.customer.name) || (Array.isArray(o&&o.materials)&&o.materials.length));
+  }
+  function score(o){
+    var k=key(o), id=T(o&&o.id), nr=T(o&&(o.number||o.orderNumber||o.nr));
+    var t=Math.max(ms(o&&o.driverTruthAt),ms(o&&o.driverChangedAt),ms(o&&o.updatedAt),ms(o&&o.modifiedAt),ms(o&&o.createdAt));
+    var sc=t;
+    if(isBad(o)) sc-=100000000000000;
+    if(id && nr && id!==nr) sc+=1000000; // voorkeur voor echte app-id boven door 506 gemaakte nummer-id kopie
+    if(hasContent(o)) sc+=1000;
+    return sc;
+  }
+  function better(a,b){
+    if(!a) return b;
+    if(!b) return a;
+    return score(b)>score(a)?b:a;
+  }
+  function dedupeArray(arr){
+    if(!Array.isArray(arr)) return arr;
+    var map=Object.create(null), order=[];
+    arr.forEach(function(o){
+      var k=key(o);
+      if(!k){ order.push({k:'__idx_'+order.length,o:o}); return; }
+      if(!map[k]) order.push({k:k});
+      map[k]=better(map[k],o);
+    });
+    return order.map(function(x){return x.o || map[x.k];}).filter(Boolean);
+  }
+  function dedupeState(){
+    try{
+      var s=window.state||state;
+      if(s && Array.isArray(s.orders)){
+        var before=s.orders.length;
+        s.orders=dedupeArray(s.orders);
+        if(before!==s.orders.length) console.log('[BNS 508] dubbele opdrachten verborgen:', before-s.orders.length);
+      }
+    }catch(e){}
+  }
+  try{
+    if(typeof sortedOrders==='function' && !sortedOrders.__bns508){
+      var oldSorted=sortedOrders;
+      sortedOrders=function(){ dedupeState(); return dedupeArray(oldSorted.apply(this,arguments)); };
+      sortedOrders.__bns508=true;
+    }
+  }catch(e){}
+  try{
+    if(typeof renderOrders==='function' && !renderOrders.__bns508){
+      var oldRender=renderOrders;
+      renderOrders=function(){ dedupeState(); return oldRender.apply(this,arguments); };
+      renderOrders.__bns508=true;
+    }
+  }catch(e){}
+  try{
+    if(typeof save==='function' && !save.__bns508){
+      var oldSave=save;
+      save=function(){ dedupeState(); return oldSave.apply(this,arguments); };
+      save.__bns508=true;
+    }
+  }catch(e){}
+  window.BNS_508_dedupeOrders=function(){ dedupeState(); try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} return true; };
+  dedupeState(); setTimeout(dedupeState,300); setTimeout(dedupeState,1200); setInterval(dedupeState,2500);
+  console.log('[BNS 508] planner dedupe per opdrachtnummer actief');
 })();
