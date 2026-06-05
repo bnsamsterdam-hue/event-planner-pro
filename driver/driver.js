@@ -767,21 +767,38 @@ boot();
   function T(v){return String(v==null?'':v).trim();}
   function low(v){return T(v).toLowerCase();}
   function orderRowsFromSnapshot(snap){
+    var incoming=[];
+    try{ incoming=snap.docs.map(function(d){return Object.assign({id:d.id}, d.data()||{});}); }catch(e){ incoming=[]; }
+    try{ if(typeof BNS_505_dedupeOrders==='function') incoming=BNS_505_dedupeOrders(incoming); }catch(e){}
+
+    // BNS 512: bij een gewone orderwijziging kan Firebase heel kort een order zonder
+    // driver-velden doorgeven. Dan mag de telefoon de opdracht niet laten verdwijnen.
+    // Alleen expliciet phoneHidden/driverCleared betekent: echt van telefoon af.
+    var existing=(BNS&&BNS.state&&Array.isArray(BNS.state.orders))?BNS.state.orders:[];
+    var existingBy={};
+    existing.forEach(function(x){
+      var k=T(x&&(x.number||x.orderNumber||x.nr||x.id));
+      if(k) existingBy[k]=x;
+    });
     var rows=[];
-    try{ rows=snap.docs.map(function(d){return Object.assign({id:d.id}, d.data()||{});}); }catch(e){ rows=[]; }
-    try{ if(typeof BNS_505_dedupeOrders==='function') rows=BNS_505_dedupeOrders(rows); }catch(e){}
-    rows=rows.filter(function(o){
+    incoming.forEach(function(o){
       try{
-        if(!o) return false;
+        if(!o) return;
         var id=String((o.id||o.docId||o.orderId)||'');
-        if(id.indexOf('old_')===0) return false;
-        if(o.deleted===true || o.removed===true || o.hidden===true || o.isDeleted===true) return false;
-        var f=low((o.folder||o.map||o.orderFolder)||'');
+        if(id.indexOf('old_')===0) return;
+        if(o.deleted===true || o.removed===true || o.hidden===true || o.isDeleted===true) return;
+        var k=T(o.number||o.orderNumber||o.nr||o.id);
+        var old=k?existingBy[k]:null;
         var has=(typeof BNS_driverHasAssignee==='function') ? BNS_driverHasAssignee(o) : true;
-        if(f) return f==='lopend' && has;
+        if(!has && !(o.phoneHidden===true || o.driverCleared===true) && old){
+          var oldHas=(typeof BNS_driverHasAssignee==='function') ? BNS_driverHasAssignee(old) : true;
+          if(oldHas){ rows.push(Object.assign({}, old, o, {phoneHidden:false, driverCleared:false})); return; }
+        }
+        var f=low((o.folder||o.map||o.orderFolder)||'');
+        if(f){ if(f==='lopend' && has) rows.push(o); return; }
         var st=low(o.status||o.state||o.orderStatus);
-        return has && /bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(st) && !/offerte|optie|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st);
-      }catch(e){ return false; }
+        if(has && /bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(st) && !/offerte|optie|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st)) rows.push(o);
+      }catch(e){}
     });
     return rows;
   }
@@ -838,3 +855,7 @@ boot();
     }
   }catch(e){}
 })();
+
+
+/* BNS 512 markering: realtime telefoon behoudt bestaande opdracht bij gewone wijziging. */
+console.log('[BNS 512 driver] gewone wijziging haalt telefoonopdracht niet tijdelijk weg');
