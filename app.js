@@ -45999,3 +45999,120 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     }
   },true);
 })();
+
+
+/* =========================================================
+   BNS 505 - echte bezorger-keuze als waarheid
+   Fix: vinkjes terug aanzetten syncen direct; F5 mag oude Firebase/localStorage
+   kopieen niet opnieuw naar telefoon duwen.
+   ========================================================= */
+(function(){
+  if(window.__BNS_505_DRIVER_TRUTH__) return;
+  window.__BNS_505_DRIVER_TRUTH__ = true;
+  function T(v){return String(v==null?'':v).trim();}
+  function S(){try{return window.state||state||null;}catch(e){return window.state||null;}}
+  function orders(){var s=S(); s.orders=Array.isArray(s&&s.orders)?s.orders:[]; return s.orders;}
+  function users(){var s=S(); s.users=Array.isArray(s&&s.users)?s.users:[]; return s.users;}
+  function byId(id){return users().find(function(u){return String(u.id)===String(id);});}
+  function checkedIds(){return Array.prototype.slice.call(document.querySelectorAll('#bnsV83DriverBox input[type=checkbox]:checked')).map(function(i){return String(i.value);}).filter(Boolean);}
+  function currentOrder(){
+    var nr=T((document.getElementById('orderNumber')||{}).value);
+    var edit=T(window.editing||'');
+    return orders().find(function(o){return (edit&&T(o.id)===edit)||(nr&&T(o.number)===nr)||(nr&&T(o.id)===nr);});
+  }
+  function setFolder(o){
+    var st=T(o.status||o.state||o.orderStatus).toLowerCase();
+    if(/offerte/.test(st)) o.folder='offerte';
+    else if(/optie|14/.test(st)) o.folder='optie14';
+    else if(/geann|annul|cancel|verwijderd|deleted|trash/.test(st)) o.folder='geannuleerd';
+    else if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(st)) o.folder='uitgevoerd';
+    else if(hasDrivers(o)) o.folder='lopend';
+    else o.folder='';
+  }
+  function hasDrivers(o){
+    var vals=[];
+    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){if(o&&o[k]) vals.push(T(o[k]));});
+    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){var v=o&&o[k]; if(Array.isArray(v)) v.forEach(function(x){vals.push(T(x&&typeof x==='object'?(x.id||x.name||x.naam):x));});});
+    return vals.some(Boolean);
+  }
+  function clearAll(o){
+    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){o[k]='';});
+    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){o[k]=[];});
+  }
+  function applySelected(o, ids){
+    ids=(ids||checkedIds()).map(String).filter(Boolean);
+    var ds=ids.map(byId).filter(Boolean);
+    var names=ds.map(function(u){return T(u.name||u.naam||u.displayName);}).filter(Boolean);
+    clearAll(o);
+    if(ids.length){
+      o.driverIds=ids.slice(); o.bezorgerIds=ids.slice(); o.assignedDriverIds=ids.slice(); o.userIds=ids.slice(); o.selectedDrivers=ids.slice();
+      o.drivers=ds.map(function(u){return {id:String(u.id), name:T(u.name||u.naam||u.displayName), role:u.role||''};});
+      o.assignedDrivers=o.drivers.slice();
+      o.driverNames=names.slice(); o.bezorgerNames=names.slice(); o.assignedDriverNames=names.slice();
+      o.driver=names.join(', '); o.driverName=o.driver; o.bezorger=o.driver; o.assignedDriver=o.driver;
+      o.driverId=ids[0]||''; o.bezorgerId=ids[0]||''; o.assignedDriverId=ids[0]||''; o.userId=ids[0]||'';
+    }
+    o.driverChangedAt=new Date().toISOString();
+    o.driverSyncAt=o.driverChangedAt;
+    o.updatedAt=o.driverChangedAt;
+    setFolder(o);
+    return o;
+  }
+  function saveAllLocal(){
+    var s=S(); if(!s) return;
+    try{ if(typeof save==='function') save(); }catch(e){}
+    ['event-planner-pro-v87','eventPlannerProState','plannerState','eventPlannerPro','eventPlannerProV91'].forEach(function(k){try{localStorage.setItem(k,JSON.stringify(s));}catch(e){}});
+  }
+  function syncFull(o){
+    if(!o||!(o.id||o.number)) return;
+    saveAllLocal();
+    try{ if(window.BNS&&typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+    try{
+      var fs=window.BNS&&window.BNS.fs, db=window.BNS&&window.BNS.db;
+      if(fs&&db&&fs.setDoc&&fs.doc){
+        var data=Object.assign({},o,{updatedAt:o.updatedAt||new Date().toISOString()});
+        fs.setDoc(fs.doc(db,'orders',String(o.id||o.number)),data).catch(function(){});
+        if(fs.deleteDoc && o.number && String(o.number)!==String(o.id||'')){
+          fs.deleteDoc(fs.doc(db,'orders',String(o.number))).catch(function(){});
+        }
+      }
+    }catch(e){}
+    try{ if(typeof renderPhone83==='function') renderPhone83(); }catch(e){}
+    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+  }
+  function applyAndSyncNow(){
+    var o=currentOrder(); if(!o) return;
+    applySelected(o, checkedIds());
+    syncFull(o);
+  }
+  document.addEventListener('change',function(ev){
+    var t=ev.target;
+    if(t&&t.matches&&t.matches('#bnsV83DriverBox input[type=checkbox], #orderDriver')){
+      window.__bns458DriverTouched=true; window.__bns459DriverTouched=true;
+      clearTimeout(window.__BNS_505_DRIVER_TIMER__);
+      window.__BNS_505_DRIVER_TIMER__=setTimeout(applyAndSyncNow,120);
+    }
+  },true);
+  document.addEventListener('click',function(ev){
+    var b=ev.target&&ev.target.closest&&ev.target.closest('button,input[type=button],input[type=submit]');
+    if(!b) return;
+    var txt=T(b.textContent||b.value||b.id).toLowerCase();
+    if(b.id==='saveOrder'||txt==='opslaan'){
+      var ids=checkedIds();
+      setTimeout(function(){var o=currentOrder(); if(o){applySelected(o,ids); syncFull(o);}},80);
+      setTimeout(function(){var o=currentOrder(); if(o){applySelected(o,ids); syncFull(o);}},450);
+    }
+  },true);
+  function patchSyncOrder(){
+    if(!window.BNS||!window.BNS.syncOrder||window.BNS.syncOrder.__bns505) return;
+    var old=window.BNS.syncOrder;
+    window.BNS.syncOrder=function(o){
+      try{ if(o){ setFolder(o); o.updatedAt=o.updatedAt||new Date().toISOString(); } }catch(e){}
+      return old.apply(this,arguments);
+    };
+    window.BNS.syncOrder.__bns505=true;
+  }
+  patchSyncOrder(); setTimeout(patchSyncOrder,600); setInterval(patchSyncOrder,2500);
+  window.BNS_505_applySelectedDrivers=function(){var o=currentOrder(); if(o){applySelected(o,checkedIds()); syncFull(o);} return !!o;};
+  console.log('[BNS 505] bezorger-keuze direct sync + oude telefoon-kopieen geblokkeerd');
+})();
