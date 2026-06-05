@@ -441,7 +441,7 @@ function openSignatureModal(order){
   function start(e){e.preventDefault();down=true;last=pos(e)} function move(e){if(!down)return;e.preventDefault();const p=pos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p} function end(){down=false;last=null}
   ["mousedown","touchstart"].forEach(ev=>c.addEventListener(ev,start,{passive:false})); ["mousemove","touchmove"].forEach(ev=>c.addEventListener(ev,move,{passive:false})); ["mouseup","mouseleave","touchend","touchcancel"].forEach(ev=>c.addEventListener(ev,end));
   wrap.querySelector("#sigClear").onclick=()=>ctx.clearRect(0,0,c.width,c.height); wrap.querySelector("#sigCancel").onclick=()=>wrap.remove();
-  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); const item={id:"sig_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),type:"Handtekening klant",data:data,signatureData:data,note:"Handtekening toegevoegd",createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL"),driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||""}; order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; order.media.push(item); order.signatures.push(item); order.customerSignature=data; order.customerSignedAt=new Date().toISOString(); order.customerSignedBy=BNS.user.name||""; await updateOrder(order); wrap.remove(); toast("Handtekening opgeslagen bij opdracht");};
+  wrap.querySelector("#sigSave").onclick=async()=>{const data=c.toDataURL("image/png"); const item={id:"sig_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),type:"Handtekening klant",data:data,signatureData:data,note:"Handtekening toegevoegd",createdAt:new Date().toISOString(),time:new Date().toLocaleString("nl-NL"),driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||""}; order.media=Array.isArray(order.media)?order.media:[]; order.signatures=Array.isArray(order.signatures)?order.signatures:[]; order.media.push(item); /* BNS v495: geen dubbele signatures/customerSignature kaart */ order.customerSignedAt=new Date().toISOString(); order.customerSignedBy=BNS.user.name||""; await updateOrder(order); wrap.remove(); toast("Handtekening opgeslagen bij opdracht");};
 }
 function enhanceDriverButtons(){
   function addMediaButtons(grid,id){
@@ -623,4 +623,30 @@ boot();
     }catch(e){}
   });
   console.log("[BNS v493 driver] update-signaal actief.");
+})();
+
+/* BNS v495 driver: na foto/handtekening direct planner triggeren */
+(function(){
+  if(window.__BNS_V495_DRIVER_MEDIA_DIRECT__) return;
+  window.__BNS_V495_DRIVER_MEDIA_DIRECT__=true;
+  function ping(){
+    try{ localStorage.setItem("bns_phone_media_ping", String(Date.now())); }catch(e){}
+    try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
+    try{ window.dispatchEvent(new StorageEvent("storage",{key:"bns_phone_media_ping"})); }catch(e){ try{ window.dispatchEvent(new Event("storage")); }catch(_e){} }
+  }
+  ["updateOrder","addAlert","sendPhoto","openSignatureModal"].forEach(function(name){
+    try{
+      var fn=window[name];
+      if(typeof fn==="function" && !fn.__bns495){
+        var wrapped=function(){
+          var r=fn.apply(this,arguments);
+          Promise.resolve(r).then(function(){ setTimeout(ping,250); setTimeout(ping,1000); }).catch(function(){ setTimeout(ping,250); });
+          return r;
+        };
+        wrapped.__bns495=true;
+        window[name]=wrapped;
+      }
+    }catch(e){}
+  });
+  console.log("[BNS v495 driver] directe media-ping actief.");
 })();
