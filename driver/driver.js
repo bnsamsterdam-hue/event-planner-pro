@@ -624,3 +624,31 @@ boot();
   });
   console.log("[BNS v493 driver] update-signaal actief.");
 })();
+
+
+
+/* BNS v494 driver extra: media-opslag meldt planner direct */
+(function(){
+  if(window.__BNS_V494_DRIVER_MEDIA_PING__) return;
+  window.__BNS_V494_DRIVER_MEDIA_PING__=true;
+  function ping(){
+    try{ localStorage.setItem("bns_phone_media_ping", String(Date.now())); }catch(e){}
+    try{ document.dispatchEvent(new CustomEvent("bns:phone-media-updated")); }catch(e){}
+    try{ window.dispatchEvent(new Event("storage")); }catch(e){}
+  }
+  ["save","saveState","saveLocal","uploadPhoto","saveSignature","submitAlert","sendAlert","updateOrder"].forEach(function(name){
+    try{
+      var fn=window[name];
+      if(typeof fn==="function" && !fn.__bns494){
+        var wrapped=function(){
+          var r=fn.apply(this,arguments);
+          Promise.resolve(r).then(function(){ setTimeout(ping,250); }).catch(function(){ setTimeout(ping,250); });
+          return r;
+        };
+        wrapped.__bns494=true;
+        window[name]=wrapped;
+      }
+    }catch(e){}
+  });
+  console.log("[BNS v494 driver] planner ping na media actief.");
+})();
