@@ -29979,23 +29979,12 @@ setTimeout(()=>{
       o.bezorger=o.driver;
       o.driverNames=names;
       o.bezorgerNames=names;
-    } else {
-      // Alle vinkjes uit → wis bezorgervelden expliciet
-      o.driver=''; o.driverName=''; o.bezorger=''; o.bezorgerName='';
-      o.driverNames=[]; o.bezorgerNames=[];
     }
     if(ids.length){
       o.driverIds=ids;
       o.bezorgerIds=ids.slice();
-    } else {
-      // Geen ids → wis id-velden
-      o.driverIds=[]; o.bezorgerIds=[];
-      o.driverId=''; o.bezorgerId=''; o.userId='';
     }
-    o.updatedAt=new Date().toISOString();
     saveLocal();
-    // Sync naar Firebase zodat telefoon ook bijgewerkt wordt
-    try{ if(typeof syncOrder==='function') syncOrder(o); }catch(e){}
   }
   function readEnteredPin(){
     var p='';
@@ -44860,31 +44849,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function mediaHtml(a){var d=mediaData(a); if(!d) return ''; if(/^data:image|^https?:|^blob:/.test(String(d))) return '<div style="margin-top:8px"><img src="'+H(d)+'" style="max-width:180px;max-height:140px;border-radius:10px;border:1px solid #dbe3ef"></div>'; return '';}
   function shareMedia(id){ var a=window.__bnsV474Media && window.__bnsV474Media[id]; if(!a) return; var txt=[mediaType(a),a.createdAt||a.time||'',a.note||a.message||a.text||''].filter(Boolean).join('\n'); if(navigator.share) navigator.share({title:mediaType(a),text:txt}).catch(function(){}); else navigator.clipboard&&navigator.clipboard.writeText(txt); }
   function printMedia(id){ var a=window.__bnsV474Media && window.__bnsV474Media[id]; if(!a) return; var w=window.open('','_blank'); if(!w)return; w.document.write('<html><head><title>'+H(mediaType(a))+'</title></head><body><h2>'+H(mediaType(a))+'</h2><p>'+H(a.createdAt||a.time||'')+'</p><p>'+H(a.note||a.message||a.text||'')+'</p>'+mediaHtml(a)+'<script>window.print()<\/script></body></html>'); w.document.close(); }
-  function deleteMedia(orderId,id){
-    var o=orderById(orderId); if(!o) return;
-    // Verwijder uit alle lokale arrays
-    ['media','photos','signatures','driverUploads','customerMessages','klantmeldingen','handtekeningen'].forEach(function(k){
-      if(Array.isArray(o[k])) o[k]=o[k].filter(function(a){return T(a.id)!==T(id);});
-    });
-    var s=stateObj();
-    if(Array.isArray(s.alerts)) s.alerts=s.alerts.filter(function(a){return T(a.id)!==T(id);});
-    // Verwijder ook uit Firebase alerts — anders komt het terug na F5
-    try{
-      if(typeof fbDel==='function') fbDel('alerts',id);
-    }catch(e){
-      // Probeer ook via Firestore direct
-      try{
-        import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js').then(function(fm){
-          import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js').then(function(fa){
-            var fbApp=fa.getApps().length?fa.getApp():null;
-            if(!fbApp) return;
-            var db=fm.getFirestore(fbApp);
-            fm.deleteDoc(fm.doc(db,'alerts',id));
-          });
-        });
-      }catch(e2){}
-    }
-    saveNow(); syncOrder(o); var modal=E('bnsOrderOverviewModal'); if(modal) modal.remove(); if(typeof BNS_V128_SHOW_ORDER_OVERVIEW==='function') BNS_V128_SHOW_ORDER_OVERVIEW(orderId); }
+  function deleteMedia(orderId,id){ var o=orderById(orderId); if(!o) return; ['media','photos','signatures','customerMessages','klantmeldingen'].forEach(function(k){ if(Array.isArray(o[k])) o[k]=o[k].filter(function(a){return T(a.id)!==T(id);}); }); var s=stateObj(); if(Array.isArray(s.alerts)) s.alerts=s.alerts.filter(function(a){return T(a.id)!==T(id);}); saveNow(); syncOrder(o); var modal=E('bnsOrderOverviewModal'); if(modal) modal.remove(); if(typeof BNS_V128_SHOW_ORDER_OVERVIEW==='function') BNS_V128_SHOW_ORDER_OVERVIEW(orderId); }
   window.BNS_V474_SHARE_MEDIA=shareMedia; window.BNS_V474_PRINT_MEDIA=printMedia; window.BNS_V474_DELETE_MEDIA=deleteMedia;
   function mediaBlock(o){
     var rows=alertRowsForOrder(o); if(!rows.length) return '';
@@ -45855,4 +45820,26 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   // Scroll-patch verwijderd - modal heeft eigen overflow
 
   console.info('[BNS v502] localStorage cleanup + scroll fix actief.');
+})();
+
+
+
+/* BNS v503 - planner bezorger verwijderen = telefoon opdracht weg */
+(function(){
+  if(window.__BNS_V503_DRIVER_CLEAR_PLANNER__)return; window.__BNS_V503_DRIVER_CLEAR_PLANNER__=true;
+  function T(v){return String(v==null?'':v).trim();}
+  function split(v){if(v==null)return[]; if(Array.isArray(v)){var o=[];v.forEach(function(x){o=o.concat(split(x));});return o;} if(typeof v==='object')return split([v.id,v.uid,v.name,v.naam,v.displayName].filter(Boolean)); return String(v).split(/[;,\n|]+/).map(T).filter(Boolean);}
+  function uniq(a){var s={},o=[];(a||[]).forEach(function(x){var v=T(x),k=v.toLowerCase();if(v&&!s[k]){s[k]=1;o.push(v);}});return o;}
+  function driverCount(o){if(!o)return 0;var vals=[];['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList'].forEach(function(k){vals=vals.concat(split(o[k]));});['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){vals=vals.concat(split(o[k]));});return uniq(vals).length;}
+  function clearDrivers(o){if(!o)return o;['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','driverList'].forEach(function(k){o[k]='';});['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers'].forEach(function(k){o[k]=[];});o.bnsDriversCleared=true;o.bnsDriversClearedAt=o.bnsDriversClearedAt||new Date().toISOString();o.updatedAt=new Date().toISOString();return o;}
+  function normalizeDrivers(o){if(!o)return o;if(o.bnsDriversCleared||driverCount(o)===0)return clearDrivers(o);var ids=uniq([].concat(split(o.driverIds),split(o.bezorgerIds),split(o.assignedDriverIds),split(o.userIds),split(o.driverId),split(o.bezorgerId),split(o.assignedDriverId),split(o.userId)));var names=uniq([].concat(split(o.driverNames),split(o.bezorgerNames),split(o.assignedDriverNames),split(o.driverName),split(o.driver),split(o.bezorger),split(o.bezorgerName),split(o.assignedDriver),split(o.assignedDriverName)));o.driverIds=ids;o.bezorgerIds=ids;o.assignedDriverIds=ids;o.userIds=ids;o.driverNames=names;o.bezorgerNames=names;o.assignedDriverNames=names;o.driver=names.join(', ');o.driverName=names.join(', ');o.bezorger=names.join(', ');o.bezorgerName=names.join(', ');o.bnsDriversCleared=false;return o;}
+  function folder(o){var f=String(o&&(o.folder||o.map||o.orderFolder)||'').toLowerCase();if(f==='live')f='lopend';return f;}
+  function normalizeOrder(o){if(!o)return o;var f=folder(o);if(f&&f!=='lopend')return clearDrivers(o);return normalizeDrivers(o);}
+  window.BNS_v503ClearDrivers=clearDrivers; window.BNS_v503DriverCount=driverCount; window.BNS_v503NormalizeOrderDrivers=normalizeOrder;
+  function normalizeAll(){try{var s=(typeof state!=='undefined'&&state)?state:(window.state||null);if(!s){var r=localStorage.getItem('event-planner-pro-v87');if(r)s=JSON.parse(r);}if(s&&Array.isArray(s.orders))s.orders.forEach(normalizeOrder);}catch(e){}}
+  function patchSync(){try{if(window.BNS&&typeof window.BNS.syncDoc==='function'&&!window.BNS.syncDoc.__bns503){var old=window.BNS.syncDoc;window.BNS.syncDoc=function(col,row){if(String(col)==='orders')normalizeOrder(row);return old.apply(this,arguments);};window.BNS.syncDoc.__bns503=true;}if(window.BNSFirebaseSync&&typeof window.BNSFirebaseSync.syncDoc==='function'&&!window.BNSFirebaseSync.syncDoc.__bns503){var old2=window.BNSFirebaseSync.syncDoc;window.BNSFirebaseSync.syncDoc=function(col,row){if(String(col)==='orders')normalizeOrder(row);return old2.apply(this,arguments);};window.BNSFirebaseSync.syncDoc.__bns503=true;}}catch(e){}}
+  ['save','saveAll','saveState','saveLocal'].forEach(function(n){try{var fn=window[n];if(typeof fn==='function'&&!fn.__bns503){var w=function(){normalizeAll();return fn.apply(this,arguments);};w.__bns503=true;window[n]=w;}}catch(e){}});
+  document.addEventListener('click',function(ev){var b=ev.target&&ev.target.closest&&ev.target.closest('button');if(!b)return;var t=String(b.textContent||'').toLowerCase();if(/opslaan|bewaar|wijzig|update/.test(t)){setTimeout(normalizeAll,20);setTimeout(patchSync,80);}},true);
+  patchSync();setInterval(patchSync,1500);
+  console.log('[BNS v503] planner bezorger wissen hard actief');
 })();
