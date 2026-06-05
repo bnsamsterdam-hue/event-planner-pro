@@ -43298,6 +43298,9 @@ setTimeout(()=>{
       updatedAt:new Date().toISOString()
     };
     if(/optie/.test(L(st)) && !(old&&old.optionCreatedAt)) o.optionCreatedAt=new Date().toISOString().slice(0,10);
+    // BNS v519: pas op de definitieve 'Ja, opslaan' route de bezorger-waarheid toe.
+    // Dit voorkomt dat de eerste groene Opslaan-knop of een gewone wijziging de telefoon tijdelijk leegmaakt.
+    try{ if(window.BNS_v519PrepareOrderBeforeSave) window.BNS_v519PrepareOrderBeforeSave(o, old); }catch(e){ console.warn('[BNS v519] prepare before save failed', e); }
     upserts(o);
     if(idx>=0) s.orders[idx]=Object.assign({},old,o); else s.orders.push(o);
     try{ editing=null; }catch(e){} window.editing='';
@@ -43337,7 +43340,11 @@ setTimeout(()=>{
     if(b){
       ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
       if(b.id==='bns416CancelSave') closeSavePopup();
-      else { closeSavePopup(); saveDirect(); }
+      else {
+        closeSavePopup();
+        var __bns519Saved = saveDirect();
+        try{ if(window.BNS_v519AfterDefinitiveSave) window.BNS_v519AfterDefinitiveSave(__bns519Saved); }catch(e){ console.warn('[BNS v519] after definitive save failed', e); }
+      }
       return false;
     }
     var saveBtn=ev.target && ev.target.closest && ev.target.closest('#saveOrder');
@@ -43366,6 +43373,85 @@ setTimeout(()=>{
   setInterval(function(){ polishSearch(); patchV392Search(); },1000);
   setTimeout(function(){ polishSearch(); patchV392Search(); },300);
   console.info('[BNS v416] Zoeken alle rubrieken + opslaan-popup zonder document-open actief.');
+})();
+
+/* =========================================================
+   BNS v519 - Bezorger-sync alleen op definitieve save
+   Basis: rustige 517/518 lijn.
+   Doel:
+   - De groene Opslaan-knop opent alleen het statusvenster.
+   - Pas bij 'Ja, opslaan' wordt de bezorgerstand definitief in de order gezet.
+   - Gewone wijzigingen bewaren bestaande bezorgers.
+   - Geen zoeken op naam/plaats/titel; alleen de geopende order zelf.
+   ========================================================= */
+(function(){
+  if(window.__BNS_V519_DEFINITIVE_DRIVER_SAVE__) return;
+  window.__BNS_V519_DEFINITIVE_DRIVER_SAVE__ = true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function E(id){ return document.getElementById(id); }
+  function stateObj(){ try{return window.state||state||{};}catch(e){return window.state||{};} }
+  function orders(){ var s=stateObj(); return Array.isArray(s.orders)?s.orders:[]; }
+  function users(){ var s=stateObj(); return Array.isArray(s.users)?s.users:[]; }
+  function selectedDriverIds(){ return Array.from(document.querySelectorAll('#bnsV83DriverBox input[type=checkbox]:checked')).map(function(i){return T(i.value);}).filter(Boolean); }
+  function touched(){ return !!(window.__bns458DriverTouched || window.__bns459DriverTouched || window.__bns474DriverTouched || window.__bns516DriverTouched || window.__bns519DriverTouched); }
+  function resetTouched(){ window.__bns458DriverTouched=false; window.__bns459DriverTouched=false; window.__bns474DriverTouched=false; window.__bns516DriverTouched=false; window.__bns519DriverTouched=false; }
+  function clone(v){ try{return JSON.parse(JSON.stringify(v));}catch(e){return v;} }
+  var driverKeys=['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','assigned','selectedDrivers','driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','assignedDrivers','driverTruthAt'];
+  function clearDriverFields(o){ driverKeys.forEach(function(k){ if(/Ids$|Names$/.test(k) || k==='drivers' || k==='bezorgers' || k==='driverList' || k==='assignedDrivers'){ o[k]=[]; } else { o[k]=''; } }); }
+  function captureDriverFields(o){ var out={}; if(!o) return out; driverKeys.forEach(function(k){ if(o[k]!==undefined) out[k]=clone(o[k]); }); return out; }
+  function restoreDriverFields(o, keep){ if(!o || !keep) return; clearDriverFields(o); Object.keys(keep).forEach(function(k){ o[k]=clone(keep[k]); }); }
+  function applySelectedDrivers(o, ids){
+    ids=(ids||[]).map(T).filter(Boolean);
+    var ds=users().filter(function(u){ return ids.indexOf(T(u.id))>=0 || ids.indexOf(T(u.name))>=0; });
+    var names=ds.map(function(u){return T(u.name);}).filter(Boolean);
+    clearDriverFields(o);
+    if(ds.length){
+      o.driverIds=ds.map(function(u){return T(u.id);});
+      o.bezorgerIds=o.driverIds.slice();
+      o.assignedDriverIds=o.driverIds.slice();
+      o.userIds=o.driverIds.slice();
+      o.driverNames=names.slice();
+      o.bezorgerNames=names.slice();
+      o.assignedDriverNames=names.slice();
+      o.drivers=ds.map(function(u){return {id:u.id,name:u.name,role:u.role};});
+      o.assignedDrivers=o.drivers.slice();
+      o.driver=names.join(', ');
+      o.driverName=o.driver;
+      o.bezorger=o.driver;
+      o.bezorgerName=o.driver;
+      o.assignedDriver=o.driver;
+    }
+    o.driverTruthAt=new Date().toISOString();
+  }
+
+  window.BNS_v519PrepareOrderBeforeSave=function(order, oldOrder){
+    if(!order) return order;
+    if(touched()){
+      applySelectedDrivers(order, selectedDriverIds());
+    }else if(oldOrder){
+      // Bij titel/klant/datum/status wijzigen: bestaande bezorgers exact bewaren.
+      restoreDriverFields(order, captureDriverFields(oldOrder));
+    }
+    order.updatedAt=new Date().toISOString();
+    return order;
+  };
+
+  window.BNS_v519AfterDefinitiveSave=function(savedOrder){
+    // Flags pas resetten nadat de echte 'Ja, opslaan' route klaar is.
+    resetTouched();
+    try{
+      if(savedOrder && typeof window.renderPhone83==='function') window.renderPhone83();
+    }catch(e){}
+  };
+
+  document.addEventListener('change',function(ev){
+    if(ev.target && ev.target.matches && ev.target.matches('#bnsV83DriverBox input[type=checkbox]')){
+      window.__bns519DriverTouched=true;
+    }
+  },true);
+
+  console.info('[BNS v519] Bezorger-sync gekoppeld aan definitieve Ja, opslaan route.');
 })();
 
 /* BNS v418 - live materiaalstatus bij datumwijziging */
