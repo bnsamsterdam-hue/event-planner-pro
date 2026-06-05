@@ -694,3 +694,64 @@ boot();
   });
   console.log("[BNS v493 driver] update-signaal actief.");
 })();
+
+/* BNS 506 driver phone: verborgen/driverCleared nooit tonen + dedupe per opdrachtnummer */
+(function(){
+  if(window.__BNS_506_DRIVER_PHONE_STRICT__) return;
+  window.__BNS_506_DRIVER_PHONE_STRICT__=true;
+  function T(v){return String(v==null?'':v).trim();}
+  function lower(v){return T(v).toLowerCase();}
+  function ms(v){var n=Date.parse(v||0); return isNaN(n)?0:n;}
+  function hasAssigned506(o){
+    if(!o || o.phoneHidden===true || o.driverCleared===true) return false;
+    var vals=[];
+    ['driverId','bezorgerId','userId','assignedDriverId','driverName','driver','bezorger','bezorgerName','assignedDriver','assignedDriverName'].forEach(function(k){if(o[k]) vals.push(T(o[k]));});
+    ['driverIds','bezorgerIds','userIds','assignedDriverIds','driverNames','bezorgerNames','assignedDriverNames','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){var v=o[k]; if(Array.isArray(v)) v.forEach(function(x){vals.push(T(x&&typeof x==='object'?(x.id||x.name||x.naam):x));});});
+    return vals.some(Boolean);
+  }
+  function liveFolder506(o){
+    if(!o) return '';
+    var st=lower(o.status||o.state||o.orderStatus);
+    if(/offerte/.test(st)) return 'offerte';
+    if(/optie|14/.test(st)) return 'optie14';
+    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(st)) return 'geannuleerd';
+    if(/uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(st)) return 'uitgevoerd';
+    return hasAssigned506(o)?'lopend':'';
+  }
+  try{
+    var oldLive=typeof BNS_orderIsLiveForPhone==='function'?BNS_orderIsLiveForPhone:null;
+    BNS_orderIsLiveForPhone=function(o){
+      if(!hasAssigned506(o)) return false;
+      if(liveFolder506(o)!=='lopend') return false;
+      if(o && (o.afgemeld===true || o.phoneDone===true || o.completed===true || o.deleted===true)) return false;
+      return oldLive ? oldLive(o) !== false : true;
+    };
+    window.BNS_orderIsLiveForPhone=BNS_orderIsLiveForPhone;
+  }catch(e){}
+  try{
+    if(typeof visibleOrder==='function'){
+      var oldVisible=visibleOrder;
+      visibleOrder=function(o){ if(!hasAssigned506(o)) return false; if(liveFolder506(o)!=='lopend') return false; return oldVisible(o); };
+      window.visibleOrder=visibleOrder;
+    }
+  }catch(e){}
+  try{
+    if(typeof getOrders==='function'){
+      var oldGet=getOrders;
+      getOrders=function(){
+        var rows=[]; try{ rows=oldGet.apply(this,arguments)||[]; }catch(e){ rows=(BNS&&BNS.state&&BNS.state.orders)||[]; }
+        var by={};
+        rows.filter(hasAssigned506).forEach(function(o){
+          var k=T(o.number||o.orderNumber||o.nr||o.id); if(!k) k=T(o.id);
+          var cur=by[k];
+          var tm=ms(o.driverTruthAt||o.driverChangedAt||o.updatedAt||o.modifiedAt||o.createdAt);
+          var cm=cur?ms(cur.driverTruthAt||cur.driverChangedAt||cur.updatedAt||cur.modifiedAt||cur.createdAt):-1;
+          if(!cur || tm>=cm) by[k]=o;
+        });
+        return Object.keys(by).map(function(k){return by[k];}).filter(function(o){return hasAssigned506(o)&&liveFolder506(o)==='lopend';}).sort(function(a,b){return ms(a.start||a.dateStart||a.date)-ms(b.start||b.dateStart||b.date);});
+      };
+      window.getOrders=getOrders;
+    }
+  }catch(e){}
+  console.log('[BNS 506 driver] phoneHidden/driverCleared + dedupe actief');
+})();
