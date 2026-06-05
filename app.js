@@ -44881,15 +44881,15 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       setTimeout(function(){driverBoxes().forEach(function(cb){cb.checked=false;}); var sel=E('orderDriver'); if(sel) sel.value='';},150);
     }
     if(txt==='opslaan' || b.id==='saveOrder'){
-      // BNS 513: gewone opslaan mag bezorgers niet wissen.
-      // Alleen verwerken als het bezorger-paneel echt zichtbaar/aanwezig is EN er aan vinkjes is gezeten.
-      var boxes=driverBoxes();
-      if(!boxes.length || !window.__bns474DriverTouched) return;
+      // BNS 515: alleen bezorger opslaan als de bezorger-vinkjes echt zijn aangeraakt.
+      // Gewone wijziging aan naam/klant/datum/materialen mag de telefoonopdracht niet verwijderen.
+      if(!window.__bns474DriverTouched) return;
       window.__bns458DriverTouched=true; window.__bns459DriverTouched=true;
       var ids=selectedDriverIds();
       setTimeout(function(){
         var o=findEditingOrder();
         if(o){ setOrderDrivers(o,ids); normalizeOrderFolder(o); saveNow(); syncOrder(o); }
+        window.__bns474DriverTouched=false;
       },160);
     }
   },true);
@@ -46094,9 +46094,9 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('change',function(ev){
     var t=ev.target;
     if(t&&t.matches&&t.matches('#bnsV83DriverBox input[type=checkbox], #orderDriver')){
-      window.__bns458DriverTouched=true; window.__bns459DriverTouched=true;
+      // BNS 515: vinkje klikken is alleen concept; pas Opslaan schrijft naar Firebase/telefoon.
+      window.__bns458DriverTouched=true; window.__bns459DriverTouched=true; window.__bns505DriverTouched=true;
       clearTimeout(window.__BNS_505_DRIVER_TIMER__);
-      window.__BNS_505_DRIVER_TIMER__=setTimeout(applyAndSyncNow,120);
     }
   },true);
   document.addEventListener('click',function(ev){
@@ -46104,10 +46104,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(!b) return;
     var txt=T(b.textContent||b.value||b.id).toLowerCase();
     if(b.id==='saveOrder'||txt==='opslaan'){
+      // BNS 515: alleen schrijven na Opslaan als de bezorger-vinkjes zijn gewijzigd.
+      if(!window.__bns505DriverTouched) return;
       var ids=checkedIds();
       if(ids==null) return;
       setTimeout(function(){var o=currentOrder(); if(o){applySelected(o,ids); syncFull(o);}},80);
-      setTimeout(function(){var o=currentOrder(); if(o){applySelected(o,ids); syncFull(o);}},450);
+      setTimeout(function(){var o=currentOrder(); if(o){applySelected(o,ids); syncFull(o);} window.__bns505DriverTouched=false;},450);
     }
   },true);
   function patchSyncOrder(){
@@ -46147,7 +46149,14 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function users(){var s=S(); if(!Array.isArray(s.users)) s.users=[]; return s.users;}
   function now(){return new Date().toISOString();}
   function ms(v){var n=Date.parse(v||0); return isNaN(n)?0:n;}
-  function orderKey(o){return T(o&&(o.number||o.orderNumber||o.nr||o.id));}
+  function orderKey(o){
+    // BNS 515: waarheid alleen koppelen op exact opdrachtnummer (jaar-volgnummer).
+    if(!o) return '';
+    var k=T(o.number||o.orderNumber||o.nr||o.opdrachtnummer||o.orderNo);
+    if(/^\d{4}-\d+/.test(k)) return k;
+    var id=T(o.id||o.docId||o.orderId);
+    return /^\d{4}-\d+/.test(id) ? id : '';
+  }
   function readTruth(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){return {};}}
   function writeTruth(m){try{localStorage.setItem(KEY,JSON.stringify(m||{}));}catch(e){}}
   function userById(id){id=T(id); return users().find(function(u){return T(u.id)===id;});}
@@ -46158,7 +46167,11 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
   function currentOrder(){
     var nr=T((document.getElementById('orderNumber')||{}).value), edit=T(window.editing||'');
-    return orders().find(function(o){return (edit&&T(o.id)===edit)||(nr&&T(o.number)===nr)||(nr&&T(o.id)===nr);});
+    // BNS 515: de geopende opdracht exact zoeken. Eerst edit-id, daarna exact opdrachtnummer.
+    var byEdit = edit ? orders().find(function(o){return T(o.id)===edit || T(o.docId)===edit || T(o.orderId)===edit;}) : null;
+    if(byEdit) return byEdit;
+    if(!nr) return null;
+    return orders().find(function(o){return T(o.number)===nr || T(o.orderNumber)===nr || T(o.nr)===nr || T(o.opdrachtnummer)===nr || T(o.id)===nr;});
   }
   function clearDrivers(o){
     if(!o) return o;
@@ -46277,8 +46290,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('change',function(ev){
     var t=ev.target;
     if(t&&t.matches&&t.matches('#bnsV83DriverBox input[type=checkbox], #orderDriver')){
-      // BNS 513: vinkje wijzigen is pas definitief na Opslaan.
-      // Niet direct naar Firebase/telefoon schrijven bij alleen klikken.
+      // BNS 515: vinkje klikken niet direct syncen; alleen markeren tot Opslaan.
       window.__bns458DriverTouched=true; window.__bns459DriverTouched=true; window.__bns506DriverTouched=true;
       clearTimeout(window.__BNS_506_DRIVER_TIMER__);
     }
@@ -46287,11 +46299,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var b=ev.target&&ev.target.closest&&ev.target.closest('button,input[type=button],input[type=submit]'); if(!b) return;
     var txt=T(b.textContent||b.value||b.id).toLowerCase();
     if(b.id==='saveOrder'||txt==='opslaan'){
+      // BNS 515: alleen bezorger-sync als de bezorgerkeuze echt is gewijzigd.
+      if(!window.__bns506DriverTouched) return;
       var ids=checkedIds();
-      if(ids==null) return; // BNS 507: gewone opslaan zonder zichtbaar bezorger-paneel niet als lege selectie behandelen
+      if(ids==null) return; // geen bezorger-paneel zichtbaar = niet leegmaken
       setTimeout(function(){applyAndSync(ids);},60);
       setTimeout(function(){applyAndSync(ids);},550);
-      setTimeout(function(){applyAndSync(ids);},1600);
+      setTimeout(function(){applyAndSync(ids); window.__bns506DriverTouched=false;},1600);
     }
   },true);
   function patchBnsSync(){
@@ -46326,7 +46340,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
   function S(){try{return window.state||state||{};}catch(e){return window.state||{};}}
   function orders(){var s=S(); return Array.isArray(s.orders)?s.orders:[];}
-  function key(o){return T(o&&(o.id||o.number||o.orderNumber||o.nr));}
+  function key(o){
+    if(!o) return '';
+    var k=T(o.number||o.orderNumber||o.nr||o.opdrachtnummer||o.orderNo);
+    if(/^\d{4}-\d+/.test(k)) return k;
+    var id=T(o.id||o.docId||o.orderId);
+    return /^\d{4}-\d+/.test(id) ? id : '';
+  }
   function hasDrivers(o){
     if(!o || o.phoneHidden===true || o.driverCleared===true) return false;
     var vals=[];
@@ -46344,7 +46364,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
   function findStateOrder(o){
     var k=key(o); if(!k) return null;
-    return orders().find(function(x){return x && (T(x.id)===k || T(x.number)===k || T(x.orderNumber)===k || T(x.nr)===k || (o&&T(o.number)&&T(x.number)===T(o.number)));});
+    // BNS 515: alleen exact opdrachtnummer, geen titel/klant/plaats/bezorger en geen brede fallback.
+    return orders().find(function(x){return x && (T(x.number)===k || T(x.orderNumber)===k || T(x.nr)===k || T(x.opdrachtnummer)===k || T(x.id)===k);});
   }
   function preserve(o){
     if(!o) return o;
@@ -46378,52 +46399,5 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 })();
 
 
-/* BNS 513 - bezorger pas na Opslaan + gewone wijziging blijft op telefoon */
-(function(){
-  if(window.__BNS_513_DRIVER_SAVE_ONLY__) return;
-  window.__BNS_513_DRIVER_SAVE_ONLY__=true;
-  function T(v){return String(v==null?'':v).trim();}
-  function A(v){
-    if(v==null) return [];
-    if(Array.isArray(v)){var out=[]; v.forEach(function(x){out=out.concat(A(x));}); return out;}
-    if(typeof v==='object') return [v.id||v.name||v.naam||''].map(T).filter(Boolean);
-    return String(v).split(/[;,|\n]+/).map(T).filter(Boolean);
-  }
-  function S(){try{return window.state||state||{};}catch(e){return window.state||{};}}
-  function orders(){var s=S(); return Array.isArray(s.orders)?s.orders:[];}
-  function key(o){return T(o&&(o.id||o.number||o.orderNumber||o.nr));}
-  function hasDrivers(o){
-    if(!o || o.phoneHidden===true || o.driverCleared===true) return false;
-    var vals=[];
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){vals=vals.concat(A(o&&o[k]));});
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers','driverSelectionIds'].forEach(function(k){vals=vals.concat(A(o&&o[k]));});
-    return vals.some(Boolean);
-  }
-  function copyDrivers(from,to){
-    if(!from||!to||!hasDrivers(from)||hasDrivers(to)) return to;
-    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','driverTruthAt','driverChangedAt','driverSyncAt','driverSelectionIds'].forEach(function(k){ if(from[k]!=null && from[k]!=='' ) to[k]=from[k]; });
-    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers','driverSelectionIds'].forEach(function(k){ if(Array.isArray(from[k]) && from[k].length) to[k]=JSON.parse(JSON.stringify(from[k])); });
-    to.phoneHidden=false; to.driverCleared=false; to.folder='lopend';
-    return to;
-  }
-  function findOld(o){
-    var k=key(o); if(!k) return null;
-    return orders().find(function(x){return x&&x!==o&&(T(x.id)===k||T(x.number)===k||T(x.orderNumber)===k||T(x.nr)===k||(o&&T(o.number)&&T(x.number)===T(o.number)));});
-  }
-  function preserveOnNormalEdit(o){
-    if(!o || o.phoneHidden===true || o.driverCleared===true || hasDrivers(o)) return o;
-    // Alleen echte driver-wis actie mag leeg blijven. Gewone titel/klant/datum wijziging behoudt bestaande bezorger.
-    if(window.__bns506DriverTouched || window.__bns474DriverTouched) return o;
-    return copyDrivers(findOld(o),o);
-  }
-  function patchSync(){
-    try{
-      if(!window.BNS||!window.BNS.syncOrder||window.BNS.syncOrder.__bns513) return;
-      var old=window.BNS.syncOrder;
-      window.BNS.syncOrder=function(o){try{preserveOnNormalEdit(o);}catch(e){} return old.apply(this,arguments);};
-      window.BNS.syncOrder.__bns513=true;
-    }catch(e){}
-  }
-  patchSync(); setTimeout(patchSync,500); setInterval(patchSync,2500);
-  console.log('[BNS 513] driver wijziging pas definitief na Opslaan; normale wijziging behoudt telefoon');
-})();
+/* BNS 515 marker: exacte opdrachtnummer-sync, geen directe telefoonwijziging bij klikken. */
+console.log('[BNS 515] bezorger alleen na Opslaan, exact op opdrachtnummer, geen opdracht-mix');
