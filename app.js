@@ -39959,7 +39959,7 @@ setTimeout(()=>{
     var l=o.location?[o.location.street,o.location.city].filter(Boolean).join(', '):'';
     var m=(o.materials||[]).map(function(x){return x.code||x.name||'';}).filter(Boolean).join(', ');
     var dt=fmtDate(o.start||o.dateStart||o.startDate||o.date||'')+(o.end&&o.end!==o.start?' t/m '+fmtDate(o.end||o.endDate||o.finish||''):'');
-    return '<div data-oid="'+esc(o.id)+'" style="border:1px solid #dbe3ef;border-radius:14px;padding:13px;margin:8px 0;background:#fff">'+
+    return '<div data-oid="'+esc(o.id)+'" data-order-id="'+esc(o.id)+'" data-order-nr="'+esc(o.number||'')+'" style="border:1px solid #dbe3ef;border-radius:14px;padding:13px;margin:8px 0;background:#fff">'+
       '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'+
         '<b>'+esc(o.number||'')+(o.title?' — '+esc(o.title):'')+'</b>'+
         '<span style="font-size:11px;font-weight:800;background:#f1f5f9;border-radius:999px;padding:3px 10px;flex-shrink:0">'+esc(o.status||'')+'</span>'+
@@ -40218,7 +40218,7 @@ setTimeout(()=>{
     var l = [loc.name, loc.street, loc.city].filter(Boolean).join(', ');
     var m = (o.materials||[]).map(function(x){ return x.code || x.name || ''; }).filter(Boolean).join(', ');
     var dt = fmtDate(o.start || o.dateStart || o.startDate || o.date || '') + (o.end && o.end !== o.start ? ' t/m ' + fmtDate(o.end || o.endDate || o.finish || '') : '');
-    return '<div data-oid="'+esc(o.id)+'" style="border:1px solid #dbe3ef;border-radius:15px;padding:14px;margin:9px 0;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.05)">'+
+    return '<div data-oid="'+esc(o.id)+'" data-order-id="'+esc(o.id)+'" data-order-nr="'+esc(o.number||'')+'" style="border:1px solid #dbe3ef;border-radius:15px;padding:14px;margin:9px 0;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.05)">'+
       '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">'+
         '<b style="font-size:15px">'+esc(o.number||'')+(o.title?' — '+esc(o.title):'')+'</b>'+statusPill(o)+
       '</div>'+ 
@@ -40452,7 +40452,7 @@ setTimeout(()=>{
     var l=[loc.name,loc.street,loc.city].filter(Boolean).join(', ');
     var m=(o.materials||[]).map(function(x){ return x.code||x.name||''; }).filter(Boolean).join(', ');
     var dt=fmtDate(o.start||o.dateStart||o.startDate||o.date||'')+(o.end&&o.end!==o.start?' t/m '+fmtDate(o.end||o.endDate||o.finish||''):'');
-    return '<div data-oid="'+esc(o.id)+'" style="border:1px solid #dbe3ef;border-radius:15px;padding:14px;margin:9px 0;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.05)">'+
+    return '<div data-oid="'+esc(o.id)+'" data-order-id="'+esc(o.id)+'" data-order-nr="'+esc(o.number||'')+'" style="border:1px solid #dbe3ef;border-radius:15px;padding:14px;margin:9px 0;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.05)">'+
       '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b style="font-size:15px">'+esc(o.number||'')+(o.title?' — '+esc(o.title):'')+'</b>'+pill(o)+'</div>'+
       '<div style="font-size:13px;color:#64748b;margin-top:4px">'+esc(dt)+(k?' · '+esc(k):'')+(l?' · '+esc(l):'')+'</div>'+
       (m?'<div style="font-size:12px;color:#64748b;margin-top:3px">Materiaal: '+esc(m)+'</div>':'')+
@@ -45402,14 +45402,28 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
 
   function findOrderFromElement(el){
-    // 1. Eerst in omliggende opdrachtkaart zoeken.
+    // 0. Eerst data-oid of data-order-id op element of directe parent
     var n=el;
     for(var i=0;i<12 && n;i++,n=n.parentElement){
-      var txt=T(n.textContent);
-      var m=txt.match(/\b20\d{2}-\d{4}\b/);
-      if(m){
-        var o=findOrder(m[0]);
-        if(o) return o;
+      // data-oid heeft hoogste prioriteit (staat op kaart-level)
+      var oid = n.dataset && (n.dataset.oid || n.dataset.orderId || n.dataset.id);
+      if(oid){
+        var oo=findOrder(oid);
+        if(oo) return oo;
+      }
+    }
+    // 1. Dan in tekst zoeken (maar alleen in directe kaart-container)
+    var n=el;
+    for(var i=0;i<12 && n;i++,n=n.parentElement){
+      // Controleer of dit een kaart-container is (niet de hele pagina)
+      var isCard = n.dataset && (n.dataset.oid || n.classList && n.classList.contains('order-card'));
+      if(isCard){
+        var txt=T(n.textContent);
+        var m=txt.match(/\b20\d{2}-\d{4}\b/);
+        if(m){
+          var o=findOrder(m[0]);
+          if(o) return o;
+        }
       }
       // Soms staat de opdracht-id in dataset/onclick.
       if(n.dataset){
