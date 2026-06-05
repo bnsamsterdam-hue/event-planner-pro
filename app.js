@@ -25096,7 +25096,10 @@ setTimeout(()=>{
       if(ev.target&&/^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')){
         setTimeout(function(){
           matKey='';
-          renderMaterials95(window.currentCat||lastCat,true);
+          // renderMaterials95 bestaat niet - gebruik beschikbare versie
+          if(typeof renderMaterials93==='function') renderMaterials93(window.currentCat||lastCat,true);
+          else if(typeof renderMaterials==='function') renderMaterials(window.currentCat||lastCat,true);
+          else if(typeof renderMaterialsStable==='function') renderMaterialsStable(window.currentCat||lastCat,true);
         },20);
       }
     },true);
@@ -31251,15 +31254,13 @@ setTimeout(()=>{
     try{
       if(!window.BNS||!window.BNS.fs||!window.BNS.db||!id||!obj) return;
       var fs=window.BNS.fs;
-      if(fs.setDoc&&fs.doc) fs.setDoc(fs.doc(window.BNS.db,coll,String(id)),Object.assign({
-      },obj,{
-        updatedAt:new Date().toISOString()
-      }),{
-        merge:true
-      }).catch(function(){
-      });
-    } catch(e){
-    }
+      if(fs.setDoc&&fs.doc){
+        var data=Object.assign({},obj,{updatedAt:new Date().toISOString()});
+        // Orders: GEEN merge - volledige overschrijving zodat lege driver velden echt worden opgeslagen
+        var opts = (coll==='orders') ? {} : {merge:true};
+        fs.setDoc(fs.doc(window.BNS.db,coll,String(id)),data,opts).catch(function(){});
+      }
+    } catch(e){}
   }
   function currentSelectedId(){
     var ids=[selectedMaterialId,window.__bnsSelectedMaterialId,window.bnsSelectedMaterialId,window.__bnsV48EditingMaterialId];
@@ -32243,10 +32244,8 @@ setTimeout(()=>{
         window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'orders',String(o.id)), Object.assign({
         }, o, {
           updatedAt:new Date().toISOString()
-        }), {
-          merge:true
-        }).catch(function(){
-        });
+        })).catch(function(){
+        }); // Geen merge - volledige overschrijving
       }
     } catch(e){
     }
@@ -42594,7 +42593,7 @@ setTimeout(()=>{
   }
   function syncOrder(o){
     try{ if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc && o && (o.id||o.number)){
-      window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'orders',String(o.id||o.number)), Object.assign({},o,{updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){});
+      window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'orders',String(o.id||o.number)), Object.assign({},o,{updatedAt:new Date().toISOString()}), {}).catch(function(){});
     }}catch(e){}
     try{ if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase==='function') window.BNSFirebaseSync.uploadLocalToFirebase('v408'); }catch(e){}
   }
@@ -42913,7 +42912,8 @@ setTimeout(()=>{
   function fbSet(coll,id,obj){
     try{
       if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc && id){
-        window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db, coll, String(id)), Object.assign({}, obj, {updatedAt:new Date().toISOString()}), {merge:true}).catch(function(){});
+        var _opts = (coll==='orders') ? {} : {merge:true};
+        window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db, coll, String(id)), Object.assign({}, obj, {updatedAt:new Date().toISOString()}), _opts).catch(function(){});
       }
     }catch(e){}
   }
