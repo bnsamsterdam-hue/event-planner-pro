@@ -42922,13 +42922,6 @@ setTimeout(()=>{
       addMediaToOrderAndAlerts(o,item);
       closeModal();
       toast('Foto opgeslagen bij klantmeldingen en overzicht bestelling.');
-      // Direct refresh in open modal - geen F5 nodig
-      setTimeout(function(){
-        var oid = o&&(o.id||o.number)||window.__BNS_V493_OPEN_ORDER_ID||'';
-        if(oid && typeof window.BNS_v493PatchMediaOverview==='function'){
-          window.BNS_v493PatchMediaOverview(oid);
-        }
-      }, 400);
     };
   }
   function openSignFixed(orderId){
@@ -42952,13 +42945,6 @@ setTimeout(()=>{
       addMediaToOrderAndAlerts(o,item);
       closeModal();
       toast('Handtekening opgeslagen bij klantmeldingen en overzicht bestelling.');
-      // Direct refresh in open modal - geen F5 nodig
-      setTimeout(function(){
-        var oid = o&&(o.id||o.number)||window.__BNS_V493_OPEN_ORDER_ID||'';
-        if(oid && typeof window.BNS_v493PatchMediaOverview==='function'){
-          window.BNS_v493PatchMediaOverview(oid);
-        }
-      }, 400);
     };
   }
 
@@ -42998,12 +42984,6 @@ setTimeout(()=>{
       setTimeout(function(){
         try{
           var m=E('bnsOrderOverviewModal'); if(!m) return;
-          // Verwijder losse knoppen buiten kaarten
-          m.querySelectorAll('.tw-v141-actions').forEach(function(div){
-            if(!div.closest('.tw-v141-card') && !div.closest('.bns-v474-card')){
-              div.remove();
-            }
-          });
           var o=orderById(id); if(!o) return;
           var card=m.querySelector('.bns-order-overview-card') || m.firstElementChild; if(!card) return;
           var old=card.querySelector('.bns-v411-order-media'); if(old) old.remove();
@@ -44824,7 +44804,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       return T(a.orderId)===T(o.id)||T(a.orderNumber)===T(o.number)||T(a.number)===T(o.number)||T(a.order)===T(o.id);
     }));
     ['media','photos','signatures','customerMessages','klantmeldingen'].forEach(function(k){ if(Array.isArray(o[k])) rows=rows.concat(o[k]); });
-    // customerSignature niet als kaart - staat in alerts
+    if(o.customerSignature) rows.push({id:'custsig_'+T(o.id),type:'Handtekening klant',data:o.customerSignature,createdAt:o.customerSignedAt||'',note:o.customerSignedName||'Handtekening toegevoegd'});
     var seen={};
     return rows.filter(function(a){ var id=T(a.id||a.createdAt||a.time||a.note||Math.random()); if(seen[id]) return false; seen[id]=1; return true; });
   }
@@ -45165,13 +45145,16 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       rows.push(y);
     }
     [
-      "media","photos","fotos","images","signatures","handtekeningen",
-      "customerSignatures","customerMessages","klantmeldingen"
+      "media","driverUploads","photos","fotos","images","signatures","handtekeningen",
+      "customerSignatures","customerMessages","klantmeldingen","messages",
+      "driverMessages","driverAlerts","meldingen","attachments","defects","storingen",
+      "bezorgerMeldingen","klantMeldingen","orderMedia"
     ].forEach(function(k){
       if(Array.isArray(o && o[k])) o[k].forEach(function(x){ add(x,k); });
     });
-    // customerSignature NIET als aparte kaart - staat al in alerts
-    // Meerdere handtekeningen per dag worden elk als aparte alert opgeslagen
+    if(o && o.customerSignature){
+      add({id:"custsig_"+T(o.id),type:"Handtekening klant",data:o.customerSignature,createdAt:o.customerSignedAt||"",note:o.customerSignedBy||o.customerSignedName||"Handtekening toegevoegd"},"order.customerSignature");
+    }
     alerts().forEach(function(a){ if(alertMatch(a,o)) add(a,"alerts"); });
 
     var seen={};
