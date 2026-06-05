@@ -695,3 +695,50 @@ console.log("[BNS v493 sync] update-signaal actief.");
   window.__BNS_503_FIREBASE_DRIVER_FINAL__=true;
   window.BNS_503_syncVersion='503-final-driver-sync';
 })();
+
+/* BNS 506 firebase-sync: driver-cleared/truth wint van oude remote driverdata */
+(function(){
+  if(typeof window==='undefined' || window.__BNS_506_FIREBASE_TRUTH__) return;
+  window.__BNS_506_FIREBASE_TRUTH__=true;
+  function T(v){return String(v==null?'':v).trim();}
+  function ms(v){var n=Date.parse(v||0); return isNaN(n)?0:n;}
+  function clearDrivers(o){
+    if(!o) return o;
+    ['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId'].forEach(function(k){o[k]='';});
+    ['driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','selectedDrivers','assigned','assignedDrivers'].forEach(function(k){o[k]=[];});
+    o.folder=''; o.phoneHidden=true; o.driverCleared=true;
+    return o;
+  }
+  try{
+    if(typeof bns481FolderFromOrder==='function'){
+      var old481=bns481FolderFromOrder;
+      bns481FolderFromOrder=function(o){ if(o&&(o.phoneHidden===true||o.driverCleared===true)) return ''; return old481(o); };
+    }
+  }catch(e){}
+  try{
+    if(typeof bns460HasDriver==='function'){
+      var oldHas=bns460HasDriver;
+      bns460HasDriver=function(o){ if(o&&(o.phoneHidden===true||o.driverCleared===true)) return false; return oldHas(o); };
+    }
+  }catch(e){}
+  try{
+    if(typeof preserveOrder==='function' && !preserveOrder.__bns506){
+      var old=preserveOrder;
+      preserveOrder=function(local,remote){
+        try{
+          var lt=ms(local&&(local.driverTruthAt||local.driverChangedAt||local.updatedAt));
+          var rt=ms(remote&&(remote.driverTruthAt||remote.driverChangedAt||remote.updatedAt));
+          if(local && (local.phoneHidden===true || local.driverCleared===true) && lt>=rt){
+            return clearDrivers(Object.assign({},remote||{},local));
+          }
+          if(remote && (remote.phoneHidden===true || remote.driverCleared===true) && rt>=lt){
+            return clearDrivers(Object.assign({},local||{},remote));
+          }
+        }catch(e){}
+        return old(local,remote);
+      };
+      preserveOrder.__bns506=true;
+    }
+  }catch(e){}
+  console.log('[BNS 506 firebase-sync] driver truth/cleared wint van oude remote');
+})();
