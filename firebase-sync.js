@@ -119,70 +119,6 @@ if(typeof window !== "undefined"){
   window.BNS_v481CorrectFoldersInFirebase = bns481CorrectFoldersInFirebase;
 }
 
-
-/* =========================================================
-   BNS v503 firebase-sync - lege bezorger blijft leeg
-   Als planner alle bezorgers uitzet, mag Firebase geen oude driver terugzetten.
-   ========================================================= */
-function bns503DriverIdsFromOrder(o){
-  try{
-    let ids=[];
-    ["driverIds","bezorgerIds","userIds","assignedDriverIds","selectedDriverIds","selectedDrivers"].forEach(k=>{
-      if(Array.isArray(o&&o[k])) ids=ids.concat(o[k].map(String));
-    });
-    if(o&&Array.isArray(o.drivers)) o.drivers.forEach(d=>{ if(d&&d.id) ids.push(String(d.id)); });
-    return [...new Set(ids.map(x=>String(x||"").trim()).filter(Boolean))];
-  }catch(e){ return []; }
-}
-function bns503DriverNamesFromOrder(o){
-  try{
-    let names=[];
-    ["driverNames","bezorgerNames","assignedDriverNames"].forEach(k=>{
-      if(Array.isArray(o&&o[k])) names=names.concat(o[k].map(String));
-    });
-    ["driver","driverName","bezorger","bezorgerName","assignedDriverName"].forEach(k=>{
-      if(o&&o[k]) String(o[k]).split(/[,;]/).forEach(x=>names.push(x));
-    });
-    return [...new Set(names.map(x=>String(x||"").trim()).filter(Boolean))];
-  }catch(e){ return []; }
-}
-function bns503HasDrivers(o){
-  return bns503DriverIdsFromOrder(o).length>0 || bns503DriverNamesFromOrder(o).length>0;
-}
-function bns503ClearDrivers(o){
-  if(!o) return o;
-  ["driver","driverId","driverName","bezorger","bezorgerId","bezorgerName","assignedDriver","assignedDriverId","assignedDriverName","assignedTo","assignedToUser","assignedUser","userId","userName","selectedDriver"].forEach(k=>o[k]="");
-  ["driverIds","driverNames","bezorgerIds","bezorgerNames","assignedDriverIds","assignedDriverNames","assignedToUsers","assignedUsers","userIds","users","drivers","bezorgers","driverList","selectedDrivers","selectedDriverIds"].forEach(k=>o[k]=[]);
-  o.hasDrivers=false;
-  o.driverAssignmentUpdatedAt=o.driverAssignmentUpdatedAt || Date.now();
-  return o;
-}
-function bns503NormalizeDriverFields(o){
-  if(!o) return o;
-  if(!bns503HasDrivers(o)) return bns503ClearDrivers(o);
-  const ids=bns503DriverIdsFromOrder(o);
-  const names=bns503DriverNamesFromOrder(o);
-  o.driverIds=ids.slice();
-  o.bezorgerIds=ids.slice();
-  o.userIds=ids.slice();
-  o.assignedDriverIds=ids.slice();
-  o.selectedDriverIds=ids.slice();
-  o.selectedDrivers=ids.slice();
-  o.driverNames=names.slice();
-  o.bezorgerNames=names.slice();
-  o.assignedDriverNames=names.slice();
-  o.driver=names.join(", ");
-  o.driverName=o.driver;
-  o.bezorger=o.driver;
-  o.bezorgerName=o.driver;
-  o.hasDrivers=ids.length>0 || names.length>0;
-  return o;
-}
-if(typeof window!=="undefined"){
-  window.BNS_v503NormalizeDriverFields=bns503NormalizeDriverFields;
-  window.BNS_v503ClearDrivers=bns503ClearDrivers;
-}
-
 async function fb(){
   if(tools)return tools;
   if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){status("Firebase config ontbreekt");return null}
@@ -591,26 +527,3 @@ console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu fold
   }catch(e){}
 })();
 console.log("[BNS v493 sync] update-signaal actief.");
-
-/* BNS v503: normaliseer driver velden voor upload */
-(function(){
-  try{
-    if(typeof upload === "function" && !upload.__bns503){
-      const oldUpload=upload;
-      upload=async function(s){
-        try{ if(s&&Array.isArray(s.orders)) s.orders.forEach(bns503NormalizeDriverFields); }catch(e){}
-        return oldUpload.apply(this,arguments);
-      };
-      upload.__bns503=true;
-    }
-    if(typeof syncDoc === "function" && !syncDoc.__bns503){
-      const oldSyncDoc=syncDoc;
-      syncDoc=async function(col,id,row){
-        try{ if(col==="orders" && row) bns503NormalizeDriverFields(row); }catch(e){}
-        return oldSyncDoc.apply(this,arguments);
-      };
-      syncDoc.__bns503=true;
-    }
-  }catch(e){}
-})();
-console.log("[BNS v503 sync] driver velden genormaliseerd; leeg blijft leeg.");
