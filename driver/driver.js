@@ -742,7 +742,7 @@ boot();
         var rows=[]; try{ rows=oldGet.apply(this,arguments)||[]; }catch(e){ rows=(BNS&&BNS.state&&BNS.state.orders)||[]; }
         var by={};
         rows.filter(hasAssigned506).forEach(function(o){
-          var k=T(o.number||o.orderNumber||o.nr||o.id); if(!k) k=T(o.id);
+          var k=T(o.number||o.orderNumber||o.nr); if(!k){ var oid=T(o.id||o.docId||o.orderId); if(/^\d{4}-\d+/.test(oid)) k=oid; } if(!k) k=T(o.id);
           var cur=by[k];
           var tm=ms(o.driverTruthAt||o.driverChangedAt||o.updatedAt||o.modifiedAt||o.createdAt);
           var cm=cur?ms(cur.driverTruthAt||cur.driverChangedAt||cur.updatedAt||cur.modifiedAt||cur.createdAt):-1;
@@ -777,7 +777,8 @@ boot();
     var existing=(BNS&&BNS.state&&Array.isArray(BNS.state.orders))?BNS.state.orders:[];
     var existingBy={};
     existing.forEach(function(x){
-      var k=T(x&&(x.number||x.orderNumber||x.nr||x.id));
+      var k=T(x&&(x.number||x.orderNumber||x.nr));
+      if(!k){ var xid=T(x&&(x.id||x.docId||x.orderId)); if(/^\d{4}-\d+/.test(xid)) k=xid; }
       if(k) existingBy[k]=x;
     });
     var rows=[];
@@ -787,7 +788,7 @@ boot();
         var id=String((o.id||o.docId||o.orderId)||'');
         if(id.indexOf('old_')===0) return;
         if(o.deleted===true || o.removed===true || o.hidden===true || o.isDeleted===true) return;
-        var k=T(o.number||o.orderNumber||o.nr||o.id);
+        var k=T(o.number||o.orderNumber||o.nr); if(!k){ var oid=T(o.id||o.docId||o.orderId); if(/^\d{4}-\d+/.test(oid)) k=oid; }
         var old=k?existingBy[k]:null;
         var has=(typeof BNS_driverHasAssignee==='function') ? BNS_driverHasAssignee(o) : true;
         if(!has && !(o.phoneHidden===true || o.driverCleared===true) && old){
@@ -859,3 +860,7 @@ boot();
 
 /* BNS 512 markering: realtime telefoon behoudt bestaande opdracht bij gewone wijziging. */
 console.log('[BNS 512 driver] gewone wijziging haalt telefoonopdracht niet tijdelijk weg');
+
+
+/* BNS 515 driver marker: telefoon behoudt opdracht bij gewone wijziging, sleutel exact opdrachtnummer. */
+console.log('[BNS 515 driver] exact opdrachtnummer');
