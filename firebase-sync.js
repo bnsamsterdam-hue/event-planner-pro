@@ -190,6 +190,12 @@ function bns460NormalizeOrder(o){
   else bns460NormalizeDrivers(o);
   return o;
 }
+function bns460HasDriver(o){
+  if(!o) return false;
+  if(bns460DriverCount(o)>0) return true;
+  const f=[o.driver,o.driverName,o.bezorger,o.bezorgerName,o.assignedDriver,o.assignedDriverName];
+  return f.some(v=>String(v||'').trim().length>0);
+}
 function bns460IsPhoneClient(){
   const h=String(location.href||"").toLowerCase();
   const b=String(document.body&&document.body.innerText||"").toLowerCase();
@@ -198,8 +204,15 @@ function bns460IsPhoneClient(){
 function bns460FilterRows(col,rows,includeArchief){
   rows=(rows||[]).map(o=>col==="orders"?bns460NormalizeOrder(o):o);
   if(col==="orders"){
-    // Telefoon: alleen lopend
-    if(bns460IsPhoneClient()) return rows.filter(o=>o.folder==="lopend");
+    // Telefoon: alleen lopend EN bezorger toegewezen
+    if(bns460IsPhoneClient()){
+      return rows.filter(o=>{
+        if(o.folder!=="lopend") return false;
+        // Check: heeft deze order een bezorger toegewezen?
+        const hasDriver = bns460HasDriver(o);
+        return hasDriver;
+      });
+    }
     // Planner: standaard geen archief/old laden (tenzij expliciet gevraagd)
     if(!includeArchief){
       rows=rows.filter(o=>{
