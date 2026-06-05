@@ -45332,152 +45332,152 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 
 /* =========================================================
-   BNS v494 - alle Overzicht bestelling knoppen naar hetzelfde dossier
-   Fix voor ontdekking:
-   - Dashboard-knop en Opdrachten-knop waren twee routes.
-   - Opdrachten gebruikte nog oude indeling.
-   v494:
-   - bindt alle Overzicht bestelling / Overzicht maken knoppen opnieuw.
-   - ook knoppen die later door render opnieuw verschijnen.
-   - open dossier haalt rustig live data op zonder F5 als download() bestaat.
+   BNS v494 - dossier rustig live, geen scroll-spring, geen dubbele handtekening
+   Bouwt door op v493:
+   - behoudt 1 dossierblok
+   - verwijdert dubbele bovenste opdracht-filterknoppen
+   - dedup handtekening klant/bezorger op tijd en type
+   - bewaart scrollpositie bij live verversen
+   - pollt rustig Firebase/download zolang dossier open is, zodat F5 niet nodig is
    ========================================================= */
 (function(){
-  if(window.__BNS_V494_ALL_OVERVIEW_BUTTONS__) return;
-  window.__BNS_V494_ALL_OVERVIEW_BUTTONS__ = true;
+  if(window.__BNS_V494_DOSSIER_LIVE_RUST__) return;
+  window.__BNS_V494_DOSSIER_LIVE_RUST__ = true;
 
   function T(v){ return String(v == null ? "" : v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
   function A(sel,root){ return Array.from((root||document).querySelectorAll(sel)); }
+  function E(id){ return document.getElementById(id); }
 
-  function stateObj(){
-    try{ if(typeof state !== "undefined" && state) return state; }catch(e){}
-    try{ if(window.state) return window.state; }catch(e){}
-    try{ return JSON.parse(localStorage.getItem("event-planner-pro-v87") || "{}"); }catch(e){}
-    return {};
-  }
-  function orders(){
-    var s=stateObj();
-    return Array.isArray(s.orders) ? s.orders : [];
-  }
-  function findOrder(id){
-    id=T(id);
-    return orders().find(function(o){
-      return T(o.id)===id || T(o.number)===id || T(o.orderId)===id;
-    }) || null;
-  }
-
-  function findOrderFromElement(el){
-    // 1. Eerst in omliggende opdrachtkaart zoeken.
-    var n=el;
-    for(var i=0;i<12 && n;i++,n=n.parentElement){
-      var txt=T(n.textContent);
-      var m=txt.match(/\b20\d{2}-\d{4}\b/);
-      if(m){
-        var o=findOrder(m[0]);
-        if(o) return o;
-      }
-      // Soms staat de opdracht-id in dataset/onclick.
-      if(n.dataset){
-        for(var k in n.dataset){
-          var val=T(n.dataset[k]);
-          var om=findOrder(val);
-          if(om) return om;
+  function hideUpperFolderButtons(){
+    try{
+      // De bovenste rij met 5 knoppen is dubbel/onrustig. Onderste werkrij blijft staan.
+      A("button,a").forEach(function(b){
+        var t=L(b.textContent || b.value || b.title || "");
+        if(t==="lopende opdrachten" || t==="14 dagen opties" || t==="offertes" || t==="geannuleerd" || t==="uitgevoerd"){
+          var p=b.parentElement;
+          if(!p) return;
+          var txt=L(p.textContent);
+          var count=["lopende opdrachten","14 dagen opties","offertes","geannuleerd","uitgevoerd"].filter(function(x){return txt.indexOf(x)>=0;}).length;
+          if(count>=4){
+            p.setAttribute("data-bns-v494-upper-tabs","1");
+            p.style.display="none";
+          }
         }
+      });
+    }catch(e){}
+  }
+
+  function normalizeTimeMinute(v){
+    var s=T(v);
+    var d=Date.parse(s);
+    if(!isNaN(d)) return Math.floor(d/60000);
+    // dd-mm-yyyy, hh:mm:ss of vergelijkbaar
+    var m=s.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4}).*?(\d{1,2}):(\d{2})/);
+    if(m) return [m[3],m[2],m[1],m[4],m[5]].join("-");
+    return s.slice(0,16);
+  }
+
+  function patchDedupeFunction(){
+    // Patch media-map na render: dubbele handtekeningkaarten verwijderen als dezelfde minuut/type.
+    var modal=E("bnsV493Modal");
+    if(!modal) return;
+    var cards=A(".bns-v493-card", modal);
+    var seen={};
+    cards.forEach(function(card){
+      var txt=T(card.textContent);
+      var isSig=/handtekening klant/i.test(txt);
+      if(!isSig) return;
+      var time=(txt.match(/\d{4}-\d{2}-\d{2}T?\d{0,2}:?\d{0,2}|\d{1,2}-\d{1,2}-\d{4},?\s*\d{1,2}:\d{2}/)||[""])[0];
+      var key="sig|"+normalizeTimeMinute(time);
+      if(seen[key]){
+        // voorkeur: kaart met echte "Handtekening toegevoegd" blijft; kaart met alleen bezorgernaam weg.
+        var prev=seen[key];
+        var curGood=/handtekening toegevoegd/i.test(txt);
+        var prevGood=/handtekening toegevoegd/i.test(prev.textContent||"");
+        if(curGood && !prevGood){
+          prev.remove();
+          seen[key]=card;
+        }else{
+          card.remove();
+        }
+      }else{
+        seen[key]=card;
       }
-    }
-
-    // 2. Daarna de onclick / href zelf uitlezen.
-    var raw=T(el.getAttribute("onclick"))+" "+T(el.getAttribute("href"))+" "+T(el.dataset && JSON.stringify(el.dataset));
-    var m2=raw.match(/\b20\d{2}-\d{4}\b/);
-    if(m2) return findOrder(m2[0]);
-
-    // 3. Laatste redmiddel: eerste zichtbare order in buurt van knop horizontaal/verticaal.
-    return null;
-  }
-
-  function isOverviewButton(el){
-    if(!el) return false;
-    var txt=L(el.textContent || el.value || el.title || el.getAttribute("aria-label") || "");
-    var cls=L(el.className || "");
-    var raw=L(T(el.getAttribute("onclick"))+" "+T(el.getAttribute("href")));
-    return txt.indexOf("overzicht bestelling") >= 0 ||
-           txt.indexOf("overzicht maken") >= 0 ||
-           raw.indexOf("show_order_overview") >= 0 ||
-           raw.indexOf("showorderoverview") >= 0 ||
-           raw.indexOf("order_overview") >= 0 ||
-           cls.indexOf("overview") >= 0 && txt.indexOf("overzicht") >= 0;
-  }
-
-  function openClean(o){
-    if(!o) return false;
-    if(typeof window.BNS_V493_SHOW === "function"){
-      window.BNS_V493_SHOW(o.id || o.number || o.orderId);
-      return false;
-    }
-    if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW === "function"){
-      window.BNS_V128_SHOW_ORDER_OVERVIEW(o.id || o.number || o.orderId);
-      return false;
-    }
-    return false;
-  }
-
-  function bindButtons(root){
-    A("button,a,input[type=button],input[type=submit]", root || document).forEach(function(btn){
-      if(!isOverviewButton(btn)) return;
-      if(btn.__bns494Bound) return;
-      btn.__bns494Bound = true;
-      btn.addEventListener("click", function(ev){
-        var o=findOrderFromElement(btn);
-        if(!o) return; // niet blokkeren als we geen order kunnen vinden
-        ev.preventDefault();
-        ev.stopPropagation();
-        ev.stopImmediatePropagation();
-        openClean(o);
-        return false;
-      }, true);
     });
   }
 
-  document.addEventListener("click", function(ev){
-    var btn=ev.target && ev.target.closest && ev.target.closest("button,a,input[type=button],input[type=submit]");
-    if(!btn || !isOverviewButton(btn)) return;
-    var o=findOrderFromElement(btn);
-    if(!o) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    ev.stopImmediatePropagation();
-    openClean(o);
-    return false;
-  }, true);
-
-  var bindTimer=null;
-  function scheduleBind(){
-    clearTimeout(bindTimer);
-    bindTimer=setTimeout(function(){ bindButtons(document); },150);
+  function renderKeepScroll(){
+    var modal=E("bnsV493Modal");
+    if(!modal) return;
+    var box=modal.querySelector(".bns-v493-cardmain") || modal.firstElementChild || modal;
+    var top=box.scrollTop || 0;
+    var id=window.__BNS_V493_OPEN_ORDER_ID;
+    try{
+      if(typeof window.BNS_V493_RENDER==="function") window.BNS_V493_RENDER(id);
+    }catch(e){}
+    setTimeout(function(){
+      var m=E("bnsV493Modal");
+      if(!m) return;
+      var b=m.querySelector(".bns-v493-cardmain") || m.firstElementChild || m;
+      b.scrollTop=top;
+      patchDedupeFunction();
+    },80);
   }
 
-  try{
-    new MutationObserver(scheduleBind).observe(document.body,{childList:true,subtree:true});
-  }catch(e){}
-  setTimeout(scheduleBind,250);
-  setTimeout(scheduleBind,1200);
-  setInterval(scheduleBind,3000);
+  // Overschrijf render met scrollbehoud, maar bewaar originele.
+  if(typeof window.BNS_V493_RENDER==="function" && !window.BNS_V493_RENDER.__bns494){
+    var oldRender=window.BNS_V493_RENDER;
+    var wrapped=function(id){
+      var modal=E("bnsV493Modal");
+      var box=modal && (modal.querySelector(".bns-v493-cardmain") || modal.firstElementChild || modal);
+      var top=box ? box.scrollTop : 0;
+      var res=oldRender.apply(this,arguments);
+      setTimeout(function(){
+        var m=E("bnsV493Modal");
+        if(m){
+          var b=m.querySelector(".bns-v493-cardmain") || m.firstElementChild || m;
+          b.scrollTop=top;
+          patchDedupeFunction();
+        }
+      },60);
+      return res;
+    };
+    wrapped.__bns494=true;
+    window.BNS_V493_RENDER=wrapped;
+  }
 
-  // Live zonder F5: zolang nieuw dossier open staat, download rustig opnieuw als functie bestaat.
   var liveBusy=false;
-  async function livePull(){
-    var open = document.getElementById("bnsV493Modal");
-    if(!open || liveBusy) return;
-    if(typeof download !== "function") return;
+  async function liveDownload(){
+    if(liveBusy || !E("bnsV493Modal")) return;
     liveBusy=true;
     try{
-      await download();
-      try{ document.dispatchEvent(new CustomEvent("bns:firebase-updated")); }catch(e){}
-      try{ if(typeof window.BNS_V493_RENDER==="function") window.BNS_V493_RENDER(); }catch(e){}
+      if(typeof download==="function"){
+        await download();
+      }else if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.download==="function"){
+        await window.BNSFirebaseSync.download();
+      }
     }catch(e){}
     liveBusy=false;
+    renderKeepScroll();
   }
-  setInterval(livePull,4500);
 
-  console.log("[BNS v494] alle overzicht-knoppen gebruiken hetzelfde dossier; live pull actief.");
+  document.addEventListener("bns:firebase-updated", renderKeepScroll);
+  document.addEventListener("bns:phone-media-updated", function(){
+    setTimeout(liveDownload,300);
+    setTimeout(liveDownload,1600);
+  });
+  window.addEventListener("storage", function(){
+    setTimeout(liveDownload,400);
+  });
+
+  setInterval(function(){
+    hideUpperFolderButtons();
+    if(E("bnsV493Modal")) liveDownload();
+  },2500);
+
+  setTimeout(hideUpperFolderButtons,300);
+  setTimeout(function(){ patchDedupeFunction(); hideUpperFolderButtons(); },1200);
+
+  console.log("[BNS v494] live dossier zonder F5, scrollbehoud, dubbele handtekeningfilter en bovenste tabs weg.");
 })();
