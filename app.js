@@ -45335,7 +45335,21 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(!m || !id) return;
     var o=findOrder(id);
     if(!o) return;
+    // Bewaar scroll positie van alle scrollbare elementen in de modal
+    var _sy = m.scrollTop || 0;
+    var _card = m.querySelector('.bns-v493-cardmain,.bns-order-overview-card');
+    var _cy = _card ? _card.scrollTop : 0;
+    var _section = m.querySelector('.bns-v493-media,.bns-v411-order-media');
+    var _sey = _section ? _section.scrollTop : 0;
+
     m.innerHTML=overviewHtml(o);
+
+    // Herstel scroll direct na rebuild
+    m.scrollTop = _sy;
+    var newCard = m.querySelector('.bns-v493-cardmain,.bns-order-overview-card');
+    if(newCard) newCard.scrollTop = _cy;
+    var newSection = m.querySelector('.bns-v493-media,.bns-v411-order-media');
+    if(newSection) newSection.scrollTop = _sey;
   }
   window.BNS_V493_RENDER=renderOverview;
 
