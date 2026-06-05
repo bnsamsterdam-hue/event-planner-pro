@@ -270,21 +270,21 @@ function bns460Folder(o){
 }
 function bns460ClearDrivers(o){
   if(!o)return o;
-  ["driver","driverId","driverName","bezorger","bezorgerId","bezorgerName","assignedDriver","assignedDriverId","assignedDriverName","userId","assigned","selectedDriver","selectedDriversText"].forEach(k=>o[k]="");
-  ["driverIds","driverNames","bezorgerIds","bezorgerNames","assignedDriverIds","assignedDriverNames","userIds","drivers","bezorgers","driverList","selectedDrivers","assignedDrivers","assignedDriverList","bezorgerList"].forEach(k=>o[k]=[]);
+  ["driver","driverId","driverName","bezorger","bezorgerId","bezorgerName","assignedDriver","assignedDriverId","assignedDriverName","userId"].forEach(k=>o[k]="");
+  ["driverIds","driverNames","bezorgerIds","bezorgerNames","assignedDriverIds","assignedDriverNames","userIds","drivers","bezorgers","driverList","selectedDrivers","assigned","assignedDrivers"].forEach(k=>o[k]=[]);
   return o;
 }
 function bns460NormalizeDrivers(o){
   if(!o)return o;
-  const ids=bns460Unique([].concat(bns460SplitList(o.driverIds),bns460SplitList(o.bezorgerIds),bns460SplitList(o.assignedDriverIds),bns460SplitList(o.userIds),bns460SplitList(o.selectedDrivers),bns460SplitList(o.assignedDrivers),bns460SplitList(o.assignedDriverList),bns460SplitList(o.bezorgerList),bns460SplitList(o.driverId),bns460SplitList(o.bezorgerId),bns460SplitList(o.assignedDriverId),bns460SplitList(o.userId)));
-  const names=bns460Unique([].concat(bns460SplitList(o.driverNames),bns460SplitList(o.bezorgerNames),bns460SplitList(o.assignedDriverNames),bns460SplitList(o.driverName),bns460SplitList(o.driver),bns460SplitList(o.bezorger),bns460SplitList(o.bezorgerName),bns460SplitList(o.assignedDriver),bns460SplitList(o.assignedDriverName),bns460SplitList(o.assigned),bns460SplitList(o.selectedDriver),bns460SplitList(o.selectedDriversText)));
-  o.driverIds=ids; o.bezorgerIds=ids; o.assignedDriverIds=ids; o.userIds=ids; o.selectedDrivers=ids; o.assignedDrivers=ids;
+  const ids=bns460Unique([].concat(bns460SplitList(o.driverIds),bns460SplitList(o.bezorgerIds),bns460SplitList(o.assignedDriverIds),bns460SplitList(o.userIds),bns460SplitList(o.selectedDrivers),bns460SplitList(o.driverId),bns460SplitList(o.bezorgerId),bns460SplitList(o.assignedDriverId),bns460SplitList(o.userId)));
+  const names=bns460Unique([].concat(bns460SplitList(o.driverNames),bns460SplitList(o.bezorgerNames),bns460SplitList(o.assignedDriverNames),bns460SplitList(o.driverName),bns460SplitList(o.driver),bns460SplitList(o.bezorger),bns460SplitList(o.bezorgerName),bns460SplitList(o.assignedDriver),bns460SplitList(o.assignedDriverName)));
+  o.driverIds=ids; o.bezorgerIds=ids; o.assignedDriverIds=ids; o.userIds=ids;
   o.driverNames=names; o.bezorgerNames=names; o.assignedDriverNames=names;
   o.driver=names.join(", "); o.bezorger=names.join(", "); o.driverName=names.join(", "); o.bezorgerName=names.join(", ");
   return o;
 }
 function bns460DriverCount(o){
-  return bns460Unique([].concat(bns460SplitList(o&&o.driverIds),bns460SplitList(o&&o.bezorgerIds),bns460SplitList(o&&o.driverNames),bns460SplitList(o&&o.bezorgerNames),bns460SplitList(o&&o.selectedDrivers),bns460SplitList(o&&o.assignedDrivers),bns460SplitList(o&&o.driver),bns460SplitList(o&&o.bezorger),bns460SplitList(o&&o.driverName),bns460SplitList(o&&o.bezorgerName),bns460SplitList(o&&o.assigned),bns460SplitList(o&&o.selectedDriver))).length;
+  return bns460Unique([].concat(bns460SplitList(o&&o.driverIds),bns460SplitList(o&&o.bezorgerIds),bns460SplitList(o&&o.assignedDriverIds),bns460SplitList(o&&o.userIds),bns460SplitList(o&&o.selectedDrivers),bns460SplitList(o&&o.driverNames),bns460SplitList(o&&o.bezorgerNames),bns460SplitList(o&&o.assignedDriverNames),bns460SplitList(o&&o.driver),bns460SplitList(o&&o.bezorger),bns460SplitList(o&&o.driverName),bns460SplitList(o&&o.bezorgerName),bns460SplitList(o&&o.assignedDriver),bns460SplitList(o&&o.assignedDriverName))).length;
 }
 function bns460NormalizeOrder(o){
   if(!o)return o;
@@ -394,10 +394,16 @@ async function upload(reason){
           }
           const rem=await remoteDoc("orders",row.id);
           if(rem && rem.updatedAt && (!row.updatedAt || rem.updatedAt>row.updatedAt)){
-            const lt = Date.parse(row.driverTruthAt || row.updatedAt || 0) || 0;
-            const rt = Date.parse(rem.driverTruthAt || rem.updatedAt || 0) || 0;
-            if(!(lt && lt >= rt)){
-              // Firebase is echt nieuwer: lokale oude versie niet terugschrijven.
+            // Firebase is nieuwer, behalve wanneer de planner net de bezorger heeft aangepast/gewist.
+            const localDriverStamp = row.driverSyncAt || row.driverChangedAt || '';
+            const remoteDriverStamp = rem.driverSyncAt || rem.driverChangedAt || '';
+            const localHasDriver = bns460HasDriver(row);
+            const remoteHasDriver = bns460HasDriver(rem);
+            if(localDriverStamp && (!remoteDriverStamp || String(localDriverStamp) >= String(remoteDriverStamp))){
+              row.updatedAt = new Date().toISOString();
+            } else if(!localHasDriver && remoteHasDriver && localDriverStamp){
+              row.updatedAt = new Date().toISOString();
+            } else {
               bns460NormalizeOrder(rem);
               Object.keys(row).forEach(k=>delete row[k]);
               Object.assign(row,rem);
@@ -535,7 +541,7 @@ async function syncDoc(col,row){
       await t.fsMod.setDoc(t.fsMod.doc(t.db,String(col),String(row.id)),row,{merge:true});
     } else {
       // Order zonder merge: zorgt dat driver=[] echt wordt opgeslagen
-      row.updatedAt = row.updatedAt || new Date().toISOString();
+      row.updatedAt = new Date().toISOString();
       await t.fsMod.setDoc(t.fsMod.doc(t.db,String(col),String(row.id)),row);
     }
     return true;
@@ -660,3 +666,11 @@ console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu fold
   }catch(e){}
 })();
 console.log("[BNS v493 sync] update-signaal actief.");
+
+
+/* BNS 503 FINAL firebase-sync: extra drivervelden + telefoonfilter */
+(function(){
+  if(typeof window==='undefined' || window.__BNS_503_FIREBASE_DRIVER_FINAL__) return;
+  window.__BNS_503_FIREBASE_DRIVER_FINAL__=true;
+  window.BNS_503_syncVersion='503-final-driver-sync';
+})();
