@@ -17753,7 +17753,7 @@ setTimeout(()=>{
     st.id=STYLE_ID;
     st.textContent = ''+
     '.bns-order-overview-btn{background:#f59e0b!important;color:#111827!important;border:0!important;border-radius:10px!important;padding:8px 14px!important;font-weight:900!important;margin-left:6px!important;margin-top:10px!important;cursor:pointer!important}'+
-    '.bns-order-overview-backdrop{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:grid;place-items:center;padding:18px}'+
+    '.bns-order-overview-backdrop{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:grid;place-items:start center;padding:18px;overflow-y:auto}'+
     '.bns-order-overview-card{width:min(920px,96vw);max-height:90vh;overflow:auto;background:var(--panel,#fff)!important;color:var(--text,#172033)!important;border:2px solid var(--border,#dbe3ef)!important;border-radius:22px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.35);font-size:16px;line-height:1.45}'+
     '.bns-order-overview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border-bottom:2px solid var(--border,#dbe3ef);padding-bottom:12px;margin-bottom:14px}'+
     '.bns-order-overview-card{overflow-y:auto;max-height:90vh}.bns-order-overview-card h2{margin:0;font-size:24px}.bns-order-overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.bns-order-overview-box{background:rgba(148,163,184,.14);border:1px solid var(--border,#dbe3ef);border-radius:14px;padding:12px}.bns-order-overview-table{width:100%;border-collapse:collapse;margin-top:10px}.bns-order-overview-table th,.bns-order-overview-table td{border-bottom:1px solid var(--border,#dbe3ef);padding:9px;text-align:left}.bns-order-overview-extra{white-space:pre-wrap;background:rgba(37,99,235,.08);border-radius:14px;padding:12px;margin-top:10px}.bns-order-overview-close{background:#2563eb!important;color:#fff!important;border:0!important;border-radius:12px!important;padding:10px 16px!important;font-weight:900!important;cursor:pointer!important}.bns-order-overview-total{font-size:18px;font-weight:900;margin-top:12px}@media(max-width:720px){.bns-order-overview-grid{grid-template-columns:1fr}.bns-order-overview-head{display:block}.bns-order-overview-close{margin-top:10px}}';
@@ -42890,13 +42890,11 @@ setTimeout(()=>{
     if(s){
       s.alerts = Array.isArray(s.alerts) ? s.alerts : [];
       var exists = s.alerts.some(function(a){ return String(a.id||'') === String(item.id||''); });
-      if(!exists) s.alerts.push(_ref); // Ref zonder base64 in lokale state
+      // Bewaar VOLLEDIG item (met base64) in lokale state voor weergave
+      if(!exists) s.alerts.push(item);
     }
-    saveAll();   // Veilig: geen base64 meer in order/alerts
+    saveAll();   // saveLocalBackup stript base64 voor localStorage
     syncOrder(o);
-    // Bewaar base64 in geheugen voor directe weergave (huidige sessie)
-    window.__bnsMediaCache = window.__bnsMediaCache || {};
-    window.__bnsMediaCache[String(item.id||'')] = item;
     fbSet('alerts', item.id, item);
   }
   function makeBaseItem(o,type,note){
@@ -45684,7 +45682,16 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       html+='<div class="bns-v493-card"><b>'+H(mediaType(a))+'</b><br><small>'+H(mediaTime(a))+'</small><div>'+H(mediaText(a))+'</div>'+img+
         '<div class="bns-v493-actions"><button type="button" onclick="BNS_V493_SHARE(\''+H(key)+'\')">Delen</button><button type="button" onclick="BNS_V493_PRINT(\''+H(key)+'\')">Print</button><button class="danger" type="button" onclick="BNS_V493_WIS(\''+H(o.id||o.number)+'\',\''+H(key)+'\')">Wis</button></div></div>';
     });
+    // Bewaar scroll positie van modal voor rebuild
+    var _modalScroll = modal.scrollTop || 0;
+    var _card = modal.querySelector('.bns-v493-cardmain,.bns-order-overview-card');
+    var _cardScroll = _card ? _card.scrollTop : 0;
+
     section.innerHTML=html+'</div>';
+
+    // Herstel scroll direct na rebuild
+    if(_modalScroll) modal.scrollTop = _modalScroll;
+    if(_card && _cardScroll) _card.scrollTop = _cardScroll;
   }
   window.BNS_v493PatchMediaOverview = patchMediaOverview;
   window.BNS_v495PatchMediaOverview = patchMediaOverview;
