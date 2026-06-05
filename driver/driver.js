@@ -47,13 +47,14 @@ async function loadCollection(n){
 
   // BNS v446: alleen orders filteren voor telefoon. Users nooit filteren.
   if(n==="orders"){
+    rows=BNS_505_dedupeOrders(rows);
     rows=rows.filter(o=>{
       const id=String((o&&(o.id||o.docId||o.orderId))||"");
       if(id.indexOf("old_")===0) return false;
       const f=lower((o&&(o.folder||o.map||o.orderFolder))||"");
-      if(f) return f==="lopend";
+      if(f) return f==="lopend" && BNS_driverHasAssignee(o);
       const st=lower(o&&o.status);
-      return /bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(st) &&
+      return BNS_driverHasAssignee(o) && /bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(st) &&
         !/offerte|optie|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st);
     });
   }
@@ -99,6 +100,18 @@ async function addAlert(a){
   if(ix >= 0) BNS.state.alerts[ix] = a; else BNS.state.alerts.unshift(a);
 }
 
+function BNS_505_dedupeOrders(rows){
+  const by=new Map();
+  (rows||[]).forEach(o=>{
+    if(!o)return;
+    const key=String(o.number||o.orderNumber||o.id||"");
+    const old=by.get(key);
+    const ta=Date.parse(String((old&&old.updatedAt)||0))||Number((old&&old.updatedAt)||0)||0;
+    const tb=Date.parse(String(o.updatedAt||0))||Number(o.updatedAt||0)||0;
+    if(!old || tb>=ta) by.set(key,o);
+  });
+  return Array.from(by.values());
+}
 function populateUsers(f){
   let users=(BNS.state.users||[]).filter(f);
   try{
@@ -185,12 +198,12 @@ function assignedToUser(o){
   if(!BNS.user || !o) return false;
   const uid=String(BNS.user.id||""), un=lower(BNS.user.name||"");
   const ids=[];
-  const names=[];
-  const addId=v=>{ String(v==null?"":v).split(new RegExp('[;,\n|]+')).map(clean).filter(Boolean).forEach(x=>ids.push(String(x))); };
-  const addName=v=>{ String(v==null?"":v).split(new RegExp('[;,\n|]+')).map(lower).filter(Boolean).forEach(x=>names.push(x)); };
+  const addId=v=>{ String(v==null?"":v).split(/[;,\n|]+/).map(clean).filter(Boolean).forEach(x=>ids.push(String(x))); };
   [o.driverId,o.bezorgerId,o.userId,o.assignedDriverId].forEach(addId);
   [o.driverIds,o.bezorgerIds,o.userIds,o.assignedDriverIds,o.selectedDrivers].forEach(a=>{ if(Array.isArray(a))a.forEach(addId); });
   [o.drivers,o.bezorgers,o.driverList,o.assigned,o.assignedDrivers].forEach(a=>{ if(Array.isArray(a))a.forEach(x=>{ if(x&&typeof x==='object'){ addId(x.id); addName(x.name||x.naam); } else { addId(x); addName(x); } }); });
+  const names=[];
+  const addName=v=>{ String(v==null?"":v).split(/[;,\n|]+/).map(lower).filter(Boolean).forEach(x=>names.push(x)); };
   [o.driverName,o.driver,o.bezorger,o.bezorgerName,o.assignedDriver,o.assignedDriverName].forEach(addName);
   [o.driverNames,o.bezorgerNames,o.assignedDriverNames].forEach(a=>{ if(Array.isArray(a))a.forEach(addName); });
   if(uid&&ids.includes(uid))return true;
