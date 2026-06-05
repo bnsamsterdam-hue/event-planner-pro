@@ -192,10 +192,51 @@ function visibleOrder(o){
   if(dateTime(orderEnd(o))<todayTime())return false;
   return assignedToUser(o);
 }
-function getOrders(){
-  return(BNS.state.orders||[]).filter(visibleOrder).sort((a,b)=>dateTime(orderStart(a))-dateTime(orderStart(b)));
+/* BNS v518 telefoon: exact opdrachtnummer is leidend.
+   Als Firebase oude dubbele orderdocs terugstuurt, mag de telefoon niet eerst filteren
+   op bezorger en daarna een oude kopie tonen. Daarom wordt hier alleen in de
+   telefoonweergave per exact opdrachtnummer/order-id de nieuwste versie gekozen.
+   Dit wijzigt niets in de planner en verwijdert niets uit Firebase. */
+function bns518OrderKey(o){
+  if(!o) return "";
+  return clean(o.number || o.orderNumber || o.opdrachtnummer || o.opdrachtNummer || o.opdracht_nr || o.orderNo || o.id || o.docId || o.orderId);
 }
-function findOrder(id){return(BNS.state.orders||[]).find(o=>String(o.id)===String(id))}
+function bns518TimeValue(v){
+  if(v==null || v==="") return 0;
+  if(typeof v==="number") return v;
+  const n=Number(v);
+  if(!Number.isNaN(n) && n>0) return n;
+  const t=Date.parse(String(v));
+  return Number.isNaN(t)?0:t;
+}
+function bns518OrderStamp(o){
+  if(!o) return 0;
+  return Math.max(
+    bns518TimeValue(o.driverTruthAt),
+    bns518TimeValue(o.updatedAt),
+    bns518TimeValue(o.modifiedAt),
+    bns518TimeValue(o.createdAt)
+  );
+}
+function bns518LatestOrdersByNumber(rows){
+  const map=new Map();
+  (rows||[]).forEach(o=>{
+    const key=bns518OrderKey(o);
+    if(!key) return;
+    const old=map.get(key);
+    if(!old || bns518OrderStamp(o)>=bns518OrderStamp(old)) map.set(key,o);
+  });
+  return Array.from(map.values());
+}
+function getOrders(){
+  return bns518LatestOrdersByNumber(BNS.state.orders||[])
+    .filter(visibleOrder)
+    .sort((a,b)=>dateTime(orderStart(a))-dateTime(orderStart(b)));
+}
+function findOrder(id){
+  const rows=bns518LatestOrdersByNumber(BNS.state.orders||[]);
+  return rows.find(o=>String(o.id)===String(id)) || rows.find(o=>bns518OrderKey(o)===String(id));
+}
 function otherCustomerOrders(o){
   const currentId = String(o.id || "");
   const currentNumber = String(o.number || "");
