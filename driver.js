@@ -673,24 +673,103 @@ boot();
 
 
 
-/* BNS v503 telefoon - opdracht alleen zichtbaar voor gekoppelde bezorger */
+/* =========================================================
+   BNS v503 driver - telefoon ziet alleen exact gekoppelde bezorger
+   - Geen oude driver/bezorger velden als fallback wanneer arrays leeg zijn.
+   - Opdracht zonder bezorger verdwijnt.
+   - Nieuwe opdracht met juiste bezorger verschijnt.
+   ========================================================= */
 (function(){
-  if(window.__BNS_V503_DRIVER_VISIBILITY__)return; window.__BNS_V503_DRIVER_VISIBILITY__=true;
-  function T(v){return String(v==null?'':v).trim();} function L(v){return T(v).toLowerCase();}
-  function split(v){if(v==null)return[]; if(Array.isArray(v)){var o=[];v.forEach(function(x){o=o.concat(split(x));});return o;} if(typeof v==='object')return split([v.id,v.uid,v.name,v.naam,v.displayName].filter(Boolean)); return String(v).split(/[;,\n|]+/).map(T).filter(Boolean);}
-  function uniq(a){var s={},o=[];(a||[]).forEach(function(x){var v=T(x),k=v.toLowerCase();if(v&&!s[k]){s[k]=1;o.push(v);}});return o;}
-  function user(){try{if(window.BNS&&BNS.user)return BNS.user;}catch(e){} return window.currentUser||{};}
-  function folder(o){var f=L(o&&(o.folder||o.map||o.orderFolder));if(f==='live')f='lopend';if(f)return f;var s=L(o&&(o.status||o.state||o.orderStatus));if(/offerte/.test(s))return'offerte';if(/optie|14/.test(s))return'optie14';if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s))return'geannuleerd';if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s))return'uitgevoerd';if(/bevestigd|opdrachtbevestiging|opdracht|actief|lopend/.test(s))return'lopend';return'';}
-  function ids(o){return uniq([].concat(split(o&&o.driverIds),split(o&&o.bezorgerIds),split(o&&o.assignedDriverIds),split(o&&o.userIds),split(o&&o.driverId),split(o&&o.bezorgerId),split(o&&o.assignedDriverId),split(o&&o.userId)));}
-  function names(o){return uniq([].concat(split(o&&o.driverNames),split(o&&o.bezorgerNames),split(o&&o.assignedDriverNames),split(o&&o.driverName),split(o&&o.driver),split(o&&o.bezorger),split(o&&o.bezorgerName),split(o&&o.assignedDriver),split(o&&o.assignedDriverName),split(o&&o.driverList)));}
-  function hasAny(o){return ids(o).length+names(o).length>0;}
-  function assigned(o){var u=user(),uid=T(u.id||u.uid),nm=L(u.name||u.naam||u.displayName);if(!o||o.bnsDriversCleared||!hasAny(o))return false;var idlist=ids(o).map(T),namelist=names(o).map(L);return !!((uid&&idlist.indexOf(uid)>=0)||(nm&&namelist.indexOf(nm)>=0));}
-  function visible(o){if(!o)return false;if(folder(o)!=='lopend')return false;if(o.afgemeld===true||o.phoneDone===true||o.completed===true)return false;var st=L(o.status);if(/geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(st))return false;return assigned(o);}
-  window.BNS_v503AssignedToUser=assigned;window.BNS_v503OrderVisibleForPhone=visible;
-  try{window.assignedToUser=function(o){return assigned(o);};window.assignedToUser.__bns503=true;}catch(e){}
-  try{window.visibleOrder=function(o){return visible(o);};window.visibleOrder.__bns503=true;}catch(e){}
-  try{var oldGet=window.getOrders;if(typeof oldGet==='function'&&!oldGet.__bns503){window.getOrders=function(){var arr=[];try{if(window.BNS&&BNS.state&&Array.isArray(BNS.state.orders))arr=BNS.state.orders;else arr=oldGet.apply(this,arguments);}catch(e){}return(arr||[]).filter(visible).sort(function(a,b){return(String(a.start||'')).localeCompare(String(b.start||''));});};window.getOrders.__bns503=true;}}catch(e){}
-  function rerender(){try{if(typeof render==='function')render();}catch(e){}try{if(typeof renderDriver==='function')renderDriver();}catch(e){}}
-  document.addEventListener('bns:firebase-updated',rerender);window.addEventListener('storage',rerender);setInterval(rerender,3000);
-  console.log('[BNS v503 driver] strikte bezorger-filter actief');
+  if(window.__BNS_V503_DRIVER_STRICT_ASSIGNMENT__) return;
+  window.__BNS_V503_DRIVER_STRICT_ASSIGNMENT__ = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+
+  function currentUser(){
+    try{ if(window.curUser) return window.curUser; }catch(e){}
+    try{ if(window.currentUser) return window.currentUser; }catch(e){}
+    try{ if(window.user) return window.user; }catch(e){}
+    try{ return JSON.parse(localStorage.getItem("driverUser") || localStorage.getItem("currentUser") || "null"); }catch(e){}
+    return null;
+  }
+
+  function ids(o){
+    var out=[];
+    ["driverIds","bezorgerIds","userIds","assignedDriverIds","selectedDriverIds","selectedDrivers"].forEach(function(k){
+      if(Array.isArray(o&&o[k])) out=out.concat(o[k].map(String));
+    });
+    if(o&&Array.isArray(o.drivers)) o.drivers.forEach(function(d){ if(d&&d.id) out.push(String(d.id)); });
+    return Array.from(new Set(out.map(T).filter(Boolean)));
+  }
+
+  function names(o){
+    var out=[];
+    ["driverNames","bezorgerNames","assignedDriverNames"].forEach(function(k){
+      if(Array.isArray(o&&o[k])) out=out.concat(o[k].map(String));
+    });
+    ["driver","driverName","bezorger","bezorgerName","assignedDriverName"].forEach(function(k){
+      if(o&&o[k]) String(o[k]).split(/[,;]/).forEach(function(x){ out.push(x); });
+    });
+    return Array.from(new Set(out.map(T).filter(Boolean)));
+  }
+
+  function folder(o){
+    var f=L(o&&o.folder);
+    if(f==="live") f="lopend";
+    if(f==="optie") f="optie14";
+    return f;
+  }
+
+  function isLive(o){
+    if(!o) return false;
+    if(o.deleted===true || o.afgemeld===true || o.phoneDone===true) return false;
+    var f=folder(o);
+    if(f && f!=="lopend") return false;
+    var st=L(o.status);
+    if(/offerte|optie|geann|annul|uitgevoerd|verwijderd|archief|old/.test(st)) return false;
+    return true;
+  }
+
+  function assignedToMe(o){
+    if(!isLive(o)) return false;
+    var u=currentUser();
+    if(!u) return false;
+    var orderIds=ids(o);
+    var orderNames=names(o);
+
+    // Strikte regel: als geen enkele bezorger gezet is, nooit tonen.
+    if(!orderIds.length && !orderNames.length) return false;
+
+    var myIds=[u.id,u.uid,u.userId,u.pin].map(T).filter(Boolean);
+    var myNames=[u.name,u.driverName,u.bezorgerName,u.displayName].map(T).filter(Boolean).map(L);
+
+    if(orderIds.some(function(id){ return myIds.indexOf(T(id))>=0; })) return true;
+    if(orderNames.some(function(n){ return myNames.indexOf(L(n))>=0; })) return true;
+
+    return false;
+  }
+
+  ["belongsToCurrentDriver","assignedToCurrentDriver","assignedToUser"].forEach(function(name){
+    try{
+      var fn=window[name];
+      if(typeof fn==="function" && !fn.__bns503){
+        var wrapped=function(o){ return assignedToMe(o); };
+        wrapped.__bns503=true;
+        window[name]=wrapped;
+      }
+    }catch(e){}
+  });
+
+  if(typeof visibleOrder === "function" && !visibleOrder.__bns503){
+    var oldVisible=visibleOrder;
+    visibleOrder=function(o){
+      if(!assignedToMe(o)) return false;
+      try{ return oldVisible(o); }catch(e){ return true; }
+    };
+    visibleOrder.__bns503=true;
+  }
+
+  window.BNS_v503AssignedToMe=assignedToMe;
+  console.log("[BNS v503 driver] telefoon filtert strikt op aangevinkte bezorger.");
 })();
