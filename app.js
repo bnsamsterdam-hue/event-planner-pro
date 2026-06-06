@@ -46039,3 +46039,259 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.info('[BNS v502] localStorage cleanup + scroll fix actief.');
 })();
+/* =========================================================
+   BNS 520 - Voertuig / Transport snelkeuze
+   Veilig plakblok voor app.js
+   - Raakt geen materialen/reserveringen
+   - Raakt geen telefoon/bezorger-sync
+   - Gebruikt alleen bestaand veld: orderVehicle
+   - Planner kan vaste voertuig/transport teksten kiezen
+   ========================================================= */
+(function(){
+  "use strict";
+
+  var BOX_ID = "bnsVehicleQuickBox";
+  var STYLE_ID = "bnsVehicleQuickStyle";
+  var STORAGE_KEY = "bns_vehicle_transport_presets_v1";
+
+  var DEFAULT_OPTIONS = [
+    "Bakwagen",
+    "Bakwagen + aanhanger",
+    "Kraanwagen",
+    "Kraanwagen transport",
+    "Bus",
+    "Truck",
+    "Aanhanger",
+    "Transport brengen",
+    "Transport ophalen",
+    "Transport brengen + ophalen",
+    "Alleen bezorgen",
+    "Klant haalt zelf op",
+    "Extra chauffeur"
+  ];
+
+  function E(id){
+    return document.getElementById(id);
+  }
+
+  function getVehicleField(){
+    return E("orderVehicle");
+  }
+
+  function safeParse(json, fallback){
+    try {
+      var v = JSON.parse(json);
+      return Array.isArray(v) ? v : fallback;
+    } catch(e) {
+      return fallback;
+    }
+  }
+
+  function getOptions(){
+    var saved = safeParse(localStorage.getItem(STORAGE_KEY), null);
+    var list = saved && saved.length ? saved : DEFAULT_OPTIONS.slice();
+
+    // opschonen: leeg weg, dubbele weg
+    var seen = {};
+    return list
+      .map(function(x){ return String(x || "").trim(); })
+      .filter(function(x){
+        if(!x) return false;
+        var k = x.toLowerCase();
+        if(seen[k]) return false;
+        seen[k] = true;
+        return true;
+      });
+  }
+
+  function saveOptions(list){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+
+  function setVehicleValue(value){
+    var field = getVehicleField();
+    if(!field) return;
+
+    field.value = value || "";
+
+    // bestaande app laten merken dat het veld gewijzigd is
+    try {
+      field.dispatchEvent(new Event("input", { bubbles:true }));
+      field.dispatchEvent(new Event("change", { bubbles:true }));
+    } catch(e) {}
+
+    try {
+      if(typeof summaryRender === "function") summaryRender();
+    } catch(e) {}
+  }
+
+  function appendVehicleValue(value){
+    var field = getVehicleField();
+    if(!field || !value) return;
+
+    var current = String(field.value || "").trim();
+
+    if(!current){
+      setVehicleValue(value);
+      return;
+    }
+
+    // niet dubbel toevoegen
+    var parts = current.split(",").map(function(x){ return x.trim().toLowerCase(); });
+    if(parts.indexOf(String(value).trim().toLowerCase()) >= 0){
+      setVehicleValue(current);
+      return;
+    }
+
+    setVehicleValue(current + ", " + value);
+  }
+
+  function ensureStyle(){
+    if(E(STYLE_ID)) return;
+
+    var css = document.createElement("style");
+    css.id = STYLE_ID;
+    css.textContent =
+      "#"+BOX_ID+"{margin:10px 0 14px 0;padding:12px;border:1px solid #dbe3ef;border-radius:14px;background:#f8fafc}" +
+      "#"+BOX_ID+" .bns-vq-title{font-weight:900;margin-bottom:8px;color:#0f172a}" +
+      "#"+BOX_ID+" .bns-vq-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:7px 0}" +
+      "#"+BOX_ID+" select,#"+BOX_ID+" input{padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;min-height:40px}" +
+      "#"+BOX_ID+" select{min-width:240px;max-width:100%}" +
+      "#"+BOX_ID+" input{min-width:240px;max-width:100%}" +
+      "#"+BOX_ID+" button{border:0;border-radius:10px;padding:10px 13px;font-weight:800;cursor:pointer;color:#fff;background:#2563eb}" +
+      "#"+BOX_ID+" button.bns-green{background:#16a34a}" +
+      "#"+BOX_ID+" button.bns-dark{background:#0f172a}" +
+      "#"+BOX_ID+" button.bns-red{background:#dc2626}" +
+      "#"+BOX_ID+" small{display:block;color:#64748b;margin-top:6px}";
+    document.head.appendChild(css);
+  }
+
+  function fillSelect(select){
+    var options = getOptions();
+    select.innerHTML = options.map(function(x){
+      return '<option value="'+String(x).replace(/"/g, "&quot;")+'">'+x+'</option>';
+    }).join("");
+  }
+
+  function installVehicleQuickBox(){
+    var field = getVehicleField();
+    if(!field) return;
+
+    ensureStyle();
+
+    var old = E(BOX_ID);
+    if(old) return;
+
+    var box = document.createElement("div");
+    box.id = BOX_ID;
+
+    box.innerHTML =
+      '<div class="bns-vq-title">Voertuig / Transport snelkeuze</div>' +
+      '<div class="bns-vq-row">' +
+        '<select id="bnsVehiclePreset"></select>' +
+        '<button type="button" class="bns-green" id="bnsVehicleAdd">Toevoegen</button>' +
+        '<button type="button" class="bns-dark" id="bnsVehicleReplace">Vervangen</button>' +
+        '<button type="button" class="bns-red" id="bnsVehicleClear">Leegmaken</button>' +
+      '</div>' +
+      '<div class="bns-vq-row">' +
+        '<input id="bnsVehicleNewOption" placeholder="Nieuwe optie, bv. Transport bakwagen € 85">' +
+        '<button type="button" id="bnsVehicleSaveOption">Optie opslaan</button>' +
+        '<button type="button" class="bns-red" id="bnsVehicleDeleteOption">Gekozen optie verwijderen</button>' +
+      '</div>' +
+      '<small>Dit vult alleen het bestaande voertuigveld. Het is géén materiaal en blokkeert geen reserveringen.</small>';
+
+    field.parentNode.insertBefore(box, field);
+
+    var select = E("bnsVehiclePreset");
+    fillSelect(select);
+
+    E("bnsVehicleAdd").onclick = function(e){
+      e.preventDefault();
+      appendVehicleValue(select.value);
+    };
+
+    E("bnsVehicleReplace").onclick = function(e){
+      e.preventDefault();
+      setVehicleValue(select.value);
+    };
+
+    E("bnsVehicleClear").onclick = function(e){
+      e.preventDefault();
+      setVehicleValue("");
+    };
+
+    E("bnsVehicleSaveOption").onclick = function(e){
+      e.preventDefault();
+
+      var input = E("bnsVehicleNewOption");
+      var value = String(input.value || "").trim();
+      if(!value) return;
+
+      var list = getOptions();
+      var exists = list.some(function(x){
+        return x.toLowerCase() === value.toLowerCase();
+      });
+
+      if(!exists){
+        list.push(value);
+        saveOptions(list);
+        fillSelect(select);
+      }
+
+      select.value = value;
+      input.value = "";
+      appendVehicleValue(value);
+    };
+
+    E("bnsVehicleDeleteOption").onclick = function(e){
+      e.preventDefault();
+
+      var value = String(select.value || "").trim();
+      if(!value) return;
+
+      if(!confirm("Deze voertuig/transport optie verwijderen uit de snelkeuze?\n\n" + value)) return;
+
+      var list = getOptions().filter(function(x){
+        return x.toLowerCase() !== value.toLowerCase();
+      });
+
+      saveOptions(list);
+      fillSelect(select);
+    };
+  }
+
+  function installLater(){
+    setTimeout(installVehicleQuickBox, 50);
+    setTimeout(installVehicleQuickBox, 300);
+    setTimeout(installVehicleQuickBox, 1000);
+  }
+
+  // installeren bij laden
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", installLater);
+  } else {
+    installLater();
+  }
+
+  // opnieuw installeren na renderAll, want de app bouwt schermen soms opnieuw op
+  try {
+    if(typeof window.renderAll === "function" && !window.renderAll.__bnsVehicleQuickPatched){
+      var oldRenderAll = window.renderAll;
+      window.renderAll = function(){
+        var r = oldRenderAll.apply(this, arguments);
+        installLater();
+        return r;
+      };
+      window.renderAll.__bnsVehicleQuickPatched = true;
+    }
+  } catch(e) {}
+
+  // ook bij klikken op tabbladen opnieuw proberen
+  document.addEventListener("click", function(e){
+    var t = e.target;
+    if(t && t.matches && (t.matches(".worktab") || t.dataset && t.dataset.tab === "vehiclePanel")){
+      installLater();
+    }
+  }, true);
+
+})();
