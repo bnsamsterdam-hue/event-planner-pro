@@ -8,7 +8,7 @@
   "use strict";
   if(window.BNSSecurityAuth) return;
 
-  var VERSION = "BNS 538 security auth debug";
+  var VERSION = "BNS 539 security auth vaste Firebase config";
   var FIREBASE_VERSION = "10.12.5";
   var authPromise = null;
   var appModPromise = null;
@@ -119,12 +119,19 @@
   async function ensureAuth(){
     if(authPromise) return authPromise;
     authPromise = (async function(){
-      if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey || window.BNS_FIREBASE_CONFIG.apiKey === "VUL_HIER_IN"){
-        throw new Error("Firebase config ontbreekt");
-      }
+      var fixedConfig = {
+        apiKey: "AIzaSyCqA0WMgFfn887og0ceRaVDooNnEEa0SEI",
+        authDomain: "event-planner-pro-bbcdc.firebaseapp.com",
+        projectId: "event-planner-pro-bbcdc",
+        storageBucket: "event-planner-pro-bbcdc.firebasestorage.app",
+        messagingSenderId: "343572783519",
+        appId: "1:343572783519:web:7fd4995fe012c8b51f1daa"
+      };
+      try { window.BNS_FIREBASE_CONFIG = fixedConfig; } catch(e) {}
       var appMod = await loadAppMod();
       var authMod = await loadAuthMod();
-      var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+      var apps = appMod.getApps();
+      var app = apps.length ? apps[0] : appMod.initializeApp(fixedConfig);
       var auth = authMod.getAuth(app);
       await authMod.setPersistence(auth, authMod.browserLocalPersistence);
       var user = await new Promise(function(resolve){
@@ -141,5 +148,5 @@
     return authPromise;
   }
   window.BNSSecurityAuth = { version: VERSION, ensureAuth: ensureAuth };
-  console.info("[BNS 538] Firebase Auth beveiliging actief met foutcode.");
+  console.info("[BNS 539] Firebase Auth beveiliging actief met vaste Firebase config.");
 })();
