@@ -120,7 +120,7 @@
     if(authPromise) return authPromise;
     authPromise = (async function(){
       var fixedConfig = {
-        apiKey: "AIzaSyCqA0WMgFfn887og0ceRaVDooNnEEa0SEI",
+        apiKey: "1:343572783519:web:7fd4995fe012c8b51f1daa",
         authDomain: "event-planner-pro-bbcdc.firebaseapp.com",
         projectId: "event-planner-pro-bbcdc",
         storageBucket: "event-planner-pro-bbcdc.firebasestorage.app",
