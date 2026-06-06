@@ -47302,244 +47302,27 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 })();
 
 /* =========================================================
-   BNS 532 - Materialen overzicht rustiger
-   Doel:
-   - alleen layout/rendering van Materiaal kiezen mooier en overzichtelijker
-   - rubrieken compact met aantallen
-   - geselecteerde rubriek duidelijk boven materiaal-lijst
-   - zoekfunctie blijft werken
-   - GEEN wijziging aan reservering, opslaan, transport, boekhouding of telefoon
+   BNS 533 - Materialen rustig zonder werking te wijzigen
+   Basis: 531. De mislukte 532-render wordt NIET gebruikt.
+   - Alleen lichte CSS/layout op bestaande materiaalweergave
+   - Geen eigen material-render
+   - Geen wijziging aan reservering/materialen logica
    ========================================================= */
 (function(){
   "use strict";
-  if(window.__BNS532_MATERIAL_UI__) return;
-  window.__BNS532_MATERIAL_UI__ = true;
+  if(window.__BNS533_MATERIAL_CSS__) return;
+  window.__BNS533_MATERIAL_CSS__ = true;
 
-  var STYLE_ID = "bns532MaterialUiStyle";
+  var css = document.createElement("style");
+  css.id = "bns533MaterialCss";
+  css.textContent = ""+
+    "#materialPanel #materialCats{display:flex!important;flex-wrap:wrap!important;gap:8px!important;align-items:flex-start!important;margin:8px 0 12px 0!important;padding:10px!important;border:1px solid #dbe3ef!important;border-radius:16px!important;background:#f8fafc!important;max-height:230px!important;overflow:auto!important;}"+
+    "#materialPanel #materialCats button{min-width:92px!important;max-width:140px!important;min-height:44px!important;margin:0!important;padding:9px 12px!important;border-radius:12px!important;font-size:14px!important;line-height:1.1!important;white-space:normal!important;box-shadow:0 2px 6px rgba(15,23,42,.12)!important;}"+
+    "#materialPanel #materialSearch{display:block!important;width:100%!important;box-sizing:border-box!important;margin:8px 0 12px 0!important;padding:12px 14px!important;border:2px solid #cbd5e1!important;border-radius:14px!important;background:#fff!important;color:#0f172a!important;font-size:16px!important;}"+
+    "#materialPanel #materialList{max-height:520px!important;overflow:auto!important;padding-bottom:80px!important;}"+
+    "#materialPanel .material-card,#materialPanel .mat-card,#materialPanel [data-material-id]{box-sizing:border-box!important;}"+
+    "@media(max-width:900px){#materialPanel #materialCats{max-height:180px!important;}#materialPanel #materialCats button{min-width:80px!important;font-size:13px!important;}}";
+  document.head.appendChild(css);
 
-  function E(id){ return document.getElementById(id); }
-  function S(){
-    try{ if(typeof state !== "undefined" && state) return state; }catch(e){}
-    try{ if(window.state) return window.state; }catch(e){}
-    return {materials:[], orders:[]};
-  }
-  function H(v){
-    return String(v == null ? "" : v).replace(/[&<>\"']/g,function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
-    });
-  }
-  function L(v){ return String(v == null ? "" : v).toLowerCase().trim(); }
-  function catOf(m){ return String((m && (m.cat || m.rubriek || m.category)) || "EXTRA").toUpperCase().trim() || "EXTRA"; }
-  function currentCategory(){
-    try{ if(typeof currentCat !== "undefined" && currentCat) return String(currentCat).toUpperCase(); }catch(e){}
-    return String(window.currentCat || "TW").toUpperCase();
-  }
-  function setCategory(c){
-    c = String(c || "TW").toUpperCase();
-    try{ currentCat = c; }catch(e){}
-    window.currentCat = c;
-    return c;
-  }
-  function chosenList(){
-    try{ if(typeof chosen !== "undefined" && Array.isArray(chosen)) return chosen; }catch(e){}
-    try{ if(Array.isArray(window.chosen)) return window.chosen; }catch(e){}
-    return [];
-  }
-  function materialById(id){
-    return (S().materials || []).find(function(m){ return String(m.id) === String(id); }) || null;
-  }
-  function editingId(){ try{ return editing || null; }catch(e){ return null; } }
-  function parseDate(v){
-    var m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if(!m) return null;
-    var d = new Date(+m[1], +m[2]-1, +m[3]); d.setHours(0,0,0,0); return d;
-  }
-  function orderActive(o){
-    var st = L(o && o.status);
-    if(st === "geannuleerd" || st === "uitgevoerd" || st === "cancelled") return false;
-    var e = parseDate(o && (o.end || o.start));
-    if(!e) return true;
-    var t = new Date(); t.setHours(0,0,0,0);
-    return e >= t;
-  }
-  function reservedOrder(mid){
-    var edit = editingId();
-    return (S().orders || []).find(function(o){
-      if(!orderActive(o)) return false;
-      if(edit && String(o.id) === String(edit)) return false;
-      return (o.materials || []).some(function(x){ return String(x.id) === String(mid); });
-    }) || null;
-  }
-  function matState(m){
-    var selected = chosenList().some(function(x){ return String(x.id) === String(m && m.id); });
-    if(selected) return {kind:"selected", label:"Gekozen", blocked:false};
-    var ro = reservedOrder(m && m.id);
-    if(ro) return {kind:"reserved", label:"Gereserveerd", blocked:true};
-    var st = L(m && m.status);
-    if(st === "reserved" || st === "gereserveerd") return {kind:"reserved", label:"Gereserveerd", blocked:true};
-    if(st === "damage" || st === "schade" || st === "defect" || st === "missing" || st === "vermist") return {kind:"defect", label:"Defect", blocked:true};
-    if(st === "inactive" || st === "niet actief" || st === "niet beschikbaar") return {kind:"inactive", label:"Niet actief", blocked:true};
-    return {kind:"free", label:"Vrij", blocked:false};
-  }
-  function cats(){
-    var counts = {};
-    (S().materials || []).forEach(function(m){
-      var c = catOf(m);
-      counts[c] = (counts[c] || 0) + 1;
-    });
-    return Object.keys(counts).sort().map(function(c){ return {cat:c, count:counts[c]}; });
-  }
-  function ensureStyle(){
-    if(E(STYLE_ID)) return;
-    var s = document.createElement("style");
-    s.id = STYLE_ID;
-    s.textContent = "" +
-      "#materialPanel{--bns532-blue:#0f76b7;--bns532-dark:#0f172a;--bns532-soft:#f8fafc;}" +
-      "#materialPanel .bns532-wrap{display:grid;grid-template-columns:minmax(245px,330px) minmax(320px,1fr);gap:18px;align-items:start;}" +
-      "#materialCats.bns532-cats{display:grid!important;grid-template-columns:1fr!important;gap:8px!important;max-height:420px;overflow:auto;padding:8px;border:1px solid #dbe3ef;border-radius:18px;background:#f8fafc;}" +
-      "#materialCats.bns532-cats button{display:flex!important;align-items:center!important;justify-content:space-between!important;width:100%!important;margin:0!important;border:1px solid #dbe3ef!important;border-radius:14px!important;padding:11px 12px!important;background:#fff!important;color:#0f172a!important;font-weight:900!important;box-shadow:none!important;text-align:left!important;}" +
-      "#materialCats.bns532-cats button.active{background:#0f76b7!important;color:#fff!important;border-color:#0f76b7!important;box-shadow:0 8px 18px rgba(15,118,183,.22)!important;}" +
-      "#materialCats.bns532-cats .bns532-cat-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
-      "#materialCats.bns532-cats .bns532-count{font-size:12px;border-radius:999px;padding:4px 8px;background:#e2e8f0;color:#0f172a;margin-left:8px;}" +
-      "#materialCats.bns532-cats button.active .bns532-count{background:rgba(255,255,255,.22);color:#fff;}" +
-      "#bns532MatHead{margin:0 0 10px 0;padding:12px 14px;border:1px solid #dbe3ef;border-radius:16px;background:#f8fafc;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;}" +
-      "#bns532MatHead b{font-size:18px;color:#0f172a;}#bns532MatHead span{font-size:13px;color:#64748b;font-weight:800;}" +
-      "#materialSearch{width:100%!important;box-sizing:border-box!important;margin:10px 0!important;border:2px solid #cbd5e1!important;border-radius:14px!important;padding:13px 14px!important;font-size:16px!important;background:#fff!important;color:#0f172a!important;}" +
-      "#materialList.bns532-list{max-height:520px;overflow:auto;padding:4px 4px 80px 4px;}" +
-      "#materialList.bns532-list .bns532-row{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:12px;align-items:center;margin:8px 0;padding:12px;border-radius:16px;background:#fff;border:1px solid #dbe3ef;cursor:pointer;box-shadow:0 2px 9px rgba(15,23,42,.04);}" +
-      "#materialList.bns532-list .bns532-row:hover{border-color:#93c5fd;box-shadow:0 6px 18px rgba(15,23,42,.10);}" +
-      "#materialList.bns532-list .bns532-row.selected{background:#eff6ff;border-color:#2563eb;}" +
-      "#materialList.bns532-list .bns532-row.reserved{background:#fff7ed;border-color:#fb923c;}" +
-      "#materialList.bns532-list .bns532-row.defect{background:#fef2f2;border-color:#ef4444;}" +
-      "#materialList.bns532-list .bns532-row.inactive{background:#e5e7eb;color:#475569;}" +
-      "#materialList.bns532-list .bns532-bar{width:8px;height:42px;border-radius:999px;background:#0f76b7;}" +
-      "#materialList.bns532-list .bns532-code{font-size:18px;font-weight:1000;color:#0f172a;margin-right:8px;}" +
-      "#materialList.bns532-list .bns532-name{font-weight:800;color:#334155;}" +
-      "#materialList.bns532-list .bns532-sub{font-size:13px;color:#64748b;margin-top:3px;}" +
-      "#materialList.bns532-list .bns532-pill{white-space:nowrap;border-radius:999px;padding:8px 11px;font-weight:1000;font-size:13px;background:#dcfce7;color:#166534;}" +
-      "#materialList.bns532-list .bns532-pill.selected{background:#dbeafe;color:#1d4ed8;}" +
-      "#materialList.bns532-list .bns532-pill.reserved,#materialList.bns532-list .bns532-pill.defect{background:#fee2e2;color:#991b1b;}" +
-      "#materialList.bns532-list .bns532-pill.inactive{background:#cbd5e1;color:#334155;}" +
-      "#chosenMaterials{min-height:90px;border-radius:16px;background:#fff;border:1px solid #dbe3ef;padding:12px;}" +
-      "@media(max-width:900px){#materialPanel .bns532-wrap{grid-template-columns:1fr;}#materialCats.bns532-cats{max-height:none;grid-template-columns:repeat(2,minmax(0,1fr))!important;}#materialCats.bns532-cats button{font-size:14px!important;}}";
-    document.head.appendChild(s);
-  }
-  function ensureStructure(){
-    var catsBox = E("materialCats");
-    var list = E("materialList");
-    if(!catsBox || !list) return;
-    var panel = E("materialPanel");
-    if(panel && !panel.querySelector(".bns532-wrap")){
-      var parent = catsBox.parentNode;
-      var right = list.parentNode;
-      if(parent && right && parent !== right){
-        var wrap = document.createElement("div");
-        wrap.className = "bns532-wrap";
-        parent.parentNode.insertBefore(wrap, parent);
-        wrap.appendChild(parent);
-        wrap.appendChild(right);
-      }
-    }
-    catsBox.classList.add("bns532-cats");
-    list.classList.add("bns532-list");
-  }
-  function renderCats532(){
-    ensureStyle(); ensureStructure();
-    var box = E("materialCats"); if(!box) return;
-    var list = cats();
-    if(!list.some(function(x){ return x.cat === currentCategory(); }) && list.length) setCategory(list[0].cat);
-    var active = currentCategory();
-    box.innerHTML = list.map(function(x){
-      return '<button type="button" class="'+(x.cat===active?'active':'')+'" data-cat="'+H(x.cat)+'"><span class="bns532-cat-name">'+H(x.cat)+'</span><span class="bns532-count">'+H(x.count)+'</span></button>';
-    }).join('');
-    Array.prototype.slice.call(box.querySelectorAll('button[data-cat]')).forEach(function(btn){
-      btn.onclick = function(e){
-        if(e){ e.preventDefault(); e.stopPropagation(); }
-        setCategory(btn.dataset.cat);
-        renderCats532();
-        renderMaterials532(btn.dataset.cat);
-        return false;
-      };
-    });
-  }
-  function rowSubtitle(m, st){
-    if(st.kind === "selected") return "Toegevoegd aan deze opdracht. Klik om te verwijderen.";
-    if(st.kind === "reserved") return "Gereserveerd of al bezet op deze periode. Klik voor details.";
-    if(st.kind === "defect") return "Niet beschikbaar door schade/defect.";
-    if(st.kind === "inactive") return "Niet actief.";
-    return String(m.price || m.notes || "Beschikbaar");
-  }
-  function renderMaterials532(cat){
-    ensureStyle(); ensureStructure();
-    cat = setCategory(cat || currentCategory());
-    var list = E("materialList"); if(!list) return;
-    var q = L((E("materialSearch") || {}).value || "");
-    var rows = (S().materials || []).filter(function(m){
-      var hay = [m.cat,m.code,m.name,m.price,m.notes,m.status].join(" ").toLowerCase();
-      if(q) return hay.indexOf(q) >= 0;
-      return catOf(m) === cat;
-    });
-    var head = E("bns532MatHead");
-    if(!head){
-      head = document.createElement("div");
-      head.id = "bns532MatHead";
-      list.parentNode.insertBefore(head, list);
-    }
-    head.innerHTML = '<b>Rubriek: '+H(q ? "Zoekresultaten" : cat)+'</b><span>'+rows.length+' materialen</span>';
-    list.innerHTML = rows.map(function(m){
-      var st = matState(m);
-      return '<div class="bns532-row '+H(st.kind)+'" data-material-id="'+H(m.id)+'">' +
-        '<div class="bns532-bar"></div>' +
-        '<div><span class="bns532-code">'+H(m.code || '')+'</span><span class="bns532-name">'+H(m.name || '')+'</span><div class="bns532-sub">'+H(rowSubtitle(m, st))+'</div></div>' +
-        '<span class="bns532-pill '+H(st.kind)+'">'+H(st.label)+'</span>' +
-      '</div>';
-    }).join('') || '<div style="padding:16px;border:1px dashed #cbd5e1;border-radius:14px;background:#f8fafc">Geen materialen gevonden.</div>';
-  }
-  function patch(){
-    ensureStyle(); ensureStructure();
-    window.renderCats = renderCats532;
-    window.renderMaterials = renderMaterials532;
-    try{ renderCats = renderCats532; }catch(e){}
-    try{ renderMaterials = renderMaterials532; }catch(e){}
-    var search = E("materialSearch");
-    if(search && !search.dataset.bns532Search){
-      search.dataset.bns532Search = "1";
-      search.addEventListener("input", function(){ renderMaterials532(currentCategory()); }, true);
-    }
-    var list = E("materialList");
-    if(list && !list.dataset.bns532Click){
-      list.dataset.bns532Click = "1";
-      list.addEventListener("click", function(ev){
-        var row = ev.target.closest && ev.target.closest("[data-material-id]");
-        if(!row || !list.contains(row)) return;
-        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-        if(typeof window.addMat === "function") window.addMat(row.dataset.materialId);
-        else try{ addMat(row.dataset.materialId); }catch(e){}
-        setTimeout(function(){ renderMaterials532(currentCategory()); }, 20);
-      }, true);
-    }
-    if(E("materialCats")) renderCats532();
-    if(E("materialList")) renderMaterials532(currentCategory());
-  }
-  var oldRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
-  if(oldRenderAll && !oldRenderAll.__bns532MaterialUi){
-    var wrapped = function(){
-      var r = oldRenderAll.apply(this, arguments);
-      setTimeout(patch, 80);
-      return r;
-    };
-    wrapped.__bns532MaterialUi = true;
-    window.renderAll = wrapped;
-    try{ renderAll = wrapped; }catch(e){}
-  }
-  document.addEventListener("click", function(ev){
-    var b = ev.target && ev.target.closest && ev.target.closest('[data-tab="materialPanel"],button');
-    if(!b) return;
-    var txt = L(b.textContent || "");
-    if((b.dataset && b.dataset.tab === "materialPanel") || txt === "materialen") setTimeout(patch, 120);
-  }, true);
-  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(patch, 900); });
-  else setTimeout(patch, 900);
-  setTimeout(patch, 1800);
-  console.info("[BNS 532] Materialen overzicht rustiger actief: layout/rendering alleen.");
+  console.info("[BNS 533] Materialen rustig: alleen CSS, originele materiaalwerking behouden.");
 })();
