@@ -8,7 +8,7 @@
   "use strict";
   if(window.BNSSecurityAuth) return;
 
-  var VERSION = "BNS 537 security auth";
+  var VERSION = "BNS 538 security auth debug";
   var FIREBASE_VERSION = "10.12.5";
   var authPromise = null;
   var appModPromise = null;
@@ -81,7 +81,20 @@
         installLogout(auth, authMod, cred.user);
       }catch(ex){
         console.error("[BNS Security] login fout", ex);
-        err.textContent = "Login mislukt. Controleer e-mail/wachtwoord of Firebase Authentication.";
+        var code = ex && ex.code ? String(ex.code) : "onbekende fout";
+        var msg = "Login mislukt: " + code;
+        if(code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found"){
+          msg += " - e-mail of wachtwoord klopt niet exact.";
+        } else if(code === "auth/operation-not-allowed"){
+          msg += " - Email/Password staat nog niet goed aan in Firebase Authentication.";
+        } else if(code === "auth/unauthorized-domain"){
+          msg += " - dit domein staat niet bij Authorized domains.";
+        } else if(code === "auth/invalid-api-key" || code === "auth/api-key-not-valid"){
+          msg += " - Firebase API key/config klopt niet of is beperkt.";
+        } else if(code === "auth/network-request-failed"){
+          msg += " - netwerk/verbinding probleem.";
+        }
+        err.textContent = msg;
         btn.disabled=false; btn.textContent="Inloggen";
       }
     });
@@ -128,5 +141,5 @@
     return authPromise;
   }
   window.BNSSecurityAuth = { version: VERSION, ensureAuth: ensureAuth };
-  console.info("[BNS 537] Firebase Auth beveiliging actief.");
+  console.info("[BNS 538] Firebase Auth beveiliging actief met foutcode.");
 })();
