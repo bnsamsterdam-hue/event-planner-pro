@@ -46459,3 +46459,171 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   },true);
   console.info('[BNS v525] Documenten en boekhouding stabiel actief. 523/524 overgeslagen.');
 })();
+
+/* =========================================================
+   BNS 526 - Admin Opruimen Boekhouding fix
+   Basis: 525
+   - Alleen app.js
+   - Boekhouding opruimen verwijdert geen opdrachten meer
+   - Markeert factuur/opdrachtdocumenten als verwijderd zodat ze niet opnieuw worden aangemaakt
+   - Werkt per exact jaar en bestaande order/document keys
+   - Raakt materialen/reservering/telefoon-sync niet aan
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS_526_ACCOUNTING_CLEANUP__) return;
+  window.__BNS_526_ACCOUNTING_CLEANUP__ = true;
+
+  var LS_KEYS = 'bns_526_removed_accounting_keys_v1';
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || null; }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function readLS(){ try{ var a=JSON.parse(localStorage.getItem(LS_KEYS)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+  function writeLS(a){ try{ localStorage.setItem(LS_KEYS, JSON.stringify(a||[])); }catch(e){} }
+  function uniq(a){ var out=[], seen={}; (a||[]).forEach(function(x){ x=T(x); if(x && !seen[x]){ seen[x]=1; out.push(x); } }); return out; }
+  function acc(){ var s=S(); if(!s) return {documents:[],payments:[],removedKeys:[]}; if(!s.accounting || typeof s.accounting!=='object') s.accounting={documents:[],payments:[],removedKeys:[]}; if(!Array.isArray(s.accounting.documents)) s.accounting.documents=[]; if(!Array.isArray(s.accounting.payments)) s.accounting.payments=[]; if(!Array.isArray(s.accounting.removedKeys)) s.accounting.removedKeys=[]; return s.accounting; }
+  function orders(){ var s=S(); if(!s) return []; if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
+  function orderNo(o){ return T(o && (o.number || o.nr || o.orderNumber || o.opdrachtNr || o.id)); }
+  function invoiceNo(o){ return T(o && o.invoice && (o.invoice.invoiceNumber || o.invoice.number)) || T(o && (o.invoiceNumber || o.factuurNr || o.factuur || o.factuurNummer)); }
+  function orderYear(o){
+    var txt=[invoiceNo(o), orderNo(o), o&&o.year, o&&o.end, o&&o.start, o&&o.date, o&&o.createdAt].map(T).join(' ');
+    var m=txt.match(/\b(20\d{2})\b/); return m?m[1]:'Geen jaar';
+  }
+  function docYear(d){
+    var txt=[d&&d.year,d&&d.invoiceNumber,d&&d.factuurNr,d&&d.number,d&&d.orderNumber,d&&d.orderId,d&&d.end,d&&d.start,d&&d.date,d&&d.createdAt].map(T).join(' ');
+    var m=txt.match(/\b(20\d{2})\b/); return m?m[1]:'Geen jaar';
+  }
+  function docKey(o,type){ return T(type || 'factuur') + '_' + T(o && (o.id || o.number || o.orderNumber || o.nr)); }
+  function docKeysForOrder(o){ return uniq([
+    docKey(o,'factuur'),
+    docKey(o,'opdrachtbevestiging'),
+    'factuur_' + orderNo(o),
+    'opdrachtbevestiging_' + orderNo(o),
+    invoiceNo(o) ? ('factuur_' + invoiceNo(o)) : ''
+  ]); }
+  function docMatchesKey(d, keys){
+    var vals=[d&&d.key,d&&d.id,d&&d.orderId,d&&d.orderNumber,d&&d.invoiceNumber,d&&d.factuurNr].map(T);
+    return (keys||[]).some(function(k){ return vals.indexOf(T(k))>=0; });
+  }
+  function persist(){
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof saveState==='function') saveState(); }catch(e){}
+    try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(S())); }catch(e){}
+  }
+  function applyRemovedAccountingKeys(){
+    var a=acc();
+    var keys=uniq([].concat(a.removedKeys||[], readLS()));
+    a.removedKeys=keys;
+    if(keys.length){
+      a.documents=(a.documents||[]).filter(function(d){ return !docMatchesKey(d, keys); });
+      a.payments=(a.payments||[]).filter(function(p){ return !docMatchesKey(p, keys); });
+    }
+    writeLS(keys);
+    return keys;
+  }
+  function cleanupAccountingYear(year){
+    year=T(year); if(!year) return 0;
+    var a=acc();
+    var keys=readLS().concat(a.removedKeys||[]);
+    var removed=0;
+
+    orders().forEach(function(o){
+      if(orderYear(o)===year){
+        var ks=docKeysForOrder(o);
+        keys=keys.concat(ks);
+        removed++;
+      }
+    });
+
+    (a.documents||[]).forEach(function(d){
+      if(docYear(d)===year){
+        keys.push(T(d.key || d.id));
+        if(d.orderId) keys.push('factuur_' + T(d.orderId));
+        if(d.orderId) keys.push('opdrachtbevestiging_' + T(d.orderId));
+        if(d.orderNumber) keys.push('factuur_' + T(d.orderNumber));
+        if(d.orderNumber) keys.push('opdrachtbevestiging_' + T(d.orderNumber));
+        if(d.invoiceNumber) keys.push('factuur_' + T(d.invoiceNumber));
+        removed++;
+      }
+    });
+
+    keys=uniq(keys);
+    a.removedKeys=keys;
+    writeLS(keys);
+    var before=(a.documents||[]).length + (a.payments||[]).length;
+    applyRemovedAccountingKeys();
+    var after=(a.documents||[]).length + (a.payments||[]).length;
+    persist();
+    return Math.max(removed, before-after);
+  }
+  function notify(msg){ try{ if(typeof toast==='function') return toast(msg); }catch(e){} alert(msg); }
+  function confirmDefinitief(year){
+    var txt=prompt('Boekhouding facturen van '+year+' opruimen.\n\nDit verwijdert alleen boekhouding/factuurregels, niet de opdrachten.\n\nTyp DEFINITIEF om te bevestigen:');
+    if(T(txt)!=='DEFINITIEF') return;
+    var n=cleanupAccountingYear(year);
+    notify((n||0)+' boekhouding item(s) verwijderd voor '+year+'.');
+    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    try{ if(typeof window.TW300_AU_openAccounting==='function') window.TW300_AU_openAccounting(); }catch(e){}
+    setTimeout(fixOpruimenButtons,80);
+    setTimeout(fixOpruimenButtons,400);
+  }
+  function remainingAccountingCount(year){
+    applyRemovedAccountingKeys();
+    var a=acc(), keys=a.removedKeys||[], n=0, seen={};
+    (a.documents||[]).forEach(function(d){
+      if(docYear(d)===year && !docMatchesKey(d, keys)){ var k=T(d.key||d.id||d.orderId||d.orderNumber); if(k&&!seen[k]){seen[k]=1;n++;} }
+    });
+    orders().forEach(function(o){
+      if(orderYear(o)===year){
+        var ks=docKeysForOrder(o);
+        var removed=ks.some(function(k){ return keys.indexOf(k)>=0; });
+        if(!removed){ var k2=docKey(o,'factuur'); if(!seen[k2]){seen[k2]=1;n++;} }
+      }
+    });
+    return n;
+  }
+  function fixOpruimenButtons(){
+    applyRemovedAccountingKeys();
+    Array.prototype.slice.call(document.querySelectorAll('.bns350-delyear[data-cat="boekhouding"]')).forEach(function(btn){
+      var y=T(btn.getAttribute('data-year'));
+      var n=remainingAccountingCount(y);
+      if(n<=0){
+        var wrap=btn.parentNode;
+        btn.remove();
+        if(wrap && !wrap.querySelector('.bns350-delyear[data-cat="boekhouding"]')){
+          var note=document.createElement('span'); note.style.cssText='color:#94a3b8;font-size:13px;margin-left:4px'; note.textContent='— Geen data'; wrap.appendChild(note);
+        }
+      }else{
+        btn.innerHTML='🗑 '+esc(y)+' ('+n+')';
+      }
+    });
+  }
+
+  // Voorkom oude Opruimen-code voor boekhouding: die probeerde orders/Firebase aan te raken.
+  document.addEventListener('click', function(ev){
+    var btn=ev.target && ev.target.closest && ev.target.closest('.bns350-delyear[data-cat="boekhouding"]');
+    if(!btn) return;
+    ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    confirmDefinitief(btn.getAttribute('data-year'));
+  }, true);
+
+  // Boekhouding openen: eerst verwijderde keys toepassen zodat oude testfacturen niet terugkomen.
+  var tries=0;
+  function patchAccountingOpen(){
+    tries++;
+    if(typeof window.TW300_AU_openAccounting==='function' && !window.TW300_AU_openAccounting.__bns526){
+      var old=window.TW300_AU_openAccounting;
+      var wrap=function(){ applyRemovedAccountingKeys(); return old.apply(this, arguments); };
+      wrap.__bns526=true;
+      window.TW300_AU_openAccounting=wrap;
+    } else if(tries<20) setTimeout(patchAccountingOpen,250);
+  }
+  patchAccountingOpen();
+
+  document.addEventListener('click', function(){ setTimeout(applyRemovedAccountingKeys,30); setTimeout(fixOpruimenButtons,120); }, true);
+  setTimeout(function(){ applyRemovedAccountingKeys(); fixOpruimenButtons(); },300);
+  setInterval(function(){ applyRemovedAccountingKeys(); fixOpruimenButtons(); },2500);
+  console.info('[BNS 526] Admin Opruimen Boekhouding fix actief.');
+})();
