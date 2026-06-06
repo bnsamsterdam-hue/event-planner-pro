@@ -46462,3 +46462,115 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.info('[BNS v523] Boekhouding open document + betaald fix actief.');
 })();
+
+/* =========================================================
+   BNS 524 - Boekhouding stabiel openen + betaald + document layout
+   Gebaseerd op 523.
+   - Lost lege about:blank op met Blob-documenten
+   - Zet betaald/openstaand werkt en ververst de boekhouding direct
+   - Houdt transportregels + logo in factuur/opdrachtbevestiging
+   - Alleen app.js; geen reservering/materialen/telefoon-sync wijziging
+   ========================================================= */
+(function BNS_V524_BOEKHOUDING_STABIEL(){
+  'use strict';
+  if(window.__BNS_V524_BOEKHOUDING_STABIEL__) return;
+  window.__BNS_V524_BOEKHOUDING_STABIEL__ = true;
+
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || null; }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function H(v){ return T(v).replace(/[&<>\"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]; }); }
+  function euro(n){ return '€ '+N(n).toFixed(2).replace('.',','); }
+  function date(v){ v=T(v); var m=v.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+'-'+m[2]+'-'+m[1]:v; }
+  function stateOrders(){ var s=S(); if(!s) return []; if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
+  function acc(){ var s=S(); if(!s) return {documents:[],payments:[],removedKeys:[]}; if(!s.accounting) s.accounting={documents:[],payments:[],removedKeys:[]}; if(!Array.isArray(s.accounting.documents)) s.accounting.documents=[]; if(!Array.isArray(s.accounting.payments)) s.accounting.payments=[]; if(!Array.isArray(s.accounting.removedKeys)) s.accounting.removedKeys=[]; return s.accounting; }
+  function orderNo(o){ return T(o && (o.number||o.nr||o.orderNumber||o.opdrachtNr||o.id)); }
+  function invoiceNo(o){ return T(o && o.invoice && (o.invoice.invoiceNumber||o.invoice.number)) || T(o && (o.invoiceNumber||o.factuurNr||o.factuur)) || (o?('F-'+orderNo(o)):''); }
+  function paid(o){ return !!(o && (o.paid===true || o.betaald===true || o.paymentStatus==='paid' || (o.invoice && (o.invoice.paid===true || o.invoice.paymentStatus==='paid')))); }
+  function customerName(o){ return T(o&&o.customer&&o.customer.name) || T(o&&(o.customerName||o.klant)); }
+  function titleOf(o){ return T(o&&(o.title||o.name||o.naam)); }
+  function findDoc(key){ key=T(key); if(!key) return null; return (acc().documents||[]).find(function(d){ return [d.id,d.key,d.orderId,d.orderNumber,d.invoiceNumber].map(T).indexOf(key)>=0; }) || null; }
+  function findOrderDirect(key){ key=T(key); if(!key) return null; return stateOrders().find(function(o){ return [o.id,orderNo(o),invoiceNo(o),T(o.invoiceNumber),T(o.factuurNr)].map(T).indexOf(key)>=0; }) || null; }
+  function findOrder(key){ key=T(key); var o=findOrderDirect(key); if(o) return o; var d=findDoc(key); if(d){ return findOrderDirect(d.orderId)||findOrderDirect(d.orderNumber)||findOrderDirect(d.invoiceNumber)||null; } return null; }
+  function matQty(m){ return N(m && (m.qty||m.amount||m.aantal||1)) || 1; }
+  function matPrice(m){ return N(m && (m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs))); }
+  function matDep(m){ return N(m && (m.lineDeposit||m.deposit||m.borg)); }
+  function lineTotal(l){ return (N(l&&l.qty)||1) * N(l&&l.price); }
+  function totals(o){
+    var mat=0,dep=0,trans=0;
+    (o.materials||[]).forEach(function(m){ var q=matQty(m); mat+=q*matPrice(m); dep+=q*matDep(m); });
+    (o.transportLines||[]).forEach(function(l){ trans+=lineTotal(l); });
+    if(!trans && o.transportTotal) trans=N(o.transportTotal);
+    var sub=mat+trans, vat=sub*0.21, grand=sub+vat, pay=grand+dep;
+    return {mat:mat,dep:dep,trans:trans,sub:sub,vat:vat,grand:grand,pay:pay};
+  }
+  function getDocStyle(){
+    var def={companyName:'Tapwagen.nl',slogan:'WE KEEP YOUR PARTY COOL!!!',address:'Molenlaan 30\n1422 ZA Uithoorn',phone:'088-1888000',email:'Info@tapwagen.nl',kvk:'32157678',btw:'NL001611849B73',iban:'NL97ABNA0409126675',logo:''};
+    try{ var s=S(); var st=(s&&s.settings&&(s.settings.documentStyle||s.settings.docs||s.settings.huisstijl))||{}; if(typeof st==='string') st=JSON.parse(st); Object.assign(def,st||{}); }catch(e){}
+    try{ ['bns_v422_doc_style','bns_v421_doc_style','bns_document_style'].some(function(k){ var raw=localStorage.getItem(k); if(raw){ Object.assign(def,JSON.parse(raw)); return true; } return false; }); }catch(e){}
+    return def;
+  }
+  function companyHtml(st){ var lines=[st.companyName||'Tapwagen.nl']; String(st.address||'').split(/\n+/).forEach(function(x){ if(T(x)) lines.push(T(x)); }); if(st.phone)lines.push('Tel.: '+st.phone); if(st.email)lines.push(st.email); if(st.kvk)lines.push('KVK: '+st.kvk); if(st.btw)lines.push('BTW NR: '+st.btw); if(st.iban)lines.push('Bank: '+st.iban); return lines.map(H).join('<br>'); }
+  function logoHtml(st){ if(st.logo) return '<div class="bns-doc-logo"><img src="'+H(st.logo)+'"></div>'; return '<div class="bns-doc-logo"><div class="bns-doc-brand">🍺 '+H((st.companyName||'Tapwagen.nl').toUpperCase())+' 🍺</div><div class="bns-doc-tag">'+H(st.slogan||'WE KEEP YOUR PARTY COOL!!!')+'</div></div>'; }
+  function rowsMaterials(o){ var rows=(o.materials||[]).map(function(m){ var q=matQty(m), line=q*matPrice(m); return '<tr><td>'+H(q)+'</td><td>'+H(m.code||m.id||'')+'</td><td>'+H((m.name||m.product||m.title||'')+(m.lineNote||m.note?' - '+(m.lineNote||m.note):''))+'</td><td class="amount">'+H(euro(line))+'</td></tr>'; }).join(''); return rows||'<tr><td colspan="4">Geen materialen gekozen</td></tr>'; }
+  function rowsTransport(o){ var rows=(o.transportLines||[]).map(function(l){ var qty=N(l.qty||1), unit=T(l.unit); return '<tr><td>'+H(qty+(unit?' '+unit:'x'))+'</td><td></td><td>'+H(T(l.name)+(T(l.note)?' - '+T(l.note):''))+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join(''); return rows||'<tr><td colspan="4">Geen transportregels</td></tr>'; }
+  function docHtml(o,type){
+    var st=getDocStyle(), tt=totals(o), fact=/factuur/i.test(type), stat=L(o.status), docTitle=fact?'FACTUUR':(stat.indexOf('offerte')>=0?'OFFERTE':'OPDRACHTBEVESTIGING');
+    var c=o.customer||{}, l=o.location||{};
+    var css='@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;background:#e5e7eb;margin:0;color:#111}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:14mm;box-sizing:border-box}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px;z-index:9}.actions button{border:0;border-radius:8px;background:#2563eb;color:white;font-weight:900;padding:8px 12px;cursor:pointer}.actions .dark{background:#0f172a}.bns-doc-logo{text-align:center;margin:0 0 8mm}.bns-doc-logo img{max-width:95mm;max-height:25mm;object-fit:contain}.bns-doc-brand{font-size:34px;font-weight:900;color:#0ea5e9;text-align:center}.bns-doc-tag{text-align:center;font-weight:800;font-style:italic}h1{text-align:center;font-size:20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:12px;padding:10px;margin:10px 0}table{width:100%;border-collapse:collapse}th,td{padding:7px;border-bottom:1px solid #e5e7eb;text-align:left}th{font-weight:900}.amount{text-align:right}.totals{width:90mm;margin-left:auto;margin-top:10mm}.totals td:last-child{text-align:right;font-weight:900}.pay{font-size:16px;font-weight:900}@media print{.actions{display:none}body{background:white}.page{margin:0}}';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(docTitle+' '+orderNo(o))+'</title><style>'+css+'</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button class="dark" onclick="try{window.close()}catch(e){}">Terug</button></div><main class="page">'+logoHtml(st)+'<h1>'+H(docTitle)+'</h1><div class="grid"><div class="card">'+companyHtml(st)+'</div><div class="card"><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Status:</b> '+H(o.status||'')+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'')+'</div></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Transport</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table><div class="card"><b>Bijzonderheden</b><br><span style="white-space:pre-wrap">'+H(o.extra||'')+'</span></div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal transport</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="pay"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table></main></body></html>';
+  }
+  function openHtml(html){
+    try{
+      var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+      var url=URL.createObjectURL(blob);
+      var w=window.open(url,'_blank');
+      if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe om factuur te openen.'); return false; }
+      setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(e){} },60000);
+      return false;
+    }catch(e){
+      var w2=window.open('','_blank');
+      if(!w2){ alert('Pop-up geblokkeerd. Sta pop-ups toe om factuur te openen.'); return false; }
+      w2.document.open(); w2.document.write(html); w2.document.close(); return false;
+    }
+  }
+  function persist(o){
+    var s=S();
+    try{ if(s) localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); }catch(e){}
+    try{ if(typeof saveLocal==='function') saveLocal(); }catch(e){}
+    try{ if(typeof syncDoc==='function' && o && o.id) syncDoc('orders', o.id, o); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+  }
+  function refreshAccounting(){
+    try{ if(typeof window.TW300_AU_openAccounting==='function') window.TW300_AU_openAccounting(); }catch(e){}
+    try{ document.querySelectorAll('.tw-au-pay').forEach(function(b){ b.blur(); }); }catch(e){}
+  }
+
+  window.TW300_AU_openDoc=function(id,type){
+    var o=findOrder(id);
+    if(!o){ alert('Geen opdracht gevonden voor dit document: '+T(id)); return false; }
+    return openHtml(docHtml(o,type||'factuur'));
+  };
+
+  window.TW300_AU_setPaid=function(id,yes){
+    var o=findOrder(id);
+    if(!o){ alert('Geen opdracht gevonden om betaling te wijzigen: '+T(id)); return false; }
+    o.invoice=o.invoice||{};
+    o.paid=!!yes; o.betaald=!!yes; o.paymentStatus=yes?'paid':'open';
+    o.invoice.paid=!!yes; o.invoice.paymentStatus=yes?'paid':'open'; o.invoice.paidAt=yes?new Date().toISOString():'';
+    var a=acc(), tt=totals(o);
+    (a.documents||[]).forEach(function(d){
+      if([d.id,d.key,d.orderId,d.orderNumber,d.invoiceNumber].map(T).indexOf(T(id))>=0 || T(d.orderId)===T(o.id) || T(d.orderNumber)===orderNo(o) || T(d.invoiceNumber)===invoiceNo(o)){
+        d.paid=!!yes; d.paymentStatus=o.paymentStatus; d.amount=tt.pay;
+      }
+    });
+    a.payments.push({id:'pay_'+Date.now(),orderId:o.id,orderNumber:orderNo(o),invoiceNumber:invoiceNo(o),customer:customerName(o),amount:tt.pay,paid:!!yes,time:new Date().toISOString()});
+    persist(o);
+    refreshAccounting();
+    try{ if(typeof toast==='function') toast(yes?'Factuur op betaald gezet':'Factuur op openstaand gezet'); else alert(yes?'Factuur op betaald gezet':'Factuur op openstaand gezet'); }catch(e){}
+    return false;
+  };
+
+  console.info('[BNS v524] Boekhouding stabiel: Blob-documenten + betaald refresh actief.');
+})();
