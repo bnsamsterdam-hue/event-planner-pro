@@ -47083,3 +47083,220 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.info('[BNS 530] Boekhouding verwijderen persistent: factuurregel wordt op order verborgen, opdracht blijft staan.');
 })();
+
+/* =========================================================
+   BNS 531 - Rustige opslag / Firebase schrijfrem
+   Doel:
+   - voorkomt console-spam door volle localStorage
+   - ruimt oude grote lokale state/backups op
+   - remt dubbele Firestore order-writes zodat Firebase niet overbelast raakt
+   - raakt geen reservering/materialen/transport/telefoonlogica aan
+   ========================================================= */
+(function(){
+  "use strict";
+  if(window.__BNS531_STORAGE_AND_FIREBASE_GUARD__) return;
+  window.__BNS531_STORAGE_AND_FIREBASE_GUARD__ = true;
+
+  var BIG_FIELDS = ['photoData','photo','image','signatureData','signature','data','customerSignature','base64','src'];
+  var STATE_KEY_RE = /bns|event|planner|backup|state/i;
+  var memoryStore = {};
+  var lastStorageWarn = 0;
+
+  function now(){ return Date.now ? Date.now() : new Date().getTime(); }
+  function rawSet(key,val){ return Storage.prototype.setItem.call(localStorage, String(key), String(val)); }
+  function rawGet(key){ return Storage.prototype.getItem.call(localStorage, String(key)); }
+  function rawRemove(key){ return Storage.prototype.removeItem.call(localStorage, String(key)); }
+
+  function stripHeavyObject(obj, depth){
+    if(!obj || typeof obj !== 'object' || depth > 8) return obj;
+    if(Array.isArray(obj)){
+      for(var i=0;i<obj.length;i++) stripHeavyObject(obj[i], depth+1);
+      return obj;
+    }
+    Object.keys(obj).forEach(function(k){
+      var v = obj[k];
+      if(typeof v === 'string'){
+        var lk = k.toLowerCase();
+        var looksBig = v.length > 5000 || /^data:image\//i.test(v) || /^data:application\//i.test(v);
+        var isMediaField = BIG_FIELDS.some(function(f){ return lk.indexOf(f.toLowerCase()) >= 0; });
+        if(looksBig && isMediaField) delete obj[k];
+      } else if(v && typeof v === 'object') {
+        stripHeavyObject(v, depth+1);
+      }
+    });
+    return obj;
+  }
+
+  function stripValue(value){
+    if(!value || String(value).length < 1000) return String(value || '');
+    try{
+      var obj = JSON.parse(String(value));
+      stripHeavyObject(obj, 0);
+      return JSON.stringify(obj);
+    }catch(e){ return String(value || ''); }
+  }
+
+  function minimalValue(key, value){
+    try{
+      var obj = JSON.parse(String(value));
+      if(obj && typeof obj === 'object'){
+        var min = {};
+        if(Array.isArray(obj.orders)) min.orders = obj.orders.map(function(o){
+          return o && typeof o === 'object' ? {
+            id:o.id, number:o.number||o.orderNumber||o.opdrachtNummer, status:o.status, folder:o.folder,
+            updatedAt:o.updatedAt||o.modifiedAt||o.createdAt
+          } : o;
+        });
+        if(Array.isArray(obj.materials)) min.materials = obj.materials.map(function(m){
+          return m && typeof m === 'object' ? {id:m.id, code:m.code, name:m.name||m.title, updatedAt:m.updatedAt} : m;
+        });
+        if(Array.isArray(obj.users)) min.users = obj.users.map(function(u){
+          return u && typeof u === 'object' ? {id:u.id, name:u.name, role:u.role, active:u.active} : u;
+        });
+        min.__bnsMinimalCache = true;
+        min.__reason = 'localStorage quota fallback; volledige data staat in Firebase';
+        return JSON.stringify(min);
+      }
+    }catch(e){}
+    return '';
+  }
+
+  function cleanupLocalStorage(){
+    try{
+      var keys=[];
+      for(var i=0;i<localStorage.length;i++) keys.push(localStorage.key(i));
+      keys.forEach(function(k){
+        if(!k || !STATE_KEY_RE.test(k)) return;
+        var v = rawGet(k);
+        if(!v) return;
+        var len = String(v).length;
+        if(len > 900000 || /backup/i.test(k)){
+          try{ rawRemove(k); }catch(e){}
+        } else if(len > 50000) {
+          try{
+            var clean = stripValue(v);
+            if(clean.length < len) rawSet(k, clean);
+          }catch(e){}
+        }
+      });
+    }catch(e){}
+  }
+
+  cleanupLocalStorage();
+
+  localStorage.setItem = function(key, value){
+    key = String(key);
+    value = String(value == null ? '' : value);
+    try{
+      rawSet(key, value);
+      return;
+    }catch(e1){
+      try{
+        var clean = stripValue(value);
+        rawSet(key, clean);
+        return;
+      }catch(e2){
+        cleanupLocalStorage();
+        try{
+          rawSet(key, stripValue(value));
+          return;
+        }catch(e3){
+          try{
+            rawSet(key, minimalValue(key, value));
+            return;
+          }catch(e4){
+            memoryStore[key] = value;
+            if(now() - lastStorageWarn > 120000){
+              lastStorageWarn = now();
+              console.info('[BNS 531] localStorage is vol; lokale cache overgeslagen. Firebase blijft leidend.');
+            }
+          }
+        }
+      }
+    }
+  };
+
+  localStorage.getItem = function(key){
+    key = String(key);
+    try{
+      var v = rawGet(key);
+      return v == null && Object.prototype.hasOwnProperty.call(memoryStore,key) ? memoryStore[key] : v;
+    }catch(e){
+      return Object.prototype.hasOwnProperty.call(memoryStore,key) ? memoryStore[key] : null;
+    }
+  };
+
+  function installFirestoreWriteBrake(){
+    try{
+      if(!window.BNS || !window.BNS.fs || !window.BNS.fs.setDoc || window.BNS.fs.setDoc.__bns531Wrapped) return false;
+      var fs = window.BNS.fs;
+      var originalSetDoc = fs.setDoc.bind(fs);
+      var queue = {};
+      var running = false;
+      var lastWriteAt = 0;
+
+      function refPath(ref){
+        try{ return String(ref && (ref.path || ref._key && ref._key.path && ref._key.path.canonicalString && ref._key.path.canonicalString()) || ''); }catch(e){ return ''; }
+      }
+      function isOrderPath(path){ return /(^|\/)orders\//.test(path); }
+      function delay(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
+
+      async function pump(){
+        if(running) return;
+        running = true;
+        try{
+          while(true){
+            var keys = Object.keys(queue);
+            if(!keys.length) break;
+            var k = keys[0];
+            var item = queue[k];
+            delete queue[k];
+            var wait = Math.max(0, 850 - (now() - lastWriteAt));
+            if(wait) await delay(wait);
+            lastWriteAt = now();
+            try{
+              var r = await originalSetDoc(item.ref, item.data, item.opts);
+              item.resolvers.forEach(function(x){ x.resolve(r); });
+            }catch(err){
+              var msg = String(err && (err.code || err.message || err));
+              if(/resource-exhausted|maximum allowed queued writes|write stream exhausted/i.test(msg)){
+                queue[k] = item;
+                await delay(3500);
+              } else {
+                item.resolvers.forEach(function(x){ x.reject(err); });
+              }
+            }
+          }
+        } finally { running = false; }
+      }
+
+      fs.setDoc = function(ref, data, opts){
+        var path = refPath(ref);
+        if(!isOrderPath(path)) return originalSetDoc(ref, data, opts);
+        return new Promise(function(resolve,reject){
+          var item = queue[path];
+          if(item){
+            item.data = data;
+            item.opts = opts;
+            item.resolvers.push({resolve:resolve,reject:reject});
+          } else {
+            queue[path] = {ref:ref,data:data,opts:opts,resolvers:[{resolve:resolve,reject:reject}]};
+          }
+          pump();
+        });
+      };
+      fs.setDoc.__bns531Wrapped = true;
+      console.info('[BNS 531] Firebase order schrijfrem actief; dubbele writes worden samengevoegd.');
+      return true;
+    }catch(e){ return false; }
+  }
+
+  var tries = 0;
+  var timer = setInterval(function(){
+    tries++;
+    if(installFirestoreWriteBrake() || tries > 80) clearInterval(timer);
+  }, 500);
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(installFirestoreWriteBrake, 500); setTimeout(installFirestoreWriteBrake, 2000); });
+
+  console.info('[BNS 531] Opslagrust actief: localStorage fallback + Firebase schrijfrem.');
+})();
