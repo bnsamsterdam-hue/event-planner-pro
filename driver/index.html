@@ -44,9 +44,8 @@
 
   <div id="toast" class="toast"></div>
   <script src="../firebase-config.js"></script>
-  <script src="../firebase-push-config.js"></script>
-  <script src="../firebase-push-client.js"></script>
-  <script src="driver.js?v=148"></script>
+  <!-- BNS 541: pushmeldingen op bezorger/telefoon voorlopig uitgeschakeld -->
+<script src="driver.js?v=148"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){try{r.unregister()}catch(e){}});});
