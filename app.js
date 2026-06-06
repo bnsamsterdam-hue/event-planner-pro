@@ -23125,7 +23125,7 @@ setTimeout(()=>{
       .bns-v56-admin-row{display:grid!important;grid-template-columns:8px minmax(0,1fr) auto!important;align-items:center!important;gap:12px!important;border:1px solid #dbe3ef!important;border-radius:14px!important;background:#fff!important;padding:10px 12px!important;margin:8px 0!important;}
       .bns-v56-admin-row .bar{width:8px;height:42px;border-radius:999px;background:var(--cat-color,#0ea5e9)!important;}.bns-v56-admin-row b{font-weight:1000!important;}.bns-v56-admin-row small{color:#64748b!important;font-weight:700!important;}
       .bns-v56-old-admin-hide{display:none!important;}
-      #bnsOmhoogBtn{position:fixed!important;right:22px!important;bottom:108px!important;z-index:999999!important;border-radius:999px!important;padding:13px 18px!important;background:#111827!important;color:#fff!important;font-weight:900!important;border:0!important;box-shadow:0 10px 30px rgba(15,23,42,.22)!important;}
+      #bnsOmhoogBtn{position:fixed!important;right:18px!important;bottom:18px!important;z-index:999999!important;border-radius:999px!important;padding:13px 18px!important;background:#111827!important;color:#fff!important;font-weight:900!important;border:0!important;box-shadow:0 10px 30px rgba(15,23,42,.22)!important;}
       @media(max-width:900px){#bnsV56AdminGrid{grid-template-columns:1fr 1fr!important}#materialList{max-height:62vh!important}.bns-v56-pill{font-size:14px!important}}
     `;
     document.head.appendChild(st);
@@ -37064,6 +37064,32 @@ setTimeout(()=>{
     }
     return null;
   }
+  function ensureTopButtonInOrderBar(bar){
+    if(!bar || bar.querySelector('.bns-v536-top-button')) return;
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='bns-v536-top-button';
+    btn.textContent='Omhoog';
+    btn.title='Terug naar boven in Nieuwe opdracht';
+    btn.addEventListener('click',function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      try{ window.scrollTo({top:0,left:0,behavior:'smooth'}); }catch(e){ try{ window.scrollTo(0,0); }catch(x){} }
+      try{
+        var page=E('newOrder') || document.querySelector('.page.active') || document.querySelector('main');
+        if(page && page.scrollTo) page.scrollTo({top:0,left:0,behavior:'smooth'});
+      }catch(e){}
+      return false;
+    },true);
+    var buttons=A('button',bar);
+    var after=buttons.filter(function(b){ return L(b.textContent||'')==='afdrukken'; })[0];
+    if(after && after.parentNode===bar){
+      if(after.nextSibling) bar.insertBefore(btn,after.nextSibling);
+      else bar.appendChild(btn);
+    } else {
+      bar.appendChild(btn);
+    }
+  }
   function applyOrderBar(){
     installStyle();
     var bar=findOrderBar();
@@ -37072,6 +37098,7 @@ setTimeout(()=>{
       x.classList.remove('bns-v326-order-bottom','bns-v329-order-bottom');
     });
     bar.classList.add('bns-v333-order-bottom');
+    ensureTopButtonInOrderBar(bar);
     var page=E('newOrder') || bar.closest('.page') || document.querySelector('.page.active') || document.querySelector('main');
     var left=0,right=0;
     try{
@@ -47324,108 +47351,5 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     "@media(max-width:900px){#materialPanel #materialCats{max-height:180px!important;}#materialPanel #materialCats button{min-width:80px!important;font-size:13px!important;}}";
   document.head.appendChild(css);
 
-  console.info("[BNS 533] Materialen rustig: alleen CSS, originele materiaalwerking behouden.");
-})();
-
-/* =========================================================
-   BNS 535 - Omhoog/Terug knop in vaste Nieuwe opdracht-balk
-   Basis: 534/533. Alleen UI: extra knop naast Afdrukken.
-   - Geen wijziging aan reservering/materialen/transport/boekhouding
-   - Verwijdert zwevende oude omhoog-knop niet destructief, maar verbergt hem
-   ========================================================= */
-(function(){
-  "use strict";
-  if(window.__BNS535_BOTTOM_BACK__) return;
-  window.__BNS535_BOTTOM_BACK__ = true;
-
-  function txt(el){ return String((el && el.textContent) || "").trim().toLowerCase(); }
-  function visible(el){
-    try{ var r = el.getBoundingClientRect(); return !!(r.width || r.height); }catch(e){ return false; }
-  }
-  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-
-  function isOrderActionBar(el){
-    if(!el || !visible(el)) return false;
-    var names = A('button', el).map(txt);
-    return names.indexOf('opslaan') >= 0 && names.indexOf('annuleren') >= 0 && (names.indexOf('afdrukken') >= 0 || names.indexOf('overzicht maken') >= 0);
-  }
-
-  function findOrderBar(){
-    var direct = A('#bnsV58OrderActions,#bnsV57OrderActions,#bnsV326OrderActions,.bns-v333-order-bottom').filter(isOrderActionBar);
-    if(direct.length) return direct[0];
-    var buttons = A('button').filter(function(b){
-      var t = txt(b);
-      return visible(b) && (t === 'opslaan' || t === 'annuleren' || t === 'afdrukken' || t === 'overzicht maken');
-    });
-    for(var i=0;i<buttons.length;i++){
-      var p = buttons[i].parentElement;
-      while(p && p !== document.body){
-        if(isOrderActionBar(p)) return p;
-        p = p.parentElement;
-      }
-    }
-    return null;
-  }
-
-  function goTop(){
-    try{ window.scrollTo({top:0,left:0,behavior:'smooth'}); }catch(e){ try{ window.scrollTo(0,0); }catch(x){} }
-    try{
-      var pane = document.querySelector('#newOrder') || document.querySelector('.page.active') || document.querySelector('main');
-      if(pane && pane.scrollTo) pane.scrollTo({top:0,left:0,behavior:'smooth'});
-    }catch(e){}
-  }
-
-  function ensureStyle(){
-    if(document.getElementById('bns535Style')) return;
-    var s = document.createElement('style');
-    s.id = 'bns535Style';
-    s.textContent = ''+
-      '.bns535-back{background:#0f172a!important;color:#fff!important;border:0!important;border-radius:12px!important;padding:10px 16px!important;font-weight:900!important;cursor:pointer!important;box-shadow:0 2px 8px rgba(15,23,42,.22)!important;}'+
-      '.bns535-back:active{transform:scale(.96)!important;filter:brightness(.9)!important;}'+
-      '.bns535-hidden-floating{display:none!important;}';
-    document.head.appendChild(s);
-  }
-
-  function hideOldFloating(){
-    A('button').forEach(function(b){
-      var t = txt(b);
-      if((t === 'omhoog' || t === 'terug boven' || t === 'naar boven') && !b.classList.contains('bns535-back')){
-        // Alleen zwevende knoppen verbergen, niet document/boekhouding-terug knoppen.
-        var st = getComputedStyle(b);
-        if(st.position === 'fixed' || st.position === 'sticky') b.classList.add('bns535-hidden-floating');
-      }
-    });
-  }
-
-  function install(){
-    ensureStyle();
-    var bar = findOrderBar();
-    if(!bar) return;
-    if(!bar.classList.contains('bns-v333-order-bottom')) bar.classList.add('bns-v333-order-bottom');
-    if(!bar.querySelector('.bns535-back')){
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'bns535-back';
-      btn.textContent = 'Omhoog';
-      btn.title = 'Terug naar boven in Nieuwe opdracht';
-      btn.addEventListener('click', function(ev){
-        ev.preventDefault();
-        ev.stopPropagation();
-        if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-        goTop();
-        return false;
-      }, true);
-      var after = A('button', bar).filter(function(b){ return txt(b) === 'afdrukken'; })[0];
-      if(after && after.parentNode === bar && after.nextSibling) bar.insertBefore(btn, after.nextSibling);
-      else bar.appendChild(btn);
-    }
-    hideOldFloating();
-  }
-
-  function schedule(){ setTimeout(install,50); setTimeout(install,300); setTimeout(install,1000); }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule); else schedule();
-  document.addEventListener('click', function(){ schedule(); }, true);
-  window.addEventListener('resize', schedule);
-
-  console.info('[BNS 535] Omhoog-knop staat nu in de vaste Nieuwe opdracht-balk naast Afdrukken.');
+  console.info("[BNS 536] Materiaal rustig + Omhoog veilig in bestaande balk.");
 })();
