@@ -46864,3 +46864,169 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.info('[BNS 527] Status bij wijzigen fix actief.');
 })();
+
+/* =========================================================
+   BNS 528 - Boekhouding: dubbele facturen + verwijderen
+   Basis: 527
+   - Facturenlijst toont per opdrachtnummer nog maar 1 factuur
+   - Opdrachtbevestiging/document telt niet als tweede factuur
+   - Verwijderknop per factuurregel, verwijdert alleen boekhoudregel
+   - Zet betaald/openstaand blijft exact op order werken
+   - Raakt orders/materialen/reservering/telefoon-sync niet aan
+   ========================================================= */
+(function BNS_V528_BOEKHOUDING_FACTUREN_STABIEL(){
+  'use strict';
+  if(window.__BNS_V528_BOEKHOUDING__) return;
+  window.__BNS_V528_BOEKHOUDING__ = true;
+
+  var oldOpenDoc = window.TW300_AU_openDoc;
+  var oldSetPaid = window.TW300_AU_setPaid;
+
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || null; }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function H(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function euro(n){ return 'EUR '+N(n).toFixed(2).replace('.',','); }
+  function orders(){ var s=S(); if(!s) return []; if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
+  function acc(){ var s=S(); if(!s) return {documents:[],payments:[],removedKeys:[]}; if(!s.accounting || typeof s.accounting!=='object') s.accounting={documents:[],payments:[],removedKeys:[]}; if(!Array.isArray(s.accounting.documents)) s.accounting.documents=[]; if(!Array.isArray(s.accounting.payments)) s.accounting.payments=[]; if(!Array.isArray(s.accounting.removedKeys)) s.accounting.removedKeys=[]; return s.accounting; }
+  function orderNo(o){ return T(o && (o.number||o.nr||o.orderNumber||o.opdrachtNr||o.id)); }
+  function invoiceNo(o){ return T(o&&o.invoice&&(o.invoice.invoiceNumber||o.invoice.number)) || T(o&&(o.invoiceNumber||o.factuurNr||o.factuur)) || orderNo(o); }
+  function customerName(o){ return T(o&&o.customer&&o.customer.name) || T(o&&(o.customerName||o.klant)); }
+  function titleOf(o){ return T(o&&(o.title||o.name||o.naam)); }
+  function paid(o){ return !!(o && (o.paid===true || o.betaald===true || o.paymentStatus==='paid' || (o.invoice && (o.invoice.paid===true || o.invoice.paymentStatus==='paid')))); }
+  function yearOf(o){ var d=T((o&& (o.end||o.start)) || ''); var m=d.match(/^(20\d{2})/); if(m) return m[1]; var inv=invoiceNo(o); m=inv.match(/20\d{2}/); return m?m[0]:String(new Date().getFullYear()); }
+  function lineTotal(l){ return (N(l&&l.qty)||1) * N(l&&l.price); }
+  function amount(o){
+    var p=(o&&o.pricing)||{};
+    var base=N(p.grand||p.total||p.incl||o.total||o.amount||0);
+    var trans=0;
+    if(Array.isArray(o&&o.transportLines)) o.transportLines.forEach(function(l){ trans += lineTotal(l); });
+    if(base) return base;
+    var mat=0, dep=0;
+    (o&&o.materials||[]).forEach(function(m){ var q=N(m.qty||m.amount||m.aantal||1)||1; mat += q*N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs)); dep += q*N(m.lineDeposit||m.deposit||m.borg); });
+    return (mat+trans)*1.21 + dep;
+  }
+  function keyFor(o){ return 'factuur_'+(T(o&&o.id)||orderNo(o)||invoiceNo(o)); }
+  function isRemoved(o){ var a=acc(), k=keyFor(o), nr='factuur_nr_'+orderNo(o); return (a.removedKeys||[]).indexOf(k)>=0 || (a.removedKeys||[]).indexOf(nr)>=0; }
+  function findOrder(id){ id=T(id); return orders().find(function(o){ return [T(o.id),orderNo(o),invoiceNo(o),T(o.invoiceNumber),T(o.factuurNr)].indexOf(id)>=0; }) || null; }
+  function saveNow(){ try{ if(typeof save==='function') save(); }catch(e){} try{ if(typeof saveState==='function') saveState(); }catch(e){} try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(S())); }catch(e){} }
+  function syncOrder(o){ try{ if(window.BNS&&typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){} try{ if(typeof syncDoc==='function') syncDoc('orders', o.id, o); }catch(e){} }
+
+  function invoiceRows(){
+    var seen={}, out=[];
+    orders().forEach(function(o){
+      var nr=orderNo(o);
+      if(!nr || isRemoved(o)) return;
+      var key=nr; // opdrachtnummer is leidend en uniek
+      if(!seen[key]){ seen[key]=o; out.push(o); return; }
+      var old=seen[key];
+      var ot=Date.parse(T(old.updatedAt||old.modifiedAt||old.createdAt||0))||0;
+      var nt=Date.parse(T(o.updatedAt||o.modifiedAt||o.createdAt||0))||0;
+      if(nt>=ot){ seen[key]=o; var idx=out.indexOf(old); if(idx>=0) out[idx]=o; }
+    });
+    return out.sort(function(a,b){ return String(yearOf(b)).localeCompare(String(yearOf(a))) || orderNo(b).localeCompare(orderNo(a)); });
+  }
+
+  var yearFilter='all', statusFilter='all', searchText='';
+
+  function ensureStyle(){
+    if(document.getElementById('bns528BoekhoudingStyle')) return;
+    var s=document.createElement('style'); s.id='bns528BoekhoudingStyle';
+    s.textContent='.bns528-modal{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.55);display:grid;place-items:center;padding:18px}.bns528-modal.hidden{display:none!important}.bns528-panel{width:min(1220px,96vw);max-height:92vh;overflow:auto;background:#fff;color:#172033;border-radius:22px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.35)}.bns528-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.bns528-head h2{margin:0}.bns528-tabs,.bns528-years{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.bns528-tabs button,.bns528-years button{border:0;border-radius:12px;padding:10px 14px;font-weight:900;background:#e2e8f0;color:#0f172a;cursor:pointer}.bns528-tabs button.active,.bns528-years button.active{background:#0f172a!important;color:#fff!important}.bns528-tools{display:grid;grid-template-columns:1fr 190px;gap:10px;margin:12px 0}.bns528-tools input,.bns528-tools select{padding:12px;border:1px solid #dbe3ef;border-radius:12px}.bns528-card{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:14px;align-items:center;border:1px solid #dbe3ef;border-radius:16px;padding:14px;margin:10px 0;background:#fff}.bns528-main{display:grid;grid-template-columns:1fr 1.3fr 1.3fr 90px;gap:12px;align-items:center}.bns528-main small{display:block;color:#64748b;font-size:11px;margin-top:4px}.bns528-side{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center}.bns528-side button,#bns528Close{border:0;border-radius:10px;padding:10px 12px;font-weight:900;background:#0f172a;color:white;cursor:pointer}.bns528-pay{background:#16a34a!important}.bns528-del{background:#dc2626!important}.bns528-badge{display:inline-flex;align-items:center;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900}.bns528-badge.open{background:#fee2e2;color:#7f1d1d}.bns528-badge.paid{background:#dcfce7;color:#166534}.bns528-empty{padding:18px;border:1px dashed #cbd5e1;background:#f8fafc;border-radius:14px}@media(max-width:900px){.bns528-card{grid-template-columns:1fr}.bns528-main{grid-template-columns:1fr 1fr}.bns528-tools{grid-template-columns:1fr}}';
+    document.head.appendChild(s);
+  }
+
+  function modal(){
+    ensureStyle();
+    var m=document.getElementById('bns528BoekhoudingModal');
+    if(m) return m;
+    m=document.createElement('div'); m.id='bns528BoekhoudingModal'; m.className='bns528-modal hidden';
+    m.innerHTML='<div class="bns528-panel"><div class="bns528-head"><h2>Boekhouding</h2><button id="bns528Close" type="button">Terug</button></div><div class="bns528-tabs"><button class="active" type="button">Facturen</button><button type="button" disabled>Klanten</button><button type="button" disabled>Betalingen</button></div><div class="bns528-years" id="bns528Years"></div><div class="bns528-tools"><input id="bns528Search" placeholder="Zoek factuur, klant, opdracht, titel"><select id="bns528Status"><option value="all">Alles</option><option value="open">Openstaand</option><option value="paid">Betaald</option></select></div><div id="bns528List"></div></div>';
+    document.body.appendChild(m);
+    document.getElementById('bns528Close').onclick=function(){ m.classList.add('hidden'); };
+    document.getElementById('bns528Search').oninput=function(){ searchText=this.value; render(); };
+    document.getElementById('bns528Status').onchange=function(){ statusFilter=this.value; render(); };
+    m.addEventListener('click',function(ev){ if(ev.target===m) m.classList.add('hidden'); });
+    return m;
+  }
+
+  function renderYears(rows){
+    var box=document.getElementById('bns528Years'); if(!box) return;
+    var set={}; rows.forEach(function(o){ set[yearOf(o)]=true; });
+    var ys=['all'].concat(Object.keys(set).sort(function(a,b){return Number(a)-Number(b);}));
+    box.innerHTML=ys.map(function(y){ return '<button type="button" class="'+(yearFilter===y?'active':'')+'" data-year="'+H(y)+'">📁 '+H(y==='all'?'Alles':y)+'</button>'; }).join('');
+    Array.prototype.slice.call(box.querySelectorAll('button')).forEach(function(b){ b.onclick=function(){ yearFilter=b.dataset.year||'all'; render(); }; });
+  }
+
+  function filteredRows(){
+    var q=L(searchText);
+    return invoiceRows().filter(function(o){
+      if(yearFilter!=='all' && String(yearOf(o))!==String(yearFilter)) return false;
+      if(statusFilter==='paid' && !paid(o)) return false;
+      if(statusFilter==='open' && paid(o)) return false;
+      if(!q) return true;
+      return [invoiceNo(o),orderNo(o),customerName(o),titleOf(o),yearOf(o)].join(' ').toLowerCase().indexOf(q)>-1;
+    });
+  }
+
+  function render(){
+    var m=modal();
+    var rowsAll=invoiceRows();
+    renderYears(rowsAll);
+    var box=document.getElementById('bns528List'); if(!box) return;
+    var rows=filteredRows();
+    box.innerHTML=rows.length?rows.map(function(o){
+      var id=H(T(o.id)||orderNo(o));
+      var label=paid(o)?'Betaald':'Openstaand';
+      return '<div class="bns528-card"><div class="bns528-main"><div><b>'+H(invoiceNo(o)||orderNo(o)||'-')+'</b><small>Factuur</small></div><div><b>'+H(customerName(o)||'-')+'</b><small>Klant</small></div><div><b>'+H(titleOf(o)||'-')+'</b><small>Opdracht</small></div><div><b>'+H(yearOf(o))+'</b><small>Jaar</small></div></div><div class="bns528-side"><span class="bns528-badge '+(paid(o)?'paid':'open')+'">'+label+'</span><b>'+H(euro(amount(o)))+'</b><button class="bns528-pay" type="button" onclick="BNS528_setPaid(\''+id+'\','+(!paid(o))+')">'+(paid(o)?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'opdrachtbevestiging\')">Maak opdrachtdocument</button><button class="bns528-del" type="button" onclick="BNS528_deleteInvoice(\''+id+'\')">Verwijder</button></div></div>';
+    }).join(''):'<div class="bns528-empty">Geen facturen gevonden.</div>';
+  }
+
+  window.BNS528_openAccounting=function(){
+    try{ var old=document.getElementById('tw300AUModal'); if(old) old.classList.add('hidden'); }catch(e){}
+    modal().classList.remove('hidden'); render(); return false;
+  };
+
+  window.BNS528_openDoc=function(id,type){
+    var o=findOrder(id); if(!o){ alert('Geen opdracht gevonden voor factuur: '+T(id)); return false; }
+    if(typeof oldOpenDoc==='function') return oldOpenDoc(T(o.id)||orderNo(o), type||'factuur');
+    alert('Documentfunctie niet gevonden.'); return false;
+  };
+
+  window.BNS528_setPaid=function(id,yes){
+    var o=findOrder(id); if(!o){ alert('Geen opdracht gevonden om betaling te wijzigen: '+T(id)); return false; }
+    o.invoice=o.invoice||{}; o.paid=!!yes; o.betaald=!!yes; o.paymentStatus=yes?'paid':'open'; o.invoice.paid=!!yes; o.invoice.paymentStatus=o.paymentStatus; o.invoice.paidAt=yes?new Date().toISOString():'';
+    acc().payments.push({id:'pay_'+Date.now(),orderId:o.id,orderNumber:orderNo(o),invoiceNumber:invoiceNo(o),customer:customerName(o),amount:amount(o),paid:!!yes,time:new Date().toISOString()});
+    saveNow(); syncOrder(o); render(); try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    return false;
+  };
+
+  window.BNS528_deleteInvoice=function(id){
+    var o=findOrder(id); if(!o){ alert('Geen opdracht gevonden voor verwijderen: '+T(id)); return false; }
+    if(!confirm('Alleen deze boekhouding/factuurregel verwijderen?\n\nOpdracht '+orderNo(o)+' blijft gewoon bestaan.')) return false;
+    var a=acc();
+    var keys=[keyFor(o),'factuur_nr_'+orderNo(o),'factuur_'+orderNo(o),T(o.id),orderNo(o),invoiceNo(o)];
+    keys.forEach(function(k){ if(k && a.removedKeys.indexOf(k)<0) a.removedKeys.push(k); });
+    a.documents=(a.documents||[]).filter(function(d){ return [d.id,d.key,d.orderId,d.orderNumber,d.invoiceNumber].map(T).every(function(x){ return keys.indexOf(x)<0; }); });
+    saveNow(); render(); try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    return false;
+  };
+
+  // De normale Boekhouding-knop naar deze stabiele facturenlijst sturen.
+  window.TW300_AU_openAccounting = window.BNS528_openAccounting;
+  window.TW300_AU_setPaid = window.BNS528_setPaid;
+
+  document.addEventListener('click',function(ev){
+    var b=ev.target && ev.target.closest && ev.target.closest('button,a');
+    if(!b) return;
+    var txt=L(b.textContent||'');
+    if(txt==='boekhouding'){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      window.BNS528_openAccounting();
+      return false;
+    }
+  },true);
+
+  console.info('[BNS 528] Boekhouding facturen stabiel: uniek per opdrachtnummer + verwijderen actief.');
+})();
