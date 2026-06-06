@@ -46195,8 +46195,9 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       '</div>' +
       '<div class="bns-vq-row">' +
         '<input id="bnsVehicleNewOption" placeholder="Nieuwe optie, bv. Transport bakwagen € 85">' +
-        '<button type="button" id="bnsVehicleSaveOption">Optie opslaan</button>' +
-        '<button type="button" class="bns-red" id="bnsVehicleDeleteOption">Gekozen optie verwijderen</button>' +
+       "<button type=\"button\" id=\"bnsVehicleSaveOption\">Optie opslaan</button>" +
+"<button type=\"button\" class=\"bns-dark\" id=\"bnsVehicleUpdateOption\">Gekozen optie wijzigen</button>" +
+"<button type=\"button\" class=\"bns-red\" id=\"bnsVehicleDeleteOption\">Gekozen optie verwijderen</button>" +
       '</div>' +
       '<small>Dit vult alleen het bestaande voertuigveld. Het is géén materiaal en blokkeert geen reserveringen.</small>';
 
@@ -46242,6 +46243,36 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       input.value = "";
       appendVehicleValue(value);
     };
+
+E("bnsVehicleUpdateOption").onclick = function(e){
+  e.preventDefault();
+
+  var input = E("bnsVehicleNewOption");
+  var oldValue = String(select.value || "").trim();
+  var newValue = String(input.value || "").trim();
+
+  if(!oldValue || !newValue) {
+    alert("Kies eerst een optie en typ daarna de nieuwe tekst in het veld.");
+    return;
+  }
+
+  var list = getOptions().map(function(x){
+    return x.toLowerCase() === oldValue.toLowerCase() ? newValue : x;
+  });
+
+  var seen = {};
+  list = list.filter(function(x){
+    var k = String(x || "").trim().toLowerCase();
+    if(!k || seen[k]) return false;
+    seen[k] = true;
+    return true;
+  });
+
+  saveOptions(list);
+  fillSelect(select);
+  select.value = newValue;
+  input.value = "";
+};
 
     E("bnsVehicleDeleteOption").onclick = function(e){
       e.preventDefault();
