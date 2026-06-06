@@ -34737,7 +34737,18 @@ setTimeout(()=>{
   }
   function filterDocs(){
     var q=L(searchText);
+    var acc=accounting();
+    var removed=acc.removedKeys||[];
+    var seen={};
     return documents().filter(function(d){
+      // Boekhouding > Facturen toont alleen echte facturen, niet opdrachtbevestigingen.
+      if(L(d.type||'factuur') && L(d.type||'factuur') !== 'factuur') return false;
+      var k='factuur_'+String(d.orderId||d.orderNumber||d.invoiceNumber||'');
+      if(removed.indexOf(k)>=0 || removed.indexOf(String(d.key||''))>=0 || removed.indexOf(String(d.id||''))>=0 || removed.indexOf('factuur_nr_'+String(d.orderNumber||''))>=0) return false;
+      var uniq=String(d.orderNumber||d.invoiceNumber||d.orderId||d.id||'');
+      if(!uniq) uniq=String(d.id||Math.random());
+      if(seen[uniq]) return false;
+      seen[uniq]=true;
       if(yearFilter!=='all' && String(d.year)!==String(yearFilter)) return false;
       if(statusFilter==='paid' && !d.paid) return false;
       if(statusFilter==='open' && d.paid) return false;
@@ -34781,6 +34792,32 @@ setTimeout(()=>{
     toast(yes?'Factuur op betaald gezet':'Factuur op openstaand gezet');
   }
   window.TW300_AU_setPaid=setPaid;
+  function deleteInvoice(id){
+    var o=findOrder(id);
+    var acc=accounting();
+    var d=null;
+    if(!o){
+      d=acc.documents.find(function(x){
+        return String(x.id)===String(id)||String(x.orderId)===String(id)||String(x.orderNumber)===String(id)||String(x.invoiceNumber)===String(id);
+      });
+      if(d) o=findOrder(d.orderId||d.orderNumber);
+    }
+    var orderNumber=o?orderNo(o):(d&&d.orderNumber)||String(id);
+    if(!confirm('Alleen deze factuurregel uit boekhouding verwijderen?\n\nOpdracht '+orderNumber+' blijft gewoon bestaan.')) return false;
+    var keys=[];
+    if(o){ keys.push(docKey(o,'factuur'), 'factuur_'+String(o.id||''), 'factuur_'+orderNo(o), 'factuur_nr_'+orderNo(o), String(o.id||''), orderNo(o), invoiceNo(o)); }
+    if(d){ keys.push(String(d.id||''), String(d.key||''), 'factuur_'+String(d.orderId||''), 'factuur_'+String(d.orderNumber||''), 'factuur_nr_'+String(d.orderNumber||''), String(d.invoiceNumber||'')); }
+    keys=keys.filter(Boolean);
+    keys.forEach(function(k){ if(acc.removedKeys.indexOf(k)<0) acc.removedKeys.push(k); });
+    acc.documents=acc.documents.filter(function(x){
+      return keys.indexOf(String(x.id||''))<0 && keys.indexOf(String(x.key||''))<0 && keys.indexOf('factuur_'+String(x.orderId||''))<0 && keys.indexOf('factuur_'+String(x.orderNumber||''))<0 && keys.indexOf('factuur_nr_'+String(x.orderNumber||''))<0;
+    });
+    saveAll();
+    renderAccounting();
+    toast('Factuurregel verwijderd uit boekhouding');
+    return false;
+  }
+  window.TW300_AU_deleteInvoice=deleteInvoice;
   function openDoc(id,type){
     var o=findOrder(id);
     if(!o){
@@ -34884,7 +34921,7 @@ setTimeout(()=>{
     box.innerHTML=rows.length?rows.map(function(d){
       var label=d.paid?'Betaald':'Openstaand';
       var id=H(d.orderId||d.orderNumber||d.id);
-      return '<div class="tw-au-card"><div class="tw-au-main"><div><b>'+H(d.invoiceNumber||d.orderNumber||'-')+'</b><small>Factuur</small></div><div><b>'+H(d.customer||'-')+'</b><small>Klant</small></div><div><b>'+H(d.title||'-')+'</b><small>Opdracht</small></div><div><b>'+H(d.year||'-')+'</b><small>Jaar</small></div></div><div class="tw-au-side"><span class="tw-au-badge '+(d.paid?'paid':'open')+'">'+label+'</span><b>'+H(money(d.amount))+'</b><button class="tw-au-pay" type="button" onclick="TW300_AU_setPaid(\''+id+'\','+(!d.paid)+')">'+(d.paid?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="TW300_AU_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="TW300_AU_openDoc(\''+id+'\',\'opdrachtbevestiging\')">Open opdrachtbevestiging</button></div></div>';
+      return '<div class="tw-au-card"><div class="tw-au-main"><div><b>'+H(d.invoiceNumber||d.orderNumber||'-')+'</b><small>Factuur</small></div><div><b>'+H(d.customer||'-')+'</b><small>Klant</small></div><div><b>'+H(d.title||'-')+'</b><small>Opdracht</small></div><div><b>'+H(d.year||'-')+'</b><small>Jaar</small></div></div><div class="tw-au-side"><span class="tw-au-badge '+(d.paid?'paid':'open')+'">'+label+'</span><b>'+H(money(d.amount))+'</b><button class="tw-au-pay" type="button" onclick="TW300_AU_setPaid(\''+id+'\','+(!d.paid)+')">'+(d.paid?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="TW300_AU_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="TW300_AU_openDoc(\''+id+'\',\'opdrachtbevestiging\')">Open opdrachtbevestiging</button><button type="button" class="delete" style="background:#dc2626;color:#fff" onclick="TW300_AU_deleteInvoice(\'+id+\')">Verwijder</button></div></div>';
     }).join(''):'<div class="tw-au-empty">Geen facturen gevonden.</div>';
   }
   function renderCustomers(box){
