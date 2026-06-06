@@ -34921,7 +34921,7 @@ setTimeout(()=>{
     box.innerHTML=rows.length?rows.map(function(d){
       var label=d.paid?'Betaald':'Openstaand';
       var id=H(d.orderId||d.orderNumber||d.id);
-      return '<div class="tw-au-card"><div class="tw-au-main"><div><b>'+H(d.invoiceNumber||d.orderNumber||'-')+'</b><small>Factuur</small></div><div><b>'+H(d.customer||'-')+'</b><small>Klant</small></div><div><b>'+H(d.title||'-')+'</b><small>Opdracht</small></div><div><b>'+H(d.year||'-')+'</b><small>Jaar</small></div></div><div class="tw-au-side"><span class="tw-au-badge '+(d.paid?'paid':'open')+'">'+label+'</span><b>'+H(money(d.amount))+'</b><button class="tw-au-pay" type="button" onclick="TW300_AU_setPaid(\''+id+'\','+(!d.paid)+')">'+(d.paid?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="TW300_AU_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="TW300_AU_openDoc(\''+id+'\',\'opdrachtbevestiging\')">Open opdrachtbevestiging</button><button type="button" class="delete" style="background:#dc2626;color:#fff" onclick="TW300_AU_deleteInvoice(\'+id+\')">Verwijder</button></div></div>';
+      return '<div class="tw-au-card"><div class="tw-au-main"><div><b>'+H(d.invoiceNumber||d.orderNumber||'-')+'</b><small>Factuur</small></div><div><b>'+H(d.customer||'-')+'</b><small>Klant</small></div><div><b>'+H(d.title||'-')+'</b><small>Opdracht</small></div><div><b>'+H(d.year||'-')+'</b><small>Jaar</small></div></div><div class="tw-au-side"><span class="tw-au-badge '+(d.paid?'paid':'open')+'">'+label+'</span><b>'+H(money(d.amount))+'</b><button class="tw-au-pay" type="button" onclick="TW300_AU_setPaid(\''+id+'\','+(!d.paid)+')">'+(d.paid?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="TW300_AU_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="TW300_AU_openDoc(\''+id+'\',\'opdrachtbevestiging\')">Open opdrachtbevestiging</button><button type="button" class="delete" style="background:#dc2626;color:#fff" onclick="TW300_AU_deleteInvoice(\''+id+'\')">Verwijder</button></div></div>';
     }).join(''):'<div class="tw-au-empty">Geen facturen gevonden.</div>';
   }
   function renderCustomers(box){
@@ -46945,7 +46945,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     return (mat+trans)*1.21 + dep;
   }
   function keyFor(o){ return 'factuur_'+(T(o&&o.id)||orderNo(o)||invoiceNo(o)); }
-  function isRemoved(o){ var a=acc(), k=keyFor(o), nr='factuur_nr_'+orderNo(o); return (a.removedKeys||[]).indexOf(k)>=0 || (a.removedKeys||[]).indexOf(nr)>=0; }
+  function isRemoved(o){
+    var a=acc(), k=keyFor(o), nr='factuur_nr_'+orderNo(o);
+    if(o && (o.accountingHidden===true || o.invoiceHidden===true || o.invoiceDeleted===true || o.factuurVerwijderd===true)) return true;
+    if(o && o.invoice && (o.invoice.hidden===true || o.invoice.deleted===true || o.invoice.accountingHidden===true)) return true;
+    return (a.removedKeys||[]).indexOf(k)>=0 || (a.removedKeys||[]).indexOf(nr)>=0 || (a.removedKeys||[]).indexOf(orderNo(o))>=0 || (a.removedKeys||[]).indexOf(invoiceNo(o))>=0;
+  }
   function findOrder(id){ id=T(id); return orders().find(function(o){ return [T(o.id),orderNo(o),invoiceNo(o),T(o.invoiceNumber),T(o.factuurNr)].indexOf(id)>=0; }) || null; }
   function saveNow(){ try{ if(typeof save==='function') save(); }catch(e){} try{ if(typeof saveState==='function') saveState(); }catch(e){} try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(S())); }catch(e){} }
   function syncOrder(o){ try{ if(window.BNS&&typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){} try{ if(typeof syncDoc==='function') syncDoc('orders', o.id, o); }catch(e){} }
@@ -47046,7 +47051,18 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var keys=[keyFor(o),'factuur_nr_'+orderNo(o),'factuur_'+orderNo(o),T(o.id),orderNo(o),invoiceNo(o)];
     keys.forEach(function(k){ if(k && a.removedKeys.indexOf(k)<0) a.removedKeys.push(k); });
     a.documents=(a.documents||[]).filter(function(d){ return [d.id,d.key,d.orderId,d.orderNumber,d.invoiceNumber].map(T).every(function(x){ return keys.indexOf(x)<0; }); });
-    saveNow(); render(); try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    // Omdat boekhouding deels uit orders wordt opgebouwd, ook op de order zelf markeren.
+    // Dit verwijdert de opdracht NIET; het verbergt alleen de factuurregel in Boekhouding.
+    o.accountingHidden=true;
+    o.invoiceHidden=true;
+    o.invoiceDeleted=true;
+    o.factuurVerwijderd=true;
+    o.invoice=o.invoice||{};
+    o.invoice.hidden=true;
+    o.invoice.deleted=true;
+    o.invoice.accountingHidden=true;
+    o.updatedAt=new Date().toISOString();
+    saveNow(); syncOrder(o); render(); try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
     return false;
   };
 
@@ -47065,5 +47081,5 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     }
   },true);
 
-  console.info('[BNS 528] Boekhouding facturen stabiel: uniek per opdrachtnummer + verwijderen actief.');
+  console.info('[BNS 530] Boekhouding verwijderen persistent: factuurregel wordt op order verborgen, opdracht blijft staan.');
 })();
