@@ -34,6 +34,10 @@ async function initFirebase(){
     toast("Firebase config ontbreekt");
     throw new Error("Firebase config ontbreekt");
   }
+  if(window.BNSSecurityAuth && typeof window.BNSSecurityAuth.ensureAuth === "function"){
+    setStatus("Beveiliging controleren...");
+    await window.BNSSecurityAuth.ensureAuth();
+  }
   const appMod=await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`);
   const fsMod=await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
   BNS.firebase=fsMod;
