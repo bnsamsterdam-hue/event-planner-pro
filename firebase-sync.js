@@ -225,10 +225,6 @@ if(typeof window !== "undefined"){
 async function fb(){
   if(tools)return tools;
   if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){status("Firebase config ontbreekt");return null}
-  if(window.BNSSecurityAuth && typeof window.BNSSecurityAuth.ensureAuth === "function"){
-    status("Beveiliging controleren...");
-    await window.BNSSecurityAuth.ensureAuth();
-  }
   const appMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
   const fsMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
   const app=appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);

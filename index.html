@@ -381,20 +381,18 @@
   </div>
 
   <!--
-    SCRIPT VOLGORDE:
+    SCRIPT VOLGORDE — DIT MAG NIET VERANDERD WORDEN:
     1. bns-preloader   — patchts MutationObserver + alert/confirm VOOR app.js
     2. app.js          — hoofdapplicatie
-    3. material-fix.js — materiaalweergave fix
+    3. material-fix.js — materiaalweergave fix (was eerder niet geladen!)
     4. firebase-config — Firebase sleutels
-    5. bns-security-auth — echte Firebase login vóór Firestore sync
-    6. firebase-sync   — Firebase synchronisatie
-    7. bns-stabilizer  — opruimen na alles
+    5. firebase-sync   — Firebase synchronisatie
+    6. bns-stabilizer  — opruimen na alles: Wis knop, boekhouding mappen, intervals
   -->
   <script src="bns-preloader.js"></script>
   <script src="app.js"></script>
   <script src="material-fix.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="bns-security-auth.js"></script>
   <script src="firebase-sync.js"></script>
   <script src="bns-stabilizer.js"></script>
 
