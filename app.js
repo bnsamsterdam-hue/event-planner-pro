@@ -46627,3 +46627,240 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setInterval(function(){ applyRemovedAccountingKeys(); fixOpruimenButtons(); },2500);
   console.info('[BNS 526] Admin Opruimen Boekhouding fix actief.');
 })();
+
+/* =========================================================
+   BNS 527 - Status bij wijzigen overnemen
+   Basis: 526 werkende lijn
+   - Nieuwe opdracht start altijd op Offerte
+   - Bestaande opdracht wijzigen neemt actuele status/folder over
+   - Optie 14 dagen bevestigen zet ook folder=lopend
+   - Opslaan mag status niet terugzetten naar Offerte als planner status niet handmatig wijzigde
+   Geen wijzigingen aan reservering, transport, boekhouding of telefoon-sync.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS_527_STATUS_BIJ_WIJZIGEN__) return;
+  window.__BNS_527_STATUS_BIJ_WIJZIGEN__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || null; }
+  function orders(){ var s=S(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function findOrder(idOrNr){
+    var k=T(idOrNr);
+    if(!k) return null;
+    return orders().find(function(o){ return T(o.id)===k || T(o.number)===k || T(o.orderNumber)===k; }) || null;
+  }
+  function currentEditingOrder(){
+    var id='';
+    try{ if(typeof editing !== 'undefined' && editing) id=T(editing); }catch(e){}
+    if(!id) try{ id=T(window.editing || ''); }catch(e){}
+    var nr=T((E('orderNumber')||{}).value);
+    return findOrder(id) || findOrder(nr);
+  }
+  function canonicalStatus(o){
+    if(!o) return 'Offerte';
+    var s=L(o.status || o.state || o.orderStatus || o.documentStatus || o.docStatus);
+    var f=L(o.folder || o.map || o.orderFolder || o.archiefFolder || o.archiveFolder);
+
+    // Folder is leidend wanneer statusveld nog oud/stale is.
+    if(f==='live') f='lopend';
+    if(f==='optie') f='optie14';
+    if(f==='old') f='archief';
+
+    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s) || /geann|annul|verwijderd|archief/.test(f)) return /verwijderd|deleted|trash/.test(s+f) ? 'Verwijderd' : 'Geannuleerd';
+    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s) || f==='uitgevoerd') return 'Uitgevoerd';
+    if(/optie|14/.test(s) || f==='optie14') return 'Optie 14 dagen';
+
+    // Belangrijk: bij een bevestigde optie kan status nog Offerte zijn terwijl folder al lopend is.
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s) || f==='lopend') return 'Bevestigd';
+    if(/offerte|quote/.test(s) || f==='offerte') return 'Offerte';
+    return T(o.status || '') || 'Offerte';
+  }
+  function setOrderStatusFields(o, status){
+    if(!o) return o;
+    status=T(status)||'Offerte';
+    o.status = status;
+    o.orderStatus = status;
+    o.documentStatus = status;
+    if(status === 'Bevestigd' || status === 'Opdrachtbevestiging'){
+      o.status = 'Bevestigd';
+      o.orderStatus = 'Bevestigd';
+      o.documentStatus = 'Bevestigd';
+      o.folder = 'lopend';
+      o.map = 'lopend';
+      o.orderFolder = 'lopend';
+      o.confirmedAt = o.confirmedAt || new Date().toISOString();
+    } else if(status === 'Optie 14 dagen'){
+      o.folder = 'optie14';
+      o.map = 'optie14';
+      o.orderFolder = 'optie14';
+      o.optionCreatedAt = o.optionCreatedAt || new Date().toISOString();
+    } else if(status === 'Offerte'){
+      o.folder = 'offerte';
+      o.map = 'offerte';
+      o.orderFolder = 'offerte';
+    } else if(status === 'Uitgevoerd'){
+      o.folder = 'uitgevoerd';
+      o.map = 'uitgevoerd';
+      o.orderFolder = 'uitgevoerd';
+    } else if(status === 'Geannuleerd' || status === 'Verwijderd'){
+      o.folder = 'geannuleerd';
+      o.map = 'geannuleerd';
+      o.orderFolder = 'geannuleerd';
+    }
+    o.updatedAt = new Date().toISOString();
+    return o;
+  }
+  function persistAndSync(o){
+    try{ if(typeof save === 'function') save(); }catch(e){}
+    try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(S())); }catch(e){}
+    try{ if(o && window.BNS && typeof window.BNS.syncOrder === 'function') window.BNS.syncOrder(o); }catch(e){}
+    try{ if(o && typeof syncDoc === 'function') syncDoc('orders', o.id, o); }catch(e){}
+  }
+  function applyFormStatusFromOrder(o){
+    var sel=E('orderStatus');
+    if(!sel || !o) return;
+    var st=canonicalStatus(o);
+    sel.value = st;
+    window.__bns527StatusTouched = false;
+    try{ if(typeof summaryRender === 'function') summaryRender(); }catch(e){}
+  }
+
+  // Planner handmatig aan status laat wijzigen = bewust respecteren.
+  document.addEventListener('change', function(ev){
+    if(ev.target && ev.target.id === 'orderStatus') window.__bns527StatusTouched = true;
+  }, true);
+
+  // Nieuwe opdracht via navigatie moet altijd Offerte starten.
+  document.addEventListener('click', function(ev){
+    var b=ev.target && ev.target.closest && ev.target.closest('button,a');
+    if(!b) return;
+    var txt=L(b.textContent || b.value || b.title || b.getAttribute('aria-label') || '');
+    if(txt.indexOf('nieuwe opdracht') >= 0){
+      setTimeout(function(){
+        var o=currentEditingOrder();
+        if(!o){
+          var sel=E('orderStatus');
+          if(sel) sel.value='Offerte';
+          window.__bns527StatusTouched=false;
+          try{ if(typeof summaryRender === 'function') summaryRender(); }catch(e){}
+        }
+      },120);
+    }
+  }, true);
+
+  // Wijzigen/openen bestaande opdracht: statusveld gelijkzetten met actuele opdrachtstatus/folder.
+  (function patchEditOrder(){
+    var old = window.editOrder || (typeof editOrder === 'function' ? editOrder : null);
+    if(typeof old !== 'function' || old.__bns527) return;
+    var wrapped=function(id){
+      var r=old.apply(this, arguments);
+      setTimeout(function(){
+        var o=findOrder(id) || currentEditingOrder();
+        if(o) applyFormStatusFromOrder(o);
+      },60);
+      setTimeout(function(){
+        var o=findOrder(id) || currentEditingOrder();
+        if(o) applyFormStatusFromOrder(o);
+      },250);
+      return r;
+    };
+    wrapped.__bns527=true;
+    window.editOrder=wrapped;
+    try{ editOrder=wrapped; }catch(e){}
+  })();
+
+  // Nieuwe/leegmaken: status terug naar Offerte.
+  (function patchClearOrder(){
+    var old = window.clearOrder || (typeof clearOrder === 'function' ? clearOrder : null);
+    if(typeof old !== 'function' || old.__bns527) return;
+    var wrapped=function(){
+      var r=old.apply(this, arguments);
+      var sel=E('orderStatus');
+      if(sel) sel.value='Offerte';
+      window.__bns527StatusTouched=false;
+      try{ if(typeof summaryRender === 'function') summaryRender(); }catch(e){}
+      return r;
+    };
+    wrapped.__bns527=true;
+    window.clearOrder=wrapped;
+    try{ clearOrder=wrapped; }catch(e){}
+  })();
+
+  // Opslaan: als planner status niet zelf wijzigde, bestaande actuele status behouden.
+  (function patchSaveCurrentOrder(){
+    var old = window.saveCurrentOrder || (typeof saveCurrentOrder === 'function' ? saveCurrentOrder : null);
+    if(typeof old !== 'function' || old.__bns527) return;
+    var wrapped=function(){
+      var existing=currentEditingOrder();
+      var sel=E('orderStatus');
+      if(sel){
+        if(existing && !window.__bns527StatusTouched){
+          sel.value = canonicalStatus(existing);
+        } else if(!existing && !T(sel.value)){
+          sel.value = 'Offerte';
+        }
+      }
+      var r=old.apply(this, arguments);
+      window.__bns527StatusTouched=false;
+      return r;
+    };
+    wrapped.__bns527=true;
+    window.saveCurrentOrder=wrapped;
+    try{ saveCurrentOrder=wrapped; }catch(e){}
+  })();
+
+  // Optie bevestigen vanuit alle bestaande optie-knoppen: zet status + folder exact goed.
+  function confirmOption(id){
+    var o=findOrder(id);
+    if(!o) return false;
+    setOrderStatusFields(o, 'Bevestigd');
+    persistAndSync(o);
+    try{ if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
+    try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+    return true;
+  }
+  function cancelOption(id){
+    var o=findOrder(id);
+    if(!o) return false;
+    setOrderStatusFields(o, 'Geannuleerd');
+    persistAndSync(o);
+    try{ if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
+    try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+    return true;
+  }
+  ['BNS_V356_CONFIRM','TW_V309_optionConfirm','BNS350_ok'].forEach(function(name){
+    var old=window[name];
+    window[name]=function(id){
+      var ok=confirmOption(id);
+      if(!ok && typeof old === 'function') return old.apply(this, arguments);
+      return false;
+    };
+  });
+  ['BNS_V356_CANCEL','TW_V309_optionCancel','BNS350_no'].forEach(function(name){
+    var old=window[name];
+    window[name]=function(id){
+      var ok=cancelOption(id);
+      if(!ok && typeof old === 'function') return old.apply(this, arguments);
+      return false;
+    };
+  });
+
+  // Bij laden: orders met folder=lopend maar status Offerte direct herstellen, zodat wijzigen veilig blijft.
+  setTimeout(function(){
+    var changed=false;
+    orders().forEach(function(o){
+      var f=L(o.folder || o.map || o.orderFolder);
+      var s=L(o.status);
+      if((f==='lopend' || f==='live') && /offerte|optie/.test(s)){
+        setOrderStatusFields(o, 'Bevestigd');
+        changed=true;
+      }
+    });
+    if(changed){ try{ if(typeof save === 'function') save(); }catch(e){} }
+  },600);
+
+  console.info('[BNS 527] Status bij wijzigen fix actief.');
+})();
