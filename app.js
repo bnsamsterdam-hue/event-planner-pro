@@ -47442,3 +47442,140 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.info('[BNS 542] Overzicht bestelling koppelt nu exact aan de aangeklikte opdrachtkaart.');
 })();
+
+/* =========================================================
+   BNS 543 - Overzicht bestelling vanuit Nieuwe opdracht fix
+   Basis: 542
+   Probleem:
+   - In Nieuwe opdracht > Materialen kan een klik op een gereserveerd materiaal
+     een oud opdrachtnummer in het scherm/popup achterlaten.
+   - Oude overzicht-handlers scanden daarna de pagina-tekst en pakten dat
+     laatst gereserveerde opdrachtnummer.
+   Fix:
+   - Overzicht bestelling wordt al op window-capture onderschept, dus vóór oude
+     document-handlers.
+   - Als de knop in een opdrachtkaart staat: gebruik die kaart.
+   - Als de knop in Nieuwe opdracht/Wijzigen staat: gebruik exact het huidige
+     ordernummer/editing-id uit het formulier.
+   - Nooit meer zoeken op gereserveerd-materiaal tekst of willekeurige pagina-tekst.
+   ========================================================= */
+(function(){
+  "use strict";
+  if(window.__BNS543_OVERVIEW_FORM_CURRENT_ORDER__) return;
+  window.__BNS543_OVERVIEW_FORM_CURRENT_ORDER__ = true;
+
+  function T(v){ return String(v == null ? "" : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function E(id){ return document.getElementById(id); }
+  function S(){
+    try{ if(typeof state !== "undefined" && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    try{ return JSON.parse(localStorage.getItem("event-planner-pro-v87") || "{}"); }catch(e){}
+    return { orders: [] };
+  }
+  function orders(){ var s=S(); return Array.isArray(s.orders) ? s.orders : []; }
+  function findOrder(key){
+    key=T(key);
+    if(!key) return null;
+    var list=orders();
+    return list.find(function(o){ return T(o.id)===key; }) ||
+           list.find(function(o){ return T(o.number)===key; }) ||
+           list.find(function(o){ return T(o.orderNumber)===key; }) ||
+           list.find(function(o){ return T(o.nr)===key; }) ||
+           null;
+  }
+  function currentEditingId(){
+    try{ if(typeof editing !== "undefined" && editing) return T(editing); }catch(e){}
+    try{ if(window.editing) return T(window.editing); }catch(e){}
+    try{ if(window.currentEditId) return T(window.currentEditId); }catch(e){}
+    return "";
+  }
+  function formOrderNumber(){
+    var ids=["orderNumber","orderNo","orderNr","orderId","orderCode"];
+    for(var i=0;i<ids.length;i++){
+      var el=E(ids[i]);
+      if(el && T(el.value || el.textContent)) return T(el.value || el.textContent);
+    }
+    return "";
+  }
+  function isOverviewButton(el){
+    var b=el && el.closest ? el.closest('button,a,[role="button"],input[type="button"],input[type="submit"]') : null;
+    if(!b) return null;
+    var text=L(b.textContent || b.value || b.title || b.getAttribute('aria-label') || '');
+    var raw=L((b.getAttribute && (b.getAttribute('onclick') || b.getAttribute('href') || '')) || '');
+    if(text.indexOf('overzicht bestelling') >= 0 || text.indexOf('overzicht maken') >= 0 || raw.indexOf('order_overview') >= 0 || raw.indexOf('showorderoverview') >= 0) return b;
+    return null;
+  }
+  function closestOrderCard(el){
+    var n=el;
+    for(var i=0;i<14 && n && n!==document.body;i++,n=n.parentElement){
+      if(!n.matches) continue;
+      var hasData=n.getAttribute('data-bns-order-id') || n.getAttribute('data-order-id') || n.getAttribute('data-order-number') || n.getAttribute('data-oid') || n.getAttribute('data-id');
+      var cls=L(n.className || '');
+      if(hasData || /order-card|ordercard|opdracht|dashboard-card/.test(cls)) return n;
+    }
+    return null;
+  }
+  function orderFromCard(card){
+    if(!card) return null;
+    var keys=[];
+    ['data-bns-order-id','data-order-id','data-order-number','data-oid','data-id','data-number'].forEach(function(a){
+      var v=card.getAttribute && card.getAttribute(a);
+      if(T(v)) keys.push(T(v));
+    });
+    if(card.dataset){
+      Object.keys(card.dataset).forEach(function(k){ if(/order|oid|number|id/i.test(k) && T(card.dataset[k])) keys.push(T(card.dataset[k])); });
+    }
+    for(var i=0;i<keys.length;i++){ var o=findOrder(keys[i]); if(o) return o; }
+    var direct=T(card.textContent || '');
+    var m=direct.match(/\b20\d{2}-\d{3,6}\b/);
+    return m ? findOrder(m[0]) : null;
+  }
+  function inOrderForm(el){
+    var n=el;
+    for(var i=0;i<18 && n && n!==document.body;i++,n=n.parentElement){
+      var id=L(n.id || ''), cls=L(n.className || ''), text=L(n.getAttribute && (n.getAttribute('aria-label') || n.getAttribute('data-tab') || '') || '');
+      if(/new|order|opdracht|editor|form|work/.test(id+' '+cls+' '+text)) return true;
+      if(n.querySelector && n.querySelector('#orderNumber,#orderStatus,#orderTitle,#customerName')) return true;
+    }
+    return !!(E('orderNumber') || E('orderStatus'));
+  }
+  function currentFormOrder(){
+    var id=currentEditingId();
+    var nr=formOrderNumber();
+    return findOrder(id) || findOrder(nr) || null;
+  }
+  function openOverview(o){
+    if(!o) return false;
+    var key=o.id || o.number || o.orderNumber || o.nr;
+    if(typeof window.BNS_V493_SHOW === 'function') return window.BNS_V493_SHOW(key);
+    if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW === 'function') return window.BNS_V128_SHOW_ORDER_OVERVIEW(key);
+    return false;
+  }
+
+  window.addEventListener('click', function(ev){
+    var btn=isOverviewButton(ev.target);
+    if(!btn) return;
+
+    var o=null;
+    var card=closestOrderCard(btn);
+    if(card) o=orderFromCard(card);
+
+    // Belangrijk: in Nieuwe opdracht/Wijzigen wint het huidige formulier altijd.
+    // Dit voorkomt dat een gereserveerd-materiaal popup/order in de pagina-tekst wordt opgepakt.
+    if(inOrderForm(btn)){
+      var formOrder=currentFormOrder();
+      if(formOrder) o=formOrder;
+    }
+
+    if(!o) return; // laat oude route alleen toe als wij echt geen exacte order kennen
+
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+    openOverview(o);
+    return false;
+  }, true);
+
+  console.info('[BNS 543] Overzicht bestelling gebruikt in Nieuwe opdracht altijd de huidige opdracht, niet laatst gereserveerd materiaal.');
+})();
