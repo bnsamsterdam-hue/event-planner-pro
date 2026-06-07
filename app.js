@@ -46471,7 +46471,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     o=o||{}; if(!Array.isArray(o.transportLines)) o.transportLines=[];
     var st=styleData(), fact=/factuur/i.test(type), title=docTitle(o,type), tt=totals(o), c=o.customer||{}, l=o.location||{};
     var css='@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:13px}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px;z-index:9}.actions button{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:8px 12px;font-weight:800}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:12mm 14mm}.bns525-logo{text-align:center;margin-bottom:4mm}.bns525-logo img{max-width:96mm;max-height:25mm;object-fit:contain}.brand{font-size:34px;font-weight:900;color:'+H(st.accent||'#0ea5e9')+'}.tag{font-weight:800;font-style:italic}.doc-title{text-align:center;font-size:20px;font-weight:900;margin:2mm 0 5mm}.top{display:grid;grid-template-columns:1fr 60mm;gap:10mm}.card{border:1px solid #dbe3ef;border-radius:10px;padding:9px;margin:8px 0}.line{border-top:1.5px solid #333;margin:5mm 0}table{width:100%;border-collapse:collapse}th{border-bottom:1px solid #333;text-align:left}td,th{padding:1.5mm;vertical-align:top}.amount{text-align:right}.totals{width:82mm;margin-left:auto;margin-top:7mm;border-top:1.5px solid #333}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}@media print{body{background:#fff}.actions{display:none}.page{margin:0}}';
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){history.back()}}catch(e){}},120)">Terug</button></div><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div><div class="line"></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Transport</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table><div class="card"><b>Bijzonderheden</b><br><span style="white-space:pre-wrap">'+H(o.extra||'')+'</span></div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal transport</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table></main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="navigator.share?navigator.share({title:document.title,text:document.body.innerText}):alert(\'Delen wordt niet ondersteund\')">Delen</button><button onclick="location.href=\'https://wa.me/?text=\'+encodeURIComponent(document.body.innerText)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){history.back()}}catch(e){}},120)">Terug</button></div><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div><div class="line"></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Transport</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table><div class="card"><b>Bijzonderheden</b><br><span style="white-space:pre-wrap">'+H(o.extra||'')+'</span></div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal transport</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table></main></body></html>';
   }
   function openOrderDoc(o,type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } try{ w.document.open(); w.document.write(docHtml(o,type)); w.document.close(); }catch(e){ alert('Document kon niet worden geopend: '+e.message); } return false; }
   function dedupeAccountingDocs(){
@@ -47599,4 +47599,38 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setTimeout(cleanupDuplicateDocButtons,300);
   setTimeout(cleanupDuplicateDocButtons,1200);
   setInterval(cleanupDuplicateDocButtons,2500);
+})();
+
+
+/* =========================================================
+   BNS 546 - Document-acties naar documentvenster
+   - Print/Mail/Delen/WhatsApp verdwijnen uit Documenten-tab
+   - Delen en WhatsApp staan in het geopende factuur/offerte/opdrachtdocument
+   - Factuurstatus blijft weg; betaling blijft staan
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS_546_DOC_ACTIONS_IN_DOC__) return;
+  window.__BNS_546_DOC_ACTIONS_IN_DOC__ = true;
+  function cleanDocPanelActions(){
+    var panel=document.getElementById('documentsPanel')||document.getElementById('bnsDocumentenPanel');
+    if(!panel) return;
+    ['bnsPrintDocV73','bnsMailDocV73','bnsShareDocV73','bnsWhatsAppDocV73'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.remove();
+    });
+    panel.querySelectorAll('button,a').forEach(function(b){
+      if(b.closest && b.closest('#tw300AUModal')) return;
+      var txt=String(b.textContent||'').trim().toLowerCase();
+      var inV73=b.closest && b.closest('#bnsV73InvoiceBox');
+      if(inV73 && (txt==='printen' || txt==='print' || txt==='mailen' || txt==='mail' || txt==='delen' || txt==='whatsapp')){
+        b.remove();
+      }
+    });
+  }
+  document.addEventListener('click', function(){ setTimeout(cleanDocPanelActions,60); }, true);
+  setTimeout(cleanDocPanelActions,200);
+  setTimeout(cleanDocPanelActions,1000);
+  setInterval(cleanDocPanelActions,2000);
+  console.info('[BNS 546] Document acties staan alleen in factuur/offerte venster.');
 })();
