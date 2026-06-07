@@ -47787,3 +47787,119 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setTimeout(schedule,1500);
   console.info('[BNS 556] syntax veilig: rustige media delen/WhatsApp actief.');
 })();
+
+/* =========================================================
+   BNS 557 - Overzicht bestelling WhatsApp zoals factuur
+   - WhatsApp bij foto/handtekening/melding opent WhatsApp met nette tekst.
+   - Delen blijft voor browser-delen/bestand.
+   - Eigen systeemtekst als WhatsApp openen niet lukt.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS557_OVERZICHT_WHATSAPP_FACTUUR_ROUTE__) return;
+  window.__BNS557_OVERZICHT_WHATSAPP_FACTUUR_ROUTE__ = true;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
+  function L(v){ return T(v).toLowerCase(); }
+  function typeOfMedia(a){
+    var s=T(a && (a.type||a.kind||a.title||a.category||a.label));
+    var all=L([s,a&&a.note,a&&a.message,a&&a.text].join(' '));
+    if(/handtekening|signature/.test(all) || (a && (a.signatureData||a.signature||a.customerSignature))) return 'Handtekening klant';
+    if(/foto|photo|image|afbeelding/.test(all) || (a && (a.photoData||a.photo||a.image||a.data))) {
+      if(/na|after/.test(all)) return 'Foto na levering';
+      if(/voor|before/.test(all)) return 'Foto voor levering';
+      return 'Foto';
+    }
+    return s || 'Melding';
+  }
+  function timeOfMedia(a){ return T(a && (a.createdAt||a.time||a.date||a.updatedAt||'')); }
+  function noteOfMedia(a){ return T(a && (a.note||a.message||a.text||a.description||'')); }
+  function ownMsg(title, text){
+    try{
+      var old=document.getElementById('bns557Msg'); if(old) old.remove();
+      var wrap=document.createElement('div'); wrap.id='bns557Msg';
+      wrap.style.cssText='position:fixed;inset:0;z-index:2147483640;background:rgba(15,23,42,.45);display:grid;place-items:center;padding:18px;font-family:Arial,sans-serif';
+      wrap.innerHTML='<div style="background:white;color:#172033;border-radius:20px;max-width:430px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.35)"><h2 style="margin:0 0 10px;font-size:22px">'+H(title)+'</h2><p style="line-height:1.45;margin:0 0 16px">'+H(text)+'</p><button type="button" style="float:right;background:#2563eb;color:white;border:0;border-radius:12px;padding:10px 18px;font-weight:900" onclick="document.getElementById(\'bns557Msg\').remove()">OK</button><div style="clear:both"></div></div>';
+      document.body.appendChild(wrap);
+    }catch(e){ try{ alert(title+'\n\n'+text); }catch(_){} }
+  }
+  function whatsappText(a){
+    var parts=[typeOfMedia(a), timeOfMedia(a), noteOfMedia(a)].filter(Boolean);
+    return parts.join('\n');
+  }
+  function openWhatsAppMedia(a){
+    var txt=whatsappText(a);
+    if(!txt){
+      ownMsg('WhatsApp','Er is geen tekst beschikbaar om naar WhatsApp te sturen.');
+      return false;
+    }
+    try{
+      window.location.href='https://wa.me/?text='+encodeURIComponent(txt);
+    }catch(e){
+      try{ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank'); }
+      catch(e2){ ownMsg('WhatsApp','WhatsApp openen lukt niet in deze browser.'); }
+    }
+    return false;
+  }
+
+  window.BNS_V493_WHATSAPP=function(key){
+    var a=window.BNS_V493_MEDIA && window.BNS_V493_MEDIA[key];
+    if(!a){ ownMsg('WhatsApp','Deze foto/handtekening is niet meer gevonden. Sluit het overzicht en open het opnieuw.'); return false; }
+    return openWhatsAppMedia(a);
+  };
+  window.BNS_V474_WHATSAPP_MEDIA=function(key){
+    var a=window.__bnsV474Media && window.__bnsV474Media[key];
+    if(!a){ ownMsg('WhatsApp','Deze foto/handtekening is niet meer gevonden. Sluit het overzicht en open het opnieuw.'); return false; }
+    return openWhatsAppMedia(a);
+  };
+
+  function fixButtons(root){
+    root=root||document;
+    var cards=root.querySelectorAll ? root.querySelectorAll('.bns-v493-card,.tw-v141-card') : [];
+    Array.prototype.forEach.call(cards,function(card){
+      var actions=card.querySelector('.bns-v493-actions,.tw-v141-actions');
+      if(!actions) return;
+      var existing=actions.querySelector('[data-bns555-wa],[data-bns557-wa]');
+      if(existing){
+        existing.setAttribute('data-bns557-wa','1');
+        existing.textContent='WhatsApp';
+        existing.style.background='#16a34a';
+        return;
+      }
+      var del=actions.querySelector('button');
+      var oc=del ? String(del.getAttribute('onclick')||'') : '';
+      var m=oc.match(/BNS_V493_SHARE\('([^']+)'\)/) || oc.match(/BNS_V474_SHARE_MEDIA\('([^']+)'\)/);
+      if(!m) return;
+      var key=m[1];
+      var b=document.createElement('button');
+      b.type='button'; b.textContent='WhatsApp'; b.setAttribute('data-bns557-wa','1');
+      b.style.background='#16a34a'; b.style.color='#fff';
+      b.onclick=function(ev){
+        if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation(); }
+        if(oc.indexOf('BNS_V474_')>=0) return window.BNS_V474_WHATSAPP_MEDIA(key);
+        return window.BNS_V493_WHATSAPP(key);
+      };
+      if(del && del.nextSibling) actions.insertBefore(b, del.nextSibling); else actions.appendChild(b);
+    });
+  }
+
+  document.addEventListener('click',function(ev){
+    var b=ev.target && ev.target.closest && ev.target.closest('button[data-bns555-wa],button[data-bns557-wa]');
+    if(!b) return;
+    ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();
+    var actions=b.closest('.bns-v493-actions,.tw-v141-actions');
+    var del=actions && actions.querySelector('button');
+    var oc=del ? String(del.getAttribute('onclick')||'') : '';
+    var m=oc.match(/BNS_V493_SHARE\('([^']+)'\)/) || oc.match(/BNS_V474_SHARE_MEDIA\('([^']+)'\)/);
+    if(!m) return false;
+    if(oc.indexOf('BNS_V474_')>=0) return window.BNS_V474_WHATSAPP_MEDIA(m[1]);
+    return window.BNS_V493_WHATSAPP(m[1]);
+  },true);
+
+  setTimeout(function(){ fixButtons(document); },300);
+  setTimeout(function(){ fixButtons(document); },1200);
+  document.addEventListener('bns:firebase-updated',function(){ setTimeout(function(){ fixButtons(document); },250); });
+  document.addEventListener('bns:phone-media-updated',function(){ setTimeout(function(){ fixButtons(document); },250); });
+  console.info('[BNS 557] Overzicht WhatsApp opent nu zoals factuur met nette tekst-route.');
+})();
