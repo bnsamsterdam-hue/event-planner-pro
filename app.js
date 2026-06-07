@@ -47353,3 +47353,92 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   console.info("[BNS 536] Materiaal rustig + Omhoog veilig in bestaande balk.");
 })();
+
+/* =========================================================
+   BNS 542 - Overzicht bestelling altijd juiste opdracht
+   - Probleem: na klikken op gereserveerd materiaal bleef soms de laatst bekeken
+     reserveringsopdracht actief, waardoor Overzicht bestelling verkeerde order toonde.
+   - Fix: klik op Overzicht bestelling wordt opgevangen en gekoppeld aan de
+     opdrachtkaart zelf via data-order-id of exact opdrachtnummer (20xx-xxxx).
+   - Raakt geen reservering, materialen, telefoon, login of Firebase-rules.
+   ========================================================= */
+(function(){
+  "use strict";
+  if(window.__BNS542_OVERVIEW_EXACT_ORDER__) return;
+  window.__BNS542_OVERVIEW_EXACT_ORDER__ = true;
+
+  function txt(v){ return String(v == null ? "" : v).trim(); }
+  function S(){
+    try{ if(typeof state !== "undefined" && state) return state; }catch(e){}
+    return window.state || { orders: [] };
+  }
+  function orders(){
+    var s = S();
+    return Array.isArray(s.orders) ? s.orders : [];
+  }
+  function findOrderByAny(key){
+    key = txt(key);
+    if(!key) return null;
+    var list = orders();
+    return list.find(function(o){ return txt(o.id) === key; }) ||
+           list.find(function(o){ return txt(o.number) === key; }) ||
+           list.find(function(o){ return txt(o.orderNumber) === key; }) ||
+           list.find(function(o){ return txt(o.nr) === key; }) ||
+           null;
+  }
+  function closestOrderCard(el){
+    while(el && el !== document.body){
+      if(el.matches && el.matches('.order-card,.bns-v126-order-card,[data-bns-order-id],[data-order-id],[data-order-number],.card')){
+        var text = txt(el.textContent || "");
+        if(el.getAttribute('data-bns-order-id') || el.getAttribute('data-order-id') || el.getAttribute('data-order-number') || /20\d{2}-\d{3,6}/.test(text)) return el;
+      }
+      el = el.parentNode;
+    }
+    return null;
+  }
+  function orderFromCard(card){
+    if(!card) return null;
+    var id = card.getAttribute('data-bns-order-id') || card.getAttribute('data-order-id') || card.getAttribute('data-id') || "";
+    var o = findOrderByAny(id);
+    if(o) return o;
+    var num = card.getAttribute('data-order-number') || card.getAttribute('data-number') || "";
+    o = findOrderByAny(num);
+    if(o) return o;
+    var text = txt(card.textContent || "");
+    var m = text.match(/20\d{2}-\d{3,6}/);
+    if(m) return findOrderByAny(m[0]);
+    return null;
+  }
+  function isOverviewButton(el){
+    if(!el) return false;
+    var node = el.closest ? el.closest('button,a,[role="button"]') : null;
+    if(!node) return false;
+    return /overzicht\s*bestelling/i.test(txt(node.textContent || node.value || node.getAttribute('aria-label') || ""));
+  }
+  function getOverviewButton(el){
+    return el && el.closest ? el.closest('button,a,[role="button"]') : null;
+  }
+
+  document.addEventListener('click', function(ev){
+    if(!isOverviewButton(ev.target)) return;
+    var btn = getOverviewButton(ev.target);
+    var card = closestOrderCard(btn);
+    var o = orderFromCard(card);
+    if(!o) return; // laat oude handler proberen als we echt niets kunnen vinden
+
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+
+    try{
+      if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW === 'function'){
+        window.BNS_V128_SHOW_ORDER_OVERVIEW(o.id || o.number || o.orderNumber);
+      }
+    }catch(e){
+      alert('Overzicht bestelling kon niet worden geopend voor '+txt(o.number || o.id));
+    }
+    return false;
+  }, true);
+
+  console.info('[BNS 542] Overzicht bestelling koppelt nu exact aan de aangeklikte opdrachtkaart.');
+})();
