@@ -47904,15 +47904,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   console.info('[BNS 557] Overzicht WhatsApp opent nu zoals factuur met nette tekst-route.');
 })();
 
-
-
-// ===== BNS 559 mobiele planner/admin layout =====
+// ===== BNS 560 mobiele planner/admin layout - veilig zonder materiaal-rijen te forceren =====
 (function(){
-  if(window.__BNS_MOBILE_PLANNER_559__) return;
-  window.__BNS_MOBILE_PLANNER_559__ = true;
+  if(window.__BNS_MOBILE_PLANNER_560__) return;
+  window.__BNS_MOBILE_PLANNER_560__ = true;
 
   var css = `
-  /* BNS 559 - mobielvriendelijke planner/admin layout */
+  /* BNS 560 - mobielvriendelijke planner/admin layout, veilig voor materialen */
   .bns-mobile-menu-btn{
     display:none;
     position:fixed;
@@ -47938,23 +47936,11 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   body.bns-mobile-menu-open .bns-mobile-menu-backdrop{display:block;}
 
   @media (max-width: 820px){
-    html,body{
-      width:100%;
-      max-width:100%;
-      overflow-x:hidden;
-      -webkit-text-size-adjust:100%;
-    }
-    body{
-      font-size:16px;
-      line-height:1.35;
-    }
+    html,body{width:100%;max-width:100%;overflow-x:hidden;-webkit-text-size-adjust:100%;}
+    body{font-size:16px;line-height:1.35;}
     .bns-mobile-menu-btn{display:block;}
 
-    /* Linker menu wordt een uitschuif-menu bovenop de pagina */
-    .side,
-    aside.side,
-    .sidebar,
-    aside.sidebar{
+    .side, aside.side, .sidebar, aside.sidebar{
       position:fixed !important;
       top:0 !important;
       left:0 !important;
@@ -47975,18 +47961,9 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     body.bns-mobile-menu-open .side,
     body.bns-mobile-menu-open aside.side,
     body.bns-mobile-menu-open .sidebar,
-    body.bns-mobile-menu-open aside.sidebar{
-      transform:translateY(0);
-    }
+    body.bns-mobile-menu-open aside.sidebar{transform:translateY(0);}
 
-    /* Hoofdscherm volle breedte */
-    #app,
-    .app,
-    main,
-    .main,
-    .content,
-    .workspace,
-    .page.active{
+    #app,.app,main,.main,.content,.workspace,.page.active{
       width:100% !important;
       max-width:100% !important;
       min-width:0 !important;
@@ -47995,39 +47972,17 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       padding-right:10px !important;
       box-sizing:border-box !important;
     }
-    #app:not(.hidden),
-    .app:not(.hidden){
-      padding-top:62px !important;
-    }
+    #app:not(.hidden),.app:not(.hidden){padding-top:62px !important;}
 
-    /* Kaarten en formulieren onder elkaar */
-    .summary,
-    .order-head,
-    .grid,
-    .cards,
-    .form-grid,
-    .admin-grid,
-    .settings-grid,
-    .dashboard-grid,
-    #dashboardGrid,
-    .two-col,
-    .three-col,
-    .cols,
-    .row{
+    /* Alleen bekende layout-containers stapelen. NIET .row gebruiken: dat maakte verborgen materiaalregels zichtbaar. */
+    .summary,.order-head,.grid,.cards,.form-grid,.admin-grid,.settings-grid,.dashboard-grid,#dashboardGrid,.two-col,.three-col,.cols{
       display:grid !important;
       grid-template-columns:1fr !important;
       gap:10px !important;
       width:100% !important;
       max-width:100% !important;
     }
-    .summary-card,
-    .card,
-    .panel,
-    .box,
-    .order-card,
-    .dash-widget,
-    .tab-panel,
-    fieldset{
+    .summary-card,.card,.panel,.box,.order-card,.dash-widget,.tab-panel,fieldset{
       width:100% !important;
       max-width:100% !important;
       min-width:0 !important;
@@ -48035,183 +47990,95 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       overflow-wrap:anywhere;
     }
 
-    /* Tabs en knoppen groot genoeg voor vingers */
-    button,
-    .btn,
-    .nav,
-    .worktab,
-    input,
-    select,
-    textarea{
-      font-size:16px !important;
-    }
-    button,
-    .btn,
-    .nav,
-    .worktab{
-      min-height:44px !important;
-      touch-action:manipulation;
-    }
-    .tabs,
-    .admin-tabs,
-    .worktabs,
-    .navs,
-    .actions,
-    .toolbar,
-    .button-row,
-    .doc-actions{
+    button,.btn,.nav,.worktab,input,select,textarea{font-size:16px !important;}
+    button,.btn,.nav,.worktab{min-height:44px !important;touch-action:manipulation;}
+    .tabs,.admin-tabs,.worktabs,.navs,.actions,.toolbar,.button-row,.doc-actions{
       display:flex !important;
       flex-wrap:wrap !important;
       gap:8px !important;
       width:100% !important;
       max-width:100% !important;
     }
-    .tabs button,
-    .admin-tabs button,
-    .worktabs button,
-    .actions button,
-    .toolbar button,
-    .button-row button,
-    .doc-actions button{
+    .tabs button,.admin-tabs button,.worktabs button,.actions button,.toolbar button,.button-row button,.doc-actions button{
       flex:1 1 auto !important;
       min-width:120px !important;
     }
 
-    input,
-    select,
-    textarea{
-      width:100% !important;
-      max-width:100% !important;
-      box-sizing:border-box !important;
-    }
+    input,select,textarea{width:100% !important;max-width:100% !important;box-sizing:border-box !important;}
     textarea{min-height:96px;}
 
-    /* Tabellen mogen horizontaal scrollen, niet de hele pagina */
-    table{
-      display:block !important;
+    /* Geen table/tr display overschrijven; alleen tabelhouder horizontaal laten scrollen */
+    .table-wrap,.table-container,.admin-table,.list-wrap,.book-table,.materials-table-wrap{
       width:100% !important;
       max-width:100% !important;
       overflow-x:auto !important;
       -webkit-overflow-scrolling:touch;
-      white-space:nowrap;
-    }
-    thead,tbody,tr{width:max-content;}
-
-    /* Opdrachtkaarten beter leesbaar */
-    .order-card,
-    .order,
-    .orderItem,
-    .list-card{
-      padding:14px !important;
-      border-radius:18px !important;
-    }
-    .order-card h2,
-    .order-card h3,
-    .list-card h2,
-    .list-card h3{
-      font-size:22px !important;
-      line-height:1.12 !important;
     }
 
-    /* Materialen en lijsten niet naast elkaar persen */
-    .materials,
-    .material-list,
-    .chosen,
-    .chosen-list,
-    .items-list,
-    .search-results{
-      width:100% !important;
-      max-width:100% !important;
-      min-width:0 !important;
-    }
-
-    /* Popups/modals passen op telefoon */
-    .modal,
-    .dialog,
-    .popup,
-    .overlay,
-    .modal-card,
-    .modal-content{
-      max-width:calc(100vw - 16px) !important;
-      width:calc(100vw - 16px) !important;
-      max-height:calc(100vh - 20px) !important;
-      box-sizing:border-box !important;
-    }
-    .modal-card,
-    .modal-content,
-    .popup{
+    .modal,.dialog,.popup,.overlay .box,.bns-modal,.doc-window{
+      width:calc(100vw - 20px) !important;
+      max-width:calc(100vw - 20px) !important;
+      max-height:86vh !important;
       overflow:auto !important;
-      -webkit-overflow-scrolling:touch;
-    }
-
-    /* Login/PIN blijft netjes gecentreerd */
-    #login,
-    .login{
-      padding:14px !important;
-      width:100% !important;
-      max-width:100% !important;
-      box-sizing:border-box !important;
-    }
-    .login-card{
-      width:min(100%, 430px) !important;
-      max-width:100% !important;
-      margin-left:auto !important;
-      margin-right:auto !important;
-    }
-
-    /* Toast/eigen meldingen zichtbaar houden */
-    #toast,
-    .toast{
       left:10px !important;
       right:10px !important;
-      bottom:10px !important;
-      max-width:calc(100vw - 20px) !important;
-      width:auto !important;
-      z-index:2147482600 !important;
+      box-sizing:border-box !important;
+    }
+
+    .sticky-actions,.savebar,.bottom-actions,.footer-actions{
+      left:0 !important;
+      right:0 !important;
+      width:100% !important;
+      max-width:100% !important;
+      box-sizing:border-box !important;
+      padding:8px !important;
+      gap:8px !important;
+      display:flex !important;
+      flex-wrap:wrap !important;
+    }
+    .sticky-actions button,.savebar button,.bottom-actions button,.footer-actions button{flex:1 1 auto;}
+
+    .invoice,.document,.paper,.doc-page{
+      max-width:100% !important;
+      overflow-x:auto !important;
     }
   }
   `;
 
   function addStyle(){
-    if(document.getElementById('bnsMobilePlanner559Style')) return;
-    var s=document.createElement('style');
-    s.id='bnsMobilePlanner559Style';
-    s.textContent=css;
-    document.head.appendChild(s);
+    if(document.getElementById('bns-mobile-style-560')) return;
+    var st=document.createElement('style');
+    st.id='bns-mobile-style-560';
+    st.textContent=css;
+    document.head.appendChild(st);
   }
 
-  function addMenu(){
+  function addMenuButton(){
     if(document.getElementById('bnsMobileMenuBtn')) return;
     var btn=document.createElement('button');
     btn.id='bnsMobileMenuBtn';
     btn.className='bns-mobile-menu-btn';
     btn.type='button';
     btn.textContent='☰ Menu';
-    btn.onclick=function(){
-      document.body.classList.toggle('bns-mobile-menu-open');
-    };
+    btn.onclick=function(){ document.body.classList.toggle('bns-mobile-menu-open'); };
+    document.body.appendChild(btn);
+
     var bg=document.createElement('div');
-    bg.id='bnsMobileMenuBackdrop';
     bg.className='bns-mobile-menu-backdrop';
     bg.onclick=function(){ document.body.classList.remove('bns-mobile-menu-open'); };
     document.body.appendChild(bg);
-    document.body.appendChild(btn);
 
-    document.addEventListener('click', function(e){
+    document.addEventListener('click',function(e){
       var t=e.target;
-      if(t && t.closest && t.closest('.side .nav, aside.side .nav, .sidebar .nav')){
+      if(t && t.closest && (t.closest('.side .nav') || t.closest('.sidebar .nav') || t.closest('.side button') || t.closest('.sidebar button'))){
         setTimeout(function(){ document.body.classList.remove('bns-mobile-menu-open'); },80);
       }
-    }, true);
+    },true);
   }
 
-  function boot(){
-    addStyle();
-    addMenu();
-    document.body.classList.add('bns-mobile-planner-559');
-    console.info('[BNS 559] Mobiele planner/admin layout actief');
-  }
-
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
+  function install(){ addStyle(); addMenuButton(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
+  setTimeout(install,300);
+  setTimeout(install,1000);
+  console.info('[BNS 560] Mobiele layout actief zonder materiaalregels te forceren.');
 })();
