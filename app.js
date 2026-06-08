@@ -26318,6 +26318,14 @@ setTimeout(()=>{
     var map=readMap();
     delete map[String(id)];
     writeMap(map);
+    // Verwijder ook uit Firebase zodat mobiel hem niet meer ziet
+    try{
+      if(typeof fbDel==='function') fbDel('materials', id);
+      else if(window.BNS && window.BNS.fs && window.BNS.db){
+        var _r=window.BNS.fs.doc(window.BNS.db,'materials',String(id));
+        window.BNS.fs.deleteDoc(_r).catch(function(){});
+      }
+    }catch(_e){}
     selectedId="";
     window.__bnsSelectedMaterialId="";
     window.bnsSelectedMaterialId="";
@@ -28045,7 +28053,16 @@ setTimeout(()=>{
     return /bezorger|driver|chauffeur/.test(L(u && u.role));
   }
   function isPhone(){
-    return window.innerWidth <= 760 || /[?&](driver|bezorger)=1/i.test(location.search);
+    // Alleen phone-modus als het echt de driver/bezorger URL is
+    // Niet op basis van schermgrootte - planner moet altijd planner blijven
+    var h=String(location.href||'').toLowerCase();
+    if(h.indexOf('/driver')>=0 || h.indexOf('bezorger=1')>=0 || h.indexOf('driver=1')>=0) return true;
+    // Alleen phone als ingelogde gebruiker een bezorger-rol heeft
+    try{
+      var u=phoneUser&&phoneUser();
+      if(u && /bezorger/i.test(u.role||'')) return true;
+    }catch(e){}
+    return false;
   }
   function css(){
     if(E(STYLE_ID)) return;
