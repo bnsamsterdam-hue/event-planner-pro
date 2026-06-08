@@ -27275,7 +27275,7 @@ setTimeout(()=>{
     }
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>'+
     '@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px;z-index:5}.actions button{border:0;border-radius:10px;padding:9px 12px;background:'+accent+';color:#fff;font-weight:800;cursor:pointer}.top{display:flex;justify-content:space-between;border-bottom:5px solid '+accent+';padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{font-size:14px;text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:'+accent+';color:white;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}'+
-    '</style></head><body><div class="actions"><button onclick="window.print()">Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="navigator.share?navigator.share({title:document.title,text:document.body.innerText}):alert(\'Delen wordt niet ondersteund\')">Delen</button><button onclick="location.href=\'https://wa.me/?text=\'+encodeURIComponent(document.body.innerText)">WhatsApp</button></div><main class="page">'+
+    '</style></head><body><div class="actions"><button onclick="window.print()">Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="(function(){var txt=document.body.innerText||&quot;&quot;;function fallback(){try{navigator.clipboard&&navigator.clipboard.writeText(txt)}catch(e){}alert(&quot;Delen lukt niet in deze browser. De tekst is gekopieerd; plak hem eventueel in e-mail of WhatsApp.&quot;)}if(navigator.share){navigator.share({title:document.title,text:txt}).catch(fallback)}else{fallback()}})()">Delen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button></div><main class="page">'+
     '<section class="top"><div class="doctype">'+esc(title)+'</div><div class="meta"><b>Opdracht '+esc(o.number)+'</b><br>Factuur nr: <b>'+esc(m.invoiceNumber||'-')+'</b><br>Type: '+esc(m.invoiceType)+'<br>Betaling: '+esc(m.paymentType)+'</div></section>'+
     '<div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+esc(o.customer.name)+'</b><br>'+esc(o.customer.street)+'<br>'+esc([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+esc(o.customer.phone)+'<br>'+esc(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+esc(o.location.name)+'</b><br>'+esc(o.location.street)+'<br>'+esc([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div>'+
     '<section class="card"><div class="label">Opdracht</div><b>'+esc(o.title)+'</b><br>Status: '+esc(o.status)+'<br>Datum: '+esc(o.start)+(o.end&&o.end!==o.start?' t/m '+esc(o.end):'')+'<br>Merk: '+esc(o.brand)+'</section>'+
@@ -29292,7 +29292,7 @@ setTimeout(()=>{
     var o=orderForDoc(), t=totals(), title=docTypeTitle(), inv=invoiceNumberForDoc();
     persistInvoiceMeta();
     var meta='<b>Opdracht '+H(o.number)+'</b><br>'+(inv?'Factuur nr: <b>'+H(inv)+'</b><br>':'')+'Betaling: '+H(val('bnsPaymentType')|| (title==='Contante betaling'?'Contant':'Op rekening'));
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title)+' '+H(o.number)+'</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;border-bottom:5px solid #2563eb;padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}</style></head><body><div class="actions"><button onclick="window.print()">Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="location.href=\'https://wa.me/?text=\'+encodeURIComponent(document.body.innerText)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false" style="background:#64748b">Terug</button></div><main class="page"><section class="top"><div class="doctype">'+H(title)+'</div><div class="meta">'+meta+'</div></section><div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+H(o.customer.name)+'</b><br>'+H(o.customer.street)+'<br>'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+H(o.customer.phone)+'<br>'+H(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+H(o.location.name)+'</b><br>'+H(o.location.street)+'<br>'+H([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div><section class="card"><div class="label">Opdracht</div><b>'+H(o.title)+'</b><br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand)+'</section><section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRowsDoc()+'</tbody></table></section><section class="card"><div class="label">Bijzonderheden</div><div class="free">'+H(o.extra||'')+'</div></section><section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+H(t.vatP||21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section></main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title)+' '+H(o.number)+'</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;border-bottom:5px solid #2563eb;padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}</style></head><body><div class="actions"><button onclick="window.print()">Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false" style="background:#64748b">Terug</button></div><main class="page"><section class="top"><div class="doctype">'+H(title)+'</div><div class="meta">'+meta+'</div></section><div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+H(o.customer.name)+'</b><br>'+H(o.customer.street)+'<br>'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+H(o.customer.phone)+'<br>'+H(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+H(o.location.name)+'</b><br>'+H(o.location.street)+'<br>'+H([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div><section class="card"><div class="label">Opdracht</div><b>'+H(o.title)+'</b><br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand)+'</section><section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRowsDoc()+'</tbody></table></section><section class="card"><div class="label">Bijzonderheden</div><div class="free">'+H(o.extra||'')+'</div></section><section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+H(t.vatP||21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section></main></body></html>';
   }
   function openDoc83(){
     var w=window.open('','_blank');
@@ -34447,7 +34447,7 @@ setTimeout(()=>{
     }
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+' '+esc(o.number)+'</title><style>'+
     '@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:22mm 17mm;'+templateStyle+'}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:5px solid '+accent+';padding-bottom:16px;margin-bottom:18px}.logo{max-width:190px;max-height:90px;object-fit:contain}.company{font-size:15px;font-weight:800;color:'+accent+'}.doctype{font-size:30px;font-weight:900;text-transform:uppercase;letter-spacing:.4px}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0;background:rgba(255,255,255,.94)}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.96)}th{background:'+accent+';color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap;line-height:1.45}.footer{margin-top:24px;border-top:2px solid #e5e7eb;padding-top:12px;font-size:12px;color:#334155}.powered{margin-top:14px;text-align:center;font-size:11px;color:#64748b;font-weight:800}@media print{body{background:white}.actions{display:none}.page{margin:0;box-shadow:none}}'+
-    '</style></head><body><div class="actions"><button onclick="window.print()">Afdrukken</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="location.href=\'https://wa.me/?text=\'+encodeURIComponent(document.body.innerText)">WhatsApp</button></div><main class="page"><section class="top"><div>'+
+    '</style></head><body><div class="actions"><button onclick="window.print()">Afdrukken</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button></div><main class="page"><section class="top"><div>'+
     (inv.logo ? '<img class="logo" src="'+esc(inv.logo)+'">' : '<div class="company">'+esc(inv.companyName)+'</div>')+
     '</div><div class="meta"><div class="doctype">'+esc(title)+'</div><div class="company">'+esc(inv.companyName)+'</div>'+meta+'</div></section>'+
     (inv.intro ? '<section class="card free">'+esc(inv.intro)+'</section>' : '')+
@@ -34839,7 +34839,7 @@ setTimeout(()=>{
     var mats=(o.materials||[]).map(function(m){
       return '<tr><td>'+H(m.code||'')+'</td><td>'+H(m.name||'')+'</td><td>'+H(m.qty||1)+'</td><td>'+H(m.linePrice||m.price||'')+'</td></tr>';
     }).join('');
-    return '<!doctype html><html><head><title>'+H(isConfirm?'Opdrachtbevestiging':'Factuur')+' '+H(orderNo(o))+'</title><style>body{font-family:Arial,sans-serif;color:#172033;padding:28px}.top{display:flex;justify-content:space-between;border-bottom:3px solid #0f172a;padding-bottom:14px;margin-bottom:22px}.box{border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left}.actions{position:sticky;top:0;background:white;padding:10px 0}@media print{.actions{display:none}}</style></head><body><div class="actions"><button onclick="window.print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="navigator.share?navigator.share({title:document.title,text:document.body.innerText}):null">Deel</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false">Terug</button></div><div class="top"><h1>'+H(isConfirm?'Opdrachtbevestiging / Offerte':'Factuur')+'</h1><div><b>Tapwagen.nl</b><br>'+H(new Date().toLocaleDateString())+'</div></div><div class="box"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Klant:</b> '+H(customerName(o))+'<br><b>Titel:</b> '+H(title(o))+'<br><b>Datum:</b> '+H(nice(o.start))+(o.end?' t/m '+H(nice(o.end)):'')+(isConfirm?'':'<br><b>Factuur:</b> '+H(invoiceNo(o)||orderNo(o))+'<br><b>Status:</b> '+H(paid(o)?'Betaald':'Openstaand'))+'</div><table><thead><tr><th>Code</th><th>Materiaal</th><th>Aantal</th><th>Prijs</th></tr></thead><tbody>'+mats+'</tbody></table><h2>Totaal '+H(money(total(o)))+'</h2></body></html>';
+    return '<!doctype html><html><head><title>'+H(isConfirm?'Opdrachtbevestiging':'Factuur')+' '+H(orderNo(o))+'</title><style>body{font-family:Arial,sans-serif;color:#172033;padding:28px}.top{display:flex;justify-content:space-between;border-bottom:3px solid #0f172a;padding-bottom:14px;margin-bottom:22px}.box{border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left}.actions{position:sticky;top:0;background:white;padding:10px 0}@media print{.actions{display:none}}</style></head><body><div class="actions"><button onclick="window.print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="(function(){var txt=document.body.innerText||&quot;&quot;;function fallback(){try{navigator.clipboard&&navigator.clipboard.writeText(txt)}catch(e){}alert(&quot;Delen lukt niet in deze browser. De tekst is gekopieerd; plak hem eventueel in e-mail of WhatsApp.&quot;)}if(navigator.share){navigator.share({title:document.title,text:txt}).catch(fallback)}else{fallback()}})()">Delen</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false">Terug</button></div><div class="top"><h1>'+H(isConfirm?'Opdrachtbevestiging / Offerte':'Factuur')+'</h1><div><b>Tapwagen.nl</b><br>'+H(new Date().toLocaleDateString())+'</div></div><div class="box"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Klant:</b> '+H(customerName(o))+'<br><b>Titel:</b> '+H(title(o))+'<br><b>Datum:</b> '+H(nice(o.start))+(o.end?' t/m '+H(nice(o.end)):'')+(isConfirm?'':'<br><b>Factuur:</b> '+H(invoiceNo(o)||orderNo(o))+'<br><b>Status:</b> '+H(paid(o)?'Betaald':'Openstaand'))+'</div><table><thead><tr><th>Code</th><th>Materiaal</th><th>Aantal</th><th>Prijs</th></tr></thead><tbody>'+mats+'</tbody></table><h2>Totaal '+H(money(total(o)))+'</h2></body></html>';
   }
   function modal(){
     var m=E('tw300AUModal');
@@ -45135,7 +45135,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     window.__bnsV474Media=window.__bnsV474Media||{};
     return '<div class="tw-v141-order-media bns-v474-media"><h3>Foto\'s / Handtekeningen / Klantmeldingen</h3><div class="tw-v141-grid">'+rows.map(function(a,i){
       var mid=T(a.id)||('m_'+i+'_'+Date.now()); a.id=mid; window.__bnsV474Media[mid]=a;
-      return '<div class="tw-v141-card"><b>'+H(mediaType(a))+'</b><br><small>'+H(a.createdAt||a.time||'')+'</small><div>'+H(a.note||a.message||a.text||'')+'</div>'+mediaHtml(a)+'<div class="tw-v141-actions"><button type="button" onclick="BNS_V474_SHARE_MEDIA(\''+H(mid)+'\')">Delen</button><button type="button" onclick="BNS_V474_PRINT_MEDIA(\''+H(mid)+'\')">Print</button><button class="danger" type="button" onclick="BNS_V474_DELETE_MEDIA(\''+H(o.id||o.number)+'\',\''+H(mid)+'\')">Wis</button></div></div>';
+      return '<div class="tw-v141-card"><b>'+H(mediaType(a))+'</b><br><small>'+H(a.createdAt||a.time||'')+'</small><div>'+H(a.note||a.message||a.text||'')+'</div>'+mediaHtml(a)+'<div class="tw-v141-actions"><button type="button" onclick="BNS_V474_SHARE_MEDIA(\''+H(mid)+'\')">Delen</button><button type="button" onclick="BNS_V474_WHATSAPP_MEDIA(\''+H(mid)+'\')" style="background:#16a34a">WhatsApp</button><button type="button" onclick="BNS_V474_PRINT_MEDIA(\''+H(mid)+'\')">Print</button><button class="danger" type="button" onclick="BNS_V474_DELETE_MEDIA(\''+H(o.id||o.number)+'\',\''+H(mid)+'\')">Wis</button></div></div>';
     }).join('')+'</div></div>';
   }
   function patchOverviewModal(id){
@@ -45553,7 +45553,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       var src=mediaSrc(a);
       var img=/^data:image|^https?:|^blob:/i.test(src) ? '<div class="bns-v493-img"><img src="'+H(src)+'"></div>' : (src?'<div class="bns-v493-missing">Afbeelding niet als foto-data opgeslagen.</div>':'');
       html+='<div class="bns-v493-card"><b>'+H(mediaType(a))+'</b><br><small>'+H(mediaTime(a))+'</small><div>'+H(mediaText(a))+'</div>'+img+
-        '<div class="bns-v493-actions"><button type="button" onclick="BNS_V493_SHARE(\''+H(key)+'\')">Delen</button><button type="button" onclick="BNS_V493_PRINT(\''+H(key)+'\')">Print</button><button class="danger" type="button" onclick="BNS_V493_WIS(\''+H(o.id||o.number)+'\',\''+H(key)+'\')">Wis</button></div></div>';
+        '<div class="bns-v493-actions"><button type="button" onclick="BNS_V493_SHARE(\''+H(key)+'\')">Delen</button><button type="button" onclick="BNS_V493_WHATSAPP(\''+H(key)+'\')" style="background:#16a34a">WhatsApp</button><button type="button" onclick="BNS_V493_PRINT(\''+H(key)+'\')">Print</button><button class="danger" type="button" onclick="BNS_V493_WIS(\''+H(o.id||o.number)+'\',\''+H(key)+'\')">Wis</button></div></div>';
     });
     return html+'</div></div>';
   }
@@ -45650,7 +45650,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener("bns:firebase-updated", schedule);
   document.addEventListener("bns:phone-media-updated", schedule);
   window.addEventListener("storage", schedule);
-  setInterval(function(){ if(E("bnsV493Modal")) schedule(); },2500);
+  setInterval(function(){ /* BNS555: geen automatische overzicht-rebuild; voorkomt flikkerende knoppen */ },2500);
 
   console.log("[BNS v493] dossier één blok actief; oude klant/bezorger split wordt niet meer gebruikt in overzicht.");
 })();
@@ -45973,7 +45973,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       var src=mediaSrc(a);
       var img=/^data:image|^https?:|^blob:/i.test(src) ? '<div class="bns-v493-img"><img src="'+H(src)+'"></div>' : (src?'<div class="bns-v493-missing">Afbeelding niet als foto-data opgeslagen.</div>':'');
       html+='<div class="bns-v493-card"><b>'+H(mediaType(a))+'</b><br><small>'+H(mediaTime(a))+'</small><div>'+H(mediaText(a))+'</div>'+img+
-        '<div class="bns-v493-actions"><button type="button" onclick="BNS_V493_SHARE(\''+H(key)+'\')">Delen</button><button type="button" onclick="BNS_V493_PRINT(\''+H(key)+'\')">Print</button><button class="danger" type="button" onclick="BNS_V493_WIS(\''+H(o.id||o.number)+'\',\''+H(key)+'\')">Wis</button></div></div>';
+        '<div class="bns-v493-actions"><button type="button" onclick="BNS_V493_SHARE(\''+H(key)+'\')">Delen</button><button type="button" onclick="BNS_V493_WHATSAPP(\''+H(key)+'\')" style="background:#16a34a">WhatsApp</button><button type="button" onclick="BNS_V493_PRINT(\''+H(key)+'\')">Print</button><button class="danger" type="button" onclick="BNS_V493_WIS(\''+H(o.id||o.number)+'\',\''+H(key)+'\')">Wis</button></div></div>';
     });
     // Bewaar scroll positie van modal voor rebuild
     var _modalScroll = modal.scrollTop || 0;
@@ -46064,7 +46064,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   setInterval(function(){
     hideUpperTabs();
-    if(E("bnsV493Modal") || E("bnsOrderOverviewModal")) patchMediaOverview();
+    /* BNS555: media niet elke 1,2 sec opnieuw tekenen; voorkomt onrustige knoppen */
   },1200);
 
   setTimeout(hideUpperTabs,300);
@@ -46471,7 +46471,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     o=o||{}; if(!Array.isArray(o.transportLines)) o.transportLines=[];
     var st=styleData(), fact=/factuur/i.test(type), title=docTitle(o,type), tt=totals(o), c=o.customer||{}, l=o.location||{};
     var css='@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:13px}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px;z-index:9}.actions button{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:8px 12px;font-weight:800}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:12mm 14mm}.bns525-logo{text-align:center;margin-bottom:4mm}.bns525-logo img{max-width:96mm;max-height:25mm;object-fit:contain}.brand{font-size:34px;font-weight:900;color:'+H(st.accent||'#0ea5e9')+'}.tag{font-weight:800;font-style:italic}.doc-title{text-align:center;font-size:20px;font-weight:900;margin:2mm 0 5mm}.top{display:grid;grid-template-columns:1fr 60mm;gap:10mm}.card{border:1px solid #dbe3ef;border-radius:10px;padding:9px;margin:8px 0}.line{border-top:1.5px solid #333;margin:5mm 0}table{width:100%;border-collapse:collapse}th{border-bottom:1px solid #333;text-align:left}td,th{padding:1.5mm;vertical-align:top}.amount{text-align:right}.totals{width:82mm;margin-left:auto;margin-top:7mm;border-top:1.5px solid #333}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}@media print{body{background:#fff}.actions{display:none}.page{margin:0}}';
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="navigator.share?navigator.share({title:document.title,text:document.body.innerText}):alert(\'Delen wordt niet ondersteund\')">Delen</button><button onclick="location.href=\'https://wa.me/?text=\'+encodeURIComponent(document.body.innerText)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){history.back()}}catch(e){}},120)">Terug</button></div><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div><div class="line"></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Transport</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table><div class="card"><b>Bijzonderheden</b><br><span style="white-space:pre-wrap">'+H(o.extra||'')+'</span></div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal transport</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table></main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="(function(){var txt=document.body.innerText||&quot;&quot;;function fallback(){try{navigator.clipboard&&navigator.clipboard.writeText(txt)}catch(e){}alert(&quot;Delen lukt niet in deze browser. De tekst is gekopieerd; plak hem eventueel in e-mail of WhatsApp.&quot;)}if(navigator.share){navigator.share({title:document.title,text:txt}).catch(fallback)}else{fallback()}})()">Delen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){history.back()}}catch(e){}},120)">Terug</button></div><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div><div class="line"></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Transport</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table><div class="card"><b>Bijzonderheden</b><br><span style="white-space:pre-wrap">'+H(o.extra||'')+'</span></div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal transport</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table></main></body></html>';
   }
   function openOrderDoc(o,type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } try{ w.document.open(); w.document.write(docHtml(o,type)); w.document.close(); }catch(e){ alert('Document kon niet worden geopend: '+e.message); } return false; }
   function dedupeAccountingDocs(){
@@ -47635,13 +47635,284 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   console.info('[BNS 546] Document acties staan alleen in factuur/offerte venster.');
 })();
 
-// ===== BNS 558 mobiele planner/admin layout =====
+
+/* =========================================================
+   BNS 556 - syntax fix deel/WhatsApp media + eigen systeemtekst
+   Basis: door gebruiker teruggezette app(55).js
+   - Overzicht bestelling: WhatsApp erbij, geen losse tekst naar WhatsApp.
+   - Delen/WhatsApp proberen echte afbeelding als bestand te delen.
+   - Op laptop waar dit niet mag: afbeelding wordt geopend/gedownload + eigen melding.
+   - Stop automatische modal-rebuild die knoppen liet flikkeren.
+   ========================================================= */
 (function(){
-  if(window.__BNS_MOBILE_PLANNER_558__) return;
-  window.__BNS_MOBILE_PLANNER_558__ = true;
+  'use strict';
+  if(window.__BNS555_DEEL_WHATSAPP_MEDIA__) return;
+  window.__BNS555_DEEL_WHATSAPP_MEDIA__ = true;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
+  function L(v){ return T(v).toLowerCase(); }
+  function mediaType(a){
+    var s=T(a && (a.type||a.kind||a.title||a.category||a.label));
+    var all=L([s,a&&a.note,a&&a.message,a&&a.text].join(' '));
+    if(/handtekening|signature/.test(all) || (a && (a.signatureData||a.signature||a.customerSignature))) return 'Handtekening klant';
+    if(/foto|photo|image|afbeelding/.test(all) || (a && (a.photoData||a.photo||a.image||a.data))) {
+      if(/na|after/.test(all)) return 'Foto na levering';
+      if(/voor|before/.test(all)) return 'Foto voor levering';
+      return 'Foto';
+    }
+    return s || 'Melding';
+  }
+  function mediaTime(a){ return T(a && (a.createdAt||a.time||a.date||a.updatedAt||'')); }
+  function mediaText(a){ return T(a && (a.note||a.message||a.text||a.description||'')); }
+  function mediaSrc(a){
+    if(!a) return '';
+    var c=window.__bnsMediaCache && window.__bnsMediaCache[String(a.id||'')];
+    if(c) return c.photoData||c.photo||c.image||c.signatureData||c.signature||c.data||c.downloadURL||'';
+    return a.photoData||a.photo||a.image||a.signatureData||a.signature||a.customerSignature||a.data||a.downloadURL||a.imageUrl||a.photoUrl||'';
+  }
+  function msg(title, text){
+    try{
+      var old=document.getElementById('bns555Msg'); if(old) old.remove();
+      var wrap=document.createElement('div'); wrap.id='bns555Msg';
+      wrap.style.cssText='position:fixed;inset:0;z-index:2147483600;background:rgba(15,23,42,.45);display:grid;place-items:center;padding:18px;font-family:Arial,sans-serif';
+      wrap.innerHTML='<div style="background:white;color:#172033;border-radius:20px;max-width:430px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.35)"><h2 style="margin:0 0 10px;font-size:22px">'+H(title)+'</h2><p style="line-height:1.45;margin:0 0 16px">'+H(text)+'</p><button type="button" style="float:right;background:#2563eb;color:white;border:0;border-radius:12px;padding:10px 18px;font-weight:900" onclick="document.getElementById(\'bns555Msg\').remove()">OK</button><div style="clear:both"></div></div>';
+      document.body.appendChild(wrap);
+    }catch(e){ try{ alert(title+'\n\n'+text); }catch(_){} }
+  }
+  function extFromData(src){ var m=String(src||'').match(/^data:image\/([a-zA-Z0-9+.-]+);/); return m ? (m[1]==='jpeg'?'jpg':m[1]) : 'png'; }
+  function dataUrlToBlob(src){
+    var parts=String(src).split(',');
+    var mime=(parts[0].match(/:(.*?);/)||[])[1]||'image/png';
+    var bin=atob(parts[1]||''); var len=bin.length; var arr=new Uint8Array(len);
+    for(var i=0;i<len;i++) arr[i]=bin.charCodeAt(i);
+    return new Blob([arr],{type:mime});
+  }
+  async function blobFromSrc(src){
+    src=T(src);
+    if(/^data:image\//i.test(src)) return dataUrlToBlob(src);
+    if(/^blob:/i.test(src) || /^https?:/i.test(src)){
+      var r=await fetch(src,{mode:'cors'}); return await r.blob();
+    }
+    throw new Error('Geen afbeelding beschikbaar');
+  }
+  function downloadSrc(src, name){
+    try{
+      var a=document.createElement('a');
+      a.href=src; a.download=name || 'tapwagen-afbeelding.png'; a.target='_blank';
+      document.body.appendChild(a); a.click(); setTimeout(function(){ try{a.remove();}catch(e){} },300);
+    }catch(e){ try{ window.open(src,'_blank'); }catch(_){} }
+  }
+  async function shareMediaItem(a, viaWhatsApp){
+    var src=mediaSrc(a);
+    var title=mediaType(a);
+    var caption=[title, mediaTime(a), mediaText(a)].filter(Boolean).join('\n');
+    if(!src || !/^data:image|^blob:|^https?:/i.test(src)){
+      msg(viaWhatsApp?'WhatsApp':'Delen','Er is geen afbeelding-bestand opgeslagen. Daarom kan deze foto/handtekening niet als bijlage gedeeld worden.');
+      return false;
+    }
+    var filename=(title+' '+(mediaTime(a)||'')).replace(/[^a-z0-9_-]+/gi,'_').replace(/^_+|_+$/g,'')+'.'+extFromData(src);
+    try{
+      var blob=await blobFromSrc(src);
+      var file=new File([blob], filename, {type: blob.type || 'image/png'});
+      if(navigator.canShare && navigator.canShare({files:[file]}) && navigator.share){
+        await navigator.share({title:title, text:caption, files:[file]});
+        return true;
+      }
+    }catch(e){}
+    downloadSrc(src, filename);
+    msg(viaWhatsApp?'WhatsApp':'Delen', 'Direct als bijlage delen wordt door deze browser niet toegestaan. De afbeelding is geopend of gedownload; voeg hem handmatig toe in WhatsApp of e-mail.');
+    return false;
+  }
+  window.BNS_V493_SHARE=function(key){
+    var a=window.BNS_V493_MEDIA && window.BNS_V493_MEDIA[key];
+    if(!a) return false;
+    shareMediaItem(a,false);
+    return false;
+  };
+  window.BNS_V493_WHATSAPP=function(key){
+    var a=window.BNS_V493_MEDIA && window.BNS_V493_MEDIA[key];
+    if(!a) return false;
+    shareMediaItem(a,true);
+    return false;
+  };
+  window.BNS_V474_SHARE_MEDIA=function(key){
+    var a=window.__bnsV474Media && window.__bnsV474Media[key];
+    if(!a) return false;
+    shareMediaItem(a,false);
+    return false;
+  };
+  window.BNS_V474_WHATSAPP_MEDIA=function(key){
+    var a=window.__bnsV474Media && window.__bnsV474Media[key];
+    if(!a) return false;
+    shareMediaItem(a,true);
+    return false;
+  };
+
+  function addWhatsAppButtons(root){
+    root=root||document;
+    var cards=root.querySelectorAll ? root.querySelectorAll('.bns-v493-card,.tw-v141-card') : [];
+    Array.prototype.forEach.call(cards,function(card){
+      var actions=card.querySelector('.bns-v493-actions,.tw-v141-actions');
+      if(!actions || actions.querySelector('[data-bns555-wa]')) return;
+      var del=actions.querySelector('button');
+      var oc=del ? String(del.getAttribute('onclick')||'') : '';
+      var m=oc.match(/BNS_V493_SHARE\('([^']+)'\)/) || oc.match(/BNS_V474_SHARE_MEDIA\('([^']+)'\)/);
+      if(!m) return;
+      var key=m[1];
+      var b=document.createElement('button');
+      b.type='button'; b.textContent='WhatsApp'; b.setAttribute('data-bns555-wa','1');
+      b.style.background='#16a34a'; b.style.color='#fff';
+      b.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();} if(oc.indexOf('BNS_V474_')>=0) return window.BNS_V474_WHATSAPP_MEDIA(key); return window.BNS_V493_WHATSAPP(key); };
+      if(del && del.nextSibling) actions.insertBefore(b, del.nextSibling); else actions.appendChild(b);
+    });
+  }
+  document.addEventListener('click',function(ev){
+    var b=ev.target && ev.target.closest && ev.target.closest('button');
+    if(!b) return;
+    var oc=String(b.getAttribute('onclick')||'');
+    var txt=L(b.textContent||'');
+    var m=oc.match(/BNS_V493_SHARE\('([^']+)'\)/) || oc.match(/BNS_V474_SHARE_MEDIA\('([^']+)'\)/);
+    if(m && txt.indexOf('delen')>=0){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();
+      if(oc.indexOf('BNS_V474_')>=0) window.BNS_V474_SHARE_MEDIA(m[1]); else window.BNS_V493_SHARE(m[1]);
+      return false;
+    }
+  },true);
+  function schedule(){ setTimeout(function(){ addWhatsAppButtons(document); },80); }
+  document.addEventListener('bns:firebase-updated',schedule);
+  document.addEventListener('bns:phone-media-updated',schedule);
+  document.addEventListener('click',schedule,true);
+  setTimeout(schedule,500);
+  setTimeout(schedule,1500);
+  console.info('[BNS 556] syntax veilig: rustige media delen/WhatsApp actief.');
+})();
+
+/* =========================================================
+   BNS 557 - Overzicht bestelling WhatsApp zoals factuur
+   - WhatsApp bij foto/handtekening/melding opent WhatsApp met nette tekst.
+   - Delen blijft voor browser-delen/bestand.
+   - Eigen systeemtekst als WhatsApp openen niet lukt.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS557_OVERZICHT_WHATSAPP_FACTUUR_ROUTE__) return;
+  window.__BNS557_OVERZICHT_WHATSAPP_FACTUUR_ROUTE__ = true;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
+  function L(v){ return T(v).toLowerCase(); }
+  function typeOfMedia(a){
+    var s=T(a && (a.type||a.kind||a.title||a.category||a.label));
+    var all=L([s,a&&a.note,a&&a.message,a&&a.text].join(' '));
+    if(/handtekening|signature/.test(all) || (a && (a.signatureData||a.signature||a.customerSignature))) return 'Handtekening klant';
+    if(/foto|photo|image|afbeelding/.test(all) || (a && (a.photoData||a.photo||a.image||a.data))) {
+      if(/na|after/.test(all)) return 'Foto na levering';
+      if(/voor|before/.test(all)) return 'Foto voor levering';
+      return 'Foto';
+    }
+    return s || 'Melding';
+  }
+  function timeOfMedia(a){ return T(a && (a.createdAt||a.time||a.date||a.updatedAt||'')); }
+  function noteOfMedia(a){ return T(a && (a.note||a.message||a.text||a.description||'')); }
+  function ownMsg(title, text){
+    try{
+      var old=document.getElementById('bns557Msg'); if(old) old.remove();
+      var wrap=document.createElement('div'); wrap.id='bns557Msg';
+      wrap.style.cssText='position:fixed;inset:0;z-index:2147483640;background:rgba(15,23,42,.45);display:grid;place-items:center;padding:18px;font-family:Arial,sans-serif';
+      wrap.innerHTML='<div style="background:white;color:#172033;border-radius:20px;max-width:430px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.35)"><h2 style="margin:0 0 10px;font-size:22px">'+H(title)+'</h2><p style="line-height:1.45;margin:0 0 16px">'+H(text)+'</p><button type="button" style="float:right;background:#2563eb;color:white;border:0;border-radius:12px;padding:10px 18px;font-weight:900" onclick="document.getElementById(\'bns557Msg\').remove()">OK</button><div style="clear:both"></div></div>';
+      document.body.appendChild(wrap);
+    }catch(e){ try{ alert(title+'\n\n'+text); }catch(_){} }
+  }
+  function whatsappText(a){
+    var parts=[typeOfMedia(a), timeOfMedia(a), noteOfMedia(a)].filter(Boolean);
+    return parts.join('\n');
+  }
+  function openWhatsAppMedia(a){
+    var txt=whatsappText(a);
+    if(!txt){
+      ownMsg('WhatsApp','Er is geen tekst beschikbaar om naar WhatsApp te sturen.');
+      return false;
+    }
+    try{
+      window.location.href='https://wa.me/?text='+encodeURIComponent(txt);
+    }catch(e){
+      try{ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank'); }
+      catch(e2){ ownMsg('WhatsApp','WhatsApp openen lukt niet in deze browser.'); }
+    }
+    return false;
+  }
+
+  window.BNS_V493_WHATSAPP=function(key){
+    var a=window.BNS_V493_MEDIA && window.BNS_V493_MEDIA[key];
+    if(!a){ ownMsg('WhatsApp','Deze foto/handtekening is niet meer gevonden. Sluit het overzicht en open het opnieuw.'); return false; }
+    return openWhatsAppMedia(a);
+  };
+  window.BNS_V474_WHATSAPP_MEDIA=function(key){
+    var a=window.__bnsV474Media && window.__bnsV474Media[key];
+    if(!a){ ownMsg('WhatsApp','Deze foto/handtekening is niet meer gevonden. Sluit het overzicht en open het opnieuw.'); return false; }
+    return openWhatsAppMedia(a);
+  };
+
+  function fixButtons(root){
+    root=root||document;
+    var cards=root.querySelectorAll ? root.querySelectorAll('.bns-v493-card,.tw-v141-card') : [];
+    Array.prototype.forEach.call(cards,function(card){
+      var actions=card.querySelector('.bns-v493-actions,.tw-v141-actions');
+      if(!actions) return;
+      var existing=actions.querySelector('[data-bns555-wa],[data-bns557-wa]');
+      if(existing){
+        existing.setAttribute('data-bns557-wa','1');
+        existing.textContent='WhatsApp';
+        existing.style.background='#16a34a';
+        return;
+      }
+      var del=actions.querySelector('button');
+      var oc=del ? String(del.getAttribute('onclick')||'') : '';
+      var m=oc.match(/BNS_V493_SHARE\('([^']+)'\)/) || oc.match(/BNS_V474_SHARE_MEDIA\('([^']+)'\)/);
+      if(!m) return;
+      var key=m[1];
+      var b=document.createElement('button');
+      b.type='button'; b.textContent='WhatsApp'; b.setAttribute('data-bns557-wa','1');
+      b.style.background='#16a34a'; b.style.color='#fff';
+      b.onclick=function(ev){
+        if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation(); }
+        if(oc.indexOf('BNS_V474_')>=0) return window.BNS_V474_WHATSAPP_MEDIA(key);
+        return window.BNS_V493_WHATSAPP(key);
+      };
+      if(del && del.nextSibling) actions.insertBefore(b, del.nextSibling); else actions.appendChild(b);
+    });
+  }
+
+  document.addEventListener('click',function(ev){
+    var b=ev.target && ev.target.closest && ev.target.closest('button[data-bns555-wa],button[data-bns557-wa]');
+    if(!b) return;
+    ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();
+    var actions=b.closest('.bns-v493-actions,.tw-v141-actions');
+    var del=actions && actions.querySelector('button');
+    var oc=del ? String(del.getAttribute('onclick')||'') : '';
+    var m=oc.match(/BNS_V493_SHARE\('([^']+)'\)/) || oc.match(/BNS_V474_SHARE_MEDIA\('([^']+)'\)/);
+    if(!m) return false;
+    if(oc.indexOf('BNS_V474_')>=0) return window.BNS_V474_WHATSAPP_MEDIA(m[1]);
+    return window.BNS_V493_WHATSAPP(m[1]);
+  },true);
+
+  setTimeout(function(){ fixButtons(document); },300);
+  setTimeout(function(){ fixButtons(document); },1200);
+  document.addEventListener('bns:firebase-updated',function(){ setTimeout(function(){ fixButtons(document); },250); });
+  document.addEventListener('bns:phone-media-updated',function(){ setTimeout(function(){ fixButtons(document); },250); });
+  console.info('[BNS 557] Overzicht WhatsApp opent nu zoals factuur met nette tekst-route.');
+})();
+
+
+
+// ===== BNS 559 mobiele planner/admin layout =====
+(function(){
+  if(window.__BNS_MOBILE_PLANNER_559__) return;
+  window.__BNS_MOBILE_PLANNER_559__ = true;
 
   var css = `
-  /* BNS 558 - mobielvriendelijke planner/admin layout */
+  /* BNS 559 - mobielvriendelijke planner/admin layout */
   .bns-mobile-menu-btn{
     display:none;
     position:fixed;
@@ -47902,9 +48173,9 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   `;
 
   function addStyle(){
-    if(document.getElementById('bnsMobilePlanner558Style')) return;
+    if(document.getElementById('bnsMobilePlanner559Style')) return;
     var s=document.createElement('style');
-    s.id='bnsMobilePlanner558Style';
+    s.id='bnsMobilePlanner559Style';
     s.textContent=css;
     document.head.appendChild(s);
   }
@@ -47937,8 +48208,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function boot(){
     addStyle();
     addMenu();
-    document.body.classList.add('bns-mobile-planner-558');
-    console.info('[BNS 558] Mobiele planner/admin layout actief');
+    document.body.classList.add('bns-mobile-planner-559');
+    console.info('[BNS 559] Mobiele planner/admin layout actief');
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
