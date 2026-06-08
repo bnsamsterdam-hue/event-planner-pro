@@ -734,97 +734,125 @@ body.bns-v112 .bns-app-toast{position:fixed;right:18px;bottom:18px;z-index:99999
 }
 
 /* =========================================================
-   BNS 568 - Alleen CSS: materiaal scroll mobiel veilig
-   Doel: materiaal/rubrieken op telefoon volledig zichtbaar maken.
-   Geen app.js, geen Firebase, geen reserveringslogica.
+   BNS 569 - Planner op mobiel zonder bezorger-modus
+   Alleen weergave; geen data/Firebase/reservering-logica.
    ========================================================= */
-@media (max-width: 768px){
-  html, body{
-    width:100% !important;
-    max-width:100% !important;
-    overflow-x:hidden !important;
+@media (max-width: 760px) {
+  body {
+    overflow-x: hidden !important;
   }
 
-  main{
-    padding:10px !important;
-    max-width:100% !important;
-    overflow-x:hidden !important;
+  #app.app {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
-  .material-workspace{
-    display:block !important;
-    grid-template-columns:1fr !important;
-    width:100% !important;
-    max-width:100% !important;
-    height:auto !important;
-    max-height:none !important;
-    overflow:visible !important;
+  #app .side {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 10px !important;
+    box-sizing: border-box !important;
   }
 
+  #app .side h1,
+  #app .side p {
+    width: 100% !important;
+    margin: 2px 0 !important;
+  }
+
+  #app .side .nav,
+  #app .side .logout {
+    flex: 1 1 46% !important;
+    min-width: 135px !important;
+    min-height: 44px !important;
+    margin: 0 !important;
+    white-space: normal !important;
+  }
+
+  #app main {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  #app .top,
+  #app .order-head,
+  #app .worktabs,
+  #app .doc-buttons,
+  #app .global-layout-tools {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  #app input,
+  #app select,
+  #app textarea,
+  #app button {
+    max-width: 100% !important;
+  }
+
+  #app .workpanel,
+  #app .panel,
+  #app .card,
+  #app .page {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  #materialPanel,
+  .material-workspace,
   .material-picker,
-  .material-order,
-  .chooser,
-  .panel{
-    width:100% !important;
-    max-width:100% !important;
-    height:auto !important;
-    max-height:none !important;
-    overflow:visible !important;
+  .material-order {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
-  .cat-tabs,
-  #catTabs,
-  .material-status-legend,
-  .mat-status-legend{
-    display:flex !important;
-    flex-wrap:wrap !important;
-    width:100% !important;
-    max-width:100% !important;
-    height:auto !important;
-    max-height:none !important;
-    overflow:visible !important;
-    gap:8px !important;
+  #materialCats,
+  .cat-tabs {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 7px !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
-  .cat-tabs button,
-  #catTabs button{
-    flex:1 1 calc(50% - 8px) !important;
-    min-width:130px !important;
-    min-height:44px !important;
-    white-space:normal !important;
+  #materialList {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-bottom: 16px !important;
   }
 
-  #materialList,
-  .material-list,
-  .materials-list,
-  [data-list="materials"]{
-    display:flex !important;
-    flex-direction:column !important;
-    width:100% !important;
-    max-width:100% !important;
-    height:auto !important;
-    max-height:none !important;
-    overflow:visible !important;
-    -webkit-overflow-scrolling:touch !important;
+  #materialList .material-row,
+  #materialList .bns-material-row,
+  #materialList .v112-material-row,
+  #materialList .bns-v83-mat-row {
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
-  .material-row,
-  .bns-material-row,
-  .v111-material-row,
-  .v112-material-row{
-    width:100% !important;
-    max-width:100% !important;
-    min-height:54px !important;
-    margin:8px 0 !important;
-  }
-
-  .sticky{
-    position:static !important;
-    width:100% !important;
-    margin-top:14px !important;
-  }
-
-  body{
-    padding-bottom:24px !important;
+  .material-table-head,
+  #orderMaterials .material-line,
+  #orderMaterials > div {
+    overflow-x: auto !important;
   }
 }
