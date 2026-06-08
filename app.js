@@ -120,7 +120,417 @@ const INITIAL_STATE = {
     "id": "u_planner", "name": "Planner Demo", "phone": "", "pin": "3333", "role": "Planner", "rights": {
       "prices": true, "agenda": true, "gps": false, "resolve": true
     }
-  }], "materials": [] /* BNS 563: oude ingebouwde art_ materialen verwijderd; Firebase/materials blijft leidend */, "orders": [{
+  }], "materials": [{
+    "id": "art_1", "oldId": 1, "cat": "TW", "code": "TW17", "name": "Tapwagen Zwart XXL", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken WH-XN-43"
+  }, {
+    "id": "art_2", "oldId": 2, "cat": "KW", "code": "KW1", "name": "Container aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_3", "oldId": 3, "cat": "EXTRA", "code": "EXTRA2", "name": "-", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_4", "oldId": 4, "cat": "EXTRA", "code": "EXTRA1", "name": "Mueller tank 3 KB 1508", "price": "oude prijs: € 0", "status": "free", "notes": "Mueller 2003"
+  }, {
+    "id": "art_5", "oldId": 5, "cat": "EXTRA", "code": "EXTRA2", "name": "Mueller tank 4 KB 1509", "price": "oude prijs: € 0", "status": "free", "notes": "Mueller 2003"
+  }, {
+    "id": "art_6", "oldId": 6, "cat": "KW", "code": "KW3", "name": "Container 1500 liter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_7", "oldId": 7, "cat": "TW", "code": "TW25", "name": "Bierslangen 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_8", "oldId": 8, "cat": "KW", "code": "KW5", "name": "Container 4000 liter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_9", "oldId": 9, "cat": "KW", "code": "KW1", "name": "Koel container 220 volt", "price": "oude prijs: € 0", "status": "free", "notes": "koel container 220 volt"
+  }, {
+    "id": "art_10", "oldId": 10, "cat": "KW", "code": "KW2", "name": "Koel container 220 volt Nw", "price": "oude prijs: € 0", "status": "inactive", "notes": "Koel container klein"
+  }, {
+    "id": "art_11", "oldId": 11, "cat": "EXTRA", "code": "EXTRA3", "name": "NVT", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_12", "oldId": 12, "cat": "KW", "code": "KW4", "name": "Reefer 20 ft", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_13", "oldId": 13, "cat": "KW", "code": "KW5", "name": "Reefer 10 ft", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_14", "oldId": 14, "cat": "TW", "code": "TW23", "name": "Tap container", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_15", "oldId": 15, "cat": "EXTRA", "code": "EXTRA1", "name": "Podium delen", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_16", "oldId": 16, "cat": "EXTRA", "code": "EXTRA2", "name": "Podiumwagen Klein", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_17", "oldId": 17, "cat": "EXTRA", "code": "EXTRA3", "name": "Podiumwagen xl", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_18", "oldId": 18, "cat": "TW", "code": "TW24", "name": "Bierslangen 12 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_19", "oldId": 19, "cat": "KW", "code": "KW2", "name": "Carrousel met koelcel", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_20", "oldId": 20, "cat": "EXTRA", "code": "EXTRA3", "name": "-", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_21", "oldId": 21, "cat": "EXTRA", "code": "EXTRA4", "name": "Carrousel XXL 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken WY-53-JJ 4 tap punten"
+  }, {
+    "id": "art_22", "oldId": 22, "cat": "TW", "code": "TW5", "name": "Tapwagen Zwart HA", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken 15-WD-XR"
+  }, {
+    "id": "art_23", "oldId": 23, "cat": "TW", "code": "TW6", "name": "Tap Blikje Heineken 0.0", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_24", "oldId": 24, "cat": "TW", "code": "TW19", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "4 tap punten"
+  }, {
+    "id": "art_25", "oldId": 25, "cat": "TW", "code": "TW18", "name": "Tapwagen Wit peki 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "4 tap punten"
+  }, {
+    "id": "art_26", "oldId": 26, "cat": "KW", "code": "KW1", "name": "Containerwagen met kraan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_27", "oldId": 27, "cat": "EXTRA", "code": "EXTRA2", "name": "Wipkar groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_28", "oldId": 28, "cat": "EXTRA", "code": "EXTRA1", "name": "Plas kruis", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_29", "oldId": 29, "cat": "TO", "code": "TO2", "name": "Toiletwagen 12 klepper op  aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_30", "oldId": 30, "cat": "EXTRA", "code": "EXTRA3", "name": "14-klepper / 14 zit", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_31", "oldId": 31, "cat": "TO", "code": "TO4", "name": "Luxe toiletwagen 2 persoons", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_33", "oldId": 33, "cat": "KW", "code": "KW6", "name": "Koel aanhanger zwart", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_34", "oldId": 34, "cat": "KW", "code": "KW19", "name": "Reefer 20 ft", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_37", "oldId": 37, "cat": "EXTRA", "code": "EXTRA6", "name": "Mueller tank KB 1502", "price": "oude prijs: € 0", "status": "free", "notes": "Mueller 2012"
+  }, {
+    "id": "art_38", "oldId": 38, "cat": "EXTRA", "code": "EXTRA7", "name": "Mueller tank  6 KB 1501", "price": "oude prijs: € 0", "status": "free", "notes": "Mueller 2012"
+  }, {
+    "id": "art_39", "oldId": 39, "cat": "EXTRA", "code": "EXTRA8", "name": "-", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_40", "oldId": 40, "cat": "EXTRA", "code": "EXTRA5", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_41", "oldId": 41, "cat": "EXTRA", "code": "EXTRA1", "name": "Kasa unit 1 persoons", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_42", "oldId": 42, "cat": "EXTRA", "code": "EXTRA1", "name": "Movinghead", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_43", "oldId": 43, "cat": "EXTRA", "code": "EXTRA2", "name": "Led par", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_44", "oldId": 44, "cat": "EXTRA", "code": "EXTRA3", "name": "Toppen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_45", "oldId": 45, "cat": "EXTRA", "code": "EXTRA4", "name": "Subwoofer", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_46", "oldId": 46, "cat": "EXTRA", "code": "EXTRA5", "name": "Special effect", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_47", "oldId": 47, "cat": "EXTRA", "code": "EXTRA6", "name": "Spots", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_48", "oldId": 48, "cat": "EXTRA", "code": "EXTRA7", "name": "Truss", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_49", "oldId": 49, "cat": "EXTRA", "code": "EXTRA1", "name": "Uigifte bar", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_51", "oldId": 51, "cat": "EXTRA", "code": "EXTRA1", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_52", "oldId": 52, "cat": "EXTRA", "code": "EXTRA2", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_53", "oldId": 53, "cat": "EXTRA", "code": "EXTRA3", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_54", "oldId": 54, "cat": "EXTRA", "code": "EXTRA4", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_55", "oldId": 55, "cat": "EXTRA", "code": "EXTRA5", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_56", "oldId": 56, "cat": "EXTRA", "code": "EXTRA6", "name": "Mobiele bar 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_57", "oldId": 57, "cat": "EXTRA", "code": "EXTRA7", "name": "Mobiele bar 1 kraan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_58", "oldId": 58, "cat": "EXTRA", "code": "EXTRA8", "name": "Mobiele bar 1 kraan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_59", "oldId": 59, "cat": "EXTRA", "code": "EXTRA9", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_60", "oldId": 60, "cat": "EXTRA", "code": "EXTRA1", "name": "Kassa unit 2 persoons met klep", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_61", "oldId": 61, "cat": "TW", "code": "TW2", "name": "Bierslang 12  meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_62", "oldId": 62, "cat": "TW", "code": "TW3", "name": "Bierslang 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_63", "oldId": 63, "cat": "KW", "code": "KW1", "name": "Koelkast groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_64", "oldId": 64, "cat": "KW", "code": "KW2", "name": "Koelkast groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_65", "oldId": 65, "cat": "KW", "code": "KW3", "name": "Koelkast groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_66", "oldId": 66, "cat": "KW", "code": "KW4", "name": "Koelkast groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_67", "oldId": 67, "cat": "EXTRA", "code": "EXTRA1", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_68", "oldId": 68, "cat": "EXTRA", "code": "EXTRA2", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_69", "oldId": 69, "cat": "EXTRA", "code": "EXTRA3", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_70", "oldId": 70, "cat": "EXTRA", "code": "EXTRA4", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_71", "oldId": 71, "cat": "EXTRA", "code": "EXTRA5", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_72", "oldId": 72, "cat": "EXTRA", "code": "EXTRA6", "name": "Uitgifte bar RVS blad", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_73", "oldId": 73, "cat": "EXTRA", "code": "EXTRA2", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_74", "oldId": 74, "cat": "EXTRA", "code": "EXTRA3", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_75", "oldId": 75, "cat": "EXTRA", "code": "EXTRA4", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_76", "oldId": 76, "cat": "EXTRA", "code": "EXTRA5", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_77", "oldId": 77, "cat": "EXTRA", "code": "EXTRA6", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_78", "oldId": 78, "cat": "EXTRA", "code": "EXTRA7", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_79", "oldId": 79, "cat": "EXTRA", "code": "EXTRA8", "name": "Podium deel 2x1M", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_80", "oldId": 80, "cat": "EXTRA", "code": "EXTRA1", "name": "Homa pomp 220 volt", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_81", "oldId": 81, "cat": "EXTRA", "code": "EXTRA2", "name": "Homa pomp 380 volt", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_82", "oldId": 82, "cat": "EXTRA", "code": "EXTRA3", "name": "Filterbak met pomp", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_83", "oldId": 83, "cat": "EXTRA", "code": "EXTRA4", "name": "Drukverhoger 220 volt", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_84", "oldId": 84, "cat": "EXTRA", "code": "EXTRA2", "name": "Wipkar groot", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_85", "oldId": 85, "cat": "EXTRA", "code": "EXTRA3", "name": "Aanhanger klein", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_86", "oldId": 86, "cat": "EXTRA", "code": "EXTRA4", "name": "BE Oplegger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_87", "oldId": 87, "cat": "EXTRA", "code": "EXTRA5", "name": "BE Oplegger gesloten", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_88", "oldId": 88, "cat": "KW", "code": "KW6", "name": "Wipkar containerwagen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_89", "oldId": 89, "cat": "EXTRA", "code": "EXTRA1", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_90", "oldId": 90, "cat": "EXTRA", "code": "EXTRA2", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_91", "oldId": 91, "cat": "EXTRA", "code": "EXTRA3", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_92", "oldId": 92, "cat": "EXTRA", "code": "EXTRA4", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_93", "oldId": 93, "cat": "EXTRA", "code": "EXTRA5", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_94", "oldId": 94, "cat": "EXTRA", "code": "EXTRA6", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_95", "oldId": 95, "cat": "EXTRA", "code": "EXTRA7", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_96", "oldId": 96, "cat": "EXTRA", "code": "EXTRA8", "name": "Waterslang 25 meter /2x GK", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_97", "oldId": 97, "cat": "EXTRA", "code": "EXTRA9", "name": "Persslang 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_98", "oldId": 98, "cat": "EXTRA", "code": "EXTRA10", "name": "Persslang 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_99", "oldId": 99, "cat": "EXTRA", "code": "EXTRA1", "name": "BE trekker", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_100", "oldId": 100, "cat": "EXTRA", "code": "EXTRA2", "name": "Vrachtwagen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_101", "oldId": 101, "cat": "EXTRA", "code": "EXTRA3", "name": "Pick up", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_102", "oldId": 102, "cat": "EXTRA", "code": "EXTRA4", "name": "Bakwagen met laadklep", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_103", "oldId": 103, "cat": "EXTRA", "code": "EXTRA30", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_104", "oldId": 104, "cat": "EXTRA", "code": "EXTRA45", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_105", "oldId": 105, "cat": "TW", "code": "TW1", "name": "Extern inhuur tapwagen XXL", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_106", "oldId": 106, "cat": "EXTRA", "code": "EXTRA3", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_107", "oldId": 107, "cat": "EXTRA", "code": "EXTRA2", "name": "Snackwagen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_108", "oldId": 108, "cat": "EXTRA", "code": "EXTRA31", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_110", "oldId": 110, "cat": "TW", "code": "TW7", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_111", "oldId": 111, "cat": "KW", "code": "KW2", "name": "Koelwagen zwart", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_112", "oldId": 112, "cat": "EXTRA", "code": "EXTRA8", "name": "Carrousel zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_113", "oldId": 113, "cat": "EXTRA", "code": "EXTRA6", "name": "13 klepper / 8 zit 5 staan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_114", "oldId": 114, "cat": "EXTRA", "code": "EXTRA7", "name": "Rioolpomp 220 volt", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_115", "oldId": 115, "cat": "EXTRA", "code": "EXTRA8", "name": "Rioolpomp 380 volt dubbel", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_116", "oldId": 116, "cat": "EXTRA", "code": "EXTRA9", "name": "Perslang 70 mm / 25 meter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_117", "oldId": 117, "cat": "EXTRA", "code": "EXTRA10", "name": "Waterslang", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_118", "oldId": 118, "cat": "EXTRA", "code": "EXTRA11", "name": "Water opvoerpomp", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_120", "oldId": 120, "cat": "EXTRA", "code": "EXTRA2", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_121", "oldId": 121, "cat": "EXTRA", "code": "EXTRA3", "name": "Kassa unit 2 persoons", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_122", "oldId": 122, "cat": "EXTRA", "code": "EXTRA4", "name": "Kantoor unit 20 ft 2x raam", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_123", "oldId": 123, "cat": "EXTRA", "code": "EXTRA21", "name": "--", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_124", "oldId": 124, "cat": "TO", "code": "TO12", "name": "Vip toiletwagen black edition", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_125", "oldId": 125, "cat": "EXTRA", "code": "EXTRA13", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_126", "oldId": 126, "cat": "EXTRA", "code": "EXTRA14", "name": "Plaskruis", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_127", "oldId": 127, "cat": "EXTRA", "code": "EXTRA10", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_128", "oldId": 128, "cat": "EXTRA", "code": "EXTRA11", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_129", "oldId": 129, "cat": "TW", "code": "TW12", "name": "Tapwagen Radler blikje", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_130", "oldId": 130, "cat": "EXTRA", "code": "EXTRA13", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_131", "oldId": 131, "cat": "EXTRA", "code": "EXTRA14", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_132", "oldId": 132, "cat": "TW", "code": "TW15", "name": "Tapwagen zwart ML", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_133", "oldId": 133, "cat": "KW", "code": "KW16", "name": "Brand container zwart Heineken", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_135", "oldId": 135, "cat": "TW", "code": "TW9", "name": "Tapwagen zwart peki 2 tappunten", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_136", "oldId": 136, "cat": "KW", "code": "KW22", "name": "Brand container Parade bar", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_137", "oldId": 137, "cat": "KW", "code": "KW23", "name": "Container auto", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_138", "oldId": 138, "cat": "EXTRA", "code": "EXTRA24", "name": "Auto  met kraan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_139", "oldId": 139, "cat": "EXTRA", "code": "EXTRA23", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_140", "oldId": 140, "cat": "EXTRA", "code": "EXTRA24", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_141", "oldId": 141, "cat": "EXTRA", "code": "EXTRA25", "name": "14 klepper/ 10 zit 4 staan", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_142", "oldId": 142, "cat": "EXTRA", "code": "EXTRA8", "name": "Podiumwagen", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_143", "oldId": 143, "cat": "EXTRA", "code": "EXTRA25", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "inactive", "notes": "kenteken 26-WK-VT"
+  }, {
+    "id": "art_144", "oldId": 144, "cat": "EXTRA", "code": "EXTRA26", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_145", "oldId": 145, "cat": "EXTRA", "code": "EXTRA15", "name": "Septictank 10.000 liter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_146", "oldId": 146, "cat": "EXTRA", "code": "EXTRA10", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_147", "oldId": 147, "cat": "EXTRA", "code": "EXTRA11", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_148", "oldId": 148, "cat": "EXTRA", "code": "EXTRA12", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_149", "oldId": 149, "cat": "EXTRA", "code": "EXTRA13", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_150", "oldId": 150, "cat": "EXTRA", "code": "EXTRA14", "name": "Mobiele bar 1 kraans met spoelbak", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_151", "oldId": 151, "cat": "EXTRA", "code": "EXTRA16", "name": "Opvang bak met pomp 450 liter", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_152", "oldId": 152, "cat": "TO", "code": "TO17", "name": "Toiletwagen lux wit schamel kl", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_153", "oldId": 153, "cat": "EXTRA", "code": "EXTRA18", "name": "Dixi Type 3 op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_154", "oldId": 154, "cat": "EXTRA", "code": "EXTRA19", "name": "Dixi Type 1 op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_156", "oldId": 156, "cat": "EXTRA", "code": "EXTRA20", "name": "Dixi Type 3 op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_157", "oldId": 157, "cat": "EXTRA", "code": "EXTRA20", "name": "Desperados Bottle bar", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_158", "oldId": 158, "cat": "EXTRA", "code": "EXTRA27", "name": "Desperados uitgifte bar 1", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_159", "oldId": 159, "cat": "EXTRA", "code": "EXTRA28", "name": "Desperados uitgifte bar 2", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_160", "oldId": 160, "cat": "KW", "code": "KW29", "name": "Lagunitas container", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_161", "oldId": 161, "cat": "EXTRA", "code": "EXTRA6", "name": "EHBo  unit 10 ft 1 raam", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_162", "oldId": 162, "cat": "EXTRA", "code": "EXTRA7", "name": "Kantoor unit 10 ft 1 raam", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_163", "oldId": 163, "cat": "KW", "code": "KW8", "name": "Koelwagen met 3x 1000 liter tanken", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_164", "oldId": 164, "cat": "KW", "code": "KW7", "name": "Koelaanhanger met 3x 1000 liter tanken", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_165", "oldId": 165, "cat": "TO", "code": "TO32", "name": "Toiletwagen 13 klepper op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_166", "oldId": 166, "cat": "EXTRA", "code": "EXTRA32", "name": "Luxe 13 klepper op aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_167", "oldId": 167, "cat": "TW", "code": "TW33", "name": "Bierlokaal container", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_168", "oldId": 168, "cat": "KW", "code": "KW34", "name": "Heineken Silver container", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_169", "oldId": 169, "cat": "EXTRA", "code": "EXTRA0", "name": "Carrousel zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_170", "oldId": 170, "cat": "EXTRA", "code": "EXTRA5", "name": "Standaard kleur  Zwart HA 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken 15-WD-XR"
+  }, {
+    "id": "art_171", "oldId": 171, "cat": "EXTRA", "code": "EXTRA7", "name": "Standaard  peki kleur zwart 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 23-WS-GP"
+  }, {
+    "id": "art_172", "oldId": 172, "cat": "EXTRA", "code": "EXTRA9", "name": "Standaard  peki kleur zwart 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 23-WS-GP"
+  }, {
+    "id": "art_173", "oldId": 173, "cat": "TW", "code": "TW12", "name": "Tap blikje Amstel", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 42-WL-XP"
+  }, {
+    "id": "art_174", "oldId": 174, "cat": "EXTRA", "code": "EXTRA15", "name": "Standaard kleur zwart ML 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken  WT-11-TP"
+  }, {
+    "id": "art_175", "oldId": 175, "cat": "EXTRA", "code": "EXTRA18", "name": "Standaard  peki kleur wit 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 03-WD-JT"
+  }, {
+    "id": "art_176", "oldId": 176, "cat": "EXTRA", "code": "EXTRA19", "name": "Standaard  peki kleur wit 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 04-WD-JT"
+  }, {
+    "id": "art_177", "oldId": 177, "cat": "EXTRA", "code": "EXTRA37", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 14-WD-RT"
+  }, {
+    "id": "art_178", "oldId": 178, "cat": "EXTRA", "code": "EXTRA40", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 66-WL-GF"
+  }, {
+    "id": "art_179", "oldId": 179, "cat": "KW", "code": "KW44", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 66-WL-GF"
+  }, {
+    "id": "art_180", "oldId": 180, "cat": "EXTRA", "code": "EXTRA52", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 22-WK-VT"
+  }, {
+    "id": "art_181", "oldId": 181, "cat": "KW", "code": "KW67", "name": "XXL met koelcel/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 71-WF-DZ"
+  }, {
+    "id": "art_182", "oldId": 182, "cat": "EXTRA", "code": "EXTRA89", "name": "XXL kleur zwart/ led plafond 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 25-WD-RP"
+  }, {
+    "id": "art_183", "oldId": 183, "cat": "EXTRA", "code": "EXTRA92", "name": "Standaard  peki kleur zwart 2 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "Kenteken 04-WX-VX"
+  }, {
+    "id": "art_184", "oldId": 184, "cat": "EXTRA", "code": "EXTRA2", "name": "13 klepper op  aanhanger", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_186", "oldId": 186, "cat": "KW", "code": "KW14", "name": "Bar container met koelcel 8 kraans", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_187", "oldId": 187, "cat": "EXTRA", "code": "EXTRA9", "name": "Parade bar", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_188", "oldId": 188, "cat": "EXTRA", "code": "EXTRA23", "name": "Black Edition", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_189", "oldId": 189, "cat": "KW", "code": "KW11", "name": "Event container met dakterras /geen trap", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_190", "oldId": 190, "cat": "KW", "code": "KW10", "name": "Event container met dakterras /trap", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_191", "oldId": 191, "cat": "KW", "code": "KW1", "name": "Barcontainer", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_192", "oldId": 192, "cat": "KW", "code": "KW3", "name": "Bar container", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_193", "oldId": 193, "cat": "EXTRA", "code": "EXTRA24", "name": "Black Edition met reclame rail", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_196", "oldId": 196, "cat": "EXTRA", "code": "EXTRA17", "name": "Carrousel  standaard zwart 4 kraans", "price": "oude prijs: € 0", "status": "free", "notes": "kenteken 65-WL-GF"
+  }, {
+    "id": "art_198", "oldId": 198, "cat": "EXTRA", "code": "EXTRA2", "name": "Extern inhuur carrousel", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_199", "oldId": 199, "cat": "EXTRA", "code": "EXTRA12", "name": "Plaskruis extern", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_200", "oldId": 200, "cat": "EXTRA", "code": "EXTRA17", "name": "Plaskruis extern", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_201", "oldId": 201, "cat": "EXTRA", "code": "EXTRA21", "name": "Plaskruis extern", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_202", "oldId": 202, "cat": "EXTRA", "code": "EXTRA22", "name": "Plaskruis extern", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_203", "oldId": 203, "cat": "KW", "code": "KW3", "name": "Koelwagen wit", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_204", "oldId": 204, "cat": "EXTRA", "code": "EXTRA1", "name": "Touniquet 3", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_205", "oldId": 205, "cat": "EXTRA", "code": "EXTRA2", "name": "Touniquet 5", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_206", "oldId": 206, "cat": "EXTRA", "code": "EXTRA3", "name": "Touniquet 8", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_207", "oldId": 207, "cat": "EXTRA", "code": "EXTRA4", "name": "Touniquet 9", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_209", "oldId": 209, "cat": "EXTRA", "code": "EXTRA46", "name": "Jumbo eiland incl 3000 L tanken", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_210", "oldId": 210, "cat": "EXTRA", "code": "EXTRA4", "name": ".", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_211", "oldId": 211, "cat": "EXTRA", "code": "EXTRA4", "name": "Kantoor unit 20 FT 1959155", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_213", "oldId": 213, "cat": "EXTRA", "code": "EXTRA100", "name": ".", "price": "oude prijs: € 0", "status": "inactive", "notes": ""
+  }, {
+    "id": "art_214", "oldId": 214, "cat": "KW", "code": "KW2", "name": "Event container leeg", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_217", "oldId": 217, "cat": "EXTRA", "code": "EXTRA1", "name": "Lichtmast: 4 x camera/ 2x verlichtings", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_218", "oldId": 218, "cat": "EXTRA", "code": "EXTRA2", "name": "Lichtmast: 4 x camera/ 2x verlichtings", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_219", "oldId": 219, "cat": "EXTRA", "code": "EXTRA3", "name": "Camera paal met 4 x special camera", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_220", "oldId": 220, "cat": "EXTRA", "code": "EXTRA4", "name": "Camera paal met 4 x special camera", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }, {
+    "id": "art_221", "oldId": 221, "cat": "EXTRA", "code": "EXTRA23", "name": "Standaard 3 dames / 1 heren en 3 urinoir", "price": "oude prijs: € 0", "status": "free", "notes": ""
+  }], "orders": [{
     "id": "old_1340", "oldId": 1340, "number": "2023-3002", "title": "Opdracht 3002", "start": "2023-01-15", "end": "2023-01-15", "startTime": "", "endTime": "", "status": "Offerte", "amount": 0, "brand": "", "invoice": "", "customer": {
       "name": "Klant 514", "street": "", "zip": "", "city": "", "phone": "", "email": ""
     }, "location": {
@@ -47492,189 +47902,4 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('bns:firebase-updated',function(){ setTimeout(function(){ fixButtons(document); },250); });
   document.addEventListener('bns:phone-media-updated',function(){ setTimeout(function(){ fixButtons(document); },250); });
   console.info('[BNS 557] Overzicht WhatsApp opent nu zoals factuur met nette tekst-route.');
-})();
-
-/* =========================================================
-   BNS 566 - MOBIEL PIN AFSCHERMEN + MATERIALEN GELIJK AAN LAPTOP
-   - Geen driver aanpassing.
-   - Geen Firebase/reservering/klanten/opdrachten wijzigingen.
-   - Blokkeert oude art_ materialen in materiaalkeuze/admin-lijst.
-   - Achterliggende planner blijft onzichtbaar zolang PIN-scherm actief is.
-   ========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS566_MOBIEL_PIN_MATERIAAL_FIX__) return;
-  window.__BNS566_MOBIEL_PIN_MATERIAAL_FIX__ = true;
-
-  function byId(id){ return document.getElementById(id); }
-  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
-  function getState(){ try{ if(typeof state!=='undefined' && state && Array.isArray(state.materials)) return state; }catch(e){} try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){} return null; }
-  function isOldArtMaterial(m){
-    var id=String(m && (m.id || m.docId || m.materialId) || '');
-    return /^art_/i.test(id);
-  }
-  function cleanCat(v){ return String(v||'EXTRA').trim().toUpperCase() || 'EXTRA'; }
-  function materialList(){
-    var s=getState();
-    var arr=s && Array.isArray(s.materials) ? s.materials : [];
-    return arr.filter(function(m){ return m && !isOldArtMaterial(m); });
-  }
-  function purgeOldArtFromState(){
-    var s=getState();
-    if(!s || !Array.isArray(s.materials)) return false;
-    var before=s.materials.length;
-    s.materials=s.materials.filter(function(m){ return m && !isOldArtMaterial(m); });
-    return s.materials.length!==before;
-  }
-  function cats(){
-    var list=[].slice.call(new Set(materialList().map(function(m){ return cleanCat(m.cat || m.category || m.rubriek || m.type); }))).sort();
-    return list.length ? list : [];
-  }
-  function getCurrentCat(){
-    try{ if(typeof currentCat!=='undefined' && currentCat) return cleanCat(currentCat); }catch(e){}
-    return cleanCat(window.currentCat || '');
-  }
-  function setCurrentCat(c){
-    c=cleanCat(c);
-    window.currentCat=c;
-    try{ currentCat=c; }catch(e){}
-    return c;
-  }
-  function statusClass(st){
-    var s=String(st||'free').toLowerCase();
-    if(/reserved|gereserveerd/.test(s)) return 'reserved';
-    if(/defect/.test(s)) return 'defect';
-    if(/inactive|niet actief|niet beschikbaar/.test(s)) return 'inactive';
-    return 'free';
-  }
-  function statusText(st){
-    var s=statusClass(st);
-    return s==='reserved'?'Gereserveerd':s==='defect'?'Defect':s==='inactive'?'Niet actief':'Vrij';
-  }
-  function chosenList(){ try{ if(typeof chosen!=='undefined' && Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
-  function catColor(cat){
-    try{ if(typeof window.BNS_V12_PRO_setRubriekColor==='function' && typeof window.BNS_V12_PRO_renderCats==='function'){} }catch(e){}
-    var key=cleanCat(cat);
-    var map={TAPW:'#ef4444',TW:'#ef4444',KOELW:'#22c55e',KW:'#22c55e',BIERSLANG:'#0ea5e9',BIERTANK:'#0284c7',WC:'#334155',CONT:'#7c3aed',KAS:'#2563eb',TRANS:'#64748b',TO:'#f97316',EXTRA:'#64748b'};
-    return map[key] || '#2563eb';
-  }
-  function renderCats566(){
-    var box=byId('materialCats'); if(!box) return;
-    purgeOldArtFromState();
-    var list=cats();
-    var active=getCurrentCat();
-    if(list.indexOf(active)<0) active=setCurrentCat(list[0] || '');
-    box.innerHTML=list.map(function(c){
-      return '<button type="button" class="bns-cat-tab '+(c===active?'active':'')+'" data-bns566-cat="'+esc(c)+'" style="border-bottom-color:'+catColor(c)+'">'+esc(c)+'</button>';
-    }).join('') || '<small>Geen materiaalrubrieken gevonden.</small>';
-    Array.prototype.forEach.call(box.querySelectorAll('[data-bns566-cat]'),function(btn){
-      btn.addEventListener('click',function(){
-        var c=btn.getAttribute('data-bns566-cat');
-        setCurrentCat(c);
-        renderCats566();
-        renderMaterials566(c);
-      });
-    });
-  }
-  function renderMaterials566(cat){
-    var box=byId('materialList'); if(!box) return;
-    purgeOldArtFromState();
-    var list=cats();
-    var active=cleanCat(cat || getCurrentCat() || list[0] || '');
-    if(list.indexOf(active)<0) active=cleanCat(list[0] || '');
-    setCurrentCat(active);
-    var q=((byId('materialSearch')||{}).value||'').toLowerCase().trim();
-    var selected=chosenList();
-    var rows=materialList().filter(function(m){ return cleanCat(m.cat || m.category || m.rubriek || m.type)===active; }).filter(function(m){
-      if(!q) return true;
-      return [m.cat,m.category,m.rubriek,m.code,m.name,m.product,m.description,m.beschrijving,m.notes,m.status].join(' ').toLowerCase().indexOf(q)>=0;
-    });
-    box.innerHTML=rows.map(function(m){
-      var id=String(m.id || m.docId || m.materialId || '');
-      var code=m.code || m.number || '';
-      var name=m.name || m.product || m.description || m.beschrijving || '';
-      var desc=m.desc || m.description || m.beschrijving || m.notes || '';
-      var sc=statusClass(m.status);
-      var sel=selected.some(function(x){ return String(x && x.id)===id; });
-      return '<div class="bns-material-row status-'+sc+' '+(sel?'selected':'')+'" data-bns566-material-id="'+esc(id)+'" style="--cat-color:'+catColor(active)+'">'+
-        '<div class="bns-catbar"></div><div class="bns-material-text"><strong>'+esc(code)+'</strong><span>'+esc(name)+'</span><small>'+esc(desc)+'</small></div>'+ 
-        '<span class="bns-status-pill '+sc+'"><i></i>'+(sel?'Toegevoegd':statusText(m.status))+'</span></div>';
-    }).join('') || '<p class="bns-empty">Geen materiaal gevonden.</p>';
-    Array.prototype.forEach.call(box.querySelectorAll('[data-bns566-material-id]'),function(row){
-      row.addEventListener('click',function(){
-        if(typeof addMat==='function') addMat(row.getAttribute('data-bns566-material-id'));
-      });
-    });
-  }
-  function renderAdminMaterials566(){
-    var box=byId('adminMatList'); if(!box) return;
-    purgeOldArtFromState();
-    var q=((byId('adminMatSearch')||{}).value||'').toLowerCase().trim();
-    var rows=materialList().filter(function(m){
-      if(!q) return true;
-      return [m.cat,m.category,m.rubriek,m.code,m.name,m.product,m.description,m.beschrijving,m.notes,m.status].join(' ').toLowerCase().indexOf(q)>=0;
-    }).slice(0,500);
-    box.innerHTML=rows.map(function(m){
-      var id=String(m.id || m.docId || m.materialId || '');
-      var cat=cleanCat(m.cat || m.category || m.rubriek || m.type);
-      var sc=statusClass(m.status);
-      return '<div class="bns-admin-material-row" data-bns566-admin-material-id="'+esc(id)+'" style="--cat-color:'+catColor(cat)+'"><span class="bns-admin-cat"></span><span class="bns-admin-text"><b>'+esc(cat)+' / '+esc(m.code||'')+'</b> '+esc(m.name||m.product||m.description||'')+'</span><span class="bns-status-pill '+sc+'"><i></i>'+statusText(m.status)+'</span><button type="button" class="bns-admin-edit">Wijzig</button></div>';
-    }).join('') || '<small>Geen materialen gevonden.</small>';
-    Array.prototype.forEach.call(box.querySelectorAll('[data-bns566-admin-material-id]'),function(row){
-      var btn=row.querySelector('.bns-admin-edit');
-      if(btn) btn.addEventListener('click',function(){ if(typeof fillMat==='function') fillMat(row.getAttribute('data-bns566-admin-material-id')); });
-    });
-  }
-  function installMaterialFilters(){
-    purgeOldArtFromState();
-    window.renderCats=renderCats566;
-    window.renderMaterials=renderMaterials566;
-    window.BNS_V12_PRO_renderCats=renderCats566;
-    window.BNS_V12_PRO_renderMaterials=renderMaterials566;
-    window.BNS_V12_PRO_renderAdminMaterials=renderAdminMaterials566;
-    try{ renderCats=renderCats566; }catch(e){}
-    try{ renderMaterials=renderMaterials566; }catch(e){}
-    renderCats566(); renderMaterials566(getCurrentCat()); renderAdminMaterials566();
-    var ms=byId('materialSearch'); if(ms && !ms.dataset.bns566){ ms.dataset.bns566='1'; ms.addEventListener('input',function(){ renderMaterials566(getCurrentCat()); }); }
-    var as=byId('adminMatSearch'); if(as && !as.dataset.bns566){ as.dataset.bns566='1'; as.addEventListener('input',renderAdminMaterials566); }
-  }
-
-  function loginVisible(){
-    var login=byId('login');
-    if(!login) return false;
-    return !login.classList.contains('hidden') && getComputedStyle(login).display!=='none' && getComputedStyle(login).visibility!=='hidden';
-  }
-  function applyPinGate(){
-    var app=byId('app');
-    var login=byId('login');
-    var locked=loginVisible();
-    document.documentElement.classList.toggle('bns-pin-locked',locked);
-    document.body.classList.toggle('bns-pin-locked',locked);
-    document.documentElement.classList.toggle('bns-pin-open',!locked);
-    document.body.classList.toggle('bns-pin-open',!locked);
-    if(app){
-      if(locked){ app.setAttribute('aria-hidden','true'); }
-      else { app.removeAttribute('aria-hidden'); }
-    }
-    if(login && locked){
-      login.style.minHeight='100dvh';
-    }
-  }
-  function installPinGate(){
-    applyPinGate();
-    var login=byId('login');
-    if(login && !login.dataset.bns566Observer){
-      login.dataset.bns566Observer='1';
-      try{ new MutationObserver(applyPinGate).observe(login,{attributes:true,attributeFilter:['class','style']}); }catch(e){}
-    }
-    document.addEventListener('click',function(){ setTimeout(applyPinGate,30); },true);
-    document.addEventListener('input',function(){ setTimeout(applyPinGate,30); },true);
-  }
-
-  function install(){ installPinGate(); installMaterialFilters(); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,250); });
-  else setTimeout(install,250);
-  [700,1500,3000,6000].forEach(function(t){ setTimeout(install,t); });
-  document.addEventListener('bns:firebase-updated',function(){ setTimeout(installMaterialFilters,200); });
-  console.info('[BNS 566] Mobiel PIN afgeschermd en art_ materialen geblokkeerd in materiaalkeuze.');
 })();
