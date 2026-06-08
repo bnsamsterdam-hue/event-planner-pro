@@ -943,3 +943,34 @@ body.bns-v112 .bns-app-toast{position:fixed;right:18px;bottom:18px;z-index:99999
     max-width: calc(100% - 20px) !important;
   }
 }
+
+/* BNS 566 - telefoon PIN blokkeert de achterliggende planner volledig */
+html.bns-pin-locked,
+body.bns-pin-locked{
+  overflow:hidden!important;
+  height:100%!important;
+  max-height:100%!important;
+}
+body.bns-pin-locked #app,
+body.bns-pin-locked .app{
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+body.bns-pin-locked #login{
+  position:fixed!important;
+  inset:0!important;
+  z-index:2147483000!important;
+  overflow:auto!important;
+  min-height:100dvh!important;
+  display:grid!important;
+  place-items:center!important;
+  background:var(--bg,#eef3fb)!important;
+}
+@media(max-width:768px){
+  body.bns-pin-locked #login{padding:18px!important;}
+  body.bns-pin-locked .login-card{width:min(92vw,520px)!important;margin:auto!important;}
+  body.bns-pin-locked .pin-grid button{min-height:74px!important;font-size:30px!important;}
+  .bns-material-row[data-bns566-material-id]{display:grid!important;grid-template-columns:10px 1fr auto!important;gap:12px!important;align-items:center!important;}
+  .bns-material-row[data-bns566-material-id] small:empty{display:none!important;}
+}

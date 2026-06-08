@@ -47493,3 +47493,188 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('bns:phone-media-updated',function(){ setTimeout(function(){ fixButtons(document); },250); });
   console.info('[BNS 557] Overzicht WhatsApp opent nu zoals factuur met nette tekst-route.');
 })();
+
+/* =========================================================
+   BNS 566 - MOBIEL PIN AFSCHERMEN + MATERIALEN GELIJK AAN LAPTOP
+   - Geen driver aanpassing.
+   - Geen Firebase/reservering/klanten/opdrachten wijzigingen.
+   - Blokkeert oude art_ materialen in materiaalkeuze/admin-lijst.
+   - Achterliggende planner blijft onzichtbaar zolang PIN-scherm actief is.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS566_MOBIEL_PIN_MATERIAAL_FIX__) return;
+  window.__BNS566_MOBIEL_PIN_MATERIAAL_FIX__ = true;
+
+  function byId(id){ return document.getElementById(id); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
+  function getState(){ try{ if(typeof state!=='undefined' && state && Array.isArray(state.materials)) return state; }catch(e){} try{ if(window.state && Array.isArray(window.state.materials)) return window.state; }catch(e){} return null; }
+  function isOldArtMaterial(m){
+    var id=String(m && (m.id || m.docId || m.materialId) || '');
+    return /^art_/i.test(id);
+  }
+  function cleanCat(v){ return String(v||'EXTRA').trim().toUpperCase() || 'EXTRA'; }
+  function materialList(){
+    var s=getState();
+    var arr=s && Array.isArray(s.materials) ? s.materials : [];
+    return arr.filter(function(m){ return m && !isOldArtMaterial(m); });
+  }
+  function purgeOldArtFromState(){
+    var s=getState();
+    if(!s || !Array.isArray(s.materials)) return false;
+    var before=s.materials.length;
+    s.materials=s.materials.filter(function(m){ return m && !isOldArtMaterial(m); });
+    return s.materials.length!==before;
+  }
+  function cats(){
+    var list=[].slice.call(new Set(materialList().map(function(m){ return cleanCat(m.cat || m.category || m.rubriek || m.type); }))).sort();
+    return list.length ? list : [];
+  }
+  function getCurrentCat(){
+    try{ if(typeof currentCat!=='undefined' && currentCat) return cleanCat(currentCat); }catch(e){}
+    return cleanCat(window.currentCat || '');
+  }
+  function setCurrentCat(c){
+    c=cleanCat(c);
+    window.currentCat=c;
+    try{ currentCat=c; }catch(e){}
+    return c;
+  }
+  function statusClass(st){
+    var s=String(st||'free').toLowerCase();
+    if(/reserved|gereserveerd/.test(s)) return 'reserved';
+    if(/defect/.test(s)) return 'defect';
+    if(/inactive|niet actief|niet beschikbaar/.test(s)) return 'inactive';
+    return 'free';
+  }
+  function statusText(st){
+    var s=statusClass(st);
+    return s==='reserved'?'Gereserveerd':s==='defect'?'Defect':s==='inactive'?'Niet actief':'Vrij';
+  }
+  function chosenList(){ try{ if(typeof chosen!=='undefined' && Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
+  function catColor(cat){
+    try{ if(typeof window.BNS_V12_PRO_setRubriekColor==='function' && typeof window.BNS_V12_PRO_renderCats==='function'){} }catch(e){}
+    var key=cleanCat(cat);
+    var map={TAPW:'#ef4444',TW:'#ef4444',KOELW:'#22c55e',KW:'#22c55e',BIERSLANG:'#0ea5e9',BIERTANK:'#0284c7',WC:'#334155',CONT:'#7c3aed',KAS:'#2563eb',TRANS:'#64748b',TO:'#f97316',EXTRA:'#64748b'};
+    return map[key] || '#2563eb';
+  }
+  function renderCats566(){
+    var box=byId('materialCats'); if(!box) return;
+    purgeOldArtFromState();
+    var list=cats();
+    var active=getCurrentCat();
+    if(list.indexOf(active)<0) active=setCurrentCat(list[0] || '');
+    box.innerHTML=list.map(function(c){
+      return '<button type="button" class="bns-cat-tab '+(c===active?'active':'')+'" data-bns566-cat="'+esc(c)+'" style="border-bottom-color:'+catColor(c)+'">'+esc(c)+'</button>';
+    }).join('') || '<small>Geen materiaalrubrieken gevonden.</small>';
+    Array.prototype.forEach.call(box.querySelectorAll('[data-bns566-cat]'),function(btn){
+      btn.addEventListener('click',function(){
+        var c=btn.getAttribute('data-bns566-cat');
+        setCurrentCat(c);
+        renderCats566();
+        renderMaterials566(c);
+      });
+    });
+  }
+  function renderMaterials566(cat){
+    var box=byId('materialList'); if(!box) return;
+    purgeOldArtFromState();
+    var list=cats();
+    var active=cleanCat(cat || getCurrentCat() || list[0] || '');
+    if(list.indexOf(active)<0) active=cleanCat(list[0] || '');
+    setCurrentCat(active);
+    var q=((byId('materialSearch')||{}).value||'').toLowerCase().trim();
+    var selected=chosenList();
+    var rows=materialList().filter(function(m){ return cleanCat(m.cat || m.category || m.rubriek || m.type)===active; }).filter(function(m){
+      if(!q) return true;
+      return [m.cat,m.category,m.rubriek,m.code,m.name,m.product,m.description,m.beschrijving,m.notes,m.status].join(' ').toLowerCase().indexOf(q)>=0;
+    });
+    box.innerHTML=rows.map(function(m){
+      var id=String(m.id || m.docId || m.materialId || '');
+      var code=m.code || m.number || '';
+      var name=m.name || m.product || m.description || m.beschrijving || '';
+      var desc=m.desc || m.description || m.beschrijving || m.notes || '';
+      var sc=statusClass(m.status);
+      var sel=selected.some(function(x){ return String(x && x.id)===id; });
+      return '<div class="bns-material-row status-'+sc+' '+(sel?'selected':'')+'" data-bns566-material-id="'+esc(id)+'" style="--cat-color:'+catColor(active)+'">'+
+        '<div class="bns-catbar"></div><div class="bns-material-text"><strong>'+esc(code)+'</strong><span>'+esc(name)+'</span><small>'+esc(desc)+'</small></div>'+ 
+        '<span class="bns-status-pill '+sc+'"><i></i>'+(sel?'Toegevoegd':statusText(m.status))+'</span></div>';
+    }).join('') || '<p class="bns-empty">Geen materiaal gevonden.</p>';
+    Array.prototype.forEach.call(box.querySelectorAll('[data-bns566-material-id]'),function(row){
+      row.addEventListener('click',function(){
+        if(typeof addMat==='function') addMat(row.getAttribute('data-bns566-material-id'));
+      });
+    });
+  }
+  function renderAdminMaterials566(){
+    var box=byId('adminMatList'); if(!box) return;
+    purgeOldArtFromState();
+    var q=((byId('adminMatSearch')||{}).value||'').toLowerCase().trim();
+    var rows=materialList().filter(function(m){
+      if(!q) return true;
+      return [m.cat,m.category,m.rubriek,m.code,m.name,m.product,m.description,m.beschrijving,m.notes,m.status].join(' ').toLowerCase().indexOf(q)>=0;
+    }).slice(0,500);
+    box.innerHTML=rows.map(function(m){
+      var id=String(m.id || m.docId || m.materialId || '');
+      var cat=cleanCat(m.cat || m.category || m.rubriek || m.type);
+      var sc=statusClass(m.status);
+      return '<div class="bns-admin-material-row" data-bns566-admin-material-id="'+esc(id)+'" style="--cat-color:'+catColor(cat)+'"><span class="bns-admin-cat"></span><span class="bns-admin-text"><b>'+esc(cat)+' / '+esc(m.code||'')+'</b> '+esc(m.name||m.product||m.description||'')+'</span><span class="bns-status-pill '+sc+'"><i></i>'+statusText(m.status)+'</span><button type="button" class="bns-admin-edit">Wijzig</button></div>';
+    }).join('') || '<small>Geen materialen gevonden.</small>';
+    Array.prototype.forEach.call(box.querySelectorAll('[data-bns566-admin-material-id]'),function(row){
+      var btn=row.querySelector('.bns-admin-edit');
+      if(btn) btn.addEventListener('click',function(){ if(typeof fillMat==='function') fillMat(row.getAttribute('data-bns566-admin-material-id')); });
+    });
+  }
+  function installMaterialFilters(){
+    purgeOldArtFromState();
+    window.renderCats=renderCats566;
+    window.renderMaterials=renderMaterials566;
+    window.BNS_V12_PRO_renderCats=renderCats566;
+    window.BNS_V12_PRO_renderMaterials=renderMaterials566;
+    window.BNS_V12_PRO_renderAdminMaterials=renderAdminMaterials566;
+    try{ renderCats=renderCats566; }catch(e){}
+    try{ renderMaterials=renderMaterials566; }catch(e){}
+    renderCats566(); renderMaterials566(getCurrentCat()); renderAdminMaterials566();
+    var ms=byId('materialSearch'); if(ms && !ms.dataset.bns566){ ms.dataset.bns566='1'; ms.addEventListener('input',function(){ renderMaterials566(getCurrentCat()); }); }
+    var as=byId('adminMatSearch'); if(as && !as.dataset.bns566){ as.dataset.bns566='1'; as.addEventListener('input',renderAdminMaterials566); }
+  }
+
+  function loginVisible(){
+    var login=byId('login');
+    if(!login) return false;
+    return !login.classList.contains('hidden') && getComputedStyle(login).display!=='none' && getComputedStyle(login).visibility!=='hidden';
+  }
+  function applyPinGate(){
+    var app=byId('app');
+    var login=byId('login');
+    var locked=loginVisible();
+    document.documentElement.classList.toggle('bns-pin-locked',locked);
+    document.body.classList.toggle('bns-pin-locked',locked);
+    document.documentElement.classList.toggle('bns-pin-open',!locked);
+    document.body.classList.toggle('bns-pin-open',!locked);
+    if(app){
+      if(locked){ app.setAttribute('aria-hidden','true'); }
+      else { app.removeAttribute('aria-hidden'); }
+    }
+    if(login && locked){
+      login.style.minHeight='100dvh';
+    }
+  }
+  function installPinGate(){
+    applyPinGate();
+    var login=byId('login');
+    if(login && !login.dataset.bns566Observer){
+      login.dataset.bns566Observer='1';
+      try{ new MutationObserver(applyPinGate).observe(login,{attributes:true,attributeFilter:['class','style']}); }catch(e){}
+    }
+    document.addEventListener('click',function(){ setTimeout(applyPinGate,30); },true);
+    document.addEventListener('input',function(){ setTimeout(applyPinGate,30); },true);
+  }
+
+  function install(){ installPinGate(); installMaterialFilters(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,250); });
+  else setTimeout(install,250);
+  [700,1500,3000,6000].forEach(function(t){ setTimeout(install,t); });
+  document.addEventListener('bns:firebase-updated',function(){ setTimeout(installMaterialFilters,200); });
+  console.info('[BNS 566] Mobiel PIN afgeschermd en art_ materialen geblokkeerd in materiaalkeuze.');
+})();
