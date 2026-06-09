@@ -48212,3 +48212,55 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addCss); else addCss();
   console.info('[BNS v594] PIN laag CSS actief - geen timers/render, geen materiaalwijzigingen.');
 })();
+
+/* =========================================================
+   BNS v595 - Nieuwe opdracht actieknoppen mobiel compact
+   Basis: v594. Alleen mobiele CSS/klasse voor de bestaande knoppenbalk.
+   Geen materiaal, reserveren, zoeken, menu, PIN of Firebase wijziging.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS_V595_MOBILE_ACTIONS_COMPACT__) return;
+  window.__BNS_V595_MOBILE_ACTIONS_COMPACT__ = true;
+
+  function addCss(){
+    if(document.getElementById('bns-v595-mobile-actions-css')) return;
+    var st = document.createElement('style');
+    st.id = 'bns-v595-mobile-actions-css';
+    st.textContent =
+      '@media(max-width:900px){' +
+      '#newOrder .bns-v595-actionbar{position:sticky!important;bottom:0!important;z-index:80!important;display:flex!important;flex-wrap:nowrap!important;gap:8px!important;align-items:center!important;overflow-x:auto!important;overflow-y:hidden!important;box-sizing:border-box!important;width:100%!important;max-width:100%!important;padding:8px 8px calc(8px + env(safe-area-inset-bottom)) 8px!important;margin:10px 0 0 0!important;background:rgba(248,250,252,.96)!important;border-top:1px solid #dbe3ef!important;box-shadow:0 -6px 18px rgba(15,23,42,.08)!important;}' +
+      '#newOrder .bns-v595-actionbar button,#newOrder .bns-v595-actionbar input[type="button"],#newOrder .bns-v595-actionbar input[type="submit"]{flex:0 0 auto!important;width:auto!important;min-width:auto!important;max-width:190px!important;height:auto!important;min-height:38px!important;margin:0!important;padding:9px 13px!important;border-radius:12px!important;font-size:14px!important;line-height:1.1!important;font-weight:900!important;white-space:nowrap!important;}' +
+      '#newOrder{padding-bottom:0!important;}' +
+      'body #bnsOmhoogBtn{right:10px!important;bottom:70px!important;padding:9px 12px!important;border-radius:12px!important;font-size:13px!important;}' +
+      '}' +
+      '@media(min-width:901px){#newOrder .bns-v595-actionbar{display:flex;gap:10px;align-items:center;}}';
+    document.head.appendChild(st);
+  }
+
+  function labelOf(el){
+    return String((el && (el.textContent || el.value || el.getAttribute('aria-label'))) || '').trim().toLowerCase();
+  }
+  function isActionButton(el){
+    var t = labelOf(el);
+    return el && (el.id === 'saveOrder' || /overzicht maken|opslaan|annuleren|afdrukken|omhoog/.test(t));
+  }
+  function mark(){
+    var save = document.getElementById('saveOrder');
+    if(!save) return;
+    var p = save.parentElement;
+    if(!p) return;
+    var buttons = Array.prototype.slice.call(p.querySelectorAll('button,input[type="button"],input[type="submit"]'));
+    var hits = buttons.filter(isActionButton).length;
+    if(hits >= 2) p.classList.add('bns-v595-actionbar');
+  }
+  function boot(){
+    addCss();
+    mark();
+    setTimeout(mark, 300);
+    setTimeout(mark, 1200);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  document.addEventListener('click', function(){ setTimeout(mark, 80); }, true);
+  console.info('[BNS v595] mobiele actieknoppen Nieuwe opdracht compact; geen materiaal/reservering wijziging.');
+})();
