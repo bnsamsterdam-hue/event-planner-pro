@@ -48700,3 +48700,57 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   try{ new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true}); }catch(e){}
   console.info('[BNS 602] meer-artikelen balk hersteld');
 })();
+
+/* ===== BNS 603: adresboek niet meer over adresvelden heen =====
+   Doel: de bestaande klant/locatie-keuzelijst uit V164 blijft werken,
+   maar wordt inline in het formulier gezet in plaats van als grote overlay
+   over de adresvelden. Geen Firebase, geen materialen, geen opdrachten. */
+(function(){
+  if(window.__BNS_603_ADRESBOEK_INLINE__) return;
+  window.__BNS_603_ADRESBOEK_INLINE__ = true;
+  function E(id){ return document.getElementById(id); }
+  function addCss(){
+    if(E('bns603AdresboekInlineCss')) return;
+    var st=document.createElement('style');
+    st.id='bns603AdresboekInlineCss';
+    st.textContent =
+      '#bnsV164CustomerBox.bns-v603-inline,#bnsV164LocationBox.bns-v603-inline{'+
+        'position:static!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;'+
+        'width:100%!important;max-width:100%!important;max-height:240px!important;'+
+        'margin:10px 0 14px 0!important;display:none;box-shadow:0 8px 24px rgba(15,23,42,.22)!important;'+
+        'z-index:20!important;overflow:auto!important;'+
+      '}'+
+      '#bnsV164CustomerBox.bns-v603-inline .bns-v164-head,#bnsV164LocationBox.bns-v603-inline .bns-v164-head{font-size:16px!important;padding:9px 12px!important;}'+
+      '#bnsV164CustomerBox.bns-v603-inline .bns-v164-row,#bnsV164LocationBox.bns-v603-inline .bns-v164-row{min-height:54px!important;padding:10px 12px!important;margin-bottom:6px!important;}'+
+      '#bnsV164CustomerBox.bns-v603-inline .bns-v164-title,#bnsV164LocationBox.bns-v603-inline .bns-v164-title{font-size:17px!important;}'+
+      '#bnsV164CustomerBox.bns-v603-inline .bns-v164-sub,#bnsV164LocationBox.bns-v603-inline .bns-v164-sub{font-size:13px!important;margin-top:4px!important;}'+
+      '@media(max-width:760px){#bnsV164CustomerBox.bns-v603-inline,#bnsV164LocationBox.bns-v603-inline{max-height:210px!important;margin:8px 0 12px 0!important;}}';
+    document.head.appendChild(st);
+  }
+  function insertBeforeInputBox(boxId,inputId){
+    var box=E(boxId), inp=E(inputId);
+    if(!box || !inp) return;
+    box.classList.add('bns-v603-inline');
+    var target = inp.closest('label') || inp.parentElement;
+    if(!target || !target.parentElement) return;
+    if(box.parentElement !== target.parentElement || box.nextSibling !== target){
+      target.parentElement.insertBefore(box,target);
+    }
+  }
+  function fix(){
+    addCss();
+    insertBeforeInputBox('bnsV164CustomerBox','customerName');
+    insertBeforeInputBox('bnsV164LocationBox','locationName');
+  }
+  document.addEventListener('input',function(ev){
+    if(ev.target && (ev.target.id==='customerName' || ev.target.id==='locationName')) setTimeout(fix,0);
+  },true);
+  document.addEventListener('focusin',function(ev){
+    if(ev.target && (ev.target.id==='customerName' || ev.target.id==='locationName')) setTimeout(fix,0);
+  },true);
+  document.addEventListener('click',function(){ setTimeout(fix,40); },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(fix,250); });
+  else setTimeout(fix,250);
+  [700,1500,3000,6000].forEach(function(ms){ setTimeout(fix,ms); });
+  console.info('[BNS 603] Adresboek inline actief: klant/locatie keuzelijst blokkeert adresvelden niet meer.');
+})();
