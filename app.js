@@ -47905,116 +47905,6 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 })();
 
 /* =========================================================
-   BNS 572 - Planner op telefoon gebruikt Firebase-data in actieve state
-   Veilig: alleen app.js. Geen Firebase writes, geen driver, geen reservering.
-   Probleem opgelost:
-   - firebase-sync zet materialen/users in localStorage/window.state,
-     maar de planner gebruikt de interne `state` uit app.js.
-   - Op laptop was die interne state al gevuld; op telefoon bleef hij leeg/demo.
-   Fix:
-   - Neem materials/users uit event-planner-pro-v87 over zodra Firebase/localStorage
-     gevuld is, en render Admin > Materialen opnieuw.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS572_ACTIVE_STATE_FROM_FIREBASE__) return;
-  window.__BNS572_ACTIVE_STATE_FROM_FIREBASE__ = true;
-
-  var KEY = 'event-planner-pro-v87';
-  var lastMatCount = -1;
-  var lastUserCount = -1;
-
-  function log(msg){ try{ console.info('[BNS 572] '+msg); }catch(e){} }
-  function isArr(a){ return Array.isArray(a); }
-  function readLocal(){
-    try{
-      var raw = localStorage.getItem(KEY);
-      if(!raw) return null;
-      var s = JSON.parse(raw);
-      return (s && typeof s === 'object') ? s : null;
-    }catch(e){ return null; }
-  }
-  function currentState(){
-    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
-    try{ if(window.state) return window.state; }catch(e){}
-    return null;
-  }
-  function text(v){ return String(v == null ? '' : v).trim(); }
-  function isDemoUsers(users){
-    if(!isArr(users)) return true;
-    var names = users.map(function(u){ return text(u && u.name).toLowerCase(); }).join('|');
-    return users.length <= 3 && /demo/.test(names);
-  }
-  function sameIds(a,b){
-    if(!isArr(a)||!isArr(b)||a.length!==b.length) return false;
-    var aa=a.map(function(x){return text(x && x.id);}).sort().join('|');
-    var bb=b.map(function(x){return text(x && x.id);}).sort().join('|');
-    return aa===bb;
-  }
-  function rerender(){
-    setTimeout(function(){
-      try{ if(typeof renderCats === 'function') renderCats(); }catch(e){}
-      try{ if(typeof window.renderCats === 'function') window.renderCats(); }catch(e){}
-      try{ if(typeof renderMaterials === 'function') renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
-      try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
-      try{ if(typeof adminRender === 'function') adminRender(); }catch(e){}
-      try{ if(typeof window.adminRender === 'function') window.adminRender(); }catch(e){}
-      try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials === 'function') window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
-      try{ document.dispatchEvent(new CustomEvent('bns:admin-data-refreshed')); }catch(e){}
-    }, 80);
-  }
-  function apply(reason){
-    var local = readLocal();
-    var s = currentState();
-    if(!local || !s) return false;
-    var changed = false;
-
-    if(isArr(local.materials) && local.materials.length > 0){
-      if(!isArr(s.materials) || s.materials.length === 0 || !sameIds(s.materials, local.materials)){
-        s.materials = local.materials.slice();
-        changed = true;
-      }
-    }
-
-    if(isArr(local.users) && local.users.length > 0){
-      if(!isArr(s.users) || isDemoUsers(s.users) || !sameIds(s.users, local.users)){
-        s.users = local.users.slice();
-        changed = true;
-      }
-    }
-
-    try{ window.state = s; }catch(e){}
-
-    var mc = isArr(s.materials) ? s.materials.length : 0;
-    var uc = isArr(s.users) ? s.users.length : 0;
-    if(changed || mc !== lastMatCount || uc !== lastUserCount){
-      lastMatCount = mc;
-      lastUserCount = uc;
-      log('actieve state bijgewerkt via '+(reason||'controle')+' - materialen '+mc+', users '+uc);
-      rerender();
-      return true;
-    }
-    return false;
-  }
-
-  document.addEventListener('bns:firebase-updated', function(){ apply('Firebase update'); });
-  document.addEventListener('visibilitychange', function(){ if(!document.hidden) apply('zichtbaar'); });
-  window.addEventListener('focus', function(){ apply('focus'); });
-  window.addEventListener('storage', function(ev){ if(!ev || ev.key === KEY) apply('storage'); });
-
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ apply('start'); }, 700); });
-  }else{
-    setTimeout(function(){ apply('start'); }, 700);
-  }
-  setTimeout(function(){ apply('2s'); }, 2000);
-  setTimeout(function(){ apply('5s'); }, 5000);
-  setInterval(function(){ apply('interval'); }, 2500);
-
-  log('actief - koppelt Firebase/localStorage materials/users terug naar planner-state');
-})();
-
-/* =========================================================
    BNS 573 - Planner leest materialen/users direct uit Firebase in actieve state
    Veilig: alleen app.js. Geen writes/deletes naar Firebase.
    Doel: telefoon planner/admin gebruikt dezelfde Firebase materials/users als laptop.
@@ -48113,6 +48003,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         lastSig = sig;
         log('Firebase direct geladen via '+(reason||'start')+': materialen '+mats.length+', users '+users.length);
         callRender();
+      }else{
+        // Geen her-render als Firebase-data hetzelfde is; voorkomt flikkeren na status/gereserveerd klikken.
       }
     }catch(e){ log('fout bij direct laden: '+(e && e.message || e)); }
     finally{ busy = false; }
@@ -48123,9 +48015,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     setTimeout(function(){ pull('2s'); }, 2000);
     document.addEventListener('click', function(ev){
       var t = ev.target;
-      if(t && t.closest && t.closest('#adminBtn,.adminTab,[data-admin],#adminMaterials,#adminUsers')) setTimeout(function(){
-        try{ var st=stateObj(); if(!st || !Array.isArray(st.materials) || st.materials.length===0) pull('admin klik leeg'); }catch(e){}
-      }, 250);
+      if(t && t.closest && t.closest('#adminBtn,.adminTab,[data-admin],#adminMaterials,#adminUsers')) setTimeout(function(){ pull('admin klik'); }, 250);
     }, true);
     document.addEventListener('visibilitychange', function(){ if(!document.hidden) pull('zichtbaar'); });
     window.addEventListener('focus', function(){ pull('focus'); });
@@ -48135,36 +48025,355 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   log('actief - direct Firebase materials/users naar planner-state, zonder schrijven naar Firebase');
 })();
 
+// ===== BNS 558 mobiele planner/admin layout =====
+(function(){
+  if(window.__BNS_MOBILE_PLANNER_558__) return;
+  window.__BNS_MOBILE_PLANNER_558__ = true;
+
+  var css = `
+  /* BNS 558 - mobielvriendelijke planner/admin layout */
+  .bns-mobile-menu-btn{
+    display:none;
+    position:fixed;
+    left:12px;
+    top:12px;
+    z-index:2147482500;
+    border:0;
+    border-radius:14px;
+    padding:11px 14px;
+    background:#0f172a;
+    color:#fff;
+    font-weight:900;
+    box-shadow:0 8px 24px rgba(0,0,0,.28);
+    cursor:pointer;
+  }
+  .bns-mobile-menu-backdrop{
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:2147482400;
+    background:rgba(15,23,42,.42);
+  }
+  body.bns-mobile-menu-open .bns-mobile-menu-backdrop{display:block;}
+
+  @media (max-width: 820px){
+    html,body{
+      width:100%;
+      max-width:100%;
+      overflow-x:hidden;
+      -webkit-text-size-adjust:100%;
+    }
+    body{
+      font-size:16px;
+      line-height:1.35;
+    }
+    .bns-mobile-menu-btn{display:block;}
+
+    /* Linker menu wordt een uitschuif-menu bovenop de pagina */
+    .side,
+    aside.side,
+    .sidebar,
+    aside.sidebar{
+      position:fixed !important;
+      top:0 !important;
+      left:0 !important;
+      right:0 !important;
+      width:100% !important;
+      max-width:none !important;
+      min-width:0 !important;
+      height:auto !important;
+      max-height:82vh !important;
+      overflow-y:auto !important;
+      z-index:2147482450 !important;
+      transform:translateY(-110%);
+      transition:transform .22s ease;
+      border-radius:0 0 22px 22px !important;
+      box-shadow:0 16px 44px rgba(0,0,0,.34) !important;
+      padding-top:56px !important;
+    }
+    body.bns-mobile-menu-open .side,
+    body.bns-mobile-menu-open aside.side,
+    body.bns-mobile-menu-open .sidebar,
+    body.bns-mobile-menu-open aside.sidebar{
+      transform:translateY(0);
+    }
+
+    /* Hoofdscherm volle breedte */
+    #app,
+    .app,
+    main,
+    .main,
+    .content,
+    .workspace,
+    .page.active{
+      width:100% !important;
+      max-width:100% !important;
+      min-width:0 !important;
+      margin-left:0 !important;
+      padding-left:10px !important;
+      padding-right:10px !important;
+      box-sizing:border-box !important;
+    }
+    #app:not(.hidden),
+    .app:not(.hidden){
+      padding-top:62px !important;
+    }
+
+    /* Kaarten en formulieren onder elkaar */
+    .summary,
+    .order-head,
+    .grid,
+    .cards,
+    .form-grid,
+    .admin-grid,
+    .settings-grid,
+    .dashboard-grid,
+    #dashboardGrid,
+    .two-col,
+    .three-col,
+    .cols,
+    .row{
+      display:grid !important;
+      grid-template-columns:1fr !important;
+      gap:10px !important;
+      width:100% !important;
+      max-width:100% !important;
+    }
+    .summary-card,
+    .card,
+    .panel,
+    .box,
+    .order-card,
+    .dash-widget,
+    .tab-panel,
+    fieldset{
+      width:100% !important;
+      max-width:100% !important;
+      min-width:0 !important;
+      box-sizing:border-box !important;
+      overflow-wrap:anywhere;
+    }
+
+    /* Tabs en knoppen groot genoeg voor vingers */
+    button,
+    .btn,
+    .nav,
+    .worktab,
+    input,
+    select,
+    textarea{
+      font-size:16px !important;
+    }
+    button,
+    .btn,
+    .nav,
+    .worktab{
+      min-height:44px !important;
+      touch-action:manipulation;
+    }
+    .tabs,
+    .admin-tabs,
+    .worktabs,
+    .navs,
+    .actions,
+    .toolbar,
+    .button-row,
+    .doc-actions{
+      display:flex !important;
+      flex-wrap:wrap !important;
+      gap:8px !important;
+      width:100% !important;
+      max-width:100% !important;
+    }
+    .tabs button,
+    .admin-tabs button,
+    .worktabs button,
+    .actions button,
+    .toolbar button,
+    .button-row button,
+    .doc-actions button{
+      flex:1 1 auto !important;
+      min-width:120px !important;
+    }
+
+    input,
+    select,
+    textarea{
+      width:100% !important;
+      max-width:100% !important;
+      box-sizing:border-box !important;
+    }
+    textarea{min-height:96px;}
+
+    /* Tabellen mogen horizontaal scrollen, niet de hele pagina */
+    table{
+      display:block !important;
+      width:100% !important;
+      max-width:100% !important;
+      overflow-x:auto !important;
+      -webkit-overflow-scrolling:touch;
+      white-space:nowrap;
+    }
+    thead,tbody,tr{width:max-content;}
+
+    /* Opdrachtkaarten beter leesbaar */
+    .order-card,
+    .order,
+    .orderItem,
+    .list-card{
+      padding:14px !important;
+      border-radius:18px !important;
+    }
+    .order-card h2,
+    .order-card h3,
+    .list-card h2,
+    .list-card h3{
+      font-size:22px !important;
+      line-height:1.12 !important;
+    }
+
+    /* Materialen en lijsten niet naast elkaar persen */
+    .materials,
+    .material-list,
+    .chosen,
+    .chosen-list,
+    .items-list,
+    .search-results{
+      width:100% !important;
+      max-width:100% !important;
+      min-width:0 !important;
+    }
+
+    /* Popups/modals passen op telefoon */
+    .modal,
+    .dialog,
+    .popup,
+    .overlay,
+    .modal-card,
+    .modal-content{
+      max-width:calc(100vw - 16px) !important;
+      width:calc(100vw - 16px) !important;
+      max-height:calc(100vh - 20px) !important;
+      box-sizing:border-box !important;
+    }
+    .modal-card,
+    .modal-content,
+    .popup{
+      overflow:auto !important;
+      -webkit-overflow-scrolling:touch;
+    }
+
+    /* Login/PIN blijft netjes gecentreerd */
+    #login,
+    .login{
+      padding:14px !important;
+      width:100% !important;
+      max-width:100% !important;
+      box-sizing:border-box !important;
+    }
+    .login-card{
+      width:min(100%, 430px) !important;
+      max-width:100% !important;
+      margin-left:auto !important;
+      margin-right:auto !important;
+    }
+
+    /* Toast/eigen meldingen zichtbaar houden */
+    #toast,
+    .toast{
+      left:10px !important;
+      right:10px !important;
+      bottom:10px !important;
+      max-width:calc(100vw - 20px) !important;
+      width:auto !important;
+      z-index:2147482600 !important;
+    }
+  }
+  `;
+
+  function addStyle(){
+    if(document.getElementById('bnsMobilePlanner558Style')) return;
+    var s=document.createElement('style');
+    s.id='bnsMobilePlanner558Style';
+    s.textContent=css;
+    document.head.appendChild(s);
+  }
+
+  function addMenu(){
+    if(document.getElementById('bnsMobileMenuBtn')) return;
+    var btn=document.createElement('button');
+    btn.id='bnsMobileMenuBtn';
+    btn.className='bns-mobile-menu-btn';
+    btn.type='button';
+    btn.textContent='☰ Menu';
+    btn.onclick=function(){
+      document.body.classList.toggle('bns-mobile-menu-open');
+    };
+    var bg=document.createElement('div');
+    bg.id='bnsMobileMenuBackdrop';
+    bg.className='bns-mobile-menu-backdrop';
+    bg.onclick=function(){ document.body.classList.remove('bns-mobile-menu-open'); };
+    document.body.appendChild(bg);
+    document.body.appendChild(btn);
+
+    document.addEventListener('click', function(e){
+      var t=e.target;
+      if(t && t.closest && t.closest('.side .nav, aside.side .nav, .sidebar .nav')){
+        setTimeout(function(){ document.body.classList.remove('bns-mobile-menu-open'); },80);
+      }
+    }, true);
+  }
+
+  function boot(){
+    addStyle();
+    addMenu();
+    document.body.classList.add('bns-mobile-planner-558');
+    console.info('[BNS 558] Mobiele planner/admin layout actief');
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
 
 /* =========================================================
-   BNS 581 - Rust op 573 + bestaande Opslaan-knoppen zichtbaar op telefoon
-   Veilig: alleen app.js. Geen PIN, geen driver, geen Firebase writes/deletes.
-   - 573 blijft materialen/users uit Firebase laden.
-   - Geen her-render meer bij onveranderde Firebase-data; voorkomt flikkeren/status-rubriek.
-   - Maakt bestaande Admin-materiaal knoppen op smal scherm zichtbaar en bruikbaar.
+   BNS 582 - Veilig: werkende 573 + rustige Firebase + mobiele plannerlayout 558 + PIN scroll dicht
+   Geen Firebase writes/deletes. Geen driver. Geen reserveringslogica.
 ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS581_RUST_ADMIN_MOBIEL__) return;
-  window.__BNS581_RUST_ADMIN_MOBIEL__ = true;
-  try{
-    var css = document.createElement('style');
-    css.id = 'bns581-rust-admin-mobiel';
-    css.textContent = '\n@media (max-width: 760px){\n'
-      + '  #bns391Actions,#bns390Actions,#bnsV56Actions,#bnsV58AdminBar,#bnsV58AdminActions,.admin-actions,.material-actions{\n'
-      + '    display:flex !important; flex-wrap:wrap !important; gap:8px !important; align-items:center !important;\n'
-      + '    position:relative !important; left:auto !important; right:auto !important; bottom:auto !important; top:auto !important;\n'
-      + '    width:100% !important; max-width:100% !important; margin:10px 0 14px 0 !important; padding:8px 0 !important;\n'
-      + '    background:transparent !important; transform:none !important; z-index:auto !important;\n'
-      + '  }\n'
-      + '  #bns391Actions button,#bns390Actions button,#bnsV56Actions button,#bnsV58AdminBar button,#bnsV58AdminActions button,.admin-actions button,.material-actions button{\n'
-      + '    min-height:42px !important; padding:10px 12px !important; font-size:14px !important; flex:1 1 140px !important; white-space:normal !important;\n'
-      + '  }\n'
-      + '  #bns391Save,#bns390Save,#bnsV56Save,#bnsV58AdminSave{\n'
-      + '    display:inline-flex !important; align-items:center !important; justify-content:center !important; visibility:visible !important; opacity:1 !important;\n'
-      + '  }\n'
-      + '}\n';
-    (document.head || document.documentElement).appendChild(css);
-  }catch(e){}
-  try{ console.info('[BNS 581] actief - 573 rustig, bestaande Opslaan-knoppen mobiel zichtbaar.'); }catch(e){}
+  if(window.__BNS582_PIN_SCROLL_LOCK__) return;
+  window.__BNS582_PIN_SCROLL_LOCK__ = true;
+
+  function addStyle(){
+    if(document.getElementById('bns582PinScrollStyle')) return;
+    var s=document.createElement('style');
+    s.id='bns582PinScrollStyle';
+    s.textContent = ''+
+    '@media(max-width:820px){'+
+      'body.bns-pin-screen-active{overflow:hidden!important;height:100vh!important;max-height:100vh!important;}'+
+      'body.bns-pin-screen-active #app,body.bns-pin-screen-active .app{display:none!important;}'+
+      'body.bns-pin-screen-active #login:not(.hidden),body.bns-pin-screen-active .login:not(.hidden){display:flex!important;position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483000!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:#f3f6fb!important;padding:16px!important;box-sizing:border-box!important;}'+
+      'body.bns-pin-screen-active #login:not(.hidden)>*,body.bns-pin-screen-active .login:not(.hidden)>*{max-width:430px!important;width:100%!important;margin-left:auto!important;margin-right:auto!important;}'+
+    '}';
+    document.head.appendChild(s);
+  }
+  function loginVisible(){
+    var l=document.getElementById('login') || document.querySelector('.login');
+    if(!l) return false;
+    if(l.classList && l.classList.contains('hidden')) return false;
+    try{ var cs=getComputedStyle(l); if(cs.display==='none' || cs.visibility==='hidden' || cs.opacity==='0') return false; }catch(e){}
+    return true;
+  }
+  function tick(){
+    addStyle();
+    var on=loginVisible();
+    document.body.classList.toggle('bns-pin-screen-active', !!on);
+    if(!on) document.body.classList.remove('bns-mobile-menu-open');
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,50); });
+  else setTimeout(tick,50);
+  setInterval(tick,250);
+  document.addEventListener('click', function(){ setTimeout(tick,30); setTimeout(tick,300); }, true);
+  console.info('[BNS 582] PIN scroll dicht actief; 558 layout actief; Firebase rerender rustig.');
 })();
