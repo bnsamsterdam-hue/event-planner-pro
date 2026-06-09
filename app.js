@@ -48113,8 +48113,6 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         lastSig = sig;
         log('Firebase direct geladen via '+(reason||'start')+': materialen '+mats.length+', users '+users.length);
         callRender();
-      }else{
-        callRender();
       }
     }catch(e){ log('fout bij direct laden: '+(e && e.message || e)); }
     finally{ busy = false; }
@@ -48123,16 +48121,50 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function start(){
     pull('start');
     setTimeout(function(){ pull('2s'); }, 2000);
-    setTimeout(function(){ pull('6s'); }, 6000);
     document.addEventListener('click', function(ev){
       var t = ev.target;
-      if(t && t.closest && t.closest('#adminBtn,.adminTab,[data-admin],#adminMaterials,#adminUsers')) setTimeout(function(){ pull('admin klik'); }, 250);
+      if(t && t.closest && t.closest('#adminBtn,.adminTab,[data-admin],#adminMaterials,#adminUsers')) setTimeout(function(){
+        try{ var st=stateObj(); if(!st || !Array.isArray(st.materials) || st.materials.length===0) pull('admin klik leeg'); }catch(e){}
+      }, 250);
     }, true);
     document.addEventListener('visibilitychange', function(){ if(!document.hidden) pull('zichtbaar'); });
     window.addEventListener('focus', function(){ pull('focus'); });
-    setInterval(function(){ pull('interval'); }, 8000);
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(start, 1200); });
   else setTimeout(start, 1200);
   log('actief - direct Firebase materials/users naar planner-state, zonder schrijven naar Firebase');
+})();
+
+
+/* =========================================================
+   BNS 581 - Rust op 573 + bestaande Opslaan-knoppen zichtbaar op telefoon
+   Veilig: alleen app.js. Geen PIN, geen driver, geen Firebase writes/deletes.
+   - 573 blijft materialen/users uit Firebase laden.
+   - Geen her-render meer bij onveranderde Firebase-data; voorkomt flikkeren/status-rubriek.
+   - Maakt bestaande Admin-materiaal knoppen op smal scherm zichtbaar en bruikbaar.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS581_RUST_ADMIN_MOBIEL__) return;
+  window.__BNS581_RUST_ADMIN_MOBIEL__ = true;
+  try{
+    var css = document.createElement('style');
+    css.id = 'bns581-rust-admin-mobiel';
+    css.textContent = '\n@media (max-width: 760px){\n'
+      + '  #bns391Actions,#bns390Actions,#bnsV56Actions,#bnsV58AdminBar,#bnsV58AdminActions,.admin-actions,.material-actions{\n'
+      + '    display:flex !important; flex-wrap:wrap !important; gap:8px !important; align-items:center !important;\n'
+      + '    position:relative !important; left:auto !important; right:auto !important; bottom:auto !important; top:auto !important;\n'
+      + '    width:100% !important; max-width:100% !important; margin:10px 0 14px 0 !important; padding:8px 0 !important;\n'
+      + '    background:transparent !important; transform:none !important; z-index:auto !important;\n'
+      + '  }\n'
+      + '  #bns391Actions button,#bns390Actions button,#bnsV56Actions button,#bnsV58AdminBar button,#bnsV58AdminActions button,.admin-actions button,.material-actions button{\n'
+      + '    min-height:42px !important; padding:10px 12px !important; font-size:14px !important; flex:1 1 140px !important; white-space:normal !important;\n'
+      + '  }\n'
+      + '  #bns391Save,#bns390Save,#bnsV56Save,#bnsV58AdminSave{\n'
+      + '    display:inline-flex !important; align-items:center !important; justify-content:center !important; visibility:visible !important; opacity:1 !important;\n'
+      + '  }\n'
+      + '}\n';
+    (document.head || document.documentElement).appendChild(css);
+  }catch(e){}
+  try{ console.info('[BNS 581] actief - 573 rustig, bestaande Opslaan-knoppen mobiel zichtbaar.'); }catch(e){}
 })();
