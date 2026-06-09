@@ -28045,7 +28045,15 @@ setTimeout(()=>{
     return /bezorger|driver|chauffeur/.test(L(u && u.role));
   }
   function isPhone(){
-    return window.innerWidth <= 760 || /[?&](driver|bezorger)=1/i.test(location.search);
+    // Niet op schermgrootte - planner blijft planner op telefoon
+    var h = String(location.href||'').toLowerCase();
+    if(h.indexOf('/driver') >= 0) return true;
+    if(/[?&](driver|bezorger)=1/i.test(location.search)) return true;
+    try{
+      var u = phoneUser && phoneUser();
+      if(u && /bezorger/i.test(u.role||'')) return true;
+    }catch(e){}
+    return false;
   }
   function css(){
     if(E(STYLE_ID)) return;
@@ -37964,7 +37972,7 @@ setTimeout(()=>{
       if(window.BNS&&window.BNS.fs&&window.BNS.db){
         var fs=window.BNS.fs;
         if(fs.setDoc&&fs.doc) fs.setDoc(fs.doc(window.BNS.db,'orders',String(o.id)),
-          Object.assign({},o,{updatedAt:new Date().toISOString()}),{merge:true}).catch(function(){});
+          Object.assign({},o,{updatedAt:new Date().toISOString()})).catch(function(){});
       }
     }catch(e){}
   }
@@ -47913,124 +47921,134 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 ========================================================= */
 
 /* =========================================================
-   BNS 573 - Planner leest materialen/users direct uit Firebase in actieve state
-   Veilig: alleen app.js. Geen writes/deletes naar Firebase.
-   Doel: telefoon planner/admin gebruikt dezelfde Firebase materials/users als laptop.
+   BNS 600 - Rustige Firebase bootstrap materialen/users
+   Basis: v597.
+   - Leest Firebase materials/users alleen bij start en bij openen admin.
+   - Geen interval/focus-loop die state.materials steeds overschrijft.
+   - Schrijft niets naar Firebase; opslaan gebeurt in BNS 600B hieronder.
+   Doel: telefoon/laptop krijgen bij openen dezelfde Firebase-data,
+   maar Admin-wijzigingen worden niet teruggedraaid.
 ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS573_DIRECT_FIREBASE_ADMIN_DATA__) return;
-  window.__BNS573_DIRECT_FIREBASE_ADMIN_DATA__ = true;
+  if(window.__BNS600_FIREBASE_BOOTSTRAP_ONCE__) return;
+  window.__BNS600_FIREBASE_BOOTSTRAP_ONCE__ = true;
 
   var KEY = 'event-planner-pro-v87';
   var tools = null;
   var busy = false;
   var lastSig = '';
+  var lastLoad = 0;
 
-  function log(t){ try{ console.info('[BNS 573] '+t); }catch(e){} }
-  function arr(a){ return Array.isArray(a) ? a : []; }
-  function txt(v){ return String(v == null ? '' : v).trim(); }
+  function log(t){ try{ console.info('[BNS 600] '+t); }catch(e){} }
+  function A(v){ return Array.isArray(v) ? v : []; }
+  function T(v){ return String(v == null ? '' : v).trim(); }
   function stateObj(){
     try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
     try{ if(window.state) return window.state; }catch(e){}
     return null;
   }
-  function readLocal(){
-    try{ return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){ return {}; }
-  }
+  function readLocal(){ try{ return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){ return {}; } }
   function saveLocalPartial(materials, users){
     try{
       var s = readLocal();
-      s.materials = materials;
-      s.users = users;
+      if(A(materials).length) s.materials = materials;
+      if(A(users).length) s.users = users;
       localStorage.setItem(KEY, JSON.stringify(s));
-    }catch(e){ log('localStorage opslaan overgeslagen: '+(e && e.message || e)); }
+    }catch(e){ log('localStorage overslaan: '+(e && e.message || e)); }
   }
-  function docIdRow(d){
-    var data = d.data ? (d.data() || {}) : {};
-    if(!data.id) data.id = d.id;
-    return data;
-  }
+  function docIdRow(d){ var data = d.data ? (d.data() || {}) : {}; if(!data.id) data.id = d.id; return data; }
+  function matId(m){ return T(m && (m.id || m.docId || m.materialId)); }
   function cleanMaterials(list){
-    return arr(list).filter(function(m){
+    return A(list).filter(function(m){
       if(!m) return false;
-      var id = txt(m.id || m.docId || m.materialId);
-      if(/^add[_-]/i.test(id)) return false;
+      var id = matId(m);
+      if(!id || /^add[_-]/i.test(id)) return false;
       return true;
     });
   }
+  function looksLikeGoodFirebaseMaterials(list){
+    var mats = cleanMaterials(list);
+    if(mats.length < 20) return false;
+    var old = 0, newish = 0, oldPrice = 0;
+    mats.forEach(function(m){
+      var id = matId(m);
+      if(/^art_/i.test(id)) old++;
+      if(!/^art_/i.test(id)) newish++;
+      if(/oude prijs/i.test(T(m.price))) oldPrice++;
+    });
+    // Firebase mag nooit de oude art_/oude-prijs startlijst terugzetten als hoofdmaterialen.
+    if(newish < 20 && (old > mats.length * 0.25 || oldPrice > mats.length * 0.25)) return false;
+    return true;
+  }
   async function fb(){
     if(tools) return tools;
-    if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey){ return null; }
+    if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) return null;
     var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
     var fsMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
     var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
-    var db = fsMod.getFirestore(app);
-    tools = { fsMod: fsMod, db: db };
+    tools = { fsMod: fsMod, db: fsMod.getFirestore(app) };
     return tools;
   }
   async function getCol(col){
-    var t = await fb();
-    if(!t) return [];
+    var t = await fb(); if(!t) return [];
     var snap = await t.fsMod.getDocs(t.fsMod.collection(t.db, col));
     return snap.docs.map(docIdRow);
   }
   function callRender(){
     setTimeout(function(){
+      var cat = window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW');
       try{ if(typeof renderCats === 'function') renderCats(); }catch(e){}
       try{ if(typeof window.renderCats === 'function') window.renderCats(); }catch(e){}
-      try{ if(typeof renderMaterials === 'function') renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
-      try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
+      try{ if(typeof renderMaterials === 'function') renderMaterials(cat); }catch(e){}
+      try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(cat); }catch(e){}
       try{ if(typeof adminRender === 'function') adminRender(); }catch(e){}
       try{ if(typeof window.adminRender === 'function') window.adminRender(); }catch(e){}
       try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials === 'function') window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
       try{ if(typeof window.BNS_V12_renderAdminMaterials === 'function') window.BNS_V12_renderAdminMaterials(); }catch(e){}
       try{ document.dispatchEvent(new CustomEvent('bns:admin-data-refreshed')); }catch(e){}
-    }, 120);
+    },120);
   }
-  async function pull(reason){
+  async function pull(reason, force){
     if(busy) return;
+    if(!force && Date.now() - lastLoad < 30000) return;
+    try{ if(window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL && Date.now() < window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL) return; }catch(e){}
     busy = true;
     try{
-      var s = stateObj();
       var mats = cleanMaterials(await getCol('materials'));
-      var users = arr(await getCol('users'));
-      var sig = mats.length + ':' + users.length + ':' + mats.map(function(m){return txt(m.id);}).sort().slice(0,20).join('|') + ':' + users.map(function(u){return txt(u.id||u.name);}).sort().join('|');
-      if(mats.length){
-        if(s){
-          s.materials = mats;
-          if(users.length) s.users = users;
-          try{ window.state = s; }catch(e){}
-        }
-        saveLocalPartial(mats, users.length ? users : (s && arr(s.users) || []));
-      }else if(users.length && s){
-        s.users = users;
+      var users = A(await getCol('users'));
+      if(!looksLikeGoodFirebaseMaterials(mats)){
+        log('Firebase materials niet overgenomen; lijst lijkt leeg/oud/onveilig ('+mats.length+').');
+        mats = [];
+      }
+      var sig = mats.length + ':' + users.length + ':' + mats.map(function(m){return matId(m);}).sort().slice(0,30).join('|') + ':' + users.map(function(u){return T(u.id||u.name);}).sort().join('|');
+      if(sig === lastSig) { lastLoad = Date.now(); return; }
+      lastSig = sig; lastLoad = Date.now();
+      var s = stateObj();
+      if(s){
+        if(mats.length) s.materials = mats;
+        if(users.length) s.users = users;
         try{ window.state = s; }catch(e){}
       }
-      if(sig !== lastSig){
-        lastSig = sig;
-        log('Firebase direct geladen via '+(reason||'start')+': materialen '+mats.length+', users '+users.length);
-        callRender();
-      }
-    }catch(e){ log('fout bij direct laden: '+(e && e.message || e)); }
+      saveLocalPartial(mats, users);
+      log('Firebase bootstrap via '+(reason||'start')+': materialen '+mats.length+', users '+users.length);
+      if(mats.length || users.length) callRender();
+    }catch(e){ log('fout bij bootstrap: '+(e && e.message || e)); }
     finally{ busy = false; }
   }
-
   function start(){
-    pull('start');
-    setTimeout(function(){ pull('2s'); }, 2000);
-    setTimeout(function(){ pull('6s'); }, 6000);
+    pull('start', true);
+    setTimeout(function(){ pull('2s', true); }, 2000);
+    setTimeout(function(){ pull('8s', false); }, 8000);
     document.addEventListener('click', function(ev){
       var t = ev.target;
-      if(t && t.closest && t.closest('#adminBtn,.adminTab,[data-admin],#adminMaterials,#adminUsers')) setTimeout(function(){ pull('admin klik'); }, 250);
+      if(t && t.closest && t.closest('#adminBtn,.adminTab,[data-admin],#adminMaterials,#adminUsers')) setTimeout(function(){ pull('admin klik', false); }, 250);
     }, true);
-    document.addEventListener('visibilitychange', function(){ if(!document.hidden) pull('zichtbaar'); });
-    window.addEventListener('focus', function(){ pull('focus'); });
-    setInterval(function(){ pull('interval'); }, 8000);
   }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(start, 1200); });
-  else setTimeout(start, 1200);
-  log('actief - direct Firebase materials/users naar planner-state, zonder schrijven naar Firebase');
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(start, 1000); });
+  else setTimeout(start, 1000);
+  window.BNS600ReloadMaterialsFromFirebase = function(){ return pull('handmatig', true); };
+  log('actief - rustige eenmalige Firebase bootstrap, geen herhalende overschrijf-loop.');
 })();
 
 /* =========================================================
@@ -48386,47 +48404,85 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 })();
 
 /* =========================================================
-   BNS 598 - Admin materialen opslaan direct naar Firebase
-   Basis: aangeleverde v597.
-   Doel:
-   - 573 blijft Firebase-materialen laden voor laptop/telefoon.
-   - Admin > Materialen opslaan/wissen schrijft daarna ook direct collection materials.
-   - Voorkomt dat telefoon/laptop uit elkaar lopen door lokale opslag.
-   Veilig:
-   - Geen driver/opdrachten/reserveringen/boekhouding wijziging.
-   - Wist Firebase-materialen alleen exact na klik op materiaal opslaan/wissen,
-     en alleen als de actieve state minimaal 20 materialen bevat.
+   BNS 600B - Admin materialen opslaan/wissen naar Firebase
+   Basis: v597 + BNS600 rustige bootstrap.
+   - Bestaande Admin-save blijft leidend.
+   - Na Opslaan/Wis materiaal wordt de actieve materialenlijst exact naar Firebase geschreven.
+   - Niet schrijven als lijst leeg/verdacht oud is.
+   - Geen opdrachten/reserveringen/driver/boekhouding wijziging.
 ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS598_ADMIN_MATERIALS_FIREBASE_SAVE__) return;
-  window.__BNS598_ADMIN_MATERIALS_FIREBASE_SAVE__ = true;
+  if(window.__BNS600B_ADMIN_MATERIALS_FIREBASE_SAVE__) return;
+  window.__BNS600B_ADMIN_MATERIALS_FIREBASE_SAVE__ = true;
 
+  var KEY = 'event-planner-pro-v87';
   var tools = null;
+  var timer = null;
   var busy = false;
-  var pendingTimer = null;
-  var lastRun = 0;
-  var beforeIds = null;
+  var lastSig = '';
+  var editUntil = 0;
 
-  function log(t){ try{ console.info('[BNS 598] '+t); }catch(e){} }
+  function log(t){ try{ console.info('[BNS 600B] '+t); }catch(e){} }
   function T(v){ return String(v == null ? '' : v).trim(); }
-  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
-  function arr(v){ return Array.isArray(v) ? v : []; }
+  function A(v){ return Array.isArray(v) ? v : []; }
+  function now(){ return Date.now(); }
   function matId(m){ return T(m && (m.id || m.docId || m.materialId)); }
-  function isRealMaterial(m){
+  function isRealMat(m){
     var id = matId(m);
-    if(!id) return false;
-    if(/^add[_-]/i.test(id)) return false;
+    if(!id || /^add[_-]/i.test(id)) return false;
     return true;
   }
-  function currentMaterials(){
-    var s = S();
-    return arr(s && s.materials).filter(isRealMaterial);
+  function isSafeList(mats){
+    mats = A(mats).filter(isRealMat);
+    if(mats.length < 20) return false;
+    var art = 0, newish = 0, oldPrice = 0;
+    mats.forEach(function(m){
+      var id = matId(m);
+      if(/^art_/i.test(id)) art++;
+      else newish++;
+      if(/oude prijs/i.test(T(m.price))) oldPrice++;
+    });
+    // Bescherm Firebase tegen de oude ingebouwde art_/oude-prijs startlijst.
+    if(newish < 20 && (art > mats.length * 0.25 || oldPrice > mats.length * 0.25)) return false;
+    return true;
   }
-  function ids(list){
-    var out = {};
-    arr(list).forEach(function(m){ var id=matId(m); if(id) out[id]=1; });
-    return out;
+  function readLocal(){ try{ return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){ return {}; } }
+  function liveState(){
+    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function materialList(st){ return A(st && st.materials).filter(isRealMat); }
+  function bestState(candidate){
+    var opts = [];
+    if(candidate && typeof candidate === 'object') opts.push(candidate);
+    var live = liveState(); if(live) opts.push(live);
+    var loc = readLocal(); if(loc) opts.push(loc);
+    opts.sort(function(a,b){ return materialList(b).length - materialList(a).length; });
+    return opts[0] || {};
+  }
+  function sigOf(mats){
+    return A(mats).map(function(m){
+      return [matId(m),T(m.cat||m.rubriek||m.category),T(m.code),T(m.name||m.product||m.searchName),T(m.description||m.desc||m.beschrijving),T(m.status),T(m.price)].join('~');
+    }).sort().join('|');
+  }
+  function markEdit(ms){
+    editUntil = now() + (ms || 20000);
+    try{ window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL = editUntil; }catch(e){}
+  }
+  function looksLikeAdminMaterialButton(el){
+    if(!el || !el.closest) return false;
+    var b = el.closest('button,input[type="button"],input[type="submit"],a');
+    if(!b) return false;
+    var id = T(b.id);
+    var txt = T(b.textContent || b.value || b.getAttribute('aria-label') || '').toLowerCase();
+    if(/^(bns391Save|bns391Delete|bns391DeleteCat|bns390Save|bns390Delete|bnsV56Save|bnsV56Delete|bnsV58AdminSave|bnsV58AdminDelete|adminSaveMat|adminDeleteMat)$/.test(id)) return true;
+    if((/materiaal|material|rubriek/.test(txt)) && (/opslaan|bewaar|save|wis|verwijder|delete/.test(txt))) return true;
+    // In sommige versies staat er alleen "Opslaan" of "Wis" in de Admin materialen kaart.
+    var card = b.closest('#bns391AdminCard,#bns390AdminCard,#bnsV56AdminCard,#adminMatList,#adminMaterials,.admin-materials,.materials-admin');
+    if(card && /opslaan|bewaar|save|wis|verwijder|delete/.test(txt)) return true;
+    return false;
   }
   async function fb(){
     if(tools) return tools;
@@ -48434,88 +48490,103 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
     var fsMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
     var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
-    var db = fsMod.getFirestore(app);
-    tools = { fsMod: fsMod, db: db };
+    tools = { fsMod: fsMod, db: fsMod.getFirestore(app) };
     return tools;
   }
-  async function firebaseMaterialIds(){
-    var t = await fb();
+  async function existingIds(t){
     var snap = await t.fsMod.getDocs(t.fsMod.collection(t.db, 'materials'));
     var out = {};
-    snap.docs.forEach(function(d){ out[d.id] = 1; });
+    snap.docs.forEach(function(d){ out[d.id] = true; });
     return out;
   }
-  async function writeOne(t, m){
+  function cleanForFirebase(m){
     var id = matId(m);
-    if(!id) return;
-    var clean = Object.assign({}, m, { id: id, updatedAt: new Date().toISOString() });
-    await t.fsMod.setDoc(t.fsMod.doc(t.db, 'materials', id), clean, { merge: false });
+    var o = Object.assign({}, m);
+    o.id = id;
+    o.docId = id;
+    o.materialId = id;
+    o.updatedAt = new Date().toISOString();
+    return o;
   }
-  async function syncExact(reason){
-    if(busy) return;
-    var now = Date.now();
-    if(now - lastRun < 1200) return;
-    lastRun = now;
+  async function syncMaterials(reason, candidateState){
+    if(busy) { schedule(reason || 'busy-herprobeer', candidateState, 1800); return; }
+    var st = bestState(candidateState);
+    var mats = materialList(st);
+    if(!isSafeList(mats)){
+      log('NIET naar Firebase geschreven: materialenlijst is leeg/oud/onveilig ('+mats.length+').');
+      return;
+    }
+    var sig = sigOf(mats);
+    if(sig && sig === lastSig && reason !== 'handmatig'){
+      log('geen wijziging om te schrijven ('+(reason||'')+').');
+      return;
+    }
     busy = true;
+    markEdit(30000);
     try{
-      var mats = currentMaterials();
-      if(mats.length < 20){
-        log('NIET naar Firebase geschreven: actieve materialenlijst lijkt te klein ('+mats.length+').');
-        return;
-      }
       var t = await fb();
-      var keep = ids(mats);
-      var existing = await firebaseMaterialIds();
+      var existing = await existingIds(t);
+      var keep = {};
       var written = 0, removed = 0;
       for(var i=0;i<mats.length;i++){
-        await writeOne(t, mats[i]);
+        var m = cleanForFirebase(mats[i]);
+        keep[m.id] = true;
+        await t.fsMod.setDoc(t.fsMod.doc(t.db, 'materials', m.id), m, { merge:false });
         written++;
       }
-      Object.keys(existing).forEach(function(id){
-        if(!keep[id]){
-          removed++;
-          t.fsMod.deleteDoc(t.fsMod.doc(t.db, 'materials', id)).catch(function(e){ log('delete mislukt '+id+': '+(e&&e.message||e)); });
-        }
-      });
-      try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(S())); }catch(e){}
-      try{ document.dispatchEvent(new CustomEvent('bns:materials-saved-firebase', { detail:{written:written, removed:removed, reason:reason||''} })); }catch(e){}
-      log('Materialen naar Firebase gelijkgezet via '+(reason||'admin')+': geschreven '+written+', verwijderd '+removed+'.');
+      var del = Object.keys(existing).filter(function(id){ return !keep[id]; });
+      for(var j=0;j<del.length;j++){
+        await t.fsMod.deleteDoc(t.fsMod.doc(t.db, 'materials', del[j]));
+        removed++;
+      }
+      lastSig = sig;
+      try{ var live = liveState(); if(live){ live.materials = mats; window.state = live; } }catch(e){}
+      try{ var loc = readLocal(); loc.materials = mats; localStorage.setItem(KEY, JSON.stringify(loc)); }catch(e){}
+      try{ document.dispatchEvent(new CustomEvent('bns:materials-saved-firebase', {detail:{written:written, removed:removed, reason:reason||''}})); }catch(e){}
+      log('Firebase materials bijgewerkt via '+(reason||'admin')+': geschreven '+written+', verwijderd '+removed+'.');
     }catch(e){
-      log('FOUT materialen naar Firebase: '+(e && e.message || e));
+      log('FOUT Firebase materials opslaan: '+(e && e.message || e));
       try{ alert('Materiaal lokaal opgeslagen, maar Firebase opslaan is mislukt: '+(e && e.message || e)); }catch(_){ }
     }finally{
       busy = false;
-      beforeIds = null;
+      markEdit(6000);
     }
   }
-  function schedule(reason, delay){
-    clearTimeout(pendingTimer);
-    pendingTimer = setTimeout(function(){ syncExact(reason); }, delay || 900);
+  function schedule(reason, candidateState, delay){
+    clearTimeout(timer);
+    timer = setTimeout(function(){ syncMaterials(reason, candidateState); }, delay == null ? 1200 : delay);
   }
-  function isMaterialAdminButton(el){
-    if(!el || !el.closest) return false;
-    var b = el.closest('button, input[type="button"], input[type="submit"]');
-    if(!b) return false;
-    var id = T(b.id);
-    var txt = T(b.textContent || b.value).toLowerCase();
-    if(/^(bns391Save|bns391Delete|bns391DeleteCat|bns390Save|bns390Delete|bnsV56Save|bnsV56Delete|bnsV58AdminSave|bnsV58AdminDelete|adminSaveMat|adminDeleteMat)$/.test(id)) return true;
-    if((/materiaal/.test(txt) || /rubriek/.test(txt)) && (/opslaan|bewaar|wis|verwijder|delete/.test(txt))) return true;
-    return false;
-  }
-  document.addEventListener('pointerdown', function(ev){
-    if(isMaterialAdminButton(ev.target)) beforeIds = ids(currentMaterials());
-  }, true);
+
+  document.addEventListener('pointerdown', function(ev){ if(looksLikeAdminMaterialButton(ev.target)) markEdit(25000); }, true);
   document.addEventListener('click', function(ev){
-    if(isMaterialAdminButton(ev.target)) schedule('klik '+T((ev.target.closest('button')||{}).id || (ev.target.textContent||'')), 1100);
+    if(looksLikeAdminMaterialButton(ev.target)){
+      markEdit(30000);
+      setTimeout(function(){ schedule('admin materiaal knop', null, 200); }, 900);
+      setTimeout(function(){ schedule('admin materiaal nacontrole', null, 200); }, 3000);
+    }
   }, true);
 
-  // Extra vangnet: als bestaande code een eigen event heeft of na admin-render klaar is.
-  document.addEventListener('bns:admin-material-saved', function(){ schedule('event admin-material-saved', 500); });
-  document.addEventListener('bns:admin-data-refreshed', function(){
-    // Niet telkens schrijven bij alleen Firebase-lezen. Alleen als kort daarvoor admin-knop is gebruikt.
-    if(beforeIds) schedule('admin refresh na bewerken', 900);
-  });
+  try{
+    var originalSetItem = localStorage.setItem.bind(localStorage);
+    if(!window.__BNS600B_LOCALSTORAGE_PATCHED__){
+      window.__BNS600B_LOCALSTORAGE_PATCHED__ = true;
+      localStorage.setItem = function(key, value){
+        var ret = originalSetItem(key, value);
+        try{
+          if(key === KEY && now() < editUntil){
+            var parsed = JSON.parse(value || '{}');
+            var mats = materialList(parsed);
+            if(isSafeList(mats)){
+              markEdit(25000);
+              schedule('localStorage na admin materiaal', parsed, 900);
+            }
+          }
+        }catch(e){}
+        return ret;
+      };
+    }
+  }catch(e){ log('localStorage patch niet mogelijk: '+(e && e.message || e)); }
 
-  window.BNS598SyncMaterialsToFirebase = function(){ return syncExact('handmatig'); };
-  log('actief - Admin materiaal opslaan/wissen schrijft direct naar Firebase materials.');
+  window.BNS600SyncMaterialsNow = function(){ return syncMaterials('handmatig', null); };
+  log('actief - Admin materialen opslaan/wissen schrijft veilig naar Firebase; geen herhalende Firebase-terugzetter.');
 })();
