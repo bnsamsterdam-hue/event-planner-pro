@@ -47903,3 +47903,113 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('bns:phone-media-updated',function(){ setTimeout(function(){ fixButtons(document); },250); });
   console.info('[BNS 557] Overzicht WhatsApp opent nu zoals factuur met nette tekst-route.');
 })();
+
+/* =========================================================
+   BNS 572 - Planner op telefoon gebruikt Firebase-data in actieve state
+   Veilig: alleen app.js. Geen Firebase writes, geen driver, geen reservering.
+   Probleem opgelost:
+   - firebase-sync zet materialen/users in localStorage/window.state,
+     maar de planner gebruikt de interne `state` uit app.js.
+   - Op laptop was die interne state al gevuld; op telefoon bleef hij leeg/demo.
+   Fix:
+   - Neem materials/users uit event-planner-pro-v87 over zodra Firebase/localStorage
+     gevuld is, en render Admin > Materialen opnieuw.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS572_ACTIVE_STATE_FROM_FIREBASE__) return;
+  window.__BNS572_ACTIVE_STATE_FROM_FIREBASE__ = true;
+
+  var KEY = 'event-planner-pro-v87';
+  var lastMatCount = -1;
+  var lastUserCount = -1;
+
+  function log(msg){ try{ console.info('[BNS 572] '+msg); }catch(e){} }
+  function isArr(a){ return Array.isArray(a); }
+  function readLocal(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(!raw) return null;
+      var s = JSON.parse(raw);
+      return (s && typeof s === 'object') ? s : null;
+    }catch(e){ return null; }
+  }
+  function currentState(){
+    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function text(v){ return String(v == null ? '' : v).trim(); }
+  function isDemoUsers(users){
+    if(!isArr(users)) return true;
+    var names = users.map(function(u){ return text(u && u.name).toLowerCase(); }).join('|');
+    return users.length <= 3 && /demo/.test(names);
+  }
+  function sameIds(a,b){
+    if(!isArr(a)||!isArr(b)||a.length!==b.length) return false;
+    var aa=a.map(function(x){return text(x && x.id);}).sort().join('|');
+    var bb=b.map(function(x){return text(x && x.id);}).sort().join('|');
+    return aa===bb;
+  }
+  function rerender(){
+    setTimeout(function(){
+      try{ if(typeof renderCats === 'function') renderCats(); }catch(e){}
+      try{ if(typeof window.renderCats === 'function') window.renderCats(); }catch(e){}
+      try{ if(typeof renderMaterials === 'function') renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
+      try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
+      try{ if(typeof adminRender === 'function') adminRender(); }catch(e){}
+      try{ if(typeof window.adminRender === 'function') window.adminRender(); }catch(e){}
+      try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials === 'function') window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
+      try{ document.dispatchEvent(new CustomEvent('bns:admin-data-refreshed')); }catch(e){}
+    }, 80);
+  }
+  function apply(reason){
+    var local = readLocal();
+    var s = currentState();
+    if(!local || !s) return false;
+    var changed = false;
+
+    if(isArr(local.materials) && local.materials.length > 0){
+      if(!isArr(s.materials) || s.materials.length === 0 || !sameIds(s.materials, local.materials)){
+        s.materials = local.materials.slice();
+        changed = true;
+      }
+    }
+
+    if(isArr(local.users) && local.users.length > 0){
+      if(!isArr(s.users) || isDemoUsers(s.users) || !sameIds(s.users, local.users)){
+        s.users = local.users.slice();
+        changed = true;
+      }
+    }
+
+    try{ window.state = s; }catch(e){}
+
+    var mc = isArr(s.materials) ? s.materials.length : 0;
+    var uc = isArr(s.users) ? s.users.length : 0;
+    if(changed || mc !== lastMatCount || uc !== lastUserCount){
+      lastMatCount = mc;
+      lastUserCount = uc;
+      log('actieve state bijgewerkt via '+(reason||'controle')+' - materialen '+mc+', users '+uc);
+      rerender();
+      return true;
+    }
+    return false;
+  }
+
+  document.addEventListener('bns:firebase-updated', function(){ apply('Firebase update'); });
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) apply('zichtbaar'); });
+  window.addEventListener('focus', function(){ apply('focus'); });
+  window.addEventListener('storage', function(ev){ if(!ev || ev.key === KEY) apply('storage'); });
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ apply('start'); }, 700); });
+  }else{
+    setTimeout(function(){ apply('start'); }, 700);
+  }
+  setTimeout(function(){ apply('2s'); }, 2000);
+  setTimeout(function(){ apply('5s'); }, 5000);
+  setInterval(function(){ apply('interval'); }, 2500);
+
+  log('actief - koppelt Firebase/localStorage materials/users terug naar planner-state');
+})();
