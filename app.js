@@ -48190,70 +48190,25 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 })();
 
 /* =========================================================
-   BNS v592 - telefoon PIN-scherm scroll-lock
-   Doel: als het PIN/login scherm zichtbaar is, mag de pagina erachter
-   niet scrollen. Geen wijzigingen aan materiaal kiezen/reserveren.
+   BNS v594 - PIN scherm terug als echte laag, zonder scroll-loop
+   Basis: v593/v591. Alleen CSS-laag voor login/PIN.
+   Geen materiaal reserveren, geen menu, geen render, geen timers.
    ========================================================= */
 (function(){
-  if (window.__BNS_V592_PIN_SCROLL_LOCK__) return;
-  window.__BNS_V592_PIN_SCROLL_LOCK__ = true;
-
-  var locked = false;
-  var savedY = 0;
-
-  function byId(id){ return document.getElementById(id); }
-  function loginVisible(){
-    var login = byId('login');
-    if (!login) return false;
-    return !login.classList.contains('hidden') && login.offsetParent !== null;
+  if (window.__BNS_V594_PIN_LAYER_CSS__) return;
+  window.__BNS_V594_PIN_LAYER_CSS__ = true;
+  function addCss(){
+    if (document.getElementById('bns-v594-pin-layer-css')) return;
+    var st = document.createElement('style');
+    st.id = 'bns-v594-pin-layer-css';
+    st.textContent =
+      '#app.hidden{display:none!important;}' +
+      '#login.hidden{display:none!important;}' +
+      '#login:not(.hidden){position:fixed!important;inset:0!important;z-index:2147483000!important;min-height:100dvh!important;height:100dvh!important;overflow:auto!important;overscroll-behavior:contain!important;background:inherit;}' +
+      'html:has(#login:not(.hidden)),body:has(#login:not(.hidden)){overflow:hidden!important;overscroll-behavior:none!important;}' +
+      'body:has(#login:not(.hidden)) #app{pointer-events:none!important;}';
+    document.head.appendChild(st);
   }
-  function injectCss(){
-    if (document.getElementById('bns-v592-pin-scroll-lock-css')) return;
-    var css = document.createElement('style');
-    css.id = 'bns-v592-pin-scroll-lock-css';
-    css.textContent =
-      'body.bns-v592-pin-locked{overflow:hidden!important;position:fixed!important;width:100%!important;left:0!important;right:0!important;overscroll-behavior:none!important;touch-action:none!important;}' +
-      'body.bns-v592-pin-locked #login:not(.hidden){position:fixed!important;inset:0!important;z-index:2147483000!important;overflow:hidden!important;overscroll-behavior:none!important;touch-action:manipulation!important;}' +
-      'body.bns-v592-pin-locked #app{pointer-events:none!important;}';
-    document.head.appendChild(css);
-  }
-  function lock(){
-    if (locked) return;
-    savedY = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-    document.body.classList.add('bns-v592-pin-locked');
-    document.body.style.top = '-' + savedY + 'px';
-    locked = true;
-  }
-  function unlock(){
-    if (!locked) return;
-    document.body.classList.remove('bns-v592-pin-locked');
-    document.body.style.top = '';
-    locked = false;
-    try { window.scrollTo(0, savedY || 0); } catch(e) {}
-  }
-  function sync(){
-    injectCss();
-    if (loginVisible()) lock();
-    else unlock();
-  }
-  function blockScroll(e){
-    if (!locked || !loginVisible()) return;
-    // Alleen scrollbewegingen blokkeren; klikken/tikken op PIN-knoppen blijft werken.
-    if (e.type === 'touchmove' || e.type === 'wheel') {
-      e.preventDefault();
-    }
-  }
-
-  document.addEventListener('touchmove', blockScroll, {passive:false, capture:true});
-  document.addEventListener('wheel', blockScroll, {passive:false, capture:true});
-  document.addEventListener('DOMContentLoaded', function(){
-    sync();
-    var login = byId('login');
-    if (login && window.MutationObserver) {
-      new MutationObserver(sync).observe(login, {attributes:true, attributeFilter:['class','style']});
-    }
-    setInterval(sync, 500);
-  });
-  setTimeout(sync, 0);
-  setTimeout(sync, 500);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addCss); else addCss();
+  console.info('[BNS v594] PIN laag CSS actief - geen timers/render, geen materiaalwijzigingen.');
 })();
