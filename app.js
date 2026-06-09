@@ -48263,3 +48263,134 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('bns:order-saved', function(){ setTimeout(function(){ clearMaterialSearch('event'); }, 100); });
   console.info('[BNS 589] zoek/rubriek/rust fix actief op schone mobiele basis.');
 })();
+
+/* =========================================================
+   BNS 590 - Materiaal zoeken alleen op rubriek/productnr/zoeknaam
+   - Niet meer zoeken in product omschrijving/description/notes/price.
+   - Zoeken blijft binnen gekozen rubriek.
+   - Werkt als eindlaag over de schone v589 basis.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS590_MATERIAL_SEARCH_FIELDS_FIX__) return;
+  window.__BNS590_MATERIAL_SEARCH_FIELDS_FIX__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function low(v){ return T(v).toLowerCase(); }
+  function catOf(m){ return T(m && (m.cat || m.rubriek || m.category)).toUpperCase(); }
+  function codeOf(m){ return T(m && (m.code || m.productCode || '')); }
+  function productNrFromCode(m){
+    var c = codeOf(m).toUpperCase();
+    var cat = catOf(m);
+    if(cat && c.indexOf(cat) === 0) return c.slice(cat.length);
+    return c;
+  }
+  function searchText(m){
+    // Alleen rubriek + productnummer/code + product/zoeknaam.
+    // Bewust NIET: description, beschrijving, desc, name/omschrijving, notes, price.
+    return [
+      catOf(m),
+      codeOf(m),
+      m && (m.productNr || m.nr || m.number || productNrFromCode(m)),
+      m && (m.product || m.searchName || m.zoeknaam || m.type || m.productName)
+    ].map(T).join(' ').toLowerCase();
+  }
+  function allMaterials(){
+    var candidates = [];
+    try{ if(window.state && Array.isArray(window.state.materials)) candidates.push(window.state.materials); }catch(e){}
+    try{ if(window.STATE && Array.isArray(window.STATE.materials)) candidates.push(window.STATE.materials); }catch(e){}
+    try{ if(window.appState && Array.isArray(window.appState.materials)) candidates.push(window.appState.materials); }catch(e){}
+    try{ if(window.s && Array.isArray(window.s.materials)) candidates.push(window.s.materials); }catch(e){}
+    try{ if(typeof window.S === 'function'){ var st=window.S(); if(st && Array.isArray(st.materials)) candidates.push(st.materials); } }catch(e){}
+    try{ if(typeof S === 'function'){ var st2=S(); if(st2 && Array.isArray(st2.materials)) candidates.push(st2.materials); } }catch(e){}
+    try{ if(window.INITIAL_STATE && Array.isArray(window.INITIAL_STATE.materials)) candidates.push(window.INITIAL_STATE.materials); }catch(e){}
+    try{ if(typeof INITIAL_STATE !== 'undefined' && INITIAL_STATE && Array.isArray(INITIAL_STATE.materials)) candidates.push(INITIAL_STATE.materials); }catch(e){}
+    var best = [];
+    candidates.forEach(function(a){ if(Array.isArray(a) && a.length > best.length) best = a; });
+    return best;
+  }
+  function matId(m){ return T(m && (m.id || m.materialId || m.code)); }
+  function getActiveCat(cat){
+    var c = T(cat || window.currentCat || '');
+    if(!c){
+      var a = document.querySelector('.bns-cat-tab.active,[data-cat].active,.cat.active,.active[data-cat]');
+      if(a) c = T(a.getAttribute('data-cat') || a.textContent || '');
+    }
+    return c ? c.toUpperCase() : 'TW';
+  }
+  function allowedSet(active, q){
+    var set = Object.create(null);
+    q = low(q);
+    allMaterials().forEach(function(m){
+      if(active && catOf(m) !== active) return;
+      if(q && searchText(m).indexOf(q) < 0) return;
+      var id = matId(m);
+      if(id) set[id] = true;
+    });
+    return set;
+  }
+  function filterRendered(active){
+    var list = E('materialList');
+    if(!list) return;
+    var q = E('materialSearch') ? E('materialSearch').value : '';
+    var allow = allowedSet(active, q);
+    var shown = 0;
+    var rows = list.querySelectorAll('[data-material-id]');
+    rows.forEach(function(row){
+      var id = T(row.getAttribute('data-material-id'));
+      var ok = !id || !!allow[id];
+      row.style.display = ok ? '' : 'none';
+      if(ok) shown++;
+    });
+    var oldEmpty = E('bns590NoMat');
+    if(oldEmpty) oldEmpty.remove();
+    if(rows.length && shown === 0){
+      var p = document.createElement('p');
+      p.id = 'bns590NoMat';
+      p.textContent = 'Geen materiaal gevonden op rubriek, productnummer of zoeknaam.';
+      p.style.cssText = 'padding:12px;font-weight:800;color:#64748b;';
+      list.appendChild(p);
+    }
+  }
+  function install(){
+    var old = window.renderMaterials || (typeof renderMaterials === 'function' ? renderMaterials : null);
+    if(!old || old.__bns590Wrapped) return false;
+    var wrapped = function(cat){
+      var active = getActiveCat(cat);
+      window.currentCat = active;
+      var s = E('materialSearch');
+      var q = s ? s.value : '';
+      // Oud renderen zonder zoektekst, daarna zelf correct filteren.
+      if(s) s.value = '';
+      try{ old.call(this, active); }
+      finally{ if(s) s.value = q; }
+      filterRendered(active);
+    };
+    wrapped.__bns590Wrapped = true;
+    window.renderMaterials = wrapped;
+    try{ renderMaterials = wrapped; }catch(e){}
+    var inp = E('materialSearch');
+    if(inp && !inp.dataset.bns590Search){
+      inp.dataset.bns590Search = '1';
+      inp.addEventListener('input', function(){ wrapped(getActiveCat()); }, true);
+      inp.addEventListener('change', function(){ wrapped(getActiveCat()); }, true);
+    }
+    document.addEventListener('click', function(ev){
+      var b = ev.target && ev.target.closest ? ev.target.closest('[data-cat],.bns-cat-tab,.cat-tab,.cat') : null;
+      if(!b) return;
+      var c = T(b.getAttribute('data-cat') || b.textContent || '');
+      if(!c) return;
+      window.currentCat = c.toUpperCase();
+      setTimeout(function(){ filterRendered(getActiveCat(c)); }, 80);
+      setTimeout(function(){ filterRendered(getActiveCat(c)); }, 350);
+    }, true);
+    setTimeout(function(){ filterRendered(getActiveCat()); }, 150);
+    return true;
+  }
+  function boot(){
+    if(!install()) setTimeout(boot, 300);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  console.info('[BNS 590] materiaal zoeken beperkt tot rubriek/productnr/zoeknaam.');
+})();
