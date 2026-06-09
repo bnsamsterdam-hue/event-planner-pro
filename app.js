@@ -47904,24 +47904,132 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   console.info('[BNS 557] Overzicht WhatsApp opent nu zoals factuur met nette tekst-route.');
 })();
 
-
 /* =========================================================
-   BNS 578 - Basis 13.55 + alleen bewezen Firebase materialen/users fix
-   Gebaseerd op BNS 573, zonder mobiele layout, zonder PIN/CSS wijzigingen.
-   Veilig: alleen app.js. Geen writes/deletes naar Firebase.
-   Doel: planner/admin op telefoon gebruikt dezelfde Firebase materials/users als laptop.
+   BNS 572 - Planner op telefoon gebruikt Firebase-data in actieve state
+   Veilig: alleen app.js. Geen Firebase writes, geen driver, geen reservering.
+   Probleem opgelost:
+   - firebase-sync zet materialen/users in localStorage/window.state,
+     maar de planner gebruikt de interne `state` uit app.js.
+   - Op laptop was die interne state al gevuld; op telefoon bleef hij leeg/demo.
+   Fix:
+   - Neem materials/users uit event-planner-pro-v87 over zodra Firebase/localStorage
+     gevuld is, en render Admin > Materialen opnieuw.
 ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS578_DIRECT_FIREBASE_ADMIN_DATA__) return;
-  window.__BNS578_DIRECT_FIREBASE_ADMIN_DATA__ = true;
+  if(window.__BNS572_ACTIVE_STATE_FROM_FIREBASE__) return;
+  window.__BNS572_ACTIVE_STATE_FROM_FIREBASE__ = true;
+
+  var KEY = 'event-planner-pro-v87';
+  var lastMatCount = -1;
+  var lastUserCount = -1;
+
+  function log(msg){ try{ console.info('[BNS 572] '+msg); }catch(e){} }
+  function isArr(a){ return Array.isArray(a); }
+  function readLocal(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(!raw) return null;
+      var s = JSON.parse(raw);
+      return (s && typeof s === 'object') ? s : null;
+    }catch(e){ return null; }
+  }
+  function currentState(){
+    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function text(v){ return String(v == null ? '' : v).trim(); }
+  function isDemoUsers(users){
+    if(!isArr(users)) return true;
+    var names = users.map(function(u){ return text(u && u.name).toLowerCase(); }).join('|');
+    return users.length <= 3 && /demo/.test(names);
+  }
+  function sameIds(a,b){
+    if(!isArr(a)||!isArr(b)||a.length!==b.length) return false;
+    var aa=a.map(function(x){return text(x && x.id);}).sort().join('|');
+    var bb=b.map(function(x){return text(x && x.id);}).sort().join('|');
+    return aa===bb;
+  }
+  function rerender(){
+    setTimeout(function(){
+      try{ if(typeof renderCats === 'function') renderCats(); }catch(e){}
+      try{ if(typeof window.renderCats === 'function') window.renderCats(); }catch(e){}
+      try{ if(typeof renderMaterials === 'function') renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
+      try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
+      try{ if(typeof adminRender === 'function') adminRender(); }catch(e){}
+      try{ if(typeof window.adminRender === 'function') window.adminRender(); }catch(e){}
+      try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials === 'function') window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
+      try{ document.dispatchEvent(new CustomEvent('bns:admin-data-refreshed')); }catch(e){}
+    }, 80);
+  }
+  function apply(reason){
+    var local = readLocal();
+    var s = currentState();
+    if(!local || !s) return false;
+    var changed = false;
+
+    if(isArr(local.materials) && local.materials.length > 0){
+      if(!isArr(s.materials) || s.materials.length === 0 || !sameIds(s.materials, local.materials)){
+        s.materials = local.materials.slice();
+        changed = true;
+      }
+    }
+
+    if(isArr(local.users) && local.users.length > 0){
+      if(!isArr(s.users) || isDemoUsers(s.users) || !sameIds(s.users, local.users)){
+        s.users = local.users.slice();
+        changed = true;
+      }
+    }
+
+    try{ window.state = s; }catch(e){}
+
+    var mc = isArr(s.materials) ? s.materials.length : 0;
+    var uc = isArr(s.users) ? s.users.length : 0;
+    if(changed || mc !== lastMatCount || uc !== lastUserCount){
+      lastMatCount = mc;
+      lastUserCount = uc;
+      log('actieve state bijgewerkt via '+(reason||'controle')+' - materialen '+mc+', users '+uc);
+      rerender();
+      return true;
+    }
+    return false;
+  }
+
+  document.addEventListener('bns:firebase-updated', function(){ apply('Firebase update'); });
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) apply('zichtbaar'); });
+  window.addEventListener('focus', function(){ apply('focus'); });
+  window.addEventListener('storage', function(ev){ if(!ev || ev.key === KEY) apply('storage'); });
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ apply('start'); }, 700); });
+  }else{
+    setTimeout(function(){ apply('start'); }, 700);
+  }
+  setTimeout(function(){ apply('2s'); }, 2000);
+  setTimeout(function(){ apply('5s'); }, 5000);
+  setInterval(function(){ apply('interval'); }, 2500);
+
+  log('actief - koppelt Firebase/localStorage materials/users terug naar planner-state');
+})();
+
+/* =========================================================
+   BNS 573 - Planner leest materialen/users direct uit Firebase in actieve state
+   Veilig: alleen app.js. Geen writes/deletes naar Firebase.
+   Doel: telefoon planner/admin gebruikt dezelfde Firebase materials/users als laptop.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS573_DIRECT_FIREBASE_ADMIN_DATA__) return;
+  window.__BNS573_DIRECT_FIREBASE_ADMIN_DATA__ = true;
 
   var KEY = 'event-planner-pro-v87';
   var tools = null;
   var busy = false;
   var lastSig = '';
 
-  function log(t){ try{ console.info('[BNS 578] '+t); }catch(e){} }
+  function log(t){ try{ console.info('[BNS 573] '+t); }catch(e){} }
   function arr(a){ return Array.isArray(a) ? a : []; }
   function txt(v){ return String(v == null ? '' : v).trim(); }
   function stateObj(){
@@ -47971,13 +48079,10 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
   function callRender(){
     setTimeout(function(){
-      var cat = 'TW';
-      try{ if(window.currentCat) cat = window.currentCat; }catch(e){}
-      try{ if(typeof currentCat !== 'undefined' && currentCat) cat = currentCat; }catch(e){}
       try{ if(typeof renderCats === 'function') renderCats(); }catch(e){}
       try{ if(typeof window.renderCats === 'function') window.renderCats(); }catch(e){}
-      try{ if(typeof renderMaterials === 'function') renderMaterials(cat); }catch(e){}
-      try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(cat); }catch(e){}
+      try{ if(typeof renderMaterials === 'function') renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
+      try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
       try{ if(typeof adminRender === 'function') adminRender(); }catch(e){}
       try{ if(typeof window.adminRender === 'function') window.adminRender(); }catch(e){}
       try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials === 'function') window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
@@ -48007,8 +48112,10 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       if(sig !== lastSig){
         lastSig = sig;
         log('Firebase direct geladen via '+(reason||'start')+': materialen '+mats.length+', users '+users.length);
+        callRender();
+      }else{
+        callRender();
       }
-      callRender();
     }catch(e){ log('fout bij direct laden: '+(e && e.message || e)); }
     finally{ busy = false; }
   }
@@ -48028,89 +48135,4 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(start, 1200); });
   else setTimeout(start, 1200);
   log('actief - direct Firebase materials/users naar planner-state, zonder schrijven naar Firebase');
-})();
-
-/* =========================================================
-   BNS 579 - Veilige PIN-poort terug op basis 578
-   Alleen app.js. Geen Firebase writes/deletes. Geen mobiele layout.
-   Doel: gewone planner opent nooit zonder PIN; 573/578 materialen-fix blijft intact.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS579_PIN_GATE__) return;
-  window.__BNS579_PIN_GATE__ = true;
-
-  var unlocked = false;
-  function byId(id){ return document.getElementById(id); }
-  function log(t){ try{ console.info('[BNS 579] '+t); }catch(e){} }
-
-  function ensureStyle(){
-    if(byId('bns579PinStyle')) return;
-    var st = document.createElement('style');
-    st.id = 'bns579PinStyle';
-    st.textContent =
-      'html.bns579-pin-locked,body.bns579-pin-locked{overflow:hidden!important;height:100%!important;position:fixed!important;width:100%!important;touch-action:none!important;}'+
-      'body.bns579-pin-locked #app{display:none!important;visibility:hidden!important;pointer-events:none!important;}'+
-      'body.bns579-pin-locked #login{display:flex!important;visibility:visible!important;opacity:1!important;position:fixed!important;inset:0!important;z-index:2147483647!important;overflow:hidden!important;}';
-    (document.head || document.documentElement).appendChild(st);
-  }
-
-  function lock(){
-    if(unlocked) return;
-    ensureStyle();
-    var app = byId('app');
-    var login = byId('login');
-    if(app) app.classList.add('hidden');
-    if(login) login.classList.remove('hidden');
-    document.documentElement.classList.add('bns579-pin-locked');
-    if(document.body) document.body.classList.add('bns579-pin-locked');
-    try{ window.scrollTo(0,0); }catch(e){}
-  }
-
-  function unlock(){
-    unlocked = true;
-    document.documentElement.classList.remove('bns579-pin-locked');
-    if(document.body) document.body.classList.remove('bns579-pin-locked');
-    var login = byId('login');
-    var app = byId('app');
-    if(login) login.classList.add('hidden');
-    if(app) app.classList.remove('hidden');
-  }
-
-  function installDoLoginWrapper(){
-    try{
-      if(typeof doLogin !== 'function' || doLogin.__bns579Wrapped) return false;
-      var original = doLogin;
-      doLogin = function(){
-        original.apply(this, arguments);
-        setTimeout(function(){
-          var login = byId('login');
-          var app = byId('app');
-          var ok = login && login.classList.contains('hidden') && app && !app.classList.contains('hidden');
-          if(ok) unlock();
-          else lock();
-        }, 30);
-      };
-      doLogin.__bns579Wrapped = true;
-      return true;
-    }catch(e){ return false; }
-  }
-
-  function start(){
-    lock();
-    installDoLoginWrapper();
-    setTimeout(installDoLoginWrapper, 500);
-    setTimeout(installDoLoginWrapper, 1500);
-    var tries = 0;
-    var timer = setInterval(function(){
-      tries++;
-      installDoLoginWrapper();
-      if(!unlocked) lock();
-      if(unlocked || tries > 20) clearInterval(timer);
-    }, 250);
-  }
-
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-  else start();
-  log('actief - planner blijft dicht tot geldige PIN');
 })();
