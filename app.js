@@ -48114,7 +48114,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         log('Firebase direct geladen via '+(reason||'start')+': materialen '+mats.length+', users '+users.length);
         callRender();
       }else{
-        callRender();
+        // BNS 574: zelfde Firebase-data niet elke paar seconden opnieuw renderen.
+        // Dit voorkwam dat gekozen rubriek op laptop/telefoon terug sprong.
       }
     }catch(e){ log('fout bij direct laden: '+(e && e.message || e)); }
     finally{ busy = false; }
@@ -48135,4 +48136,144 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(start, 1200); });
   else setTimeout(start, 1200);
   log('actief - direct Firebase materials/users naar planner-state, zonder schrijven naar Firebase');
+})();
+
+
+/* =========================================================
+   BNS 574 - Rubriek blijft staan + mobiel admin opslaan zichtbaar
+   Veilig: geen Firebase reads/writes/deletes. Alleen UI-gedrag.
+   - voorkomt terug springen naar TW na Firebase-controle
+   - maakt Opslaan in Admin > Materialen zichtbaar op smal scherm
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS574_RUBRIEK_MOBIEL_FIX__) return;
+  window.__BNS574_RUBRIEK_MOBIEL_FIX__ = true;
+
+  var CAT_KEY = 'bnsV56Cat';
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function C(v){ return T(v).toUpperCase() || 'TW'; }
+  function E(id){ return document.getElementById(id); }
+  function log(t){ try{ console.info('[BNS 574] '+t); }catch(e){} }
+
+  function remember(cat){
+    cat = C(cat);
+    if(!cat) return 'TW';
+    try{ window.currentCat = cat; }catch(e){}
+    try{ currentCat = cat; }catch(e){}
+    try{ localStorage.setItem(CAT_KEY, cat); }catch(e){}
+    try{ localStorage.setItem('bns574LastCat', cat); }catch(e){}
+    return cat;
+  }
+  function remembered(){
+    return C(window.currentCat || (function(){ try{return currentCat;}catch(e){return '';} })() || localStorage.getItem(CAT_KEY) || localStorage.getItem('bns574LastCat') || 'TW');
+  }
+
+  function catFromTarget(t){
+    if(!t || !t.closest) return '';
+    var b = t.closest('[data-v83-cat], #bns391Cats button[data-cat], #materialCats button[data-cat], .bns-v83-cat, .bns-cat-tab');
+    if(!b) return '';
+    return b.getAttribute('data-v83-cat') || b.getAttribute('data-cat') || b.dataset.cat || T(b.textContent);
+  }
+
+  document.addEventListener('click', function(ev){
+    var cat = catFromTarget(ev.target);
+    if(cat){
+      cat = remember(cat);
+      setTimeout(function(){ remember(cat); }, 50);
+      setTimeout(function(){ remember(cat); }, 300);
+    }
+  }, true);
+
+  document.addEventListener('input', function(ev){
+    var t = ev.target;
+    if(t && (t.id === 'bns391Cat' || t.id === 'bnsV56Cat' || t.id === 'adminMatCat')) remember(t.value);
+  }, true);
+
+  function patchRenderMaterials(){
+    try{
+      var fn = window.renderMaterials;
+      if(typeof fn === 'function' && !fn.__bns574KeepCat){
+        var wrap = function(cat, force){
+          var c = cat ? remember(cat) : remembered();
+          return fn.call(this, c, force);
+        };
+        wrap.__bns574KeepCat = true;
+        wrap.__bns574Original = fn;
+        window.renderMaterials = wrap;
+        try{ renderMaterials = wrap; }catch(e){}
+      }
+    }catch(e){}
+    try{
+      var fn2 = window.BNS_V12_PRO_renderMaterials;
+      if(typeof fn2 === 'function' && !fn2.__bns574KeepCat){
+        var wrap2 = function(cat, force){
+          var c = cat ? remember(cat) : remembered();
+          return fn2.call(this, c, force);
+        };
+        wrap2.__bns574KeepCat = true;
+        wrap2.__bns574Original = fn2;
+        window.BNS_V12_PRO_renderMaterials = wrap2;
+      }
+    }catch(e){}
+  }
+
+  function style(){
+    if(E('bns574Style')) return;
+    var st = document.createElement('style');
+    st.id = 'bns574Style';
+    st.textContent = '\
+@media (max-width: 820px){\
+  #bns391AdminCard{padding-bottom:92px!important; overflow:visible!important;}\
+  #bns391Grid{grid-template-columns:1fr!important;}\
+  #bns391Grid > div{grid-column:auto!important;}\
+  #bns391Actions{position:sticky!important;bottom:72px!important;z-index:2147483000!important;background:rgba(255,255,255,.96)!important;border:2px solid #dbeafe!important;border-radius:16px!important;padding:10px!important;box-shadow:0 12px 30px rgba(15,23,42,.22)!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;}\
+  #bns391Actions button{width:100%!important;min-height:48px!important;font-size:15px!important;}\
+  #bns391List{max-height:none!important;overflow:visible!important;padding-bottom:120px!important;}\
+  #bns574MobileSaveBar{display:flex!important;}\
+}\
+#bns574MobileSaveBar{display:none;position:fixed;left:10px;right:10px;bottom:10px;z-index:2147483200;gap:8px;background:rgba(255,255,255,.97);border:2px solid #bfdbfe;border-radius:16px;padding:8px;box-shadow:0 12px 30px rgba(15,23,42,.28)}\
+#bns574MobileSaveBar button{flex:1;border:0;border-radius:12px;padding:12px 10px;font-weight:900;color:white;background:#2563eb}#bns574MobileSaveBar .save{background:#16a34a}#bns574MobileSaveBar .new{background:#334155}\
+';
+    document.head.appendChild(st);
+  }
+
+  function visible(el){
+    if(!el) return false;
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+  function ensureMobileBar(){
+    style();
+    var card = E('bns391AdminCard');
+    var bar = E('bns574MobileSaveBar');
+    if(!bar){
+      bar = document.createElement('div');
+      bar.id = 'bns574MobileSaveBar';
+      bar.innerHTML = '<button type="button" class="save">Opslaan</button><button type="button" class="new">Nieuw/leeg</button><button type="button">Wis materiaal</button>';
+      document.body.appendChild(bar);
+      bar.querySelector('.save').onclick = function(){ var b=E('bns391Save')||E('bnsV56Save')||E('adminSaveMat'); if(b) b.click(); };
+      bar.querySelector('.new').onclick = function(){ var b=E('bns391New')||E('bnsV56Clear')||E('adminNewMat'); if(b) b.click(); };
+      bar.querySelector('button:not(.save):not(.new)').onclick = function(){ var b=E('bns391Delete')||E('bnsV56Delete')||E('adminDeleteMat'); if(b) b.click(); };
+    }
+    if(window.innerWidth <= 820 && card && visible(card)){
+      bar.style.display = 'flex';
+    }else{
+      bar.style.display = 'none';
+    }
+  }
+
+  function run(){
+    remember(remembered());
+    patchRenderMaterials();
+    ensureMobileBar();
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run, 500); });
+  else setTimeout(run, 500);
+  document.addEventListener('click', function(){ setTimeout(run, 120); }, true);
+  window.addEventListener('resize', run);
+  window.addEventListener('focus', run);
+  setInterval(run, 1000);
+  log('actief - rubriek blijft staan en mobiel opslaan zichtbaar');
 })();

@@ -732,3 +732,248 @@ body.bns-v112 .bns-app-toast{position:fixed;right:18px;bottom:18px;z-index:99999
 .toast.show {
   display: block !important;
 }
+
+/* =========================================================
+   BNS 568 - Alleen CSS: materiaal scroll mobiel veilig
+   Doel: materiaal/rubrieken op telefoon volledig zichtbaar maken.
+   Geen app.js, geen Firebase, geen reserveringslogica.
+   ========================================================= */
+@media (max-width: 768px){
+  html, body{
+    width:100% !important;
+    max-width:100% !important;
+    overflow-x:hidden !important;
+  }
+
+  main{
+    padding:10px !important;
+    max-width:100% !important;
+    overflow-x:hidden !important;
+  }
+
+  .material-workspace{
+    display:block !important;
+    grid-template-columns:1fr !important;
+    width:100% !important;
+    max-width:100% !important;
+    height:auto !important;
+    max-height:none !important;
+    overflow:visible !important;
+  }
+
+  .material-picker,
+  .material-order,
+  .chooser,
+  .panel{
+    width:100% !important;
+    max-width:100% !important;
+    height:auto !important;
+    max-height:none !important;
+    overflow:visible !important;
+  }
+
+  .cat-tabs,
+  #catTabs,
+  .material-status-legend,
+  .mat-status-legend{
+    display:flex !important;
+    flex-wrap:wrap !important;
+    width:100% !important;
+    max-width:100% !important;
+    height:auto !important;
+    max-height:none !important;
+    overflow:visible !important;
+    gap:8px !important;
+  }
+
+  .cat-tabs button,
+  #catTabs button{
+    flex:1 1 calc(50% - 8px) !important;
+    min-width:130px !important;
+    min-height:44px !important;
+    white-space:normal !important;
+  }
+
+  #materialList,
+  .material-list,
+  .materials-list,
+  [data-list="materials"]{
+    display:flex !important;
+    flex-direction:column !important;
+    width:100% !important;
+    max-width:100% !important;
+    height:auto !important;
+    max-height:none !important;
+    overflow:visible !important;
+    -webkit-overflow-scrolling:touch !important;
+  }
+
+  .material-row,
+  .bns-material-row,
+  .v111-material-row,
+  .v112-material-row{
+    width:100% !important;
+    max-width:100% !important;
+    min-height:54px !important;
+    margin:8px 0 !important;
+  }
+
+  .sticky{
+    position:static !important;
+    width:100% !important;
+    margin-top:14px !important;
+  }
+
+  body{
+    padding-bottom:24px !important;
+  }
+}
+
+/* =========================================================
+   BNS 575 - Planner responsive op telefoon, geen driver-modus
+   Alleen CSS: maakt de gewone planner bruikbaar op smal scherm.
+   ========================================================= */
+@media (max-width: 768px){
+  html, body{
+    width:100% !important;
+    max-width:100% !important;
+    overflow-x:hidden !important;
+  }
+
+  .app{
+    display:block !important;
+    min-height:100vh !important;
+    width:100% !important;
+    max-width:100% !important;
+  }
+
+  .side{
+    position:relative !important;
+    width:100% !important;
+    max-width:100% !important;
+    padding:12px !important;
+    display:flex !important;
+    flex-direction:row !important;
+    flex-wrap:wrap !important;
+    gap:8px !important;
+    align-items:center !important;
+  }
+
+  .side h1{
+    width:100% !important;
+    font-size:18px !important;
+    margin:0 !important;
+  }
+
+  .side p{
+    width:100% !important;
+    margin:0 0 6px !important;
+    font-size:12px !important;
+  }
+
+  .nav, .logout{
+    flex:1 1 calc(50% - 8px) !important;
+    min-width:130px !important;
+    text-align:center !important;
+    padding:11px 8px !important;
+  }
+
+  main{
+    width:100% !important;
+    max-width:100% !important;
+    padding:10px !important;
+    overflow-x:hidden !important;
+  }
+
+  .top{
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    gap:8px !important;
+  }
+
+  .panel,.dash-widget,.card,.order-card,.chooser,.material-picker,.material-order{
+    width:100% !important;
+    max-width:100% !important;
+    padding:12px !important;
+    margin-left:0 !important;
+    margin-right:0 !important;
+    overflow:visible !important;
+  }
+
+  .grid,.order-head,.summary,.stats,.material-workspace{
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    width:100% !important;
+    max-width:100% !important;
+    gap:10px !important;
+  }
+
+  .actions,.tabs,.admin-tabs,.cat-tabs,#catTabs{
+    display:flex !important;
+    flex-wrap:wrap !important;
+    gap:8px !important;
+    width:100% !important;
+    max-width:100% !important;
+  }
+
+  .actions button,.tabs button,.admin-tabs button,.cat-tabs button,#catTabs button{
+    flex:1 1 calc(50% - 8px) !important;
+    min-width:130px !important;
+    min-height:44px !important;
+    white-space:normal !important;
+    padding:11px 8px !important;
+  }
+
+  input,select,textarea,button{
+    max-width:100% !important;
+    font-size:16px !important;
+  }
+
+  #materialList,.material-list,.materials-list,[data-list="materials"]{
+    width:100% !important;
+    max-width:100% !important;
+    height:auto !important;
+    max-height:none !important;
+    overflow:visible !important;
+  }
+
+  .material-row,.admin-row,.pick,.message-row{
+    grid-template-columns:1fr !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-height:52px !important;
+  }
+
+  .material-table-head{display:none !important;}
+  .material-line,.chosen-row{
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    width:100% !important;
+    max-width:100% !important;
+  }
+
+  .sticky{
+    position:sticky !important;
+    bottom:0 !important;
+    z-index:40 !important;
+    width:100% !important;
+    max-width:100% !important;
+    padding:10px !important;
+    background:rgba(238,243,251,.96) !important;
+  }
+
+  .sticky .actions,
+  .sticky.actions{
+    display:grid !important;
+    grid-template-columns:1fr 1fr !important;
+    gap:8px !important;
+  }
+
+  .sticky button,
+  .sticky .actions button{
+    width:100% !important;
+    min-height:48px !important;
+  }
+
+  body{padding-bottom:18px !important;}
+}
