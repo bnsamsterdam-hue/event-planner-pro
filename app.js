@@ -22030,9 +22030,7 @@ setTimeout(()=>{
     var cat=currentCat();
     var mats=(S().materials||[]);
     var rows=mats.filter(function(m){
-      return catKey(m.cat||m.rubriek||m.category)===cat;
-    }).filter(function(m){
-      return !q || materialText(m).indexOf(q)>=0;
+      return q ? materialText(m).indexOf(q)>=0 : catKey(m.cat||m.rubriek||m.category)===cat;
     }).slice(0,500);
     box.innerHTML=rows.length?rows.map(function(m){
       var st=statusFor(m);
@@ -22529,9 +22527,8 @@ setTimeout(()=>{
     var q = norm(search && search.value);
     var active = getCurrentCat();
     var rows = (S().materials || []).filter(function(m){
+      if (q) return materialText(m).indexOf(q) >= 0;
       return catKey(m.cat || m.rubriek || m.category) === active;
-    }).filter(function(m){
-      return !q || materialText(m).indexOf(q) >= 0;
     }).slice(0,500);
     box.innerHTML = rows.length ? rows.map(function(m){
       var c = catKey(m.cat || m.rubriek || m.category);
@@ -42192,7 +42189,7 @@ setTimeout(()=>{
       renderChosenSafe(); renderMaterials(window.currentCat,true); return false;
     }
     var st=statusFor(m);
-    if(st.blocked){ info(m,st); return false; }
+    if(st.blocked){ info(m,st); renderMaterials(window.currentCat,true); return false; }
     var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
     var list=chosenList(); list.push(item); setChosen(list);
     renderChosenSafe(); renderMaterials(window.currentCat,true); return false;
@@ -43421,7 +43418,7 @@ setTimeout(()=>{
   function polishSearch(){
     var ms=E('materialSearch');
     if(ms){
-      ms.placeholder='Zoek binnen deze rubriek / product nr / omschrijving';
+      ms.placeholder='Zoek materiaal / rubriek / product nr / omschrijving';
       if(!ms.__bns416){
         ms.__bns416=true;
         ms.addEventListener('input',function(){ try{ if(window.BNS_V392 && window.BNS_V392.renderMaterials) window.BNS_V392.renderMaterials(window.currentCat,true); else if(typeof renderMaterials==='function') renderMaterials(window.currentCat); }catch(e){} },true);
@@ -43435,7 +43432,7 @@ setTimeout(()=>{
   }
   setInterval(function(){ polishSearch(); patchV392Search(); },1000);
   setTimeout(function(){ polishSearch(); patchV392Search(); },300);
-  console.info('[BNS v416] Zoeken binnen gekozen rubriek + opslaan-popup zonder document-open actief.');
+  console.info('[BNS v416] Zoeken alle rubrieken + opslaan-popup zonder document-open actief.');
 })();
 
 /* =========================================================
@@ -47908,114 +47905,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 })();
 
 /* =========================================================
-   BNS 572 - Planner op telefoon gebruikt Firebase-data in actieve state
-   Veilig: alleen app.js. Geen Firebase writes, geen driver, geen reservering.
-   Probleem opgelost:
-   - firebase-sync zet materialen/users in localStorage/window.state,
-     maar de planner gebruikt de interne `state` uit app.js.
-   - Op laptop was die interne state al gevuld; op telefoon bleef hij leeg/demo.
-   Fix:
-   - Neem materials/users uit event-planner-pro-v87 over zodra Firebase/localStorage
-     gevuld is, en render Admin > Materialen opnieuw.
+   BNS 591 - Backup basis + alleen kleine materiaaldata/zoekfix
+   Basis: app(61).js backup.
+   - Geen mobiel menu/layout wijziging.
+   - Geen materiaal reserveren/status wijziging.
+   - Geen Firebase writes/deletes.
 ========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS572_ACTIVE_STATE_FROM_FIREBASE__) return;
-  window.__BNS572_ACTIVE_STATE_FROM_FIREBASE__ = true;
-
-  var KEY = 'event-planner-pro-v87';
-  var lastMatCount = -1;
-  var lastUserCount = -1;
-
-  function log(msg){ try{ console.info('[BNS 572] '+msg); }catch(e){} }
-  function isArr(a){ return Array.isArray(a); }
-  function readLocal(){
-    try{
-      var raw = localStorage.getItem(KEY);
-      if(!raw) return null;
-      var s = JSON.parse(raw);
-      return (s && typeof s === 'object') ? s : null;
-    }catch(e){ return null; }
-  }
-  function currentState(){
-    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
-    try{ if(window.state) return window.state; }catch(e){}
-    return null;
-  }
-  function text(v){ return String(v == null ? '' : v).trim(); }
-  function isDemoUsers(users){
-    if(!isArr(users)) return true;
-    var names = users.map(function(u){ return text(u && u.name).toLowerCase(); }).join('|');
-    return users.length <= 3 && /demo/.test(names);
-  }
-  function sameIds(a,b){
-    if(!isArr(a)||!isArr(b)||a.length!==b.length) return false;
-    var aa=a.map(function(x){return text(x && x.id);}).sort().join('|');
-    var bb=b.map(function(x){return text(x && x.id);}).sort().join('|');
-    return aa===bb;
-  }
-  function rerender(){
-    setTimeout(function(){
-      try{ if(typeof renderCats === 'function') renderCats(); }catch(e){}
-      try{ if(typeof window.renderCats === 'function') window.renderCats(); }catch(e){}
-      try{ if(typeof renderMaterials === 'function') renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
-      try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW')); }catch(e){}
-      try{ if(typeof adminRender === 'function') adminRender(); }catch(e){}
-      try{ if(typeof window.adminRender === 'function') window.adminRender(); }catch(e){}
-      try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials === 'function') window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
-      try{ document.dispatchEvent(new CustomEvent('bns:admin-data-refreshed')); }catch(e){}
-    }, 80);
-  }
-  function apply(reason){
-    var local = readLocal();
-    var s = currentState();
-    if(!local || !s) return false;
-    var changed = false;
-
-    if(isArr(local.materials) && local.materials.length > 0){
-      if(!isArr(s.materials) || s.materials.length === 0 || !sameIds(s.materials, local.materials)){
-        s.materials = local.materials.slice();
-        changed = true;
-      }
-    }
-
-    if(isArr(local.users) && local.users.length > 0){
-      if(!isArr(s.users) || isDemoUsers(s.users) || !sameIds(s.users, local.users)){
-        s.users = local.users.slice();
-        changed = true;
-      }
-    }
-
-    try{ window.state = s; }catch(e){}
-
-    var mc = isArr(s.materials) ? s.materials.length : 0;
-    var uc = isArr(s.users) ? s.users.length : 0;
-    if(changed || mc !== lastMatCount || uc !== lastUserCount){
-      lastMatCount = mc;
-      lastUserCount = uc;
-      log('actieve state bijgewerkt via '+(reason||'controle')+' - materialen '+mc+', users '+uc);
-      rerender();
-      return true;
-    }
-    return false;
-  }
-
-  document.addEventListener('bns:firebase-updated', function(){ apply('Firebase update'); });
-  document.addEventListener('visibilitychange', function(){ if(!document.hidden) apply('zichtbaar'); });
-  window.addEventListener('focus', function(){ apply('focus'); });
-  window.addEventListener('storage', function(ev){ if(!ev || ev.key === KEY) apply('storage'); });
-
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ apply('start'); }, 700); });
-  }else{
-    setTimeout(function(){ apply('start'); }, 700);
-  }
-  setTimeout(function(){ apply('2s'); }, 2000);
-  setTimeout(function(){ apply('5s'); }, 5000);
-  setInterval(function(){ apply('interval'); }, 2500);
-
-  log('actief - koppelt Firebase/localStorage materials/users terug naar planner-state');
-})();
 
 /* =========================================================
    BNS 573 - Planner leest materialen/users direct uit Firebase in actieve state
@@ -48116,8 +48011,6 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         lastSig = sig;
         log('Firebase direct geladen via '+(reason||'start')+': materialen '+mats.length+', users '+users.length);
         callRender();
-      }else{
-        // Geen periodieke her-render als Firebase-data gelijk is; voorkomt flikkeren op laptop/telefoon.
       }
     }catch(e){ log('fout bij direct laden: '+(e && e.message || e)); }
     finally{ busy = false; }
@@ -48140,135 +48033,39 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   log('actief - direct Firebase materials/users naar planner-state, zonder schrijven naar Firebase');
 })();
 
-
 /* =========================================================
-   BNS 583 - Werkende 573 + alleen kleine rust/mobile fixes
-   - Geen Firebase writes/deletes.
-   - Geen driver.
-   - Geen oude materialen.
-   - Gereserveerd klikken rendert niet opnieuw na melding.
-   - PIN verbergt alleen de planner eronder; login-layout blijft ongemoeid.
-   - Eenvoudige mobiele planner-menu knop.
-   - Bestaande Admin materiaal-knoppen blijven zichtbaar op telefoon.
+   BNS 591 - Zoekbalk materialen leeg na opslaan/nieuwe opdracht
+   Alleen invoerveld leegmaken; geen materiaal/reservering/status wijziging.
 ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS583_SAFE_MOBILE_RUST__) return;
-  window.__BNS583_SAFE_MOBILE_RUST__ = true;
+  if(window.__BNS591_CLEAR_MATERIAL_SEARCH_ONLY__) return;
+  window.__BNS591_CLEAR_MATERIAL_SEARCH_ONLY__ = true;
 
-  function E(id){ return document.getElementById(id); }
-  function q(sel,root){ return (root||document).querySelector(sel); }
-  function qa(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-
-  function addCss(){
-    if(E('bns583Style')) return;
-    var st=document.createElement('style');
-    st.id='bns583Style';
-    st.textContent = ''+
-    'html.bns583-pin-active,body.bns583-pin-active{overflow:hidden!important;height:100vh!important;max-height:100vh!important;}'+
-    'body.bns583-pin-active #app,body.bns583-pin-active .app,body.bns583-pin-active main,body.bns583-pin-active .main{display:none!important;}'+
-    '@media(max-width:820px){'+
-      '#bns583MenuBtn{display:block!important;position:fixed!important;left:12px!important;top:12px!important;z-index:2147482600!important;border:0!important;border-radius:14px!important;padding:11px 14px!important;background:#0f172a!important;color:#fff!important;font-weight:900!important;box-shadow:0 8px 24px rgba(0,0,0,.28)!important;}'+
-      '#bns583Backdrop{display:none;position:fixed;inset:0;z-index:2147482400;background:rgba(15,23,42,.38);}'+
-      'body.bns583-menu-open #bns583Backdrop{display:block!important;}'+
-      'body.bns583-menu-open .side,body.bns583-menu-open aside.side,body.bns583-menu-open .sidebar,body.bns583-menu-open nav{transform:translateX(0)!important;}'+
-      'body:not(.bns583-pin-active) #app:not(.hidden),body:not(.bns583-pin-active) .app:not(.hidden){padding-top:58px!important;}'+
-      '.side,aside.side,.sidebar{position:fixed!important;top:0!important;left:0!important;width:min(86vw,360px)!important;max-width:360px!important;height:100vh!important;max-height:100vh!important;overflow-y:auto!important;z-index:2147482500!important;transform:translateX(-110%)!important;transition:transform .18s ease!important;box-shadow:16px 0 40px rgba(0,0,0,.28)!important;}'+
-      '#bns391Actions{position:sticky!important;bottom:0!important;z-index:20!important;background:#fff!important;padding:10px 0!important;display:flex!important;flex-wrap:wrap!important;gap:8px!important;}'+
-      '#bns391Actions button{flex:1 1 130px!important;min-height:46px!important;font-size:15px!important;}'+
-      '#bns391Grid{grid-template-columns:1fr!important;}'+
-      '#bns391Grid>*{grid-column:auto!important;}'+
-      '#bns391List{max-height:none!important;overflow:visible!important;padding-bottom:90px!important;}'+
-      '#materialList .bns392-row,#materialList .bns392-badge,.badge.reserved,.bns392-reserved,.bns392-reserved *{animation:none!important;transition:none!important;}'+
-    '}'+
-    '@media(min-width:821px){#bns583MenuBtn,#bns583Backdrop{display:none!important;}}';
-    document.head.appendChild(st);
+  function clearSearch(){
+    var el = document.getElementById('materialSearch');
+    if(el && el.value){
+      el.value = '';
+      try{ el.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){}
+    }
   }
-
-  function loginVisible(){
-    var l=E('login') || q('.login');
-    if(!l) return false;
-    if(l.classList && l.classList.contains('hidden')) return false;
-    try{ var cs=getComputedStyle(l); if(cs.display==='none'||cs.visibility==='hidden'||cs.opacity==='0') return false; }catch(e){}
-    return true;
-  }
-  function tickPin(){
-    addCss();
-    var on=loginVisible();
-    document.body.classList.toggle('bns583-pin-active', !!on);
-    document.documentElement.classList.toggle('bns583-pin-active', !!on);
-    if(on) document.body.classList.remove('bns583-menu-open');
-  }
-
-  function addMenu(){
-    if(E('bns583MenuBtn')) return;
-    var bg=document.createElement('div'); bg.id='bns583Backdrop';
-    bg.addEventListener('click',function(ev){ ev.preventDefault(); document.body.classList.remove('bns583-menu-open'); });
-    var btn=document.createElement('button'); btn.id='bns583MenuBtn'; btn.type='button'; btn.textContent='☰ Menu';
-    btn.addEventListener('click',function(ev){
-      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      document.body.classList.toggle('bns583-menu-open');
-      return false;
-    }, true);
-    document.body.appendChild(bg); document.body.appendChild(btn);
-    document.addEventListener('click',function(ev){
-      var t=ev.target; if(!t||!t.closest) return;
-      if(t.closest('#bns583MenuBtn')) return;
-      if(t.closest('.side button,.side a,.sidebar button,.sidebar a,aside.side button,aside.side a')){
-        setTimeout(function(){ document.body.classList.remove('bns583-menu-open'); },120);
-      }
-    }, true);
-  }
-
-  function boot(){ addCss(); addMenu(); tickPin(); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
-  setInterval(tickPin,250);
-  document.addEventListener('click',function(){ setTimeout(tickPin,50); setTimeout(tickPin,300); },true);
-  console.info('[BNS 583] veilige mobiele menu/PIN/gereserveerd-rust fix actief op werkende 573.');
-})();
-
-
-/* =========================================================
-   BNS 589 - Schone zoek/rust fix op goede mobiele basis
-   - Geen nieuw mobiel menu.
-   - Zoeken blijft binnen gekozen rubriek.
-   - Zoekbalk materialen wordt leeg na opslaan/nieuwe opdracht.
-   - Geen periodieke Firebase her-render als data gelijk is.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS589_SEARCH_RUST_FIX__) return;
-  window.__BNS589_SEARCH_RUST_FIX__ = true;
-  function E(id){ return document.getElementById(id); }
-  function txt(v){ return String(v==null?'':v).trim().toLowerCase(); }
-  function clearMaterialSearch(reason){
-    var s = E('materialSearch');
-    if(!s || !s.value) return;
-    s.value = '';
-    try{
-      var c = window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW');
-      if(typeof window.renderMaterials === 'function') window.renderMaterials(c);
-      else if(typeof renderMaterials === 'function') renderMaterials(c);
-    }catch(e){}
-  }
-  function isSaveOrNewButton(el){
-    var t = txt(el && (el.textContent || el.value || el.title || el.getAttribute('aria-label') || ''));
-    return /^(opslaan|ja, opslaan|nieuwe opdracht|nieuw opdracht)$/.test(t) || /opslaan/.test(t) && (el.id||'').toLowerCase().indexOf('material') < 0;
+  function isSaveOrNewButton(b){
+    var txt = String((b && (b.textContent || b.value)) || '').toLowerCase();
+    return /opslaan|nieuwe opdracht|nieuw\/leeg|leegmaken|annuleren/.test(txt);
   }
   document.addEventListener('click', function(ev){
-    var b = ev.target && ev.target.closest ? ev.target.closest('button,input[type="button"],input[type="submit"],a') : null;
-    if(!b) return;
-    if(isSaveOrNewButton(b)) setTimeout(function(){ clearMaterialSearch('click'); }, 250);
+    var b = ev.target && ev.target.closest ? ev.target.closest('button,input[type="button"],input[type="submit"]') : null;
+    if(b && isSaveOrNewButton(b)) setTimeout(clearSearch, 250);
   }, true);
-  document.addEventListener('bns:order-saved', function(){ setTimeout(function(){ clearMaterialSearch('event'); }, 100); });
-  console.info('[BNS 589] zoek/rubriek/rust fix actief op schone mobiele basis.');
+  document.addEventListener('bns:order-saved', function(){ setTimeout(clearSearch, 100); });
+  console.info('[BNS 591] materiaal zoekbalk leeg na opslaan actief.');
 })();
 
 /* =========================================================
    BNS 590 - Materiaal zoeken alleen op rubriek/productnr/zoeknaam
    - Niet meer zoeken in product omschrijving/description/notes/price.
    - Zoeken blijft binnen gekozen rubriek.
-   - Werkt als eindlaag over de schone v589 basis.
+   - Raakt reserveren/status niet aan.
 ========================================================= */
 (function(){
   'use strict';
@@ -48287,8 +48084,6 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     return c;
   }
   function searchText(m){
-    // Alleen rubriek + productnummer/code + product/zoeknaam.
-    // Bewust NIET: description, beschrijving, desc, name/omschrijving, notes, price.
     return [
       catOf(m),
       codeOf(m),
@@ -48361,7 +48156,6 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       window.currentCat = active;
       var s = E('materialSearch');
       var q = s ? s.value : '';
-      // Oud renderen zonder zoektekst, daarna zelf correct filteren.
       if(s) s.value = '';
       try{ old.call(this, active); }
       finally{ if(s) s.value = q; }
