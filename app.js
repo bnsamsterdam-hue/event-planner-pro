@@ -48279,3 +48279,243 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('click', function(){ setTimeout(keepVisible, 80); }, true);
   console.info('[BNS v596] actieknoppen Nieuwe opdracht zichtbaar; v595 knoppenbalk niet gebruikt.');
 })();
+
+/* =========================================================
+   BNS v597 - Mobiel: opdrachtknoppen onderaan de pagina
+   Basis: v596. Alleen extra onderbalk in Nieuwe opdracht op telefoon.
+   Geen materiaal/reserveren/zoeken/PIN/Firebase/menu wijziging.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS_V597_ORDER_BOTTOM_ACTIONS__) return;
+  window.__BNS_V597_ORDER_BOTTOM_ACTIONS__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function txt(el){ return String((el && (el.textContent || el.value || el.getAttribute('aria-label'))) || '').trim(); }
+
+  function addCss(){
+    if(E('bns-v597-order-bottom-actions-css')) return;
+    var st = document.createElement('style');
+    st.id = 'bns-v597-order-bottom-actions-css';
+    st.textContent =
+      '#bnsV597OrderBottomActions{display:none;}' +
+      '@media(max-width:900px){' +
+      '#newOrder{padding-bottom:28px!important;}' +
+      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:18px 0 28px!important;padding:12px!important;background:#ffffff!important;border:1px solid #dbe3ef!important;border-radius:16px!important;box-shadow:0 8px 22px rgba(15,23,42,.10)!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
+      '#bnsV597OrderBottomActions button{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:38px!important;padding:9px 12px!important;border-radius:12px!important;border:0!important;font-size:14px!important;font-weight:800!important;line-height:1.1!important;white-space:nowrap!important;flex:0 1 auto!important;max-width:100%!important;}' +
+      '#bnsV597Save{background:#16a34a!important;color:#fff!important;}' +
+      '#bnsV597Clear{background:#fee2e2!important;color:#991b1b!important;}' +
+      '#bnsV597Print,#bnsV597Overview{background:#e2e8f0!important;color:#0f172a!important;}' +
+      '}';
+    document.head.appendChild(st);
+  }
+
+  function findButton(pattern){
+    var page = E('newOrder') || document;
+    var all = A('button,input[type="button"],input[type="submit"]', page);
+    for(var i=0;i<all.length;i++){
+      var b = all[i];
+      if(b && b.id && /^bnsV597/.test(b.id)) continue;
+      if(pattern.test(txt(b))) return b;
+    }
+    return null;
+  }
+
+  function clickExisting(pattern){
+    var b = findButton(pattern);
+    if(b){ b.click(); return true; }
+    return false;
+  }
+
+  function doSave(){
+    var b = E('saveOrder');
+    if(b){ b.click(); return; }
+    if(typeof window.saveCurrentOrder === 'function'){ window.saveCurrentOrder(); return; }
+    try{ if(typeof saveCurrentOrder === 'function') saveCurrentOrder(); }catch(e){}
+  }
+  function doClear(){
+    if(!confirm('Nieuwe opdracht wissen/leegmaken?')) return;
+    try{ if(typeof window.clearOrder === 'function'){ window.clearOrder(); return; } }catch(e){}
+    try{ if(typeof clearOrder === 'function'){ clearOrder(); return; } }catch(e){}
+    clickExisting(/wis|leeg|annuleren/i);
+  }
+  function doPrint(){
+    if(clickExisting(/afdrukken|print/i)) return;
+    try{ if(typeof window.safePrint === 'function'){ window.safePrint(); return; } }catch(e){}
+    window.print();
+  }
+  function doOverview(){
+    if(clickExisting(/overzicht maken|overzicht bestelling|overzicht/i)) return;
+  }
+
+  function ensureBar(){
+    addCss();
+    var page = E('newOrder');
+    if(!page) return;
+    var bar = E('bnsV597OrderBottomActions');
+    if(!bar){
+      bar = document.createElement('div');
+      bar.id = 'bnsV597OrderBottomActions';
+      bar.innerHTML =
+        '<button type="button" id="bnsV597Save">Opslaan</button>' +
+        '<button type="button" id="bnsV597Clear">Wis</button>' +
+        '<button type="button" id="bnsV597Print">Afdrukken</button>' +
+        '<button type="button" id="bnsV597Overview">Overzicht maken</button>';
+      page.appendChild(bar);
+      E('bnsV597Save').addEventListener('click', doSave);
+      E('bnsV597Clear').addEventListener('click', doClear);
+      E('bnsV597Print').addEventListener('click', doPrint);
+      E('bnsV597Overview').addEventListener('click', doOverview);
+    } else if(bar.parentElement !== page){
+      page.appendChild(bar);
+    } else if(page.lastElementChild !== bar){
+      page.appendChild(bar);
+    }
+  }
+
+  function boot(){
+    ensureBar();
+    setTimeout(ensureBar, 250);
+    setTimeout(ensureBar, 900);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  document.addEventListener('click', function(){ setTimeout(ensureBar, 80); }, true);
+  document.addEventListener('bns:order-saved', function(){ setTimeout(ensureBar, 80); });
+  console.info('[BNS v597] mobiele opdrachtknoppen staan onderaan Nieuwe opdracht; geen materiaalwijzigingen.');
+})();
+
+/* =========================================================
+   BNS 598 - Admin materialen opslaan direct naar Firebase
+   Basis: aangeleverde v597.
+   Doel:
+   - 573 blijft Firebase-materialen laden voor laptop/telefoon.
+   - Admin > Materialen opslaan/wissen schrijft daarna ook direct collection materials.
+   - Voorkomt dat telefoon/laptop uit elkaar lopen door lokale opslag.
+   Veilig:
+   - Geen driver/opdrachten/reserveringen/boekhouding wijziging.
+   - Wist Firebase-materialen alleen exact na klik op materiaal opslaan/wissen,
+     en alleen als de actieve state minimaal 20 materialen bevat.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS598_ADMIN_MATERIALS_FIREBASE_SAVE__) return;
+  window.__BNS598_ADMIN_MATERIALS_FIREBASE_SAVE__ = true;
+
+  var tools = null;
+  var busy = false;
+  var pendingTimer = null;
+  var lastRun = 0;
+  var beforeIds = null;
+
+  function log(t){ try{ console.info('[BNS 598] '+t); }catch(e){} }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
+  function arr(v){ return Array.isArray(v) ? v : []; }
+  function matId(m){ return T(m && (m.id || m.docId || m.materialId)); }
+  function isRealMaterial(m){
+    var id = matId(m);
+    if(!id) return false;
+    if(/^add[_-]/i.test(id)) return false;
+    return true;
+  }
+  function currentMaterials(){
+    var s = S();
+    return arr(s && s.materials).filter(isRealMaterial);
+  }
+  function ids(list){
+    var out = {};
+    arr(list).forEach(function(m){ var id=matId(m); if(id) out[id]=1; });
+    return out;
+  }
+  async function fb(){
+    if(tools) return tools;
+    if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) throw new Error('Firebase config ontbreekt');
+    var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+    var fsMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+    var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+    var db = fsMod.getFirestore(app);
+    tools = { fsMod: fsMod, db: db };
+    return tools;
+  }
+  async function firebaseMaterialIds(){
+    var t = await fb();
+    var snap = await t.fsMod.getDocs(t.fsMod.collection(t.db, 'materials'));
+    var out = {};
+    snap.docs.forEach(function(d){ out[d.id] = 1; });
+    return out;
+  }
+  async function writeOne(t, m){
+    var id = matId(m);
+    if(!id) return;
+    var clean = Object.assign({}, m, { id: id, updatedAt: new Date().toISOString() });
+    await t.fsMod.setDoc(t.fsMod.doc(t.db, 'materials', id), clean, { merge: false });
+  }
+  async function syncExact(reason){
+    if(busy) return;
+    var now = Date.now();
+    if(now - lastRun < 1200) return;
+    lastRun = now;
+    busy = true;
+    try{
+      var mats = currentMaterials();
+      if(mats.length < 20){
+        log('NIET naar Firebase geschreven: actieve materialenlijst lijkt te klein ('+mats.length+').');
+        return;
+      }
+      var t = await fb();
+      var keep = ids(mats);
+      var existing = await firebaseMaterialIds();
+      var written = 0, removed = 0;
+      for(var i=0;i<mats.length;i++){
+        await writeOne(t, mats[i]);
+        written++;
+      }
+      Object.keys(existing).forEach(function(id){
+        if(!keep[id]){
+          removed++;
+          t.fsMod.deleteDoc(t.fsMod.doc(t.db, 'materials', id)).catch(function(e){ log('delete mislukt '+id+': '+(e&&e.message||e)); });
+        }
+      });
+      try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(S())); }catch(e){}
+      try{ document.dispatchEvent(new CustomEvent('bns:materials-saved-firebase', { detail:{written:written, removed:removed, reason:reason||''} })); }catch(e){}
+      log('Materialen naar Firebase gelijkgezet via '+(reason||'admin')+': geschreven '+written+', verwijderd '+removed+'.');
+    }catch(e){
+      log('FOUT materialen naar Firebase: '+(e && e.message || e));
+      try{ alert('Materiaal lokaal opgeslagen, maar Firebase opslaan is mislukt: '+(e && e.message || e)); }catch(_){ }
+    }finally{
+      busy = false;
+      beforeIds = null;
+    }
+  }
+  function schedule(reason, delay){
+    clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(function(){ syncExact(reason); }, delay || 900);
+  }
+  function isMaterialAdminButton(el){
+    if(!el || !el.closest) return false;
+    var b = el.closest('button, input[type="button"], input[type="submit"]');
+    if(!b) return false;
+    var id = T(b.id);
+    var txt = T(b.textContent || b.value).toLowerCase();
+    if(/^(bns391Save|bns391Delete|bns391DeleteCat|bns390Save|bns390Delete|bnsV56Save|bnsV56Delete|bnsV58AdminSave|bnsV58AdminDelete|adminSaveMat|adminDeleteMat)$/.test(id)) return true;
+    if((/materiaal/.test(txt) || /rubriek/.test(txt)) && (/opslaan|bewaar|wis|verwijder|delete/.test(txt))) return true;
+    return false;
+  }
+  document.addEventListener('pointerdown', function(ev){
+    if(isMaterialAdminButton(ev.target)) beforeIds = ids(currentMaterials());
+  }, true);
+  document.addEventListener('click', function(ev){
+    if(isMaterialAdminButton(ev.target)) schedule('klik '+T((ev.target.closest('button')||{}).id || (ev.target.textContent||'')), 1100);
+  }, true);
+
+  // Extra vangnet: als bestaande code een eigen event heeft of na admin-render klaar is.
+  document.addEventListener('bns:admin-material-saved', function(){ schedule('event admin-material-saved', 500); });
+  document.addEventListener('bns:admin-data-refreshed', function(){
+    // Niet telkens schrijven bij alleen Firebase-lezen. Alleen als kort daarvoor admin-knop is gebruikt.
+    if(beforeIds) schedule('admin refresh na bewerken', 900);
+  });
+
+  window.BNS598SyncMaterialsToFirebase = function(){ return syncExact('handmatig'); };
+  log('actief - Admin materiaal opslaan/wissen schrijft direct naar Firebase materials.');
+})();
