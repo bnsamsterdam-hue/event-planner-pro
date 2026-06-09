@@ -48590,3 +48590,113 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   window.BNS600SyncMaterialsNow = function(){ return syncMaterials('handmatig', null); };
   log('actief - Admin materialen opslaan/wissen schrijft veilig naar Firebase; geen herhalende Firebase-terugzetter.');
 })();
+
+/* =========================================================
+   BNS 602 - herstel waarschuwing meer artikelen in opdrachtkaarten
+   Doel: alleen de zichtbare oranje balk terugplaatsen bij opdrachten met
+   meer dan 1 materiaal/artikel. Geen Firebase, geen opslaan, geen driver.
+   ========================================================= */
+(function BNS602MeerArtikelenBadgeHerstel(){
+  if(window.__BNS602_MEER_ARTIKELEN_BADGE__) return;
+  window.__BNS602_MEER_ARTIKELEN_BADGE__ = true;
+
+  function T(v){ return String(v == null ? '' : v); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function A(x){ return Array.prototype.slice.call(x || []); }
+
+  function getState(){
+    try{ if(typeof state !== 'undefined' && state && Array.isArray(state.orders)) return state; }catch(e){}
+    try{ if(window.state && Array.isArray(window.state.orders)) return window.state; }catch(e){}
+    try{ if(typeof S === 'function'){ var s=S(); if(s && Array.isArray(s.orders)) return s; } }catch(e){}
+    var keys=['event-planner-pro-v87','event-planner-pro-v8','event-planner-pro','bns_event_planner','eventPlannerProV91','eventPlannerPro','plannerState'];
+    for(var i=0;i<keys.length;i++){
+      try{ var raw=localStorage.getItem(keys[i]); if(raw){ var p=JSON.parse(raw); if(p && Array.isArray(p.orders)) return p; } }catch(e){}
+    }
+    return {orders:[]};
+  }
+  function orderId(o){ return T(o && (o.id || o.orderId || o._id)); }
+  function orderNo(o){ return T(o && (o.number || o.nr || o.orderNumber || o.opdrachtnummer)); }
+  function mats(o){ return Array.isArray(o && o.materials) ? o.materials : []; }
+  function materialCount(o){ return mats(o).filter(Boolean).length; }
+
+  function findOrder(card, orders){
+    var id = T(card.getAttribute('data-bns-order-id') || card.getAttribute('data-order-id') || card.getAttribute('data-oid') || (card.dataset && (card.dataset.bnsOrderId || card.dataset.orderId || card.dataset.oid || card.dataset.id)) || '');
+    if(id){
+      for(var i=0;i<orders.length;i++){ if(orderId(orders[i]) === id) return orders[i]; }
+    }
+    var nr = T(card.getAttribute('data-order-number') || card.getAttribute('data-order-nr') || (card.dataset && (card.dataset.orderNumber || card.dataset.orderNr)) || '');
+    if(nr){
+      for(var j=0;j<orders.length;j++){ if(orderNo(orders[j]) === nr) return orders[j]; }
+    }
+    var txt = T(card.textContent);
+    for(var k=0;k<orders.length;k++){
+      var n=orderNo(orders[k]);
+      if(n && txt.indexOf(n) >= 0) return orders[k];
+    }
+    return null;
+  }
+
+  function ensureCss(){
+    if(document.getElementById('bns602-meer-artikelen-css')) return;
+    var st=document.createElement('style');
+    st.id='bns602-meer-artikelen-css';
+    st.textContent =
+      '.bns-meer-artikelen-badge,.bns602-meer-artikelen-badge{display:inline-flex!important;align-items:center!important;gap:6px!important;margin:6px 0 5px 0!important;padding:7px 11px!important;border-radius:999px!important;background:#f97316!important;color:#fff!important;font-weight:900!important;font-size:13px!important;line-height:1.15!important;box-shadow:0 2px 8px rgba(249,115,22,.25)!important;white-space:normal!important}' +
+      '.bns-meer-artikelen-card,.bns602-meer-artikelen-card{border-left:7px solid #f97316!important}' +
+      '#driverList .bns-meer-artikelen-badge,#driverList .bns602-meer-artikelen-badge{font-size:15px!important;padding:8px 12px!important;background:#dc2626!important}' +
+      '@media(max-width:760px){.bns-meer-artikelen-badge,.bns602-meer-artikelen-badge{font-size:12px!important;padding:6px 9px!important;width:auto!important;max-width:100%!important}}';
+    document.head.appendChild(st);
+  }
+
+  function findInsertTarget(card){
+    return card.querySelector('.order-title,.bns-order-title-with-status,b,strong,.bns-main,.bns-order-main') || card.firstElementChild || card;
+  }
+  function decorate(){
+    ensureCss();
+    var s=getState(), orders=s.orders||[];
+    var cards=A(document.querySelectorAll('.order-card,.bns-card,.bns-order-card,.bns-v126-order-card,[data-bns-order-id],[data-order-id],[data-oid]'));
+    cards.forEach(function(card){
+      if(!card || card.closest('.bns-order-overview-card')) return;
+      var o=findOrder(card,orders);
+      var old=card.querySelector('.bns602-meer-artikelen-badge,.bns-meer-artikelen-badge');
+      if(!o || materialCount(o) <= 1){
+        if(old) old.remove();
+        card.classList.remove('bns602-meer-artikelen-card','bns-meer-artikelen-card');
+        return;
+      }
+      card.classList.add('bns602-meer-artikelen-card','bns-meer-artikelen-card');
+      if(!old){
+        old=document.createElement('div');
+        old.className='bns602-meer-artikelen-badge bns-meer-artikelen-badge';
+        var target=findInsertTarget(card);
+        if(target && target.parentNode && target !== card){ target.insertAdjacentElement('afterend', old); }
+        else { card.insertBefore(old, card.firstChild); }
+      }
+      var n=materialCount(o);
+      old.innerHTML='&#9888;&#65039; LET OP: '+H(n)+' artikelen voor deze klant';
+      old.title='Deze opdracht heeft meer dan 1 artikel: goed opletten bij laden/bezorgen.';
+    });
+  }
+  function schedule(){ clearTimeout(schedule._t); schedule._t=setTimeout(decorate,80); }
+  function wrap(name){
+    try{
+      var fn=window[name];
+      if(typeof fn !== 'function' || fn.__bns602Meer) return;
+      var w=function(){ var r=fn.apply(this,arguments); schedule(); return r; };
+      w.__bns602Meer=true;
+      window[name]=w;
+      try{ eval(name+' = window[name]'); }catch(e){}
+    }catch(e){}
+  }
+  function install(){
+    ensureCss();
+    ['renderOrders','renderDashboard','renderDriver','renderAll','renderArchive'].forEach(wrap);
+    decorate();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(install,250);});
+  else setTimeout(install,250);
+  setTimeout(install,900);
+  setInterval(decorate,2500);
+  try{ new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true}); }catch(e){}
+  console.info('[BNS 602] meer-artikelen balk hersteld');
+})();
