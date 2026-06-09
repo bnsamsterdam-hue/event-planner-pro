@@ -49018,3 +49018,227 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setInterval(function(){ installMaterial(); ensureMenu(); }, 1200);
   console.info('[BNS 586] Plan telefoon menu nieuw + materiaal rubriek vast actief');
 })();
+
+/* =========================================================
+   BNS 587 - Herstel plan-telefoon menu
+   Probleem v586: menu-paneel werd ook op laptop zichtbaar en op telefoon
+   ontstond dubbel/door elkaar menu. Deze laag schakelt het v586-menu visueel uit
+   en gebruikt een enkel schoon mobiel overlay-menu. Materiaal/zoek/bezorger
+   fixes blijven ongewijzigd.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS587_CLEAN_MOBILE_PLANNER_MENU__) return;
+  window.__BNS587_CLEAN_MOBILE_PLANNER_MENU__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function isMobile(){ try{ return window.matchMedia && window.matchMedia('(max-width: 860px)').matches; }catch(e){ return window.innerWidth <= 860; } }
+  function routeText(){ try{ return String(location.href || '') + ' ' + String(location.hash || ''); }catch(e){ return ''; } }
+  function isDriverRoute(){ return /(?:driver=|bezorger=|telefoon=|#.*bezorger|#.*driver)/i.test(routeText()); }
+
+  function ensureStyle(){
+    if(E('bns587CleanMenuStyle')) return;
+    var st=document.createElement('style');
+    st.id='bns587CleanMenuStyle';
+    st.textContent = ''+
+      'body:not(.bns587-menu-open) #bns586MenuSheet,body:not(.bns587-menu-open) #bns586MenuBackdrop,#bns586MenuBtn{display:none!important;visibility:hidden!important;pointer-events:none!important}'+
+      '#bns587MenuBtn,#bns587MenuBackdrop,#bns587MenuSheet{display:none!important}'+
+      '@media(min-width:861px){#bns587MenuBtn,#bns587MenuBackdrop,#bns587MenuSheet{display:none!important}body{padding-top:0!important}.bns586-menu-sheet,.bns586-menu-backdrop,.bns586-menu-btn{display:none!important;visibility:hidden!important;pointer-events:none!important}}'+
+      '@media(max-width:860px){body:not(.bns587-menu-open) #bns586MenuSheet,body:not(.bns587-menu-open) #bns586MenuBackdrop,#bns586MenuBtn,#bnsMobileMenuBtn{display:none!important;visibility:hidden!important;pointer-events:none!important}.bns-mobile-menu,.mobile-menu,.planner-mobile-menu{display:none!important}.side,.sidebar,aside.side,aside.sidebar{display:none!important}#bns587MenuBtn{display:block!important;position:fixed!important;right:max(10px,env(safe-area-inset-right))!important;top:max(10px,env(safe-area-inset-top))!important;z-index:2147483647!important;border:0!important;border-radius:16px!important;background:linear-gradient(180deg,#0ea5e9,#0756b7)!important;color:#fff!important;padding:12px 15px!important;font-weight:1000!important;font-size:16px!important;box-shadow:0 8px 24px rgba(2,6,23,.28)!important;touch-action:manipulation!important}body.bns587-menu-open #bns587MenuBackdrop{display:block!important;position:fixed!important;inset:0!important;background:rgba(15,23,42,.55)!important;z-index:2147483000!important}body.bns587-menu-open #bns587MenuSheet{display:block!important;position:fixed!important;left:10px!important;right:10px!important;top:62px!important;max-height:calc(100vh - 78px)!important;overflow:auto!important;z-index:2147483100!important;background:#f8fafc!important;border-radius:22px!important;padding:14px!important;box-shadow:0 18px 60px rgba(0,0,0,.35)!important;border:1px solid #dbe3ef!important}.bns587-title{font-size:18px!important;font-weight:1000!important;color:#0f172a!important;margin:0 0 12px!important}.bns587-grid{display:grid!important;grid-template-columns:1fr!important;gap:10px!important}.bns587-grid button,.bns587-close{width:100%!important;min-height:52px!important;border:0!important;border-radius:16px!important;background:linear-gradient(180deg,#188fe3,#0756b7)!important;color:#fff!important;font-weight:1000!important;font-size:16px!important;text-align:left!important;padding:13px 15px!important;box-shadow:0 4px 0 #075da7!important;touch-action:manipulation!important}.bns587-grid button.active{background:linear-gradient(180deg,#0f766e,#115e59)!important}.bns587-close{margin-top:12px!important;background:linear-gradient(180deg,#475569,#334155)!important;text-align:center!important}}';
+    document.head.appendChild(st);
+  }
+
+  function hideBad586(){
+    document.body.classList.remove('bns586-menu-open');
+    var ids=['bns586MenuBtn','bns586MenuBackdrop','bns586MenuSheet','bnsMobileMenuBtn'];
+    ids.forEach(function(id){ var el=E(id); if(el){ el.style.setProperty('display','none','important'); el.style.setProperty('visibility','hidden','important'); el.style.setProperty('pointer-events','none','important'); } });
+  }
+
+  function navSources(){
+    var selectors=[
+      '.side button','.sidebar button','aside.side button','aside.sidebar button',
+      '.side [data-page]','.sidebar [data-page]','aside [data-page]',
+      'button[data-page]','button[data-view]','button[data-route]'
+    ];
+    var all=A(selectors.join(','));
+    var seen=[], out=[];
+    var deny=/^(opslaan|annuleren|afdrukken|overzicht maken|zoek adres|leegmaken|klantenbestand openen|sluiten|menu)$/i;
+    all.forEach(function(b){
+      if(!b || b.id === 'bns587MenuBtn' || b.id === 'bns586MenuBtn' || b.id === 'bnsMobileMenuBtn') return;
+      if(b.closest && b.closest('#bns587MenuSheet,#bns586MenuSheet,#materialCats,#materialList')) return;
+      var txt=T(b.textContent || b.value || b.getAttribute('aria-label') || b.getAttribute('data-page') || b.getAttribute('data-view') || '');
+      txt=txt.replace(/^☰\s*/,'').trim();
+      if(!txt || txt.length > 36 || deny.test(txt)) return;
+      var key=txt.toLowerCase();
+      if(seen.indexOf(key) >= 0) return;
+      seen.push(key); out.push({el:b, txt:txt, active:(b.classList && b.classList.contains('active')) || b.getAttribute('aria-current')==='page'});
+    });
+    return out;
+  }
+
+  function ensureMenu(){
+    ensureStyle();
+    hideBad586();
+    var btn=E('bns587MenuBtn');
+    if(!btn){ btn=document.createElement('button'); btn.id='bns587MenuBtn'; btn.type='button'; btn.textContent='☰ Menu'; document.body.appendChild(btn); }
+    var bg=E('bns587MenuBackdrop');
+    if(!bg){ bg=document.createElement('div'); bg.id='bns587MenuBackdrop'; document.body.appendChild(bg); }
+    var sheet=E('bns587MenuSheet');
+    if(!sheet){ sheet=document.createElement('div'); sheet.id='bns587MenuSheet'; document.body.appendChild(sheet); }
+    if(!isMobile() || isDriverRoute()){
+      btn.style.setProperty('display','none','important');
+      document.body.classList.remove('bns587-menu-open');
+      return;
+    }
+    btn.style.removeProperty('display');
+    var src=navSources();
+    if(!src.length){
+      sheet.innerHTML='<div class="bns587-title">Planner menu</div><div class="bns587-grid"><button type="button" data-bns587-close="1">Geen menu gevonden</button></div><button type="button" class="bns587-close" data-bns587-close="1">Sluiten</button>';
+      return;
+    }
+    sheet.innerHTML='<div class="bns587-title">Planner menu</div><div class="bns587-grid">'+src.map(function(x,i){ return '<button type="button" class="'+(x.active?'active':'')+'" data-bns587-nav="'+i+'">☰ '+H(x.txt)+'</button>'; }).join('')+'</div><button type="button" class="bns587-close" data-bns587-close="1">Sluiten</button>';
+  }
+
+  function setOpen(open){
+    hideBad586();
+    document.body.classList.toggle('bns587-menu-open', !!open);
+  }
+
+  function installEvents(){
+    if(window.__BNS587_CLEAN_MENU_EVENTS__) return;
+    window.__BNS587_CLEAN_MENU_EVENTS__ = true;
+    ['click','pointerdown','touchstart'].forEach(function(evt){
+      document.addEventListener(evt,function(ev){
+        var t=ev.target; if(!t || !t.closest) return;
+        if(t.closest('#bns587MenuBtn')){
+          ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+          ensureMenu(); setOpen(!document.body.classList.contains('bns587-menu-open'));
+          return false;
+        }
+        if(t.closest('#bns587MenuBackdrop,[data-bns587-close]')){
+          ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+          setOpen(false); return false;
+        }
+        var nb=t.closest('[data-bns587-nav]');
+        if(nb){
+          ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+          var ix=parseInt(nb.getAttribute('data-bns587-nav'),10);
+          var src=navSources()[ix];
+          setOpen(false);
+          if(src && src.el){ setTimeout(function(){ try{ src.el.click(); }catch(e){} },30); }
+          return false;
+        }
+      }, true);
+    });
+    window.addEventListener('resize', function(){ ensureMenu(); if(!isMobile()) setOpen(false); });
+  }
+
+  function boot(){ ensureStyle(); hideBad586(); ensureMenu(); installEvents(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(boot,50); setTimeout(boot,700); });
+  else { setTimeout(boot,50); setTimeout(boot,700); }
+  setInterval(function(){ ensureStyle(); hideBad586(); ensureMenu(); }, 1500);
+  console.info('[BNS 587] Schoon enkel mobiel planner-menu actief');
+})();
+
+/*
+   BNS 588 - Plan telefoon: geen uitklap/overlay menu meer
+   - Verbergt oude mobiele menu-knoppen/sheets/backdrops van 583/586/587.
+   - Toont planner navigatieknoppen direct zichtbaar op mobiel.
+   - Laptop blijft ongemoeid.
+*/
+(function(){
+  if(window.__BNS_588_DIRECT_PLAN_MENU__) return;
+  window.__BNS_588_DIRECT_PLAN_MENU__ = true;
+
+  var MAX_W = 860;
+  function isMobile(){ return (window.matchMedia && window.matchMedia('(max-width:'+MAX_W+'px)').matches) || window.innerWidth <= MAX_W; }
+  function E(id){ return document.getElementById(id); }
+  function H(s){
+    return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
+  }
+  function T(s){ return String(s||'').replace(/^[\s☰≡=]+/,'').replace(/\s+/g,' ').trim(); }
+  function visible(el){
+    if(!el || !el.isConnected) return false;
+    var st=getComputedStyle(el);
+    if(st.display==='none' || st.visibility==='hidden' || Number(st.opacity)===0) return false;
+    return true;
+  }
+  function navContainers(){
+    return Array.prototype.slice.call(document.querySelectorAll('.side,aside.side,.sidebar,aside.sidebar,nav,.nav,.tabs,.topbar,.menu,.bns-mobile-menu,.planner-mobile-menu'));
+  }
+  function collectNav(){
+    var deny=/^(opslaan|annuleren|afdrukken|print|overzicht maken|zoek adres|leegmaken|klantenbestand openen|sluiten|menu|uitloggen)$/i;
+    var seen={};
+    var out=[];
+    navContainers().forEach(function(c){
+      Array.prototype.slice.call(c.querySelectorAll('button,a,[role="button"]')).forEach(function(b){
+        if(b.id==='bns588DirectMenu') return;
+        var txt=T(b.textContent || b.value || b.getAttribute('aria-label') || b.title || '');
+        if(!txt || deny.test(txt)) return;
+        if(txt.length>32) return;
+        var key=txt.toLowerCase();
+        if(seen[key]) return;
+        seen[key]=1;
+        out.push({txt:txt, el:b, active:(b.classList && b.classList.contains('active')) || b.getAttribute('aria-current')==='page'});
+      });
+    });
+    return out;
+  }
+  function applyCss(){
+    if(E('bns588Style')) return;
+    var css='\n'
+      +'@media(min-width:861px){#bns588DirectMenu{display:none!important}}\n'
+      +'@media(max-width:860px){\n'
+      +'  #bnsMobileMenuBtn,#bnsMobileMenuBackdrop,#bns586MenuBtn,#bns586MenuBackdrop,#bns586MenuSheet,#bns587MenuBtn,#bns587MenuBackdrop,#bns587MenuSheet{display:none!important;visibility:hidden!important;pointer-events:none!important}\n'
+      +'  body{padding-top:112px!important}\n'
+      +'  body.bns-mobile-menu-open,body.bns586-menu-open,body.bns587-menu-open{overflow:auto!important}\n'
+      +'  body.bns-mobile-menu-open .side,body.bns-mobile-menu-open aside.side,body.bns-mobile-menu-open .sidebar,body.bns-mobile-menu-open aside.sidebar{display:none!important}\n'
+      +'  .side,aside.side,.sidebar,aside.sidebar{display:none!important;visibility:hidden!important;pointer-events:none!important}\n'
+      +'  #bns588DirectMenu{display:block!important;position:fixed!important;left:0!important;right:0!important;top:0!important;z-index:2147483647!important;background:#eef5ff!important;border-bottom:1px solid #bfdbfe!important;box-shadow:0 4px 16px rgba(15,23,42,.18)!important;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px))!important}\n'
+      +'  #bns588DirectMenu .bns588-title{font-size:13px!important;font-weight:1000!important;color:#1e3a8a!important;margin:0 0 6px 2px!important}\n'
+      +'  #bns588DirectMenu .bns588-buttons{display:flex!important;gap:7px!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;padding-bottom:2px!important}\n'
+      +'  #bns588DirectMenu button{flex:0 0 auto!important;min-height:43px!important;border:0!important;border-radius:13px!important;background:linear-gradient(180deg,#188fe3,#0756b7)!important;color:#fff!important;font-weight:1000!important;font-size:14px!important;padding:10px 12px!important;box-shadow:0 3px 0 #075da7!important;touch-action:manipulation!important;-webkit-tap-highlight-color:transparent!important;white-space:nowrap!important}\n'
+      +'  #bns588DirectMenu button.active{background:linear-gradient(180deg,#16a34a,#15803d)!important;box-shadow:0 3px 0 #166534!important}\n'
+      +'}\n';
+    var st=document.createElement('style'); st.id='bns588Style'; st.textContent=css; document.head.appendChild(st);
+  }
+  function ensurePanel(){
+    applyCss();
+    document.body.classList.remove('bns-mobile-menu-open','bns586-menu-open','bns587-menu-open');
+    if(!isMobile()) return;
+    var p=E('bns588DirectMenu');
+    if(!p){ p=document.createElement('div'); p.id='bns588DirectMenu'; document.body.insertBefore(p, document.body.firstChild); }
+    var nav=collectNav();
+    if(!nav.length){ p.innerHTML='<div class="bns588-title">Planner menu</div><div class="bns588-buttons"><button type="button">Geen menu gevonden</button></div>'; return; }
+    p.__bns588Nav=nav;
+    p.innerHTML='<div class="bns588-title">Planner menu</div><div class="bns588-buttons">'+nav.map(function(x,i){return '<button type="button" class="'+(x.active?'active':'')+'" data-bns588-nav="'+i+'">'+H(x.txt)+'</button>';}).join('')+'</div>';
+  }
+  function onTap(ev){
+    var t=ev.target;
+    if(!t || !isMobile()) return;
+    if(t.closest('#bnsMobileMenuBtn,#bns586MenuBtn,#bns587MenuBtn,#bnsMobileMenuBackdrop,#bns586MenuBackdrop,#bns587MenuBackdrop,#bns586MenuSheet,#bns587MenuSheet')){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      document.body.classList.remove('bns-mobile-menu-open','bns586-menu-open','bns587-menu-open');
+      ensurePanel();
+      return false;
+    }
+    var b=t.closest('#bns588DirectMenu button[data-bns588-nav]');
+    if(!b) return;
+    ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    var p=E('bns588DirectMenu'); var arr=(p && p.__bns588Nav) || collectNav();
+    var item=arr[Number(b.getAttribute('data-bns588-nav'))];
+    if(item && item.el){ try{ item.el.click(); }catch(e){ try{ item.el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window})); }catch(_){} } }
+    setTimeout(ensurePanel,120);
+    return false;
+  }
+  ['touchstart','pointerdown','click'].forEach(function(type){ document.addEventListener(type,onTap,true); });
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(ensurePanel,150); setTimeout(ensurePanel,800); });
+  window.addEventListener('resize', function(){ setTimeout(ensurePanel,100); });
+  setInterval(function(){ if(isMobile()) ensurePanel(); else { var p=E('bns588DirectMenu'); if(p) p.style.display='none'; } }, 2500);
+  setTimeout(ensurePanel,200);
+  setTimeout(ensurePanel,1200);
+  console.info('[BNS 588] Direct zichtbare planner knoppen actief - geen uitklapmenu');
+})();
