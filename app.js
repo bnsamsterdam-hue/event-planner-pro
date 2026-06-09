@@ -22030,7 +22030,9 @@ setTimeout(()=>{
     var cat=currentCat();
     var mats=(S().materials||[]);
     var rows=mats.filter(function(m){
-      return q ? materialText(m).indexOf(q)>=0 : catKey(m.cat||m.rubriek||m.category)===cat;
+      return catKey(m.cat||m.rubriek||m.category)===cat;
+    }).filter(function(m){
+      return !q || materialText(m).indexOf(q)>=0;
     }).slice(0,500);
     box.innerHTML=rows.length?rows.map(function(m){
       var st=statusFor(m);
@@ -22527,8 +22529,9 @@ setTimeout(()=>{
     var q = norm(search && search.value);
     var active = getCurrentCat();
     var rows = (S().materials || []).filter(function(m){
-      if (q) return materialText(m).indexOf(q) >= 0;
       return catKey(m.cat || m.rubriek || m.category) === active;
+    }).filter(function(m){
+      return !q || materialText(m).indexOf(q) >= 0;
     }).slice(0,500);
     box.innerHTML = rows.length ? rows.map(function(m){
       var c = catKey(m.cat || m.rubriek || m.category);
@@ -43418,7 +43421,7 @@ setTimeout(()=>{
   function polishSearch(){
     var ms=E('materialSearch');
     if(ms){
-      ms.placeholder='Zoek materiaal / rubriek / product nr / omschrijving';
+      ms.placeholder='Zoek binnen deze rubriek / product nr / omschrijving';
       if(!ms.__bns416){
         ms.__bns416=true;
         ms.addEventListener('input',function(){ try{ if(window.BNS_V392 && window.BNS_V392.renderMaterials) window.BNS_V392.renderMaterials(window.currentCat,true); else if(typeof renderMaterials==='function') renderMaterials(window.currentCat); }catch(e){} },true);
@@ -43432,7 +43435,7 @@ setTimeout(()=>{
   }
   setInterval(function(){ polishSearch(); patchV392Search(); },1000);
   setTimeout(function(){ polishSearch(); patchV392Search(); },300);
-  console.info('[BNS v416] Zoeken alle rubrieken + opslaan-popup zonder document-open actief.');
+  console.info('[BNS v416] Zoeken binnen gekozen rubriek + opslaan-popup zonder document-open actief.');
 })();
 
 /* =========================================================
@@ -48114,7 +48117,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         log('Firebase direct geladen via '+(reason||'start')+': materialen '+mats.length+', users '+users.length);
         callRender();
       }else{
-        callRender();
+        // Geen periodieke her-render als Firebase-data gelijk is; voorkomt flikkeren op laptop/telefoon.
       }
     }catch(e){ log('fout bij direct laden: '+(e && e.message || e)); }
     finally{ busy = false; }
@@ -48222,4 +48225,41 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setInterval(tickPin,250);
   document.addEventListener('click',function(){ setTimeout(tickPin,50); setTimeout(tickPin,300); },true);
   console.info('[BNS 583] veilige mobiele menu/PIN/gereserveerd-rust fix actief op werkende 573.');
+})();
+
+
+/* =========================================================
+   BNS 589 - Schone zoek/rust fix op goede mobiele basis
+   - Geen nieuw mobiel menu.
+   - Zoeken blijft binnen gekozen rubriek.
+   - Zoekbalk materialen wordt leeg na opslaan/nieuwe opdracht.
+   - Geen periodieke Firebase her-render als data gelijk is.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS589_SEARCH_RUST_FIX__) return;
+  window.__BNS589_SEARCH_RUST_FIX__ = true;
+  function E(id){ return document.getElementById(id); }
+  function txt(v){ return String(v==null?'':v).trim().toLowerCase(); }
+  function clearMaterialSearch(reason){
+    var s = E('materialSearch');
+    if(!s || !s.value) return;
+    s.value = '';
+    try{
+      var c = window.currentCat || (typeof currentCat !== 'undefined' ? currentCat : 'TW');
+      if(typeof window.renderMaterials === 'function') window.renderMaterials(c);
+      else if(typeof renderMaterials === 'function') renderMaterials(c);
+    }catch(e){}
+  }
+  function isSaveOrNewButton(el){
+    var t = txt(el && (el.textContent || el.value || el.title || el.getAttribute('aria-label') || ''));
+    return /^(opslaan|ja, opslaan|nieuwe opdracht|nieuw opdracht)$/.test(t) || /opslaan/.test(t) && (el.id||'').toLowerCase().indexOf('material') < 0;
+  }
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('button,input[type="button"],input[type="submit"],a') : null;
+    if(!b) return;
+    if(isSaveOrNewButton(b)) setTimeout(function(){ clearMaterialSearch('click'); }, 250);
+  }, true);
+  document.addEventListener('bns:order-saved', function(){ setTimeout(function(){ clearMaterialSearch('event'); }, 100); });
+  console.info('[BNS 589] zoek/rubriek/rust fix actief op schone mobiele basis.');
 })();
