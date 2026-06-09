@@ -48377,3 +48377,162 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('click', function(){ setTimeout(tick,30); setTimeout(tick,300); }, true);
   console.info('[BNS 582] PIN scroll dicht actief; 558 layout actief; Firebase rerender rustig.');
 })();
+
+/* =========================================================
+   BNS 583 - Mobiele planner telefoon fix
+   - Menu knop werkt op planner/admin telefoon via touchstart/pointerdown/click
+   - Uitschuifmenu wordt desnoods inline zichtbaar gemaakt, ook als oude CSS dwarszit
+   - Klik op 'Gereserveerd' materiaal hapert niet meer door onnodige her-render/alert-loop
+   Geen Firebase writes/deletes. Geen driver-wijzigingen.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS583_MOBILE_PLANNER_FIX__) return;
+  window.__BNS583_MOBILE_PLANNER_FIX__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v); }
+  function H(v){
+    return T(v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; });
+  }
+  function isMobile(){
+    try{ return window.matchMedia && window.matchMedia('(max-width: 820px)').matches; }catch(e){ return window.innerWidth <= 820; }
+  }
+  function sideEls(){
+    return A('.side, aside.side, .sidebar, aside.sidebar').filter(function(x){ return x && x.nodeType === 1; });
+  }
+  function menuOpen(){ return document.body && document.body.classList.contains('bns-mobile-menu-open'); }
+  function setMenu(open){
+    if(!document.body) return;
+    document.body.classList.toggle('bns-mobile-menu-open', !!open);
+    sideEls().forEach(function(el){
+      if(open && isMobile()){
+        el.dataset.bns583Open = '1';
+        el.style.setProperty('display','block','important');
+        el.style.setProperty('visibility','visible','important');
+        el.style.setProperty('opacity','1','important');
+        el.style.setProperty('pointer-events','auto','important');
+        el.style.setProperty('position','fixed','important');
+        el.style.setProperty('top','0','important');
+        el.style.setProperty('left','0','important');
+        el.style.setProperty('right','0','important');
+        el.style.setProperty('width','100%','important');
+        el.style.setProperty('max-width','none','important');
+        el.style.setProperty('max-height','82vh','important');
+        el.style.setProperty('overflow-y','auto','important');
+        el.style.setProperty('z-index','2147482450','important');
+        el.style.setProperty('transform','translate3d(0,0,0)','important');
+        el.style.setProperty('padding-top','58px','important');
+      }else if(el.dataset.bns583Open === '1'){
+        delete el.dataset.bns583Open;
+        ['display','visibility','opacity','pointer-events','position','top','left','right','width','max-width','max-height','overflow-y','z-index','transform','padding-top'].forEach(function(p){
+          try{ el.style.removeProperty(p); }catch(e){}
+        });
+      }
+    });
+  }
+  function ensureStyle(){
+    if(E('bns583MobilePlannerFixStyle')) return;
+    var s=document.createElement('style');
+    s.id='bns583MobilePlannerFixStyle';
+    s.textContent = ''+
+    '@media(max-width:820px){'+
+      '.bns-mobile-menu-btn,#bnsMobileMenuBtn{display:block!important;position:fixed!important;left:max(10px,env(safe-area-inset-left))!important;top:max(10px,env(safe-area-inset-top))!important;z-index:2147483646!important;touch-action:manipulation!important;-webkit-tap-highlight-color:transparent!important;user-select:none!important;}'+
+      '.bns-mobile-menu-backdrop,#bnsMobileMenuBackdrop{z-index:2147482400!important;}'+
+      'body.bns-mobile-menu-open .bns-mobile-menu-backdrop,body.bns-mobile-menu-open #bnsMobileMenuBackdrop{display:block!important;}'+
+      'body.bns-mobile-menu-open .side,body.bns-mobile-menu-open aside.side,body.bns-mobile-menu-open .sidebar,body.bns-mobile-menu-open aside.sidebar{display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;transform:translate3d(0,0,0)!important;z-index:2147482450!important;}'+
+      'body:not(.bns-mobile-menu-open) .side[data-bns583-open="1"],body:not(.bns-mobile-menu-open) aside.side[data-bns583-open="1"],body:not(.bns-mobile-menu-open) .sidebar[data-bns583-open="1"],body:not(.bns-mobile-menu-open) aside.sidebar[data-bns583-open="1"]{transform:translateY(-115%)!important;}'+
+      '#materialList .bns392-row,#materialList .bns386-row{touch-action:manipulation!important;-webkit-tap-highlight-color:transparent!important;}'+
+    '}';
+    document.head.appendChild(s);
+  }
+  function ensureMenuButton(){
+    var btn=E('bnsMobileMenuBtn');
+    if(!btn){
+      btn=document.createElement('button');
+      btn.id='bnsMobileMenuBtn';
+      btn.className='bns-mobile-menu-btn';
+      btn.type='button';
+      btn.textContent='☰ Menu';
+      document.body.appendChild(btn);
+    }
+    btn.setAttribute('aria-label','Menu openen');
+    btn.setAttribute('type','button');
+    btn.style.setProperty('display', isMobile() ? 'block' : 'none', 'important');
+
+    if(!E('bnsMobileMenuBackdrop')){
+      var bg=document.createElement('div');
+      bg.id='bnsMobileMenuBackdrop';
+      bg.className='bns-mobile-menu-backdrop';
+      document.body.appendChild(bg);
+    }
+  }
+  var lastTap=0;
+  function menuTap(ev){
+    var t=ev.target;
+    if(!t || !t.closest) return;
+    var btn=t.closest('#bnsMobileMenuBtn,.bns-mobile-menu-btn');
+    var bg=t.closest('#bnsMobileMenuBackdrop,.bns-mobile-menu-backdrop');
+    if(!btn && !bg) return;
+    if(!isMobile() && btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    var now=Date.now();
+    if(now-lastTap < 160) return false;
+    lastTap=now;
+    setMenu(btn ? !menuOpen() : false);
+    return false;
+  }
+  function closeAfterNav(ev){
+    var t=ev.target;
+    if(!t || !t.closest) return;
+    if(t.closest('.side .nav, aside.side .nav, .sidebar .nav, aside.sidebar .nav, .side button[data-page], .sidebar button[data-page]')){
+      setTimeout(function(){ setMenu(false); }, 120);
+    }
+  }
+  function toast(msg){
+    var old=E('bns583Toast'); if(old) old.remove();
+    var d=document.createElement('div');
+    d.id='bns583Toast';
+    d.textContent=msg;
+    d.style.cssText='position:fixed;left:12px;right:12px;bottom:14px;z-index:2147483647;background:#0f172a;color:#fff;border-radius:14px;padding:12px 14px;font-weight:800;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.28);';
+    document.body.appendChild(d);
+    setTimeout(function(){ try{ d.remove(); }catch(e){} }, 1600);
+  }
+  var lastReservedTap=0;
+  function quietReservedMaterial(ev){
+    var t=ev.target;
+    if(!t || !t.closest) return;
+    var row=t.closest('#materialList .bns392-reserved,#materialList .bns386-reserved,#materialList .reserved');
+    if(!row) return;
+    var now=Date.now();
+    if(now-lastReservedTap < 700){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      return false;
+    }
+    lastReservedTap=now;
+    // Op mobiel geen extra force-render/alert-loop bij alleen status bekijken; korte melding is genoeg.
+    if(isMobile()){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      toast('Dit materiaal is al gereserveerd.');
+      return false;
+    }
+  }
+  function boot(){
+    ensureStyle();
+    ensureMenuButton();
+    setMenu(false);
+  }
+  ['touchstart','pointerdown','click'].forEach(function(type){
+    document.addEventListener(type, menuTap, true);
+  });
+  document.addEventListener('click', closeAfterNav, true);
+  document.addEventListener('click', quietReservedMaterial, true);
+  window.addEventListener('resize', function(){ ensureMenuButton(); if(!isMobile()) setMenu(false); });
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(boot, 30); setTimeout(boot, 400); });
+  else { setTimeout(boot, 30); setTimeout(boot, 400); }
+  setInterval(function(){ ensureStyle(); ensureMenuButton(); }, 2500);
+  console.info('[BNS 583] Mobiele planner menu + materiaal gereserveerd fix actief');
+})();
