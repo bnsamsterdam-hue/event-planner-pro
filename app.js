@@ -48754,3 +48754,162 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   [700,1500,3000,6000].forEach(function(ms){ setTimeout(fix,ms); });
   console.info('[BNS 603] Adresboek inline actief: klant/locatie keuzelijst blokkeert adresvelden niet meer.');
 })();
+
+/* =========================================================
+   BNS 604 - Service kosten naast Bijzonderheden
+   - Kopie van transport-werking, maar met naam Service kosten
+   - Geen reservering / geen materiaalstatus
+   - Telt mee in totaal via bestaande transport/service totalen
+   - Slaat mee op in order.transportLines met type='service'
+   - Laat driver, materialen, reserveringen en Firebase-sync met rust
+   ========================================================= */
+(function BNS_V604_SERVICE_COSTS(){
+  'use strict';
+  if(window.__BNS_V604_SERVICE_COSTS__) return;
+  window.__BNS_V604_SERVICE_COSTS__ = true;
+
+  var BOX_ID = 'bns604ServiceBox';
+  var STYLE_ID = 'bns604ServiceStyle';
+  var PRESET_KEY = 'bns604_service_presets_v1';
+  var DEFAULT_PRESETS = [
+    'Wasstraat',
+    'Reinigen bierinstallatie',
+    'Spoelen tapinstallatie',
+    'Eindschoonmaak',
+    'Schoonmaakkosten',
+    'Extra arbeid',
+    'Wachttijd',
+    'Afvoerkosten',
+    'Servicekosten',
+    'Toeslag'
+  ];
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function H(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function euro(n){ n=N(n); return '€ '+n.toFixed(2).replace('.',','); }
+  function clone(v){ try{return JSON.parse(JSON.stringify(v||[]));}catch(e){return [];} }
+  function lineTotal(l){ return N(l.qty||1) * N(l.price); }
+  function allLines(){ if(!Array.isArray(window.__bns521TransportLines)) window.__bns521TransportLines=[]; return window.__bns521TransportLines; }
+  function serviceIndexes(){ var out=[]; allLines().forEach(function(l,i){ if(l && String(l.type||'').toLowerCase()==='service') out.push(i); }); return out; }
+  function serviceLines(){ return serviceIndexes().map(function(i){ return allLines()[i]; }); }
+  function serviceTotal(){ return serviceLines().reduce(function(s,l){ return s+lineTotal(l); },0); }
+  function presets(){
+    var arr=null; try{ arr=JSON.parse(localStorage.getItem(PRESET_KEY)||'null'); }catch(e){}
+    if(!Array.isArray(arr)||!arr.length) arr=DEFAULT_PRESETS.slice();
+    var seen={}; return arr.map(T).filter(function(x){ var k=x.toLowerCase(); if(!x||seen[k]) return false; seen[k]=true; return true; });
+  }
+  function savePresets(arr){ try{ localStorage.setItem(PRESET_KEY,JSON.stringify(arr||[])); }catch(e){} }
+  function fillPresetSelect(){ var s=E('bns604ServicePreset'); if(!s) return; s.innerHTML=presets().map(function(x){return '<option value="'+H(x)+'">'+H(x)+'</option>';}).join(''); }
+  function ensureStyle(){
+    if(E(STYLE_ID)) return;
+    var st=document.createElement('style'); st.id=STYLE_ID;
+    st.textContent =
+      '#'+BOX_ID+'{margin:12px 0 14px;padding:14px;border:2px solid #dbe3ef;border-radius:16px;background:#fff7ed;color:#0f172a}'+
+      '#'+BOX_ID+' h3{margin:0 0 10px;font-size:20px;color:#9a3412}'+
+      '#'+BOX_ID+' .bns604-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}'+
+      '#'+BOX_ID+' label{font-weight:900;font-size:13px;color:#334155;display:flex;flex-direction:column;gap:4px}'+
+      '#'+BOX_ID+' select,#'+BOX_ID+' input{border:2px solid #fdba74;border-radius:10px;padding:10px 11px;min-height:42px;background:white;color:#0f172a;font-size:15px}'+
+      '#'+BOX_ID+' select{min-width:230px}#'+BOX_ID+' input.small{width:90px}.bns604-wide{min-width:260px;flex:1}'+
+      '#'+BOX_ID+' button{border:0;border-radius:10px;padding:11px 13px;font-weight:1000;cursor:pointer;color:white;background:#ea580c}'+
+      '#'+BOX_ID+' button.green{background:#16a34a}#'+BOX_ID+' button.red{background:#dc2626}'+
+      '#'+BOX_ID+' table{width:100%;border-collapse:collapse;margin-top:12px;background:white;border-radius:12px;overflow:hidden}'+
+      '#'+BOX_ID+' th,#'+BOX_ID+' td{padding:8px;border-bottom:1px solid #fed7aa;text-align:left;vertical-align:middle}'+
+      '#'+BOX_ID+' th{background:#ffedd5;color:#0f172a;font-weight:1000}'+
+      '#'+BOX_ID+' .amount{text-align:right;font-weight:1000}'+
+      '#'+BOX_ID+' .bns604-total{font-size:18px;font-weight:1000;margin-top:10px;text-align:right}'+
+      '#'+BOX_ID+' small{color:#9a3412;font-weight:800}';
+    document.head.appendChild(st);
+  }
+  function installBox(){
+    var panel=E('extraPanel') || E('bijzonderhedenPanel');
+    var extra=E('orderExtra');
+    if(!panel && extra) panel=extra.closest('.panel,.card,section,div');
+    if(!panel) return;
+    ensureStyle();
+    if(!E(BOX_ID)){
+      var box=document.createElement('div'); box.id=BOX_ID;
+      box.innerHTML =
+        '<h3>Service kosten</h3>'+ 
+        '<div class="bns604-row">'+
+          '<label>Service keuze<select id="bns604ServicePreset"></select></label>'+ 
+          '<label>Aantal<input id="bns604Qty" class="small" type="number" step="1" value="1"></label>'+ 
+          '<label>Prijs €<input id="bns604Price" class="small" type="number" step="0.01" value="0"></label>'+ 
+          '<label>Opmerking<input id="bns604Note" class="bns604-wide" placeholder="Bijv. tapinstallatie / wasstraat / eindschoonmaak"></label>'+ 
+          '<button type="button" class="green" id="bns604AddLine">Servicekosten toevoegen</button>'+ 
+        '</div>'+ 
+        '<div class="bns604-row">'+
+          '<label>Nieuwe keuze<input id="bns604NewPreset" class="bns604-wide" placeholder="Bijv. Reinigen bierinstallatie"></label>'+ 
+          '<button type="button" id="bns604SavePreset">Keuze opslaan</button>'+ 
+          '<button type="button" class="red" id="bns604DeletePreset">Gekozen keuze verwijderen</button>'+ 
+        '</div>'+ 
+        '<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns604ServiceRows"></tbody></table>'+ 
+        '<div class="bns604-total">Servicekosten totaal: <span id="bns604ServiceTotal">€ 0,00</span></div>'+ 
+        '<small>Service kosten zijn géén materialen. Ze blokkeren geen reservering en krijgen geen gereserveerd-status. Ze tellen wel mee in het totaalbedrag.</small>';
+      if(extra && extra.parentNode) extra.parentNode.insertBefore(box, extra);
+      else panel.insertBefore(box, panel.firstChild);
+      bindBox(); fillPresetSelect();
+    }
+    renderLines(); updateTotals();
+  }
+  function bindBox(){
+    var add=E('bns604AddLine'); if(add && !add.__bns604){ add.__bns604=true; add.onclick=function(e){ e.preventDefault();
+      var name=T(E('bns604ServicePreset')&&E('bns604ServicePreset').value); if(!name) return;
+      allLines().push({type:'service',name:name,qty:N(E('bns604Qty').value)||1,price:N(E('bns604Price').value),note:T(E('bns604Note').value),reservable:false});
+      if(E('bns604Price')) E('bns604Price').value='0'; if(E('bns604Note')) E('bns604Note').value='';
+      renderLines(); updateTotals();
+    }; }
+    var save=E('bns604SavePreset'); if(save && !save.__bns604){ save.__bns604=true; save.onclick=function(e){ e.preventDefault();
+      var inp=E('bns604NewPreset'), val=T(inp&&inp.value); if(!val) return;
+      var arr=presets(); if(!arr.some(function(x){return x.toLowerCase()===val.toLowerCase();})){ arr.push(val); savePresets(arr); }
+      fillPresetSelect(); if(E('bns604ServicePreset')) E('bns604ServicePreset').value=val; if(inp) inp.value='';
+    }; }
+    var del=E('bns604DeletePreset'); if(del && !del.__bns604){ del.__bns604=true; del.onclick=function(e){ e.preventDefault();
+      var s=E('bns604ServicePreset'), val=T(s&&s.value); if(!val) return;
+      if(!confirm('Service keuze verwijderen uit lijst?\n\n'+val)) return;
+      savePresets(presets().filter(function(x){ return x.toLowerCase()!==val.toLowerCase(); })); fillPresetSelect();
+    }; }
+  }
+  function renderLines(){
+    var body=E('bns604ServiceRows'); if(!body) return;
+    var idx=serviceIndexes();
+    body.innerHTML = idx.length ? idx.map(function(realIndex){
+      var l=allLines()[realIndex]||{}; var qty=N(l.qty||1), unit=T(l.unit); var qtyTxt=qty+(unit?' '+H(unit):'');
+      return '<tr><td>'+H(l.name)+'</td><td>'+H(qtyTxt)+'</td><td>'+H(euro(l.price))+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td><td><button type="button" class="red" data-bns604-del="'+realIndex+'">x</button></td></tr>';
+    }).join('') : '<tr><td colspan="6"><small>Nog geen servicekosten.</small></td></tr>';
+    A('[data-bns604-del]',body).forEach(function(b){ b.onclick=function(){ var i=Number(b.getAttribute('data-bns604-del')); allLines().splice(i,1); renderLines(); updateTotals(); }; });
+    var tt=E('bns604ServiceTotal'); if(tt) tt.textContent=euro(serviceTotal());
+  }
+  function updateTotals(){
+    try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+    try{ if(typeof calcLineTotals==='function') calcLineTotals(); }catch(e){}
+    renderLines();
+  }
+
+  // Na de bestaande transport-save zorgen we dat servicekosten herkenbaar blijven en voertuigveld schoon blijft.
+  var oldPrepare = window.BNS_v519PrepareOrderBeforeSave;
+  if(typeof oldPrepare==='function' && !oldPrepare.__bns604){
+    var wrapped=function(order, oldOrder){
+      var r=oldPrepare.apply(this,arguments);
+      var lines=clone(allLines());
+      var services=lines.filter(function(l){ return String(l.type||'').toLowerCase()==='service'; });
+      order.transportLines=lines;
+      order.serviceCostLines=services;
+      order.serviceCostTotal=services.reduce(function(s,l){ return s+lineTotal(l); },0);
+      order.vehicle=lines.filter(function(l){ return String(l.type||'').toLowerCase()!=='service'; }).map(function(l){return T(l.name);}).filter(Boolean).join(', ') || T(E('orderVehicle')&&E('orderVehicle').value);
+      return r;
+    };
+    wrapped.__bns604=true;
+    window.BNS_v519PrepareOrderBeforeSave=wrapped;
+  }
+
+  document.addEventListener('click',function(ev){
+    var b=ev.target&&ev.target.closest&&ev.target.closest('button[data-tab="extraPanel"],.worktab[data-tab="extraPanel"],button');
+    if(b && /bijzonderheden|extra/i.test(T(b.textContent||''))) setTimeout(installBox,80);
+  },true);
+  setTimeout(installBox,500);
+  setTimeout(installBox,1600);
+  console.info('[BNS v604] Service kosten actief - kopie van transportwerking, zonder reservering.');
+})();
