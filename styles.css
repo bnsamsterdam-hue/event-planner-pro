@@ -1025,3 +1025,55 @@ body.bns576-pin-locked #login{
     transform:none !important;
   }
 }
+
+/* =========================================================
+   BNS 577 - PIN dicht, dubbele savebar weg, status rustig
+   Alleen CSS-aanvulling. Geen data/Firebase.
+   ========================================================= */
+html.bns577-pin-locked,
+body.bns577-pin-locked{
+  overflow:hidden !important;
+  height:100% !important;
+  max-height:100% !important;
+  touch-action:none !important;
+}
+body.bns577-pin-locked{
+  position:fixed !important;
+  left:0 !important;
+  right:0 !important;
+  top:0 !important;
+  width:100% !important;
+}
+body.bns577-pin-locked #login{
+  display:flex !important;
+  visibility:visible !important;
+  position:fixed !important;
+  inset:0 !important;
+  z-index:2147483600 !important;
+  overflow-y:auto !important;
+  touch-action:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  background:#fff !important;
+}
+#bns574MobileSaveBar{
+  display:none !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
+}
+@media (max-width:820px){
+  .bns577-status-calm *,
+  .reserved,.gereserveerd,.is-reserved,.status-reserved,.mat-reserved,.material-reserved,
+  [class*="reserved"],[class*="Reserved"],[class*="gereserveerd"],[class*="Gereserveerd"]{
+    animation:none !important;
+    transition:none !important;
+    transform:none !important;
+  }
+  button:focus,button:active,
+  .material-row:focus,.material-row:active,
+  .bns-material-row:focus,.bns-material-row:active{
+    outline:none !important;
+    animation:none !important;
+    transition:none !important;
+    transform:none !important;
+  }
+}

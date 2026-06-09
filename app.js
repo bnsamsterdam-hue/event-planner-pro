@@ -48277,3 +48277,283 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setInterval(run, 1000);
   log('actief - rubriek blijft staan en mobiel opslaan zichtbaar');
 })();
+
+/* =========================================================
+   BNS 576 - Telefoon PIN dicht + mobiel rustig bij gereserveerd/status
+   Veilig: geen Firebase writes/deletes, geen driver, geen opdrachtenlogica.
+   - Als PIN-scherm open is: pagina eronder kan niet scrollen
+   - Planner blijft planner op mobiel
+   - Bewaart scrollpositie/rubriek rond automatische render, zodat gereserveerd/status niet springt
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS576_PIN_SCROLL_RUSTIG__) return;
+  window.__BNS576_PIN_SCROLL_RUSTIG__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function visible(el){
+    if(!el) return false;
+    if(el.classList && el.classList.contains('hidden')) return false;
+    var cs = window.getComputedStyle ? getComputedStyle(el) : null;
+    if(cs && (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0)) return false;
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+  function loginOpen(){ return visible(E('login')) && !(E('app') && !E('app').classList.contains('hidden')); }
+
+  function setPinLock(){
+    var open = loginOpen();
+    document.documentElement.classList.toggle('bns576-pin-locked', open);
+    document.body.classList.toggle('bns576-pin-locked', open);
+    var login = E('login');
+    if(login && open){
+      login.setAttribute('aria-modal','true');
+      login.style.position = 'fixed';
+      login.style.inset = '0';
+      login.style.zIndex = '2147483000';
+      login.style.overflowY = 'auto';
+      login.style.webkitOverflowScrolling = 'touch';
+    }
+  }
+
+  // Voorkom dat je op telefoon onder het PIN-scherm door de planner ziet/scrollt.
+  document.addEventListener('touchmove', function(ev){
+    if(!loginOpen()) return;
+    var login = E('login');
+    if(login && !login.contains(ev.target)) ev.preventDefault();
+  }, {capture:true, passive:false});
+  document.addEventListener('wheel', function(ev){
+    if(!loginOpen()) return;
+    var login = E('login');
+    if(login && !login.contains(ev.target)) ev.preventDefault();
+  }, {capture:true, passive:false});
+
+  function scrollTargets(){
+    var sels = [
+      '#bns391List','#materialList','.material-list','.materials-list','[data-list="materials"]',
+      '#bnsV83MaterialList','#bnsV56List','#adminMaterials','.page.active','main',window
+    ];
+    var out = [];
+    sels.forEach(function(sel){
+      try{
+        if(sel === window){ out.push(window); return; }
+        document.querySelectorAll(sel).forEach(function(el){ if(out.indexOf(el)<0) out.push(el); });
+      }catch(e){}
+    });
+    return out;
+  }
+  function saveScroll(){
+    var data = [];
+    scrollTargets().forEach(function(el){
+      try{
+        if(el === window) data.push({el:el, top:window.scrollY||0, left:window.scrollX||0});
+        else data.push({el:el, top:el.scrollTop||0, left:el.scrollLeft||0});
+      }catch(e){}
+    });
+    return data;
+  }
+  function restoreScroll(data){
+    function run(){
+      (data||[]).forEach(function(x){
+        try{
+          if(x.el === window) window.scrollTo(x.left||0, x.top||0);
+          else { x.el.scrollTop = x.top||0; x.el.scrollLeft = x.left||0; }
+        }catch(e){}
+      });
+    }
+    run(); setTimeout(run, 30); setTimeout(run, 120);
+  }
+  function currentCat(){
+    try{ if(window.currentCat) return T(window.currentCat); }catch(e){}
+    try{ if(currentCat) return T(currentCat); }catch(e){}
+    try{ return T(localStorage.getItem('bnsV56Cat') || localStorage.getItem('bns574LastCat')); }catch(e){}
+    return '';
+  }
+  function setCat(c){
+    c = T(c); if(!c) return;
+    try{ window.currentCat = c; }catch(e){}
+    try{ currentCat = c; }catch(e){}
+    try{ localStorage.setItem('bnsV56Cat', c); localStorage.setItem('bns574LastCat', c); }catch(e){}
+  }
+  function wrap(name){
+    try{
+      var fn = window[name];
+      if(typeof fn !== 'function' || fn.__bns576Quiet) return;
+      var w = function(){
+        var data = saveScroll();
+        var cat = currentCat();
+        var res = fn.apply(this, arguments);
+        if(cat) setCat(cat);
+        restoreScroll(data);
+        return res;
+      };
+      w.__bns576Quiet = true;
+      w.__bns576Original = fn;
+      window[name] = w;
+      try{ if(name === 'renderMaterials') renderMaterials = w; }catch(e){}
+      try{ if(name === 'renderCats') renderCats = w; }catch(e){}
+      try{ if(name === 'adminRender') adminRender = w; }catch(e){}
+      try{ if(name === 'renderAll') renderAll = w; }catch(e){}
+    }catch(e){}
+  }
+  function patchRenders(){
+    ['renderMaterials','renderCats','adminRender','renderAll','BNS_V12_PRO_renderMaterials','BNS_V12_PRO_renderAdminMaterials','BNS_V12_renderAdminMaterials'].forEach(wrap);
+  }
+
+  function style(){
+    if(E('bns576Style')) return;
+    var st = document.createElement('style');
+    st.id = 'bns576Style';
+    st.textContent = '\
+html.bns576-pin-locked,body.bns576-pin-locked{overflow:hidden!important;height:100%!important;max-height:100%!important;position:fixed!important;left:0!important;right:0!important;top:0!important;width:100%!important;touch-action:none!important;}\
+body.bns576-pin-locked #app,body.bns576-pin-locked .app{display:none!important;visibility:hidden!important;pointer-events:none!important;}\
+body.bns576-pin-locked #login{display:flex!important;visibility:visible!important;position:fixed!important;inset:0!important;z-index:2147483000!important;overflow-y:auto!important;touch-action:auto!important;-webkit-overflow-scrolling:touch!important;}\
+@media(max-width:820px){\
+  .reserved,.gereserveerd,.is-reserved,.status-reserved,.mat-reserved,.material-reserved,[class*=reserved],[class*=Reserved],[class*=gereserveerd],[class*=Gereserveerd]{animation:none!important;transition:none!important;transform:none!important;}\
+  #bns391List,#materialList,.material-list,.materials-list,[data-list="materials"]{scroll-behavior:auto!important;overscroll-behavior:contain!important;}\
+  button:active,.material-row:active,.bns-material-row:active,.pick:active{transform:none!important;}\
+}\
+';
+    document.head.appendChild(st);
+  }
+
+  function run(){ style(); setPinLock(); patchRenders(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run, 200); });
+  else setTimeout(run, 200);
+  document.addEventListener('click', function(){ setTimeout(run, 50); setTimeout(run, 300); }, true);
+  window.addEventListener('resize', run);
+  window.addEventListener('focus', run);
+  setInterval(run, 500);
+  try{ console.info('[BNS 576] actief - PIN scherm dicht en mobiel materiaalstatus rustig'); }catch(e){}
+})();
+
+/* =========================================================
+   BNS 577 - PIN echt dicht, dubbele mobiele savebar weg, status rustig
+   Veilig: geen Firebase writes/deletes, geen driver, geen reserveringslogica.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS577_PIN_SAVE_STATUS__) return;
+  window.__BNS577_PIN_SAVE_STATUS__ = true;
+
+  var lockedSiblings = [];
+  var savedScrollY = 0;
+  function E(id){ return document.getElementById(id); }
+  function visible(el){
+    if(!el) return false;
+    if(el.classList && el.classList.contains('hidden')) return false;
+    var cs = window.getComputedStyle ? getComputedStyle(el) : null;
+    if(cs && (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0)) return false;
+    var r = el.getBoundingClientRect ? el.getBoundingClientRect() : {width:1,height:1};
+    return r.width > 0 && r.height > 0;
+  }
+  function pinOpen(){
+    var login = E('login') || document.querySelector('.login,#pin,#pinScreen,.pin-screen,.login-screen');
+    return !!(login && visible(login));
+  }
+  function isAncestor(a,b){
+    try{ return a && b && a.contains && a.contains(b); }catch(e){ return false; }
+  }
+  function hideUnderPin(login){
+    if(!login || !document.body) return;
+    // Verberg alle directe body-kinderen die niet het login-scherm zijn of het login-scherm bevatten.
+    Array.prototype.slice.call(document.body.children || []).forEach(function(ch){
+      if(ch === login || isAncestor(ch, login)) return;
+      if(!ch.__bns577OldDisplay){ ch.__bns577OldDisplay = ch.style.display || ''; }
+      ch.style.display = 'none';
+      lockedSiblings.push(ch);
+    });
+    // Bekende plannerlagen extra verbergen voor gevallen waar login in dezelfde wrapper staat.
+    ['app','main','sidebar','content','planner','dashboard','bns574MobileSaveBar'].forEach(function(id){
+      var el = E(id); if(el && el !== login && !isAncestor(el, login)){ if(!el.__bns577OldDisplay){ el.__bns577OldDisplay = el.style.display || ''; } el.style.display='none'; lockedSiblings.push(el); }
+    });
+    document.querySelectorAll('.app,.sidebar,.main,.content,.planner-shell,.bottom-actions,.sticky,#bns574MobileSaveBar').forEach(function(el){
+      if(el === login || isAncestor(el, login)) return;
+      if(!el.__bns577OldDisplay){ el.__bns577OldDisplay = el.style.display || ''; }
+      el.style.display='none';
+      lockedSiblings.push(el);
+    });
+  }
+  function restoreHidden(){
+    var seen=[];
+    lockedSiblings.forEach(function(el){
+      if(!el || seen.indexOf(el)>=0) return; seen.push(el);
+      try{ el.style.display = el.__bns577OldDisplay || ''; delete el.__bns577OldDisplay; }catch(e){}
+    });
+    lockedSiblings=[];
+  }
+  function lockPin(){
+    var login = E('login') || document.querySelector('.login,#pin,#pinScreen,.pin-screen,.login-screen');
+    var open = pinOpen();
+    document.documentElement.classList.toggle('bns577-pin-locked', open);
+    document.body.classList.toggle('bns577-pin-locked', open);
+    if(open){
+      if(!document.body.__bns577Locked){ savedScrollY = window.scrollY || document.documentElement.scrollTop || 0; document.body.__bns577Locked = '1'; }
+      hideUnderPin(login);
+      try{
+        login.style.display = 'flex'; login.style.visibility='visible'; login.style.position='fixed';
+        login.style.left='0'; login.style.right='0'; login.style.top='0'; login.style.bottom='0'; login.style.zIndex='2147483600';
+        login.style.overflowY='auto'; login.style.webkitOverflowScrolling='touch';
+      }catch(e){}
+      try{ window.scrollTo(0,0); }catch(e){}
+    }else{
+      if(document.body.__bns577Locked){ delete document.body.__bns577Locked; restoreHidden(); try{ window.scrollTo(0, savedScrollY||0); }catch(e){} }
+    }
+  }
+
+  function removeDuplicateSaveBar(){
+    var bar = E('bns574MobileSaveBar');
+    if(bar){ bar.style.display='none'; bar.setAttribute('aria-hidden','true'); }
+  }
+
+  function calmStatus(){
+    document.documentElement.classList.add('bns577-status-calm');
+    clearTimeout(window.__bns577CalmTimer);
+    window.__bns577CalmTimer = setTimeout(function(){ document.documentElement.classList.remove('bns577-status-calm'); }, 2500);
+    try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
+  }
+
+  function style(){
+    if(E('bns577Style')) return;
+    var st = document.createElement('style');
+    st.id='bns577Style';
+    st.textContent = '\
+html.bns577-pin-locked,body.bns577-pin-locked{overflow:hidden!important;height:100%!important;max-height:100%!important;touch-action:none!important;}\
+body.bns577-pin-locked{position:fixed!important;left:0!important;right:0!important;top:0!important;width:100%!important;}\
+body.bns577-pin-locked #login{display:flex!important;visibility:visible!important;position:fixed!important;inset:0!important;z-index:2147483600!important;overflow-y:auto!important;touch-action:auto!important;-webkit-overflow-scrolling:touch!important;background:#fff!important;}\
+#bns574MobileSaveBar{display:none!important;visibility:hidden!important;pointer-events:none!important;}\
+@media(max-width:820px){\
+  .bns577-status-calm *{animation:none!important;transition:none!important;}\
+  .reserved,.gereserveerd,.is-reserved,.status-reserved,.mat-reserved,.material-reserved,\
+  [class*=reserved],[class*=Reserved],[class*=gereserveerd],[class*=Gereserveerd]{animation:none!important;transition:none!important;transform:none!important;}\
+  button:focus,button:active,.material-row:focus,.material-row:active,.bns-material-row:focus,.bns-material-row:active{outline:none!important;animation:none!important;transition:none!important;transform:none!important;}\
+}\
+';
+    document.head.appendChild(st);
+  }
+
+  document.addEventListener('touchmove', function(ev){
+    if(!pinOpen()) return;
+    var login = E('login');
+    if(login && !login.contains(ev.target)) ev.preventDefault();
+  }, {capture:true, passive:false});
+  document.addEventListener('wheel', function(ev){
+    if(!pinOpen()) return;
+    var login = E('login');
+    if(login && !login.contains(ev.target)) ev.preventDefault();
+  }, {capture:true, passive:false});
+  document.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(t && t.closest && t.closest('button,.material-row,.bns-material-row,.pick,[class*=reserved],[class*=gereserveerd],[class*=Gereserveerd]')) calmStatus();
+    setTimeout(run,60); setTimeout(run,350);
+  }, true);
+
+  function run(){ style(); lockPin(); removeDuplicateSaveBar(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(run,100); });
+  else setTimeout(run,100);
+  window.addEventListener('resize', run);
+  window.addEventListener('focus', run);
+  setInterval(run, 400);
+  try{ console.info('[BNS 577] actief - PIN dicht, dubbele savebar weg, status rustig'); }catch(e){}
+})();
