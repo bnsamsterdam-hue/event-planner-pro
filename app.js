@@ -48029,3 +48029,88 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   else setTimeout(start, 1200);
   log('actief - direct Firebase materials/users naar planner-state, zonder schrijven naar Firebase');
 })();
+
+/* =========================================================
+   BNS 579 - Veilige PIN-poort terug op basis 578
+   Alleen app.js. Geen Firebase writes/deletes. Geen mobiele layout.
+   Doel: gewone planner opent nooit zonder PIN; 573/578 materialen-fix blijft intact.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS579_PIN_GATE__) return;
+  window.__BNS579_PIN_GATE__ = true;
+
+  var unlocked = false;
+  function byId(id){ return document.getElementById(id); }
+  function log(t){ try{ console.info('[BNS 579] '+t); }catch(e){} }
+
+  function ensureStyle(){
+    if(byId('bns579PinStyle')) return;
+    var st = document.createElement('style');
+    st.id = 'bns579PinStyle';
+    st.textContent =
+      'html.bns579-pin-locked,body.bns579-pin-locked{overflow:hidden!important;height:100%!important;position:fixed!important;width:100%!important;touch-action:none!important;}'+
+      'body.bns579-pin-locked #app{display:none!important;visibility:hidden!important;pointer-events:none!important;}'+
+      'body.bns579-pin-locked #login{display:flex!important;visibility:visible!important;opacity:1!important;position:fixed!important;inset:0!important;z-index:2147483647!important;overflow:hidden!important;}';
+    (document.head || document.documentElement).appendChild(st);
+  }
+
+  function lock(){
+    if(unlocked) return;
+    ensureStyle();
+    var app = byId('app');
+    var login = byId('login');
+    if(app) app.classList.add('hidden');
+    if(login) login.classList.remove('hidden');
+    document.documentElement.classList.add('bns579-pin-locked');
+    if(document.body) document.body.classList.add('bns579-pin-locked');
+    try{ window.scrollTo(0,0); }catch(e){}
+  }
+
+  function unlock(){
+    unlocked = true;
+    document.documentElement.classList.remove('bns579-pin-locked');
+    if(document.body) document.body.classList.remove('bns579-pin-locked');
+    var login = byId('login');
+    var app = byId('app');
+    if(login) login.classList.add('hidden');
+    if(app) app.classList.remove('hidden');
+  }
+
+  function installDoLoginWrapper(){
+    try{
+      if(typeof doLogin !== 'function' || doLogin.__bns579Wrapped) return false;
+      var original = doLogin;
+      doLogin = function(){
+        original.apply(this, arguments);
+        setTimeout(function(){
+          var login = byId('login');
+          var app = byId('app');
+          var ok = login && login.classList.contains('hidden') && app && !app.classList.contains('hidden');
+          if(ok) unlock();
+          else lock();
+        }, 30);
+      };
+      doLogin.__bns579Wrapped = true;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  function start(){
+    lock();
+    installDoLoginWrapper();
+    setTimeout(installDoLoginWrapper, 500);
+    setTimeout(installDoLoginWrapper, 1500);
+    var tries = 0;
+    var timer = setInterval(function(){
+      tries++;
+      installDoLoginWrapper();
+      if(!unlocked) lock();
+      if(unlocked || tries > 20) clearInterval(timer);
+    }, 250);
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+  log('actief - planner blijft dicht tot geldige PIN');
+})();
