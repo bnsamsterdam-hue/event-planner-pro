@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BNS 571 - Admin data naar Firebase</title>
+  <style>
+    body{font-family:Arial,sans-serif;background:#f4f7fb;margin:0;padding:20px;color:#111827}
+    .card{max-width:920px;margin:0 auto;background:#fff;border:1px solid #dbe3ef;border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(15,23,42,.08)}
+    h1{margin:0 0 8px;font-size:24px}.muted{color:#64748b}.warn{background:#fff7ed;border:1px solid #fdba74;padding:12px;border-radius:12px;margin:12px 0}.ok{background:#ecfdf5;border:1px solid #6ee7b7;padding:12px;border-radius:12px;margin:12px 0}.bad{background:#fef2f2;border:1px solid #fca5a5;padding:12px;border-radius:12px;margin:12px 0}
+    button{border:0;border-radius:12px;padding:12px 16px;font-weight:900;cursor:pointer;margin:6px 6px 6px 0}.blue{background:#2563eb;color:white}.green{background:#16a34a;color:white}.red{background:#dc2626;color:white}.grey{background:#e5e7eb;color:#111827}
+    pre{background:#0f172a;color:#e5e7eb;border-radius:14px;padding:14px;overflow:auto;white-space:pre-wrap;min-height:160px}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>BNS 571 - Admin materialen en bezorgers naar Firebase</h1>
+  <p class="muted">Gebruik dit alleen op de laptop waar Admin &gt; Materialen en Admin &gt; Gebruikers goed gevuld zijn.</p>
+  <div class="warn"><b>Veiligheid:</b> dit verandert geen app.js, styles.css, opdrachten, klanten, boekhouding of driver. Het schrijft alleen de collecties <b>materials</b> en <b>users</b> naar Firebase.</div>
+  <button class="blue" id="checkBtn">1. Controleer aantallen</button>
+  <button class="green" id="uploadBtn">2. Zet laptop materialen + users exact naar Firebase</button>
+  <button class="grey" id="copyBtn">Kopieer log</button>
+  <pre id="log">Wacht op actie...</pre>
+</div>
+<script src="firebase-config.js"></script>
+<script type="module">
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+const KEYS = ['event-planner-pro-v87','event-planner-pro-v8','event-planner-pro','bns_event_planner','eventPlannerProV91','eventPlannerPro','plannerState','eventPlannerState'];
+const logEl = document.getElementById('log');
+function log(msg){ logEl.textContent += '\n' + msg; logEl.scrollTop = logEl.scrollHeight; }
+function reset(msg){ logEl.textContent = msg || ''; }
+function readLocal(){
+  for(const k of KEYS){
+    try{
+      const raw = localStorage.getItem(k);
+      if(!raw) continue;
+      const obj = JSON.parse(raw);
+      if(obj && typeof obj === 'object' && (Array.isArray(obj.materials) || Array.isArray(obj.users))){
+        return {key:k, data:obj};
+      }
+    }catch(e){}
+  }
+  return null;
+}
+function normId(row, prefix){
+  const id = String(row.id || row.docId || row.materialId || row.userId || row.code || row.name || '').trim();
+  if(id) return id;
+  return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+}
+function cleanMaterial(m){
+  const x = {...m};
+  const id = normId(x,'mat');
+  x.id = id;
+  if(!x.code && x.materialCode) x.code = x.materialCode;
+  if(!x.name && x.title) x.name = x.title;
+  return x;
+}
+function cleanUser(u){
+  const x = {...u};
+  const id = normId(x,'u');
+  x.id = id;
+  if(!x.name && x.displayName) x.name = x.displayName;
+  return x;
+}
+function appDb(){
+  if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) throw new Error('Firebase config niet gevonden. Staat dit bestand in dezelfde map als firebase-config.js?');
+  const app = getApps().length ? getApp() : initializeApp(window.BNS_FIREBASE_CONFIG);
+  return getFirestore(app);
+}
+async function countRemote(db, col){
+  const snap = await getDocs(collection(db,col));
+  return {count:snap.size, ids:snap.docs.map(d=>d.id)};
+}
+async function replaceCollection(db, col, rows){
+  const snap = await getDocs(collection(db,col));
+  const keep = new Set(rows.map(r=>String(r.id)));
+  const toDelete = snap.docs.filter(d=>!keep.has(d.id));
+  for(let i=0;i<toDelete.length;i+=450){
+    const batch = writeBatch(db);
+    toDelete.slice(i,i+450).forEach(d=>batch.delete(doc(db,col,d.id)));
+    await batch.commit();
+  }
+  for(let i=0;i<rows.length;i+=450){
+    const batch = writeBatch(db);
+    rows.slice(i,i+450).forEach(r=>batch.set(doc(db,col,String(r.id)), r, {merge:false}));
+    await batch.commit();
+  }
+  return {deleted:toDelete.length, written:rows.length};
+}
+function getLocalRows(){
+  const local = readLocal();
+  if(!local) throw new Error('Geen lokale planner-data gevonden op deze laptop. Open eerst de planner waar materialen/gebruikers goed staan.');
+  const data = local.data || {};
+  const materials = (Array.isArray(data.materials)?data.materials:[])
+    .filter(m=>m && (m.name || m.code || m.id))
+    .map(cleanMaterial);
+  const users = (Array.isArray(data.users)?data.users:[])
+    .filter(u=>u && (u.name || u.pin || u.id))
+    .map(cleanUser);
+  return {key:local.key, materials, users};
+}
+document.getElementById('checkBtn').onclick = async ()=>{
+  reset('Controle bezig...');
+  try{
+    const local = getLocalRows();
+    const db = appDb();
+    const rm = await countRemote(db,'materials');
+    const ru = await countRemote(db,'users');
+    reset('Controle klaar.');
+    log('Lokale bron op deze laptop: ' + local.key);
+    log('Laptop materialen: ' + local.materials.length);
+    log('Laptop users/bezorgers: ' + local.users.length + ' (' + local.users.map(u=>u.name).filter(Boolean).join(', ') + ')');
+    log('Firebase materials: ' + rm.count);
+    log('Firebase users: ' + ru.count);
+    if(local.materials.length && rm.count === 0) log('Conclusie: telefoon kan geen admin-materialen laden omdat Firebase materials leeg is.');
+    if(local.users.length && ru.count === 0) log('Conclusie: telefoon kan geen bezorgers/users laden omdat Firebase users leeg is.');
+  }catch(e){ reset('FOUT: ' + (e && e.message ? e.message : e)); }
+};
+document.getElementById('uploadBtn').onclick = async ()=>{
+  try{
+    const local = getLocalRows();
+    if(!local.materials.length && !local.users.length) throw new Error('Geen materialen/users gevonden op deze laptop. Niet uploaden.');
+    const ok = confirm('Dit zet Firebase materials en users exact gelijk aan deze laptop. Opdrachten/klanten/boekhouding blijven ongemoeid. Doorgaan?');
+    if(!ok) return;
+    reset('Upload bezig... browser niet sluiten.');
+    const db = appDb();
+    const mr = await replaceCollection(db,'materials',local.materials);
+    log('Materials klaar: geschreven ' + mr.written + ', verwijderd uit Firebase omdat ze niet op laptop staan: ' + mr.deleted);
+    const ur = await replaceCollection(db,'users',local.users);
+    log('Users klaar: geschreven ' + ur.written + ', verwijderd uit Firebase omdat ze niet op laptop staan: ' + ur.deleted);
+    log('KLAAR. Open telefoon met ?v=571_admin_data en ververs.');
+  }catch(e){ log('FOUT: ' + (e && e.message ? e.message : e)); }
+};
+document.getElementById('copyBtn').onclick = async ()=>{ try{ await navigator.clipboard.writeText(logEl.textContent); alert('Log gekopieerd'); }catch(e){} };
+reset('Klaar. Klik eerst op controleren.');
+</script>
+</body>
+</html>
