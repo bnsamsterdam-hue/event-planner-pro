@@ -48897,3 +48897,118 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   else setTimeout(start,800);
   window.BNS608ReloadMaterials=function(){ return pull('handmatig'); };
 })();
+
+/* =========================================================
+   BNS 609 - Materialen rubrieken herstellen uit Firebase-code
+   Basis: 608. Schrijft NIETS naar Firebase.
+   Doel: als oude lokale/initial state of verkeerde cat=TW/EXTRA de UI stuurt,
+   dan worden materialen lokaal/renderend weer gerubriceerd op code-prefix:
+   TAPW18 -> TAPW, BIERSLANG50 -> BIERSLANG, POMP1 -> POMP.
+   Ook worden oude placeholder-teksten in Admin niet meer als echte oude data getoond.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS609_MATERIAL_CATEGORY_FIX__) return;
+  window.__BNS609_MATERIAL_CATEGORY_FIX__ = true;
+
+  var KEY='event-planner-pro-v87';
+  var GENERIC={TW:1,TO:1,KW:1,EXTRA:1};
+  function A(v){ return Array.isArray(v)?v:[]; }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function U(v){ return T(v).toUpperCase(); }
+  function idOf(m){ return T(m && (m.id || m.docId || m.materialId)); }
+  function codeOf(m){ return U(m && (m.code || m.materialCode || m.productCode || ((m.rubriek||m.cat||m.category||'')+(m.nr||m.productNr||m.number||'')))); }
+  function isOld(m){ return /^art_/i.test(idOf(m)) || /oude prijs/i.test(T(m && m.price)); }
+  function prefixFromCode(code){
+    code=U(code).replace(/\s+/g,'');
+    var m=code.match(/^([A-Z]+)(?=\d)/);
+    if(m && m[1] && m[1].length>=2) return m[1].slice(0,16);
+    return '';
+  }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} try{return window.state||null;}catch(e){} return null; }
+  function normalize(list){
+    return A(list).filter(function(m){ return m && idOf(m) && !isOld(m); }).map(function(m){
+      var x=Object.assign({},m);
+      var c=U(x.cat || x.rubriek || x.category);
+      var pref=prefixFromCode(codeOf(x));
+      if(pref && (!c || GENERIC[c] || c==='MATERIAAL')) c=pref;
+      if(c){ x.cat=c; x.rubriek=c; x.category=c; }
+      return x;
+    });
+  }
+  function good(list){
+    var a=normalize(list), cats={};
+    a.forEach(function(m){ var c=U(m.cat||m.rubriek||m.category); if(c) cats[c]=1; });
+    return a.length>=20 && Object.keys(cats).length>=2;
+  }
+  function setEverywhere(mats){
+    mats=normalize(mats);
+    if(!good(mats)) return false;
+    var s=stateObj();
+    if(s){ s.materials=mats; try{ window.state=s; }catch(e){} }
+    try{ if(typeof INITIAL_STATE!=='undefined' && INITIAL_STATE) INITIAL_STATE.materials=mats; }catch(e){}
+    try{ if(window.INITIAL_STATE) window.INITIAL_STATE.materials=mats; }catch(e){}
+    try{ window.__BNS608_MATERIALS=mats; window.__BNS609_MATERIALS=mats; }catch(e){}
+    try{
+      var raw=localStorage.getItem(KEY), obj=raw?JSON.parse(raw):{};
+      if(!obj || typeof obj!=='object') obj={};
+      obj.materials=mats;
+      localStorage.setItem(KEY,JSON.stringify(obj));
+    }catch(e){}
+    return true;
+  }
+  function bestMaterials(){
+    var candidates=[];
+    try{ if(window.__BNS608_MATERIALS) candidates.push(window.__BNS608_MATERIALS); }catch(e){}
+    try{ if(window.__BNS609_MATERIALS) candidates.push(window.__BNS609_MATERIALS); }catch(e){}
+    try{ var s=stateObj(); if(s && A(s.materials).length) candidates.push(s.materials); }catch(e){}
+    try{ var raw=localStorage.getItem(KEY); if(raw){ var obj=JSON.parse(raw); if(obj&&A(obj.materials).length)candidates.push(obj.materials); } }catch(e){}
+    var best=[];
+    candidates.forEach(function(c){ var n=normalize(c); if(n.length>best.length) best=n; });
+    return best;
+  }
+  function renderAll(){
+    var mats=bestMaterials();
+    if(setEverywhere(mats)){
+      var cats={}; normalize(mats).forEach(function(m){ var c=U(m.cat||m.rubriek||m.category); if(c) cats[c]=1; });
+      var first=Object.keys(cats).sort()[0] || 'TAPW';
+      try{ if(!window.currentCat || GENERIC[U(window.currentCat)]) window.currentCat=first; }catch(e){}
+      try{ if(typeof renderCats==='function') renderCats(); }catch(e){}
+      try{ if(typeof window.renderCats==='function') window.renderCats(); }catch(e){}
+      try{ if(typeof renderMaterials==='function') renderMaterials(window.currentCat||first); }catch(e){}
+      try{ if(typeof window.renderMaterials==='function') window.renderMaterials(window.currentCat||first); }catch(e){}
+      try{ if(window.BNS_V391_ADMIN_MATERIAL_FULL && typeof window.BNS_V391_ADMIN_MATERIAL_FULL.install==='function') window.BNS_V391_ADMIN_MATERIAL_FULL.install(); }catch(e){}
+      clearAdminPlaceholders();
+      try{ console.info('[BNS 609] Materialen lokaal gerubriceerd op code-prefix: '+normalize(mats).length+' materialen.'); }catch(e){}
+    }
+  }
+  function clearAdminPlaceholders(){
+    try{
+      var mode=document.getElementById('bns391Mode');
+      if(mode && /Nieuw materiaal/i.test(mode.textContent||'')){
+        var ids=['bns391Nr','bns391Product','bns391Desc','bns391Price'];
+        ids.forEach(function(id){ var el=document.getElementById(id); if(el && !T(el.value)) el.placeholder=''; });
+      }
+    }catch(e){}
+  }
+  function wrapRender(){
+    var old=window.renderMaterials || (typeof renderMaterials==='function'?renderMaterials:null);
+    if(old && !old.__bns609Wrapped){
+      var wrapped=function(cat){
+        try{ setEverywhere(bestMaterials()); }catch(e){}
+        return old.apply(this,arguments);
+      };
+      wrapped.__bns609Wrapped=true;
+      window.renderMaterials=wrapped;
+      try{ renderMaterials=wrapped; }catch(e){}
+    }
+  }
+  function start(){
+    wrapRender(); renderAll();
+    [1200,2500,6000].forEach(function(ms){ setTimeout(function(){ wrapRender(); renderAll(); },ms); });
+    document.addEventListener('click',function(){ setTimeout(function(){ wrapRender(); renderAll(); },120); },true);
+    document.addEventListener('bns:materials-force-render',function(){ setTimeout(renderAll,80); },true);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(start,900); }); else setTimeout(start,900);
+  window.BNS609NormalizeMaterials=renderAll;
+})();
