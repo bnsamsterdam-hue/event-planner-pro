@@ -49012,3 +49012,188 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(start,900); }); else setTimeout(start,900);
   window.BNS609NormalizeMaterials=renderAll;
 })();
+
+/* =========================================================
+   BNS 610 - veilige scheiding materiaal / transport / service
+   Basis: app(64).js. Alleen deze punten:
+   - Materiaal zoeken nogmaals eind-wrappen: binnen rubriek, code/productnr/zoeknaam.
+   - Transportregels blijven geen materialen en krijgen reservable:false.
+   - Servicekosten/bijzonderheden krijgen eigen serviceLines en blijven geen materialen.
+   - Opslaan mag bestaande materialen/transport/service niet leeg overschrijven als de rubriek niet is aangepast.
+   Geen wijziging aan materiaal reserveren/status, Firebase bron, PIN, mobiele knoppen of LET OP-balk.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS610_SAFE_GROUPS__) return;
+  window.__BNS610_SAFE_GROUPS__ = true;
+
+  var serviceDirty=false, transportDirty=false, materialDirty=false;
+  var SERVICE_BOX='bns610ServiceBox';
+
+  function E(id){ return document.getElementById(id); }
+  function A(v){ return Array.isArray(v)?v:[]; }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function clone(v){ try{return JSON.parse(JSON.stringify(v||[]));}catch(e){return [];} }
+  function euro(n){ n=N(n); return '€ '+n.toFixed(2).replace('.',','); }
+  function lineTotal(l){ return (N(l&&l.qty)||1) * N(l&&l.price); }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} try{return window.state||null;}catch(e){} return null; }
+  function curId(){ try{return T(window.editing||editing||'');}catch(e){return T(window.editing||'');} }
+  function curNr(){ return T((E('orderNumber')||{}).value); }
+  function findCurrentOrder(){
+    var s=stateObj(), id=curId(), nr=curNr();
+    if(!s || !Array.isArray(s.orders)) return null;
+    return s.orders.find(function(o){ return (id && T(o.id)===id) || (nr && T(o.number)===nr); }) || null;
+  }
+  function isTransportLine(l){ var t=L(l&&l.type), n=L(l&&l.name); return t==='transport'||t==='km'||t==='toeslag'||t==='fee'||/transport|kraanwagen|bakwagen|aanhanger|rekeningrijden|wachttijd|chauffeur|toeslag/.test(n); }
+  function isServiceLine(l){ var t=L(l&&l.type), n=L(l&&l.name); return t==='service'||t==='servicekosten'||t==='bijzonderheid'||/service|schoonmaak|reinig|montage|demontage|aansluiten|borg correctie|kosten/.test(n); }
+  function cleanMaterials(list){
+    return A(list).filter(function(m){
+      if(!m) return false;
+      if(m.reservable===false) return false;
+      var t=L(m.type||m.kind||m.group||m.cat||m.rubriek||m.category);
+      if(/transport|service|toeslag|fee|km|bijzonder/.test(t)) return false;
+      return true;
+    });
+  }
+  function cleanTransport(list){
+    return A(list).filter(function(l){ return l && !isServiceLine(l); }).map(function(l){
+      var x=Object.assign({},l);
+      x.type = isTransportLine(x) ? (L(x.type)==='km'?'km':(L(x.type)==='toeslag'?'toeslag':'transport')) : 'transport';
+      x.reservable=false;
+      delete x.status;
+      delete x.materialId;
+      return x;
+    });
+  }
+  function cleanService(list){
+    return A(list).filter(Boolean).map(function(l){
+      var x=Object.assign({},l);
+      x.type='service';
+      x.reservable=false;
+      delete x.status;
+      delete x.materialId;
+      return x;
+    });
+  }
+  function getService(){ return cleanService(window.__bns610ServiceLines||[]); }
+  function setService(lines){ window.__bns610ServiceLines=cleanService(lines); renderService(); }
+  function serviceTotal(lines){ return A(lines||getService()).reduce(function(s,l){ return s+lineTotal(l); },0); }
+  function serviceText(lines){
+    lines=A(lines||getService());
+    if(!lines.length) return '';
+    return lines.map(function(l){ return (N(l.qty)||1)+'x '+T(l.name)+' '+euro(l.price)+(T(l.note)?' - '+T(l.note):''); }).join('\n');
+  }
+
+  function markDirtyFromEvent(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    if(t.closest('#bns521TransportBox')) transportDirty=true;
+    if(t.closest('#'+SERVICE_BOX)) serviceDirty=true;
+    if(t.closest('#materialList,#chosenList,#selectedMaterials,#materialsPanel,.materials-panel,[data-material-id]')) materialDirty=true;
+  }
+  document.addEventListener('click',markDirtyFromEvent,true);
+  document.addEventListener('input',markDirtyFromEvent,true);
+  document.addEventListener('change',markDirtyFromEvent,true);
+
+  function loadServiceFromOrder(o){
+    o=o||findCurrentOrder()||{};
+    var lines=[];
+    if(Array.isArray(o.serviceLines)) lines=clone(o.serviceLines);
+    else if(Array.isArray(o.services)) lines=clone(o.services);
+    else if(Array.isArray(o.transportLines)) lines=clone(o.transportLines).filter(isServiceLine);
+    window.__bns610ServiceLines=cleanService(lines);
+    serviceDirty=false;
+    setTimeout(renderService,60);
+  }
+
+  function installServiceCss(){
+    if(E('bns610ServiceStyle')) return;
+    var st=document.createElement('style'); st.id='bns610ServiceStyle';
+    st.textContent='#'+SERVICE_BOX+'{margin:10px 0 14px;padding:14px;border:2px solid #dbe3ef;border-radius:16px;background:#fff7ed;color:#0f172a}#'+SERVICE_BOX+' h3{margin:0 0 10px;font-size:20px}#'+SERVICE_BOX+' .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}#'+SERVICE_BOX+' label{font-weight:900;font-size:13px;display:flex;flex-direction:column;gap:4px}#'+SERVICE_BOX+' input{border:2px solid #94a3b8;border-radius:10px;padding:10px 11px;min-height:42px;background:white;color:#0f172a;font-size:15px}#'+SERVICE_BOX+' .wide{min-width:260px;flex:1}#'+SERVICE_BOX+' .small{width:90px}#'+SERVICE_BOX+' button{border:0;border-radius:10px;padding:11px 13px;font-weight:1000;cursor:pointer;color:white;background:#ea580c}#'+SERVICE_BOX+' button.red{background:#dc2626}#'+SERVICE_BOX+' table{width:100%;border-collapse:collapse;margin-top:10px;background:white;border-radius:12px;overflow:hidden}#'+SERVICE_BOX+' th,#'+SERVICE_BOX+' td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left}#'+SERVICE_BOX+' .amount{text-align:right;font-weight:1000}#'+SERVICE_BOX+' small{color:#64748b;font-weight:800}';
+    document.head.appendChild(st);
+  }
+  function installServiceBox(){
+    var extra=E('orderExtra') || E('extra') || document.querySelector('textarea[name="extra"],textarea[id*="bijzonder" i]');
+    if(!extra || E(SERVICE_BOX)) return;
+    installServiceCss();
+    var box=document.createElement('div'); box.id=SERVICE_BOX;
+    box.innerHTML='<h3>Servicekosten / bijzonderheden</h3><div class="row"><label>Omschrijving<input id="bns610ServiceName" class="wide" placeholder="Bijv. schoonmaak, aansluiten, montage"></label><label>Aantal<input id="bns610ServiceQty" class="small" type="number" step="1" value="1"></label><label>Prijs €<input id="bns610ServicePrice" class="small" type="number" step="0.01" value="0"></label><label>Opmerking<input id="bns610ServiceNote" class="wide" placeholder="Optioneel"></label><button type="button" id="bns610AddService">Service toevoegen</button></div><table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns610ServiceRows"></tbody></table><div style="text-align:right;font-weight:1000;margin-top:10px">Service totaal: <span id="bns610ServiceTotal">€ 0,00</span></div><small>Servicekosten en bijzonderheden zijn géén materialen, reserveren niets en wissen geen materialen.</small>';
+    extra.parentNode.insertBefore(box, extra.nextSibling);
+    var add=E('bns610AddService');
+    if(add){ add.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} serviceDirty=true; var name=T(E('bns610ServiceName').value)||'Service'; var qty=N(E('bns610ServiceQty').value)||1; var price=N(E('bns610ServicePrice').value); var note=T(E('bns610ServiceNote').value); var lines=getService(); lines.push({type:'service',name:name,qty:qty,price:price,note:note,reservable:false}); setService(lines); E('bns610ServiceName').value=''; E('bns610ServiceQty').value='1'; E('bns610ServicePrice').value='0'; E('bns610ServiceNote').value=''; return false; }; }
+    loadServiceFromOrder();
+  }
+  function renderService(){
+    var body=E('bns610ServiceRows'); if(!body) return;
+    var lines=getService();
+    body.innerHTML=lines.length?lines.map(function(l,i){return '<tr><td>'+H(l.name)+'</td><td>'+H(N(l.qty)||1)+'</td><td>'+H(euro(l.price))+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td><td><button type="button" class="red" data-bns610-del="'+i+'">x</button></td></tr>';}).join(''):'<tr><td colspan="6"><small>Nog geen servicekosten.</small></td></tr>';
+    var tot=E('bns610ServiceTotal'); if(tot) tot.textContent=euro(serviceTotal(lines));
+    body.querySelectorAll('[data-bns610-del]').forEach(function(b){ b.onclick=function(){ serviceDirty=true; var i=Number(b.getAttribute('data-bns610-del')); var lines=getService(); lines.splice(i,1); setService(lines); }; });
+  }
+
+  function installSearchFinal(){
+    var old=window.renderMaterials || (typeof renderMaterials==='function'?renderMaterials:null);
+    if(!old || old.__bns610SearchWrapped) return false;
+    function catOf(m){ return T(m&&(m.cat||m.rubriek||m.category)).toUpperCase(); }
+    function codeOf(m){ return T(m&&(m.code||m.productCode||'')); }
+    function productNr(m){ var c=codeOf(m).toUpperCase(), cat=catOf(m); return T(m&&(m.productNr||m.nr||m.number)) || (cat&&c.indexOf(cat)===0?c.slice(cat.length):c); }
+    function stxt(m){ return [catOf(m), codeOf(m), productNr(m), m&&(m.product||m.searchName||m.zoeknaam||m.type||m.productName)].map(T).join(' ').toLowerCase(); }
+    function mats(){ var s=stateObj(); return s&&Array.isArray(s.materials)?s.materials:[]; }
+    function activeCat(cat){ return T(cat||window.currentCat||'TW').toUpperCase(); }
+    function filter(cat){ var box=E('materialList'), q=L(E('materialSearch')&&E('materialSearch').value), c=activeCat(cat); if(!box) return; var allow={}; mats().forEach(function(m){ if(catOf(m)!==c) return; if(q && stxt(m).indexOf(q)<0) return; var id=T(m.id||m.materialId||m.code); if(id) allow[id]=1; }); var shown=0; box.querySelectorAll('[data-material-id]').forEach(function(r){ var id=T(r.getAttribute('data-material-id')); var ok=!id||!!allow[id]; r.style.display=ok?'':'none'; if(ok) shown++; }); var no=E('bns610NoMat'); if(no) no.remove(); if(q && shown===0){ var p=document.createElement('p'); p.id='bns610NoMat'; p.textContent='Geen materiaal gevonden in deze rubriek op productnummer of zoeknaam.'; p.style.cssText='padding:12px;font-weight:800;color:#64748b'; box.appendChild(p); } }
+    var wrapped=function(cat){ var c=activeCat(cat); window.currentCat=c; var r=old.apply(this,arguments); setTimeout(function(){ filter(c); },0); return r; };
+    wrapped.__bns610SearchWrapped=true;
+    window.renderMaterials=wrapped; try{ renderMaterials=wrapped; }catch(e){}
+    var inp=E('materialSearch'); if(inp && !inp.dataset.bns610){ inp.dataset.bns610='1'; inp.addEventListener('input',function(){ setTimeout(function(){ wrapped(activeCat()); },0); },true); }
+    return true;
+  }
+
+  function installPrepareGuard(){
+    var old=window.BNS_v519PrepareOrderBeforeSave;
+    if(typeof old==='function' && old.__bns610Guard) return;
+    window.BNS_v519PrepareOrderBeforeSave=function(order, oldOrder){
+      oldOrder=oldOrder||findCurrentOrder()||{};
+      if(typeof old==='function') old(order, oldOrder);
+      if(!order || typeof order!=='object') return order;
+
+      var cleanedMats=cleanMaterials(order.materials);
+      if(cleanedMats.length || materialDirty || !A(oldOrder.materials).length) order.materials=cleanedMats;
+      else order.materials=clone(oldOrder.materials);
+
+      var lines=cleanTransport(order.transportLines || window.__bns521TransportLines || []);
+      if(lines.length || transportDirty || !A(oldOrder.transportLines).length) order.transportLines=lines;
+      else order.transportLines=cleanTransport(oldOrder.transportLines);
+      try{ window.__bns521TransportLines=clone(order.transportLines); }catch(e){}
+      order.transportTotal=order.transportLines.reduce(function(s,l){return s+lineTotal(l);},0);
+      order.vehicle=order.transportLines.map(function(l){return T(l.name);}).filter(Boolean).join(', ') || T((E('orderVehicle')||{}).value) || T(oldOrder.vehicle);
+
+      var services=getService();
+      if(services.length || serviceDirty || !A(oldOrder.serviceLines).length) order.serviceLines=services;
+      else order.serviceLines=cleanService(oldOrder.serviceLines);
+      order.serviceTotal=serviceTotal(order.serviceLines);
+
+      /* Oude service-regels die per ongeluk in transportLines stonden verplaatsen naar serviceLines. */
+      var moved=A(order.transportLines).filter(isServiceLine);
+      if(moved.length){ order.serviceLines=cleanService(order.serviceLines.concat(moved)); order.transportLines=cleanTransport(order.transportLines); order.serviceTotal=serviceTotal(order.serviceLines); }
+
+      var mat=0, dep=0;
+      A(order.materials).forEach(function(m){ var q=N(m.qty||m.amount||m.aantal||1)||1; mat+=q*N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs)); dep+=q*N(m.lineDeposit||m.deposit||m.borg); });
+      var sub=mat+order.transportTotal+order.serviceTotal;
+      order.pricing=Object.assign({},order.pricing||{}, {materialSubtotal:mat, transport:order.transportTotal, service:order.serviceTotal, deposit:dep, vat:sub*0.21, grand:sub*1.21+dep, materials:sub});
+      order.__bns610GroupsSafe=true;
+      return order;
+    };
+    window.BNS_v519PrepareOrderBeforeSave.__bns610Guard=true;
+  }
+
+  function boot(){
+    installServiceBox(); installPrepareGuard(); installSearchFinal(); renderService();
+    setTimeout(function(){ installServiceBox(); installPrepareGuard(); installSearchFinal(); renderService(); },800);
+    setTimeout(function(){ installServiceBox(); installPrepareGuard(); installSearchFinal(); renderService(); },2200);
+  }
+  document.addEventListener('click',function(ev){ var t=ev.target; if(t&&t.closest&&t.closest('#newOrderBtn,#editOrderBtn,.order-card,[data-order-id],button')) setTimeout(function(){ loadServiceFromOrder(); installServiceBox(); },150); },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+  console.info('[BNS 610] veilige scheiding materiaal/transport/service actief.');
+})();
