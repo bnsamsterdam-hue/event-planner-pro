@@ -32711,33 +32711,21 @@ setTimeout(()=>{
   }
   function renderCustomerBox(input){
     var rows=customerMatches(input.value), b=box('bnsV164CustomerBox');
-    if(!T(input && input.value) || !rows.length){
-      b._rows=[];
-      b.innerHTML='';
-      b.style.display='none';
-      return;
-    }
     placeBox(input,b);
-    b.innerHTML='<div class="bns-v164-head">Kies klant uit adresboek <button type="button" class="bns-v164-close" data-close="1">X</button></div>'+rows.map(function(c,i){
+    b.innerHTML=rows.length?'<div class="bns-v164-head">Kies klant uit adresboek <button type="button" class="bns-v164-close" data-close="1">X</button></div>'+rows.map(function(c,i){
       var sub=H([c.street,c.zip,c.city].filter(Boolean).join(' '))+(c.phone?' - '+H(c.phone):'');
       return '<div role="button" tabindex="0" class="bns-v164-row" data-kind="customer" data-i="'+i+'" style="background:#fff!important;color:#000!important;border:2px solid #d1d5db!important;opacity:1!important"><span class="bns-v164-title" style="color:#000!important;font-size:22px!important;font-weight:1000!important">'+H(c.name)+'</span><span class="bns-v164-sub" style="color:#111827!important;font-size:17px!important;font-weight:800!important">'+sub+'</span></div>';
-    }).join('');
+    }).join(''):'<div class="bns-v164-empty">Geen klant gevonden</div>';
     b._rows=rows;
     b.style.display='block';
   }
   function renderLocationBox(input){
     var rows=locationMatches(input.value), b=box('bnsV164LocationBox');
-    if(!T(input && input.value) || !rows.length){
-      b._rows=[];
-      b.innerHTML='';
-      b.style.display='none';
-      return;
-    }
     placeBox(input,b);
-    b.innerHTML='<div class="bns-v164-head">Kies locatie uit adresboek <button type="button" class="bns-v164-close" data-close="1">X</button></div>'+rows.map(function(l,i){
+    b.innerHTML=rows.length?'<div class="bns-v164-head">Kies locatie uit adresboek <button type="button" class="bns-v164-close" data-close="1">X</button></div>'+rows.map(function(l,i){
       var sub=H([l.street,l.zip,l.city].filter(Boolean).join(' '))+(l.phone?' - '+H(l.phone):'');
       return '<div role="button" tabindex="0" class="bns-v164-row" data-kind="location" data-i="'+i+'" style="background:#fff!important;color:#000!important;border:2px solid #d1d5db!important;opacity:1!important"><span class="bns-v164-title" style="color:#000!important;font-size:22px!important;font-weight:1000!important">'+H(l.name)+'</span><span class="bns-v164-sub" style="color:#111827!important;font-size:17px!important;font-weight:800!important">'+sub+'</span></div>';
-    }).join('');
+    }).join(''):'<div class="bns-v164-empty">Geen locatie gevonden</div>';
     b._rows=rows;
     b.style.display='block';
   }
@@ -32748,13 +32736,11 @@ setTimeout(()=>{
       cn.dataset.bnsV164Auto='1';
       cn.removeAttribute('list');
       cn.setAttribute('autocomplete','off');
-      var bnsV620CustomerTimer=null;
       cn.addEventListener('input',function(){
-        clearTimeout(bnsV620CustomerTimer);
-        bnsV620CustomerTimer=setTimeout(function(){ renderCustomerBox(cn); },220);
+        renderCustomerBox(cn);
       });
       cn.addEventListener('focus',function(){
-        hideAll();
+        if(T(cn.value)) renderCustomerBox(cn);
       });
       cn.addEventListener('keydown',function(ev){
         if(ev.key==='Escape') hideAll();
@@ -32765,13 +32751,11 @@ setTimeout(()=>{
       ln.dataset.bnsV164Auto='1';
       ln.removeAttribute('list');
       ln.setAttribute('autocomplete','off');
-      var bnsV620LocationTimer=null;
       ln.addEventListener('input',function(){
-        clearTimeout(bnsV620LocationTimer);
-        bnsV620LocationTimer=setTimeout(function(){ renderLocationBox(ln); },220);
+        renderLocationBox(ln);
       });
       ln.addEventListener('focus',function(){
-        hideAll();
+        if(T(ln.value)) renderLocationBox(ln);
       });
       ln.addEventListener('keydown',function(ev){
         if(ev.key==='Escape') hideAll();
@@ -49613,7 +49597,3 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 /* BNS 615 - 611 rubriekbehoud bij klikken op gereserveerd materiaal. Geen Firebase/save/materialenbron wijzigingen. */
 try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }catch(e){}
-
-
-/* BNS 620 - adresboek rustig op v615: alleen klant/locatie, geen PO, geen materiaal/rubriek/Firebase/save wijziging. */
-try{ console.info('[BNS 620] adresboek rustig: opent pas bij typen, onbekende naam verbergt lijst, basis v615'); }catch(e){}
