@@ -48754,3 +48754,146 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   [700,1500,3000,6000].forEach(function(ms){ setTimeout(fix,ms); });
   console.info('[BNS 603] Adresboek inline actief: klant/locatie keuzelijst blokkeert adresvelden niet meer.');
 })();
+
+/* =========================================================
+   BNS 608 - Firebase materialen zijn overal leidend
+   Basis: 607/603 terugzet.
+   Probleem: oude INITIAL_STATE/localStorage art_ materialen konden nog
+   gekozen worden door zoek/render patches, terwijl Firebase goed is.
+   Oplossing: lees Firebase materials/users en zet die OOK in:
+   - state.materials
+   - window.state.materials
+   - INITIAL_STATE.materials
+   - localStorage event-planner-pro-v87
+   Schrijft niets naar Firebase. Raakt driver/opdrachten/reserveren niet aan.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS608_FIREBASE_MATERIALS_LEADING__) return;
+  window.__BNS608_FIREBASE_MATERIALS_LEADING__ = true;
+
+  var KEY='event-planner-pro-v87';
+  var tools=null, loading=false, lastSig='';
+
+  function log(t){ try{ console.info('[BNS 608] '+t); }catch(e){} }
+  function A(v){ return Array.isArray(v)?v:[]; }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function idOf(m){ return T(m && (m.id || m.docId || m.materialId)); }
+  function isOld(m){ return /^art_/i.test(idOf(m)) || /oude prijs/i.test(T(m && m.price)); }
+  function clean(list){
+    return A(list).filter(function(m){
+      if(!m) return false;
+      var id=idOf(m);
+      if(!id || /^add[_-]/i.test(id)) return false;
+      return true;
+    });
+  }
+  function good(list){
+    var mats=clean(list);
+    if(mats.length<20) return false;
+    var old=0, real=0;
+    mats.forEach(function(m){ if(isOld(m)) old++; else real++; });
+    return real>=20 && old < mats.length*0.35;
+  }
+  async function fb(){
+    if(tools) return tools;
+    if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) return null;
+    var appMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+    var fsMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+    var app=appMod.getApps().length?appMod.getApp():appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+    tools={fsMod:fsMod,db:fsMod.getFirestore(app)};
+    return tools;
+  }
+  async function getCol(col){
+    var t=await fb(); if(!t) return [];
+    var snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
+    return snap.docs.map(function(d){ var x=d.data?d.data()||{}:{}; if(!x.id) x.id=d.id; return x; });
+  }
+  function stateObj(){
+    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    try{ if(typeof S==='function'){ var s=S(); if(s) return s; } }catch(e){}
+    return null;
+  }
+  function setLocal(mats,users){
+    try{
+      var s={};
+      try{ s=JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(e){ s={}; }
+      s.materials=mats;
+      if(A(users).length) s.users=users;
+      localStorage.setItem(KEY,JSON.stringify(s));
+    }catch(e){ log('localStorage niet bijgewerkt: '+(e&&e.message||e)); }
+  }
+  function apply(mats,users,reason){
+    if(!good(mats)){ log('Firebase materialen niet veilig overgenomen ('+A(mats).length+')'); return false; }
+    mats=clean(mats);
+    var sig=mats.length+':'+mats.map(idOf).sort().slice(0,60).join('|')+':'+A(users).length;
+    if(sig===lastSig && reason!=='force') return true;
+    lastSig=sig;
+
+    var s=stateObj();
+    if(s){
+      s.materials=mats;
+      if(A(users).length) s.users=users;
+      try{ window.state=s; }catch(e){}
+    }
+    try{ if(typeof INITIAL_STATE!=='undefined' && INITIAL_STATE){ INITIAL_STATE.materials=mats; if(A(users).length) INITIAL_STATE.users=users; } }catch(e){}
+    try{ if(window.INITIAL_STATE){ window.INITIAL_STATE.materials=mats; if(A(users).length) window.INITIAL_STATE.users=users; } }catch(e){}
+    try{ window.__BNS608_MATERIALS=mats; window.__BNS608_USERS=users; }catch(e){}
+    setLocal(mats,users);
+    render(reason||'apply');
+    log('Firebase materialen leidend gemaakt via '+(reason||'start')+': '+mats.length+' materialen, '+A(users).length+' users.');
+    return true;
+  }
+  async function pull(reason){
+    if(loading) return;
+    loading=true;
+    try{
+      var mats=await getCol('materials');
+      var users=await getCol('users');
+      apply(mats,users,reason);
+    }catch(e){ log('fout bij laden Firebase: '+(e&&e.message||e)); }
+    loading=false;
+  }
+  function render(reason){
+    setTimeout(function(){
+      var cat='';
+      try{ cat=window.currentCat || (typeof currentCat!=='undefined'?currentCat:''); }catch(e){}
+      cat=cat||'TW';
+      try{ if(typeof renderCats==='function') renderCats(); }catch(e){}
+      try{ if(typeof window.renderCats==='function') window.renderCats(); }catch(e){}
+      try{ if(typeof renderMaterials==='function') renderMaterials(cat); }catch(e){}
+      try{ if(typeof window.renderMaterials==='function') window.renderMaterials(cat); }catch(e){}
+      try{ if(typeof adminRender==='function') adminRender(); }catch(e){}
+      try{ if(typeof window.adminRender==='function') window.adminRender(); }catch(e){}
+      try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials==='function') window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
+      try{ if(typeof window.BNS_V12_renderAdminMaterials==='function') window.BNS_V12_renderAdminMaterials(); }catch(e){}
+      try{ document.dispatchEvent(new CustomEvent('bns:materials-force-render',{detail:{reason:reason||''}})); }catch(e){}
+    },150);
+  }
+  function wrapRender(){
+    var old=window.renderMaterials || (typeof renderMaterials==='function'?renderMaterials:null);
+    if(old && !old.__bns608Wrapped){
+      var wrapped=function(cat){
+        try{ if(window.__BNS608_MATERIALS && good(window.__BNS608_MATERIALS)) apply(window.__BNS608_MATERIALS,window.__BNS608_USERS||[],'force'); }catch(e){}
+        return old.apply(this,arguments);
+      };
+      wrapped.__bns608Wrapped=true;
+      window.renderMaterials=wrapped;
+      try{ renderMaterials=wrapped; }catch(e){}
+    }
+  }
+  function start(){
+    wrapRender();
+    pull('start');
+    setTimeout(function(){ wrapRender(); pull('2s'); },2000);
+    setTimeout(function(){ wrapRender(); pull('6s'); },6000);
+    document.addEventListener('click',function(ev){
+      var t=ev.target;
+      if(t && t.closest && t.closest('#adminBtn,[data-admin],#adminMaterials,#newOrderBtn,#materialsTab,.tab-materials')) setTimeout(function(){ pull('klik'); },250);
+    },true);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(start,800); });
+  else setTimeout(start,800);
+  window.BNS608ReloadMaterials=function(){ return pull('handmatig'); };
+})();
