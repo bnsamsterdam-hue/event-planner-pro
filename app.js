@@ -49597,3 +49597,117 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 /* BNS 615 - 611 rubriekbehoud bij klikken op gereserveerd materiaal. Geen Firebase/save/materialenbron wijzigingen. */
 try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }catch(e){}
+
+/* =========================================================
+   BNS 616 - adresboek terug + klant/locatie bewaren in adminbestanden
+   Basis: v615/app(68)-lijn.
+   Alleen klant/locatie UI en klanten/locaties-lijst bijwerken.
+   Geen materiaal, geen reservering/rubriek, geen Firebase materialen,
+   geen transport/service, geen driver, geen PIN, geen order-save wrapper.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS616_ADRESBOEK_KLANTEN_BESTAND__) return;
+  window.__BNS616_ADRESBOEK_KLANTEN_BESTAND__ = true;
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function V(id){ var el=E(id); return el ? T(el.value) : ''; }
+  function setVal(id,v){ var el=E(id); if(!el) return; el.value=T(v); try{ el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
+  function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ return window.state || null; }catch(e){} return null; }
+  function saveState(){ try{ if(typeof save === 'function') { save(); return; } }catch(e){} try{ var s=stateObj(); if(s) localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); }catch(e){} }
+  function id(){ return 'bns_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+  function norm(v){ return L(v).replace(/\s+/g,' '); }
+  function sameCustomer(a,b){
+    return norm(a.name) && norm(a.name)===norm(b.name) && (!norm(a.street) || !norm(b.street) || norm(a.street)===norm(b.street));
+  }
+  function sameLocation(a,b){
+    return (norm(a.name)||norm(a.street)) && (norm(a.name)===norm(b.name) || (norm(a.street)&&norm(a.street)===norm(b.street))) && (!norm(a.city)||!norm(b.city)||norm(a.city)===norm(b.city));
+  }
+  function mergeInto(target, src){ ['name','street','zip','city','phone','email','contact'].forEach(function(k){ if(T(src[k])) target[k]=T(src[k]); }); return target; }
+  function currentCustomer(){ return { name:V('customerName'), street:V('customerStreet'), zip:V('customerZip'), city:V('customerCity'), phone:V('customerPhone'), email:V('customerEmail') }; }
+  function currentLocation(){ return { name:V('locationName'), street:V('locationStreet'), zip:V('locationZip'), city:V('locationCity'), contact:V('locationContact'), phone:V('locationPhone') }; }
+  function upsertCustomer(c){
+    c=c||{}; if(!T(c.name)) return false;
+    var s=stateObj(); if(!s) return false;
+    if(!Array.isArray(s.customers)) s.customers=[];
+    var e=s.customers.find(function(x){ return sameCustomer(x,c); });
+    if(e) mergeInto(e,c); else s.customers.push(Object.assign({id:id()},c));
+    return true;
+  }
+  function upsertLocation(l){
+    l=l||{}; if(!T(l.name) && !T(l.street)) return false;
+    var s=stateObj(); if(!s) return false;
+    if(!Array.isArray(s.locations)) s.locations=[];
+    var e=s.locations.find(function(x){ return sameLocation(x,l); });
+    if(e) mergeInto(e,l); else s.locations.push(Object.assign({id:id(),show:true},l));
+    return true;
+  }
+  function saveFormPeople(){ var changed=false; changed = upsertCustomer(currentCustomer()) || changed; changed = upsertLocation(currentLocation()) || changed; if(changed){ saveState(); refreshAdminSoon(); } }
+  function customerSource(){
+    var s=stateObj() || {}, out=[], seen={};
+    function add(c,source){ c=c||{}; var it={id:T(c.id),name:T(c.name||c.customerName||c.klant||c.klantNaam),street:T(c.street||c.customerStreet||c.straat||c.adres),zip:T(c.zip||c.postcode||c.customerZip),city:T(c.city||c.plaats||c.customerCity),phone:T(c.phone||c.telefoon||c.customerPhone),email:T(c.email||c.customerEmail),source:source||'klantenbestand'}; if(!it.name || /^klant\s*\d+$/i.test(it.name)) return; var k=[it.name,it.street,it.zip,it.city,it.phone,it.email].map(norm).join('|'); if(!seen[k]){ seen[k]=1; out.push(it); } }
+    (s.customers||[]).forEach(function(c){ add(c,'klantenbestand'); });
+    (s.orders||[]).forEach(function(o){ add(o.customer||{name:o.customerName,street:o.customerStreet,zip:o.customerZip,city:o.customerCity,phone:o.customerPhone,email:o.customerEmail},'opdracht'); });
+    return out.sort(function(a,b){ return a.name.localeCompare(b.name,'nl',{numeric:true}); });
+  }
+  function locationSource(){
+    var s=stateObj() || {}, out=[], seen={};
+    function add(l,source){ l=l||{}; var it={id:T(l.id),name:T(l.name||l.locationName||l.locatie),street:T(l.street||l.locationStreet||l.straat||l.adres),zip:T(l.zip||l.postcode||l.locationZip),city:T(l.city||l.plaats||l.locationCity),contact:T(l.contact||l.locationContact),phone:T(l.phone||l.telefoon||l.locationPhone),source:source||'locatiebestand'}; if(!it.name && !it.street) return; if(!it.name) it.name=it.street; var k=[it.name,it.street,it.zip,it.city,it.phone].map(norm).join('|'); if(!seen[k]){ seen[k]=1; out.push(it); } }
+    (s.locations||[]).forEach(function(l){ add(l,'locatiebestand'); });
+    (s.orders||[]).forEach(function(o){ add(o.location||{name:o.locationName,street:o.locationStreet,zip:o.locationZip,city:o.locationCity,contact:o.locationContact,phone:o.locationPhone},'opdracht'); });
+    return out.sort(function(a,b){ return a.name.localeCompare(b.name,'nl',{numeric:true}); });
+  }
+  function matches(list,q,fields){ q=L(q); return list.filter(function(x){ if(!q) return true; return fields.map(function(f){ return x[f]||''; }).join(' ').toLowerCase().indexOf(q)>=0; }).slice(0,18); }
+  function ensureCss(){
+    if(E('bns616AdresboekCss')) return;
+    var st=document.createElement('style'); st.id='bns616AdresboekCss';
+    st.textContent = '#bnsV164CustomerBox.bns616-open,#bnsV164LocationBox.bns616-open{position:static!important;display:block!important;width:100%!important;max-width:100%!important;max-height:240px!important;margin:8px 0 12px 0!important;overflow:auto!important;z-index:30!important;background:#fff!important;border:3px solid #111827!important;border-radius:14px!important;box-shadow:0 8px 24px rgba(15,23,42,.22)!important;padding:8px!important;box-sizing:border-box!important}'
+      +'#bnsV164CustomerBox.bns616-open .bns-v164-head,#bnsV164LocationBox.bns616-open .bns-v164-head{position:sticky;top:0;background:#111827!important;color:#fff!important;font-size:15px!important;padding:8px 10px!important;margin-bottom:7px!important;border-radius:8px!important;font-weight:1000!important}'
+      +'#bnsV164CustomerBox.bns616-open .bns-v164-row,#bnsV164LocationBox.bns616-open .bns-v164-row{display:block!important;width:100%!important;text-align:left!important;background:#fff!important;color:#000!important;border:1px solid #d1d5db!important;border-radius:10px!important;padding:9px 11px!important;margin:0 0 6px 0!important;min-height:48px!important;cursor:pointer!important}'
+      +'#bnsV164CustomerBox.bns616-open .bns-v164-title,#bnsV164LocationBox.bns616-open .bns-v164-title{font-size:16px!important;font-weight:1000!important;color:#000!important;display:block!important}'
+      +'#bnsV164CustomerBox.bns616-open .bns-v164-sub,#bnsV164LocationBox.bns616-open .bns-v164-sub{font-size:12px!important;font-weight:700!important;color:#374151!important;display:block!important;margin-top:3px!important}'
+      +'.bns616-empty{padding:10px!important;font-weight:900!important;color:#111827!important;background:#fff!important}'
+      +'@media(max-width:760px){#bnsV164CustomerBox.bns616-open,#bnsV164LocationBox.bns616-open{max-height:205px!important;margin:6px 0 10px 0!important}}';
+    document.head.appendChild(st);
+  }
+  function box(id,inputId){
+    ensureCss(); var b=E(id), inp=E(inputId); if(!b){ b=document.createElement('div'); b.id=id; b.className='bns-v164-suggest'; }
+    b.classList.add('bns616-open','bns-v603-inline'); b.classList.remove('hidden');
+    if(inp){ var wrap=inp.closest('label') || inp.parentElement; if(wrap && wrap.parentElement && b.parentElement!==wrap.parentElement) wrap.parentElement.insertBefore(b,wrap.nextSibling); }
+    return b;
+  }
+  function renderCustomer(){
+    var inp=E('customerName'); if(!inp) return; var rows=matches(customerSource(),inp.value,['name','street','zip','city','phone','email']); var b=box('bnsV164CustomerBox','customerName');
+    b._bns616Rows=rows;
+    b.innerHTML='<div class="bns-v164-head">Kies klant uit admin klantenbestand</div>'+(rows.length?rows.map(function(c,i){ var sub=[c.street,c.zip,c.city,c.phone,c.email].filter(Boolean).join(' - '); return '<button type="button" class="bns-v164-row" data-bns616-customer="'+i+'"><span class="bns-v164-title">'+H(c.name)+'</span><span class="bns-v164-sub">'+H(sub||c.source)+'</span></button>'; }).join(''):'<div class="bns616-empty">Geen klant gevonden. Deze klant wordt bij opslaan aan Klanten beheer toegevoegd.</div>');
+    b.style.display='block';
+  }
+  function renderLocation(){
+    var inp=E('locationName'); if(!inp) return; var rows=matches(locationSource(),inp.value,['name','street','zip','city','contact','phone']); var b=box('bnsV164LocationBox','locationName');
+    b._bns616Rows=rows;
+    b.innerHTML='<div class="bns-v164-head">Kies locatie uit admin locatiebestand</div>'+(rows.length?rows.map(function(l,i){ var sub=[l.street,l.zip,l.city,l.contact,l.phone].filter(Boolean).join(' - '); return '<button type="button" class="bns-v164-row" data-bns616-location="'+i+'"><span class="bns-v164-title">'+H(l.name)+'</span><span class="bns-v164-sub">'+H(sub||l.source)+'</span></button>'; }).join(''):'<div class="bns616-empty">Geen locatie gevonden. Deze locatie wordt bij opslaan aan Locaties beheer toegevoegd.</div>');
+    b.style.display='block';
+  }
+  function hideBoxes(){ ['bnsV164CustomerBox','bnsV164LocationBox'].forEach(function(id){ var b=E(id); if(b){ b.classList.remove('bns616-open'); b.style.display='none'; } }); }
+  function applyCustomer(c){ if(!c) return; setVal('customerName',c.name); setVal('customerStreet',c.street); setVal('customerZip',c.zip); setVal('customerCity',c.city); setVal('customerPhone',c.phone); setVal('customerEmail',c.email); upsertCustomer(currentCustomer()); saveState(); hideBoxes(); }
+  function applyLocation(l){ if(!l) return; setVal('locationName',l.name); setVal('locationStreet',l.street); setVal('locationZip',l.zip); setVal('locationCity',l.city); setVal('locationContact',l.contact); setVal('locationPhone',l.phone); upsertLocation(currentLocation()); saveState(); hideBoxes(); }
+  function focusField(id){ var el=E(id); if(el){ try{ el.focus({preventScroll:false}); }catch(e){ try{ el.focus(); }catch(_){} } } }
+  function refreshAdminSoon(){ setTimeout(function(){ try{ if(typeof adminRender==='function') adminRender(); }catch(e){} try{ if(typeof renderAdmin==='function') renderAdmin(); }catch(e){} },80); }
+
+  document.addEventListener('focusin',function(ev){ if(ev.target && ev.target.id==='customerName') setTimeout(renderCustomer,0); if(ev.target && ev.target.id==='locationName') setTimeout(renderLocation,0); },true);
+  document.addEventListener('input',function(ev){ if(ev.target && ev.target.id==='customerName') setTimeout(renderCustomer,0); if(ev.target && ev.target.id==='locationName') setTimeout(renderLocation,0); },true);
+  document.addEventListener('click',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var cr=t.closest('[data-bns616-customer]'); if(cr){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); var b=E('bnsV164CustomerBox'); applyCustomer(b && b._bns616Rows ? b._bns616Rows[Number(cr.getAttribute('data-bns616-customer'))] : null); return false; }
+    var lr=t.closest('[data-bns616-location]'); if(lr){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); var lb=E('bnsV164LocationBox'); applyLocation(lb && lb._bns616Rows ? lb._bns616Rows[Number(lr.getAttribute('data-bns616-location'))] : null); return false; }
+    var ctl=t.closest('button,a,.tab,.card,[data-section],[data-target]');
+    if(ctl){ var txt=L((ctl.textContent||'')+' '+(ctl.id||'')+' '+(ctl.getAttribute('data-section')||'')+' '+(ctl.getAttribute('data-target')||'')); if(/klant/.test(txt) && !/postcode|adres zoeken/.test(txt)){ setTimeout(function(){ focusField('customerName'); renderCustomer(); },120); } if(/locatie|lokatie/.test(txt) && !/postcode|adres zoeken/.test(txt)){ setTimeout(function(){ focusField('locationName'); renderLocation(); },120); } if(/opslaan|save/.test(txt)){ saveFormPeople(); setTimeout(saveFormPeople,350); } }
+    if(!t.closest('#bnsV164CustomerBox,#bnsV164LocationBox,#customerName,#locationName')){ setTimeout(function(){ var a=document.activeElement; if(!a || !/^(customerName|locationName)$/.test(a.id||'')) hideBoxes(); },120); }
+  },true);
+  document.addEventListener('change',function(ev){ if(ev.target && /^(customerName|customerStreet|customerZip|customerCity|customerPhone|customerEmail|locationName|locationStreet|locationZip|locationCity|locationContact|locationPhone)$/.test(ev.target.id||'')) setTimeout(saveFormPeople,50); },true);
+  document.addEventListener('bns:order-saved',function(){ setTimeout(saveFormPeople,40); },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(function(){ ensureCss(); },200); }); else setTimeout(function(){ ensureCss(); },200);
+  console.info('[BNS 616] adresboek terug + klanten/locaties naar adminbestand actief - geen materiaal/reservering/Firebase-materialen wijzigingen.');
+})();
