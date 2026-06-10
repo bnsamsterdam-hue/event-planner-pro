@@ -49711,3 +49711,192 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(function(){ ensureCss(); },200); }); else setTimeout(function(){ ensureCss(); },200);
   console.info('[BNS 616] adresboek terug + klanten/locaties naar adminbestand actief - geen materiaal/reservering/Firebase-materialen wijzigingen.');
 })();
+
+/* =========================================================
+   BNS 617 - adresboek rustig + pas openen bij typen + klant contact/PO
+   Basis: v616/v615/app(68)-lijn.
+   Alleen klant/locatie adresboek UI en extra klantvelden.
+   Geen materiaal, reservering/rubriek, Firebase-materialen,
+   transport/service, driver, PIN of materiaal-save wijzigingen.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS617_ADRESBOEK_RUST_CONTACT_PO__) return;
+  window.__BNS617_ADRESBOEK_RUST_CONTACT_PO__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function val(id){ var el=E(id); return el ? T(el.value) : ''; }
+  function setVal(id,v,onlyIfEmpty){ var el=E(id); if(!el) return; if(onlyIfEmpty && T(el.value)) return; el.value=T(v); try{ el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
+  function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || null; }
+  function saveState(){ try{ if(typeof save==='function'){ save(); return; } }catch(e){} try{ if(typeof saveAll==='function'){ saveAll(); return; } }catch(e){} }
+  function id(prefix){ return prefix+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
+  function norm(v){ return L(v).replace(/\s+/g,' '); }
+
+  function ensureCss(){
+    if(E('bns617AdresboekRustCss')) return;
+    var st=document.createElement('style'); st.id='bns617AdresboekRustCss';
+    st.textContent =
+      '#bnsV164CustomerBox:not(.bns617-open),#bnsV164LocationBox:not(.bns617-open){display:none!important;visibility:hidden!important;}' +
+      'body.bns617-typing #bnsV164CustomerBox,body.bns617-typing #bnsV164LocationBox{display:none!important;visibility:hidden!important;}' +
+      '#bnsV164CustomerBox.bns617-open,#bnsV164LocationBox.bns617-open{position:static!important;display:block!important;visibility:visible!important;width:100%!important;max-width:100%!important;max-height:210px!important;margin:6px 0 10px 0!important;overflow:auto!important;background:#fff!important;border:2px solid #111827!important;border-radius:12px!important;box-shadow:0 4px 14px rgba(15,23,42,.18)!important;padding:7px!important;box-sizing:border-box!important;}' +
+      '#bnsV164CustomerBox.bns617-open .bns-v164-head,#bnsV164LocationBox.bns617-open .bns-v164-head{position:sticky!important;top:0!important;background:#111827!important;color:#fff!important;font-size:14px!important;padding:7px 9px!important;margin-bottom:6px!important;border-radius:8px!important;font-weight:900!important;}' +
+      '#bnsV164CustomerBox.bns617-open .bns-v164-row,#bnsV164LocationBox.bns617-open .bns-v164-row{display:block!important;width:100%!important;text-align:left!important;background:#fff!important;color:#000!important;border:1px solid #d1d5db!important;border-radius:9px!important;padding:8px 10px!important;margin:0 0 5px 0!important;min-height:44px!important;cursor:pointer!important;}' +
+      '#bnsV164CustomerBox.bns617-open .bns-v164-title,#bnsV164LocationBox.bns617-open .bns-v164-title{font-size:15px!important;font-weight:900!important;color:#000!important;display:block!important;}' +
+      '#bnsV164CustomerBox.bns617-open .bns-v164-sub,#bnsV164LocationBox.bns617-open .bns-v164-sub{font-size:12px!important;font-weight:650!important;color:#374151!important;display:block!important;margin-top:2px!important;}' +
+      '.bns617-empty{padding:9px!important;font-weight:800!important;color:#111827!important;background:#fff!important;border:1px dashed #9ca3af!important;border-radius:9px!important;}' +
+      '.bns617-extra-field{display:block!important;margin:8px 0!important;}' +
+      '.bns617-extra-field span{display:block!important;font-weight:800!important;margin-bottom:4px!important;color:#111827!important;}' +
+      '.bns617-extra-field input{width:100%!important;box-sizing:border-box!important;border:1px solid #cbd5e1!important;border-radius:10px!important;padding:10px!important;font:inherit!important;background:#fff!important;color:#111!important;}';
+    document.head.appendChild(st);
+  }
+
+  function makeLabel(afterId,id,label,placeholder){
+    if(E(id)) return;
+    var after=E(afterId); if(!after || !after.parentNode) return;
+    var holder=after.closest('label') || after.parentElement || after;
+    var lab=document.createElement('label'); lab.className='bns617-extra-field';
+    lab.innerHTML='<span>'+H(label)+'</span><input id="'+H(id)+'" type="text" placeholder="'+H(placeholder||'')+'" autocomplete="off">';
+    if(holder.parentNode) holder.parentNode.insertBefore(lab, holder.nextSibling);
+  }
+  function ensureExtraFields(){
+    ensureCss();
+    makeLabel('customerName','customerContact','Contactpersoon','Naam contactpersoon');
+    makeLabel('customerContact','customerPoNr','PO nr / referentie','Bijv. PO nr, referentie of losse tekst');
+  }
+
+  function hideBoxes(){
+    ['bnsV164CustomerBox','bnsV164LocationBox'].forEach(function(id){ var b=E(id); if(b){ b.classList.remove('bns617-open','bns616-open'); b.style.display='none'; b.style.visibility='hidden'; } });
+  }
+  function box(id,inputId){
+    ensureCss();
+    var b=E(id), inp=E(inputId);
+    if(!b){ b=document.createElement('div'); b.id=id; b.className='bns-v164-suggest'; }
+    if(inp){ var wrap=inp.closest('label') || inp.parentElement; if(wrap && wrap.parentElement && b.parentElement!==wrap.parentElement) wrap.parentElement.insertBefore(b,wrap.nextSibling); }
+    b.classList.add('bns617-open'); b.classList.remove('hidden');
+    b.style.display='block'; b.style.visibility='visible';
+    return b;
+  }
+
+  function customerSource(){
+    var s=stateObj()||{}, out=[], seen={};
+    function add(c,source){
+      c=c||{};
+      var it={
+        id:T(c.id),
+        name:T(c.name||c.customerName||c.klant||c.klantNaam),
+        street:T(c.street||c.customerStreet||c.straat||c.adres),
+        zip:T(c.zip||c.postcode||c.customerZip),
+        city:T(c.city||c.plaats||c.customerCity),
+        phone:T(c.phone||c.telefoon||c.customerPhone),
+        email:T(c.email||c.customerEmail),
+        contact:T(c.contact||c.contactPerson||c.customerContact||c.contactpersoon),
+        po:T(c.poNr||c.poNumber||c.customerPoNr||c.customerPO||c.po||c.reference||c.referentie),
+        source:source||'klantenbestand'
+      };
+      if(!it.name || /^klant\s*\d+$/i.test(it.name)) return;
+      var k=[it.name,it.street,it.zip,it.city,it.phone,it.email].map(norm).join('|');
+      if(!seen[k]){ seen[k]=1; out.push(it); }
+    }
+    (s.customers||[]).forEach(function(c){ add(c,'klantenbestand'); });
+    (s.orders||[]).forEach(function(o){ add(o.customer||{name:o.customerName,street:o.customerStreet,zip:o.customerZip,city:o.customerCity,phone:o.customerPhone,email:o.customerEmail,contact:o.customerContact,poNr:o.customerPoNr||o.poNumber||o.reference},'opdracht'); });
+    return out.sort(function(a,b){ return a.name.localeCompare(b.name,'nl',{numeric:true}); });
+  }
+  function locationSource(){
+    var s=stateObj()||{}, out=[], seen={};
+    function add(l,source){
+      l=l||{};
+      var it={id:T(l.id),name:T(l.name||l.locationName||l.locatie),street:T(l.street||l.locationStreet||l.straat||l.adres),zip:T(l.zip||l.postcode||l.locationZip),city:T(l.city||l.plaats||l.locationCity),contact:T(l.contact||l.locationContact),phone:T(l.phone||l.telefoon||l.locationPhone),source:source||'locatiebestand'};
+      if(!it.name && !it.street) return; if(!it.name) it.name=it.street;
+      var k=[it.name,it.street,it.zip,it.city,it.phone].map(norm).join('|'); if(!seen[k]){ seen[k]=1; out.push(it); }
+    }
+    (s.locations||[]).forEach(function(l){ add(l,'locatiebestand'); });
+    (s.orders||[]).forEach(function(o){ add(o.location||{name:o.locationName,street:o.locationStreet,zip:o.locationZip,city:o.locationCity,contact:o.locationContact,phone:o.locationPhone},'opdracht'); });
+    return out.sort(function(a,b){ return a.name.localeCompare(b.name,'nl',{numeric:true}); });
+  }
+  function matches(list,q,fields){ q=L(q); if(!q) return []; return list.filter(function(x){ return fields.map(function(f){ return x[f]||''; }).join(' ').toLowerCase().indexOf(q)>=0; }).slice(0,12); }
+  function renderCustomerStable(){
+    var inp=E('customerName'); if(!inp || document.activeElement!==inp || !T(inp.value)){ hideBoxes(); return; }
+    var rows=matches(customerSource(),inp.value,['name','street','zip','city','phone','email','contact','po']);
+    var b=box('bnsV164CustomerBox','customerName'); b._bns617Rows=rows;
+    b.innerHTML='<div class="bns-v164-head">Kies klant uit admin klantenbestand</div>'+(rows.length?rows.map(function(c,i){ var sub=[c.street,c.zip,c.city,c.contact,c.phone,c.email].filter(Boolean).join(' - '); return '<button type="button" class="bns-v164-row" data-bns617-customer="'+i+'"><span class="bns-v164-title">'+H(c.name)+'</span><span class="bns-v164-sub">'+H(sub||c.source)+'</span></button>'; }).join(''):'<div class="bns617-empty">Geen klant gevonden. Typ rustig verder; deze klant wordt bij opslaan aan Klanten beheer toegevoegd.</div>');
+  }
+  function renderLocationStable(){
+    var inp=E('locationName'); if(!inp || document.activeElement!==inp || !T(inp.value)){ hideBoxes(); return; }
+    var rows=matches(locationSource(),inp.value,['name','street','zip','city','contact','phone']);
+    var b=box('bnsV164LocationBox','locationName'); b._bns617Rows=rows;
+    b.innerHTML='<div class="bns-v164-head">Kies locatie uit admin locatiebestand</div>'+(rows.length?rows.map(function(l,i){ var sub=[l.street,l.zip,l.city,l.contact,l.phone].filter(Boolean).join(' - '); return '<button type="button" class="bns-v164-row" data-bns617-location="'+i+'"><span class="bns-v164-title">'+H(l.name)+'</span><span class="bns-v164-sub">'+H(sub||l.source)+'</span></button>'; }).join(''):'<div class="bns617-empty">Geen locatie gevonden. Typ rustig verder; deze locatie wordt bij opslaan aan Locaties beheer toegevoegd.</div>');
+  }
+
+  var timer=null;
+  function scheduleRender(kind){
+    document.body.classList.add('bns617-typing');
+    hideBoxes();
+    clearTimeout(timer);
+    timer=setTimeout(function(){
+      document.body.classList.remove('bns617-typing');
+      if(kind==='customer') renderCustomerStable();
+      if(kind==='location') renderLocationStable();
+    },260);
+  }
+
+  function applyCustomer(c){
+    if(!c) return;
+    setVal('customerName',c.name); setVal('customerStreet',c.street); setVal('customerZip',c.zip); setVal('customerCity',c.city); setVal('customerPhone',c.phone); setVal('customerEmail',c.email);
+    setVal('customerContact',c.contact,true); setVal('customerPoNr',c.po,true);
+    savePeople(); hideBoxes();
+  }
+  function applyLocation(l){
+    if(!l) return;
+    setVal('locationName',l.name); setVal('locationStreet',l.street); setVal('locationZip',l.zip); setVal('locationCity',l.city); setVal('locationContact',l.contact); setVal('locationPhone',l.phone);
+    savePeople(); hideBoxes();
+  }
+
+  function currentCustomer(){ return {name:val('customerName'),street:val('customerStreet'),zip:val('customerZip'),city:val('customerCity'),phone:val('customerPhone'),email:val('customerEmail'),contact:val('customerContact'),poNr:val('customerPoNr'),poNumber:val('customerPoNr'),customerPoNr:val('customerPoNr')}; }
+  function sameCustomer(a,b){ return norm(a&&a.name)===norm(b&&b.name) && (!T(b.street) || norm(a&&a.street)===norm(b.street)); }
+  function merge(t,s){ Object.keys(s||{}).forEach(function(k){ if(T(s[k])) t[k]=s[k]; }); }
+  function upsertCustomer(c){ var s=stateObj(); if(!s || !T(c.name)) return false; if(!Array.isArray(s.customers)) s.customers=[]; var e=s.customers.find(function(x){ return sameCustomer(x,c); }); if(e) merge(e,c); else s.customers.push(Object.assign({id:id('cust')},c)); return true; }
+  function currentLocation(){ return {name:val('locationName'),street:val('locationStreet'),zip:val('locationZip'),city:val('locationCity'),contact:val('locationContact'),phone:val('locationPhone')}; }
+  function sameLocation(a,b){ return norm(a&&a.name)===norm(b&&b.name) && (!T(b.street) || norm(a&&a.street)===norm(b.street)); }
+  function upsertLocation(l){ var s=stateObj(); if(!s || (!T(l.name)&&!T(l.street))) return false; if(!Array.isArray(s.locations)) s.locations=[]; var e=s.locations.find(function(x){ return sameLocation(x,l); }); if(e) merge(e,l); else s.locations.push(Object.assign({id:id('loc'),show:true},l)); return true; }
+  function currentOrder(){
+    var s=stateObj(); if(!s || !Array.isArray(s.orders)) return null;
+    var editingId=''; try{ editingId=String(window.editing||editing||''); }catch(e){}
+    var nr=val('orderNumber');
+    return s.orders.find(function(o){ return (editingId && String(o.id||'')===editingId) || (nr && String(o.number||'')===nr); }) || null;
+  }
+  function patchCurrentOrder(){
+    var o=currentOrder(); if(!o) return false;
+    o.customer=o.customer||{};
+    var c=currentCustomer();
+    if(T(c.name)) merge(o.customer,c);
+    if(T(c.poNr)){ o.customerPoNr=c.poNr; o.poNumber=c.poNr; o.reference=o.reference||c.poNr; }
+    return true;
+  }
+  function savePeople(){ var changed=false; changed=upsertCustomer(currentCustomer())||changed; changed=upsertLocation(currentLocation())||changed; changed=patchCurrentOrder()||changed; if(changed) saveState(); }
+  function populateExtraFromOrder(){
+    ensureExtraFields();
+    var o=currentOrder(); if(!o) return;
+    var c=o.customer||{};
+    setVal('customerContact', c.contact||o.customerContact||'', true);
+    setVal('customerPoNr', c.poNr||c.poNumber||c.customerPoNr||o.customerPoNr||o.poNumber||o.reference||'', true);
+  }
+
+  window.addEventListener('focusin',function(ev){ if(ev.target && /^(customerName|locationName)$/.test(ev.target.id||'')){ document.body.classList.remove('bns617-typing'); setTimeout(hideBoxes,0); setTimeout(hideBoxes,80); } },true);
+  window.addEventListener('input',function(ev){ if(ev.target && ev.target.id==='customerName') scheduleRender('customer'); if(ev.target && ev.target.id==='locationName') scheduleRender('location'); },true);
+  document.addEventListener('click',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var cr=t.closest('[data-bns617-customer]'); if(cr){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); var b=E('bnsV164CustomerBox'); applyCustomer(b && b._bns617Rows ? b._bns617Rows[Number(cr.getAttribute('data-bns617-customer'))] : null); return false; }
+    var lr=t.closest('[data-bns617-location]'); if(lr){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); var lb=E('bnsV164LocationBox'); applyLocation(lb && lb._bns617Rows ? lb._bns617Rows[Number(lr.getAttribute('data-bns617-location'))] : null); return false; }
+    var b=t.closest('button,a,.tab,.card,[data-section],[data-target]');
+    if(b){ var txt=L((b.textContent||'')+' '+(b.id||'')+' '+(b.getAttribute('data-section')||'')+' '+(b.getAttribute('data-target')||'')); if(/klant|locatie|lokatie|wijzigen|open|nieuwe opdracht/.test(txt)){ setTimeout(function(){ ensureExtraFields(); populateExtraFromOrder(); hideBoxes(); },180); } if(/opslaan|save/.test(txt)){ savePeople(); setTimeout(savePeople,350); } }
+    if(!t.closest('#bnsV164CustomerBox,#bnsV164LocationBox,#customerName,#locationName')) setTimeout(hideBoxes,80);
+  },true);
+  document.addEventListener('change',function(ev){ if(ev.target && /^(customerName|customerStreet|customerZip|customerCity|customerPhone|customerEmail|customerContact|customerPoNr|locationName|locationStreet|locationZip|locationCity|locationContact|locationPhone)$/.test(ev.target.id||'')) setTimeout(savePeople,80); },true);
+  document.addEventListener('bns:order-saved',function(){ setTimeout(savePeople,50); setTimeout(savePeople,450); },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(function(){ ensureExtraFields(); hideBoxes(); },250); }); else setTimeout(function(){ ensureExtraFields(); hideBoxes(); },250);
+  [700,1600,3200].forEach(function(ms){ setTimeout(function(){ ensureExtraFields(); populateExtraFromOrder(); hideBoxes(); },ms); });
+  console.info('[BNS 617] adresboek rustig, opent pas bij typen + klant contact/PO actief - geen materiaal/reservering/Firebase-materialen wijzigingen.');
+})();
