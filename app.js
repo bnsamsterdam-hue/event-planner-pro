@@ -48913,3 +48913,142 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setTimeout(installBox,1600);
   console.info('[BNS v604] Service kosten actief - kopie van transportwerking, zonder reservering.');
 })();
+
+/* =========================================================
+   BNS 605 - veilige opslag bescherming materialen/transport
+   Doel:
+   - Materiaalregels, transportregels en service/bijzonderheden-regels blijven gescheiden van elkaar.
+   - Transport en service zijn geen materialen en krijgen nooit reserveringswerking.
+   - Bij opslaan mag een lege tijdelijke UI-lijst bestaande materialen/transport niet leeg overschrijven.
+   - Geen wijziging aan materiaal reserveren, statuscontrole, menu of layout.
+   ========================================================= */
+(function BNS_V605_SAVE_GUARD(){
+  'use strict';
+  if(window.__BNS_V605_SAVE_GUARD__) return;
+  window.__BNS_V605_SAVE_GUARD__ = true;
+
+  var lastMaterialsByKey = {};
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function clone(v){ try{return JSON.parse(JSON.stringify(v||[]));}catch(e){ return Array.isArray(v)?v.slice():[]; } }
+  function lineTotal(l){ return N((l&&l.qty)!=null?l.qty:1) * N(l&&l.price); }
+  function key(){
+    var id='';
+    try{ id=T(window.editing || editing || ''); }catch(e){ id=T(window.editing||''); }
+    var nr=T(E('orderNumber') && E('orderNumber').value);
+    return id || nr || 'new_order';
+  }
+  function readChosen(){
+    try{ if(typeof chosen!=='undefined' && Array.isArray(chosen)) return chosen; }catch(e){}
+    try{ if(Array.isArray(window.chosen)) return window.chosen; }catch(e){}
+    return [];
+  }
+  function rememberMaterials(){
+    var mats = clone(readChosen()).filter(Boolean);
+    if(mats.length) lastMaterialsByKey[key()] = mats;
+  }
+  function materialStatusForOrder(st){
+    var l=String(st||'').toLowerCase();
+    if(/offerte|geann|annul|verwijder|deleted|uitgevoerd|afgerond/.test(l)) return 'free';
+    return 'reserved';
+  }
+  function normalizeMats(mats, status){
+    var ms=materialStatusForOrder(status);
+    return clone(mats).filter(Boolean).map(function(m){
+      var x=m;
+      if(x.qty==null) x.qty=1;
+      if(!x.status) x.status=ms;
+      return x;
+    });
+  }
+  function isService(l){ return String((l&&l.type)||'').toLowerCase()==='service'; }
+  function normalizeCostLines(lines){
+    return clone(lines).filter(Boolean).map(function(l){
+      var x=l;
+      if(!isService(x) && !x.type) x.type='transport';
+      x.reservable=false;
+      return x;
+    });
+  }
+  function uniqueLines(lines){
+    var seen={}, out=[];
+    normalizeCostLines(lines).forEach(function(l){
+      var k=[l.type||'',l.name||'',l.qty||'',l.unit||'',l.price||'',l.note||''].join('|');
+      if(seen[k]) return;
+      seen[k]=1; out.push(l);
+    });
+    return out;
+  }
+  function currentLines(){
+    try{ if(Array.isArray(window.__bns521TransportLines)) return normalizeCostLines(window.__bns521TransportLines); }catch(e){}
+    return [];
+  }
+  function oldLines(oldOrder){
+    var a=[];
+    if(oldOrder && Array.isArray(oldOrder.transportLines)) a=a.concat(oldOrder.transportLines);
+    if(oldOrder && Array.isArray(oldOrder.serviceCostLines)) a=a.concat(oldOrder.serviceCostLines);
+    return uniqueLines(a);
+  }
+  function applyCostLines(order, lines){
+    lines = uniqueLines(lines);
+    var services = lines.filter(isService);
+    var transport = lines.filter(function(l){ return !isService(l); });
+    order.transportLines = lines;
+    order.serviceCostLines = services;
+    order.serviceCostTotal = services.reduce(function(s,l){ return s+lineTotal(l); },0);
+    order.transportTotal = transport.reduce(function(s,l){ return s+lineTotal(l); },0);
+    order.nonMaterialCostTotal = lines.reduce(function(s,l){ return s+lineTotal(l); },0);
+    var vehicleText = transport.map(function(l){ return T(l.name); }).filter(Boolean).join(', ');
+    order.vehicle = vehicleText || T(E('orderVehicle') && E('orderVehicle').value) || order.vehicle || '';
+  }
+
+  document.addEventListener('click',function(ev){
+    var target=ev.target;
+    var chosenBox=E('chosenMaterials');
+    var wasRemove = chosenBox && target && target.closest && target.closest('#chosenMaterials button,.material-line .remove');
+    setTimeout(function(){
+      var mats=clone(readChosen()).filter(Boolean);
+      if(wasRemove && !mats.length) delete lastMaterialsByKey[key()];
+      else if(mats.length) lastMaterialsByKey[key()] = mats;
+    },30);
+  },true);
+  document.addEventListener('input',function(){ setTimeout(rememberMaterials,30); },true);
+  document.addEventListener('change',function(){ setTimeout(rememberMaterials,30); },true);
+
+  var previousPrepare = window.BNS_v519PrepareOrderBeforeSave;
+  window.BNS_v519PrepareOrderBeforeSave = function(order, oldOrder){
+    var k = key();
+    var matsBefore = clone(readChosen()).filter(Boolean);
+    if(matsBefore.length) lastMaterialsByKey[k] = matsBefore;
+    var linesBefore = currentLines();
+
+    var result;
+    if(typeof previousPrepare === 'function') result = previousPrepare.apply(this, arguments);
+
+    if(order){
+      var hasOrderMats = Array.isArray(order.materials) && order.materials.length>0;
+      if(!hasOrderMats){
+        if(matsBefore.length){
+          order.materials = normalizeMats(matsBefore, order.status);
+        }else if(lastMaterialsByKey[k] && lastMaterialsByKey[k].length){
+          order.materials = normalizeMats(lastMaterialsByKey[k], order.status);
+        }else if(oldOrder && Array.isArray(oldOrder.materials) && oldOrder.materials.length){
+          order.materials = clone(oldOrder.materials);
+        }
+      }
+
+      var afterLines = currentLines();
+      var chosenLines = afterLines.length ? afterLines : (linesBefore.length ? linesBefore : oldLines(oldOrder));
+      if(chosenLines.length){
+        applyCostLines(order, chosenLines);
+      }else if(oldOrder && (Array.isArray(oldOrder.transportLines) || Array.isArray(oldOrder.serviceCostLines))){
+        applyCostLines(order, oldLines(oldOrder));
+      }
+    }
+    return result || order;
+  };
+
+  console.info('[BNS v605] opslag-bescherming actief: materialen, transport en service/bijzonderheden blijven behouden en blijven niet-reserverend.');
+})();
