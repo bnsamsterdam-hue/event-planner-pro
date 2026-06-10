@@ -48795,3 +48795,146 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('click',function(ev){var b=ev.target&&ev.target.closest&&ev.target.closest('button[data-tab="extraPanel"],.worktab[data-tab="extraPanel"],button'); if(b&&/bijzonderheden|extra/i.test(T(b.textContent||''))) setTimeout(install,80);},true);
   setTimeout(install,500); setTimeout(install,1600); console.info('[BNS 605] Service kosten veilig actief - geen override van opslaan.');
 })();
+
+/* =========================================================
+   BNS 606 - Admin materialen zichtbaar uit Firebase herstellen
+   Basis: 605/app(63).js.
+   Probleem: Firebase heeft materialen, maar Admin renderde niet opnieuw
+   met de Firebase lijst. Deze patch leest materials/users rustig uit
+   Firebase en rendert juist ook de v83 admin-materialenlijst.
+   - Schrijft niets naar Firebase.
+   - Raakt opdrachten/reserveringen/driver/boekhouding niet aan.
+   - Doet niets tijdens materiaal-bewerken/opslaan.
+========================================================= */
+(function BNS606AdminMaterialenFirebaseRenderFix(){
+  'use strict';
+  if(window.__BNS606_ADMIN_MATERIALS_RENDER_FIX__) return;
+  window.__BNS606_ADMIN_MATERIALS_RENDER_FIX__ = true;
+
+  var KEY = 'event-planner-pro-v87';
+  var busy = false;
+  var lastSig = '';
+  var tools = null;
+
+  function log(t){ try{ console.info('[BNS 606] '+t); }catch(e){} }
+  function A(v){ return Array.isArray(v) ? v : []; }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function matId(m){ return T(m && (m.id || m.docId || m.materialId)); }
+  function cleanMaterials(list){
+    return A(list).filter(function(m){
+      var id = matId(m);
+      if(!m || !id || /^add[_-]/i.test(id)) return false;
+      return true;
+    });
+  }
+  function safeMaterials(list){
+    var mats = cleanMaterials(list);
+    if(mats.length < 20) return false;
+    var art = 0, newish = 0, oldPrice = 0;
+    mats.forEach(function(m){
+      var id = matId(m);
+      if(/^art_/i.test(id)) art++; else newish++;
+      if(/oude prijs/i.test(T(m.price))) oldPrice++;
+    });
+    // Bescherming tegen oude ingebouwde art_/oude-prijs lijst.
+    if(newish < 20 && (art > mats.length * 0.25 || oldPrice > mats.length * 0.25)) return false;
+    return true;
+  }
+  function getState(){
+    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function readLocal(){ try{ return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){ return {}; } }
+  function writeLocal(materials, users){
+    try{
+      var s = readLocal();
+      if(safeMaterials(materials)) s.materials = cleanMaterials(materials);
+      if(A(users).length) s.users = users;
+      localStorage.setItem(KEY, JSON.stringify(s));
+    }catch(e){ log('localStorage overslaan: '+(e && e.message || e)); }
+  }
+  function row(d){ var data = d && d.data ? (d.data() || {}) : {}; if(!data.id) data.id = d.id; if(!data.docId) data.docId = d.id; return data; }
+  async function fb(){
+    if(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db){
+      return { fs: window.BNS.fs, db: window.BNS.db };
+    }
+    if(tools) return tools;
+    if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) return null;
+    var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+    var fsMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+    var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+    tools = { fs: fsMod, db: fsMod.getFirestore(app) };
+    return tools;
+  }
+  async function getCol(name){
+    var t = await fb();
+    if(!t || !t.fs || !t.db) return [];
+    var snap = await t.fs.getDocs(t.fs.collection(t.db, name));
+    return snap.docs.map(row);
+  }
+  function renderAllMaterialViews(){
+    setTimeout(function(){
+      var cat = window.currentCat || 'TW';
+      try{ if(typeof renderAdminMaterials83 === 'function') renderAdminMaterials83(true); }catch(e){}
+      try{ if(typeof window.renderAdminMaterials83 === 'function') window.renderAdminMaterials83(true); }catch(e){}
+      try{ if(typeof window.BNS_V12_PRO_renderAdminMaterials === 'function') window.BNS_V12_PRO_renderAdminMaterials(); }catch(e){}
+      try{ if(typeof window.BNS_V12_renderAdminMaterials === 'function') window.BNS_V12_renderAdminMaterials(); }catch(e){}
+      try{ if(typeof adminRender === 'function') adminRender(); }catch(e){}
+      try{ if(typeof window.adminRender === 'function') window.adminRender(); }catch(e){}
+      try{ if(typeof renderCats83 === 'function') renderCats83(); }catch(e){}
+      try{ if(typeof renderMaterials83 === 'function') renderMaterials83(cat, true); }catch(e){}
+      try{ if(typeof renderCats === 'function') renderCats(); }catch(e){}
+      try{ if(typeof renderMaterials === 'function') renderMaterials(cat); }catch(e){}
+      try{ document.dispatchEvent(new CustomEvent('bns:admin-materials-reloaded')); }catch(e){}
+    }, 150);
+  }
+  async function pull(reason, forceRender){
+    if(busy) return;
+    try{ if(window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL && Date.now() < window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL) return; }catch(e){}
+    busy = true;
+    try{
+      var mats = cleanMaterials(await getCol('materials'));
+      var users = A(await getCol('users'));
+      if(!safeMaterials(mats)){
+        log('Firebase materials niet gebruikt; lijst lijkt leeg/oud/onveilig ('+mats.length+').');
+        busy = false;
+        return;
+      }
+      var sig = mats.length + ':' + users.length + ':' + mats.map(matId).sort().join('|');
+      var s = getState();
+      if(s){
+        s.materials = mats;
+        if(users.length) s.users = users;
+        try{ window.state = s; }catch(e){}
+      }
+      writeLocal(mats, users);
+      if(sig !== lastSig){
+        lastSig = sig;
+        log('Firebase materials/users geladen via '+(reason || 'start')+': '+mats.length+' materialen, '+users.length+' users.');
+      }
+      renderAllMaterialViews();
+    }catch(e){
+      log('fout bij laden: '+(e && e.message || e));
+    }finally{
+      busy = false;
+    }
+  }
+  function start(){
+    setTimeout(function(){ pull('start', true); }, 800);
+    setTimeout(function(){ pull('extra controle', true); }, 3000);
+    document.addEventListener('click', function(ev){
+      var t = ev.target;
+      if(t && t.closest && t.closest('#adminBtn,.adminTab,[data-admin],#adminMaterials,#adminMatList,#bnsV56AdminList')){
+        setTimeout(function(){ pull('admin open', true); }, 350);
+      }
+    }, true);
+    document.addEventListener('input', function(ev){
+      var t = ev.target;
+      if(t && (t.id === 'bnsV56AdminSearch' || t.id === 'adminMatSearch')) setTimeout(renderAllMaterialViews, 120);
+    }, true);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+  window.BNS606ReloadAdminMaterials = function(){ return pull('handmatig', true); };
+  log('actief - admin materialen worden uit Firebase geladen en v83-lijst wordt opnieuw getekend.');
+})();
