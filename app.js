@@ -49455,7 +49455,19 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   document.addEventListener('input',function(ev){ if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')) schedule(window.currentCat||firstCat(),true); },true);
   document.addEventListener('change',function(ev){ if(ev.target && /^(dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')) schedule(window.currentCat||firstCat(),true); },true);
 
-  function boot(){ schedule(window.currentCat||firstCat(),true); [500,1400,3200,7000].forEach(function(ms){ setTimeout(function(){ schedule(window.currentCat||firstCat(),true); },ms); }); }
+  function boot(){ schedule(window.currentCat||firstCat(),true); } // BNS 612: geen extra boot-her-renders meer; voorkomt Gereserveerd-flikker
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,500); }); else setTimeout(boot,500);
   console.info('[BNS 611] strenge materiaal reservering bewaker actief - geen Firebase writes.');
+
+/*
+ BNS 612 - Gereserveerd rustig / geen flikker
+ Basis: app(68).js. Alleen 611 boot-her-renders verminderd.
+ Geen Firebase, geen opslaan, geen transport/service, geen driver, geen PIN, geen TAPW/TW-normalisatie.
+*/
+(function(){
+  if(window.__BNS_V612_GERESERVEERD_RUST__) return;
+  window.__BNS_V612_GERESERVEERD_RUST__ = true;
+  console.info('[BNS 612] Gereserveerd rust actief - 611 extra boot-her-renders uitgeschakeld, geen nieuwe interval.');
+})();
+
 })();
