@@ -36282,14 +36282,14 @@ setTimeout(()=>{
         if(ds.value){
           de.value=addDaysISO(ds.value,3);
           de.dataset.bnsV311AutoEnd='1';
-          fire(de);
+          // BNS631: geen fire(de); oude change/render-lagen resetten anders de rubriek naar BIERSLANG.
         }
       },true);
       ds.addEventListener('input',function(){
         if(/^\d{4}-\d{2}-\d{2}$/.test(ds.value)){
           de.value=addDaysISO(ds.value,3);
           de.dataset.bnsV311AutoEnd='1';
-          fire(de);
+          // BNS631: geen fire(de); oude change/render-lagen resetten anders de rubriek naar BIERSLANG.
         }
       },true);
     }
@@ -36412,10 +36412,15 @@ setTimeout(()=>{
     setTimeout(run,500);
   });
   else setTimeout(run,350);
-  document.addEventListener('click',function(){
+  document.addEventListener('click',function(ev){
+    var t=ev && ev.target;
+    if(t && t.closest && t.closest('#materialList,#materialCats,#dateStart,#dateEnd,#orderStart,#orderEnd,#startDate,#endDate,#datumStart,#datumEnd')) return;
     runSoon();
   },true);
-  document.addEventListener('change',function(){
+  document.addEventListener('change',function(ev){
+    var t=ev && ev.target;
+    var id=t && t.id || '';
+    if(/^(dateStart|dateEnd|orderStart|orderEnd|startDate|endDate|datumStart|datumEnd|orderStatus)$/.test(id)) return;
     runSoon();
   },true);
   document.addEventListener('input',function(ev){
@@ -49963,4 +49968,325 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   }, true);
 
   console.info('[BNS] Rubriek-bewaring actief.');
+})();
+
+
+/* ==========================================================
+   BNS 631 - echte rubriek-lock rond datum en oude renders
+   Basis: app(72).js.
+   Doel:
+   - V311 run() niet meer op materiaal/datum-click laten resetten
+   - renderMaterials nooit zonder reden naar BIERSLANG laten vallen zolang TAPW actief is
+   - materiaalklikken niet blokkeren
+   - geen reservering/save/Firebase/materialenbron wijziging
+========================================================== */
+(function(){
+  'use strict';
+  if(window.__BNS631_RUBRIEK_LOCK__) return;
+  window.__BNS631_RUBRIEK_LOCK__=true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function U(v){ return T(v).toUpperCase(); }
+  function E(id){ return document.getElementById(id); }
+  function visible(el){ return !!(el && el.offsetParent!==null); }
+  function isGenericBad(c){ c=U(c); return !c || c==='BIERSLANG' || c==='BIERSLANGEN'; }
+  function normCat(v){
+    v=T(v); if(!v) return '';
+    v=v.replace(/^\s*(rubriek|categorie|category)\s*[:\-]\s*/i,'').trim();
+    var up=U(v);
+    if(up==='TW' || up==='TAPWAGENS' || up==='TAPWAGEN') return 'TAPW';
+    if(up==='BIERSLANGEN') return 'BIERSLANG';
+    return up;
+  }
+  function readCatButton(b){
+    if(!b) return '';
+    return normCat(b.getAttribute('data-bns631-cat') || b.getAttribute('data-bns611-cat') || b.getAttribute('data-bns392-cat') || b.getAttribute('data-bns386-cat') || b.getAttribute('data-bns-cat') || b.getAttribute('data-cat') || b.dataset.cat || b.textContent || '');
+  }
+  function activeButtonCat(){
+    var sels=['#materialCats .active','#materialCats .selected','#materialCats .is-active','#materialCats [aria-selected="true"]','#materialCats button[style*="font-weight"]'];
+    for(var i=0;i<sels.length;i++){ var c=readCatButton(document.querySelector(sels[i])); if(c) return c; }
+    return '';
+  }
+  function rowCat(row){
+    if(!row) return '';
+    var key=T(row.getAttribute('data-bns611-mid') || row.getAttribute('data-bns392-mid') || row.getAttribute('data-bns386-mid') || row.getAttribute('data-material-id') || row.getAttribute('data-id') || '');
+    try{
+      var st=(typeof state!=='undefined' && state) ? state : window.state;
+      var list=(st && st.materials) || [];
+      for(var i=0;i<list.length;i++){
+        var m=list[i]||{};
+        if(String(m.id||m.materialId||m.docId||m.code||'')===key || U(m.code||'')===U(key)){
+          var c=normCat(m.cat||m.rubriek||m.category||m.categorie||'');
+          if(c==='TW') c='TAPW';
+          if(c) return c;
+        }
+      }
+    }catch(e){}
+    var txt=U(row.textContent||'');
+    if(/\b(TAPW|TW)\d*\b/.test(txt)) return 'TAPW';
+    if(/\bBIERSLANG/.test(txt)) return 'BIERSLANG';
+    return '';
+  }
+  function topVisibleRowCat(){
+    var rows=document.querySelectorAll('#materialList [data-bns611-mid],#materialList [data-bns392-mid],#materialList [data-material-id],#materialList .material-row,#materialList .bns611-row,#materialList .bns392-row');
+    for(var i=0;i<rows.length;i++){ if(visible(rows[i])){ var c=rowCat(rows[i]); if(c) return c; } }
+    return '';
+  }
+  function materialOpen(){ var ml=E('materialList'); return visible(ml); }
+  function remember(c,ms){
+    c=normCat(c); if(!c) return '';
+    window.__BNS631_KEEP_CAT=c;
+    window.__BNS629_KEEP_CAT=c;
+    window.__BNS626_KEEP_CAT=c;
+    window.__BNS613_LAST_CAT=c;
+    window.__BNS631_LOCK_UNTIL=Date.now()+(ms||2500);
+    window.currentCat=c;
+    try{ currentCat=c; }catch(e){}
+    try{ localStorage.setItem('bns613LastMaterialCat',c); localStorage.setItem('bns631LastMaterialCat',c); }catch(e){}
+    return c;
+  }
+  function keepCat(){
+    return normCat(window.__BNS631_KEEP_CAT || window.__BNS629_KEEP_CAT || window.__BNS626_KEEP_CAT || window.__BNS613_LAST_CAT || localStorage.getItem('bns631LastMaterialCat') || localStorage.getItem('bns613LastMaterialCat') || window.currentCat || activeButtonCat() || topVisibleRowCat());
+  }
+  function renderWith(cat){
+    cat=remember(cat||keepCat(),2500); if(!cat) return;
+    try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(cat,true); }catch(e){}
+    try{ if(window.renderMaterials && (!window.BNS_V611 || window.renderMaterials!==window.BNS_V611.renderMaterials)) window.renderMaterials(cat,true); }catch(e){}
+  }
+  function lockFromEvent(ev,ms){
+    var t=ev && ev.target; if(!t || !t.closest) return;
+    var cb=t.closest('#materialCats [data-bns611-cat],#materialCats [data-bns392-cat],#materialCats [data-bns386-cat],#materialCats [data-cat],#materialCats button,[data-bns611-cat],[data-bns392-cat],[data-bns386-cat],[data-cat]');
+    if(cb && (!t.closest('#materialList'))){ remember(readCatButton(cb),ms||4500); return; }
+    var row=t.closest('#materialList [data-bns611-mid],#materialList [data-bns392-mid],#materialList [data-material-id],#materialList .material-row,#materialList .bns611-row,#materialList .bns392-row');
+    if(row){ remember(rowCat(row)||activeButtonCat()||keepCat(),ms||4500); return; }
+    var id=T(t.id||'');
+    if(/^(dateStart|dateEnd|orderStart|orderEnd|startDate|endDate|datumStart|datumEnd|orderStatus)$/.test(id) && materialOpen()){
+      remember(activeButtonCat()||topVisibleRowCat()||keepCat(),ms||4500);
+    }
+  }
+
+  ['pointerdown','mousedown','touchstart','focus','click','input','change'].forEach(function(type){
+    window.addEventListener(type,function(ev){ lockFromEvent(ev, type==='change'||type==='input'?5000:4500); },true);
+  });
+
+  function wrapRender(name,obj){
+    if(!obj || typeof obj[name]!=='function' || obj[name].__bns631Wrapped) return;
+    var old=obj[name];
+    var nw=function(cat,force){
+      var keep=keepCat();
+      var asked=normCat(cat);
+      if(materialOpen() && keep && Date.now()<Number(window.__BNS631_LOCK_UNTIL||0) && (isGenericBad(asked) || asked!==keep)){
+        cat=keep; force=true;
+        try{ window.currentCat=keep; currentCat=keep; }catch(e){}
+      }
+      var r=old.call(this,cat,force);
+      if(materialOpen() && keep && Date.now()<Number(window.__BNS631_LOCK_UNTIL||0)){
+        try{ window.currentCat=keep; currentCat=keep; }catch(e){}
+      }
+      return r;
+    };
+    nw.__bns631Wrapped=true;
+    obj[name]=nw;
+  }
+  function install(){
+    try{ wrapRender('renderMaterials',window); }catch(e){}
+    try{ if(window.BNS_V611) wrapRender('renderMaterials',window.BNS_V611); }catch(e){}
+    try{ if(window.BNS_STABLE_CORE) wrapRender('renderMaterials',window.BNS_STABLE_CORE); }catch(e){}
+    try{ renderMaterials=window.renderMaterials; }catch(e){}
+  }
+  install(); setTimeout(install,150); setTimeout(install,600); setTimeout(install,1500); setTimeout(install,3000);
+
+  // Als een oude laag al naar BIERSLANG heeft gerenderd binnen de lock, herstel direct zonder klik te blokkeren.
+  function watchdog(){
+    if(!materialOpen()) return;
+    var keep=keepCat();
+    if(keep && Date.now()<Number(window.__BNS631_LOCK_UNTIL||0)){
+      var top=topVisibleRowCat();
+      if(top && top!==keep){ renderWith(keep); }
+    }
+  }
+  [80,180,360,700,1200].forEach(function(ms){ document.addEventListener('click',function(){ setTimeout(watchdog,ms); },true); document.addEventListener('change',function(){ setTimeout(watchdog,ms); },true); });
+
+  console.info('[BNS 631] rubriek-lock actief: V311 click/change beperkt, renderMaterials guard zonder materiaalklik-blokkade.');
+})();
+
+
+/* =========================================================
+   BNS 632 - Admin materiaal wissen echt naar Firebase + pull-lock
+   Basis: v631/app72.
+   Doel: als Admin een materiaal verwijdert, mag BNS608 het niet binnen
+   enkele seconden terugtrekken uit Firebase. Deze laag doet een directe
+   deleteDoc voor de verwijderde id(s) en houdt de Firebase pull tijdelijk dicht.
+   Raakt reservering, datum, rubrieken, transport, driver en PIN niet aan.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS632_ADMIN_DELETE_FIREBASE_DIRECT__) return;
+  window.__BNS632_ADMIN_DELETE_FIREBASE_DIRECT__ = true;
+
+  var KEY='event-planner-pro-v87';
+  var tools=null;
+  var beforeIds=null;
+  var pendingIds={};
+  var lockTimer=null;
+
+  function log(t){ try{ console.info('[BNS 632] '+t); }catch(e){} }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function A(v){ return Array.isArray(v)?v:[]; }
+  function idOf(m){ return T(m && (m.id || m.docId || m.materialId)); }
+  function lock(ms){
+    var until=Date.now()+(ms||45000);
+    try{ window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL=until; }catch(e){}
+    try{ window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL=until; }catch(e){}
+    clearTimeout(lockTimer);
+    lockTimer=setTimeout(function(){
+      try{
+        if(Number(window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL||0)<=Date.now()) window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL=0;
+        if(Number(window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL||0)<=Date.now()) window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL=0;
+      }catch(e){}
+    }, ms||45000);
+  }
+  function liveState(){
+    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function localState(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(e){ return {}; } }
+  function liveMaterials(){
+    var s=liveState();
+    if(s && Array.isArray(s.materials)) return s.materials;
+    var l=localState();
+    return A(l.materials);
+  }
+  function idMap(list){
+    var m={};
+    A(list).forEach(function(x){ var id=idOf(x); if(id) m[id]=true; });
+    return m;
+  }
+  function selectedIdFromDom(target){
+    try{
+      var b=target && target.closest && target.closest('button,[data-v83-del-mat],[data-bns-del-mat],[data-del-mat],[data-material-id],[data-id]');
+      if(b){
+        var attrs=['data-v83-del-mat','data-bns-del-mat','data-del-mat','data-material-id','data-id'];
+        for(var i=0;i<attrs.length;i++){ var v=T(b.getAttribute(attrs[i])); if(v) return v; }
+      }
+    }catch(e){}
+    var ids=['adminMatId','materialId','matId','bnsV56MatId','bnsV58AdminId','bns391Id','bns390Id'];
+    for(var j=0;j<ids.length;j++){
+      try{ var el=document.getElementById(ids[j]); var v=T(el && el.value); if(v) return v; }catch(e){}
+    }
+    try{ if(typeof adminEditMatId!=='undefined' && adminEditMatId) return T(adminEditMatId); }catch(e){}
+    try{ if(window.adminEditMatId) return T(window.adminEditMatId); }catch(e){}
+    try{ if(window.__bnsSelectedMaterialId) return T(window.__bnsSelectedMaterialId); }catch(e){}
+    try{ if(window.bnsSelectedMaterialId) return T(window.bnsSelectedMaterialId); }catch(e){}
+    return '';
+  }
+  function isDeleteButton(target){
+    if(!target || !target.closest) return false;
+    var b=target.closest('button,input[type="button"],input[type="submit"],a');
+    if(!b) return false;
+    var id=T(b.id);
+    var txt=T(b.textContent || b.value || b.getAttribute('aria-label') || '').toLowerCase();
+    var oc=T(b.getAttribute('onclick')).toLowerCase();
+    if(/delete|verwijder|wis/.test(id)) return true;
+    if(/delete|verwijder|wis/.test(txt) && /mat|materiaal|material/.test((b.closest('#adminMatList,#adminMaterials,.materials-admin,.admin-materials,#bns391AdminCard,#bns390AdminCard,#bnsV56AdminCard')||{}).id||'')) return true;
+    if(/deletemat|deletematerial|delete.*admin|verwijder|wis/.test(oc)) return true;
+    if(b.hasAttribute('data-v83-del-mat')||b.hasAttribute('data-bns-del-mat')||b.hasAttribute('data-del-mat')) return true;
+    var host=b.closest('#adminMatList,#adminMaterials,.materials-admin,.admin-materials,#bns391AdminCard,#bns390AdminCard,#bnsV56AdminCard');
+    if(host && /delete|verwijder|wis/.test(txt+id+oc)) return true;
+    return false;
+  }
+  async function fb(){
+    if(tools) return tools;
+    if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) throw new Error('Firebase config ontbreekt');
+    var appMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+    var fsMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+    var app=appMod.getApps().length?appMod.getApp():appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+    tools={fsMod:fsMod,db:fsMod.getFirestore(app)};
+    return tools;
+  }
+  async function deleteFirebaseId(id){
+    id=T(id);
+    if(!id) return;
+    lock(60000);
+    try{
+      var t=await fb();
+      await t.fsMod.deleteDoc(t.fsMod.doc(t.db,'materials',id));
+      log('Firebase materiaal verwijderd: '+id);
+      try{ document.dispatchEvent(new CustomEvent('bns:materials-saved-firebase',{detail:{reason:'admin delete direct', removedId:id}})); }catch(e){}
+    }catch(e){
+      log('FOUT Firebase delete '+id+': '+(e&&e.message||e));
+      try{ alert('Materiaal lokaal gewist, maar Firebase verwijderen is mislukt: '+(e&&e.message||e)); }catch(_){}
+    }
+  }
+  function removeLocally(id){
+    id=T(id); if(!id) return;
+    try{
+      var s=liveState();
+      if(s && Array.isArray(s.materials)) s.materials=s.materials.filter(function(m){ return idOf(m)!==id; });
+      if(s) window.state=s;
+    }catch(e){}
+    try{
+      if(typeof INITIAL_STATE!=='undefined' && INITIAL_STATE && Array.isArray(INITIAL_STATE.materials)) INITIAL_STATE.materials=INITIAL_STATE.materials.filter(function(m){ return idOf(m)!==id; });
+      if(window.INITIAL_STATE && Array.isArray(window.INITIAL_STATE.materials)) window.INITIAL_STATE.materials=window.INITIAL_STATE.materials.filter(function(m){ return idOf(m)!==id; });
+    }catch(e){}
+    try{
+      var loc=localState();
+      if(Array.isArray(loc.materials)){ loc.materials=loc.materials.filter(function(m){ return idOf(m)!==id; }); localStorage.setItem(KEY,JSON.stringify(loc)); }
+    }catch(e){}
+    try{ if(window.__BNS608_MATERIALS) window.__BNS608_MATERIALS=A(window.__BNS608_MATERIALS).filter(function(m){ return idOf(m)!==id; }); }catch(e){}
+  }
+  function afterDeleteCheck(specificId){
+    lock(60000);
+    var after=idMap(liveMaterials());
+    var del=[];
+    if(specificId && !after[specificId]) del.push(specificId);
+    if(beforeIds){ Object.keys(beforeIds).forEach(function(id){ if(!after[id]) del.push(id); }); }
+    Object.keys(pendingIds).forEach(function(id){ if(!after[id] || id===specificId) del.push(id); });
+    del=del.filter(function(id,i,a){ return id && a.indexOf(id)===i; });
+    if(!del.length && specificId){
+      // Als oude code hem alweer teruggetrokken heeft, verwijder hem opnieuw lokaal en daarna Firebase.
+      removeLocally(specificId);
+      del=[specificId];
+    }
+    del.forEach(function(id){ pendingIds[id]=true; removeLocally(id); deleteFirebaseId(id); });
+    try{ if(typeof adminRender==='function') adminRender(); }catch(e){}
+    try{ if(window.adminRender) window.adminRender(); }catch(e){}
+    try{ if(typeof renderMaterials==='function') renderMaterials(window.currentCat||undefined); }catch(e){}
+  }
+  function prepareDelete(target){
+    lock(60000);
+    beforeIds=idMap(liveMaterials());
+    var id=selectedIdFromDom(target);
+    if(id) pendingIds[id]=true;
+    setTimeout(function(){ afterDeleteCheck(id); },250);
+    setTimeout(function(){ afterDeleteCheck(id); },1200);
+    setTimeout(function(){ afterDeleteCheck(id); },3500);
+    setTimeout(function(){ afterDeleteCheck(id); },8000);
+  }
+  ['pointerdown','mousedown','touchstart','click'].forEach(function(type){
+    document.addEventListener(type,function(ev){ if(isDeleteButton(ev.target)) prepareDelete(ev.target); },true);
+  });
+  ['deleteMatAdminV92','deleteMatAdmin','deleteMaterialAdmin','deleteMaterial83','deleteMaterialV61'].forEach(function(name){
+    try{
+      var fn=window[name] || null;
+      if(typeof fn==='function' && !fn.__bns632Wrapped){
+        var wrap=function(orig,nm){
+          var w=function(){
+            var id=selectedIdFromDom(document.activeElement);
+            prepareDelete(document.activeElement);
+            var r=orig.apply(this,arguments);
+            setTimeout(function(){ afterDeleteCheck(id); },100);
+            return r;
+          };
+          w.__bns632Wrapped=true;
+          return w;
+        }(fn,name);
+        window[name]=wrap;
+        try{ eval(name+'=wrap'); }catch(e){}
+      }
+    }catch(e){}
+  });
+  window.BNS632DeleteMaterialFromFirebase=function(id){ pendingIds[T(id)]=true; removeLocally(id); return deleteFirebaseId(id); };
+  log('actief - Admin materiaal verwijderen doet directe Firebase delete en blokkeert BNS608 pull tijdelijk.');
 })();
