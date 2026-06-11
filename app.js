@@ -21228,7 +21228,7 @@ setTimeout(()=>{
     } else {
       html += '<b>Status:</b> Vrij<br>Dit materiaal is vrij voor de gekozen datum.';
     }
-    html += '</div><button type="button" onclick="document.getElementById(\''+MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button></div>';
+    html += '</div><button type="button" onclick="try{var c=window.__BNS_LAST_CAT__||window.currentCat||window.__BNS613_LAST_CAT__||\'\'; if(c){window.currentCat=c; window.__BNS_LAST_CAT__=c; window.__BNS613_LAST_CAT__=c; if(window.BNS_V611&&window.BNS_V611.renderMaterials)window.BNS_V611.renderMaterials(c,true);}}catch(e){} document.getElementById(\''+MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button></div>';
     modal.innerHTML = html;
     modal.classList.remove("hidden");
   }
@@ -26312,6 +26312,10 @@ setTimeout(()=>{
       return false;
     }
     if(!confirm("Weet je zeker dat je dit materiaal wilt wissen?")) return false;
+    // Markeer als verwijderd - voorkomt dat onSnapshot hem terugzet
+    window.__BNS_DELETED_MATERIALS__ = window.__BNS_DELETED_MATERIALS__ || {};
+    window.__BNS_DELETED_MATERIALS__[String(id)] = true;
+
     S().materials=mats().filter(function(m){
       return String(m.id)!==String(id);
     });
@@ -26321,6 +26325,13 @@ setTimeout(()=>{
     selectedId="";
     window.__bnsSelectedMaterialId="";
     window.bnsSelectedMaterialId="";
+    // Firebase delete - dubbel voor zekerheid
+    try{ if(typeof fbDel==='function') fbDel('materials', id); }catch(_e){}
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.db){
+        window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'materials',String(id))).catch(function(){});
+      }
+    }catch(_e2){}
     persist();
     lastRenderKey="";
     renderCats();
@@ -26421,12 +26432,14 @@ setTimeout(()=>{
       if(el&&!el.dataset.bnsV72){
         el.dataset.bnsV72="1";
         el.addEventListener("change",function(){
+          var _cat = window.__BNS_LAST_CAT__ || window.currentCat || 'TW';
           lastRenderKey="";
-          renderMaterials(currentCat());
+          renderMaterials(_cat);
         });
         el.addEventListener("input",function(){
+          var _cat = window.__BNS_LAST_CAT__ || window.currentCat || 'TW';
           lastRenderKey="";
-          renderMaterials(currentCat());
+          renderMaterials(_cat);
         });
       }
     });
@@ -31771,6 +31784,37 @@ setTimeout(()=>{
       if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
       labelRow(row,m,r);
       showReserved(m,r);
+      // BNS 634: clickGuard stopt toggleMaterial611, dus hier zelf rubriek hard bewaren.
+      var _keepCat = (function(){
+        var v = window.currentCat || window.__BNS_LAST_CAT__ || window.__BNS613_LAST_CAT__ || '';
+        try{
+          var btn = document.querySelector('#materialCats [data-bns611-cat].active,#materialCats [data-bns611-cat].selected,#materialCats [data-bns611-cat][aria-pressed="true"],#materialCats .active[data-bns611-cat],#materialCats .selected[data-bns611-cat]');
+          if(!v && btn) v = btn.getAttribute('data-bns611-cat') || btn.textContent || '';
+        }catch(e){}
+        try{
+          if(!v && row){
+            var b = row.closest('[data-bns611-cat],[data-cat],[data-category]');
+            if(b) v = b.getAttribute('data-bns611-cat') || b.getAttribute('data-cat') || b.getAttribute('data-category') || '';
+          }
+        }catch(e){}
+        try{ if(!v && m) v = catOf(m) || ''; }catch(e){}
+        return String(v||'').trim();
+      })();
+      if(_keepCat){
+        window.currentCat = _keepCat;
+        window.__BNS_LAST_CAT__ = _keepCat;
+        window.__BNS613_LAST_CAT__ = _keepCat;
+        try{ currentCat = _keepCat; }catch(e){}
+        try{ localStorage.setItem('bns613LastMaterialCat', _keepCat); }catch(e){}
+        try{ if(typeof renderMaterials611 === 'function') renderMaterials611(_keepCat,true); }catch(e){}
+        try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials === 'function') window.BNS_V611.renderMaterials(_keepCat,true); }catch(e){}
+        try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(_keepCat,true); }catch(e){}
+        [0,40,120,250].forEach(function(ms){ setTimeout(function(){
+          try{ window.currentCat=_keepCat; window.__BNS_LAST_CAT__=_keepCat; window.__BNS613_LAST_CAT__=_keepCat; }catch(e){}
+          try{ if(typeof renderMaterials611 === 'function') renderMaterials611(_keepCat,true); }catch(e){}
+          try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials === 'function') window.BNS_V611.renderMaterials(_keepCat,true); }catch(e){}
+        },ms); });
+      }
       return false;
     }
   }
@@ -36282,14 +36326,14 @@ setTimeout(()=>{
         if(ds.value){
           de.value=addDaysISO(ds.value,3);
           de.dataset.bnsV311AutoEnd='1';
-          // BNS631: geen fire(de); oude change/render-lagen resetten anders de rubriek naar BIERSLANG.
+          fire(de);
         }
       },true);
       ds.addEventListener('input',function(){
         if(/^\d{4}-\d{2}-\d{2}$/.test(ds.value)){
           de.value=addDaysISO(ds.value,3);
           de.dataset.bnsV311AutoEnd='1';
-          // BNS631: geen fire(de); oude change/render-lagen resetten anders de rubriek naar BIERSLANG.
+          fire(de);
         }
       },true);
     }
@@ -36412,15 +36456,10 @@ setTimeout(()=>{
     setTimeout(run,500);
   });
   else setTimeout(run,350);
-  document.addEventListener('click',function(ev){
-    var t=ev && ev.target;
-    if(t && t.closest && t.closest('#materialList,#materialCats,#dateStart,#dateEnd,#orderStart,#orderEnd,#startDate,#endDate,#datumStart,#datumEnd')) return;
+  document.addEventListener('click',function(){
     runSoon();
   },true);
-  document.addEventListener('change',function(ev){
-    var t=ev && ev.target;
-    var id=t && t.id || '';
-    if(/^(dateStart|dateEnd|orderStart|orderEnd|startDate|endDate|datumStart|datumEnd|orderStatus)$/.test(id)) return;
+  document.addEventListener('change',function(){
     runSoon();
   },true);
   document.addEventListener('input',function(ev){
@@ -41990,7 +42029,13 @@ setTimeout(()=>{
   function L(v){ return T(v).toLowerCase(); }
   function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function getState(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || {}; }
-  function mats(){ var s=getState(); return Array.isArray(s.materials) ? s.materials : []; }
+  function mats(){
+    var s=getState();
+    var all = Array.isArray(s.materials) ? s.materials : [];
+    var del = window.__BNS_DELETED_MATERIALS__ || {};
+    if(Object.keys(del).length === 0) return all;
+    return all.filter(function(m){ return !m || !del[String(m.id||'')]; });
+  }
   function orders(){ var s=getState(); return Array.isArray(s.orders) ? s.orders : []; }
   function chosenList(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen) ? window.chosen : []; }
   function setChosen(list){ try{ chosen = list; }catch(e){} window.chosen = list; }
@@ -49414,13 +49459,14 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function firstCat(){ return categoryList()[0] || 'TAPW'; }
   function setCat(c){
     var cats=categoryList();
-    var prev=U(window.currentCat||'');
+    var prev=U(window.currentCat||window.__BNS_LAST_CAT__||'');
     c=U(c||prev||firstCat());
     if(cats.indexOf(c)<0){
       if(prev && cats.indexOf(prev)>=0) c=prev;
+      else if(window.__BNS_LAST_CAT__ && cats.indexOf(U(window.__BNS_LAST_CAT__))>=0) c=U(window.__BNS_LAST_CAT__);
       else c=firstCat();
     }
-    window.currentCat=c; try{ currentCat=c; }catch(e){} return c;
+    window.currentCat=c; window.__BNS_LAST_CAT__=c; try{ currentCat=c; }catch(e){} return c;
   }
   function catColor(cat){ try{ var map=JSON.parse(localStorage.getItem('bnsCatColors')||'{}'); var k=U(cat).replace(/[^A-Z0-9]/g,'').slice(0,16); if(map[k]) return map[k]; }catch(e){} var def={TAPW:'#dc2626',BIERSLANG:'#16a34a',POMP:'#2563eb',SLANG:'#0ea5e9',BIERTANK:'#7c3aed',TANK:'#f97316'}; return def[U(cat)]||'#2563eb'; }
   function renderCats(){
@@ -49935,266 +49981,121 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   console.info('[BNS 629] materiaal klikken blijft vrij; rubriekcontext zonder klikblokkade + admin materiaal delete-lock actief.');
 })();
 
-// BNS rubriek-bewaring: prevent category reset bij datum/knop events
-(function(){
-  if(window.__BNS_CAT_GUARD__) return;
-  window.__BNS_CAT_GUARD__ = true;
+// BNS rubriek-guard verwijderd - veroorzaakte extra reset
 
-  var _savedCat = null;
-
-  // Bewaar cat voor elk change/input event op datumvelden
-  document.addEventListener('change', function(ev){
-    if(ev.target && /dateStart|dateEnd|orderStatus/.test(ev.target.id||'')){
-      _savedCat = window.currentCat || _savedCat;
-      // Herstel na 200ms als currentCat veranderd is
-      setTimeout(function(){
-        if(_savedCat && window.currentCat !== _savedCat){
-          window.currentCat = _savedCat;
-          try{ currentCat = _savedCat; }catch(e){}
-          // Herrender met bewaarde cat
-          try{
-            if(typeof window.BNS_V625_renderCat === 'function') window.BNS_V625_renderCat(_savedCat);
-            else if(typeof renderMaterials === 'function') renderMaterials(_savedCat, true);
-          }catch(e){}
-        }
-      }, 150);
-    }
-  }, true);
-
-  // Bewaar ook bij klik op materiaal-knop
-  document.addEventListener('click', function(ev){
-    var cat = window.currentCat;
-    if(cat) _savedCat = cat;
-  }, true);
-
-  console.info('[BNS] Rubriek-bewaring actief.');
-})();
-
-
-/* ==========================================================
-   BNS 631 - echte rubriek-lock rond datum en oude renders
-   Basis: app(72).js.
-   Doel:
-   - V311 run() niet meer op materiaal/datum-click laten resetten
-   - renderMaterials nooit zonder reden naar BIERSLANG laten vallen zolang TAPW actief is
-   - materiaalklikken niet blokkeren
-   - geen reservering/save/Firebase/materialenbron wijziging
-========================================================== */
-(function(){
-  'use strict';
-  if(window.__BNS631_RUBRIEK_LOCK__) return;
-  window.__BNS631_RUBRIEK_LOCK__=true;
-
-  function T(v){ return String(v==null?'':v).trim(); }
-  function U(v){ return T(v).toUpperCase(); }
-  function E(id){ return document.getElementById(id); }
-  function visible(el){ return !!(el && el.offsetParent!==null); }
-  function isGenericBad(c){ c=U(c); return !c || c==='BIERSLANG' || c==='BIERSLANGEN'; }
-  function normCat(v){
-    v=T(v); if(!v) return '';
-    v=v.replace(/^\s*(rubriek|categorie|category)\s*[:\-]\s*/i,'').trim();
-    var up=U(v);
-    if(up==='TW' || up==='TAPWAGENS' || up==='TAPWAGEN') return 'TAPW';
-    if(up==='BIERSLANGEN') return 'BIERSLANG';
-    return up;
-  }
-  function readCatButton(b){
-    if(!b) return '';
-    return normCat(b.getAttribute('data-bns631-cat') || b.getAttribute('data-bns611-cat') || b.getAttribute('data-bns392-cat') || b.getAttribute('data-bns386-cat') || b.getAttribute('data-bns-cat') || b.getAttribute('data-cat') || b.dataset.cat || b.textContent || '');
-  }
-  function activeButtonCat(){
-    var sels=['#materialCats .active','#materialCats .selected','#materialCats .is-active','#materialCats [aria-selected="true"]','#materialCats button[style*="font-weight"]'];
-    for(var i=0;i<sels.length;i++){ var c=readCatButton(document.querySelector(sels[i])); if(c) return c; }
-    return '';
-  }
-  function rowCat(row){
-    if(!row) return '';
-    var key=T(row.getAttribute('data-bns611-mid') || row.getAttribute('data-bns392-mid') || row.getAttribute('data-bns386-mid') || row.getAttribute('data-material-id') || row.getAttribute('data-id') || '');
-    try{
-      var st=(typeof state!=='undefined' && state) ? state : window.state;
-      var list=(st && st.materials) || [];
-      for(var i=0;i<list.length;i++){
-        var m=list[i]||{};
-        if(String(m.id||m.materialId||m.docId||m.code||'')===key || U(m.code||'')===U(key)){
-          var c=normCat(m.cat||m.rubriek||m.category||m.categorie||'');
-          if(c==='TW') c='TAPW';
-          if(c) return c;
-        }
-      }
-    }catch(e){}
-    var txt=U(row.textContent||'');
-    if(/\b(TAPW|TW)\d*\b/.test(txt)) return 'TAPW';
-    if(/\bBIERSLANG/.test(txt)) return 'BIERSLANG';
-    return '';
-  }
-  function topVisibleRowCat(){
-    var rows=document.querySelectorAll('#materialList [data-bns611-mid],#materialList [data-bns392-mid],#materialList [data-material-id],#materialList .material-row,#materialList .bns611-row,#materialList .bns392-row');
-    for(var i=0;i<rows.length;i++){ if(visible(rows[i])){ var c=rowCat(rows[i]); if(c) return c; } }
-    return '';
-  }
-  function materialOpen(){ var ml=E('materialList'); return visible(ml); }
-  function remember(c,ms){
-    c=normCat(c); if(!c) return '';
-    window.__BNS631_KEEP_CAT=c;
-    window.__BNS629_KEEP_CAT=c;
-    window.__BNS626_KEEP_CAT=c;
-    window.__BNS613_LAST_CAT=c;
-    window.__BNS631_LOCK_UNTIL=Date.now()+(ms||2500);
-    window.currentCat=c;
-    try{ currentCat=c; }catch(e){}
-    try{ localStorage.setItem('bns613LastMaterialCat',c); localStorage.setItem('bns631LastMaterialCat',c); }catch(e){}
-    return c;
-  }
-  function keepCat(){
-    return normCat(window.__BNS631_KEEP_CAT || window.__BNS629_KEEP_CAT || window.__BNS626_KEEP_CAT || window.__BNS613_LAST_CAT || localStorage.getItem('bns631LastMaterialCat') || localStorage.getItem('bns613LastMaterialCat') || window.currentCat || activeButtonCat() || topVisibleRowCat());
-  }
-  function renderWith(cat){
-    cat=remember(cat||keepCat(),2500); if(!cat) return;
-    try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(cat,true); }catch(e){}
-    try{ if(window.renderMaterials && (!window.BNS_V611 || window.renderMaterials!==window.BNS_V611.renderMaterials)) window.renderMaterials(cat,true); }catch(e){}
-  }
-  function lockFromEvent(ev,ms){
-    var t=ev && ev.target; if(!t || !t.closest) return;
-    var cb=t.closest('#materialCats [data-bns611-cat],#materialCats [data-bns392-cat],#materialCats [data-bns386-cat],#materialCats [data-cat],#materialCats button,[data-bns611-cat],[data-bns392-cat],[data-bns386-cat],[data-cat]');
-    if(cb && (!t.closest('#materialList'))){ remember(readCatButton(cb),ms||4500); return; }
-    var row=t.closest('#materialList [data-bns611-mid],#materialList [data-bns392-mid],#materialList [data-material-id],#materialList .material-row,#materialList .bns611-row,#materialList .bns392-row');
-    if(row){ remember(rowCat(row)||activeButtonCat()||keepCat(),ms||4500); return; }
-    var id=T(t.id||'');
-    if(/^(dateStart|dateEnd|orderStart|orderEnd|startDate|endDate|datumStart|datumEnd|orderStatus)$/.test(id) && materialOpen()){
-      remember(activeButtonCat()||topVisibleRowCat()||keepCat(),ms||4500);
-    }
-  }
-
-  ['pointerdown','mousedown','touchstart','focus','click','input','change'].forEach(function(type){
-    window.addEventListener(type,function(ev){ lockFromEvent(ev, type==='change'||type==='input'?5000:4500); },true);
-  });
-
-  function wrapRender(name,obj){
-    if(!obj || typeof obj[name]!=='function' || obj[name].__bns631Wrapped) return;
-    var old=obj[name];
-    var nw=function(cat,force){
-      var keep=keepCat();
-      var asked=normCat(cat);
-      if(materialOpen() && keep && Date.now()<Number(window.__BNS631_LOCK_UNTIL||0) && (isGenericBad(asked) || asked!==keep)){
-        cat=keep; force=true;
-        try{ window.currentCat=keep; currentCat=keep; }catch(e){}
-      }
-      var r=old.call(this,cat,force);
-      if(materialOpen() && keep && Date.now()<Number(window.__BNS631_LOCK_UNTIL||0)){
-        try{ window.currentCat=keep; currentCat=keep; }catch(e){}
-      }
-      return r;
-    };
-    nw.__bns631Wrapped=true;
-    obj[name]=nw;
-  }
-  function install(){
-    try{ wrapRender('renderMaterials',window); }catch(e){}
-    try{ if(window.BNS_V611) wrapRender('renderMaterials',window.BNS_V611); }catch(e){}
-    try{ if(window.BNS_STABLE_CORE) wrapRender('renderMaterials',window.BNS_STABLE_CORE); }catch(e){}
-    try{ renderMaterials=window.renderMaterials; }catch(e){}
-  }
-  install(); setTimeout(install,150); setTimeout(install,600); setTimeout(install,1500); setTimeout(install,3000);
-
-  // Als een oude laag al naar BIERSLANG heeft gerenderd binnen de lock, herstel direct zonder klik te blokkeren.
-  function watchdog(){
-    if(!materialOpen()) return;
-    var keep=keepCat();
-    if(keep && Date.now()<Number(window.__BNS631_LOCK_UNTIL||0)){
-      var top=topVisibleRowCat();
-      if(top && top!==keep){ renderWith(keep); }
-    }
-  }
-  [80,180,360,700,1200].forEach(function(ms){ document.addEventListener('click',function(){ setTimeout(watchdog,ms); },true); document.addEventListener('change',function(){ setTimeout(watchdog,ms); },true); });
-
-  console.info('[BNS 631] rubriek-lock actief: V311 click/change beperkt, renderMaterials guard zonder materiaalklik-blokkade.');
-})();
+/* BNS 634 - app74 clickGuard rubriekbewaring: gereserveerd-click stopt toggleMaterial611, daarom cat bewaren en renderen in clickGuard zelf. */
+try{ console.info('[BNS 634] clickGuard rubriekbewaring actief'); }catch(e){}
 
 
 /* =========================================================
-   BNS 632 - Admin materiaal wissen echt naar Firebase + pull-lock
-   Basis: v631/app72.
-   Doel: als Admin een materiaal verwijdert, mag BNS608 het niet binnen
-   enkele seconden terugtrekken uit Firebase. Deze laag doet een directe
-   deleteDoc voor de verwijderde id(s) en houdt de Firebase pull tijdelijk dicht.
-   Raakt reservering, datum, rubrieken, transport, driver en PIN niet aan.
+   BNS 635 - app74 totaal: clickGuard rubriek + admin wissen
+   Basis: app(74).js + BNS 634 clickGuard fix.
+   Toegevoegd: admin materiaal wissen direct Firebase delete + lokale tombstone.
+   Geen reserveringslogica, datumlogica, opslaan opdrachten,
+   transport/service, driver/PIN of TAPW/TW-code wijziging.
 ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS632_ADMIN_DELETE_FIREBASE_DIRECT__) return;
-  window.__BNS632_ADMIN_DELETE_FIREBASE_DIRECT__ = true;
+  if(window.__BNS635_APP74_ADMINWIS_TOTAAL__) return;
+  window.__BNS635_APP74_ADMINWIS_TOTAAL__ = true;
 
   var KEY='event-planner-pro-v87';
+  var TOMBSTONE_KEY='bns635DeletedMaterials';
   var tools=null;
-  var beforeIds=null;
-  var pendingIds={};
-  var lockTimer=null;
-
-  function log(t){ try{ console.info('[BNS 632] '+t); }catch(e){} }
   function T(v){ return String(v==null?'':v).trim(); }
   function A(v){ return Array.isArray(v)?v:[]; }
-  function idOf(m){ return T(m && (m.id || m.docId || m.materialId)); }
-  function lock(ms){
-    var until=Date.now()+(ms||45000);
-    try{ window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL=until; }catch(e){}
-    try{ window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL=until; }catch(e){}
-    clearTimeout(lockTimer);
-    lockTimer=setTimeout(function(){
-      try{
-        if(Number(window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL||0)<=Date.now()) window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL=0;
-        if(Number(window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL||0)<=Date.now()) window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL=0;
-      }catch(e){}
-    }, ms||45000);
-  }
-  function liveState(){
+  function log(t){ try{ console.info('[BNS 635] '+t); }catch(e){} }
+  function matId(m){ return T(m && (m.id||m.docId||m.materialId)); }
+  function stateObj(){
     try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
     try{ if(window.state) return window.state; }catch(e){}
     return null;
   }
-  function localState(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(e){ return {}; } }
-  function liveMaterials(){
-    var s=liveState();
-    if(s && Array.isArray(s.materials)) return s.materials;
-    var l=localState();
-    return A(l.materials);
+  function currentCatSafe(){
+    var c='';
+    try{ c=window.currentCat||''; }catch(e){}
+    if(!c){ try{ c=window.__BNS_LAST_CAT__||''; }catch(e){} }
+    if(!c){ try{ c=window.__BNS613_LAST_CAT__||''; }catch(e){} }
+    if(!c){ try{ c=localStorage.getItem('bns613LastMaterialCat')||''; }catch(e){} }
+    return T(c).toUpperCase();
   }
-  function idMap(list){
-    var m={};
-    A(list).forEach(function(x){ var id=idOf(x); if(id) m[id]=true; });
-    return m;
+  function readTombs(){ try{ return JSON.parse(localStorage.getItem(TOMBSTONE_KEY)||'{}')||{}; }catch(e){ return {}; } }
+  function writeTombs(x){ try{ localStorage.setItem(TOMBSTONE_KEY,JSON.stringify(x||{})); }catch(e){} }
+  function aliveTombs(){
+    var x=readTombs(), n=Date.now(), out={};
+    Object.keys(x).forEach(function(k){ if(Number(x[k])>n) out[k]=x[k]; });
+    writeTombs(out);
+    return out;
   }
-  function selectedIdFromDom(target){
-    try{
-      var b=target && target.closest && target.closest('button,[data-v83-del-mat],[data-bns-del-mat],[data-del-mat],[data-material-id],[data-id]');
-      if(b){
-        var attrs=['data-v83-del-mat','data-bns-del-mat','data-del-mat','data-material-id','data-id'];
-        for(var i=0;i<attrs.length;i++){ var v=T(b.getAttribute(attrs[i])); if(v) return v; }
-      }
-    }catch(e){}
-    var ids=['adminMatId','materialId','matId','bnsV56MatId','bnsV58AdminId','bns391Id','bns390Id'];
-    for(var j=0;j<ids.length;j++){
-      try{ var el=document.getElementById(ids[j]); var v=T(el && el.value); if(v) return v; }catch(e){}
-    }
+  function addTomb(id){
+    id=T(id); if(!id) return;
+    var x=readTombs();
+    x[id]=Date.now()+10*60*1000;
+    writeTombs(x);
+    try{ window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL=Date.now()+60000; }catch(e){}
+    try{ window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL=Date.now()+60000; }catch(e){}
+  }
+  function selectedAdminMatId(){
     try{ if(typeof adminEditMatId!=='undefined' && adminEditMatId) return T(adminEditMatId); }catch(e){}
     try{ if(window.adminEditMatId) return T(window.adminEditMatId); }catch(e){}
-    try{ if(window.__bnsSelectedMaterialId) return T(window.__bnsSelectedMaterialId); }catch(e){}
-    try{ if(window.bnsSelectedMaterialId) return T(window.bnsSelectedMaterialId); }catch(e){}
+    var ids=['adminMatId','bns391Id','bns390Id','bnsV56MatId'];
+    for(var i=0;i<ids.length;i++){
+      var el=document.getElementById(ids[i]);
+      if(el && T(el.value)) return T(el.value);
+    }
+    try{
+      var sel=document.querySelector('#adminSelectedMat');
+      var txt=sel ? T(sel.textContent) : '';
+      if(txt){
+        var s=stateObj();
+        var mats=A(s && s.materials);
+        for(var j=0;j<mats.length;j++){
+          var m=mats[j];
+          var code=T(m && m.code);
+          var name=T(m && m.name);
+          if((code && txt.indexOf(code)>=0) && (name && txt.indexOf(name)>=0)) return matId(m);
+        }
+      }
+    }catch(e){}
     return '';
   }
-  function isDeleteButton(target){
-    if(!target || !target.closest) return false;
-    var b=target.closest('button,input[type="button"],input[type="submit"],a');
-    if(!b) return false;
-    var id=T(b.id);
-    var txt=T(b.textContent || b.value || b.getAttribute('aria-label') || '').toLowerCase();
-    var oc=T(b.getAttribute('onclick')).toLowerCase();
-    if(/delete|verwijder|wis/.test(id)) return true;
-    if(/delete|verwijder|wis/.test(txt) && /mat|materiaal|material/.test((b.closest('#adminMatList,#adminMaterials,.materials-admin,.admin-materials,#bns391AdminCard,#bns390AdminCard,#bnsV56AdminCard')||{}).id||'')) return true;
-    if(/deletemat|deletematerial|delete.*admin|verwijder|wis/.test(oc)) return true;
-    if(b.hasAttribute('data-v83-del-mat')||b.hasAttribute('data-bns-del-mat')||b.hasAttribute('data-del-mat')) return true;
-    var host=b.closest('#adminMatList,#adminMaterials,.materials-admin,.admin-materials,#bns391AdminCard,#bns390AdminCard,#bnsV56AdminCard');
-    if(host && /delete|verwijder|wis/.test(txt+id+oc)) return true;
-    return false;
+  function removeLocalDeleted(){
+    var tomb=aliveTombs(), ids=Object.keys(tomb);
+    if(!ids.length) return;
+    var idmap={}; ids.forEach(function(id){ idmap[id]=1; });
+    var changed=false;
+    try{
+      var s=stateObj();
+      if(s && Array.isArray(s.materials)){
+        var before=s.materials.length;
+        s.materials=s.materials.filter(function(m){ return !idmap[matId(m)]; });
+        if(before!==s.materials.length) changed=true;
+        try{ window.state=s; }catch(e){}
+      }
+    }catch(e){}
+    try{
+      var loc=JSON.parse(localStorage.getItem(KEY)||'{}')||{};
+      if(Array.isArray(loc.materials)){
+        var b=loc.materials.length;
+        loc.materials=loc.materials.filter(function(m){ return !idmap[matId(m)]; });
+        if(b!==loc.materials.length){ localStorage.setItem(KEY,JSON.stringify(loc)); changed=true; }
+      }
+    }catch(e){}
+    try{
+      if(Array.isArray(window.__BNS608_MATERIALS)){
+        window.__BNS608_MATERIALS=window.__BNS608_MATERIALS.filter(function(m){ return !idmap[matId(m)]; });
+      }
+    }catch(e){}
+    if(changed){
+      var cat=currentCatSafe();
+      try{ if(typeof adminRender==='function') adminRender(); }catch(e){}
+      try{ if(typeof window.adminRender==='function') window.adminRender(); }catch(e){}
+      try{ if(typeof renderCats==='function') renderCats(); }catch(e){}
+      try{ if(typeof window.renderCats==='function') window.renderCats(); }catch(e){}
+      try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(cat,true); }catch(e){}
+      try{ if(typeof window.renderMaterials==='function') window.renderMaterials(cat,true); }catch(e){}
+      log('lokaal gewist materiaal weggehouden: '+ids.join(','));
+    }
   }
   async function fb(){
     if(tools) return tools;
@@ -50205,88 +50106,40 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     tools={fsMod:fsMod,db:fsMod.getFirestore(app)};
     return tools;
   }
-  async function deleteFirebaseId(id){
-    id=T(id);
-    if(!id) return;
-    lock(60000);
+  async function deleteFirebase(id){
+    id=T(id); if(!id) return;
     try{
       var t=await fb();
       await t.fsMod.deleteDoc(t.fsMod.doc(t.db,'materials',id));
-      log('Firebase materiaal verwijderd: '+id);
-      try{ document.dispatchEvent(new CustomEvent('bns:materials-saved-firebase',{detail:{reason:'admin delete direct', removedId:id}})); }catch(e){}
+      log('materiaal direct uit Firebase verwijderd: '+id);
     }catch(e){
-      log('FOUT Firebase delete '+id+': '+(e&&e.message||e));
-      try{ alert('Materiaal lokaal gewist, maar Firebase verwijderen is mislukt: '+(e&&e.message||e)); }catch(_){}
+      log('Firebase delete mislukt voor '+id+': '+(e&&e.message||e));
     }
   }
-  function removeLocally(id){
-    id=T(id); if(!id) return;
-    try{
-      var s=liveState();
-      if(s && Array.isArray(s.materials)) s.materials=s.materials.filter(function(m){ return idOf(m)!==id; });
-      if(s) window.state=s;
-    }catch(e){}
-    try{
-      if(typeof INITIAL_STATE!=='undefined' && INITIAL_STATE && Array.isArray(INITIAL_STATE.materials)) INITIAL_STATE.materials=INITIAL_STATE.materials.filter(function(m){ return idOf(m)!==id; });
-      if(window.INITIAL_STATE && Array.isArray(window.INITIAL_STATE.materials)) window.INITIAL_STATE.materials=window.INITIAL_STATE.materials.filter(function(m){ return idOf(m)!==id; });
-    }catch(e){}
-    try{
-      var loc=localState();
-      if(Array.isArray(loc.materials)){ loc.materials=loc.materials.filter(function(m){ return idOf(m)!==id; }); localStorage.setItem(KEY,JSON.stringify(loc)); }
-    }catch(e){}
-    try{ if(window.__BNS608_MATERIALS) window.__BNS608_MATERIALS=A(window.__BNS608_MATERIALS).filter(function(m){ return idOf(m)!==id; }); }catch(e){}
+  function isDeleteButton(el){
+    if(!el || !el.closest) return false;
+    var b=el.closest('button,input[type="button"],a');
+    if(!b) return false;
+    var txt=T((b.textContent||b.value||'')+' '+(b.id||'')+' '+(b.className||'')).toLowerCase();
+    var inAdmin=b.closest('#adminView,#admin,#adminMatList,#adminMaterials,.admin-materials,.materials-admin,#bns391AdminCard,#bns390AdminCard,#bnsV56AdminCard');
+    return !!(inAdmin && /wis|verwijder|delete/.test(txt) && /materiaal|mat|adminmat|delete|wis|verwijder/.test(txt));
   }
-  function afterDeleteCheck(specificId){
-    lock(60000);
-    var after=idMap(liveMaterials());
-    var del=[];
-    if(specificId && !after[specificId]) del.push(specificId);
-    if(beforeIds){ Object.keys(beforeIds).forEach(function(id){ if(!after[id]) del.push(id); }); }
-    Object.keys(pendingIds).forEach(function(id){ if(!after[id] || id===specificId) del.push(id); });
-    del=del.filter(function(id,i,a){ return id && a.indexOf(id)===i; });
-    if(!del.length && specificId){
-      // Als oude code hem alweer teruggetrokken heeft, verwijder hem opnieuw lokaal en daarna Firebase.
-      removeLocally(specificId);
-      del=[specificId];
-    }
-    del.forEach(function(id){ pendingIds[id]=true; removeLocally(id); deleteFirebaseId(id); });
-    try{ if(typeof adminRender==='function') adminRender(); }catch(e){}
-    try{ if(window.adminRender) window.adminRender(); }catch(e){}
-    try{ if(typeof renderMaterials==='function') renderMaterials(window.currentCat||undefined); }catch(e){}
-  }
-  function prepareDelete(target){
-    lock(60000);
-    beforeIds=idMap(liveMaterials());
-    var id=selectedIdFromDom(target);
-    if(id) pendingIds[id]=true;
-    setTimeout(function(){ afterDeleteCheck(id); },250);
-    setTimeout(function(){ afterDeleteCheck(id); },1200);
-    setTimeout(function(){ afterDeleteCheck(id); },3500);
-    setTimeout(function(){ afterDeleteCheck(id); },8000);
-  }
-  ['pointerdown','mousedown','touchstart','click'].forEach(function(type){
-    document.addEventListener(type,function(ev){ if(isDeleteButton(ev.target)) prepareDelete(ev.target); },true);
-  });
-  ['deleteMatAdminV92','deleteMatAdmin','deleteMaterialAdmin','deleteMaterial83','deleteMaterialV61'].forEach(function(name){
-    try{
-      var fn=window[name] || null;
-      if(typeof fn==='function' && !fn.__bns632Wrapped){
-        var wrap=function(orig,nm){
-          var w=function(){
-            var id=selectedIdFromDom(document.activeElement);
-            prepareDelete(document.activeElement);
-            var r=orig.apply(this,arguments);
-            setTimeout(function(){ afterDeleteCheck(id); },100);
-            return r;
-          };
-          w.__bns632Wrapped=true;
-          return w;
-        }(fn,name);
-        window[name]=wrap;
-        try{ eval(name+'=wrap'); }catch(e){}
-      }
-    }catch(e){}
-  });
-  window.BNS632DeleteMaterialFromFirebase=function(id){ pendingIds[T(id)]=true; removeLocally(id); return deleteFirebaseId(id); };
-  log('actief - Admin materiaal verwijderen doet directe Firebase delete en blokkeert BNS608 pull tijdelijk.');
+  document.addEventListener('click',function(ev){
+    if(!isDeleteButton(ev.target)) return;
+    var id=selectedAdminMatId();
+    if(!id) return;
+    addTomb(id);
+    try{ window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL=Date.now()+60000; }catch(e){}
+    setTimeout(removeLocalDeleted,80);
+    setTimeout(removeLocalDeleted,600);
+    setTimeout(removeLocalDeleted,1800);
+    setTimeout(removeLocalDeleted,4000);
+    deleteFirebase(id).then(function(){ removeLocalDeleted(); });
+  },true);
+
+  document.addEventListener('bns:materials-saved-firebase',function(){ setTimeout(removeLocalDeleted,100); },true);
+  document.addEventListener('bns:materials-force-render',function(){ setTimeout(removeLocalDeleted,100); },true);
+  setInterval(removeLocalDeleted,2000);
+  setTimeout(removeLocalDeleted,500);
+  log('totaal actief: app74 clickGuard fix + admin wis fix.');
 })();
