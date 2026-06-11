@@ -49892,3 +49892,189 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   setTimeout(installWraps,1800);
   console.info('[BNS 627] hard rubriekslot tijdens gereserveerd-popup actief.');
 })();
+
+
+/* =========================================================
+   BNS 628 - Rubriek echt vasthouden bij datumklik en gereserveerd-popup
+   Basis: v627/app71. Alleen rubriek-context in materialenpaneel.
+   Geen wijziging aan reservering, datumwaarde, opslaan, Firebase, materialenbron,
+   transport/service, driver, PIN of adresboek.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS628_RUBRIEK_CONTEXT_HARD_LOCK__) return;
+  window.__BNS628_RUBRIEK_CONTEXT_HARD_LOCK__ = true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function U(v){ return T(v).toUpperCase(); }
+  function E(id){ return document.getElementById(id); }
+  var GENERIC = {BIERSLANG:1, SLANG:1};
+
+  function cleanCat(v){
+    v=U(v).replace(/[^A-Z0-9]/g,'');
+    if(!v) return '';
+    var m=v.match(/^(TAPW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)[0-9]*$/);
+    return m ? m[1] : v;
+  }
+  function catFromRow(row){
+    if(!row) return '';
+    var key=T(row.getAttribute('data-bns611-mid') || row.getAttribute('data-material-id') || row.getAttribute('data-id') || '');
+    var c=cleanCat(key); if(c) return c;
+    var txt=T(row.textContent||'');
+    var m=txt.match(/\b(TAPW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)\s*\d+/i);
+    if(m) return cleanCat(m[1]);
+    m=txt.match(/\b(TAPW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)\b/i);
+    return m ? cleanCat(m[1]) : '';
+  }
+  function catFromButton(b){
+    if(!b) return '';
+    return cleanCat(b.getAttribute('data-bns611-cat') || b.getAttribute('data-cat') || b.dataset.cat || b.textContent || '');
+  }
+  function activeButtonCat(){
+    var sels=[
+      '#materialCats .active[data-bns611-cat]', '#materialCats .active[data-cat]',
+      '#materialCats button.active', '#materialCats [aria-selected="true"]',
+      '#materialCats .selected', '#materialCats .is-active'
+    ];
+    for(var i=0;i<sels.length;i++){
+      var b=document.querySelector(sels[i]);
+      var c=catFromButton(b); if(c) return c;
+    }
+    return '';
+  }
+  function visibleTopRowCat(){
+    var rows=document.querySelectorAll('#materialList [data-bns611-mid],#materialList [data-material-id],#materialList .material-row,.bns611-row');
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i];
+      if(!r || r.offsetParent===null) continue;
+      var c=catFromRow(r); if(c) return c;
+    }
+    return '';
+  }
+  function currentCatGuess(){
+    return cleanCat(activeButtonCat() || window.__BNS628_LOCK_CAT || window.__BNS627_LOCK_CAT || window.__BNS626_KEEP_CAT || window.__BNS613_LAST_CAT || window.currentCat || localStorage.getItem('bns613LastMaterialCat') || visibleTopRowCat() || '');
+  }
+  function remember(c, reason){
+    c=cleanCat(c); if(!c) return '';
+    // Alleen tijdens expliciete gebruikersactie mag BIERSLANG/SLANG de lock worden.
+    if(GENERIC[c] && window.__BNS628_LOCK_CAT && !window.__BNS628_ALLOW_GENERIC) c=window.__BNS628_LOCK_CAT;
+    window.__BNS628_LOCK_CAT=c;
+    window.__BNS627_LOCK_CAT=c;
+    window.__BNS626_KEEP_CAT=c;
+    window.__BNS613_LAST_CAT=c;
+    window.currentCat=c;
+    try{ currentCat=c; }catch(e){}
+    try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
+    return c;
+  }
+  function modalOpen(){ var m=E('bns611MaterialStatusModal'); return !!(m && !m.classList.contains('hidden')); }
+  function hardRender(c){
+    c=remember(c || currentCatGuess()); if(!c) return;
+    try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(c,true); }catch(e){}
+    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(c,true); }catch(e){}
+  }
+  function delayedRender(c){
+    c=remember(c || currentCatGuess()); if(!c) return;
+    [0,25,80,180,420,900].forEach(function(ms){ setTimeout(function(){ hardRender(c); },ms); });
+  }
+  function materialPanelVisible(){
+    var ml=E('materialList');
+    return !!(ml && ml.offsetParent!==null);
+  }
+  function lockFromScreen(reason){
+    var c=activeButtonCat() || visibleTopRowCat() || currentCatGuess();
+    if(c) remember(c, reason);
+    return c;
+  }
+
+  // Vang datumklik/focus/change: datum mag wijzigen, maar rubriek mag niet mee terugvallen.
+  ['pointerdown','mousedown','touchstart','focus','click','input','change'].forEach(function(type){
+    document.addEventListener(type,function(ev){
+      var t=ev.target; if(!t) return;
+      var id=T(t.id||'');
+      if(/^(dateStart|dateEnd|orderStart|orderEnd|startDate|endDate|datumStart|datumEnd|orderStatus)$/.test(id)){
+        if(!materialPanelVisible()) return;
+        var c=lockFromScreen('date-'+type);
+        if(c) delayedRender(c);
+      }
+    },true);
+  });
+
+  // Vang rubriekknoppen en materiaalrijen zo vroeg mogelijk.
+  ['pointerdown','mousedown','touchstart','click'].forEach(function(type){
+    document.addEventListener(type,function(ev){
+      var t=ev.target; if(!t || !t.closest) return;
+      var cb=t.closest('#materialCats [data-bns611-cat],#materialCats [data-cat],#materialCats button,[data-bns611-cat],[data-cat]');
+      if(cb){
+        window.__BNS628_ALLOW_GENERIC=true;
+        var c=remember(catFromButton(cb),'cat-button');
+        setTimeout(function(){ window.__BNS628_ALLOW_GENERIC=false; },300);
+        if(c) delayedRender(c);
+        return;
+      }
+      var row=t.closest('#materialList [data-bns611-mid],#materialList [data-material-id],#materialList .material-row,.bns611-row');
+      if(row){
+        var c=catFromRow(row) || activeButtonCat() || currentCatGuess();
+        if(c){ remember(c,'material-row'); delayedRender(c); }
+      }
+      if(t.closest('[data-bns611-close],#bns611MaterialStatusModal button')){
+        var k=currentCatGuess();
+        if(k) delayedRender(k);
+      }
+    },true);
+  });
+
+  // Wrap renderfuncties: als er net datum/popup/materiaalactie was, nooit zonder lock terugvallen op firstCat.
+  function wrapObj(obj, prop){
+    try{
+      if(!obj || typeof obj[prop] !== 'function' || obj[prop].__bns628Wrapped) return;
+      var old=obj[prop];
+      var wrapped=function(cat, force){
+        var c=cleanCat(cat||'');
+        var lock=currentCatGuess();
+        if((window.__BNS628_LOCK_CAT || modalOpen()) && lock){
+          if(!c || (GENERIC[c] && !GENERIC[lock])) c=lock;
+        }
+        if(c) remember(c,'render-wrap');
+        return old.call(this, c || cat, force);
+      };
+      wrapped.__bns628Wrapped=true;
+      obj[prop]=wrapped;
+    }catch(e){}
+  }
+  function installWraps(){
+    wrapObj(window,'renderMaterials');
+    try{ if(window.BNS_V611) wrapObj(window.BNS_V611,'renderMaterials'); }catch(e){}
+    try{ if(window.BNS_STABLE_CORE) wrapObj(window.BNS_STABLE_CORE,'renderMaterials'); }catch(e){}
+    try{
+      if(typeof renderMaterials==='function' && !renderMaterials.__bns628Wrapped){
+        var old=renderMaterials;
+        renderMaterials=function(cat,force){
+          var c=cleanCat(cat||''), lock=currentCatGuess();
+          if((window.__BNS628_LOCK_CAT || modalOpen()) && lock){ if(!c || (GENERIC[c] && !GENERIC[lock])) c=lock; }
+          if(c) remember(c,'render-var');
+          return old.call(this,c||cat,force);
+        };
+        renderMaterials.__bns628Wrapped=true;
+      }
+    }catch(e){}
+  }
+
+  // Als oude laag toch BIERSLANG tekent terwijl lock TAPW is, meteen terugduwen.
+  try{
+    var ml=E('materialList');
+    if(ml){
+      new MutationObserver(function(){
+        var lock=currentCatGuess();
+        var top=visibleTopRowCat();
+        if(lock && top && top!==lock && !(GENERIC[lock] && GENERIC[top])){
+          setTimeout(function(){ hardRender(lock); },0);
+        }
+      }).observe(ml,{childList:true,subtree:true});
+    }
+  }catch(e){}
+
+  installWraps();
+  setTimeout(installWraps,150); setTimeout(installWraps,700); setTimeout(installWraps,1600);
+  console.info('[BNS 628] rubriekcontext hard vast bij datum en popup actief.');
+})();
