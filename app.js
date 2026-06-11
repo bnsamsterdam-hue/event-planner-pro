@@ -48846,6 +48846,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     return true;
   }
   async function pull(reason){
+    try{
+      var lockUntil = Number(window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL || window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL || 0);
+      if(lockUntil && Date.now() < lockUntil){
+        log('Firebase pull overgeslagen tijdens admin materiaal wijzigen/wissen ('+(reason||'')+')');
+        return;
+      }
+    }catch(_lock){}
     if(loading) return;
     loading=true;
     try{
@@ -48890,7 +48897,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     setTimeout(function(){ wrapRender(); pull('6s'); },6000);
     document.addEventListener('click',function(ev){
       var t=ev.target;
-      if(t && t.closest && t.closest('#adminBtn,[data-admin],#adminMaterials,#newOrderBtn,#materialsTab,.tab-materials')) setTimeout(function(){ pull('klik'); },250);
+      if(t && t.closest && t.closest('#adminBtn,[data-admin],#adminMaterials,#newOrderBtn,#materialsTab,.tab-materials')) setTimeout(function(){
+        try{
+          var lockUntil = Number(window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL || window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL || 0);
+          if(lockUntil && Date.now() < lockUntil){ log('klik-pull overgeslagen tijdens admin materiaal wijzigen/wissen'); return; }
+        }catch(_lock){}
+        pull('klik');
+      },250);
     },true);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(start,800); });
@@ -49769,197 +49782,83 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* =========================================================
-   BNS 627 - Hard rubriekslot tijdens gereserveerd-popup
-   Alleen fix voor: gereserveerd materiaal klikken mag nooit terug naar BIERSLANG.
-   Geen reserveringslogica, geen datum, geen save, geen Firebase/materialenbron.
+   BNS 629 - Materiaal knoppen terug werkend + rubriekcontext zonder klikblokkade
+   Basis: v626/app71. V627/V628 niet meegenomen.
+   Doel:
+   - Geen preventDefault/stopPropagation op materiaalrijen.
+   - Alleen rubriek onthouden vóór oude BNS611 datum/klik handlers draaien.
+   - Admin materiaal wissen: Firebase pull tijdelijk pauzeren zodat delete niet teruggezet wordt.
+   Geen wijziging aan reserveringsberekening, datumwaarden, save, materiaalbron,
+   transport/service, driver, PIN of TAPW/TW codes.
 ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS627_HARD_RUBRIEK_SLOT__) return;
-  window.__BNS627_HARD_RUBRIEK_SLOT__ = true;
+  if(window.__BNS629_RUBRIEK_EN_ADMIN_DELETE_LOCK__) return;
+  window.__BNS629_RUBRIEK_EN_ADMIN_DELETE_LOCK__ = true;
 
   function T(v){ return String(v==null?'':v).trim(); }
   function U(v){ return T(v).toUpperCase(); }
   function E(id){ return document.getElementById(id); }
-  function catFromText(v){
-    v=U(v);
-    var m=v.match(/\b(TAPW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)\b/);
-    if(m) return m[1];
-    m=v.match(/\b(TAPW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)[0-9]+\b/);
-    if(m) return m[1];
-    return '';
+  function A(v){ return Array.isArray(v)?v:[]; }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || {}; }
+  function mats(){ var s=stateObj(); return A(s.materials || window.__BNS611_MATERIALS || window.__BNS608_MATERIALS || window.materials); }
+  function codeOf(m){ return U(m && (m.code||m.materialCode||m.productCode||m.productNr||m.nr||m.number||m.sku)); }
+  function catFromCode(code){ var m=U(code).match(/^[A-Z]+/); return m ? m[0] : ''; }
+  function catOf(m){
+    var c=U(m && (m.cat||m.rubriek||m.category||m.categorie||m.group||m.type));
+    var p=catFromCode(codeOf(m));
+    if(p && (!c || c==='TW' || c==='TAPW' || c==='TO' || c==='KW' || c==='EXTRA')) c=p;
+    if(c==='TW') c='TAPW';
+    return c;
   }
-  function modalOpen(){
-    var m=E('bns611MaterialStatusModal');
-    return !!(m && !m.classList.contains('hidden'));
-  }
-  function lockCat(c){
-    c=U(c); if(!c) return;
-    window.__BNS627_LOCK_CAT = c;
-    window.__BNS626_KEEP_CAT = c;
-    window.__BNS613_LAST_CAT = c;
-    window.currentCat = c;
-    try{ currentCat = c; }catch(e){}
-    try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
-  }
-  function lockedCat(){
-    return U(window.__BNS627_LOCK_CAT || window.__BNS626_KEEP_CAT || window.__BNS613_LAST_CAT || window.currentCat || localStorage.getItem('bns613LastMaterialCat') || '');
-  }
-  function rowCat(row){
-    if(!row) return '';
-    var c=catFromText(row.textContent||'');
-    if(c) return c;
-    var key=T(row.getAttribute('data-bns611-mid')||row.getAttribute('data-material-id')||'');
-    return catFromText(key);
-  }
-  function forceRender(c){
-    c=U(c||lockedCat()); if(!c) return;
-    lockCat(c);
-    try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(c,true); }catch(e){}
-    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(c,true); }catch(e){}
-  }
-  function wrapRenderObject(obj, prop){
-    try{
-      if(!obj || typeof obj[prop] !== 'function' || obj[prop].__bns627Wrapped) return;
-      var old=obj[prop];
-      var wrapped=function(cat, force){
-        var c=U(cat||'');
-        var lock=lockedCat();
-        if((modalOpen() || window.__BNS627_ACTIVE_CLICK) && lock) c=lock;
-        if(c) lockCat(c);
-        return old.call(this, c || cat, force);
-      };
-      wrapped.__bns627Wrapped=true;
-      obj[prop]=wrapped;
-    }catch(e){}
-  }
-  function installWraps(){
-    wrapRenderObject(window,'renderMaterials');
-    try{ if(typeof renderMaterials==='function' && !renderMaterials.__bns627Wrapped){ var old=renderMaterials; renderMaterials=function(cat,force){ var lock=lockedCat(); if((modalOpen()||window.__BNS627_ACTIVE_CLICK)&&lock) cat=lock; if(cat) lockCat(cat); return old.call(this,cat,force); }; renderMaterials.__bns627Wrapped=true; } }catch(e){}
-    try{ if(window.BNS_V611) wrapRenderObject(window.BNS_V611,'renderMaterials'); }catch(e){}
-    try{ if(window.BNS_STABLE_CORE) wrapRenderObject(window.BNS_STABLE_CORE,'renderMaterials'); }catch(e){}
-  }
-
-  // Vroegste moment: al bij pointerdown/mousedown rubriek vastzetten.
-  ['pointerdown','mousedown','touchstart'].forEach(function(type){
-    document.addEventListener(type,function(ev){
-      var t=ev.target; if(!t || !t.closest) return;
-      var cb=t.closest('#materialCats [data-bns611-cat],#materialCats [data-cat],[data-bns611-cat],[data-cat]');
-      if(cb){ lockCat(cb.getAttribute('data-bns611-cat')||cb.getAttribute('data-cat')||cb.textContent); return; }
-      var row=t.closest('#materialList [data-bns611-mid],#materialList [data-material-id]');
-      if(row){
-        var c=rowCat(row) || lockedCat();
-        if(c){
-          lockCat(c);
-          window.__BNS627_ACTIVE_CLICK = true;
-          setTimeout(function(){ window.__BNS627_ACTIVE_CLICK=false; },1500);
-        }
-      }
-    },true);
-  });
-
-  // Tijdens de popup elke late render terugduwen naar de locked rubriek.
-  document.addEventListener('click',function(ev){
-    var t=ev.target; if(!t || !t.closest) return;
-    var row=t.closest('#materialList [data-bns611-mid],#materialList [data-material-id]');
-    if(row){
-      var c=rowCat(row)||lockedCat();
-      if(c){
-        lockCat(c); window.__BNS627_ACTIVE_CLICK=true;
-        [0,20,60,140,300,700,1200].forEach(function(ms){ setTimeout(function(){ forceRender(c); },ms); });
-        setTimeout(function(){ window.__BNS627_ACTIVE_CLICK=false; },1600);
-      }
+  function keyOf(m){ return T(m && (m.id||m.materialId||m.docId||m.key||m.code)); }
+  function findMat(key){
+    key=T(key); var uk=U(key); if(!key) return null;
+    var list=mats();
+    for(var i=0;i<list.length;i++){
+      var m=list[i];
+      if(T(m && (m.id||m.materialId||m.docId))===key) return m;
+      if(U(m && (m.id||m.materialId||m.docId))===uk) return m;
+      if(U(keyOf(m))===uk) return m;
+      if(codeOf(m)===uk) return m;
     }
-    if(t.closest('[data-bns611-close],#bns611MaterialStatusModal button')){
-      var c=lockedCat();
-      [0,40,120,260].forEach(function(ms){ setTimeout(function(){ forceRender(c); },ms); });
-    }
-  },true);
-
-  // Als modal-inhoud verschijnt: direct terug naar locked cat, zonder interval.
-  try{
-    new MutationObserver(function(){
-      if(modalOpen()){
-        var c=lockedCat();
-        if(c){ [0,50,150].forEach(function(ms){ setTimeout(function(){ forceRender(c); },ms); }); }
-      }
-    }).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
-  }catch(e){}
-
-  installWraps();
-  setTimeout(installWraps,200);
-  setTimeout(installWraps,800);
-  setTimeout(installWraps,1800);
-  console.info('[BNS 627] hard rubriekslot tijdens gereserveerd-popup actief.');
-})();
-
-
-/* =========================================================
-   BNS 628 - Rubriek echt vasthouden bij datumklik en gereserveerd-popup
-   Basis: v627/app71. Alleen rubriek-context in materialenpaneel.
-   Geen wijziging aan reservering, datumwaarde, opslaan, Firebase, materialenbron,
-   transport/service, driver, PIN of adresboek.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS628_RUBRIEK_CONTEXT_HARD_LOCK__) return;
-  window.__BNS628_RUBRIEK_CONTEXT_HARD_LOCK__ = true;
-
-  function T(v){ return String(v==null?'':v).trim(); }
-  function U(v){ return T(v).toUpperCase(); }
-  function E(id){ return document.getElementById(id); }
-  var GENERIC = {BIERSLANG:1, SLANG:1};
-
+    return null;
+  }
   function cleanCat(v){
     v=U(v).replace(/[^A-Z0-9]/g,'');
     if(!v) return '';
-    var m=v.match(/^(TAPW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)[0-9]*$/);
-    return m ? m[1] : v;
+    var m=v.match(/^(TAPW|TW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)[0-9]*$/);
+    v=m ? m[1] : v;
+    if(v==='TW') v='TAPW';
+    return v;
   }
+  function catFromButton(b){ return b ? cleanCat(b.getAttribute('data-bns611-cat') || b.getAttribute('data-cat') || b.dataset.cat || b.textContent || '') : ''; }
   function catFromRow(row){
     if(!row) return '';
     var key=T(row.getAttribute('data-bns611-mid') || row.getAttribute('data-material-id') || row.getAttribute('data-id') || '');
-    var c=cleanCat(key); if(c) return c;
+    var m=findMat(key); var c=catOf(m); if(c) return cleanCat(c);
     var txt=T(row.textContent||'');
-    var m=txt.match(/\b(TAPW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)\s*\d+/i);
-    if(m) return cleanCat(m[1]);
-    m=txt.match(/\b(TAPW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)\b/i);
-    return m ? cleanCat(m[1]) : '';
-  }
-  function catFromButton(b){
-    if(!b) return '';
-    return cleanCat(b.getAttribute('data-bns611-cat') || b.getAttribute('data-cat') || b.dataset.cat || b.textContent || '');
+    var mm=txt.match(/\b(TAPW|TW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)\s*\d+/i);
+    if(mm) return cleanCat(mm[1]);
+    mm=txt.match(/\b(TAPW|TW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)\b/i);
+    return mm ? cleanCat(mm[1]) : '';
   }
   function activeButtonCat(){
-    var sels=[
-      '#materialCats .active[data-bns611-cat]', '#materialCats .active[data-cat]',
-      '#materialCats button.active', '#materialCats [aria-selected="true"]',
-      '#materialCats .selected', '#materialCats .is-active'
-    ];
-    for(var i=0;i<sels.length;i++){
-      var b=document.querySelector(sels[i]);
-      var c=catFromButton(b); if(c) return c;
-    }
+    var sels=['#materialCats .active[data-bns611-cat]','#materialCats .active[data-cat]','#materialCats button.active','#materialCats [aria-selected="true"]','#materialCats .selected','#materialCats .is-active'];
+    for(var i=0;i<sels.length;i++){ var c=catFromButton(document.querySelector(sels[i])); if(c) return c; }
     return '';
   }
   function visibleTopRowCat(){
     var rows=document.querySelectorAll('#materialList [data-bns611-mid],#materialList [data-material-id],#materialList .material-row,.bns611-row');
     for(var i=0;i<rows.length;i++){
-      var r=rows[i];
-      if(!r || r.offsetParent===null) continue;
+      var r=rows[i]; if(!r || r.offsetParent===null) continue;
       var c=catFromRow(r); if(c) return c;
     }
     return '';
   }
-  function currentCatGuess(){
-    return cleanCat(activeButtonCat() || window.__BNS628_LOCK_CAT || window.__BNS627_LOCK_CAT || window.__BNS626_KEEP_CAT || window.__BNS613_LAST_CAT || window.currentCat || localStorage.getItem('bns613LastMaterialCat') || visibleTopRowCat() || '');
-  }
   function remember(c, reason){
     c=cleanCat(c); if(!c) return '';
-    // Alleen tijdens expliciete gebruikersactie mag BIERSLANG/SLANG de lock worden.
-    if(GENERIC[c] && window.__BNS628_LOCK_CAT && !window.__BNS628_ALLOW_GENERIC) c=window.__BNS628_LOCK_CAT;
-    window.__BNS628_LOCK_CAT=c;
-    window.__BNS627_LOCK_CAT=c;
+    window.__BNS629_KEEP_CAT=c;
     window.__BNS626_KEEP_CAT=c;
     window.__BNS613_LAST_CAT=c;
     window.currentCat=c;
@@ -49967,114 +49866,66 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
     return c;
   }
-  function modalOpen(){ var m=E('bns611MaterialStatusModal'); return !!(m && !m.classList.contains('hidden')); }
-  function hardRender(c){
-    c=remember(c || currentCatGuess()); if(!c) return;
-    try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(c,true); }catch(e){}
-    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(c,true); }catch(e){}
-  }
-  function delayedRender(c){
-    c=remember(c || currentCatGuess()); if(!c) return;
-    [0,25,80,180,420,900].forEach(function(ms){ setTimeout(function(){ hardRender(c); },ms); });
-  }
-  function materialPanelVisible(){
-    var ml=E('materialList');
-    return !!(ml && ml.offsetParent!==null);
-  }
-  function lockFromScreen(reason){
-    var c=activeButtonCat() || visibleTopRowCat() || currentCatGuess();
-    if(c) remember(c, reason);
-    return c;
+  function guessCat(){ return cleanCat(activeButtonCat() || window.__BNS629_KEEP_CAT || window.__BNS626_KEEP_CAT || window.__BNS613_LAST_CAT || window.currentCat || localStorage.getItem('bns613LastMaterialCat') || visibleTopRowCat() || ''); }
+  function materialPanelVisible(){ var ml=E('materialList'); return !!(ml && ml.offsetParent!==null); }
+  function renderLockedLater(c){
+    c=remember(c || guessCat()); if(!c) return;
+    [40,120,260,650].forEach(function(ms){ setTimeout(function(){
+      try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(c,true); }catch(e){}
+      try{ if(typeof window.renderMaterials==='function') window.renderMaterials(c,true); }catch(e){}
+    },ms); });
   }
 
-  // Vang datumklik/focus/change: datum mag wijzigen, maar rubriek mag niet mee terugvallen.
-  ['pointerdown','mousedown','touchstart','focus','click','input','change'].forEach(function(type){
-    document.addEventListener(type,function(ev){
+  // Window-capture: alleen rubriek opslaan VOORDAT oude document-capture handlers draaien. Geen klik blokkeren.
+  ['pointerdown','mousedown','touchstart','click'].forEach(function(type){
+    window.addEventListener(type,function(ev){
+      var t=ev.target; if(!t || !t.closest) return;
+      var cb=t.closest('#materialCats [data-bns611-cat],#materialCats [data-cat],#materialCats button,[data-bns611-cat],[data-cat]');
+      if(cb){ remember(catFromButton(cb),'cat-'+type); return; }
+      var row=t.closest('#materialList [data-bns611-mid],#materialList [data-material-id],#materialList .material-row,.bns611-row');
+      if(row){
+        var c=catFromRow(row) || activeButtonCat() || guessCat();
+        if(c){ remember(c,'row-'+type); if(type==='click' && /gereserveerd/i.test(row.textContent||'')) renderLockedLater(c); }
+      }
+      if(t.closest('[data-bns611-close],#bns611MaterialStatusModal button,#bns611MaterialInfoModal button')) renderLockedLater(guessCat());
+    },true);
+  });
+
+  // Datum mag veranderen, maar de rubriekcontext niet. Geen render vóór de klik; alleen context zetten.
+  ['focus','pointerdown','mousedown','touchstart','click','input','change'].forEach(function(type){
+    window.addEventListener(type,function(ev){
       var t=ev.target; if(!t) return;
       var id=T(t.id||'');
       if(/^(dateStart|dateEnd|orderStart|orderEnd|startDate|endDate|datumStart|datumEnd|orderStatus)$/.test(id)){
         if(!materialPanelVisible()) return;
-        var c=lockFromScreen('date-'+type);
-        if(c) delayedRender(c);
+        var c=activeButtonCat() || visibleTopRowCat() || guessCat();
+        if(c) remember(c,'date-'+type);
       }
     },true);
   });
 
-  // Vang rubriekknoppen en materiaalrijen zo vroeg mogelijk.
+  // Admin materiaal wissen/opslaan: voorkom dat BNS608 Firebase direct terugtrekt voordat BNS600B heeft geschreven/verwijderd.
+  function looksLikeAdminMaterialButton(el){
+    if(!el || !el.closest) return false;
+    var b=el.closest('button,input[type="button"],input[type="submit"],a');
+    if(!b) return false;
+    var id=T(b.id);
+    var txt=T(b.textContent || b.value || b.getAttribute('aria-label') || '').toLowerCase();
+    if(/^(bns391Save|bns391Delete|bns391DeleteCat|bns390Save|bns390Delete|bnsV56Save|bnsV56Delete|bnsV58AdminSave|bnsV58AdminDelete|adminSaveMat|adminDeleteMat)$/.test(id)) return true;
+    var card=b.closest('#bns391AdminCard,#bns390AdminCard,#bnsV56AdminCard,#adminMatList,#adminMaterials,.admin-materials,.materials-admin');
+    if(card && /opslaan|bewaar|save|wis|verwijder|delete/.test(txt)) return true;
+    if((/materiaal|material|rubriek/.test(txt)) && (/opslaan|bewaar|save|wis|verwijder|delete/.test(txt))) return true;
+    return false;
+  }
+  function lockAdminMaterial(ms){
+    var until=Date.now()+(ms||35000);
+    window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL=until;
+    window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL=Math.max(Number(window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL||0),until);
+  }
   ['pointerdown','mousedown','touchstart','click'].forEach(function(type){
-    document.addEventListener(type,function(ev){
-      var t=ev.target; if(!t || !t.closest) return;
-      var cb=t.closest('#materialCats [data-bns611-cat],#materialCats [data-cat],#materialCats button,[data-bns611-cat],[data-cat]');
-      if(cb){
-        window.__BNS628_ALLOW_GENERIC=true;
-        var c=remember(catFromButton(cb),'cat-button');
-        setTimeout(function(){ window.__BNS628_ALLOW_GENERIC=false; },300);
-        if(c) delayedRender(c);
-        return;
-      }
-      var row=t.closest('#materialList [data-bns611-mid],#materialList [data-material-id],#materialList .material-row,.bns611-row');
-      if(row){
-        var c=catFromRow(row) || activeButtonCat() || currentCatGuess();
-        if(c){ remember(c,'material-row'); delayedRender(c); }
-      }
-      if(t.closest('[data-bns611-close],#bns611MaterialStatusModal button')){
-        var k=currentCatGuess();
-        if(k) delayedRender(k);
-      }
-    },true);
+    window.addEventListener(type,function(ev){ if(looksLikeAdminMaterialButton(ev.target)) lockAdminMaterial(type==='click'?45000:35000); },true);
   });
+  document.addEventListener('bns:materials-saved-firebase',function(){ lockAdminMaterial(8000); },true);
 
-  // Wrap renderfuncties: als er net datum/popup/materiaalactie was, nooit zonder lock terugvallen op firstCat.
-  function wrapObj(obj, prop){
-    try{
-      if(!obj || typeof obj[prop] !== 'function' || obj[prop].__bns628Wrapped) return;
-      var old=obj[prop];
-      var wrapped=function(cat, force){
-        var c=cleanCat(cat||'');
-        var lock=currentCatGuess();
-        if((window.__BNS628_LOCK_CAT || modalOpen()) && lock){
-          if(!c || (GENERIC[c] && !GENERIC[lock])) c=lock;
-        }
-        if(c) remember(c,'render-wrap');
-        return old.call(this, c || cat, force);
-      };
-      wrapped.__bns628Wrapped=true;
-      obj[prop]=wrapped;
-    }catch(e){}
-  }
-  function installWraps(){
-    wrapObj(window,'renderMaterials');
-    try{ if(window.BNS_V611) wrapObj(window.BNS_V611,'renderMaterials'); }catch(e){}
-    try{ if(window.BNS_STABLE_CORE) wrapObj(window.BNS_STABLE_CORE,'renderMaterials'); }catch(e){}
-    try{
-      if(typeof renderMaterials==='function' && !renderMaterials.__bns628Wrapped){
-        var old=renderMaterials;
-        renderMaterials=function(cat,force){
-          var c=cleanCat(cat||''), lock=currentCatGuess();
-          if((window.__BNS628_LOCK_CAT || modalOpen()) && lock){ if(!c || (GENERIC[c] && !GENERIC[lock])) c=lock; }
-          if(c) remember(c,'render-var');
-          return old.call(this,c||cat,force);
-        };
-        renderMaterials.__bns628Wrapped=true;
-      }
-    }catch(e){}
-  }
-
-  // Als oude laag toch BIERSLANG tekent terwijl lock TAPW is, meteen terugduwen.
-  try{
-    var ml=E('materialList');
-    if(ml){
-      new MutationObserver(function(){
-        var lock=currentCatGuess();
-        var top=visibleTopRowCat();
-        if(lock && top && top!==lock && !(GENERIC[lock] && GENERIC[top])){
-          setTimeout(function(){ hardRender(lock); },0);
-        }
-      }).observe(ml,{childList:true,subtree:true});
-    }
-  }catch(e){}
-
-  installWraps();
-  setTimeout(installWraps,150); setTimeout(installWraps,700); setTimeout(installWraps,1600);
-  console.info('[BNS 628] rubriekcontext hard vast bij datum en popup actief.');
+  console.info('[BNS 629] materiaal klikken blijft vrij; rubriekcontext zonder klikblokkade + admin materiaal delete-lock actief.');
 })();
