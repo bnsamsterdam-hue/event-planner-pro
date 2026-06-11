@@ -21228,7 +21228,7 @@ setTimeout(()=>{
     } else {
       html += '<b>Status:</b> Vrij<br>Dit materiaal is vrij voor de gekozen datum.';
     }
-    html += '</div><button type="button" onclick="try{var c=window.__BNS_LAST_CAT__||window.currentCat||window.__BNS613_LAST_CAT__||\'\'; if(c){window.currentCat=c; window.__BNS_LAST_CAT__=c; window.__BNS613_LAST_CAT__=c; if(window.BNS_V611&&window.BNS_V611.renderMaterials)window.BNS_V611.renderMaterials(c,true);}}catch(e){} document.getElementById(\''+MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button></div>';
+    html += '</div><button type="button" onclick="document.getElementById(\''+MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button></div>';
     modal.innerHTML = html;
     modal.classList.remove("hidden");
   }
@@ -31784,36 +31784,12 @@ setTimeout(()=>{
       if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
       labelRow(row,m,r);
       showReserved(m,r);
-      // BNS 634: clickGuard stopt toggleMaterial611, dus hier zelf rubriek hard bewaren.
-      var _keepCat = (function(){
-        var v = window.currentCat || window.__BNS_LAST_CAT__ || window.__BNS613_LAST_CAT__ || '';
-        try{
-          var btn = document.querySelector('#materialCats [data-bns611-cat].active,#materialCats [data-bns611-cat].selected,#materialCats [data-bns611-cat][aria-pressed="true"],#materialCats .active[data-bns611-cat],#materialCats .selected[data-bns611-cat]');
-          if(!v && btn) v = btn.getAttribute('data-bns611-cat') || btn.textContent || '';
-        }catch(e){}
-        try{
-          if(!v && row){
-            var b = row.closest('[data-bns611-cat],[data-cat],[data-category]');
-            if(b) v = b.getAttribute('data-bns611-cat') || b.getAttribute('data-cat') || b.getAttribute('data-category') || '';
-          }
-        }catch(e){}
-        try{ if(!v && m) v = catOf(m) || ''; }catch(e){}
-        return String(v||'').trim();
-      })();
+      // Bewaar en herstel de huidige rubriek na showReserved
+      var _keepCat = window.__BNS_LAST_CAT__ || window.currentCat || '';
       if(_keepCat){
         window.currentCat = _keepCat;
         window.__BNS_LAST_CAT__ = _keepCat;
-        window.__BNS613_LAST_CAT__ = _keepCat;
         try{ currentCat = _keepCat; }catch(e){}
-        try{ localStorage.setItem('bns613LastMaterialCat', _keepCat); }catch(e){}
-        try{ if(typeof renderMaterials611 === 'function') renderMaterials611(_keepCat,true); }catch(e){}
-        try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials === 'function') window.BNS_V611.renderMaterials(_keepCat,true); }catch(e){}
-        try{ if(typeof window.renderMaterials === 'function') window.renderMaterials(_keepCat,true); }catch(e){}
-        [0,40,120,250].forEach(function(ms){ setTimeout(function(){
-          try{ window.currentCat=_keepCat; window.__BNS_LAST_CAT__=_keepCat; window.__BNS613_LAST_CAT__=_keepCat; }catch(e){}
-          try{ if(typeof renderMaterials611 === 'function') renderMaterials611(_keepCat,true); }catch(e){}
-          try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials === 'function') window.BNS_V611.renderMaterials(_keepCat,true); }catch(e){}
-        },ms); });
       }
       return false;
     }
@@ -49983,163 +49959,218 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 // BNS rubriek-guard verwijderd - veroorzaakte extra reset
 
-/* BNS 634 - app74 clickGuard rubriekbewaring: gereserveerd-click stopt toggleMaterial611, daarom cat bewaren en renderen in clickGuard zelf. */
-try{ console.info('[BNS 634] clickGuard rubriekbewaring actief'); }catch(e){}
-
-
 /* =========================================================
-   BNS 635 - app74 totaal: clickGuard rubriek + admin wissen
-   Basis: app(74).js + BNS 634 clickGuard fix.
-   Toegevoegd: admin materiaal wissen direct Firebase delete + lokale tombstone.
-   Geen reserveringslogica, datumlogica, opslaan opdrachten,
-   transport/service, driver/PIN of TAPW/TW-code wijziging.
+   BNS 636 - Admin materiaal wissen echt uit Firebase + tombstone
+   Basis: app(75).js, waarin rubriek/BIERSLANG al werkbaar is.
+   Doel:
+   - Bestaande rubriek-werkwijze NIET aanpassen.
+   - Alleen admin materiaal verwijderen harder maken.
+   - Na lokaal wissen direct Firestore document verwijderen.
+   - Tijdelijke tombstone voorkomt dat BNS600/BNS608 een net gewist
+     materiaal binnen seconden lokaal terugzet.
+   Geen wijziging aan reservering, datum, materiaal klikken, transport/service,
+   driver, PIN of TAPW/TW codes.
 ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS635_APP74_ADMINWIS_TOTAAL__) return;
-  window.__BNS635_APP74_ADMINWIS_TOTAAL__ = true;
+  if(window.__BNS636_ADMIN_DELETE_FIREBASE_TOMBSTONE__) return;
+  window.__BNS636_ADMIN_DELETE_FIREBASE_TOMBSTONE__ = true;
 
-  var KEY='event-planner-pro-v87';
-  var TOMBSTONE_KEY='bns635DeletedMaterials';
-  var tools=null;
+  var KEY = 'event-planner-pro-v87';
+  var TOMB = 'bns636DeletedMaterialIds';
+  var tools = null;
   function T(v){ return String(v==null?'':v).trim(); }
   function A(v){ return Array.isArray(v)?v:[]; }
-  function log(t){ try{ console.info('[BNS 635] '+t); }catch(e){} }
-  function matId(m){ return T(m && (m.id||m.docId||m.materialId)); }
-  function stateObj(){
-    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
-    try{ if(window.state) return window.state; }catch(e){}
-    return null;
+  function log(t){ try{ console.info('[BNS 636] '+t); }catch(e){} }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || null; }
+  function matId(m){ return T(m && (m.id || m.docId || m.materialId)); }
+  function readTombs(){
+    try{ return JSON.parse(localStorage.getItem(TOMB)||'{}') || {}; }catch(e){ return {}; }
   }
-  function currentCatSafe(){
-    var c='';
-    try{ c=window.currentCat||''; }catch(e){}
-    if(!c){ try{ c=window.__BNS_LAST_CAT__||''; }catch(e){} }
-    if(!c){ try{ c=window.__BNS613_LAST_CAT__||''; }catch(e){} }
-    if(!c){ try{ c=localStorage.getItem('bns613LastMaterialCat')||''; }catch(e){} }
-    return T(c).toUpperCase();
+  function writeTombs(o){
+    try{ localStorage.setItem(TOMB, JSON.stringify(o||{})); }catch(e){}
   }
-  function readTombs(){ try{ return JSON.parse(localStorage.getItem(TOMBSTONE_KEY)||'{}')||{}; }catch(e){ return {}; } }
-  function writeTombs(x){ try{ localStorage.setItem(TOMBSTONE_KEY,JSON.stringify(x||{})); }catch(e){} }
-  function aliveTombs(){
-    var x=readTombs(), n=Date.now(), out={};
-    Object.keys(x).forEach(function(k){ if(Number(x[k])>n) out[k]=x[k]; });
-    writeTombs(out);
-    return out;
+  function tombActive(id){
+    id=T(id); if(!id) return false;
+    var o=readTombs(); var ts=Number(o[id]||0);
+    if(!ts) return false;
+    // 24 uur lokale bescherming; ruim oude tombstones op.
+    if(Date.now()-ts > 24*60*60*1000){ delete o[id]; writeTombs(o); return false; }
+    return true;
   }
   function addTomb(id){
     id=T(id); if(!id) return;
-    var x=readTombs();
-    x[id]=Date.now()+10*60*1000;
-    writeTombs(x);
-    try{ window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL=Date.now()+60000; }catch(e){}
-    try{ window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL=Date.now()+60000; }catch(e){}
+    var o=readTombs(); o[id]=Date.now(); writeTombs(o);
+    try{ window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL = Date.now()+90000; }catch(e){}
+    try{ window.__BNS629_ADMIN_MATERIAL_DELETE_LOCK_UNTIL = Date.now()+90000; }catch(e){}
   }
-  function selectedAdminMatId(){
-    try{ if(typeof adminEditMatId!=='undefined' && adminEditMatId) return T(adminEditMatId); }catch(e){}
-    try{ if(window.adminEditMatId) return T(window.adminEditMatId); }catch(e){}
-    var ids=['adminMatId','bns391Id','bns390Id','bnsV56MatId'];
-    for(var i=0;i<ids.length;i++){
-      var el=document.getElementById(ids[i]);
-      if(el && T(el.value)) return T(el.value);
+  function currentMaterials(){
+    var s=stateObj();
+    if(s && Array.isArray(s.materials)) return s.materials;
+    return [];
+  }
+  function findMaterial(id){
+    id=T(id); if(!id) return null;
+    var list=currentMaterials();
+    for(var i=0;i<list.length;i++){
+      var m=list[i];
+      if(T(m && (m.id||m.docId||m.materialId))===id) return m;
     }
-    try{
-      var sel=document.querySelector('#adminSelectedMat');
-      var txt=sel ? T(sel.textContent) : '';
-      if(txt){
-        var s=stateObj();
-        var mats=A(s && s.materials);
-        for(var j=0;j<mats.length;j++){
-          var m=mats[j];
-          var code=T(m && m.code);
-          var name=T(m && m.name);
-          if((code && txt.indexOf(code)>=0) && (name && txt.indexOf(name)>=0)) return matId(m);
-        }
-      }
-    }catch(e){}
-    return '';
+    return null;
   }
-  function removeLocalDeleted(){
-    var tomb=aliveTombs(), ids=Object.keys(tomb);
-    if(!ids.length) return;
-    var idmap={}; ids.forEach(function(id){ idmap[id]=1; });
-    var changed=false;
-    try{
-      var s=stateObj();
-      if(s && Array.isArray(s.materials)){
-        var before=s.materials.length;
-        s.materials=s.materials.filter(function(m){ return !idmap[matId(m)]; });
-        if(before!==s.materials.length) changed=true;
-        try{ window.state=s; }catch(e){}
-      }
-    }catch(e){}
+  function filterTombsEverywhere(){
+    var tombs=readTombs(); var ids=Object.keys(tombs).filter(tombActive); if(!ids.length) return;
+    var set={}; ids.forEach(function(id){ set[id]=1; });
+    function filterList(list){
+      var changed=false;
+      var out=A(list).filter(function(m){ var keep=!set[matId(m)]; if(!keep) changed=true; return keep; });
+      return changed ? out : list;
+    }
+    try{ var s=stateObj(); if(s && Array.isArray(s.materials)){ s.materials=filterList(s.materials); window.state=s; } }catch(e){}
+    try{ if(Array.isArray(window.__BNS608_MATERIALS)) window.__BNS608_MATERIALS=filterList(window.__BNS608_MATERIALS); }catch(e){}
+    try{ if(Array.isArray(window.__BNS611_MATERIALS)) window.__BNS611_MATERIALS=filterList(window.__BNS611_MATERIALS); }catch(e){}
     try{
       var loc=JSON.parse(localStorage.getItem(KEY)||'{}')||{};
-      if(Array.isArray(loc.materials)){
-        var b=loc.materials.length;
-        loc.materials=loc.materials.filter(function(m){ return !idmap[matId(m)]; });
-        if(b!==loc.materials.length){ localStorage.setItem(KEY,JSON.stringify(loc)); changed=true; }
-      }
+      if(Array.isArray(loc.materials)){ loc.materials=filterList(loc.materials); localStorage.setItem(KEY, JSON.stringify(loc)); }
     }catch(e){}
-    try{
-      if(Array.isArray(window.__BNS608_MATERIALS)){
-        window.__BNS608_MATERIALS=window.__BNS608_MATERIALS.filter(function(m){ return !idmap[matId(m)]; });
-      }
-    }catch(e){}
-    if(changed){
-      var cat=currentCatSafe();
-      try{ if(typeof adminRender==='function') adminRender(); }catch(e){}
-      try{ if(typeof window.adminRender==='function') window.adminRender(); }catch(e){}
-      try{ if(typeof renderCats==='function') renderCats(); }catch(e){}
-      try{ if(typeof window.renderCats==='function') window.renderCats(); }catch(e){}
-      try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(cat,true); }catch(e){}
-      try{ if(typeof window.renderMaterials==='function') window.renderMaterials(cat,true); }catch(e){}
-      log('lokaal gewist materiaal weggehouden: '+ids.join(','));
-    }
   }
   async function fb(){
     if(tools) return tools;
     if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) throw new Error('Firebase config ontbreekt');
-    var appMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
-    var fsMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
-    var app=appMod.getApps().length?appMod.getApp():appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
-    tools={fsMod:fsMod,db:fsMod.getFirestore(app)};
+    var appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+    var fsMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+    var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+    tools = { fsMod: fsMod, db: fsMod.getFirestore(app) };
     return tools;
   }
-  async function deleteFirebase(id){
-    id=T(id); if(!id) return;
+  async function deleteFirebaseMaterial(id){
+    id=T(id); if(!id) return false;
+    addTomb(id);
+    filterTombsEverywhere();
     try{
       var t=await fb();
       await t.fsMod.deleteDoc(t.fsMod.doc(t.db,'materials',id));
-      log('materiaal direct uit Firebase verwijderd: '+id);
+      log('Firestore materials/'+id+' verwijderd.');
+      try{ document.dispatchEvent(new CustomEvent('bns:material-deleted-firebase',{detail:{id:id}})); }catch(e){}
+      return true;
     }catch(e){
-      log('Firebase delete mislukt voor '+id+': '+(e&&e.message||e));
+      log('FOUT Firestore delete materials/'+id+': '+(e && e.message || e));
+      try{ alert('Materiaal is lokaal gewist, maar Firebase verwijderen mislukte: '+(e && e.message || e)); }catch(_){ }
+      return false;
+    }finally{
+      setTimeout(filterTombsEverywhere,200);
+      setTimeout(filterTombsEverywhere,1200);
+      setTimeout(filterTombsEverywhere,3500);
     }
   }
-  function isDeleteButton(el){
-    if(!el || !el.closest) return false;
-    var b=el.closest('button,input[type="button"],a');
-    if(!b) return false;
-    var txt=T((b.textContent||b.value||'')+' '+(b.id||'')+' '+(b.className||'')).toLowerCase();
-    var inAdmin=b.closest('#adminView,#admin,#adminMatList,#adminMaterials,.admin-materials,.materials-admin,#bns391AdminCard,#bns390AdminCard,#bnsV56AdminCard');
-    return !!(inAdmin && /wis|verwijder|delete/.test(txt) && /materiaal|mat|adminmat|delete|wis|verwijder/.test(txt));
+  function rememberSelected(id){
+    id=T(id); if(!id) return;
+    window.__BNS636_SELECTED_MATERIAL_ID = id;
+    try{ window.__BNS_ADMIN_SELECTED_MAT_ID = id; }catch(e){}
   }
+  function installFillWrap(){
+    var old = window.fillMat || (typeof fillMat==='function' ? fillMat : null);
+    if(!old || old.__bns636Wrapped) return false;
+    var wrapped = function(id){ rememberSelected(id); return old.apply(this, arguments); };
+    wrapped.__bns636Wrapped = true;
+    window.fillMat = wrapped;
+    try{ fillMat = wrapped; }catch(e){}
+    return true;
+  }
+  function selectedId(){
+    var id=T(window.__BNS636_SELECTED_MATERIAL_ID || window.__BNS_ADMIN_SELECTED_MAT_ID || '');
+    if(id) return id;
+    try{
+      if(typeof adminEditMatId !== 'undefined') id=T(adminEditMatId);
+    }catch(e){}
+    return id;
+  }
+  function installDeleteWrap(){
+    var names=['deleteMatAdminV92','deleteMaterial83','deleteMaterial','adminDelete'];
+    names.forEach(function(name){
+      var fn = window[name] || null;
+      try{ if(!fn && typeof eval(name)==='function') fn=eval(name); }catch(e){}
+      if(!fn || fn.__bns636Wrapped) return;
+      var wrapped=function(){
+        var id=selectedId();
+        var before=!!findMaterial(id);
+        var ret=fn.apply(this, arguments);
+        setTimeout(function(){
+          var after=!!findMaterial(id);
+          // Alleen Firebase verwijderen wanneer de originele functie lokaal echt verwijderd heeft.
+          if(id && before && !after){
+            addTomb(id);
+            deleteFirebaseMaterial(id);
+          } else if(id && tombActive(id)) {
+            deleteFirebaseMaterial(id);
+          }
+        },80);
+        return ret;
+      };
+      wrapped.__bns636Wrapped=true;
+      window[name]=wrapped;
+      try{ eval(name+' = window["'+name+'"]'); }catch(e){}
+    });
+  }
+  function idFromInline(btn){
+    var raw = T(btn && (btn.getAttribute('onclick')||''));
+    var m = raw.match(/fillMat\(['"]([^'"]+)['"]\)/i) || raw.match(/fillMaterial\w*\(['"]([^'"]+)['"]\)/i);
+    return m ? T(m[1]) : '';
+  }
+  function isDeleteButton(t){
+    if(!t || !t.closest) return null;
+    var b=t.closest('button,input[type="button"],input[type="submit"],a');
+    if(!b) return null;
+    var txt=T(b.textContent || b.value || b.getAttribute('aria-label') || '').toLowerCase();
+    var id=T(b.id).toLowerCase();
+    if(/deletemat|delete.*mat|verwijder|wissen|wis/.test(id+' '+txt)) return b;
+    if((b.className||'').toString().toLowerCase().indexOf('delete')>=0) return b;
+    return null;
+  }
+  // Vang inline Verwijder-knoppen vroeg, zodat het gekozen id altijd bekend is.
+  ['pointerdown','mousedown','touchstart','click'].forEach(function(type){
+    window.addEventListener(type,function(ev){
+      var b=isDeleteButton(ev.target); if(!b) return;
+      var id=idFromInline(b) || selectedId();
+      if(id){ rememberSelected(id); addTomb(id); }
+      try{ window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL = Date.now()+90000; }catch(e){}
+    },true);
+  });
+  // Na elke klik op verwijderen controleren of geselecteerde id lokaal verdwenen is.
   document.addEventListener('click',function(ev){
-    if(!isDeleteButton(ev.target)) return;
-    var id=selectedAdminMatId();
-    if(!id) return;
-    addTomb(id);
-    try{ window.__BNS_ADMIN_MATERIAL_EDIT_UNTIL=Date.now()+60000; }catch(e){}
-    setTimeout(removeLocalDeleted,80);
-    setTimeout(removeLocalDeleted,600);
-    setTimeout(removeLocalDeleted,1800);
-    setTimeout(removeLocalDeleted,4000);
-    deleteFirebase(id).then(function(){ removeLocalDeleted(); });
+    var b=isDeleteButton(ev.target); if(!b) return;
+    var id=idFromInline(b) || selectedId();
+    setTimeout(function(){
+      if(id && !findMaterial(id)) deleteFirebaseMaterial(id);
+      else filterTombsEverywhere();
+    },250);
+    setTimeout(function(){ if(id && !findMaterial(id)) deleteFirebaseMaterial(id); },1800);
   },true);
+  // Filter tombstones ook als Firebase-bootstrap alsnog oude lijst terugzet.
+  var originalSetItem=null;
+  try{ originalSetItem=localStorage.setItem.bind(localStorage); }catch(e){}
+  if(originalSetItem && !window.__BNS636_STORAGE_TOMBSTONE_PATCHED__){
+    window.__BNS636_STORAGE_TOMBSTONE_PATCHED__=true;
+    localStorage.setItem=function(key,value){
+      if(key===KEY){
+        try{
+          var obj=JSON.parse(value||'{}')||{};
+          var tombs=readTombs(); var ids=Object.keys(tombs).filter(tombActive); var set={}; ids.forEach(function(id){ set[id]=1; });
+          if(ids.length && Array.isArray(obj.materials)){
+            obj.materials=obj.materials.filter(function(m){ return !set[matId(m)]; });
+            value=JSON.stringify(obj);
+          }
+        }catch(e){}
+      }
+      return originalSetItem(key,value);
+    };
+  }
+  function install(){ installFillWrap(); installDeleteWrap(); filterTombsEverywhere(); }
+  install();
+  setTimeout(install,300);
+  setTimeout(install,1200);
+  setInterval(function(){ install(); filterTombsEverywhere(); },3000);
 
-  document.addEventListener('bns:materials-saved-firebase',function(){ setTimeout(removeLocalDeleted,100); },true);
-  document.addEventListener('bns:materials-force-render',function(){ setTimeout(removeLocalDeleted,100); },true);
-  setInterval(removeLocalDeleted,2000);
-  setTimeout(removeLocalDeleted,500);
-  log('totaal actief: app74 clickGuard fix + admin wis fix.');
+  window.BNS636DeleteMaterialFromFirebase = deleteFirebaseMaterial;
+  log('actief - gebruikt app75 rubriekgedrag; admin wissen verwijdert direct uit Firebase en blokkeert terugzetten.');
 })();
