@@ -50244,3 +50244,265 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   window.BNS637HardDeleteMaterial=function(id,code){ return hardDelete(id,code,'handmatig'); };
   console.info('[BNS 637] admin materiaal wissen: directe Firebase delete + tombstone actief.');
 })();
+
+
+/* =========================================================
+   BNS 638 - Boekhouding betaalstatus knop hard en duidelijk
+   Basis: v637 werkende basis
+   Alleen Boekhouding: Zet betaald <-> Zet openstaand, sync naar opdracht/telefoon.
+   ========================================================= */
+(function BNS638_BOEKHOUDING_BETAALSTATUS(){
+  'use strict';
+  if(window.__BNS638_BOEKHOUDING_BETAALSTATUS__) return;
+  window.__BNS638_BOEKHOUDING_BETAALSTATUS__=true;
+
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state||null; }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function orders(){ var s=S(); if(!s) return []; if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
+  function acc(){ var s=S(); if(!s) return {documents:[],payments:[],removedKeys:[]}; if(!s.accounting||typeof s.accounting!=='object') s.accounting={documents:[],payments:[],removedKeys:[]}; if(!Array.isArray(s.accounting.documents)) s.accounting.documents=[]; if(!Array.isArray(s.accounting.payments)) s.accounting.payments=[]; if(!Array.isArray(s.accounting.removedKeys)) s.accounting.removedKeys=[]; return s.accounting; }
+  function orderNo(o){ return T(o&&(o.number||o.nr||o.orderNumber||o.opdrachtNr||o.id)); }
+  function invoiceNo(o){ return T(o&&o.invoice&&(o.invoice.invoiceNumber||o.invoice.number)) || T(o&&(o.invoiceNumber||o.factuurNr||o.factuur)) || orderNo(o); }
+  function customerName(o){ return T(o&&o.customer&&o.customer.name)||T(o&&(o.customerName||o.klant)); }
+  function amount(o){
+    var n=0; try{ if(typeof totals==='function'){ var tt=totals(o)||{}; n=Number(tt.pay||tt.grand||tt.total||0); } }catch(e){}
+    if(!n){ var p=(o&&o.pricing)||{}; n=Number(p.grand||p.total||p.incl||o.total||o.amount||0)||0; }
+    return n;
+  }
+  function paid(o){ return !!(o && (o.paid===true || o.betaald===true || o.paymentStatus==='paid' || /betaald|paid|true/i.test(String(o.factuurStatus||'')+' '+String(o.invoiceStatus||'')) || (o.invoice && (o.invoice.paid===true || o.invoice.paymentStatus==='paid' || /betaald|paid|true/i.test(String(o.invoice.status||'')+' '+String(o.invoice.factuurStatus||'')))))); }
+  function findOrder(id){
+    id=T(id);
+    return orders().find(function(o){
+      var vals=[T(o.id),orderNo(o),invoiceNo(o),T(o.invoiceNumber),T(o.factuurNr),T(o&&o.invoice&&o.invoice.invoiceNumber),T(o&&o.invoice&&o.invoice.number)];
+      return vals.indexOf(id)>=0;
+    })||null;
+  }
+  function saveNow(){
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(typeof saveState==='function') saveState(); }catch(e){}
+    try{ localStorage.setItem('event-planner-pro-v87', JSON.stringify(S())); }catch(e){}
+  }
+  function syncOrderHard(o){
+    try{ if(window.BNS&&typeof window.BNS.syncOrder==='function') Promise.resolve(window.BNS.syncOrder(o)).catch(function(){}); }catch(e){}
+    try{ if(typeof syncDoc==='function' && o && o.id) syncDoc('orders', o.id, o); }catch(e){}
+  }
+  function setOrderPaid(o,yes){
+    if(!o) return;
+    var now=new Date().toISOString();
+    o.invoice=o.invoice||{};
+    o.paid=!!yes;
+    o.betaald=!!yes;
+    o.paymentStatus=yes?'paid':'open';
+    o.factuurStatus=yes?'Betaald':'Openstaand';
+    o.invoiceStatus=yes?'paid':'open';
+    o.invoice.paid=!!yes;
+    o.invoice.betaald=!!yes;
+    o.invoice.paymentStatus=yes?'paid':'open';
+    o.invoice.status=yes?'Betaald':'Openstaand';
+    o.invoice.factuurStatus=yes?'Betaald':'Openstaand';
+    o.invoice.paidAt=yes?now:'';
+    o.invoice.unpaidAt=yes?'':now;
+    o.updatedAt=now;
+  }
+  function updateAccountingDocs(o,yes){
+    var a=acc(), on=orderNo(o), inv=invoiceNo(o), oid=T(o&&o.id), now=new Date().toISOString();
+    (a.documents||[]).forEach(function(d){
+      var vals=[T(d.id),T(d.key),T(d.orderId),T(d.orderNumber),T(d.invoiceNumber),T(d.number)];
+      if(vals.indexOf(oid)>=0 || vals.indexOf(on)>=0 || vals.indexOf(inv)>=0){
+        d.paid=!!yes; d.betaald=!!yes; d.paymentStatus=yes?'paid':'open'; d.status=yes?'Betaald':'Openstaand'; d.paidAt=yes?now:''; d.orderId=oid||d.orderId; d.orderNumber=on||d.orderNumber; d.invoiceNumber=inv||d.invoiceNumber; d.customer=d.customer||customerName(o); d.amount=Number(d.amount||0)||amount(o);
+      }
+    });
+    a.payments.push({id:'pay_'+Date.now(),orderId:oid,orderNumber:on,invoiceNumber:inv,customer:customerName(o),amount:amount(o),paid:!!yes,status:yes?'Betaald':'Openstaand',time:now,source:'boekhouding'});
+  }
+  function patchVisibleRow(id,yes){
+    try{
+      var esc=window.CSS&&CSS.escape?CSS.escape(String(id)):String(id).replace(/'/g,"\\'");
+      var btns=Array.prototype.slice.call(document.querySelectorAll('button.bns528-pay,button.tw-au-pay'));
+      btns.forEach(function(b){
+        var oc=String(b.getAttribute('onclick')||'');
+        if(oc.indexOf(String(id))<0 && oc.indexOf(esc)<0) return;
+        b.textContent=yes?'Zet openstaand':'Zet betaald';
+        b.classList.toggle('is-paid',!!yes);
+        b.setAttribute('onclick', oc.replace(/,(true|false)\)/,','+(!yes)+')'));
+        var side=b.closest('.bns528-side,.tw-au-side');
+        if(side){ var badge=side.querySelector('.bns528-badge,.tw-au-badge'); if(badge){ badge.textContent=yes?'✓ Betaald':'Openstaand'; badge.classList.toggle('paid',!!yes); badge.classList.toggle('open',!yes); } }
+      });
+    }catch(e){}
+  }
+  function rerenderAccounting(){
+    try{ if(typeof window.BNS528_openAccounting==='function' && document.getElementById('bns528BoekhoudingModal') && !document.getElementById('bns528BoekhoudingModal').classList.contains('hidden')) window.BNS528_openAccounting(); }catch(e){}
+    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+  }
+  function setPaid(id,yes){
+    var o=findOrder(id);
+    if(!o){ alert('Geen opdracht/factuur gevonden om betaling te wijzigen: '+T(id)); return false; }
+    setOrderPaid(o,yes);
+    updateAccountingDocs(o,yes);
+    saveNow();
+    syncOrderHard(o);
+    patchVisibleRow(id,yes);
+    rerenderAccounting();
+    try{ if(typeof toast==='function') toast(yes?'Factuur op betaald gezet':'Factuur weer op openstaand gezet'); }catch(e){}
+    return false;
+  }
+
+  // Neem de boekhouding-betaalknop over, maar raak andere schermen niet aan.
+  window.BNS638_setPaid=setPaid;
+  window.BNS528_setPaid=setPaid;
+  window.TW300_AU_setPaid=setPaid;
+
+  // Alleen uiterlijk binnen Boekhouding: duidelijker betaald/openstaand.
+  try{
+    var st=document.createElement('style'); st.id='bns638BoekhoudingBetaalStyle';
+    st.textContent='\
+      #bns528BoekhoudingModal .bns528-card{box-shadow:0 8px 22px rgba(15,23,42,.06);border:1px solid #dbe7f3!important}\
+      #bns528BoekhoudingModal .bns528-badge.paid,.tw-au-badge.paid{background:#dcfce7!important;color:#166534!important;border:1px solid #86efac!important}\
+      #bns528BoekhoudingModal .bns528-badge.open,.tw-au-badge.open{background:#fee2e2!important;color:#991b1b!important;border:1px solid #fecaca!important}\
+      #bns528BoekhoudingModal .bns528-pay{background:#16a34a!important;color:#fff!important;min-width:128px}\
+      #bns528BoekhoudingModal .bns528-pay.is-paid{background:#f97316!important}\
+      #bns528BoekhoudingModal .bns528-side b{font-size:15px}\
+    ';
+    if(!document.getElementById(st.id)) document.head.appendChild(st);
+  }catch(e){}
+
+  console.info('[BNS 638] Boekhouding betaalstatus hard gekoppeld aan opdracht en factuur.');
+})();
+
+
+/* =========================================================
+   BNS 639 - Adresboek terug in Nieuwe opdracht (mooi en rustig)
+   Basis: v638/v637. Alleen klant/locatie adresboek UI.
+   Geen wijzigingen aan materialen, reserveringen, admin wissen,
+   datumlogica, transport/service, driver, PIN of rubrieken.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS639_ADRESBOEK_TERUG__) return;
+  window.__BNS639_ADRESBOEK_TERUG__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function A(v){ return Array.isArray(v)?v:[]; }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || {}; }
+  function setVal(id,val){ var el=E(id); if(!el) return; el.value=T(val); try{ el.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} try{ el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
+  function keyOf(o){ return L([o.name,o.street,o.zip,o.city,o.phone,o.email,o.contact].join('|')); }
+  function uniq(list){
+    var seen={}, out=[];
+    A(list).forEach(function(x){
+      if(!x || typeof x!=='object') return;
+      var name=T(x.name||x.customerName||x.locationName||x.klant||x.locatie);
+      if(!name) return;
+      var obj={
+        id:T(x.id||('bns639_'+out.length)),
+        name:name,
+        street:T(x.street||x.address||x.adres||x.customerStreet||x.locationStreet),
+        zip:T(x.zip||x.postcode||x.customerZip||x.locationZip),
+        city:T(x.city||x.plaats||x.customerCity||x.locationCity),
+        phone:T(x.phone||x.telefoon||x.customerPhone||x.locationPhone),
+        email:T(x.email||x.customerEmail),
+        contact:T(x.contact||x.locationContact)
+      };
+      var k=keyOf(obj); if(seen[k]) return; seen[k]=1; out.push(obj);
+    });
+    return out;
+  }
+  function customers(){
+    var s=stateObj(), list=[];
+    list=list.concat(A(s.customers));
+    A(s.orders).forEach(function(o){ if(o && o.customer) list.push(o.customer); else if(o) list.push({name:o.customerName,street:o.customerStreet,zip:o.customerZip,city:o.customerCity,phone:o.customerPhone,email:o.customerEmail}); });
+    return uniq(list).sort(function(a,b){ return a.name.localeCompare(b.name,'nl'); });
+  }
+  function locations(){
+    var s=stateObj(), list=[];
+    list=list.concat(A(s.locations));
+    A(s.orders).forEach(function(o){ if(o && o.location) list.push(o.location); else if(o) list.push({name:o.locationName,street:o.locationStreet,zip:o.locationZip,city:o.locationCity,phone:o.locationPhone,contact:o.locationContact}); });
+    return uniq(list).sort(function(a,b){ return a.name.localeCompare(b.name,'nl'); });
+  }
+  function match(item,q){
+    q=L(q); if(!q) return true;
+    return L([item.name,item.street,item.zip,item.city,item.phone,item.email,item.contact].join(' ')).indexOf(q)>=0;
+  }
+
+  function css(){
+    if(E('bns639AdresboekCss')) return;
+    var st=document.createElement('style'); st.id='bns639AdresboekCss';
+    st.textContent = ''+
+    '.bns639-ab-btn{display:inline-flex;align-items:center;gap:6px;margin:6px 6px 0 0;padding:9px 12px;border:0;border-radius:12px;background:#0f172a;color:#fff;font-weight:900;box-shadow:0 5px 14px rgba(15,23,42,.18);cursor:pointer}'+
+    '.bns639-ab-btn:hover{filter:brightness(1.08)}'+
+    '.bns639-copy-btn{background:#0ea5e9}'+
+    '.bns639-overlay{position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px}'+
+    '.bns639-modal{width:min(760px,96vw);max-height:88vh;overflow:hidden;background:#fff;border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.28);display:flex;flex-direction:column;border:1px solid #dbeafe}'+
+    '.bns639-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:16px 18px;background:linear-gradient(135deg,#0f172a,#1d4ed8);color:#fff}'+
+    '.bns639-head h2{font-size:20px;margin:0;font-weight:1000}.bns639-close{background:#fff;color:#0f172a;border:0;border-radius:12px;padding:8px 12px;font-weight:1000}'+
+    '.bns639-tools{padding:14px 16px;border-bottom:1px solid #e5e7eb;display:grid;gap:10px}.bns639-tabs{display:flex;gap:8px;flex-wrap:wrap}.bns639-tab{border:0;border-radius:999px;padding:9px 14px;font-weight:1000;background:#e5e7eb;color:#111827}.bns639-tab.active{background:#0f172a;color:#fff}.bns639-search{width:100%;font-size:17px;padding:13px 14px;border:2px solid #bfdbfe;border-radius:14px;outline:none}.bns639-search:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.14)}'+
+    '.bns639-results{padding:14px 16px;overflow:auto;display:grid;gap:10px}.bns639-card{border:1px solid #e5e7eb;background:#f8fafc;border-radius:16px;padding:12px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}.bns639-card b{font-size:16px;color:#0f172a}.bns639-card small{display:block;color:#475569;margin-top:3px}.bns639-use{border:0;border-radius:12px;padding:9px 12px;background:#16a34a;color:#fff;font-weight:1000}.bns639-empty{padding:22px;text-align:center;color:#64748b;background:#f8fafc;border-radius:16px}.bns639-foot{padding:10px 16px;border-top:1px solid #e5e7eb;color:#64748b;font-size:12px}'+
+    '@media(max-width:640px){.bns639-modal{width:100vw;max-height:92vh;border-radius:18px}.bns639-card{grid-template-columns:1fr}.bns639-use{width:100%;font-size:16px}.bns639-ab-btn{width:100%;justify-content:center}}';
+    document.head.appendChild(st);
+  }
+
+  var mode='customer', searchText='';
+  function openBook(which){ mode=(which==='location')?'location':'customer'; searchText=''; renderModal(); }
+  function closeBook(){ var o=E('bns639Overlay'); if(o) o.remove(); }
+  function fillCustomer(c){
+    setVal('customerName',c.name); setVal('customerStreet',c.street); setVal('customerZip',c.zip); setVal('customerCity',c.city); setVal('customerPhone',c.phone); setVal('customerEmail',c.email);
+    closeBook();
+  }
+  function fillLocation(l){
+    setVal('locationName',l.name); setVal('locationStreet',l.street); setVal('locationZip',l.zip); setVal('locationCity',l.city); setVal('locationContact',l.contact); setVal('locationPhone',l.phone);
+    closeBook();
+  }
+  function copyCustomerToLocation(){
+    setVal('locationName',(E('customerName')||{}).value||'');
+    setVal('locationStreet',(E('customerStreet')||{}).value||'');
+    setVal('locationZip',(E('customerZip')||{}).value||'');
+    setVal('locationCity',(E('customerCity')||{}).value||'');
+    setVal('locationPhone',(E('customerPhone')||{}).value||'');
+  }
+  function renderModal(){
+    css(); closeBook();
+    var ov=document.createElement('div'); ov.id='bns639Overlay'; ov.className='bns639-overlay';
+    var list=(mode==='customer'?customers():locations()).filter(function(x){ return match(x,searchText); }).slice(0,80);
+    var title=(mode==='customer')?'Adresboek klanten':'Adresboek locaties';
+    ov.innerHTML='<div class="bns639-modal" role="dialog" aria-modal="true">'+
+      '<div class="bns639-head"><h2>📒 '+H(title)+'</h2><button type="button" class="bns639-close" data-close="1">Sluiten</button></div>'+
+      '<div class="bns639-tools"><div class="bns639-tabs"><button type="button" class="bns639-tab '+(mode==='customer'?'active':'')+'" data-tab="customer">Klanten</button><button type="button" class="bns639-tab '+(mode==='location'?'active':'')+'" data-tab="location">Locaties</button></div><input class="bns639-search" placeholder="Zoek op naam, adres, plaats, telefoon..." value="'+H(searchText)+'" autofocus></div>'+
+      '<div class="bns639-results">'+(list.length?list.map(function(x,i){
+        return '<div class="bns639-card" data-index="'+i+'"><div><b>'+H(x.name)+'</b><small>'+H([x.street,x.zip,x.city].filter(Boolean).join(' '))+'</small><small>'+H([x.contact,x.phone,x.email].filter(Boolean).join(' · '))+'</small></div><button type="button" class="bns639-use" data-use="'+i+'">Gebruik</button></div>';
+      }).join(''):'<div class="bns639-empty">Geen resultaten. Typ een andere naam of plaats.</div>')+'</div>'+
+      '<div class="bns639-foot">Alleen adresboek/klant-locatie invullen. Er wordt niets aan materialen of reserveringen aangepast.</div>'+
+      '</div>';
+    document.body.appendChild(ov);
+    var inp=ov.querySelector('.bns639-search'); if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); }
+    ov.addEventListener('click',function(ev){
+      var t=ev.target;
+      if(t && t.getAttribute('data-close')) return closeBook();
+      var tab=t && t.getAttribute('data-tab'); if(tab){ mode=tab; searchText=''; return renderModal(); }
+      var use=t && t.getAttribute('data-use'); if(use!=null){ var item=list[Number(use)]; if(!item) return; return mode==='customer'?fillCustomer(item):fillLocation(item); }
+      if(t===ov) closeBook();
+    });
+    ov.addEventListener('input',function(ev){ if(ev.target && ev.target.classList.contains('bns639-search')){ searchText=ev.target.value; setTimeout(renderModal,0); } });
+    ov.addEventListener('keydown',function(ev){ if(ev.key==='Escape') closeBook(); });
+  }
+
+  function addBtn(after, id, text, type, extraClass){
+    if(!after || E(id)) return;
+    var btn=document.createElement('button'); btn.type='button'; btn.id=id; btn.className='bns639-ab-btn '+(extraClass||''); btn.textContent=text;
+    btn.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); if(type==='copy') copyCustomerToLocation(); else openBook(type); });
+    after.insertAdjacentElement('afterend',btn);
+  }
+  function install(){
+    css();
+    var cn=E('customerName'), ln=E('locationName');
+    if(cn){ addBtn(cn,'bns639CustomerBtn','📒 Adresboek klant','customer',''); }
+    if(ln){ addBtn(ln,'bns639LocationBtn','📍 Adresboek locatie','location',''); addBtn(E('bns639LocationBtn')||ln,'bns639CopyCustomerBtn','↳ Klant = locatie','copy','bns639-copy-btn'); }
+  }
+  install();
+  [300,900,1800,3500].forEach(function(ms){ setTimeout(install,ms); });
+  document.addEventListener('click',function(){ setTimeout(install,120); },true);
+  document.addEventListener('bns:order-opened',function(){ setTimeout(install,120); },true);
+  window.BNS639OpenAdresboek=openBook;
+  console.info('[BNS 639] Adresboek terug actief - alleen klant/locatie UI.');
+})();
