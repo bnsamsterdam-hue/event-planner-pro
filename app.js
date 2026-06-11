@@ -36269,12 +36269,12 @@ setTimeout(()=>{
     var today=todayISO();
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(ds.value||''))){
       ds.value=today;
-      fire(ds);
+      // Geen fire() - dat triggert renderMaterials en reset de rubriek
     }
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(de.value||'')) || de.dataset.bnsV311AutoEnd==='1'){
       de.value=addDaysISO(ds.value,3);
       de.dataset.bnsV311AutoEnd='1';
-      fire(de);
+      // Geen fire() - dat triggert renderMaterials en reset de rubriek
     }
     if(ds.dataset.bnsV311DateBound!=='1'){
       ds.dataset.bnsV311DateBound='1';
@@ -49928,4 +49928,39 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   document.addEventListener('bns:materials-saved-firebase',function(){ lockAdminMaterial(8000); },true);
 
   console.info('[BNS 629] materiaal klikken blijft vrij; rubriekcontext zonder klikblokkade + admin materiaal delete-lock actief.');
+})();
+
+// BNS rubriek-bewaring: prevent category reset bij datum/knop events
+(function(){
+  if(window.__BNS_CAT_GUARD__) return;
+  window.__BNS_CAT_GUARD__ = true;
+
+  var _savedCat = null;
+
+  // Bewaar cat voor elk change/input event op datumvelden
+  document.addEventListener('change', function(ev){
+    if(ev.target && /dateStart|dateEnd|orderStatus/.test(ev.target.id||'')){
+      _savedCat = window.currentCat || _savedCat;
+      // Herstel na 200ms als currentCat veranderd is
+      setTimeout(function(){
+        if(_savedCat && window.currentCat !== _savedCat){
+          window.currentCat = _savedCat;
+          try{ currentCat = _savedCat; }catch(e){}
+          // Herrender met bewaarde cat
+          try{
+            if(typeof window.BNS_V625_renderCat === 'function') window.BNS_V625_renderCat(_savedCat);
+            else if(typeof renderMaterials === 'function') renderMaterials(_savedCat, true);
+          }catch(e){}
+        }
+      }, 150);
+    }
+  }, true);
+
+  // Bewaar ook bij klik op materiaal-knop
+  document.addEventListener('click', function(ev){
+    var cat = window.currentCat;
+    if(cat) _savedCat = cat;
+  }, true);
+
+  console.info('[BNS] Rubriek-bewaring actief.');
 })();
