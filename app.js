@@ -49597,3 +49597,172 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 /* BNS 615 - 611 rubriekbehoud bij klikken op gereserveerd materiaal. Geen Firebase/save/materialenbron wijzigingen. */
 try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }catch(e){}
+
+
+/* =========================================================
+   BNS 626 - Alleen twee nazorgpunten op app(71):
+   1) Gereserveerd klik mag rubriek nooit naar BIERSLANG laten springen.
+   2) Adresboek rustig: alleen tonen tijdens typen, onbekend = weg.
+   Geen reserveringslogica, Firebase, materialenbron, transport/service,
+   driver, PIN, PO of contactpersoon wijziging.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS626_RUBRIEK_ADRESBOEK_NAZORG__) return;
+  window.__BNS626_RUBRIEK_ADRESBOEK_NAZORG__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function U(v){ return T(v).toUpperCase(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function A(v){ return Array.isArray(v)?v:[]; }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || {}; }
+  function mats(){ var s=stateObj(); return A(s.materials || window.materials); }
+  function codeOf(m){ return U(m && (m.code||m.materialCode||m.productNr||m.nr||m.number||m.sku)); }
+  function catOf(m){ return U(m && (m.cat||m.rubriek||m.category||m.group||m.type)); }
+  function matId(m){ return T(m && (m.id||m.materialId||m.docId||m.key||m.code)); }
+  function findMat(key){
+    key=T(key); var uk=U(key); if(!key) return null;
+    var list=mats();
+    for(var i=0;i<list.length;i++){
+      var m=list[i];
+      if(T(m && (m.id||m.materialId||m.docId))===key) return m;
+      if(U(m && (m.id||m.materialId||m.docId))===uk) return m;
+      if(codeOf(m)===uk) return m;
+    }
+    return null;
+  }
+  function currentCatSafe(){
+    return U(window.__BNS626_KEEP_CAT || window.__BNS613_LAST_CAT || window.currentCat || localStorage.getItem('bns613LastMaterialCat') || '');
+  }
+  function rememberCat(c){
+    c=U(c); if(!c) return;
+    window.__BNS626_KEEP_CAT=c;
+    window.__BNS613_LAST_CAT=c;
+    window.currentCat=c;
+    try{ currentCat=c; }catch(e){}
+    try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
+  }
+  function rerenderCat(c){
+    c=U(c || currentCatSafe()); if(!c) return;
+    rememberCat(c);
+    try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(c,true); }catch(e){}
+    try{ if(typeof window.renderMaterials==='function') window.renderMaterials(c,true); }catch(e){}
+  }
+  function restoreCatLater(c){
+    c=U(c || currentCatSafe()); if(!c) return;
+    rememberCat(c);
+    [0,40,120,260,600].forEach(function(ms){ setTimeout(function(){ rerenderCat(c); },ms); });
+  }
+
+  // Rubriek onthouden bij rubriekknop en bij materiaalrij.
+  document.addEventListener('pointerdown',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var cb=t.closest('#materialCats [data-bns611-cat],#materialCats [data-cat],#materialCats button,[data-bns611-cat],[data-cat]');
+    if(cb){ rememberCat(cb.getAttribute('data-bns611-cat') || cb.getAttribute('data-cat') || cb.dataset.cat || cb.textContent); return; }
+    var row=t.closest('#materialList [data-bns611-mid],#materialList [data-material-id]');
+    if(row){
+      var key=row.getAttribute('data-bns611-mid') || row.getAttribute('data-material-id') || '';
+      var m=findMat(key);
+      rememberCat(catOf(m) || currentCatSafe());
+    }
+  },true);
+  document.addEventListener('click',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var row=t.closest('#materialList [data-bns611-mid],#materialList [data-material-id]');
+    if(row){
+      var key=row.getAttribute('data-bns611-mid') || row.getAttribute('data-material-id') || '';
+      var m=findMat(key);
+      var c=catOf(m) || currentCatSafe();
+      if(c) restoreCatLater(c);
+    }
+    if(t.closest && t.closest('[data-bns611-close],#bns611MaterialInfoModal button')){
+      restoreCatLater(currentCatSafe());
+    }
+  },true);
+
+  // Extra vangnet: als BNS_V611 later beschikbaar is, wrap de toggle zodat reserved popup de rubriek vasthoudt.
+  function wrap611(){
+    try{
+      if(!window.BNS_V611 || window.BNS_V611.__bns626Wrapped) return;
+      var oldToggle=window.BNS_V611.toggleMaterial;
+      if(typeof oldToggle==='function'){
+        var wrapped=function(key){
+          var m=findMat(key), c=catOf(m) || currentCatSafe();
+          if(c) rememberCat(c);
+          var r=oldToggle.apply(this,arguments);
+          if(c) restoreCatLater(c);
+          return r;
+        };
+        window.BNS_V611.toggleMaterial=wrapped;
+        window.BNS_STABLE_CORE=window.BNS_STABLE_CORE||{};
+        window.BNS_STABLE_CORE.toggleMat=wrapped;
+        window.addMat=wrapped;
+        try{ addMat=wrapped; }catch(e){}
+      }
+      window.BNS_V611.__bns626Wrapped=true;
+    }catch(e){}
+  }
+  wrap611(); setTimeout(wrap611,300); setTimeout(wrap611,1000); setTimeout(wrap611,2500);
+
+  // ---------------- Adresboek rustig ----------------
+  function hideBox(id){ var b=E(id); if(b){ b.style.display='none'; b.classList.add('hidden'); } }
+  function hideAddressBooks(){
+    ['bnsV164CustomerBox','bnsV164LocationBox','customerSuggest','locationSuggest','customerSuggestions','locationSuggestions'].forEach(hideBox);
+    document.querySelectorAll('.bns-v164-suggest').forEach(function(b){ b.style.display='none'; b.classList.add('hidden'); });
+  }
+  function hasRows(id){ var b=E(id); return !!(b && b.querySelector && b.querySelector('.bns-v164-row')); }
+  function hideEmpty(id){ if(!hasRows(id)) hideBox(id); }
+  function markTyping(el){ if(el) el.dataset.bns626Typing='1'; }
+  function isTyping(el){ return !!(el && el.dataset.bns626Typing==='1'); }
+  function installAddressBookQuiet(){
+    ['customerName','locationName'].forEach(function(id){
+      var el=E(id); if(!el || el.dataset.bns626Quiet==='1') return;
+      el.dataset.bns626Quiet='1';
+      el.removeAttribute('list');
+      el.setAttribute('autocomplete','off');
+      // Focus/click mag niet vanzelf de oude V164 lijst openen.
+      el.addEventListener('focus',function(ev){
+        if(!isTyping(el)){
+          try{ ev.stopImmediatePropagation(); }catch(e){}
+          setTimeout(hideAddressBooks,0);
+        }
+      },true);
+      el.addEventListener('click',function(){ if(!isTyping(el)) setTimeout(hideAddressBooks,0); },true);
+      el.addEventListener('input',function(){
+        markTyping(el);
+        var boxId=(id==='customerName')?'bnsV164CustomerBox':'bnsV164LocationBox';
+        setTimeout(function(){
+          // Oude V164 mag renderen, maar onbekend/geen matches moet direct verdwijnen.
+          if(!T(el.value)) hideBox(boxId);
+          else hideEmpty(boxId);
+        },35);
+        setTimeout(function(){ if(T(el.value)) hideEmpty(boxId); },120);
+      },false);
+      el.addEventListener('keydown',function(ev){ if(ev.key==='Escape') hideAddressBooks(); },true);
+    });
+  }
+  // Klant/locatie knop: alleen focussen, adresboek blijft weg tot typen.
+  document.addEventListener('click',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var b=t.closest('button,a,.tab,.card,[data-section],[data-target]'); if(!b) return;
+    var txt=L((b.textContent||'')+' '+(b.id||'')+' '+(b.getAttribute('data-section')||'')+' '+(b.getAttribute('data-target')||''));
+    if(/klant|locatie|lokatie/.test(txt) && !/adres zoeken|postcode/.test(txt)) setTimeout(hideAddressBooks,20);
+  },true);
+  // Als oude V164 toch een lege melding zet, direct verbergen.
+  function watchAddressBook(){
+    ['bnsV164CustomerBox','bnsV164LocationBox'].forEach(function(id){
+      var b=E(id); if(!b || b.dataset.bns626Watch==='1') return;
+      b.dataset.bns626Watch='1';
+      try{
+        new MutationObserver(function(){ hideEmpty(id); }).observe(b,{childList:true,subtree:true});
+      }catch(e){}
+    });
+  }
+  installAddressBookQuiet(); watchAddressBook();
+  setTimeout(function(){ installAddressBookQuiet(); watchAddressBook(); hideAddressBooks(); },300);
+  setTimeout(function(){ installAddressBookQuiet(); watchAddressBook(); },1200);
+  document.addEventListener('click',function(){ setTimeout(function(){ installAddressBookQuiet(); watchAddressBook(); },80); },true);
+
+  console.info('[BNS 626] rubriekbehoud gereserveerd klik + rustig adresboek actief.');
+})();
