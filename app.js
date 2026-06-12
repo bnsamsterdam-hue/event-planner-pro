@@ -50508,7 +50508,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 })();
 
 /* =========================================================
-   BNS 640 - Admin materiaal opslaan + verwijderen hard naar Firebase
+   BNS 642 - Admin materiaal opslaan exact op nummer/id + verwijderen hard naar Firebase + formulier leeg na wissen
    Basis: huidige goede v639 + admin-fix voorbeeld uit app80.
    Doel:
    - BNS608/609 houden Firebase-materialen leidend voor lezen/kiezen.
@@ -50529,6 +50529,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   var busy=false;
   var selectedId='';
   var selectedCode='';
+  var forceNewMaterial=false;
 
   function log(t){ try{ console.info('[BNS 640] '+t); }catch(e){} }
   function warn(t){ try{ console.warn('[BNS 640] '+t); }catch(e){} }
@@ -50575,6 +50576,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   }
   function remember(id,code){
     id=T(id); code=U(code);
+    if(id || code) forceNewMaterial=false;
     if(!id && code){ var m=findMat('',code); if(m) id=idOf(m); }
     if(id && !code){ var m2=findMat(id,''); if(m2) code=codeOf(m2); }
     if(id) selectedId=id;
@@ -50598,8 +50600,21 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     cat=catFromCode(code,cat);
     nr=nrOnly(nr,cat);
     if(!code || !cat){ return null; }
-    var old=findMat(selectedId, code) || {};
-    var id=selectedId || idOf(old) || cleanIdFromCode(code);
+    var oldById = selectedId ? findMat(selectedId,'') : null;
+    var oldByCode = code ? findMat('',code) : null;
+    var old = forceNewMaterial ? {} : (oldById || oldByCode || {});
+    var id = '';
+    if(forceNewMaterial){
+      id = cleanIdFromCode(code);
+      // Bij nieuw materiaal nooit op naam vergelijken. Alleen exact nummer/code/id.
+      // Als hetzelfde nummer/code al bestaat, maak geen stille overschrijving.
+      if(oldByCode && idOf(oldByCode)){
+        try{ alert('Dit productnummer bestaat al: '+code+'. Kies een ander nummer of wijzig het bestaande materiaal.'); }catch(e){}
+        return null;
+      }
+    }else{
+      id = selectedId || idOf(old) || cleanIdFromCode(code);
+    }
     var m=Object.assign({},old,{
       id:id,
       docId:id,
@@ -50675,6 +50690,9 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     try{ if(window.INITIAL_STATE && Array.isArray(window.INITIAL_STATE.materials)) window.INITIAL_STATE.materials=normalizeListDeleted(window.INITIAL_STATE.materials,id,code); }catch(e){}
     try{ var loc=readJSON(KEY,{}); loc.materials=normalizeListDeleted(loc.materials,id,code); writeJSON(KEY,loc); }catch(e){}
     if(selectedId===id){ selectedId=''; selectedCode=''; }
+    clearMaterialFormAfterDelete();
+    setTimeout(clearMaterialFormAfterDelete,250);
+    setTimeout(clearMaterialFormAfterDelete,1200);
     renderAll('delete');
   }
   async function fb(){
@@ -50695,6 +50713,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       var t=await fb();
       await t.fsMod.setDoc(t.fsMod.doc(t.db,'materials',idOf(mat)), mat, {merge:false});
       applySavedLocal(mat);
+      forceNewMaterial=false;
       try{ document.dispatchEvent(new CustomEvent('bns:materials-saved-firebase',{detail:{id:idOf(mat), code:codeOf(mat), source:'BNS640'}})); }catch(e){}
       try{ if(window.BNS608ReloadMaterials) setTimeout(function(){ window.BNS608ReloadMaterials(); },1600); }catch(e){}
       log('materiaal hard opgeslagen in Firebase: '+codeOf(mat)+' / '+idOf(mat));
@@ -50741,6 +50760,58 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     for(var i=0;i<ids.length;i++){ if(E(ids[i])) return true; }
     return false;
   }
+  function isNewMaterialButton(el){
+    if(!el || !el.closest) return false;
+    var b=el.closest('button,input[type="button"],input[type="submit"],a'); if(!b) return false;
+    if(!adminArea(b)) return false;
+    var id=T(b.id).toLowerCase();
+    var txt=T(b.textContent || b.value || b.getAttribute('aria-label') || '').toLowerCase();
+    if(/^(bns391new|bns390new|bnsv56new|bnsv58adminnew|adminnewmat|newmaterial|nieuwmateriaal)$/.test(id)) return true;
+    if(/nieuw|nieuw materiaal|leeg|annuleer|cancel/.test(txt) && !/verwijder|wis|delete|opslaan|save/.test(txt)) return true;
+    return false;
+  }
+  function clearSelectedForNew(){
+    forceNewMaterial=true; selectedId=''; selectedCode='';
+    try{ window.__bnsSelectedMaterialId=''; window.bnsSelectedMaterialId=''; window.__BNS_SELECTED_MATERIAL_ID=''; }catch(e){}
+  }
+  function clearMaterialFormAfterDelete(){
+    forceNewMaterial=true; selectedId=''; selectedCode='';
+    try{
+      window.__bnsSelectedMaterialId='';
+      window.bnsSelectedMaterialId='';
+      window.__BNS_SELECTED_MATERIAL_ID='';
+      window.selectedMaterialId='';
+    }catch(e){}
+    var ids=[
+      'bns391Cat','bns390Cat','bnsV56Cat','bnsV58AdminCat','adminMatCat','matCat','materialCat',
+      'bns391Nr','bns390Nr','bnsV56Nr','bnsV58AdminNr','adminMatCode','adminMatNr','productNr','materialNr',
+      'bns391Product','bns390Product','bnsV56Product','bnsV58AdminProduct','adminMatProduct','materialProduct',
+      'bns391Desc','bns390Desc','bnsV56Desc','bnsV58AdminDesc','adminMatName','materialDescription','materialName',
+      'bns391Price','bns390Price','bnsV56Price','bnsV58AdminPrice','adminMatPrice','materialPrice',
+      'bns391ColorInput','bns390ColorInput','bnsV56ColorInput','bnsV58AdminColor','adminMatColor','adminMatCatColor'
+    ];
+    ids.forEach(function(id){
+      try{
+        var el=E(id);
+        if(!el) return;
+        el.value='';
+        if(el.tagName && String(el.tagName).toLowerCase()==='select') el.selectedIndex=-1;
+        el.dispatchEvent(new Event('input',{bubbles:true}));
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+      }catch(e){}
+    });
+    var statusIds=['bns391Status','bns390Status','bnsV56Status','bnsV58AdminStatus','adminMatStatus','materialStatus'];
+    statusIds.forEach(function(id){
+      try{
+        var el=E(id);
+        if(!el) return;
+        el.value='free';
+        el.dispatchEvent(new Event('input',{bubbles:true}));
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+      }catch(e){}
+    });
+  }
+
   function actionOf(el){
     if(!el || !el.closest) return '';
     var b=el.closest('button,input[type="button"],input[type="submit"],a'); if(!b) return '';
@@ -50794,7 +50865,10 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     }catch(e){}
   }
   ['pointerdown','mousedown','touchstart','click'].forEach(function(type){
-    window.addEventListener(type,function(ev){ inferFromTarget(ev.target); },true);
+    window.addEventListener(type,function(ev){
+      if(isNewMaterialButton(ev.target)) clearSelectedForNew();
+      else inferFromTarget(ev.target);
+    },true);
   });
   window.addEventListener('click',function(ev){
     var act=actionOf(ev.target);
@@ -50810,7 +50884,11 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   wrapFill(); setTimeout(wrapFill,500); setTimeout(wrapFill,2000); setTimeout(wrapFill,5000);
   window.BNS639SaveMaterialDirect=saveDirect;
   window.BNS640SaveMaterialDirect=saveDirect;
+  window.BNS641SaveMaterialDirect=saveDirect;
   window.BNS639DeleteMaterialDirect=deleteDirect;
   window.BNS640DeleteMaterialDirect=deleteDirect;
-  console.info('[BNS 640] Admin materiaal direct Firebase save/delete actief.');
+  window.BNS641DeleteMaterialDirect=deleteDirect;
+  window.BNS642SaveMaterialDirect=saveDirect;
+  window.BNS642DeleteMaterialDirect=deleteDirect;
+  console.info('[BNS 642] Admin materiaal direct Firebase save/delete actief; na wissen formulier leeg.');
 })();
