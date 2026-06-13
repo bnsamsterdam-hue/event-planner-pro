@@ -51009,3 +51009,129 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   document.addEventListener('DOMContentLoaded',function(){ setTimeout(installOverviewMenu,300); setTimeout(reloadTransportIfNeeded,1000); });
   console.info('[BNS 653] overzicht keuze + gevulde factuur/opdracht + transport terug actief.');
 })();
+
+/* =========================================================
+   BNS 654 - Overzicht keuze gebruikt werkende Documenten-route
+   Basis: v653
+   - Knoppen blijven: Overzicht bestelling / Opdrachtbevestiging bekijken / Factuur bekijken
+   - Factuur en opdrachtbevestiging openen via bestaande TW300_AU_openDoc route
+     (dezelfde route als Wijzigen -> Documenten -> Maak factuur / Maak opdrachtbevestiging)
+   - Geen oude/verwijderde documentfunctie gebruiken
+   - Raakt transport/admin/reserveringen/driver niet aan
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS654_DOC_CHOICE_WORKING_ROUTE__) return;
+  window.__BNS654_DOC_CHOICE_WORKING_ROUTE__ = true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function H(v){ return T(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || null; }
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function orderId(o){ return T(o && (o.id || o.orderId || o.docId)); }
+  function orderNo(o){ return T(o && (o.number || o.orderNumber || o.nr)); }
+  function titleOf(o){ return T(o && (o.title || o.name || o.eventName || (o.location&&o.location.name) || '')); }
+  function allOrders(){ var s=S()||{}; return Array.isArray(s.orders) ? s.orders : []; }
+  function findOrder(key){
+    key=T(key);
+    var orders=allOrders();
+    if(key){
+      var hit=orders.find(function(o){ return [o.id,o.orderId,o.docId,o.number,o.orderNumber,o.nr].map(T).indexOf(key)>=0; });
+      if(hit) return hit;
+    }
+    try{
+      var ed=T(window.editing || (typeof editing!=='undefined' ? editing : ''));
+      if(ed){
+        var e=orders.find(function(o){ return [o.id,o.number,o.orderId,o.orderNumber].map(T).indexOf(ed)>=0; });
+        if(e) return e;
+      }
+    }catch(_e){}
+    return null;
+  }
+
+  function keyFromClickedButton(btn){
+    if(!btn) return '';
+    var attrs=['data-order-id','data-id','data-oid','data-order','data-number','data-order-number','data-key','data-bns-order','data-bns542-order'];
+    for(var i=0;i<attrs.length;i++){ var v=T(btn.getAttribute&&btn.getAttribute(attrs[i])); if(v) return v; }
+    var row=btn.closest&&btn.closest('[data-order-id],[data-id],[data-oid],[data-order],[data-number],[data-order-number],[data-key]');
+    if(row){
+      for(var j=0;j<attrs.length;j++){ var r=T(row.getAttribute&&row.getAttribute(attrs[j])); if(r) return r; }
+    }
+    var txt=T((btn.closest&&btn.closest('tr,.card,.order-card,.bns-order-card,.bns356-card,.bns-v493-cardmain,.bns-active-card')) ? btn.closest('tr,.card,.order-card,.bns-order-card,.bns356-card,.bns-v493-cardmain,.bns-active-card').innerText : btn.parentElement&&btn.parentElement.innerText || '');
+    var m=txt.match(/\b(20\d{2}-\d{3,6})\b/);
+    if(m) return m[1];
+    return '';
+  }
+
+  function closeChoice(){ var m=E('bns654ChoiceModal'); if(m) m.remove(); var old=E('bns653ChoiceModal'); if(old) old.remove(); }
+  function ensureStyle(){
+    if(E('bns654ChoiceStyle')) return;
+    var st=document.createElement('style'); st.id='bns654ChoiceStyle';
+    st.textContent='#bns654ChoiceModal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:999999;display:flex;align-items:center;justify-content:center;padding:18px}#bns654ChoiceModal .p{background:#fff;border-radius:22px;box-shadow:0 16px 50px rgba(0,0,0,.25);padding:24px;max-width:520px;width:100%;font-family:Arial,sans-serif}#bns654ChoiceModal h2{margin:0 0 8px;color:#0f172a;font-size:28px}#bns654ChoiceModal .sub{margin:0 0 18px;color:#475569;font-weight:800}#bns654ChoiceModal button{display:block;width:100%;border:0;border-radius:16px;padding:16px 18px;margin:10px 0;font-size:18px;font-weight:1000;color:#fff;cursor:pointer}#bns654ChoiceModal .blue{background:#2563eb}#bns654ChoiceModal .orange{background:#f97316}#bns654ChoiceModal .green{background:#16a34a}#bns654ChoiceModal .grey{background:#334155}';
+    document.head.appendChild(st);
+  }
+
+  function openRealOverview(o){
+    var key=orderId(o)||orderNo(o);
+    var fn=window.__BNS653_REAL_OVERVIEW__ || window.__BNS654_REAL_OVERVIEW__;
+    if(typeof fn==='function') return fn(key);
+    if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW==='function' && window.BNS_V128_SHOW_ORDER_OVERVIEW!==showChoice) return window.BNS_V128_SHOW_ORDER_OVERVIEW(key);
+    return false;
+  }
+
+  function openWorkingDoc(o,type){
+    var key=orderId(o)||orderNo(o);
+    if(typeof window.TW300_AU_openDoc==='function'){
+      return window.TW300_AU_openDoc(key, type);
+    }
+    // Laatste vangnet: zet editing tijdelijk en gebruik de bestaande documentknoppenroute.
+    try{ window.editing=orderId(o)||key; if(typeof editing!=='undefined') editing=window.editing; }catch(e){}
+    if(/factuur/i.test(type) && typeof window.makeInvoice==='function') return window.makeInvoice();
+    if(typeof window.makeConfirmation==='function') return window.makeConfirmation();
+    alert('Documentfunctie niet gevonden. Open via Wijzigen -> Documenten.');
+    return false;
+  }
+
+  function showChoice(key){
+    ensureStyle();
+    var o=findOrder(key);
+    if(!o){ alert('Opdracht niet gevonden voor overzicht/document.'); return false; }
+    closeChoice();
+    var m=document.createElement('div'); m.id='bns654ChoiceModal';
+    m.innerHTML='<div class="p"><h2>Wat wil je openen?</h2><div class="sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><button class="blue" id="bns654OpenOverview">Overzicht bestelling</button><button class="orange" id="bns654OpenConfirm">Opdrachtbevestiging bekijken</button><button class="green" id="bns654OpenInvoice">Factuur bekijken</button><button class="grey" id="bns654Cancel">Terug</button></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click',function(ev){ if(ev.target===m) closeChoice(); });
+    E('bns654Cancel').onclick=closeChoice;
+    E('bns654OpenOverview').onclick=function(){ closeChoice(); return openRealOverview(o); };
+    E('bns654OpenConfirm').onclick=function(){ closeChoice(); return openWorkingDoc(o,'opdrachtbevestiging'); };
+    E('bns654OpenInvoice').onclick=function(){ closeChoice(); return openWorkingDoc(o,'factuur'); };
+    return false;
+  }
+
+  function install(){
+    if(!window.__BNS654_REAL_OVERVIEW__){
+      window.__BNS654_REAL_OVERVIEW__ = window.__BNS653_REAL_OVERVIEW__ || null;
+    }
+    window.BNS_V654_SHOW_OVERVIEW_CHOICE=showChoice;
+    window.BNS_V653_SHOW_OVERVIEW_CHOICE=showChoice;
+    window.BNS_V128_SHOW_ORDER_OVERVIEW=showChoice;
+    window.BNS_V493_SHOW=showChoice;
+  }
+
+  install();
+  setInterval(install,900);
+  document.addEventListener('click',function(ev){
+    var b=ev.target&&ev.target.closest&&ev.target.closest('button,a'); if(!b) return;
+    var txt=L(b.textContent||b.value||'');
+    if(/overzicht maken|overzicht bestelling/.test(txt)){
+      var key=keyFromClickedButton(b);
+      var o=findOrder(key);
+      if(!o) return;
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      return showChoice(orderId(o)||orderNo(o));
+    }
+  },true);
+  console.info('[BNS 654] Overzichtkeuze gebruikt nu TW300_AU_openDoc/documenten-route voor gevulde factuur en opdrachtbevestiging.');
+})();
