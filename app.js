@@ -19646,12 +19646,36 @@ setTimeout(()=>{
     ""
     );
   }
+  function bnsDriverMaterialLabel(m) {
+    var s = getState() || {};
+    var all = Array.isArray(s.materials) ? s.materials : [];
+    function T(v){ return String(v == null ? "" : v).trim(); }
+    function norm(v){ return T(v).toUpperCase(); }
+    function mid(x){ return T(x && (x.id || x.materialId || x.docId)); }
+    var code = T(m && (m.code || m.materialCode));
+    var id = T(m && (m.id || m.materialId || m.docId));
+    var oldId = T(m && m.oldId);
+    var cat = T(m && (m.cat || m.rubriek || m.category));
+    var found = null;
+    if (id) found = all.find(function(x){ return mid(x) === id; });
+    if (!found && oldId) found = all.find(function(x){ return T(x.oldId) === oldId; });
+    if (!found && code) {
+      found = all.find(function(x){ return norm(x.code || x.materialCode) === norm(code) && (!cat || norm(x.cat || x.rubriek || x.category) === norm(cat)); })
+           || all.find(function(x){ return norm(x.code || x.materialCode) === norm(code); });
+    }
+    var finalCode = T(code || (found && (found.code || found.materialCode)) || id);
+    var name = T((m && (m.searchName || m.zoeknaam || m.name || m.description || m.omschrijving)) || (found && (found.searchName || found.zoeknaam || found.name || found.description || found.omschrijving)) || "");
+    var qty = T(m && (m.qty || m.count || m.aantal || m.quantity));
+    var left = (qty ? qty + "x " : "") + finalCode;
+    if (name && norm(name) !== norm(finalCode)) return left + " - " + name;
+    return left || name;
+  }
   function materialText(order) {
     var mats = order.materials || order.mats || [];
     if (!Array.isArray(mats)) return "";
     return mats.map(function (m) {
       if (typeof m === "string") return m;
-      return m.code || m.name || "";
+      return bnsDriverMaterialLabel(m);
     }).filter(Boolean).join(", ");
   }
   function routeUrl(type, address) {
@@ -29123,9 +29147,33 @@ setTimeout(()=>{
   function orderPhone(o){
     return T((o.customer&&o.customer.phone)||o.customerPhone||o.phone||'');
   }
+  function bnsV83PhoneMaterialLabel(m){
+    function norm(v){ return T(v).toUpperCase(); }
+    function mid(x){ return T(x && (x.id || x.materialId || x.docId)); }
+    var all=[];
+    try{ all = (S().materials || []); }catch(e){ all=[]; }
+    var code=T(m && (m.code || m.materialCode));
+    var id=T(m && (m.id || m.materialId || m.docId));
+    var oldId=T(m && m.oldId);
+    var cat=T(m && (m.cat || m.rubriek || m.category));
+    var found=null;
+    if(id) found=all.find(function(x){ return mid(x)===id; });
+    if(!found && oldId) found=all.find(function(x){ return T(x.oldId)===oldId; });
+    if(!found && code){
+      found=all.find(function(x){ return norm(x.code || x.materialCode)===norm(code) && (!cat || norm(x.cat || x.rubriek || x.category)===norm(cat)); })
+         || all.find(function(x){ return norm(x.code || x.materialCode)===norm(code); });
+    }
+    var finalCode=T(code || (found && (found.code || found.materialCode)) || id);
+    var name=T((m && (m.searchName || m.zoeknaam || m.name || m.description || m.omschrijving)) || (found && (found.searchName || found.zoeknaam || found.name || found.description || found.omschrijving)) || '');
+    var qty=T(m && (m.qty || m.count || m.aantal || m.quantity));
+    var left=(qty ? qty+'x ' : '') + finalCode;
+    if(name && norm(name)!==norm(finalCode)) return left+' - '+name;
+    return left || name;
+  }
   function orderMats(o){
     return (Array.isArray(o.materials)?o.materials:[]).map(function(m){
-      return T(m.code||m.name);
+      if(typeof m === 'string') return T(m);
+      return bnsV83PhoneMaterialLabel(m);
     }).filter(Boolean).join(', ');
   }
   function routeUrl(kind,addr){
@@ -50903,3 +50951,91 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   window.BNS643DeleteMaterialDirect=deleteDirect;
   console.info('[BNS 643] Admin materiaal save/delete actief; nieuw nummer overschrijft laatste selectie niet.');
 })();
+
+
+/* =========================================================
+   BNS 644 - Bezorger telefoon materiaal toont code + zoeknaam
+   Alleen telefoon/bezorger weergave. Geen admin/reservering/save wijzigingen.
+   ========================================================= */
+(function(){
+  if(window.__BNS644_DRIVER_MATERIAL_NAMES__) return;
+  window.__BNS644_DRIVER_MATERIAL_NAMES__ = true;
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function N(v){ return T(v).toUpperCase(); }
+  function H(v){ return T(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function S(){ try{ if(window.state) return window.state; }catch(e){} try{ if(typeof state !== 'undefined') return state; }catch(e){} return {}; }
+  function mids(m){ return [m&&m.id,m&&m.materialId,m&&m.docId].map(T).filter(Boolean); }
+  function mats(){ var s=S(); return Array.isArray(s.materials) ? s.materials : []; }
+  function findMatByCode(code){
+    code=N(code);
+    if(!code) return null;
+    return mats().find(function(m){ return N(m.code || m.materialCode) === code; }) || null;
+  }
+  function findMatByAny(m){
+    var all=mats();
+    var ids=mids(m);
+    var oldId=T(m&&m.oldId), code=T(m&&(m.code||m.materialCode)), cat=T(m&&(m.cat||m.rubriek||m.category));
+    var found=null;
+    if(ids.length) found=all.find(function(x){ var xs=mids(x); return ids.some(function(id){ return xs.indexOf(id)>=0; }); });
+    if(!found && oldId) found=all.find(function(x){ return T(x.oldId)===oldId; });
+    if(!found && code){
+      found=all.find(function(x){ return N(x.code||x.materialCode)===N(code) && (!cat || N(x.cat||x.rubriek||x.category)===N(cat)); }) || all.find(function(x){ return N(x.code||x.materialCode)===N(code); });
+    }
+    return found;
+  }
+  function labelFromMat(m){
+    if(typeof m === 'string') return m;
+    var f=findMatByAny(m)||{};
+    var code=T((m&&(m.code||m.materialCode)) || f.code || f.materialCode || (m&&(m.id||m.materialId||m.docId)) || '');
+    var name=T((m&&(m.searchName||m.zoeknaam||m.name||m.description||m.omschrijving)) || f.searchName || f.zoeknaam || f.name || f.description || f.omschrijving || '');
+    var qty=T(m&&(m.qty||m.count||m.aantal||m.quantity));
+    var left=(qty ? qty+'x ' : '')+code;
+    if(name && N(name)!==N(code)) return left+' - '+name;
+    return left || name;
+  }
+  window.BNS644_driverMaterialLabel = labelFromMat;
+  function enrichText(txt){
+    if(!txt || txt.indexOf(' - ')>=0) return txt;
+    return txt.replace(/\b([A-Z]{2,10}\d{1,5})\b/g,function(full,code){
+      var m=findMatByCode(code);
+      if(!m) return full;
+      var name=T(m.searchName||m.zoeknaam||m.name||m.description||m.omschrijving);
+      if(!name || N(name)===N(code)) return full;
+      return code+' - '+name;
+    });
+  }
+  function isDriverArea(el){
+    if(!el || !el.closest) return false;
+    return !!el.closest('#bnsMobileDriverApp,#bnsV83PhoneApp,.v95order,.bns-v83-phone-card,.bns-mobile-card,.bns-v100-detail,.bns-driver-mode');
+  }
+  function apply(){
+    var roots=[];
+    ['bnsMobileDriverApp','bnsV83PhoneApp'].forEach(function(id){ var e=document.getElementById(id); if(e) roots.push(e); });
+    if(document.body && document.body.classList && document.body.classList.contains('bns-driver-mode')) roots.push(document.body);
+    roots.forEach(function(root){
+      var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+      var nodes=[];
+      while(walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(function(n){
+        var p=n.parentElement;
+        if(!p || p.dataset.bns644Done==='1' || !isDriverArea(p)) return;
+        var old=n.nodeValue;
+        if(!/\b[A-Z]{2,10}\d{1,5}\b/.test(old)) return;
+        var neu=enrichText(old);
+        if(neu!==old){ n.nodeValue=neu; p.dataset.bns644Done='1'; }
+      });
+    });
+  }
+  ['renderPhone83','renderPhoneApp','render'].forEach(function(name){
+    try{
+      var old=window[name];
+      if(typeof old==='function' && !old.__bns644){
+        var fn=function(){ var r=old.apply(this,arguments); setTimeout(apply,50); setTimeout(apply,500); return r; };
+        fn.__bns644=true; window[name]=fn;
+      }
+    }catch(e){}
+  });
+  document.addEventListener('DOMContentLoaded',function(){ setTimeout(apply,500); setTimeout(apply,1500); });
+  setInterval(apply,2500);
+})();
+
