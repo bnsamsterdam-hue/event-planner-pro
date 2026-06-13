@@ -303,19 +303,38 @@ function canPhotoBefore(){return hasAnyRight(["fotoVoor","photoBefore","foto_voo
 function canPhotoAfter(){return hasAnyRight(["fotoNa","photoAfter","foto_na","fotoNaLevering","photo_after","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
 function canSignature(){return hasAnyRight(["handtekening","signature","sign","klantHandtekening","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
 
+function canAnyReportAction(){return canReport()||canDamage()}
+function canAnyPhotoAction(){return canPhotoBefore()||canPhotoAfter()}
+function searchIndexText(o){
+  const parts=[];
+  function add(v){v=clean(v); if(v) parts.push(v)}
+  add(o&&o.number); add(o&&o.title); add(o&&o.status); add(customerName(o)); add(customerPhone(o)); add(addressOf(o)); add(driverName(o));
+  if(o&&o.location&&typeof o.location==='object'){[o.location.name,o.location.street,o.location.city,o.location.zip].forEach(add)}
+  materialList(o).forEach(m=>{add(m.name); add(m.extra)});
+  return lower(parts.join(' '));
+}
+function applyDriverSearch(){
+  const inp=$("searchBox");
+  const q=lower(inp&&inp.value);
+  qsa(".order").forEach(el=>{
+    const hay=lower(el.getAttribute('data-search')||el.innerText||'');
+    el.style.display=!q||hay.includes(q)?"":"none";
+  });
+}
+
 function orderBadges(o){
-  const badges=[`<span class="badge">${esc(o.status||"Open")}</span>`];
-  if(canAgenda())badges.push(`<span class="badge">Agenda</span>`);
-  if(canRoute())badges.push(`<span class="badge ok">Route</span>`);
+  // BNS v647: verwijder niet-klikbare bovenste knoppen/labels op de bezorgertelefoon.
+  // Status blijft zichtbaar, echte acties staan als grote knoppen onder de opdracht.
+  const badges=[];
+  if(o.status) badges.push(`<span class="badge">${esc(o.status||"Open")}</span>`);
   if(otherCustomerOrders(o).length)badges.push(`<span class="badge warn">Meer artikelen</span>`);
-  if(canPrices())badges.push(`<span class="badge dark">Prijzen</span>`);
   return badges.join("");
 }
 
 function orderCard(o){
   const a=addressOf(o),p=customerPhone(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
   const mats=materialList(o);
-  return `<article class="order-card order" data-id="${esc(o.id)}">
+  return `<article class="order-card order" data-id="${esc(o.id)}" data-search="${esc(searchIndexText(o))}">
     <span class="order-number">${esc(o.number||"Opdracht")}</span>
     <div class="order-title">${esc(o.title||"Zonder titel")}</div>
     <div class="badges">${orderBadges(o)}</div>
@@ -330,9 +349,7 @@ function orderCard(o){
       ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
       ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Maps</a>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
-      ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
+      ${canAnyReportAction()?`<button type="button" class="btn btn-orange" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
@@ -372,10 +389,7 @@ function detailHtml(o){
       ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Google Maps</a>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAgenda()?`<button type="button" class="btn btn-dark" data-agenda="${esc(o.id)}">Agenda info</button>`:""}
-      ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
+      ${canAnyReportAction()?`<button type="button" class="btn btn-orange wide" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
@@ -416,6 +430,32 @@ function askConfirm(title, text){
 }
 function canQuote(){return hasAnyRight(["invoice","factuur","offerte","quote","offer","orders"])||lower(BNS.user.role)==="admin"}
 function money(v){const n=Number(String(v||0).replace(',','.'));return Number.isFinite(n)&&n?('€ '+n.toFixed(2).replace('.',',')):clean(v||'')}
+function askChoice(title, options){
+  return new Promise(resolve=>{
+    const wrap=document.createElement("div");
+    wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:16px";
+    const rows=(options||[]).map(opt=>`<button type="button" class="${esc(opt.cls||'btn-dark')}" data-choice="${esc(opt.value)}" style="width:100%;margin:6px 0">${esc(opt.label||opt.value)}</button>`).join("");
+    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35)"><h2 style="margin-top:0">${esc(title)}</h2>${rows}<button type="button" id="twChoiceCancel" class="btn-dark" style="width:100%;margin-top:10px">Annuleren</button></div>`;
+    document.body.appendChild(wrap);
+    qsa("[data-choice]",wrap).forEach(b=>b.onclick=()=>{const v=b.dataset.choice;wrap.remove();resolve(v)});
+    wrap.querySelector("#twChoiceCancel").onclick=()=>{wrap.remove();resolve("")};
+  });
+}
+async function openReportChoice(order){
+  const opts=[];
+  if(canReport()) opts.push({value:"Melding",label:"Algemene melding",cls:"btn-orange"});
+  if(canDamage()) opts.push({value:"Schade",label:"Schade",cls:"btn-red"},{value:"Storing",label:"Storing",cls:"btn-purple"},{value:"Vermissing",label:"Vermissing",cls:"btn-dark"});
+  const type=await askChoice("Melding maken",opts);
+  if(type) await sendReport(order,type);
+}
+async function openPhotoChoice(order){
+  const opts=[];
+  if(canPhotoBefore()) opts.push({value:"Foto voor levering",label:"Foto voor levering",cls:"btn-dark"});
+  if(canPhotoAfter()) opts.push({value:"Foto na levering",label:"Foto na levering",cls:"btn-dark"});
+  const type=await askChoice("Foto / bewijs",opts);
+  if(type) await sendPhoto(order,type);
+}
+
 function quoteHtml(o){
   const mats=materialList(o);
   return `<div style="padding:10px"><h2>${esc(o.number||'Opdracht')} - ${esc(o.title||'')}</h2><p><b>Klant:</b> ${esc(customerName(o)||'')}<br><b>Datum:</b> ${esc(niceDate(orderStart(o)))}${orderEnd(o)&&orderEnd(o)!==orderStart(o)?' t/m '+esc(niceDate(orderEnd(o))):''}<br><b>Adres:</b> ${esc(addressOf(o)||'')}</p><h3>Materialen</h3><ul>${mats.map(m=>`<li>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}${m.extra?' - '+esc(m.extra):''}</li>`).join('')||'<li>Geen materialen</li>'}</ul>${canPrices()?`<p><b>Totaal:</b> ${esc(money(o.amount||o.total||o.price||''))}<br><b>Borg:</b> ${esc(money(o.deposit||o.borg||''))}</p>`:''}<p>${esc(o.extra||o.notes||'')}</p></div>`;
@@ -576,8 +616,7 @@ function enhanceDriverButtons(){
   function addMediaButtons(grid,id){
     if(!id||!grid||grid.dataset.media143)return;
     grid.dataset.media143="1";
-    if(canPhotoBefore()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-dark" data-photo-before="${esc(id)}">Foto voor</button>`);
-    if(canPhotoAfter()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-dark" data-photo-after="${esc(id)}">Foto na</button>`);
+    if(canAnyPhotoAction()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-dark" data-photo-menu="${esc(id)}">Foto / bewijs</button>`);
     if(canSignature()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-purple wide" data-signature="${esc(id)}">Handtekening klant</button>`);
   }
 
@@ -596,6 +635,7 @@ function enhanceDriverButtons(){
 
   qsa("[data-photo-before]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoBefore); if(o)sendPhoto(o,"Foto voor levering")}});
   qsa("[data-photo-after]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoAfter); if(o)sendPhoto(o,"Foto na levering")}});
+  qsa("[data-photo-menu]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoMenu); if(o)openPhotoChoice(o)}});
   qsa("[data-signature]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.signature); if(o)openSignatureModal(o)}});
 }
 
@@ -606,6 +646,7 @@ function bindActions(){
   qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!await askConfirm("Opdracht afmelden", "Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadPhoneData();showOrders();render()}});
   qsa("[data-quote]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.quote); if(o)openQuote(o)}});
   qsa("[data-report]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.report);if(!o)return;await sendReport(o,b.dataset.type||"Melding")}});
+  qsa("[data-report-menu]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.reportMenu);if(!o)return;await openReportChoice(o)}});
   qsa("[data-agenda]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.agenda);if(!o)return;toast(`Agenda:\n${niceDate(orderStart(o))} ${o.startTime||""} - ${o.endTime||""}`)}});
 }
 
@@ -617,6 +658,36 @@ function showApp(){
   $("logoutBtn").classList.remove("hidden");
   $("who").textContent=BNS.user?`${BNS.user.name} - ${BNS.user.role||"Medewerker"}`:"";
   render();
+}
+
+function installSearchKeyboard(){
+  const inp=$("searchBox");
+  if(!inp||inp.dataset.bns647Keyboard) return;
+  inp.dataset.bns647Keyboard="1";
+  inp.setAttribute("readonly","readonly");
+  inp.setAttribute("inputmode","none");
+  inp.setAttribute("autocomplete","off");
+  inp.setAttribute("autocorrect","off");
+  inp.setAttribute("spellcheck","false");
+  inp.placeholder=inp.placeholder||"Zoeken";
+  function showKb(){
+    let kb=$("bns647SearchKeyboard");
+    if(kb){kb.classList.remove("hidden");return;}
+    kb=document.createElement("div");
+    kb.id="bns647SearchKeyboard";
+    kb.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:999998;background:#fff;border-top:2px solid #dbeafe;box-shadow:0 -18px 60px rgba(15,23,42,.22);padding:10px;max-height:55vh;overflow:auto";
+    const keys=["1","2","3","4","5","6","7","8","9","0","Q","W","E","R","T","Y","U","I","O","P","A","S","D","F","G","H","J","K","L","Z","X","C","V","B","N","M","-","/","."];
+    kb.innerHTML=`<div style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px">${keys.map(k=>`<button type="button" data-k="${esc(k)}" style="padding:12px 0;border-radius:12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:900;font-size:18px">${esc(k)}</button>`).join("")}</div><div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;margin-top:8px"><button type="button" data-space style="padding:14px;border-radius:14px;border:0;background:#e2e8f0;font-weight:900">Spatie</button><button type="button" data-backspace style="padding:14px;border-radius:14px;border:0;background:#334155;color:#fff;font-weight:900">Wis</button><button type="button" data-clear style="padding:14px;border-radius:14px;border:0;background:#ef4444;color:#fff;font-weight:900">Leeg</button><button type="button" data-close style="padding:14px;border-radius:14px;border:0;background:#16a34a;color:#fff;font-weight:900">Klaar</button></div>`;
+    document.body.appendChild(kb);
+    qsa("[data-k]",kb).forEach(b=>b.onclick=()=>{inp.value+=b.dataset.k;applyDriverSearch()});
+    kb.querySelector("[data-space]").onclick=()=>{inp.value+=" ";applyDriverSearch()};
+    kb.querySelector("[data-backspace]").onclick=()=>{inp.value=inp.value.slice(0,-1);applyDriverSearch()};
+    kb.querySelector("[data-clear]").onclick=()=>{inp.value="";applyDriverSearch()};
+    kb.querySelector("[data-close]").onclick=()=>{kb.classList.add("hidden");inp.blur()};
+  }
+  inp.addEventListener("focus",e=>{try{inp.blur()}catch(_e){};showKb()});
+  inp.addEventListener("click",e=>{e.preventDefault();showKb()});
+  inp.addEventListener("touchstart",e=>{showKb()},{passive:true});
 }
 
 async function boot(){
@@ -638,8 +709,9 @@ async function boot(){
 
   toast("Verversd");
 };
-    $("clearSearchBtn").onclick=()=>{$("searchBox").value="";qsa(".order").forEach(el=>el.style.display="")};
-    $("searchBox").oninput=()=>{const q=lower($("searchBox").value);qsa(".order").forEach(el=>{el.style.display=!q||lower(el.innerText).includes(q)?"":"none"})};
+    installSearchKeyboard();
+    $("clearSearchBtn").onclick=()=>{$("searchBox").value="";applyDriverSearch()};
+    $("searchBox").oninput=applyDriverSearch;
     restoreSession(userAllowed,SESSION_KEY,showApp);
   }catch(e){console.error(e);setStatus("Fout: "+e.message)}
 }
