@@ -1,5 +1,5 @@
 const FIREBASE_VERSION="10.12.5";
-const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[]}};
+const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
 const $=id=>document.getElementById(id);
 const qsa=(sel,root=document)=>Array.from(root.querySelectorAll(sel));
@@ -24,7 +24,46 @@ function addressOf(o){const p=[];const add=v=>{v=clean(v);if(v&&!p.includes(v))p
 function customerName(o){return clean(o.customerName||(o.customer&&o.customer.name)||o.klant||"")}
 function customerPhone(o){return clean(o.customerPhone||o.phone||(o.customer&&o.customer.phone)||"")}
 function driverName(o){return clean(o.driverName||o.driver||o.bezorger||"")}
-function materialList(o){const m=o.materials||o.mats||[];return Array.isArray(m)?m.map(x=>typeof x==="string"?{name:x,qty:""}:{name:x.code||x.name||"",qty:x.qty||x.count||x.aantal||"",extra:x.extra||x.note||""}).filter(x=>x.name):[]}
+function matClean(v){return String(v==null?"":v).trim()}
+function matKey(v){return matClean(v).toUpperCase().replace(/\s+/g,"")}
+function matNameOf(m){return matClean(m&&(m.zoeknaam||m.searchName||m.search||m.productZoeknaam||m.productName||m.name||m.title||m.omschrijving||m.description))}
+function matCodeOf(m){return matClean(m&&(m.code||m.nummer||m.number||m.nr||m.materialCode||m.artikelnummer))}
+function matIdValues(m){
+  const out=[];
+  if(!m) return out;
+  [m.id,m.docId,m.materialId,m.material_id,m.oldId,m.code,m.nummer,m.number,m.nr].forEach(v=>{v=matClean(v); if(v) out.push(v)});
+  const cat=matClean(m.cat||m.rubriek||m.category||m.group), nr=matClean(m.nummer||m.number||m.nr);
+  if(cat&&nr) out.push(cat+nr, cat+"-"+nr, cat+" "+nr);
+  return out;
+}
+function sameMatRef(a,b){
+  const av=matIdValues(a), bv=matIdValues(b);
+  if(!av.length||!bv.length) return false;
+  for(const x of av){for(const y of bv){if(matClean(x) && matClean(x)===matClean(y)) return true;}}
+  for(const x of av){for(const y of bv){if(matKey(x) && matKey(x)===matKey(y)) return true;}}
+  return false;
+}
+function findMaterialInfo(x){
+  const list=Array.isArray(BNS.state.materials)?BNS.state.materials:[];
+  if(!list.length) return null;
+  const ref=typeof x==="string"?{code:x,id:x}:x;
+  return list.find(m=>sameMatRef(ref,m))||null;
+}
+function materialList(o){
+  const m=o.materials||o.mats||[];
+  if(!Array.isArray(m)) return [];
+  return m.map(x=>{
+    const raw=typeof x==="string"?{code:x,name:"",qty:""}:Object.assign({},x||{});
+    const info=findMaterialInfo(raw);
+    const qty=raw.qty||raw.count||raw.aantal||raw.amount||"";
+    const code=matCodeOf(raw)||matCodeOf(info)||matClean(typeof x==="string"?x:"");
+    const nm=matNameOf(info)||matNameOf(raw);
+    let label=code||nm;
+    if(code&&nm&&matKey(code)!==matKey(nm)) label=code+" - "+nm;
+    const extra=raw.extra||raw.note||"";
+    return {name:label,qty:qty,extra:extra};
+  }).filter(x=>x.name);
+}
 function materialText(o){const m=materialList(o);return m.length?m.map(x=>`${x.qty?x.qty+"x ":""}${x.name}`).join(", "):""}
 function routeUrl(type,a){const q=encodeURIComponent(a||"");return type==="waze"?`https://waze.com/ul?q=${q}&navigate=yes`:`https://www.google.com/maps/search/?api=1&query=${q}`}
 
@@ -63,11 +102,13 @@ async function loadInitial(){
   setStatus("Data laden...");
   BNS.state.users=await loadCollection("users");
   BNS.state.orders=await loadCollection("orders");
+  try{ BNS.state.materials=await loadCollection("materials"); }catch(e){ BNS.state.materials=BNS.state.materials||[]; }
   try{ BNS.state.alerts=await loadCollection("alerts"); }catch(e){}
   setStatus("Data geladen");
 }
 async function loadOrdersOnly(){
   BNS.state.orders=await loadCollection("orders");
+  try{ BNS.state.materials=await loadCollection("materials"); }catch(e){}
 }
 async function loadUsersOnly(){
   BNS.state.users=await loadCollection("users");
@@ -79,6 +120,7 @@ async function loadUsersOnly(){
 async function loadPhoneData(){
   BNS.state.users=await loadCollection("users");
   BNS.state.orders=await loadCollection("orders");
+  try{ BNS.state.materials=await loadCollection("materials"); }catch(e){ BNS.state.materials=BNS.state.materials||[]; }
   try{ BNS.state.alerts=await loadCollection("alerts"); }catch(e){}
   if(BNS.user){
     const fresh=(BNS.state.users||[]).find(u=>String(u.id)===String(BNS.user.id));
