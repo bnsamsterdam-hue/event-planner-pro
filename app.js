@@ -38800,23 +38800,6 @@ setTimeout(()=>{
     var b=document.createElement('button');b.type='button';b.className='bns356-overview';b.textContent='Overzicht bestelling';
     b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();return window.BNS_V128_SHOW_ORDER_OVERVIEW(o.id);};
     actions.insertBefore(b,actions.firstChild||null);
-    // BNS v656: alleen extra knop naast Overzicht bestelling. Geen status/save/transport wijziging.
-    // Tekst bewust 'Opdracht document' zodat oude globale document-click handlers niet het verkeerde formulier openen.
-    if(!cardEl.querySelector('.bns656-opdrachtdoc')){
-      var d=document.createElement('button');
-      d.type='button';
-      d.className='bns356-overview bns656-opdrachtdoc';
-      d.style.background='#ea580c';
-      d.textContent='Opdracht document';
-      d.onclick=function(ev){
-        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();
-        if(typeof window.TW300_AU_openDoc==='function') return window.TW300_AU_openDoc(o.id||o.number,'opdrachtbevestiging');
-        if(typeof window.BNS528_openDoc==='function') return window.BNS528_openDoc(o.id||o.number,'opdrachtbevestiging');
-        alert('Documentfunctie niet gevonden.');
-        return false;
-      };
-      b.insertAdjacentElement('afterend',d);
-    }
   }
   function routeFix(cardEl,o){
     // Verwijder bestaande routenet knoppen
@@ -43813,7 +43796,7 @@ setTimeout(()=>{
         b.textContent='Maak factuur'; b.setAttribute('data-bns421-doc','factuur');
       }
       if(t==='opdracht bevestiging' || t.indexOf('opdrachtbevestiging')>=0 || t.indexOf('overzicht / opdrachtbevestiging')>=0){
-        b.textContent = t.indexOf('overzicht')>=0 ? 'Overzicht / opdracht maken' : 'Maak opdracht document';
+        b.textContent = t.indexOf('overzicht')>=0 ? 'Overzicht / opdracht maken' : 'Opdracht document';
         b.setAttribute('data-bns421-doc','opdracht');
       }
     });
@@ -44047,7 +44030,7 @@ setTimeout(()=>{
         b.textContent='Maak factuur'; b.setAttribute('data-bns422-doc','factuur');
       }
       if(t==='opdracht bevestiging' || t==='maak opdracht document' || t.indexOf('opdrachtbevestiging')>=0 || t.indexOf('overzicht / opdracht')>=0){
-        b.textContent = t.indexOf('overzicht')>=0 ? 'Overzicht / opdrachtbevestiging maken' : 'Maak opdrachtbevestiging';
+        b.textContent = t.indexOf('overzicht')>=0 ? 'Overzicht bestelling' : 'Opdracht document';
         b.setAttribute('data-bns422-doc','opdracht');
       }
     });
@@ -44308,7 +44291,7 @@ setTimeout(()=>{
       var t=T(b.textContent).toLowerCase();
       if(t==='factuur maken'||t==='maak factuur'||t==='factuur'){ b.textContent='Maak factuur'; b.removeAttribute('data-bns422-doc'); b.setAttribute('data-bns423-doc','factuur'); }
       if(t==='opdracht bevestiging'||t==='maak opdrachtbevestiging'||t.indexOf('opdrachtbevestiging')>=0||t.indexOf('overzicht / opdracht')>=0){
-        b.textContent=t.indexOf('overzicht')>=0?'Overzicht / opdrachtbevestiging maken':'Maak opdrachtdocument';
+        b.textContent=t.indexOf('overzicht')>=0?'Overzicht bestelling':'Opdracht document';
         b.removeAttribute('data-bns422-doc'); b.setAttribute('data-bns423-doc','opdracht');
       }
     });
@@ -47095,7 +47078,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     box.innerHTML=rows.length?rows.map(function(o){
       var id=H(T(o.id)||orderNo(o));
       var label=paid(o)?'Betaald':'Openstaand';
-      return '<div class="bns528-card"><div class="bns528-main"><div><b>'+H(invoiceNo(o)||orderNo(o)||'-')+'</b><small>Factuur</small></div><div><b>'+H(customerName(o)||'-')+'</b><small>Klant</small></div><div><b>'+H(titleOf(o)||'-')+'</b><small>Opdracht</small></div><div><b>'+H(yearOf(o))+'</b><small>Jaar</small></div></div><div class="bns528-side"><span class="bns528-badge '+(paid(o)?'paid':'open')+'">'+label+'</span><b>'+H(euro(amount(o)))+'</b><button class="bns528-pay" type="button" onclick="BNS528_setPaid(\''+id+'\','+(!paid(o))+')">'+(paid(o)?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'opdrachtbevestiging\')">Maak opdrachtdocument</button><button class="bns528-del" type="button" onclick="BNS528_deleteInvoice(\''+id+'\')">Verwijder</button></div></div>';
+      return '<div class="bns528-card"><div class="bns528-main"><div><b>'+H(invoiceNo(o)||orderNo(o)||'-')+'</b><small>Factuur</small></div><div><b>'+H(customerName(o)||'-')+'</b><small>Klant</small></div><div><b>'+H(titleOf(o)||'-')+'</b><small>Opdracht</small></div><div><b>'+H(yearOf(o))+'</b><small>Jaar</small></div></div><div class="bns528-side"><span class="bns528-badge '+(paid(o)?'paid':'open')+'">'+label+'</span><b>'+H(euro(amount(o)))+'</b><button class="bns528-pay" type="button" onclick="BNS528_setPaid(\''+id+'\','+(!paid(o))+')">'+(paid(o)?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'opdrachtbevestiging\')">Opdracht document</button><button class="bns528-del" type="button" onclick="BNS528_deleteInvoice(\''+id+'\')">Verwijder</button></div></div>';
     }).join(''):'<div class="bns528-empty">Geen facturen gevonden.</div>';
   }
 
@@ -47631,7 +47614,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 /* =========================================================
    BNS 545 - Factuur status weg + dubbele documentknoppen opruimen
    - Factuur toont geen opdrachtstatus meer bovenin, betaling blijft staan
-   - Dubbele onderste Maak factuur / Maak opdrachtdocument knoppen weg
+   - Dubbele onderste Maak factuur / Opdracht document knoppen weg
    - Bovenste blauwe/oranje documentknoppen en Print/Mail/Delen blijven actief
    ========================================================= */
 (function(){
@@ -50884,7 +50867,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
    Basis: v652.
    Doel:
    - Klik op Overzicht maken/Overzicht bestelling opent eerst 3 keuzes.
-   - Factuur bekijken en Opdrachtbevestiging bekijken worden direct gevuld vanuit opgeslagen opdracht.
+   - Factuur bekijken en Opdracht document worden direct gevuld vanuit opgeslagen opdracht.
    - Transportregels extra stevig terugzetten in Wijzig opdracht.
    Raakt niet: driver, admin, reserveringen, materiaalkeuze, boekhoudingstatus.
 ========================================================= */
@@ -51030,9 +51013,9 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 /* =========================================================
    BNS 654 - Overzicht keuze gebruikt werkende Documenten-route
    Basis: v653
-   - Knoppen blijven: Overzicht bestelling / Opdrachtbevestiging bekijken / Factuur bekijken
+   - Knoppen blijven: Overzicht bestelling / Opdracht document / Factuur bekijken
    - Factuur en opdrachtbevestiging openen via bestaande TW300_AU_openDoc route
-     (dezelfde route als Wijzigen -> Documenten -> Maak factuur / Maak opdrachtbevestiging)
+     (dezelfde route als Wijzigen -> Documenten -> Maak factuur / Opdracht document)
    - Geen oude/verwijderde documentfunctie gebruiken
    - Raakt transport/admin/reserveringen/driver niet aan
    ========================================================= */
