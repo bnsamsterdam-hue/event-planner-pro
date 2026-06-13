@@ -50508,7 +50508,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 })();
 
 /* =========================================================
-   BNS 642 - Admin materiaal opslaan exact op nummer/id + verwijderen hard naar Firebase + formulier leeg na wissen
+   BNS 643 - Admin nieuw materiaal gebruikt nieuw nummer/id en overschrijft niet laatste selectie
    Basis: huidige goede v639 + admin-fix voorbeeld uit app80.
    Doel:
    - BNS608/609 houden Firebase-materialen leidend voor lezen/kiezen.
@@ -50602,15 +50602,24 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!code || !cat){ return null; }
     var oldById = selectedId ? findMat(selectedId,'') : null;
     var oldByCode = code ? findMat('',code) : null;
-    var old = forceNewMaterial ? {} : (oldById || oldByCode || {});
+    var selectedOldCode = oldById ? codeOf(oldById) : U(selectedCode);
+    var currentCodeDiffersFromSelection = !!(selectedId && code && selectedOldCode && code !== selectedOldCode);
+
+    // Belangrijk: bij nieuw materiaal of als het nummer/code in het formulier anders is dan
+    // het laatst geselecteerde materiaal, mag de oude selectedId NIET hergebruikt worden.
+    // Anders overschrijft nieuw nummer 75 per ongeluk het laatst opgeslagen nummer 67.
+    var isNewByCodeChange = forceNewMaterial || currentCodeDiffersFromSelection || (!oldById && !oldByCode);
+    var old = isNewByCodeChange ? (oldByCode || {}) : (oldById || oldByCode || {});
     var id = '';
-    if(forceNewMaterial){
-      id = cleanIdFromCode(code);
-      // Bij nieuw materiaal nooit op naam vergelijken. Alleen exact nummer/code/id.
-      // Als hetzelfde nummer/code al bestaat, maak geen stille overschrijving.
+    if(isNewByCodeChange){
       if(oldByCode && idOf(oldByCode)){
-        try{ alert('Dit productnummer bestaat al: '+code+'. Kies een ander nummer of wijzig het bestaande materiaal.'); }catch(e){}
-        return null;
+        // Exact hetzelfde nummer/code bestaat al: dan wijzigen we dat bestaande materiaal,
+        // maar nog steeds nooit op naam vergelijken.
+        id = idOf(oldByCode);
+        old = oldByCode;
+      }else{
+        id = cleanIdFromCode(code);
+        old = {};
       }
     }else{
       id = selectedId || idOf(old) || cleanIdFromCode(code);
@@ -50890,5 +50899,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   window.BNS641DeleteMaterialDirect=deleteDirect;
   window.BNS642SaveMaterialDirect=saveDirect;
   window.BNS642DeleteMaterialDirect=deleteDirect;
-  console.info('[BNS 642] Admin materiaal direct Firebase save/delete actief; na wissen formulier leeg.');
+  window.BNS643SaveMaterialDirect=saveDirect;
+  window.BNS643DeleteMaterialDirect=deleteDirect;
+  console.info('[BNS 643] Admin materiaal save/delete actief; nieuw nummer overschrijft laatste selectie niet.');
 })();
