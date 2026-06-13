@@ -50817,14 +50817,10 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!card) return;
     var o=findOpenOverviewOrder();
     if(!o) return;
-    if(!card.querySelector('#bns652OverviewChoice')){
-      var choice=document.createElement('div');
-      choice.id='bns652OverviewChoice';
-      choice.innerHTML='<button type="button" class="bns652-choice active">Overzicht bestelling</button><button type="button" class="bns652-choice" data-bns652-doc="opdracht">Opdrachtbevestiging</button><button type="button" class="bns652-choice" data-bns652-doc="factuur">Factuur</button>';
-      var head=card.querySelector('.bns-v493-head,.bns-order-overview-head');
-      if(head && head.parentNode) head.parentNode.insertBefore(choice, head.nextSibling); else card.insertBefore(choice,card.firstChild);
-      A('[data-bns652-doc]',choice).forEach(function(b){ b.onclick=function(){ openDocFor(o,b.getAttribute('data-bns652-doc')); }; });
-    }
+    // BNS 661: oude documentknoppen in het geopende Overzicht bestelling niet meer toevoegen.
+    // De enige keuze staat al op de opdrachtkaart via de hoofdknop Overzicht bestelling.
+    var oldChoice=card.querySelector('#bns652OverviewChoice');
+    if(oldChoice) oldChoice.remove();
     var lines=linesForOrder(o);
     if(lines.length && !card.querySelector('#bns652OverviewTransport')){
       var tr=document.createElement('div'); tr.id='bns652OverviewTransport';
@@ -50859,7 +50855,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   ensureOverviewStyle();
   setInterval(injectOverviewTools,1200);
 
-  console.info('[BNS 652] overzichtkeuze + transport terugladen actief.');
+  console.info('[BNS 661] Overzicht bestelling zonder oude documentknoppen; transport/kostenoverzicht blijft actief.');
 })();
 
 /* =========================================================
