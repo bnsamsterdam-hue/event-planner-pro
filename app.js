@@ -44291,7 +44291,7 @@ setTimeout(()=>{
       var t=T(b.textContent).toLowerCase();
       if(t==='factuur maken'||t==='maak factuur'||t==='factuur'){ b.textContent='Maak factuur'; b.removeAttribute('data-bns422-doc'); b.setAttribute('data-bns423-doc','factuur'); }
       if(t==='opdracht bevestiging'||t==='maak opdrachtbevestiging'||t.indexOf('opdrachtbevestiging')>=0||t.indexOf('overzicht / opdracht')>=0){
-        b.textContent=t.indexOf('overzicht')>=0?'Overzicht / opdrachtbevestiging maken':'Opdracht document';
+        b.textContent=t.indexOf('overzicht')>=0?'Overzicht / opdrachtbevestiging maken':'Maak opdrachtdocument';
         b.removeAttribute('data-bns422-doc'); b.setAttribute('data-bns423-doc','opdracht');
       }
     });
@@ -47078,7 +47078,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     box.innerHTML=rows.length?rows.map(function(o){
       var id=H(T(o.id)||orderNo(o));
       var label=paid(o)?'Betaald':'Openstaand';
-      return '<div class="bns528-card"><div class="bns528-main"><div><b>'+H(invoiceNo(o)||orderNo(o)||'-')+'</b><small>Factuur</small></div><div><b>'+H(customerName(o)||'-')+'</b><small>Klant</small></div><div><b>'+H(titleOf(o)||'-')+'</b><small>Opdracht</small></div><div><b>'+H(yearOf(o))+'</b><small>Jaar</small></div></div><div class="bns528-side"><span class="bns528-badge '+(paid(o)?'paid':'open')+'">'+label+'</span><b>'+H(euro(amount(o)))+'</b><button class="bns528-pay" type="button" onclick="BNS528_setPaid(\''+id+'\','+(!paid(o))+')">'+(paid(o)?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'opdrachtbevestiging\')">Opdracht document</button><button class="bns528-del" type="button" onclick="BNS528_deleteInvoice(\''+id+'\')">Verwijder</button></div></div>';
+      return '<div class="bns528-card"><div class="bns528-main"><div><b>'+H(invoiceNo(o)||orderNo(o)||'-')+'</b><small>Factuur</small></div><div><b>'+H(customerName(o)||'-')+'</b><small>Klant</small></div><div><b>'+H(titleOf(o)||'-')+'</b><small>Opdracht</small></div><div><b>'+H(yearOf(o))+'</b><small>Jaar</small></div></div><div class="bns528-side"><span class="bns528-badge '+(paid(o)?'paid':'open')+'">'+label+'</span><b>'+H(euro(amount(o)))+'</b><button class="bns528-pay" type="button" onclick="BNS528_setPaid(\''+id+'\','+(!paid(o))+')">'+(paid(o)?'Zet openstaand':'Zet betaald')+'</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'factuur\')">Open factuur</button><button type="button" onclick="BNS528_openDoc(\''+id+'\',\'opdrachtbevestiging\')">Maak opdrachtdocument</button><button class="bns528-del" type="button" onclick="BNS528_deleteInvoice(\''+id+'\')">Verwijder</button></div></div>';
     }).join(''):'<div class="bns528-empty">Geen facturen gevonden.</div>';
   }
 
@@ -47614,7 +47614,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 /* =========================================================
    BNS 545 - Factuur status weg + dubbele documentknoppen opruimen
    - Factuur toont geen opdrachtstatus meer bovenin, betaling blijft staan
-   - Dubbele onderste Maak factuur / Opdracht document knoppen weg
+   - Dubbele onderste Maak factuur / Maak opdrachtdocument knoppen weg
    - Bovenste blauwe/oranje documentknoppen en Print/Mail/Delen blijven actief
    ========================================================= */
 (function(){
