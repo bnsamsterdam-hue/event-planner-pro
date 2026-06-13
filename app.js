@@ -50612,3 +50612,252 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   window.BNS639OpenAdresboek=openBook;
   console.info('[BNS 639] Adresboek terug actief - alleen klant/locatie UI.');
 })();
+
+/* =========================================================
+   BNS 652 - Overzicht keuze + transport terug in Wijzig opdracht
+   Basis: v651 transport behouden.
+   Doel:
+   - Overzicht bestelling krijgt duidelijke keuze: Overzicht / Opdrachtbevestiging / Factuur.
+   - Overzicht toont transport/kosten duidelijker.
+   - Transportregels die opgeslagen zijn worden opnieuw teruggezet in Wijzig opdracht.
+   Raakt niet: reserveringen, materialen kiezen, admin, driver, boekhoudingstatus.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS652_OVERVIEW_TRANSPORT_RELOAD__) return;
+  window.__BNS652_OVERVIEW_TRANSPORT_RELOAD__ = true;
+
+  var BACKUP_KEY = 'bns652_transport_lines_by_order_v1';
+  var lastLoadedKey = '';
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function euro(n){ return '€ '+N(n).toFixed(2).replace('.',','); }
+  function clone(v){ try{return JSON.parse(JSON.stringify(v||[]));}catch(e){return [];} }
+  function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} try{return JSON.parse(localStorage.getItem('event-planner-pro-v87')||'{}');}catch(e){} return {}; }
+  function orders(){ var s=stateObj(); return Array.isArray(s.orders) ? s.orders : []; }
+  function lineTotal(l){ return (N(l && l.qty) || 1) * N(l && l.price); }
+  function isServiceLine(l){ var t=L(l&&l.type), n=L(l&&l.name); return t==='service'||t==='servicekosten'||t==='bijzonderheid'||/service|schoonmaak|reinig|montage|demontage|aansluiten|borg correctie|kosten/.test(n); }
+  function cleanTransport(list){
+    return (Array.isArray(list)?list:[]).filter(function(l){ return l && !isServiceLine(l); }).map(function(l){
+      var x=Object.assign({},l);
+      x.type = L(x.type)==='km' ? 'km' : (L(x.type)==='toeslag' ? 'toeslag' : 'transport');
+      x.reservable=false;
+      delete x.status; delete x.materialId;
+      return x;
+    });
+  }
+  function totalTransport(lines){ return cleanTransport(lines).reduce(function(s,l){ return s + lineTotal(l); },0); }
+  function currentEditingId(){ try{return T(window.editing||editing||'');}catch(e){return T(window.editing||'');} }
+  function fieldVal(ids){ for(var i=0;i<ids.length;i++){ var el=E(ids[i]); if(el && 'value' in el && T(el.value)) return T(el.value); } return ''; }
+  function orderNumberOf(o){ return T(o && (o.number||o.orderNumber||o.orderNo||o.opdrachtNr)); }
+  function orderIdOf(o){ return T(o && (o.id||o.orderId||o.docId)); }
+  function orderKey(o){ return orderIdOf(o) || orderNumberOf(o); }
+  function currentNumber(){ return fieldVal(['orderNumber','orderNo','opdrachtNr','number']); }
+  function findOrder(keyOrObj){
+    var key = typeof keyOrObj === 'string' ? T(keyOrObj) : '';
+    var obj = (keyOrObj && typeof keyOrObj === 'object') ? keyOrObj : {};
+    var ids=[key,obj.id,obj.orderId,obj.docId,currentEditingId(),fieldVal(['orderId','editOrderId'])].map(T).filter(Boolean);
+    var nums=[key,obj.number,obj.orderNumber,obj.orderNo,currentNumber()].map(T).filter(Boolean);
+    return orders().find(function(o){
+      var id=orderIdOf(o), nr=orderNumberOf(o);
+      return (id && ids.indexOf(id)>=0) || (nr && nums.indexOf(nr)>=0);
+    }) || null;
+  }
+  function backup(){ try{return JSON.parse(localStorage.getItem(BACKUP_KEY)||'{}')||{};}catch(e){return{};} }
+  function saveBackupMap(m){ try{ localStorage.setItem(BACKUP_KEY, JSON.stringify(m||{})); }catch(e){} }
+  function backupLinesFor(o, lines){
+    lines=cleanTransport(lines);
+    if(!o || !lines.length) return;
+    var m=backup(), id=orderIdOf(o), nr=orderNumberOf(o);
+    if(id) m['id:'+id]=clone(lines);
+    if(nr) m['nr:'+nr]=clone(lines);
+    saveBackupMap(m);
+  }
+  function backupExistingOrders(){
+    try{ orders().forEach(function(o){ var lines=cleanTransport(o.transportLines||o.transport); if(lines.length) backupLinesFor(o,lines); }); }catch(e){}
+  }
+  function linesForOrder(o){
+    if(!o) return [];
+    var lines=cleanTransport(o.transportLines||o.transport);
+    if(lines.length) return lines;
+    var m=backup(), id=orderIdOf(o), nr=orderNumberOf(o);
+    if(id && Array.isArray(m['id:'+id])) return cleanTransport(m['id:'+id]);
+    if(nr && Array.isArray(m['nr:'+nr])) return cleanTransport(m['nr:'+nr]);
+    return [];
+  }
+  function updateVehicle(lines){
+    var f=E('orderVehicle'); if(!f) return;
+    var txt=cleanTransport(lines).map(function(l){ return T(l.name); }).filter(Boolean).join(', ');
+    if(txt) f.value=txt;
+    try{ f.dispatchEvent(new Event('input',{bubbles:true})); f.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
+  }
+  function renderTransportBox(lines){
+    lines=cleanTransport(lines);
+    var body=E('bns521TransportRows');
+    try{ window.__bns521TransportLines=clone(lines); }catch(e){}
+    updateVehicle(lines);
+    var tt=E('bns521TransportTotal'); if(tt) tt.textContent=euro(totalTransport(lines));
+    if(!body) return;
+    if(!lines.length){ body.innerHTML='<tr><td colspan="6"><small>Nog geen transportregels.</small></td></tr>'; return; }
+    body.innerHTML=lines.map(function(l,i){
+      var q=N(l.qty||1)||1, unit=T(l.unit); var qtxt=q+(unit?' '+H(unit):'');
+      return '<tr><td>'+H(l.name)+'</td><td>'+H(qtxt)+'</td><td>'+H(euro(l.price))+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td><td><button type="button" class="red" data-bns652-del-transport="'+i+'">x</button></td></tr>';
+    }).join('');
+    A('[data-bns652-del-transport]',body).forEach(function(b){ b.onclick=function(){ var i=Number(b.getAttribute('data-bns652-del-transport')); var arr=cleanTransport(window.__bns521TransportLines||[]); arr.splice(i,1); renderTransportBox(arr); }; });
+  }
+  function loadTransportForCurrent(force){
+    var o=findOrder({});
+    if(!o) return false;
+    var lines=linesForOrder(o);
+    if(lines.length) backupLinesFor(o,lines);
+    if(!lines.length) return false;
+    var key=orderKey(o)+'|'+lines.length+'|'+totalTransport(lines);
+    var current=cleanTransport(window.__bns521TransportLines||[]);
+    var box=E('bns521TransportBox');
+    var bodyTxt=L((E('bns521TransportRows')||{}).innerText||'');
+    var boxEmpty=!current.length || /nog geen transportregels/.test(bodyTxt);
+    if(force || boxEmpty || lastLoadedKey!==key){
+      lastLoadedKey=key;
+      renderTransportBox(lines);
+      if(box) console.info('[BNS 652] Transportregels teruggeladen in Wijzig opdracht:', orderNumberOf(o)||orderIdOf(o), lines.length);
+      return true;
+    }
+    return false;
+  }
+  function storeCurrentLines(){
+    var o=findOrder({});
+    var lines=cleanTransport(window.__bns521TransportLines||[]);
+    if(o && lines.length) backupLinesFor(o,lines);
+  }
+
+  /* Save/prepare extra veilig: als oude opdracht transport heeft en de nieuwe save leeg is, behoud oud transport. */
+  var oldPrepare = window.BNS_v519PrepareOrderBeforeSave;
+  if(typeof oldPrepare === 'function' && !oldPrepare.__bns652TransportReload){
+    var wrapped=function(order, oldOrder){
+      storeCurrentLines();
+      var old = oldOrder || findOrder(order) || null;
+      var r = oldPrepare.call(this, order, old || oldOrder);
+      var out = r || order;
+      var oldLines = linesForOrder(old || findOrder(out));
+      var newLines = cleanTransport(out && out.transportLines);
+      if(oldLines.length && !newLines.length){
+        out.transportLines = clone(oldLines);
+        out.transportTotal = totalTransport(oldLines);
+        out.vehicle = oldLines.map(function(l){return T(l.name);}).filter(Boolean).join(', ') || T(out.vehicle || (old&&old.vehicle));
+        out.pricing = Object.assign({}, out.pricing || {}, {transport:out.transportTotal});
+        try{ window.__bns521TransportLines=clone(oldLines); }catch(e){}
+        console.info('[BNS 652] Leeg transport bij opslaan tegengehouden:', out.number || out.id);
+      }
+      if(out && cleanTransport(out.transportLines).length) backupLinesFor(out,out.transportLines);
+      return out;
+    };
+    wrapped.__bns652TransportReload = true;
+    window.BNS_v519PrepareOrderBeforeSave = wrapped;
+  }
+
+  document.addEventListener('click',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var btn=t.closest('button,a,input[type="button"],input[type="submit"]'); if(!btn) return;
+    var label=L(btn.textContent || btn.value || btn.id || btn.getAttribute('data-tab') || '');
+    if(/opslaan|save/.test(label)) storeCurrentLines();
+    if(/wijzig|bewerk|open|opdracht|transport|vehiclepanel/.test(label) || btn.getAttribute('data-tab')==='vehiclePanel'){
+      setTimeout(function(){ loadTransportForCurrent(false); },120);
+      setTimeout(function(){ loadTransportForCurrent(false); },700);
+      setTimeout(function(){ loadTransportForCurrent(false); },1500);
+    }
+  },true);
+
+  document.addEventListener('input',function(ev){ if(ev.target && ev.target.closest && ev.target.closest('#bns521TransportBox')) setTimeout(storeCurrentLines,80); },true);
+  setInterval(function(){
+    if(E('bns521TransportBox')) loadTransportForCurrent(false);
+  },1800);
+  setTimeout(function(){ backupExistingOrders(); loadTransportForCurrent(false); },800);
+
+  /* ---------- Overzicht bestelling duidelijker + documentkeuze ---------- */
+  function findOpenOverviewOrder(){
+    var key=T(window.__BNS_V493_OPEN_ORDER_ID || '');
+    var o=key ? findOrder(key) : null;
+    if(o) return o;
+    var m=E('bnsV493Modal') || E('bnsOrderOverviewModal');
+    if(!m) return null;
+    var txt=T(m.innerText||'');
+    var nr=(txt.match(/\b20\d{2}-\d{3,5}\b/)||[])[0];
+    return nr ? findOrder(nr) : null;
+  }
+  function matQty(m){ return N(m && (m.qty||m.amount||m.aantal||1)) || 1; }
+  function matPrice(m){ return N(m && (m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs))); }
+  function matDeposit(m){ return N(m && (m.lineDeposit||m.deposit||m.borg)); }
+  function costTotals(o){
+    var mat=0,dep=0,trans=0;
+    (Array.isArray(o.materials)?o.materials:[]).forEach(function(m){ var q=matQty(m); mat += q*matPrice(m); dep += q*matDeposit(m); });
+    trans=totalTransport(linesForOrder(o));
+    if(!mat && o.pricing) mat=N(o.pricing.materialSubtotal || o.pricing.materials || o.pricing.subtotal || 0);
+    if(!dep && o.pricing) dep=N(o.pricing.deposit || o.pricing.borg || 0);
+    if(!trans && o.pricing) trans=N(o.pricing.transport || 0);
+    var sub=mat+trans, vat=sub*0.21, pay=sub+vat+dep;
+    return {mat:mat,trans:trans,sub:sub,vat:vat,dep:dep,pay:pay};
+  }
+  function openDocFor(o,type){
+    if(!o) return false;
+    var key=orderIdOf(o)||orderNumberOf(o);
+    if(window.TW300_AU_openDoc) return window.TW300_AU_openDoc(key,type);
+    if(window.BNS_V521_openDocument) return window.BNS_V521_openDocument(type);
+    alert('Documentfunctie niet gevonden.');
+    return false;
+  }
+  function injectOverviewTools(){
+    var m=E('bnsV493Modal') || E('bnsOrderOverviewModal');
+    if(!m) return;
+    var card=m.querySelector('.bns-v493-cardmain,.bns-order-overview-card');
+    if(!card) return;
+    var o=findOpenOverviewOrder();
+    if(!o) return;
+    if(!card.querySelector('#bns652OverviewChoice')){
+      var choice=document.createElement('div');
+      choice.id='bns652OverviewChoice';
+      choice.innerHTML='<button type="button" class="bns652-choice active">Overzicht bestelling</button><button type="button" class="bns652-choice" data-bns652-doc="opdracht">Opdrachtbevestiging</button><button type="button" class="bns652-choice" data-bns652-doc="factuur">Factuur</button>';
+      var head=card.querySelector('.bns-v493-head,.bns-order-overview-head');
+      if(head && head.parentNode) head.parentNode.insertBefore(choice, head.nextSibling); else card.insertBefore(choice,card.firstChild);
+      A('[data-bns652-doc]',choice).forEach(function(b){ b.onclick=function(){ openDocFor(o,b.getAttribute('data-bns652-doc')); }; });
+    }
+    var lines=linesForOrder(o);
+    if(lines.length && !card.querySelector('#bns652OverviewTransport')){
+      var tr=document.createElement('div'); tr.id='bns652OverviewTransport';
+      var rows=lines.map(function(l){ return '<tr><td>'+H((N(l.qty)||1)+(l.unit?' '+l.unit:'x'))+'</td><td>'+H(l.name||'')+'</td><td>'+H(l.note||'')+'</td><td style="text-align:right;font-weight:900">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join('');
+      tr.innerHTML='<h3>Transport / extra kosten</h3><table class="bns-v493-table bns-order-overview-table"><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th style="text-align:right">Bedrag</th></tr></thead><tbody>'+rows+'</tbody></table>';
+      var total=card.querySelector('.bns-v493-total,.bns-order-overview-total');
+      if(total && total.parentNode) total.parentNode.insertBefore(tr,total); else card.appendChild(tr);
+    }
+    if(!card.querySelector('#bns652CostBox')){
+      var tt=costTotals(o), box=document.createElement('div'); box.id='bns652CostBox';
+      box.innerHTML='<h3>Kosten duidelijk overzicht</h3><table class="bns652-cost-table"><tbody><tr><td>Materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Transport / extra kosten</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>Subtotaal excl. btw</td><td>'+H(euro(tt.sub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="pay"><td>Te betalen incl. btw + borg</td><td>'+H(euro(tt.pay))+'</td></tr></tbody></table>';
+      var total2=card.querySelector('.bns-v493-total,.bns-order-overview-total');
+      if(total2 && total2.parentNode) total2.parentNode.insertBefore(box,total2.nextSibling); else card.appendChild(box);
+    }
+  }
+  function ensureOverviewStyle(){
+    if(E('bns652OverviewStyle')) return;
+    var st=document.createElement('style'); st.id='bns652OverviewStyle';
+    st.textContent='#bns652OverviewChoice{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 14px;padding:10px;border:2px solid #dbeafe;border-radius:14px;background:#f8fbff}#bns652OverviewChoice .bns652-choice{border:0;border-radius:12px;padding:11px 15px;font-weight:1000;background:#0f172a;color:white;cursor:pointer}#bns652OverviewChoice .active{background:#2563eb}.bns652-cost-table{width:100%;border-collapse:collapse;background:#fff;border:2px solid #dbeafe;border-radius:14px;overflow:hidden;margin:8px 0 12px}.bns652-cost-table td{padding:9px 11px;border-bottom:1px solid #e5e7eb}.bns652-cost-table td:last-child{text-align:right;font-weight:1000}.bns652-cost-table .pay td{background:#ecfdf5;color:#065f46;font-size:18px;font-weight:1000}#bns652OverviewTransport{border:2px solid #e0f2fe;border-radius:14px;padding:10px;margin:12px 0;background:#f8fcff}';
+    document.head.appendChild(st);
+  }
+  var mo=new MutationObserver(function(){ ensureOverviewStyle(); setTimeout(injectOverviewTools,30); });
+  try{ mo.observe(document.body,{childList:true,subtree:true}); }catch(e){}
+  document.addEventListener('click',function(ev){
+    var b=ev.target && ev.target.closest && ev.target.closest('button,a'); if(!b) return;
+    var txt=L(b.textContent||b.value||'');
+    if(/overzicht bestelling|overzicht maken/.test(txt)){
+      setTimeout(function(){ ensureOverviewStyle(); injectOverviewTools(); },120);
+      setTimeout(injectOverviewTools,600);
+    }
+  },true);
+  ensureOverviewStyle();
+  setInterval(injectOverviewTools,1200);
+
+  console.info('[BNS 652] overzichtkeuze + transport terugladen actief.');
+})();
