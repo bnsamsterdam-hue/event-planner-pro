@@ -349,7 +349,7 @@ function orderCard(o){
       ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
       ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Maps</a>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
-      ${canAnyReportAction()?`<button type="button" class="btn btn-orange" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
+      ${canAnyReportAction()?`<button type="button" class="btn btn-red" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
@@ -368,28 +368,77 @@ function showOrders(){
   $("ordersView").classList.remove("hidden");
 }
 
+
+function orderField(o, keys){
+  for(const k of keys){
+    const v=o&&o[k];
+    if(v!==undefined && v!==null && String(v).trim()!=='') return v;
+  }
+  return '';
+}
+function moneyLine(label, value){
+  value=clean(value);
+  if(!value) return '';
+  return `<div><b>${esc(label)}:</b> ${esc(money(value))}</div>`;
+}
+function materialRowsHtml(o){
+  const raw=Array.isArray(o&&o.materials)?o.materials:[];
+  const mats=materialList(o);
+  if(!mats.length) return '<div class="tw-row muted">Geen materialen</div>';
+  return mats.map((m,i)=>{
+    const r=raw[i]||{};
+    const price=clean(r.price||r.prijs||r.amount||r.bedrag||'');
+    const note=clean(m.extra||r.note||r.notes||r.opmerking||'');
+    return `<div class="tw-row"><div><b>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${price?'<div class="tw-price">'+esc(money(price))+'</div>':''}</div>`;
+  }).join('');
+}
+function priceBlockHtml(o){
+  const lines=[];
+  lines.push(moneyLine('Totaal', orderField(o,['amount','total','totaal','price','bedrag','quoteTotal','invoiceTotal'])));
+  lines.push(moneyLine('Borg', orderField(o,['deposit','borg','waarborg'])));
+  lines.push(moneyLine('Transport', orderField(o,['transport','transportPrice','transportkosten'])));
+  lines.push(moneyLine('Service', orderField(o,['service','servicekosten','servicePrice'])));
+  lines.push(moneyLine('BTW', orderField(o,['vat','btw','tax'])));
+  const html=lines.filter(Boolean).join('');
+  return html || '<div class="muted">Geen apart totaalbedrag gevonden. Kijk ook bij tekst/bijzonderheden.</div>';
+}
+function textBlockHtml(o){
+  const txt=clean(o&& (o.extra||o.notes||o.note||o.description||o.bijzonderheden||o.text||''));
+  return txt ? esc(txt).replace(/\n/g,'<br>') : '<span class="muted">Geen extra tekst.</span>';
+}
+function fullOrderHtml(o, title){
+  const a=addressOf(o), p=customerPhone(o), s=orderStart(o), e=orderEnd(o);
+  const dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  return `<div class="tw-doc"><style>
+    .tw-doc{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#0f172a;padding:12px;line-height:1.45}.tw-doc h2{margin:0 0 10px;font-size:22px}.tw-card{border:1px solid #dbe3ef;border-radius:18px;padding:12px;margin:10px 0;background:#fff}.tw-grid{display:grid;grid-template-columns:1fr;gap:8px}.tw-row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #eef2f7;padding:8px 0}.tw-row:last-child{border-bottom:0}.tw-price{font-weight:900;white-space:nowrap}.muted{color:#64748b}.tw-label{font-size:12px;text-transform:uppercase;color:#64748b;font-weight:900;letter-spacing:.04em}.tw-big{font-size:16px;font-weight:800}.tw-danger{background:#fee2e2;color:#991b1b;border-radius:12px;padding:8px 10px;font-weight:900}
+  </style>
+  <h2>${esc(title||'Opdracht')} ${esc(o.number||'')}</h2>
+  <div class="tw-card">
+    <div class="tw-label">Klant en locatie</div>
+    <div class="tw-big">${esc(customerName(o)||'Klant onbekend')}</div>
+    <div>${esc(o.title||'')}</div>
+    <div>${esc(a||'Adres onbekend')}</div>
+    ${p?'<div>Tel: '+esc(p)+'</div>':''}
+  </div>
+  <div class="tw-card"><div class="tw-label">Datum / planning</div><div class="tw-big">${esc(dl||'Geen datum')}</div>${o.startTime||o.endTime?'<div>'+esc(o.startTime||'')+' - '+esc(o.endTime||'')+'</div>':''}<div>Bezorger: ${esc(driverName(o)||BNS.user?.name||'')}</div></div>
+  <div class="tw-card"><div class="tw-label">Materialen</div>${materialRowsHtml(o)}</div>
+  <div class="tw-card"><div class="tw-label">Prijzen / bedragen</div>${priceBlockHtml(o)}</div>
+  <div class="tw-card"><div class="tw-label">Tekst / bijzonderheden</div><div>${textBlockHtml(o)}</div></div>
+  </div>`;
+}
+
 function detailHtml(o){
-  const a=addressOf(o),p=customerPhone(o),mats=materialList(o),more=otherCustomerOrders(o);
-  const s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  const a=addressOf(o),p=customerPhone(o),more=otherCustomerOrders(o);
   return `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div>
   <article class="card detail-card">
-    <h2>${esc(o.number||"")} - ${esc(o.title||"Zonder titel")}</h2>
-    <div class="badges">${orderBadges(o)}</div>
-    <div class="section-title">Opdracht</div>
-    <div class="info-box">📅 ${esc(dl||"Geen datum")}<br>👤 ${esc(customerName(o)||"Klant onbekend")}<br>📍 ${esc(a||"Adres onbekend")}<br>🚚 ${esc(driverName(o)||BNS.user?.name||"")}</div>
-
-    <div class="section-title">Materialen</div>
-    <div class="info-box">${mats.length?mats.map(x=>`• ${esc(x.qty?x.qty+"x ":"")}${esc(x.name)}${x.extra?" - "+esc(x.extra):""}`).join("<br>"):"Geen materialen"}</div>
-
+    ${fullOrderHtml(o,'Open opdracht')}
     ${more.length?`<div class="section-title">Meer artikelen / opdrachten voor deze klant</div><div class="info-box">${more.map(x=>`• ${esc(x.number||"")} ${esc(x.title||"")} - ${esc(niceDate(orderStart(x)))}`).join("<br>")}</div>`:""}
-
     <div class="section-title">Acties</div>
     <div class="report-grid">
       ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
       ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Google Maps</a>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
-      ${canAgenda()?`<button type="button" class="btn btn-dark" data-agenda="${esc(o.id)}">Agenda info</button>`:""}
-      ${canAnyReportAction()?`<button type="button" class="btn btn-orange wide" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
+      ${canAnyReportAction()?`<button type="button" class="btn btn-red wide" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
       ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
     </div>
@@ -457,8 +506,7 @@ async function openPhotoChoice(order){
 }
 
 function quoteHtml(o){
-  const mats=materialList(o);
-  return `<div style="padding:10px"><h2>${esc(o.number||'Opdracht')} - ${esc(o.title||'')}</h2><p><b>Klant:</b> ${esc(customerName(o)||'')}<br><b>Datum:</b> ${esc(niceDate(orderStart(o)))}${orderEnd(o)&&orderEnd(o)!==orderStart(o)?' t/m '+esc(niceDate(orderEnd(o))):''}<br><b>Adres:</b> ${esc(addressOf(o)||'')}</p><h3>Materialen</h3><ul>${mats.map(m=>`<li>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}${m.extra?' - '+esc(m.extra):''}</li>`).join('')||'<li>Geen materialen</li>'}</ul>${canPrices()?`<p><b>Totaal:</b> ${esc(money(o.amount||o.total||o.price||''))}<br><b>Borg:</b> ${esc(money(o.deposit||o.borg||''))}</p>`:''}<p>${esc(o.extra||o.notes||'')}</p></div>`;
+  return fullOrderHtml(o,'Offerte / opdrachtbevestiging');
 }
 function openQuote(order){
   const wrap=document.createElement("div");
@@ -480,9 +528,14 @@ async function sendReport(order,type){
 
   if(!extra) return;
 
+  const label = type || "Melding";
+  const aid = "alert_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
   await addAlert({
-    id: "alert_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8),
-    source: "telefoon",
+    id: aid,
+    source: "driver",
+    portal: "driver",
+    fromDriver: true,
+    fromPhone: true,
     orderId: order.id || "",
     orderNumber: order.number || "",
     linkedOrder: order.id || "",
@@ -490,19 +543,28 @@ async function sendReport(order,type){
     orderTitle: order.title || "",
     customerName: customerName(order) || "",
     driverName: BNS.user.name || "",
-    title: type,
-    type: type,
+    title: label + (order.number ? " - " + order.number : ""),
+    type: label,
+    kind: label,
+    category: label,
+    reportType: label,
+    alertType: label,
     text: extra,
     note: extra,
     message: extra,
+    description: extra,
     resolved: false,
+    done: false,
+    hidden: false,
+    admin: true,
+    visibleInPlanner: true,
     createdAt: new Date().toISOString(),
     time: new Date().toLocaleString("nl-NL"),
     from: BNS.user.name || "",
     userId: BNS.user.id || ""
   });
 
-  toast(`${type} verstuurd voor opdracht ${order.number || ""}`);
+  toast(`${label} verstuurd voor opdracht ${order.number || ""}`);
 }
 
 
@@ -662,8 +724,8 @@ function showApp(){
 
 function installSearchKeyboard(){
   const inp=$("searchBox");
-  if(!inp||inp.dataset.bns647Keyboard) return;
-  inp.dataset.bns647Keyboard="1";
+  if(!inp||inp.dataset.bns649Keyboard) return;
+  inp.dataset.bns649Keyboard="1";
   inp.setAttribute("readonly","readonly");
   inp.setAttribute("inputmode","none");
   inp.setAttribute("autocomplete","off");
@@ -671,19 +733,20 @@ function installSearchKeyboard(){
   inp.setAttribute("spellcheck","false");
   inp.placeholder=inp.placeholder||"Zoeken";
   function showKb(){
-    let kb=$("bns647SearchKeyboard");
+    let kb=$("bns649SearchKeyboard");
     if(kb){kb.classList.remove("hidden");return;}
     kb=document.createElement("div");
-    kb.id="bns647SearchKeyboard";
-    kb.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:999998;background:#fff;border-top:2px solid #dbeafe;box-shadow:0 -18px 60px rgba(15,23,42,.22);padding:10px;max-height:55vh;overflow:auto";
+    kb.id="bns649SearchKeyboard";
+    kb.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:999998;background:#eaf6ff;border-top:4px solid #0284c7;box-shadow:0 -18px 60px rgba(15,23,42,.35);padding:12px;max-height:58vh;overflow:auto";
     const keys=["1","2","3","4","5","6","7","8","9","0","Q","W","E","R","T","Y","U","I","O","P","A","S","D","F","G","H","J","K","L","Z","X","C","V","B","N","M","-","/","."];
-    kb.innerHTML=`<div style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px">${keys.map(k=>`<button type="button" data-k="${esc(k)}" style="padding:12px 0;border-radius:12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:900;font-size:18px">${esc(k)}</button>`).join("")}</div><div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;margin-top:8px"><button type="button" data-space style="padding:14px;border-radius:14px;border:0;background:#e2e8f0;font-weight:900">Spatie</button><button type="button" data-backspace style="padding:14px;border-radius:14px;border:0;background:#334155;color:#fff;font-weight:900">Wis</button><button type="button" data-clear style="padding:14px;border-radius:14px;border:0;background:#ef4444;color:#fff;font-weight:900">Leeg</button><button type="button" data-close style="padding:14px;border-radius:14px;border:0;background:#16a34a;color:#fff;font-weight:900">Klaar</button></div>`;
+    kb.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px 0"><div style="font-weight:900;font-size:18px;color:#0f172a">Zoeken</div><button type="button" data-close-top style="padding:10px 14px;border-radius:14px;border:0;background:#16a34a;color:#fff;font-weight:900;font-size:16px">Klaar</button></div><div style="display:grid;grid-template-columns:repeat(10,1fr);gap:7px">${keys.map(k=>`<button type="button" data-k="${esc(k)}" style="padding:13px 0;border-radius:13px;border:2px solid #94a3b8;background:#ffffff;color:#0f172a;font-weight:900;font-size:19px;box-shadow:0 2px 0 rgba(15,23,42,.14)">${esc(k)}</button>`).join("")}</div><div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:9px;margin-top:10px"><button type="button" data-space style="padding:15px;border-radius:15px;border:0;background:#cbd5e1;color:#0f172a;font-weight:900;font-size:18px">Spatie</button><button type="button" data-backspace style="padding:15px;border-radius:15px;border:0;background:#334155;color:#fff;font-weight:900;font-size:18px">Wis</button><button type="button" data-clear style="padding:15px;border-radius:15px;border:0;background:#ef4444;color:#fff;font-weight:900;font-size:18px">Leeg</button><button type="button" data-close style="padding:15px;border-radius:15px;border:0;background:#16a34a;color:#fff;font-weight:900;font-size:18px">Klaar</button></div>`;
     document.body.appendChild(kb);
     qsa("[data-k]",kb).forEach(b=>b.onclick=()=>{inp.value+=b.dataset.k;applyDriverSearch()});
     kb.querySelector("[data-space]").onclick=()=>{inp.value+=" ";applyDriverSearch()};
     kb.querySelector("[data-backspace]").onclick=()=>{inp.value=inp.value.slice(0,-1);applyDriverSearch()};
     kb.querySelector("[data-clear]").onclick=()=>{inp.value="";applyDriverSearch()};
     kb.querySelector("[data-close]").onclick=()=>{kb.classList.add("hidden");inp.blur()};
+    kb.querySelector("[data-close-top]").onclick=()=>{kb.classList.add("hidden");inp.blur()};
   }
   inp.addEventListener("focus",e=>{try{inp.blur()}catch(_e){};showKb()});
   inp.addEventListener("click",e=>{e.preventDefault();showKb()});
@@ -853,3 +916,5 @@ boot();
   setTimeout(start,1200);
   setInterval(start,4000);
 })();
+
+/* BNS v648 driver: vermissing alert velden, offerte/prijzen, open opdracht layout, rode meldingknop */
