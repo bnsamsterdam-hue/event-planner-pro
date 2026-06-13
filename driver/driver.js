@@ -19,6 +19,8 @@ function orderStart(o){return clean(o.start||o.dateStart||o.startDate||o.date||"
 function orderEnd(o){return clean(o.end||o.dateEnd||o.endDate||orderStart(o))}
 function dateTime(v){const d=new Date(clean(v).slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?0:d.getTime()}
 function todayTime(){const d=new Date();d.setHours(0,0,0,0);return d.getTime()}
+function canFinishOrderNow(o){const e=dateTime(orderEnd(o)); if(!e) return true; return todayTime()>e}
+function finishBlockedText(o){const e=orderEnd(o); return "Deze opdracht kan nog niet worden afgemeld. Afmelden kan pas na de einddatum"+(e?" (na "+niceDate(e)+")":"")+"."}
 function niceDate(v){v=clean(v).slice(0,10);const p=v.split("-");return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:v}
 function addressOf(o){const p=[];const add=v=>{v=clean(v);if(v&&!p.includes(v))p.push(v)};[o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,o.address,o.street,o.zip,o.city].forEach(add);if(o.location&&typeof o.location==="object")[o.location.name,o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add);return p.join(", ")}
 function customerName(o){return clean(o.customerName||(o.customer&&o.customer.name)||o.klant||"")}
@@ -351,7 +353,7 @@ function orderCard(o){
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
-      ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
+      ${canDone()?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden pas na einddatum'}</button>`:""}
     </div>
   </article>`;
 }
@@ -440,7 +442,7 @@ function detailHtml(o){
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red wide" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
-      ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
+      ${canDone()?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden pas na einddatum'}</button>`:""}
     </div>
   </article>`;
 }
@@ -493,7 +495,7 @@ function askChoice(title, options){
 async function openReportChoice(order){
   const opts=[];
   if(canReport()) opts.push({value:"Melding",label:"Algemene melding",cls:"btn-orange"});
-  if(canDamage()) opts.push({value:"Schade",label:"Schade",cls:"btn-red"},{value:"Storing",label:"Storing",cls:"btn-purple"},{value:"Vermissing",label:"Vermissing",cls:"btn-dark"});
+  if(canDamage()) opts.push({value:"Schade",label:"Schade",cls:"btn-red"},{value:"Storing",label:"Storing",cls:"btn-purple"});
   const type=await askChoice("Melding maken",opts);
   if(type) await sendReport(order,type);
 }
@@ -705,7 +707,7 @@ function bindActions(){
   setTimeout(enhanceDriverButtons,0);
   qsa("[data-detail]").forEach(b=>{b.onclick=()=>showDetail(b.dataset.detail)});
   qsa("[data-back]").forEach(b=>{b.onclick=()=>showOrders()});
-  qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!await askConfirm("Opdracht afmelden", "Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadPhoneData();showOrders();render()}});
+  qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!canFinishOrderNow(o)){await askConfirm("Nog niet afmelden", finishBlockedText(o));return;}if(!await askConfirm("Opdracht afmelden", "Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadPhoneData();showOrders();render()}});
   qsa("[data-quote]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.quote); if(o)openQuote(o)}});
   qsa("[data-report]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.report);if(!o)return;await sendReport(o,b.dataset.type||"Melding")}});
   qsa("[data-report-menu]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.reportMenu);if(!o)return;await openReportChoice(o)}});
@@ -918,3 +920,6 @@ boot();
 })();
 
 /* BNS v648 driver: vermissing alert velden, offerte/prijzen, open opdracht layout, rode meldingknop */
+
+
+/* BNS 650 - driver: vermissing verborgen, afmelden pas na einddatum. Alleen driver/driver.js. */
