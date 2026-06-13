@@ -49237,6 +49237,112 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   console.info('[BNS 610] veilige scheiding materiaal/transport/service actief.');
 })();
 
+
+
+/* =========================================================
+   BNS 651 - Transportregels niet leeg overschrijven
+   Basis: aangeleverde app(81).js / v639-lijn.
+   Doel: als een bestaande opdracht transportLines heeft, mag een save-route
+   die de transportregels niet geladen heeft deze niet leeg wegschrijven.
+   Raakt alleen transportLines/transportTotal/vehicle bij opslaan.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS651_TRANSPORT_PRESERVE__) return;
+  window.__BNS651_TRANSPORT_PRESERVE__ = true;
+
+  function A(v){ return Array.isArray(v) ? v : []; }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function clone(v){ try{return JSON.parse(JSON.stringify(v||[]));}catch(e){return [];} }
+  function E(id){ return document.getElementById(id); }
+  function lineTotal(l){ return (N(l&&l.qty)||1) * N(l&&l.price); }
+  function isServiceLine(l){ var t=L(l&&l.type), n=L(l&&l.name); return t==='service'||t==='servicekosten'||t==='bijzonderheid'||/service|schoonmaak|reinig|montage|demontage|aansluiten|borg correctie|kosten/.test(n); }
+  function cleanTransport(list){
+    return A(list).filter(function(l){ return l && !isServiceLine(l); }).map(function(l){
+      var x=Object.assign({},l);
+      x.type = L(x.type)==='km' ? 'km' : (L(x.type)==='toeslag' ? 'toeslag' : 'transport');
+      x.reservable=false;
+      delete x.status;
+      delete x.materialId;
+      return x;
+    });
+  }
+  function total(lines){ return A(lines).reduce(function(s,l){ return s+lineTotal(l); },0); }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
+  function currentEditingId(){ try{ return T(window.editing || editing || ''); }catch(e){ return T(window.editing || ''); } }
+  function fieldVal(id){ var el=E(id); return T(el && el.value); }
+  function findOrder(order){
+    var s=stateObj();
+    if(!s || !Array.isArray(s.orders)) return null;
+    order=order||{};
+    var ids=[order.id,order.orderId,order.docId,currentEditingId(),fieldVal('orderId'),fieldVal('editOrderId')].map(T).filter(Boolean);
+    var nums=[order.number,order.orderNumber,fieldVal('orderNumber'),fieldVal('orderNo'),fieldVal('number')].map(T).filter(Boolean);
+    return s.orders.find(function(o){
+      var oid=T(o.id||o.orderId||o.docId);
+      var onr=T(o.number||o.orderNumber||o.orderNo);
+      return (oid && ids.indexOf(oid)>=0) || (onr && nums.indexOf(onr)>=0);
+    }) || null;
+  }
+  function hasTransportInDom(){
+    try{
+      var box=E('bns521TransportBox');
+      if(!box) return false;
+      var txt=L(box.innerText||'');
+      return !!txt && !/nog geen transportregels/.test(txt) && /transport|kraanwagen|bakwagen|chauffeur|toeslag|€/.test(txt);
+    }catch(e){ return false; }
+  }
+  function preserve(order, oldOrder){
+    if(!order || typeof order!=='object') return order;
+    var old = oldOrder || findOrder(order) || {};
+    var oldLines = cleanTransport(old.transportLines || old.transport || []);
+    var newLines = cleanTransport(order.transportLines || []);
+
+    /* Als oude transportregels bestaan en de nieuwe save komt leeg terug,
+       bewaren we oud transport. Dit voorkomt dat render/save timing transport wist. */
+    if(oldLines.length && !newLines.length){
+      order.transportLines = clone(oldLines);
+      try{ window.__bns521TransportLines = clone(oldLines); }catch(e){}
+      order.transportTotal = total(order.transportLines);
+      order.vehicle = order.transportLines.map(function(l){ return T(l.name); }).filter(Boolean).join(', ') || T(order.vehicle || old.vehicle);
+      order.pricing = Object.assign({}, order.pricing || {});
+      order.pricing.transport = order.transportTotal;
+      order.__bns651TransportPreserved = true;
+      console.info('[BNS 651] Transportregels behouden bij opslaan:', order.number || order.id || 'opdracht', order.transportLines.length);
+    }
+    return order;
+  }
+
+  var oldPrepare = window.BNS_v519PrepareOrderBeforeSave;
+  if(typeof oldPrepare === 'function' && !oldPrepare.__bns651TransportPreserve){
+    var wrapped=function(order, oldOrder){
+      var robustOld = oldOrder || findOrder(order) || null;
+      var r = oldPrepare.call(this, order, robustOld || oldOrder);
+      return preserve(r || order, robustOld || oldOrder);
+    };
+    wrapped.__bns651TransportPreserve = true;
+    window.BNS_v519PrepareOrderBeforeSave = wrapped;
+  }
+
+  /* Extra vangnet vlak voor klik op opslaan: als de transportbox niet geladen is,
+     zet bestaande order transport terug in geheugen zodat de oude prepare hem kan zien. */
+  document.addEventListener('click',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var btn=t.closest('button,input[type="button"],input[type="submit"]'); if(!btn) return;
+    var label=L(btn.textContent || btn.value || btn.id || '');
+    if(!/opslaan|save/.test(label)) return;
+    var old=findOrder({number:fieldVal('orderNumber'),id:currentEditingId()});
+    var oldLines=cleanTransport(old && (old.transportLines || old.transport));
+    if(oldLines.length && !hasTransportInDom()){
+      try{ window.__bns521TransportLines=clone(oldLines); }catch(e){}
+      console.info('[BNS 651] Transport in geheugen teruggezet voor opslaan:', old.number || old.id);
+    }
+  },true);
+
+  console.info('[BNS 651] transport behoud bij opslaan actief.');
+})();
+
 /* =========================================================
    BNS 611 - strenge materiaal reservering status fix
    Basis: aangeleverde app(66).js / 609-lijn.
