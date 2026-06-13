@@ -51280,3 +51280,127 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   },true);
   console.info('[BNS 655] opdrachtbevestiging gevuld + oude overzichtknoppen verborgen actief.');
 })();
+
+/* =========================================================
+   BNS 656 - Opdrachtbevestiging bekijken via status-document
+   Basis: v655
+   - Overzicht keuze blijft hetzelfde.
+   - Overzicht bestelling blijft goed.
+   - Factuur blijft de werkende factuurroute.
+   - Opdrachtbevestiging bekijken wordt nu een status-document:
+     status Offerte = titel Offerte, status Bevestigd/Opdracht = opdrachtbevestiging.
+   - Oude knoppen in overzicht blijven verborgen.
+   - Raakt driver/admin/reserveringen/materialen niet aan.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS656_STATUS_DOC_FIX__) return;
+  window.__BNS656_STATUS_DOC_FIX__ = true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function E(id){ return document.getElementById(id); }
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state||null; }
+  function orders(){ var s=S()||{}; return Array.isArray(s.orders)?s.orders:[]; }
+  function orderId(o){ return T(o&&(o.id||o.orderId||o.docId)); }
+  function orderNo(o){ return T(o&&(o.number||o.orderNumber||o.nr||o.opdrachtNr)); }
+  function titleOf(o){ return T(o&&(o.title||o.name||o.orderTitle||o.eventName)); }
+  function customerName(o){ return T(o&&o.customer&&o.customer.name)||T(o&&(o.customerName||o.klant)); }
+  function euro(n){ return '€ '+N(n).toFixed(2).replace('.',','); }
+  function qty(v){ return N(v)||1; }
+  function fmtDate(v){ var s=T(v); var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (m[3]+'-'+m[2]+'-'+m[1]) : s; }
+  function period(o){ var a=fmtDate(o&&o.start), b=fmtDate(o&&o.end); return a&&b&&a!==b ? a+' t/m '+b : (a||b||''); }
+  function findOrder(key){
+    key=T(key);
+    var list=orders();
+    if(key){
+      var hit=list.find(function(o){ return [o.id,o.orderId,o.docId,o.number,o.orderNumber,o.nr].map(T).indexOf(key)>=0; });
+      if(hit) return hit;
+    }
+    try{ var ed=T(window.editing || (typeof editing!=='undefined'?editing:'')); if(ed){ var e=list.find(function(o){ return [o.id,o.number,o.orderId,o.orderNumber].map(T).indexOf(ed)>=0; }); if(e) return e; } }catch(e){}
+    return null;
+  }
+  function keyFromButton(btn){
+    if(!btn) return '';
+    var attrs=['data-order-id','data-id','data-oid','data-order','data-number','data-order-number','data-key','data-bns-order','data-bns542-order'];
+    for(var i=0;i<attrs.length;i++){ var v=T(btn.getAttribute&&btn.getAttribute(attrs[i])); if(v) return v; }
+    var row=btn.closest&&btn.closest('[data-order-id],[data-id],[data-oid],[data-order],[data-number],[data-order-number],[data-key],tr,.card,.order-card,.bns-order-card,.bns356-card,.bns-v493-cardmain,.bns-active-card');
+    if(row){
+      for(var j=0;j<attrs.length;j++){ var r=T(row.getAttribute&&row.getAttribute(attrs[j])); if(r) return r; }
+      var m=T(row.innerText||'').match(/\b(20\d{2}-\d{3,6})\b/); if(m) return m[1];
+    }
+    return '';
+  }
+  function matPrice(m){ return N(m&&(m.linePrice!=null?m.linePrice:(m.priceAmount!=null?m.priceAmount:(m.prijs!=null?m.prijs:m.price)))); }
+  function lineTotal(l){ return (N(l&&l.qty)||1)*N(l&&l.price); }
+  function transportLines(o){ return (Array.isArray(o&&o.transportLines)?o.transportLines:[]).filter(Boolean); }
+  function serviceLines(o){ return (Array.isArray(o&&o.serviceLines)?o.serviceLines:[]).filter(Boolean); }
+  function totals(o){
+    var mat=0, dep=0, trans=0, serv=0;
+    (Array.isArray(o&&o.materials)?o.materials:[]).forEach(function(m){ var q=qty(m&&(m.qty||m.count||m.aantal)); mat += q*matPrice(m); dep += q*N(m&&(m.lineDeposit||m.deposit||m.borg)); });
+    transportLines(o).forEach(function(l){ trans += lineTotal(l); });
+    serviceLines(o).forEach(function(l){ serv += lineTotal(l); });
+    var sub=mat+trans+serv;
+    if(!sub) sub=N(o&&(o.subtotal||o.amountEx||o.amount));
+    var vat=N(o&&o.vat); if(!vat) vat=sub*0.21;
+    var total=N(o&&o.total); if(!total) total=sub+vat;
+    var grand=N(o&&o.pricing&&(o.pricing.grand||o.pricing.total)); if(grand) total=grand;
+    return {mat:mat,dep:dep,trans:trans,serv:serv,sub:sub,vat:vat,total:total,pay:total+dep};
+  }
+  function materialRows(o){
+    var arr=Array.isArray(o&&o.materials)?o.materials:[];
+    if(!arr.length) return '<tr><td colspan="5">Geen materialen gekozen.</td></tr>';
+    return arr.map(function(m,i){ var q=qty(m&&(m.qty||m.count||m.aantal)); var name=T(m&&(m.searchName||m.zoeknaam||m.product||m.name||m.description||'')); return '<tr><td>'+H(i+1)+'</td><td>'+H(q)+'</td><td><b>'+H(m.code||m.productNr||m.id||'')+'</b></td><td>'+H(name)+'</td><td class="amount">'+H(euro(q*matPrice(m)))+'</td></tr>'; }).join('');
+  }
+  function transportRows(o){
+    var arr=transportLines(o).concat(serviceLines(o));
+    if(!arr.length) return '<tr><td colspan="4">Geen transport of extra kosten.</td></tr>';
+    return arr.map(function(l){ return '<tr><td>'+H(N(l.qty)||1)+'x</td><td>'+H(l.name||l.label||l.description||'')+'</td><td>'+H(l.note||l.opmerking||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join('');
+  }
+  function docTitle(o){
+    var s=L(o&&o.status);
+    if(/offerte/.test(s)) return 'Offerte';
+    if(/optie/.test(s)) return 'Optie 14 dagen';
+    return 'Opdrachtbevestiging';
+  }
+  function openStatusDoc(o){
+    if(!o) return false;
+    var c=o.customer||{}, l=o.location||{}, tt=totals(o), title=docTitle(o);
+    var html='<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>'+H(title)+' '+H(orderNo(o))+'</title><style>@page{size:A4;margin:14mm}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:12mm 14mm}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px;z-index:9}.actions button{border:0;border-radius:9px;background:#2563eb;color:white;padding:9px 13px;font-weight:900}.actions .grey{background:#64748b}.logo{text-align:center}.brand{font-size:34px;font-weight:1000;color:#0ea5e9}.doc-title{text-align:center;font-size:20px;font-weight:1000;margin:8px 0 18px}.top{display:grid;grid-template-columns:1fr 58mm;gap:10mm}.line{border-top:1.5px solid #333;margin:5mm 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{border:1px solid #dbe3ef;border-radius:12px;padding:11px;margin:10px 0}.customer{font-weight:700;font-style:italic;line-height:1.35;min-height:18mm}table{width:100%;border-collapse:collapse}td,th{padding:1.6mm;vertical-align:top}th{border-bottom:1px solid #333;text-align:left}.amount{text-align:right}.totals{width:82mm;margin-left:auto;margin-top:8mm;border-top:1.5px solid #333}.totals td:last-child{text-align:right}.strong td{font-weight:1000;border-top:1px solid #333}.terms{margin-top:12mm;white-space:pre-wrap;line-height:1.35}@media print{body{background:white}.actions{display:none}.page{margin:0}}</style></head><body><div class="actions"><button onclick="window.print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button class="grey" onclick="try{window.close()}catch(e){};setTimeout(function(){history.back()},120)">Terug</button></div><main class="page"><div class="logo"><div class="brand">🍺 Tapwagen.nl 🍺</div><div><b>WE KEEP YOUR PARTY COOL!!!</b></div></div><div class="doc-title">'+H(title)+'</div><div class="top"><div>Tapwagen.nl<br>Molenlaan 30<br>1422 ZA Uithoorn<br>Tel.: 088-1888000<br>Info@tapwagen.nl<br>KVK: 32157678<br>BTW NR: NL001611849B73<br>Bank: NL97ABNA0409126675</div><div><b>Opdracht-nr:</b> '+H(orderNo(o))+'<br><b>Datum:</b> '+H(fmtDate(new Date().toISOString().slice(0,10)))+'</div></div><div class="line"></div><div class="customer">'+H(c.name||customerName(o))+'<br>'+H([c.street,c.houseNumber].filter(Boolean).join(' '))+'<br>'+H([c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="line"></div><table><tr><td><b>Status:</b></td><td>'+H(o.status||'')+'</td></tr><tr><td><b>Evenement:</b></td><td>'+H(titleOf(o))+'</td></tr><tr><td><b>Periode:</b></td><td>'+H(period(o))+'</td></tr><tr><td><b>Merk:</b></td><td>'+H(o.brand||'')+'</td></tr><tr><td><b>Bijzonderheden:</b></td><td><div style="white-space:pre-wrap">'+H(o.extra||o.notes||o.confirmationText||'')+'</div></td></tr></table><div class="line"></div><table><tr><td><b>Lokatie:</b></td><td>'+H(l.name||'')+'</td></tr><tr><td><b>Adres:</b></td><td>'+H([l.street,l.houseNumber,l.zip,l.city].filter(Boolean).join(' '))+'</td></tr><tr><td><b>Contact:</b></td><td>'+H((l.contact||'')+' '+(l.phone||''))+'</td></tr></table><h3>Materialen / artikelen</h3><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Naam</th><th class="amount">Bedrag</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table><h3>Transport / extra kosten</h3><table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th class="amount">Bedrag</th></tr></thead><tbody>'+transportRows(o)+'</tbody></table><table class="totals"><tr><td>Materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Transport / extra kosten</td><td>'+H(euro(tt.trans+tt.serv))+'</td></tr><tr><td>Subtotaal excl. btw</td><td>'+H(euro(tt.sub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Te betalen</td><td>'+H(euro(tt.pay))+'</td></tr></table><div class="terms">Op alle overeenkomsten die u met Tapwagen.nl aangaat zijn de algemene voorwaarden van Tapwagen.nl van toepassing. Door akkoord te gaan met deze offerte/opdrachtbevestiging verklaart u tevens akkoord te gaan met de algemene voorwaarden.</div></main></body></html>';
+    var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; }
+    w.document.open(); w.document.write(html); w.document.close(); return false;
+  }
+  function openInvoice(o){ var key=orderId(o)||orderNo(o); if(typeof window.TW300_AU_openDoc==='function') return window.TW300_AU_openDoc(key,'factuur'); alert('Factuurfunctie niet gevonden.'); return false; }
+  function openRealOverview(o){ var key=orderId(o)||orderNo(o); var fn=window.__BNS653_REAL_OVERVIEW__||window.__BNS654_REAL_OVERVIEW__||window.__BNS655_REAL_OVERVIEW__; if(typeof fn==='function') return fn(key); if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW==='function' && window.BNS_V128_SHOW_ORDER_OVERVIEW!==showChoice) return window.BNS_V128_SHOW_ORDER_OVERVIEW(key); return false; }
+  function closeChoice(){ ['bns656ChoiceModal','bns655ChoiceModal','bns654ChoiceModal','bns653ChoiceModal'].forEach(function(id){ var m=E(id); if(m)m.remove(); }); }
+  function ensureStyle(){ if(E('bns656Style')) return; var st=document.createElement('style'); st.id='bns656Style'; st.textContent='#bns656ChoiceModal{position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:2147483642;display:flex;align-items:center;justify-content:center;padding:18px}#bns656ChoiceModal .p{background:#fff;border-radius:22px;box-shadow:0 20px 70px rgba(0,0,0,.28);padding:24px;max-width:540px;width:96vw;color:#172033;font-family:Arial,Helvetica,sans-serif}#bns656ChoiceModal h2{margin:0 0 8px;font-size:28px}#bns656ChoiceModal .sub{margin:0 0 18px;color:#64748b;font-weight:800}#bns656ChoiceModal button{display:block;width:100%;border:0;border-radius:16px;padding:17px 18px;margin:10px 0;font-size:19px;font-weight:1000;color:#fff;cursor:pointer}#bns656ChoiceModal .blue{background:#2563eb}#bns656ChoiceModal .orange{background:#f97316}#bns656ChoiceModal .green{background:#16a34a}#bns656ChoiceModal .grey{background:#334155}.bns652-choice{display:none!important}'; document.head.appendChild(st); }
+  function showChoice(key){
+    ensureStyle();
+    var o=findOrder(key); if(!o){ alert('Opdracht niet gevonden voor overzicht/document.'); return false; }
+    closeChoice();
+    var m=document.createElement('div'); m.id='bns656ChoiceModal';
+    m.innerHTML='<div class="p"><h2>Wat wil je openen?</h2><div class="sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><button class="blue" id="bns656OpenOverview">Overzicht bestelling</button><button class="orange" id="bns656OpenConfirm">Opdracht/Offerte bekijken</button><button class="green" id="bns656OpenInvoice">Factuur bekijken</button><button class="grey" id="bns656Cancel">Terug</button></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click',function(ev){ if(ev.target===m) closeChoice(); });
+    E('bns656Cancel').onclick=closeChoice;
+    E('bns656OpenOverview').onclick=function(){ closeChoice(); return openRealOverview(o); };
+    E('bns656OpenConfirm').onclick=function(){ closeChoice(); return openStatusDoc(o); };
+    E('bns656OpenInvoice').onclick=function(){ closeChoice(); return openInvoice(o); };
+    return false;
+  }
+  function hideOld(){ try{ Array.prototype.slice.call(document.querySelectorAll('.bns652-choice')).forEach(function(b){ b.style.display='none'; }); }catch(e){} }
+  function install(){ ensureStyle(); window.BNS_V656_SHOW_OVERVIEW_CHOICE=showChoice; window.BNS_V655_SHOW_OVERVIEW_CHOICE=showChoice; window.BNS_V654_SHOW_OVERVIEW_CHOICE=showChoice; window.BNS_V653_SHOW_OVERVIEW_CHOICE=showChoice; window.BNS_V128_SHOW_ORDER_OVERVIEW=showChoice; window.BNS_V493_SHOW=showChoice; hideOld(); }
+  install(); setInterval(install,1000);
+  document.addEventListener('click',function(ev){
+    var b=ev.target&&ev.target.closest&&ev.target.closest('button,a'); if(!b) return;
+    var txt=L(b.textContent||b.value||'');
+    if(/overzicht maken|overzicht bestelling/.test(txt)){
+      var key=keyFromButton(b), o=findOrder(key); if(!o) return;
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      return showChoice(orderId(o)||orderNo(o));
+    }
+  },true);
+  console.info('[BNS 656] opdracht/offerte bekijken volgt nu status van opdracht; oude lege route omzeild.');
+})();
