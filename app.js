@@ -50817,8 +50817,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!card) return;
     var o=findOpenOverviewOrder();
     if(!o) return;
-    // BNS 655: oude map/keuzebalk in Overzicht bestelling verwijderen.
-    // De keuze Factuur / Opdrachtdocument gebeurt via het hoofdkeuze-menu en de werkende Documenten-knoppen.
+    // BNS 656: oude map/keuzebalk in Overzicht bestelling NIET meer tonen.
+    // Belangrijk: verder niets aan factuur/opdrachtdocument-routes veranderen.
     var oldChoice=card.querySelector('#bns652OverviewChoice');
     if(oldChoice) oldChoice.remove();
     var lines=linesForOrder(o);
@@ -51065,7 +51065,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function ensureStyle(){
     if(E('bns654ChoiceStyle')) return;
     var st=document.createElement('style'); st.id='bns654ChoiceStyle';
-    st.textContent='#bns654ChoiceModal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:999999;display:flex;align-items:center;justify-content:center;padding:18px}#bns654ChoiceModal .p{background:#fff;border-radius:22px;box-shadow:0 16px 50px rgba(0,0,0,.25);padding:24px;max-width:520px;width:100%;font-family:Arial,sans-serif}#bns654ChoiceModal h2{margin:0 0 8px;color:#0f172a;font-size:28px}#bns654ChoiceModal .sub{margin:0 0 18px;color:#475569;font-weight:800}#bns654ChoiceModal button{display:block;width:100%;border:0;border-radius:16px;padding:16px 18px;margin:10px 0;font-size:18px;font-weight:1000;color:#fff;cursor:pointer}#bns654ChoiceModal .blue{background:#2563eb}#bns654ChoiceModal .orange{background:#f97316}#bns654ChoiceModal .green{background:#16a34a}#bns654ChoiceModal .grey{background:#334155}#bns652OverviewChoice{display:none!important}';
+    st.textContent='#bns654ChoiceModal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:999999;display:flex;align-items:center;justify-content:center;padding:18px}#bns654ChoiceModal .p{background:#fff;border-radius:22px;box-shadow:0 16px 50px rgba(0,0,0,.25);padding:24px;max-width:520px;width:100%;font-family:Arial,sans-serif}#bns654ChoiceModal h2{margin:0 0 8px;color:#0f172a;font-size:28px}#bns654ChoiceModal .sub{margin:0 0 18px;color:#475569;font-weight:800}#bns654ChoiceModal button{display:block;width:100%;border:0;border-radius:16px;padding:16px 18px;margin:10px 0;font-size:18px;font-weight:1000;color:#fff;cursor:pointer}#bns654ChoiceModal .blue{background:#2563eb}#bns654ChoiceModal .orange{background:#f97316}#bns654ChoiceModal .green{background:#16a34a}#bns654ChoiceModal .grey{background:#334155}';
     document.head.appendChild(st);
   }
 
@@ -51079,19 +51079,13 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
   function openWorkingDoc(o,type){
     var key=orderId(o)||orderNo(o);
-    // BNS 655: gebruik eerst de werkende Documenten-knoppen naast elkaar:
-    // bnsOpenInvoiceV73 en de oranje bnsOpenConfirmV73. Niet meer de oude map-route.
-    try{ window.editing=orderId(o)||key; if(typeof editing!=='undefined') editing=window.editing; }catch(e){}
-    try{ window.__BNS654_LAST_DOC_ORDER__=o; }catch(e){}
-    var isInvoice=/factuur/i.test(type);
-    var btn=E(isInvoice?'bnsOpenInvoiceV73':'bnsOpenConfirmV73');
-    if(btn && typeof btn.click==='function'){
-      btn.click();
-      return false;
+    if(typeof window.TW300_AU_openDoc==='function'){
+      return window.TW300_AU_openDoc(key, type);
     }
-    if(isInvoice && typeof window.makeInvoice==='function') return window.makeInvoice();
-    if(!isInvoice && typeof window.makeConfirmation==='function') return window.makeConfirmation();
-    if(typeof window.TW300_AU_openDoc==='function') return window.TW300_AU_openDoc(key, type);
+    // Laatste vangnet: zet editing tijdelijk en gebruik de bestaande documentknoppenroute.
+    try{ window.editing=orderId(o)||key; if(typeof editing!=='undefined') editing=window.editing; }catch(e){}
+    if(/factuur/i.test(type) && typeof window.makeInvoice==='function') return window.makeInvoice();
+    if(typeof window.makeConfirmation==='function') return window.makeConfirmation();
     alert('Documentfunctie niet gevonden. Open via Wijzigen -> Documenten.');
     return false;
   }
@@ -51102,7 +51096,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!o){ alert('Opdracht niet gevonden voor overzicht/document.'); return false; }
     closeChoice();
     var m=document.createElement('div'); m.id='bns654ChoiceModal';
-    m.innerHTML='<div class="p"><h2>Wat wil je openen?</h2><div class="sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><button class="blue" id="bns654OpenOverview">Overzicht bestelling</button><button class="orange" id="bns654OpenConfirm">Maak opdrachtdocument</button><button class="green" id="bns654OpenInvoice">Maak factuur</button><button class="grey" id="bns654Cancel">Terug</button></div>';
+    m.innerHTML='<div class="p"><h2>Wat wil je openen?</h2><div class="sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><button class="blue" id="bns654OpenOverview">Overzicht bestelling</button><button class="orange" id="bns654OpenConfirm">Opdrachtbevestiging bekijken</button><button class="green" id="bns654OpenInvoice">Factuur bekijken</button><button class="grey" id="bns654Cancel">Terug</button></div>';
     document.body.appendChild(m);
     m.addEventListener('click',function(ev){ if(ev.target===m) closeChoice(); });
     E('bns654Cancel').onclick=closeChoice;
@@ -51136,4 +51130,16 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     }
   },true);
   console.info('[BNS 654] Overzichtkeuze gebruikt nu TW300_AU_openDoc/documenten-route voor gevulde factuur en opdrachtbevestiging.');
+})();
+
+
+/* BNS 656 - alleen oude Overzicht/Opdracht/Factuur mapjes in overzicht verbergen */
+(function(){
+  try{
+    if(document.getElementById('bns656HideOldOverviewChoice')) return;
+    var st=document.createElement('style');
+    st.id='bns656HideOldOverviewChoice';
+    st.textContent='#bns652OverviewChoice{display:none!important}';
+    document.head.appendChild(st);
+  }catch(e){}
 })();
