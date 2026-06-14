@@ -51544,3 +51544,130 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     }
   },true);
 })();
+
+/* =========================================================
+   BNS 691 - Zoekbalk in Bijzonderheden-keuze
+   Basis: v690. Alleen extra zoekveld voor keuze/preset in
+   Bijzonderheden (technisch transportLines). Geen save/status/
+   driver/materiaal/reservering/admin wijzigingen.
+   ========================================================= */
+(function BNS_V691_BIJZONDERHEDEN_KEUZE_ZOEK(){
+  'use strict';
+  if(window.__BNS_V691_BIJZONDERHEDEN_KEUZE_ZOEK__) return;
+  window.__BNS_V691_BIJZONDERHEDEN_KEUZE_ZOEK__ = true;
+
+  var SELECT_ID = 'bns521TransportPreset';
+  var INPUT_ID = 'bns691BijzKeuzeZoek';
+  var STYLE_ID = 'bns691BijzKeuzeZoekStyle';
+  var PRESET_KEY = 'bns521_transport_presets_v1';
+  var defaultChoices = [
+    'Bakwagen','Kraanwagen','Aanhanger','Bakwagen + aanhanger','Transport brengen',
+    'Transport ophalen','Transport brengen + ophalen','Kraanwagen brengen','Kraanwagen ophalen',
+    'Extra chauffeur','Wachttijd','Rekeningrijden','Toeslag'
+  ];
+  var choices = [];
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function norm(v){ return T(v).toLowerCase().replace(/\s+/g,' '); }
+  function H(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function uniq(arr){
+    var seen = {}, out = [];
+    (arr||[]).forEach(function(x){
+      x = T(x); if(!x) return;
+      var k = norm(x); if(seen[k]) return;
+      seen[k] = true; out.push(x);
+    });
+    return out;
+  }
+  function readStored(){
+    try{ var a = JSON.parse(localStorage.getItem(PRESET_KEY)||'[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; }
+  }
+  function readSelect(){
+    var s = E(SELECT_ID); if(!s) return [];
+    return Array.prototype.slice.call(s.options||[]).map(function(o){ return o.value || o.textContent || ''; });
+  }
+  function refreshChoices(){
+    choices = uniq([].concat(defaultChoices, readStored(), readSelect(), window.__bns691BijzChoices || []));
+    window.__bns691BijzChoices = choices.slice();
+    return choices;
+  }
+  function ensureStyle(){
+    if(E(STYLE_ID)) return;
+    var st = document.createElement('style'); st.id = STYLE_ID;
+    st.textContent =
+      '#bns691BijzKeuzeZoek{min-width:210px;border:2px solid #2563eb!important;background:#fff!important;color:#0f172a!important}' +
+      '#bns691BijzKeuzeZoek::placeholder{color:#64748b!important}' +
+      '#bns691BijzZoekLabel{position:relative}' +
+      '#bns691BijzZoekLabel small{font-size:11px;color:#64748b;font-weight:800;margin-top:-2px}';
+    document.head.appendChild(st);
+  }
+  function setSelectOptions(list, keep){
+    var s = E(SELECT_ID); if(!s) return;
+    var arr = uniq(list||[]);
+    if(!arr.length) arr = refreshChoices();
+    s.innerHTML = arr.map(function(x){ return '<option value="'+H(x)+'">'+H(x)+'</option>'; }).join('');
+    if(keep && arr.some(function(x){ return norm(x) === norm(keep); })) s.value = arr.filter(function(x){ return norm(x) === norm(keep); })[0];
+    else if(arr.length) s.value = arr[0];
+    try{ s.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
+  }
+  function applyFilter(){
+    var inp = E(INPUT_ID), s = E(SELECT_ID); if(!inp || !s) return;
+    var q = norm(inp.value), old = s.value;
+    var all = refreshChoices();
+    var list = all;
+    if(q){
+      list = all.filter(function(x){ return norm(x).indexOf(q) === 0; });
+      if(!list.length) list = all.filter(function(x){ return norm(x).indexOf(q) >= 0; });
+    }
+    setSelectOptions(list, old);
+  }
+  function install(){
+    var s = E(SELECT_ID); if(!s) return false;
+    ensureStyle();
+    refreshChoices();
+    if(!E(INPUT_ID)){
+      var label = document.createElement('label');
+      label.id = 'bns691BijzZoekLabel';
+      label.innerHTML = 'Zoek keuze<input id="'+INPUT_ID+'" type="text" autocomplete="off" placeholder="Beginletters, bijv. kraan"><small>Filtert de keuzelijst hieronder</small>';
+      var selectLabel = s.closest ? s.closest('label') : null;
+      if(selectLabel && selectLabel.parentNode) selectLabel.parentNode.insertBefore(label, selectLabel);
+      else s.parentNode.insertBefore(label, s);
+      var inp = E(INPUT_ID);
+      inp.addEventListener('input', applyFilter);
+      inp.addEventListener('focus', function(){ try{ this.select(); }catch(e){} applyFilter(); });
+      inp.addEventListener('keydown', function(ev){
+        if(ev.key === 'Enter'){
+          ev.preventDefault();
+          var add = E('bns521AddLine');
+          if(add) add.focus();
+        }
+        if(ev.key === 'Escape'){
+          this.value = '';
+          applyFilter();
+        }
+      });
+    }
+    applyFilter();
+    return true;
+  }
+
+  // Na opslaan/verwijderen van keuzes opnieuw synchroniseren.
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if(!t) return;
+    if(t.id === 'bns521SavePreset' || t.id === 'bns521DeletePreset' || t.id === 'bns521AddLine'){
+      setTimeout(function(){ refreshChoices(); applyFilter(); }, 120);
+      setTimeout(function(){ refreshChoices(); applyFilter(); }, 600);
+    }
+    if(t.getAttribute && t.getAttribute('data-tab') === 'vehiclePanel'){
+      setTimeout(install, 120);
+      setTimeout(install, 600);
+    }
+  }, true);
+
+  ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, function(){ setTimeout(install,150); setTimeout(install,900); }); });
+  setInterval(install, 1500);
+
+  try{ console.info('[BNS 691] Zoekbalk in Bijzonderheden-keuze actief.'); }catch(e){}
+})();
