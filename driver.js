@@ -1,5 +1,5 @@
 const FIREBASE_VERSION="10.12.5";
-const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[]}};
+const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
 const $=id=>document.getElementById(id);
 const qsa=(sel,root=document)=>Array.from(root.querySelectorAll(sel));
@@ -19,12 +19,53 @@ function orderStart(o){return clean(o.start||o.dateStart||o.startDate||o.date||"
 function orderEnd(o){return clean(o.end||o.dateEnd||o.endDate||orderStart(o))}
 function dateTime(v){const d=new Date(clean(v).slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?0:d.getTime()}
 function todayTime(){const d=new Date();d.setHours(0,0,0,0);return d.getTime()}
+function canFinishOrderNow(o){const e=dateTime(orderEnd(o)); if(!e) return true; return todayTime()>e}
+function finishBlockedText(o){const e=orderEnd(o); return "Deze opdracht kan nog niet worden afgemeld. Afmelden kan pas na de einddatum"+(e?" (na "+niceDate(e)+")":"")+"."}
 function niceDate(v){v=clean(v).slice(0,10);const p=v.split("-");return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:v}
 function addressOf(o){const p=[];const add=v=>{v=clean(v);if(v&&!p.includes(v))p.push(v)};[o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,o.address,o.street,o.zip,o.city].forEach(add);if(o.location&&typeof o.location==="object")[o.location.name,o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add);return p.join(", ")}
 function customerName(o){return clean(o.customerName||(o.customer&&o.customer.name)||o.klant||"")}
 function customerPhone(o){return clean(o.customerPhone||o.phone||(o.customer&&o.customer.phone)||"")}
 function driverName(o){return clean(o.driverName||o.driver||o.bezorger||"")}
-function materialList(o){const m=o.materials||o.mats||[];return Array.isArray(m)?m.map(x=>typeof x==="string"?{name:x,qty:""}:{name:x.code||x.name||"",qty:x.qty||x.count||x.aantal||"",extra:x.extra||x.note||""}).filter(x=>x.name):[]}
+function matClean(v){return String(v==null?"":v).trim()}
+function matKey(v){return matClean(v).toUpperCase().replace(/\s+/g,"")}
+function matNameOf(m){return matClean(m&&(m.zoeknaam||m.searchName||m.search||m.productZoeknaam||m.productName||m.name||m.title||m.omschrijving||m.description))}
+function matCodeOf(m){return matClean(m&&(m.code||m.nummer||m.number||m.nr||m.materialCode||m.artikelnummer))}
+function matIdValues(m){
+  const out=[];
+  if(!m) return out;
+  [m.id,m.docId,m.materialId,m.material_id,m.oldId,m.code,m.nummer,m.number,m.nr].forEach(v=>{v=matClean(v); if(v) out.push(v)});
+  const cat=matClean(m.cat||m.rubriek||m.category||m.group), nr=matClean(m.nummer||m.number||m.nr);
+  if(cat&&nr) out.push(cat+nr, cat+"-"+nr, cat+" "+nr);
+  return out;
+}
+function sameMatRef(a,b){
+  const av=matIdValues(a), bv=matIdValues(b);
+  if(!av.length||!bv.length) return false;
+  for(const x of av){for(const y of bv){if(matClean(x) && matClean(x)===matClean(y)) return true;}}
+  for(const x of av){for(const y of bv){if(matKey(x) && matKey(x)===matKey(y)) return true;}}
+  return false;
+}
+function findMaterialInfo(x){
+  const list=Array.isArray(BNS.state.materials)?BNS.state.materials:[];
+  if(!list.length) return null;
+  const ref=typeof x==="string"?{code:x,id:x}:x;
+  return list.find(m=>sameMatRef(ref,m))||null;
+}
+function materialList(o){
+  const m=o.materials||o.mats||[];
+  if(!Array.isArray(m)) return [];
+  return m.map(x=>{
+    const raw=typeof x==="string"?{code:x,name:"",qty:""}:Object.assign({},x||{});
+    const info=findMaterialInfo(raw);
+    const qty=raw.qty||raw.count||raw.aantal||raw.amount||"";
+    const code=matCodeOf(raw)||matCodeOf(info)||matClean(typeof x==="string"?x:"");
+    const nm=matNameOf(info)||matNameOf(raw);
+    let label=code||nm;
+    if(code&&nm&&matKey(code)!==matKey(nm)) label=code+" - "+nm;
+    const extra=raw.extra||raw.note||"";
+    return {name:label,qty:qty,extra:extra};
+  }).filter(x=>x.name);
+}
 function materialText(o){const m=materialList(o);return m.length?m.map(x=>`${x.qty?x.qty+"x ":""}${x.name}`).join(", "):""}
 function routeUrl(type,a){const q=encodeURIComponent(a||"");return type==="waze"?`https://waze.com/ul?q=${q}&navigate=yes`:`https://www.google.com/maps/search/?api=1&query=${q}`}
 
@@ -63,11 +104,13 @@ async function loadInitial(){
   setStatus("Data laden...");
   BNS.state.users=await loadCollection("users");
   BNS.state.orders=await loadCollection("orders");
+  try{ BNS.state.materials=await loadCollection("materials"); }catch(e){ BNS.state.materials=BNS.state.materials||[]; }
   try{ BNS.state.alerts=await loadCollection("alerts"); }catch(e){}
   setStatus("Data geladen");
 }
 async function loadOrdersOnly(){
   BNS.state.orders=await loadCollection("orders");
+  try{ BNS.state.materials=await loadCollection("materials"); }catch(e){}
 }
 async function loadUsersOnly(){
   BNS.state.users=await loadCollection("users");
@@ -79,6 +122,7 @@ async function loadUsersOnly(){
 async function loadPhoneData(){
   BNS.state.users=await loadCollection("users");
   BNS.state.orders=await loadCollection("orders");
+  try{ BNS.state.materials=await loadCollection("materials"); }catch(e){ BNS.state.materials=BNS.state.materials||[]; }
   try{ BNS.state.alerts=await loadCollection("alerts"); }catch(e){}
   if(BNS.user){
     const fresh=(BNS.state.users||[]).find(u=>String(u.id)===String(BNS.user.id));
@@ -88,7 +132,7 @@ async function loadPhoneData(){
 async function updateOrder(o){
   if(!o||!o.id)return;
   o.updatedAt=new Date().toISOString();
-  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"orders",String(o.id)),o,{merge:true});
+  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"orders",String(o.id)),o);
 }
 async function addAlert(a){
   const id=a.id||("a_"+Math.random().toString(36).slice(2,10));
@@ -192,10 +236,51 @@ function visibleOrder(o){
   if(dateTime(orderEnd(o))<todayTime())return false;
   return assignedToUser(o);
 }
-function getOrders(){
-  return(BNS.state.orders||[]).filter(visibleOrder).sort((a,b)=>dateTime(orderStart(a))-dateTime(orderStart(b)));
+/* BNS v518 telefoon: exact opdrachtnummer is leidend.
+   Als Firebase oude dubbele orderdocs terugstuurt, mag de telefoon niet eerst filteren
+   op bezorger en daarna een oude kopie tonen. Daarom wordt hier alleen in de
+   telefoonweergave per exact opdrachtnummer/order-id de nieuwste versie gekozen.
+   Dit wijzigt niets in de planner en verwijdert niets uit Firebase. */
+function bns518OrderKey(o){
+  if(!o) return "";
+  return clean(o.number || o.orderNumber || o.opdrachtnummer || o.opdrachtNummer || o.opdracht_nr || o.orderNo || o.id || o.docId || o.orderId);
 }
-function findOrder(id){return(BNS.state.orders||[]).find(o=>String(o.id)===String(id))}
+function bns518TimeValue(v){
+  if(v==null || v==="") return 0;
+  if(typeof v==="number") return v;
+  const n=Number(v);
+  if(!Number.isNaN(n) && n>0) return n;
+  const t=Date.parse(String(v));
+  return Number.isNaN(t)?0:t;
+}
+function bns518OrderStamp(o){
+  if(!o) return 0;
+  return Math.max(
+    bns518TimeValue(o.driverTruthAt),
+    bns518TimeValue(o.updatedAt),
+    bns518TimeValue(o.modifiedAt),
+    bns518TimeValue(o.createdAt)
+  );
+}
+function bns518LatestOrdersByNumber(rows){
+  const map=new Map();
+  (rows||[]).forEach(o=>{
+    const key=bns518OrderKey(o);
+    if(!key) return;
+    const old=map.get(key);
+    if(!old || bns518OrderStamp(o)>=bns518OrderStamp(old)) map.set(key,o);
+  });
+  return Array.from(map.values());
+}
+function getOrders(){
+  return bns518LatestOrdersByNumber(BNS.state.orders||[])
+    .filter(visibleOrder)
+    .sort((a,b)=>dateTime(orderStart(a))-dateTime(orderStart(b)));
+}
+function findOrder(id){
+  const rows=bns518LatestOrdersByNumber(BNS.state.orders||[]);
+  return rows.find(o=>String(o.id)===String(id)) || rows.find(o=>bns518OrderKey(o)===String(id));
+}
 function otherCustomerOrders(o){
   const currentId = String(o.id || "");
   const currentNumber = String(o.number || "");
@@ -220,19 +305,63 @@ function canPhotoBefore(){return hasAnyRight(["fotoVoor","photoBefore","foto_voo
 function canPhotoAfter(){return hasAnyRight(["fotoNa","photoAfter","foto_na","fotoNaLevering","photo_after","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
 function canSignature(){return hasAnyRight(["handtekening","signature","sign","klantHandtekening","reports","meldingen","orders"])||lower(BNS.user.role)==="admin"}
 
+function canAnyReportAction(){return canReport()||canDamage()}
+function canAnyPhotoAction(){return canPhotoBefore()||canPhotoAfter()}
+function searchIndexText(o){
+  const parts=[];
+  const seen=new Set();
+  function add(v){
+    if(v===undefined||v===null) return;
+    if(Array.isArray(v)){ v.forEach(add); return; }
+    if(typeof v==='object'){
+      ['id','number','title','name','naam','customer','client','bedrijf','company','street','straat','address','adres','zip','postcode','city','plaats','phone','telefoon','email','status','driver','bezorger','vehicle','kenteken','code','cat','rubriek','description','omschrijving','note','notes','opmerking','extra','bijzonderheden','zoeknaam','searchName'].forEach(k=>add(v[k]));
+      return;
+    }
+    let x=clean(v);
+    if(!x) return;
+    x=x.normalize ? x.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : x;
+    x=lower(x);
+    if(x && !seen.has(x)){ seen.add(x); parts.push(x); }
+  }
+  add(o&&o.number); add(o&&o.title); add(o&&o.status);
+  add(customerName(o)); add(customerPhone(o)); add(addressOf(o)); add(driverName(o));
+  if(o&&o.customer) add(o.customer);
+  if(o&&o.client) add(o.client);
+  if(o&&o.location) add(o.location);
+  if(o&&o.deliveryAddress) add(o.deliveryAddress);
+  if(o&&o.invoiceAddress) add(o.invoiceAddress);
+  materialList(o).forEach(add);
+  ['materials','items','materialen','transportLines','transport','bijzonderhedenLines','serviceLines','services'].forEach(k=>add(o&&o[k]));
+  add(o&&o.extra); add(o&&o.notes); add(o&&o.note); add(o&&o.description); add(o&&o.bijzonderheden); add(o&&o.text);
+  return parts.join(' ');
+}
+function applyDriverSearch(){
+  const inp=$("searchBox");
+  let q=lower(inp&&inp.value||'');
+  q=q.normalize ? q.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : q;
+  const tokens=q.split(/\s+/).map(x=>x.trim()).filter(Boolean);
+  qsa(".order").forEach(el=>{
+    let hay=lower(el.getAttribute('data-search')||el.innerText||'');
+    hay=hay.normalize ? hay.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : hay;
+    const ok=!tokens.length || tokens.every(t=>hay.includes(t));
+    el.style.display=ok?"":"none";
+  });
+}
+
+
 function orderBadges(o){
-  const badges=[`<span class="badge">${esc(o.status||"Open")}</span>`];
-  if(canAgenda())badges.push(`<span class="badge">Agenda</span>`);
-  if(canRoute())badges.push(`<span class="badge ok">Route</span>`);
+  // BNS v647: verwijder niet-klikbare bovenste knoppen/labels op de bezorgertelefoon.
+  // Status blijft zichtbaar, echte acties staan als grote knoppen onder de opdracht.
+  const badges=[];
+  if(o.status) badges.push(`<span class="badge">${esc(o.status||"Open")}</span>`);
   if(otherCustomerOrders(o).length)badges.push(`<span class="badge warn">Meer artikelen</span>`);
-  if(canPrices())badges.push(`<span class="badge dark">Prijzen</span>`);
   return badges.join("");
 }
 
 function orderCard(o){
   const a=addressOf(o),p=customerPhone(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
   const mats=materialList(o);
-  return `<article class="order-card order" data-id="${esc(o.id)}">
+  return `<article class="order-card order" data-id="${esc(o.id)}" data-search="${esc(searchIndexText(o))}">
     <span class="order-number">${esc(o.number||"Opdracht")}</span>
     <div class="order-title">${esc(o.title||"Zonder titel")}</div>
     <div class="badges">${orderBadges(o)}</div>
@@ -247,11 +376,9 @@ function orderCard(o){
       ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
       ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Maps</a>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
-      ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
+      ${canAnyReportAction()?`<button type="button" class="btn btn-red" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
-      ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
+      ${canDone()?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden pas na einddatum'}</button>`:""}
     </div>
   </article>`;
 }
@@ -260,6 +387,7 @@ function render(){
   const rows=getOrders();
   $("orders").innerHTML=rows.length?rows.map(orderCard).join(""):`<div class="empty">Geen opdrachten voor deze gebruiker.</div>`;
   bindActions();
+  setTimeout(applyDriverSearch,0);
 }
 
 function showOrders(){
@@ -268,33 +396,108 @@ function showOrders(){
   $("ordersView").classList.remove("hidden");
 }
 
+
+function orderField(o, keys){
+  for(const k of keys){
+    const v=o&&o[k];
+    if(v!==undefined && v!==null && String(v).trim()!=='') return v;
+  }
+  return '';
+}
+function moneyLine(label, value){
+  value=clean(value);
+  if(!value) return '';
+  return `<div><b>${esc(label)}:</b> ${esc(money(value))}</div>`;
+}
+function materialRowsHtml(o){
+  const raw=Array.isArray(o&&o.materials)?o.materials:[];
+  const mats=materialList(o);
+  if(!mats.length) return '<div class="tw-row muted">Geen materialen</div>';
+  return mats.map((m,i)=>{
+    const r=raw[i]||{};
+    const price=clean(r.price||r.prijs||r.amount||r.bedrag||'');
+    const note=clean(m.extra||r.note||r.notes||r.opmerking||'');
+    return `<div class="tw-row"><div><b>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${(canPrices()&&price)?'<div class="tw-price">'+esc(money(price))+'</div>':''}</div>`;
+  }).join('');
+}
+
+function driverLineTotal(l){
+  const qty=Number(String(l&& (l.qty||l.aantal||1)).replace(',','.'))||1;
+  const price=Number(String(l&& (l.price||l.prijs||l.amount||l.bedrag||0)).replace(/[^0-9,.-]/g,'').replace(',','.'))||0;
+  const total=Number(String(l&& (l.total||l.totaal||'')).replace(/[^0-9,.-]/g,'').replace(',','.'));
+  return Number.isFinite(total)&&total>0 ? total : qty*price;
+}
+function driverTransportLinesHtml(o){
+  const arr = Array.isArray(o&&o.transportLines) ? o.transportLines : (Array.isArray(o&&o.transport) ? o.transport : []);
+  if(!arr.length) return '<div class="tw-row muted">Geen bijzonderheden</div>';
+  return arr.map(l=>{
+    const qty=clean(l&& (l.qty||l.aantal||''));
+    const name=clean(l&& (l.name||l.naam||l.description||l.omschrijving||''));
+    const note=clean(l&& (l.note||l.opmerking||l.notes||''));
+    const amount=driverLineTotal(l);
+    const left=(qty?qty+'x ':'')+(name||'Bijzonderheid');
+    return `<div class="tw-row"><div><b>${esc(left)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${(canPrices()&&amount)?'<div class="tw-price">'+esc(money(amount))+'</div>':''}</div>`;
+  }).join('');
+}
+
+function priceBlockHtml(o){
+  if(!canPrices()) return '';
+  const lines=[];
+  lines.push(moneyLine('Totaal', orderField(o,['amount','total','totaal','price','bedrag','quoteTotal','invoiceTotal'])));
+  lines.push(moneyLine('Borg', orderField(o,['deposit','borg','waarborg'])));
+  lines.push(moneyLine('Bijzonderheden', orderField(o,['transport','transportPrice','transportkosten','transportTotal'])));
+  
+  lines.push(moneyLine('BTW', orderField(o,['vat','btw','tax'])));
+  const html=lines.filter(Boolean).join('');
+  return html || '<div class="muted">Geen apart totaalbedrag gevonden. Kijk ook bij tekst/bijzonderheden.</div>';
+}
+function redactPricesForNoRight(txt){
+  if(canPrices()) return txt;
+  return String(txt||'')
+    .replace(/€\s*[0-9][0-9\s.,-]*/g,'[prijs verborgen]')
+    .replace(/\b[0-9]+(?:[,.][0-9]{1,2})?\s*(?:euro|ex\s*btw|incl\.?\s*btw)\b/ig,'[prijs verborgen]');
+}
+function textBlockHtml(o){
+  const txt=clean(o&& (o.extra||o.notes||o.note||o.description||o.bijzonderheden||o.text||''));
+  const safe=redactPricesForNoRight(txt);
+  return safe ? esc(safe).replace(/\n/g,'<br>') : '<span class="muted">Geen extra tekst.</span>';
+}
+function fullOrderHtml(o, title){
+  const a=addressOf(o), p=customerPhone(o), s=orderStart(o), e=orderEnd(o);
+  const dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  return `<div class="tw-doc"><style>
+    .tw-doc{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#0f172a;padding:12px;line-height:1.45}.tw-doc h2{margin:0 0 10px;font-size:22px}.tw-card{border:1px solid #dbe3ef;border-radius:18px;padding:12px;margin:10px 0;background:#fff}.tw-grid{display:grid;grid-template-columns:1fr;gap:8px}.tw-row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #eef2f7;padding:8px 0}.tw-row:last-child{border-bottom:0}.tw-price{font-weight:900;white-space:nowrap}.muted{color:#64748b}.tw-label{font-size:12px;text-transform:uppercase;color:#64748b;font-weight:900;letter-spacing:.04em}.tw-big{font-size:16px;font-weight:800}.tw-danger{background:#fee2e2;color:#991b1b;border-radius:12px;padding:8px 10px;font-weight:900}
+  </style>
+  <h2>${esc(title||'Opdracht')} ${esc(o.number||'')}</h2>
+  <div class="tw-card">
+    <div class="tw-label">Klant en locatie</div>
+    <div class="tw-big">${esc(customerName(o)||'Klant onbekend')}</div>
+    <div>${esc(o.title||'')}</div>
+    <div>${esc(a||'Adres onbekend')}</div>
+    ${p?'<div>Tel: '+esc(p)+'</div>':''}
+  </div>
+  <div class="tw-card"><div class="tw-label">Datum / planning</div><div class="tw-big">${esc(dl||'Geen datum')}</div>${o.startTime||o.endTime?'<div>'+esc(o.startTime||'')+' - '+esc(o.endTime||'')+'</div>':''}<div>Bezorger: ${esc(driverName(o)||BNS.user?.name||'')}</div></div>
+  <div class="tw-card"><div class="tw-label">Materialen</div>${materialRowsHtml(o)}</div>
+  ${canPrices()?'<div class="tw-card"><div class="tw-label">Prijzen / bedragen</div>'+priceBlockHtml(o)+'</div>':''}
+  <div class="tw-card"><div class="tw-label">Bijzonderheden</div>${driverTransportLinesHtml(o)}</div>
+  <div class="tw-card"><div class="tw-label">Tekst / bijzonderheden</div><div>${textBlockHtml(o)}</div></div>
+  </div>`;
+}
+
 function detailHtml(o){
-  const a=addressOf(o),p=customerPhone(o),mats=materialList(o),more=otherCustomerOrders(o);
-  const s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  const a=addressOf(o),p=customerPhone(o),more=otherCustomerOrders(o);
   return `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div>
   <article class="card detail-card">
-    <h2>${esc(o.number||"")} - ${esc(o.title||"Zonder titel")}</h2>
-    <div class="badges">${orderBadges(o)}</div>
-    <div class="section-title">Opdracht</div>
-    <div class="info-box">📅 ${esc(dl||"Geen datum")}<br>👤 ${esc(customerName(o)||"Klant onbekend")}<br>📍 ${esc(a||"Adres onbekend")}<br>🚚 ${esc(driverName(o)||BNS.user?.name||"")}</div>
-
-    <div class="section-title">Materialen</div>
-    <div class="info-box">${mats.length?mats.map(x=>`• ${esc(x.qty?x.qty+"x ":"")}${esc(x.name)}${x.extra?" - "+esc(x.extra):""}`).join("<br>"):"Geen materialen"}</div>
-
+    ${fullOrderHtml(o,'Open opdracht')}
     ${more.length?`<div class="section-title">Meer artikelen / opdrachten voor deze klant</div><div class="info-box">${more.map(x=>`• ${esc(x.number||"")} ${esc(x.title||"")} - ${esc(niceDate(orderStart(x)))}`).join("<br>")}</div>`:""}
-
     <div class="section-title">Acties</div>
     <div class="report-grid">
       ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
       ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Google Maps</a>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
-      ${canAgenda()?`<button type="button" class="btn btn-dark" data-agenda="${esc(o.id)}">Agenda info</button>`:""}
-      ${canReport()?`<button type="button" class="btn btn-orange" data-report="${esc(o.id)}" data-type="Melding">Melding</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-red" data-report="${esc(o.id)}" data-type="Schade">Schade</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-purple" data-report="${esc(o.id)}" data-type="Storing">Storing</button>`:""}
-      ${canDamage()?`<button type="button" class="btn btn-dark" data-report="${esc(o.id)}" data-type="Vermissing">Vermissing</button>`:""}
+      ${canAnyReportAction()?`<button type="button" class="btn btn-red wide" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
-      ${canDone()?`<button type="button" class="btn btn-full btn-green wide" data-done="${esc(o.id)}">Afmelden / uitgevoerd</button>`:""}
+      ${canDone()?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden pas na einddatum'}</button>`:""}
     </div>
   </article>`;
 }
@@ -331,16 +534,77 @@ function askConfirm(title, text){
     wrap.querySelector("#twYes").onclick=()=>{wrap.remove();resolve(true)};
   });
 }
-function canQuote(){return hasAnyRight(["invoice","factuur","offerte","quote","offer","orders"])||lower(BNS.user.role)==="admin"}
+function canQuote(){return canPrices() && (hasAnyRight(["invoice","factuur","offerte","quote","offer","orders"])||lower(BNS.user.role)==="admin")}
 function money(v){const n=Number(String(v||0).replace(',','.'));return Number.isFinite(n)&&n?('€ '+n.toFixed(2).replace('.',',')):clean(v||'')}
+function askChoice(title, options){
+  return new Promise(resolve=>{
+    const wrap=document.createElement("div");
+    wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:16px";
+    const rows=(options||[]).map(opt=>`<button type="button" class="${esc(opt.cls||'btn-dark')}" data-choice="${esc(opt.value)}" style="width:100%;margin:6px 0">${esc(opt.label||opt.value)}</button>`).join("");
+    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35)"><h2 style="margin-top:0">${esc(title)}</h2>${rows}<button type="button" id="twChoiceCancel" class="btn-dark" style="width:100%;margin-top:10px">Annuleren</button></div>`;
+    document.body.appendChild(wrap);
+    qsa("[data-choice]",wrap).forEach(b=>b.onclick=()=>{const v=b.dataset.choice;wrap.remove();resolve(v)});
+    wrap.querySelector("#twChoiceCancel").onclick=()=>{wrap.remove();resolve("")};
+  });
+}
+async function openReportChoice(order){
+  const opts=[];
+  if(canReport()) opts.push({value:"Melding",label:"Algemene melding",cls:"btn-orange"});
+  if(canDamage()) opts.push({value:"Schade",label:"Schade",cls:"btn-red"},{value:"Storing",label:"Storing",cls:"btn-purple"});
+  const type=await askChoice("Melding maken",opts);
+  if(type) await sendReport(order,type);
+}
+async function openPhotoChoice(order){
+  const opts=[];
+  if(canPhotoBefore()) opts.push({value:"Foto voor levering",label:"Foto voor levering",cls:"btn-dark"});
+  if(canPhotoAfter()) opts.push({value:"Foto na levering",label:"Foto na levering",cls:"btn-dark"});
+  const type=await askChoice("Foto / bewijs",opts);
+  if(type) await sendPhoto(order,type);
+}
+
+function parseDriverAmount(v){
+  if(v===undefined||v===null||v==='') return 0;
+  if(typeof v==='number') return Number.isFinite(v)?v:0;
+  var x=String(v).replace(/\s/g,'').replace(/€|EUR|eur/g,'');
+  if(x.indexOf(',')>=0){ x=x.replace(/\./g,'').replace(',','.'); }
+  else { x=x.replace(/[^0-9.-]/g,''); }
+  var n=Number(x.replace(/[^0-9.-]/g,''));
+  return Number.isFinite(n)?n:0;
+}
+function materialLineTotalDriver(m){
+  var qty=parseDriverAmount(m&& (m.qty||m.aantal||m.count||1)) || 1;
+  var price=parseDriverAmount(m&& (m.price||m.prijs||m.amount||m.bedrag||m.total||m.totaal||0));
+  return qty*price;
+}
+function quoteTotalsHtml(o){
+  if(!canPrices()) return '';
+  var mats=Array.isArray(o&&o.materials)?o.materials:[];
+  var matSub=mats.reduce(function(sum,m){return sum+materialLineTotalDriver(m);},0);
+  var lines=Array.isArray(o&&o.transportLines)?o.transportLines:(Array.isArray(o&&o.transport)?o.transport:[]);
+  var bijzSub=lines.reduce(function(sum,l){return sum+driverLineTotal(l);},0);
+  var explicitTotal=parseDriverAmount(orderField(o,['quoteTotal','invoiceTotal','grandTotal','total','totaal','amount','bedrag']));
+  var borg=parseDriverAmount(orderField(o,['deposit','borg','waarborg']));
+  var excl=(matSub+bijzSub) || explicitTotal;
+  var vat=parseDriverAmount(orderField(o,['vat','btw','tax']));
+  if(!vat && excl) vat=excl*0.21;
+  var grand=explicitTotal || (excl+vat+borg);
+  function row(label,val,strong){ return val?`<div class="tw-row"><div>${esc(label)}</div><div class="tw-price">${esc(money(val))}</div></div>`:''; }
+  return `<div class="tw-card"><div class="tw-label">Totaal</div>
+    ${row('Subtotaal materialen',matSub)}
+    ${row('Subtotaal bijzonderheden',bijzSub)}
+    ${row('Subtotaal excl. btw',excl)}
+    ${row('BTW 21%',vat)}
+    ${row('Borg',borg)}
+    ${row('Totaal incl. btw',grand,true)}
+  </div>`;
+}
 function quoteHtml(o){
-  const mats=materialList(o);
-  return `<div style="padding:10px"><h2>${esc(o.number||'Opdracht')} - ${esc(o.title||'')}</h2><p><b>Klant:</b> ${esc(customerName(o)||'')}<br><b>Datum:</b> ${esc(niceDate(orderStart(o)))}${orderEnd(o)&&orderEnd(o)!==orderStart(o)?' t/m '+esc(niceDate(orderEnd(o))):''}<br><b>Adres:</b> ${esc(addressOf(o)||'')}</p><h3>Materialen</h3><ul>${mats.map(m=>`<li>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}${m.extra?' - '+esc(m.extra):''}</li>`).join('')||'<li>Geen materialen</li>'}</ul>${canPrices()?`<p><b>Totaal:</b> ${esc(money(o.amount||o.total||o.price||''))}<br><b>Borg:</b> ${esc(money(o.deposit||o.borg||''))}</p>`:''}<p>${esc(o.extra||o.notes||'')}</p></div>`;
+  return `<div>${fullOrderHtml(o,'Offerte / opdrachtbevestiging').replace(/<div class="tw-card"><div class="tw-label">Prijzen \/ bedragen<\/div>[\s\S]*?<\/div>\s*<div class="tw-card"><div class="tw-label">Bijzonderheden<\/div>/,'<div class="tw-card"><div class="tw-label">Bijzonderheden</div>')}${quoteTotalsHtml(o)}</div>`;
 }
 function openQuote(order){
   const wrap=document.createElement("div");
   wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:12px";
-  wrap.innerHTML='<div style="background:#fff;border-radius:22px;width:min(760px,100%);max-height:92vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.35)"><div id="twQuoteBody">'+quoteHtml(order)+'</div><div style="position:sticky;bottom:0;background:#fff;padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;border-top:1px solid #e5e7eb"><button id="twQuoteClose" class="btn-dark" type="button">Sluiten</button><button id="twQuoteShare" type="button">Delen</button><button id="twQuotePrint" class="btn-green" type="button">Print</button></div></div>';
+  wrap.innerHTML='<div style="background:#fff;border-radius:22px;width:min(760px,100%);max-height:92vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.35)"><div id="twQuoteBody">'+quoteHtml(order)+'</div><div style="position:sticky;bottom:0;background:#fff;padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;border-top:1px solid #e5e7eb"><button id="twQuoteClose" class="btn-dark" type="button">Terug</button><button id="twQuoteShare" type="button">Delen</button><button id="twQuotePrint" class="btn-green" type="button">Print</button></div></div>';
   document.body.appendChild(wrap);
   wrap.querySelector('#twQuoteClose').onclick=()=>wrap.remove();
   wrap.querySelector('#twQuoteShare').onclick=async()=>{const text=(wrap.querySelector('#twQuoteBody').innerText||''); if(navigator.share){try{await navigator.share({title:'Offerte '+(order.number||''),text});}catch(e){}} else {location.href='mailto:?subject='+encodeURIComponent('Offerte '+(order.number||''))+'&body='+encodeURIComponent(text);}};
@@ -357,9 +621,14 @@ async function sendReport(order,type){
 
   if(!extra) return;
 
+  const label = type || "Melding";
+  const aid = "alert_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
   await addAlert({
-    id: "alert_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8),
-    source: "telefoon",
+    id: aid,
+    source: "driver",
+    portal: "driver",
+    fromDriver: true,
+    fromPhone: true,
     orderId: order.id || "",
     orderNumber: order.number || "",
     linkedOrder: order.id || "",
@@ -367,19 +636,28 @@ async function sendReport(order,type){
     orderTitle: order.title || "",
     customerName: customerName(order) || "",
     driverName: BNS.user.name || "",
-    title: type,
-    type: type,
+    title: label + (order.number ? " - " + order.number : ""),
+    type: label,
+    kind: label,
+    category: label,
+    reportType: label,
+    alertType: label,
     text: extra,
     note: extra,
     message: extra,
+    description: extra,
     resolved: false,
+    done: false,
+    hidden: false,
+    admin: true,
+    visibleInPlanner: true,
     createdAt: new Date().toISOString(),
     time: new Date().toLocaleString("nl-NL"),
     from: BNS.user.name || "",
     userId: BNS.user.id || ""
   });
 
-  toast(`${type} verstuurd voor opdracht ${order.number || ""}`);
+  toast(`${label} verstuurd voor opdracht ${order.number || ""}`);
 }
 
 
@@ -493,8 +771,7 @@ function enhanceDriverButtons(){
   function addMediaButtons(grid,id){
     if(!id||!grid||grid.dataset.media143)return;
     grid.dataset.media143="1";
-    if(canPhotoBefore()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-dark" data-photo-before="${esc(id)}">Foto voor</button>`);
-    if(canPhotoAfter()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-dark" data-photo-after="${esc(id)}">Foto na</button>`);
+    if(canAnyPhotoAction()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-dark" data-photo-menu="${esc(id)}">Foto / bewijs</button>`);
     if(canSignature()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-purple wide" data-signature="${esc(id)}">Handtekening klant</button>`);
   }
 
@@ -513,6 +790,7 @@ function enhanceDriverButtons(){
 
   qsa("[data-photo-before]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoBefore); if(o)sendPhoto(o,"Foto voor levering")}});
   qsa("[data-photo-after]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoAfter); if(o)sendPhoto(o,"Foto na levering")}});
+  qsa("[data-photo-menu]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoMenu); if(o)openPhotoChoice(o)}});
   qsa("[data-signature]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.signature); if(o)openSignatureModal(o)}});
 }
 
@@ -520,9 +798,10 @@ function bindActions(){
   setTimeout(enhanceDriverButtons,0);
   qsa("[data-detail]").forEach(b=>{b.onclick=()=>showDetail(b.dataset.detail)});
   qsa("[data-back]").forEach(b=>{b.onclick=()=>showOrders()});
-  qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!await askConfirm("Opdracht afmelden", "Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadPhoneData();showOrders();render()}});
+  qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!canFinishOrderNow(o)){await askConfirm("Nog niet afmelden", finishBlockedText(o));return;}if(!await askConfirm("Opdracht afmelden", "Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadPhoneData();showOrders();render()}});
   qsa("[data-quote]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.quote); if(o)openQuote(o)}});
   qsa("[data-report]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.report);if(!o)return;await sendReport(o,b.dataset.type||"Melding")}});
+  qsa("[data-report-menu]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.reportMenu);if(!o)return;await openReportChoice(o)}});
   qsa("[data-agenda]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.agenda);if(!o)return;toast(`Agenda:\n${niceDate(orderStart(o))} ${o.startTime||""} - ${o.endTime||""}`)}});
 }
 
@@ -535,6 +814,68 @@ function showApp(){
   $("who").textContent=BNS.user?`${BNS.user.name} - ${BNS.user.role||"Medewerker"}`:"";
   render();
 }
+
+function installSearchKeyboard(){
+  const inp=$("searchBox");
+  if(!inp||inp.dataset.bns687Keyboard) return;
+  inp.dataset.bns687Keyboard="1";
+  inp.setAttribute("readonly","readonly");
+  inp.setAttribute("inputmode","none");
+  inp.setAttribute("autocomplete","off");
+  inp.setAttribute("autocorrect","off");
+  inp.setAttribute("spellcheck","false");
+  inp.placeholder=inp.placeholder||"Zoeken";
+
+  function hideKb(){
+    const kb=$("bns687SearchKeyboard") || $("bns686SearchKeyboard");
+    if(kb) kb.classList.add("hidden");
+    try{inp.blur()}catch(_e){}
+  }
+  function addText(t){ inp.value += t; applyDriverSearch(); }
+  function keyBtn(k, extra){
+    return `<button type="button" data-k="${esc(k)}" style="min-width:0;padding:12px 0;border-radius:10px;border:0;background:#ffffff;color:#111827;font-weight:800;font-size:20px;box-shadow:0 1px 2px rgba(15,23,42,.24);${extra||''}">${esc(k)}</button>`;
+  }
+  function showKb(){
+    let old=$("bns686SearchKeyboard");
+    if(old) old.remove();
+    let kb=$("bns687SearchKeyboard");
+    if(kb){kb.classList.remove("hidden"); return;}
+    kb=document.createElement("div");
+    kb.id="bns687SearchKeyboard";
+    kb.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:999998;background:#e5e7eb;border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(15,23,42,.28);padding:10px 8px 12px;max-height:38vh;overflow:auto";
+    kb.innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+        <button type="button" data-clear style="padding:9px 14px;border-radius:12px;border:0;background:#9ca3af;color:#111827;font-weight:900;font-size:15px">Leeg</button>
+        <button type="button" data-close-top style="padding:9px 18px;border-radius:12px;border:0;background:#2563eb;color:#fff;font-weight:900;font-size:15px">Klaar</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin-bottom:8px">${['1','2','3','4','5','6','7','8','9','0'].map(k=>keyBtn(k)).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin-bottom:8px">${['Q','W','E','R','T','Y','U','I','O','P'].map(k=>keyBtn(k)).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin:0 5% 8px">${['A','S','D','F','G','H','J','K','L'].map(k=>keyBtn(k)).join('')}</div>
+      <div style="display:grid;grid-template-columns:1.15fr repeat(7,1fr) 1.15fr;gap:6px;margin-bottom:8px">
+        <button type="button" data-k="-" style="padding:12px 0;border-radius:10px;border:0;background:#cbd5e1;color:#111827;font-weight:900;font-size:20px">-</button>
+        ${['Z','X','C','V','B','N','M'].map(k=>keyBtn(k)).join('')}
+        <button type="button" data-backspace style="padding:12px 0;border-radius:10px;border:0;background:#9ca3af;color:#111827;font-weight:900;font-size:20px">⌫</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 4fr 1fr 1fr;gap:6px">
+        <button type="button" data-k="/" style="padding:12px 0;border-radius:10px;border:0;background:#cbd5e1;color:#111827;font-weight:900;font-size:18px">/</button>
+        <button type="button" data-k="," style="padding:12px 0;border-radius:10px;border:0;background:#fff;color:#111827;font-weight:900;font-size:18px">,</button>
+        <button type="button" data-space style="padding:12px;border-radius:10px;border:0;background:#fff;color:#111827;font-weight:900;font-size:15px">Spatie</button>
+        <button type="button" data-k="." style="padding:12px 0;border-radius:10px;border:0;background:#fff;color:#111827;font-weight:900;font-size:18px">.</button>
+        <button type="button" data-close style="padding:12px 0;border-radius:10px;border:0;background:#9ca3af;color:#111827;font-weight:900;font-size:18px">↵</button>
+      </div>`;
+    document.body.appendChild(kb);
+    qsa("[data-k]",kb).forEach(b=>b.onclick=()=>addText(b.dataset.k));
+    kb.querySelector("[data-space]").onclick=()=>addText(" ");
+    kb.querySelector("[data-backspace]").onclick=()=>{inp.value=inp.value.slice(0,-1);applyDriverSearch()};
+    kb.querySelector("[data-clear]").onclick=()=>{inp.value="";applyDriverSearch()};
+    kb.querySelector("[data-close]").onclick=hideKb;
+    kb.querySelector("[data-close-top]").onclick=hideKb;
+  }
+  inp.addEventListener("focus",e=>{try{inp.blur()}catch(_e){};showKb()});
+  inp.addEventListener("click",e=>{e.preventDefault();showKb()});
+  inp.addEventListener("touchstart",e=>{showKb()},{passive:true});
+}
+
 
 async function boot(){
   try{
@@ -555,8 +896,9 @@ async function boot(){
 
   toast("Verversd");
 };
-    $("clearSearchBtn").onclick=()=>{$("searchBox").value="";qsa(".order").forEach(el=>el.style.display="")};
-    $("searchBox").oninput=()=>{const q=lower($("searchBox").value);qsa(".order").forEach(el=>{el.style.display=!q||lower(el.innerText).includes(q)?"":"none"})};
+    installSearchKeyboard();
+    $("clearSearchBtn").onclick=()=>{$("searchBox").value="";applyDriverSearch()};
+    $("searchBox").oninput=applyDriverSearch;
     restoreSession(userAllowed,SESSION_KEY,showApp);
   }catch(e){console.error(e);setStatus("Fout: "+e.message)}
 }
@@ -669,4 +1011,198 @@ boot();
     }catch(e){}
   });
   console.log("[BNS v493 driver] update-signaal actief.");
+})();
+
+
+/* BNS v516 telefoon: realtime orders/users verversen, zonder opdrachten te mixen */
+(function(){
+  if(window.__BNS_V516_DRIVER_REALTIME__) return;
+  window.__BNS_V516_DRIVER_REALTIME__=true;
+  function start(){
+    try{
+      if(!BNS || !BNS.firebase || !BNS.db || BNS.__v516Live) return;
+      BNS.__v516Live=true;
+      BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,"orders"), function(){
+        try{ if(BNS.user) loadOrdersOnly().then(function(){ try{ render(); }catch(e){} }); }catch(e){}
+      });
+      BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,"users"), function(){
+        try{ loadUsersOnly().then(function(){
+          if(BNS.user){
+            var fresh=(BNS.state.users||[]).find(function(u){return String(u.id)===String(BNS.user.id);});
+            if(!fresh || fresh.active===false || fresh.deleted===true || fresh.disabled===true){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} location.reload(); return; }
+            BNS.user=fresh;
+          }
+          try{ render(); }catch(e){}
+        }); }catch(e){}
+      });
+    }catch(e){}
+  }
+  setTimeout(start,1200);
+  setInterval(start,4000);
+})();
+
+/* BNS v648 driver: vermissing alert velden, offerte/prijzen, open opdracht layout, rode meldingknop */
+
+
+/* BNS 650 - driver: vermissing verborgen, afmelden pas na einddatum. Alleen driver/driver.js. */
+
+
+// ===== BNS v685: prijzenrechten hard afdwingen op bezorgertelefoon =====
+(function(){
+  try{ console.info('[BNS 687] Driver offertebon + toetsenbordindeling + prijzenrechten actief.'); }catch(e){}
+})();
+
+/* ===== BNS v688 - driver rechten uit Admin hard afdwingen =====
+   Alleen bezorgertelefoon. Knoppen en prijzen volgen altijd de rechten uit Personeel/gebruiker rechten.
+*/
+(function(){
+  if(window.__BNS688_DRIVER_RIGHTS_HARD__) return;
+  window.__BNS688_DRIVER_RIGHTS_HARD__ = true;
+
+  function norm(v){ return String(v==null?'':v).trim().toLowerCase(); }
+  function currentUserFresh(){
+    try{
+      if(!window.BNS || !BNS.user) return null;
+      var cur=BNS.user;
+      var users=(BNS.state && Array.isArray(BNS.state.users)) ? BNS.state.users : [];
+      var id=String(cur.id||'');
+      var pin=String(cur.pin||'');
+      var name=norm(cur.name||cur.naam||'');
+      var fresh=users.find(function(u){ return id && String(u.id||'')===id; }) ||
+                users.find(function(u){ return pin && String(u.pin||'')===pin && norm(u.name||u.naam||'')===name; }) ||
+                users.find(function(u){ return name && norm(u.name||u.naam||'')===name; });
+      if(fresh) BNS.user=fresh;
+      return BNS.user;
+    }catch(e){ return (window.BNS && BNS.user) ? BNS.user : null; }
+  }
+  function isAdmin(){
+    var u=currentUserFresh();
+    var r=(u&&u.rights)||{};
+    return norm(u&&u.role)==='admin' || r.admin===true || r.adminBeheer===true;
+  }
+  function has(keys){
+    var u=currentUserFresh();
+    if(!u) return true;
+    if(isAdmin()) return true;
+    var r=(u && u.rights) ? u.rights : {};
+    keys = keys || [];
+    // Belangrijk: alleen blokkeren als het admin-recht echt expliciet UIT staat.
+    // Oude of nog niet mee gesyncte gebruikers hebben soms niet alle nieuwe keys;
+    // dan mag de telefoon niet ineens alle knoppen verbergen.
+    for(var i=0;i<keys.length;i++){
+      if(r[keys[i]] === true) return true;
+    }
+    for(var j=0;j<keys.length;j++){
+      if(r[keys[j]] === false) return false;
+    }
+    return true;
+  }
+
+  window.canPrices = canPrices = function(){ return has(['prices','prijzen']); };
+  window.canRoute = canRoute = function(){ return has(['gps','route','waze','maps','navigation']); };
+  window.canAgenda = canAgenda = function(){ return has(['agenda','googleAgenda','google_agenda']); };
+  window.canCall = canCall = function(){ return has(['phoneCall','callCustomer','belKlant','bellen','phone']); };
+  window.canDone = canDone = function(){ return has(['phoneDone','done','afmelden','uitgevoerd','complete']); };
+  window.canResolveReports = canResolveReports = function(){ return has(['resolve','melding','meldingen','afmeldenMelding']); };
+  window.canMaterials = canMaterials = function(){ return has(['materials','materialen']); };
+  window.canReportStoring = canReportStoring = function(){ return has(['reportStoring','storing','storingMelden']); };
+  window.canReportDamage = canReportDamage = function(){ return has(['reportDamage','damage','schade','schadeMelden']); };
+  window.canReportMissing = canReportMissing = function(){ return has(['reportMissing','missing','vermissing','vermissingMelden']); };
+  window.canReport = canReport = function(){ return canReportStoring() || canReportDamage() || canReportMissing(); };
+  window.canDamage = canDamage = function(){ return canReportDamage(); };
+  window.canPhotoBefore = canPhotoBefore = function(){ return has(['photoBefore','fotoVoor','photoStart','fotoLeveringVoor','foto_voor','fotoVoorLevering','photo_before']); };
+  window.canPhotoAfter = canPhotoAfter = function(){ return has(['photoAfter','fotoNa','photoEnd','fotoLeveringNa','foto_na','fotoNaLevering','photo_after']); };
+  window.canSignature = canSignature = function(){ return has(['signatureCustomer','handtekening','signature','sign','klantHandtekening','customerSignature']); };
+  window.canQuote = canQuote = function(){ return has(['invoice','factuur','offerte','quote','offer','documents','documenten']); };
+  window.canWhatsApp = canWhatsApp = function(){ return has(['whatsappShare','shareWhatsapp','whatsapp','delen','shareOrder']); };
+  window.canAnyReportAction = canAnyReportAction = function(){ return canReport(); };
+  window.canAnyPhotoAction = canAnyPhotoAction = function(){ return canPhotoBefore() || canPhotoAfter(); };
+
+  function kill(sel){
+    try{ document.querySelectorAll(sel).forEach(function(el){ el.remove(); }); }catch(e){}
+  }
+  function hidePriceDom(){
+    if(canPrices()) return;
+    try{
+      document.querySelectorAll('.tw-price').forEach(function(el){ el.remove(); });
+      document.querySelectorAll('.tw-card').forEach(function(card){
+        var t=(card.textContent||'').toLowerCase();
+        if(t.indexOf('prijzen / bedragen')>=0 || t.indexOf('totaal incl. btw')>=0 || t.indexOf('subtotaal')>=0 || t.indexOf('btw 21')>=0){
+          card.remove();
+        }
+      });
+    }catch(e){}
+  }
+  function cleanDomByRights(){
+    currentUserFresh();
+    if(!canRoute()) kill('[href*="waze"],[href*="maps"],[data-route]');
+    if(!canAgenda()) kill('[data-agenda]');
+    if(!canCall()) kill('a[href^="tel:"]');
+    if(!canWhatsApp()) kill('[data-whatsapp]');
+    if(!canDone()) kill('[data-done]');
+    if(!canQuote()) kill('[data-quote]');
+    if(!canAnyReportAction()) kill('[data-report],[data-report-menu]');
+    if(!canPhotoBefore()) kill('[data-photo-before]');
+    if(!canPhotoAfter()) kill('[data-photo-after]');
+    if(!canAnyPhotoAction()) kill('[data-photo-menu]');
+    if(!canSignature()) kill('[data-signature]');
+    hidePriceDom();
+  }
+  window.BNS688_cleanDriverRightsDom = cleanDomByRights;
+
+  var oldBind = typeof bindActions==='function' ? bindActions : null;
+  if(oldBind && !oldBind.__bns688){
+    bindActions = window.bindActions = function(){
+      var r=oldBind.apply(this,arguments);
+      cleanDomByRights();
+      setTimeout(cleanDomByRights,50);
+      return r;
+    };
+    bindActions.__bns688=true;
+  }
+  var oldRender = typeof render==='function' ? render : null;
+  if(oldRender && !oldRender.__bns688){
+    render = window.render = function(){
+      currentUserFresh();
+      var r=oldRender.apply(this,arguments);
+      cleanDomByRights();
+      setTimeout(cleanDomByRights,80);
+      return r;
+    };
+    render.__bns688=true;
+  }
+  var oldShowDetail = typeof showDetail==='function' ? showDetail : null;
+  if(oldShowDetail && !oldShowDetail.__bns688){
+    showDetail = window.showDetail = function(){
+      currentUserFresh();
+      var r=oldShowDetail.apply(this,arguments);
+      cleanDomByRights();
+      setTimeout(cleanDomByRights,80);
+      return r;
+    };
+    showDetail.__bns688=true;
+  }
+
+  var oldOpenQuote = typeof openQuote==='function' ? openQuote : null;
+  if(oldOpenQuote && !oldOpenQuote.__bns688){
+    openQuote = window.openQuote = function(order){
+      currentUserFresh();
+      if(!canQuote()){ try{ toast('Geen recht voor offerte/factuur'); }catch(e){} return; }
+      return oldOpenQuote.apply(this,arguments);
+    };
+    openQuote.__bns688=true;
+  }
+  var oldOpenSignature = typeof openSignatureModal==='function' ? openSignatureModal : null;
+  if(oldOpenSignature && !oldOpenSignature.__bns688){
+    openSignatureModal = window.openSignatureModal = function(order){
+      currentUserFresh();
+      if(!canSignature()){ try{ toast('Geen recht voor handtekening'); }catch(e){} return; }
+      return oldOpenSignature.apply(this,arguments);
+    };
+    openSignatureModal.__bns688=true;
+  }
+
+  setInterval(cleanDomByRights,1500);
+  setTimeout(cleanDomByRights,300);
+  try{ console.info('[BNS v688] Driver rechten hard gekoppeld aan Admin rechten.'); }catch(e){}
 })();
