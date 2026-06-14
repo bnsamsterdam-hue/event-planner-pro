@@ -51132,46 +51132,48 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   console.info('[BNS 654] Overzichtkeuze gebruikt nu TW300_AU_openDoc/documenten-route voor gevulde factuur en opdrachtbevestiging.');
 })();
 
-// ===== BNS 666 - schoon adresboek in Nieuwe opdracht (v661 basis) =====
+// ===== BNS 667 - adresboek layout schoon + meetypen + leesbaar (v661 basis) =====
 (function(){
-  if(window.__BNS666_ADDRESSBOOK_CLEAN__) return;
-  window.__BNS666_ADDRESSBOOK_CLEAN__ = true;
+  if(window.__BNS667_ADDRESSBOOK_CLEAN_LAYOUT__) return;
+  window.__BNS667_ADDRESSBOOK_CLEAN_LAYOUT__ = true;
 
   function T(v){ return String(v==null?'':v).trim(); }
   function L(v){ return T(v).toLowerCase(); }
   function E(id){ return document.getElementById(id); }
   function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
   function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-  function appState(){ return window.state || window.appState || window.INITIAL_STATE || {}; }
+  function S(){ return window.state || window.appState || window.INITIAL_STATE || {}; }
   function fire(el){ if(!el) return; try{ el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
   function setVal(id,v){ var el=E(id); if(el){ el.value=T(v); fire(el); } }
-  function getVal(id){ var el=E(id); return el?T(el.value):''; }
-  function key(parts){ return parts.map(L).filter(Boolean).join('|'); }
-  function merge(dst,src){ Object.keys(src||{}).forEach(function(k){ if(!T(dst[k]) && T(src[k])) dst[k]=src[k]; }); return dst; }
+  function clearVal(id){ setVal(id,''); }
+  function k(parts){ return parts.map(L).filter(Boolean).join('|'); }
+  function merge(a,b){ Object.keys(b||{}).forEach(function(x){ if(!T(a[x]) && T(b[x])) a[x]=b[x]; }); return a; }
 
   function style(){
-    if(E('bns666Style')) return;
-    var css = document.createElement('style'); css.id='bns666Style';
+    if(E('bns667Style')) return;
+    var css=document.createElement('style'); css.id='bns667Style';
     css.textContent = `
-      .bns666-hide{display:none!important;visibility:hidden!important;}
-      .bns666-wrap{margin:12px 0 14px 0;padding:14px;border:1px solid rgba(0,0,0,.16);border-radius:14px;background:#fff;max-width:760px;box-sizing:border-box;}
-      .bns666-title{font-weight:900;font-size:18px;margin:0 0 8px 0;color:#111!important;}
-      .bns666-search{width:100%;box-sizing:border-box;border:1px solid #222!important;border-radius:12px!important;padding:12px 14px!important;font-size:16px!important;color:#111!important;background:#fff!important;margin-bottom:10px;}
-      .bns666-list{max-height:275px;overflow:auto;border-radius:12px;background:#fff;}
-      .bns666-empty{padding:12px 14px;color:#333!important;font-weight:700;background:#f3f7fb;border-radius:12px;}
-      .bns666-row{display:block;width:100%;text-align:left;margin:0 0 8px 0;padding:13px 14px 13px 18px!important;border:1px solid #b9d6ea!important;border-left:8px solid #1199d3!important;border-radius:12px!important;background:#ffffff!important;color:#111!important;box-shadow:0 1px 3px rgba(0,0,0,.10)!important;cursor:pointer;}
-      .bns666-row b{display:block;color:#111!important;font-size:15px!important;font-weight:900!important;line-height:1.25!important;}
-      .bns666-row small{display:block;color:#222!important;font-size:13px!important;font-weight:700!important;line-height:1.25!important;margin-top:3px;}
-      .bns666-row:hover,.bns666-row:focus{background:#e7f5ff!important;color:#000!important;outline:2px solid #2196f3!important;}
+      .bns667-hide{display:none!important;visibility:hidden!important;}
+      .bns667-wrap{grid-column:1 / -1!important;width:100%!important;max-width:none!important;box-sizing:border-box!important;margin:10px 0 14px 0!important;padding:12px 14px!important;border:1px solid rgba(0,0,0,.18)!important;border-radius:14px!important;background:#fff!important;display:block!important;clear:both!important;}
+      .bns667-title{font-weight:900!important;font-size:18px!important;line-height:1.2!important;margin:0 0 8px 0!important;color:#111!important;-webkit-text-fill-color:#111!important;}
+      .bns667-search{display:block!important;width:100%!important;max-width:720px!important;box-sizing:border-box!important;border:1px solid #222!important;border-radius:10px!important;padding:11px 13px!important;font-size:16px!important;font-weight:600!important;line-height:1.25!important;color:#111!important;-webkit-text-fill-color:#111!important;background:#fff!important;margin:0 0 10px 0!important;height:auto!important;min-height:42px!important;}
+      .bns667-list{display:block!important;max-width:720px!important;max-height:260px!important;overflow:auto!important;border-radius:12px!important;background:#fff!important;}
+      .bns667-empty{padding:10px 12px!important;color:#111!important;-webkit-text-fill-color:#111!important;font-weight:800!important;background:#eef6fb!important;border-radius:10px!important;}
+      .bns667-row{display:block!important;width:100%!important;text-align:left!important;margin:0 0 8px 0!important;padding:12px 14px 12px 18px!important;border:1px solid #7fb9d9!important;border-left:8px solid #1199d3!important;border-radius:12px!important;background:#ffffff!important;background-image:none!important;color:#111!important;-webkit-text-fill-color:#111!important;opacity:1!important;filter:none!important;text-shadow:none!important;box-shadow:0 1px 4px rgba(0,0,0,.14)!important;cursor:pointer!important;min-height:58px!important;}
+      .bns667-row b,.bns667-row small,.bns667-row span{color:#111!important;-webkit-text-fill-color:#111!important;opacity:1!important;filter:none!important;text-shadow:none!important;}
+      .bns667-row b{display:block!important;font-size:16px!important;font-weight:900!important;line-height:1.25!important;margin:0 0 3px 0!important;}
+      .bns667-row small{display:block!important;font-size:13px!important;font-weight:800!important;line-height:1.25!important;}
+      .bns667-row:hover,.bns667-row:focus{background:#e7f5ff!important;outline:2px solid #178bd1!important;}
+      #customerName,#locationName,#customerStreet,#locationStreet,#customerZip,#locationZip,#customerCity,#locationCity,#customerPhone,#locationPhone,#customerEmail,#locationContact{height:auto!important;min-height:38px!important;font-size:14px!important;line-height:1.25!important;}
     `;
     document.head.appendChild(css);
   }
 
-  function customers(){
-    var s=appState(), out=[], seen={};
+  function customerData(){
+    var out=[], seen={};
     function add(c){
       c=c||{};
-      var item={
+      var x={
         id:T(c.id),
         name:T(c.name || c.customerName || c.klant || c.klantNaam),
         street:T(c.street || c.customerStreet || c.straat || c.adres),
@@ -51180,19 +51182,20 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
         phone:T(c.phone || c.telefoon || c.customerPhone),
         email:T(c.email || c.customerEmail)
       };
-      if(!item.name || /^klant\s*\d+$/i.test(item.name)) return;
-      var k=key([item.name,item.street,item.zip,item.city,item.phone,item.email]);
-      if(!seen[k]){ seen[k]=item; out.push(item); } else merge(seen[k],item);
+      if(!x.name || /^klant\s*\d+$/i.test(x.name)) return;
+      var key=k([x.name,x.street,x.zip,x.city,x.phone,x.email]);
+      if(!seen[key]){ seen[key]=x; out.push(x); } else merge(seen[key],x);
     }
+    var s=S();
     (s.customers||[]).forEach(add);
-    (s.orders||[]).forEach(function(o){ var c=o.customer||{}; add({ id:'order_'+T(o.id||o.number), name:c.name||o.customerName, street:c.street||o.customerStreet, zip:c.zip||o.customerZip, city:c.city||o.customerCity, phone:c.phone||o.customerPhone, email:c.email||o.customerEmail }); });
+    (s.orders||[]).forEach(function(o){ var c=(o&&o.customer)||{}; add({id:'order_'+T(o&& (o.id||o.number)),name:c.name||o.customerName,street:c.street||o.customerStreet,zip:c.zip||o.customerZip,city:c.city||o.customerCity,phone:c.phone||o.customerPhone,email:c.email||o.customerEmail}); });
     return out.sort(function(a,b){ return a.name.localeCompare(b.name,'nl'); });
   }
-  function locations(){
-    var s=appState(), out=[], seen={};
+  function locationData(){
+    var out=[], seen={};
     function add(l){
       l=l||{};
-      var item={
+      var x={
         id:T(l.id),
         name:T(l.name || l.locationName || l.locatie || l.street || l.locationStreet),
         street:T(l.street || l.locationStreet || l.straat || l.adres),
@@ -51201,49 +51204,46 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
         contact:T(l.contact || l.locationContact),
         phone:T(l.phone || l.telefoon || l.locationPhone)
       };
-      if(!item.name && !item.street) return;
-      if(!item.name) item.name=item.street;
-      var k=key([item.name,item.street,item.zip,item.city,item.phone,item.contact]);
-      if(!seen[k]){ seen[k]=item; out.push(item); } else merge(seen[k],item);
+      if(!x.name && !x.street) return;
+      if(!x.name) x.name=x.street;
+      var key=k([x.name,x.street,x.zip,x.city,x.contact,x.phone]);
+      if(!seen[key]){ seen[key]=x; out.push(x); } else merge(seen[key],x);
     }
+    var s=S();
     (s.locations||[]).forEach(add);
-    (s.orders||[]).forEach(function(o){ var l=o.location||{}; add({ id:'order_'+T(o.id||o.number), name:l.name||o.locationName, street:l.street||o.locationStreet, zip:l.zip||o.locationZip, city:l.city||o.locationCity, contact:l.contact||o.locationContact, phone:l.phone||o.locationPhone }); });
+    (s.orders||[]).forEach(function(o){ var l=(o&&o.location)||{}; add({id:'order_'+T(o&& (o.id||o.number)),name:l.name||o.locationName,street:l.street||o.locationStreet,zip:l.zip||o.locationZip,city:l.city||o.locationCity,contact:l.contact||o.locationContact,phone:l.phone||o.locationPhone}); });
     return out.sort(function(a,b){ return a.name.localeCompare(b.name,'nl'); });
   }
-  function match(list,q){
+  function searchRows(kind,q){
     q=L(q); if(q.length<2) return [];
-    return list.filter(function(x){ return [x.name,x.street,x.zip,x.city,x.phone,x.email,x.contact].join(' ').toLowerCase().indexOf(q)>=0; }).slice(0,40);
+    var arr=(kind==='customer')?customerData():locationData();
+    return arr.filter(function(x){ return [x.name,x.street,x.zip,x.city,x.phone,x.email,x.contact].join(' ').toLowerCase().indexOf(q)>=0; }).slice(0,40);
   }
-  function closeList(kind){
-    var input=E(kind==='customer'?'bns666CustomerSearch':'bns666LocationSearch');
-    var list=E(kind==='customer'?'bns666CustomerList':'bns666LocationList');
-    if(input) input.value='';
-    if(list) list.innerHTML='<div class="bns666-empty">Typ minimaal 2 letters om te zoeken.</div>';
+  function emptyText(kind){ return '<div class="bns667-empty">Typ minimaal 2 letters om te zoeken.</div>'; }
+  function close(kind){
+    var list=E(kind==='customer'?'bns667CustomerList':'bns667LocationList');
+    if(list) list.innerHTML=emptyText(kind);
   }
-  function renderList(kind){
-    var input=E(kind==='customer'?'bns666CustomerSearch':'bns666LocationSearch');
-    var list=E(kind==='customer'?'bns666CustomerList':'bns666LocationList');
-    if(!input || !list) return;
-    var rows=match(kind==='customer'?customers():locations(), input.value);
-    if(T(input.value).length<2){ list.innerHTML='<div class="bns666-empty">Typ minimaal 2 letters om te zoeken.</div>'; return; }
-    if(!rows.length){ list.innerHTML='<div class="bns666-empty">Geen resultaat gevonden.</div>'; return; }
+  function clearSearch(kind){
+    var inp=E(kind==='customer'?'bns667CustomerSearch':'bns667LocationSearch');
+    if(inp) inp.value='';
+    close(kind);
+  }
+  function render(kind){
+    var inp=E(kind==='customer'?'bns667CustomerSearch':'bns667LocationSearch');
+    var list=E(kind==='customer'?'bns667CustomerList':'bns667LocationList');
+    if(!inp || !list) return;
+    var q=T(inp.value);
+    if(q.length<2){ list.innerHTML=emptyText(kind); return; }
+    var rows=searchRows(kind,q);
+    if(!rows.length){ list.innerHTML='<div class="bns667-empty">Geen resultaat gevonden.</div>'; return; }
     list.innerHTML=rows.map(function(x,i){
-      var sub=[x.street, [x.zip,x.city].filter(Boolean).join(' '), x.phone, x.email||x.contact].filter(Boolean).join(' · ');
-      return '<button type="button" class="bns666-row" data-kind="'+kind+'" data-index="'+i+'"><b>'+H(x.name)+'</b><small>'+H(sub)+'</small></button>';
+      var sub=[x.street,[x.zip,x.city].filter(Boolean).join(' '),x.phone,x.email||x.contact].filter(Boolean).join(' · ');
+      return '<button type="button" class="bns667-row" data-kind="'+kind+'" data-index="'+i+'"><b>'+H(x.name)+'</b><small>'+H(sub)+'</small></button>';
     }).join('');
-    A('.bns666-row',list).forEach(function(btn){ btn.onclick=function(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); } var idx=Number(btn.getAttribute('data-index')||0); apply(kind, rows[idx]); closeList(kind); return false; }; });
-  }
-  function syncFromName(kind){
-    var src=E(kind==='customer'?'customerName':'locationName');
-    var dst=E(kind==='customer'?'bns666CustomerSearch':'bns666LocationSearch');
-    if(!src || !dst) return;
-    var v=T(src.value);
-    if(v.length>=2){ dst.value=v; renderList(kind); }
-    else { closeList(kind); }
-  }
-  function clearFields(kind){
-    if(kind==='customer' || !kind){ ['customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail'].forEach(function(id){ setVal(id,''); }); closeList('customer'); }
-    if(kind==='location' || !kind){ ['locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone'].forEach(function(id){ setVal(id,''); }); closeList('location'); }
+    A('.bns667-row',list).forEach(function(btn){
+      btn.onclick=function(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } var x=rows[Number(btn.getAttribute('data-index')||0)]; apply(kind,x); clearSearch(kind); return false; };
+    });
   }
   function apply(kind,x){
     if(!x) return;
@@ -51255,58 +51255,71 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
     try{ if(typeof renderSummary==='function') renderSummary(); }catch(e){}
   }
-  function hideOldAddressButtons(panel){
+  function clearFields(kind){
+    if(kind==='customer' || !kind){ ['customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail'].forEach(clearVal); clearSearch('customer'); }
+    if(kind==='location' || !kind){ ['locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone'].forEach(clearVal); clearSearch('location'); }
+  }
+  function sync(kind){
+    var src=E(kind==='customer'?'customerName':'locationName');
+    var dst=E(kind==='customer'?'bns667CustomerSearch':'bns667LocationSearch');
+    if(!src || !dst) return;
+    var v=T(src.value);
+    if(v.length>=2){ dst.value=v; render(kind); }
+    else { clearSearch(kind); }
+  }
+  function hideOld(panel){
     if(!panel) return;
     A('button,a,input[type=button]',panel).forEach(function(b){
       var txt=L(b.textContent||b.value||'');
-      if(/klantenbestand openen|locatiebestand openen|adresboek klant|adresboek locatie/.test(txt)){ b.classList.add('bns666-hide'); }
+      if(/klantenbestand openen|locatiebestand openen|adresboek klant|adresboek locatie|zoek klant|zoek locatie/.test(txt)) b.classList.add('bns667-hide');
     });
-    A('.bns-v164-suggest,.bns-v664-wrap,.bns-v665-wrap',panel).forEach(function(x){ x.classList.add('bns666-hide'); });
+    A('.bns-v164-suggest,.bns639-pop,.bns639-box,.bns662-wrap,.bns663-wrap,.bns664-wrap,.bns665-wrap,.bns666-wrap',panel).forEach(function(x){ x.classList.add('bns667-hide'); });
   }
-  function hideLocationSameButton(panel){
-    if(!panel) return;
-    A('button,a,input[type=button]',panel).forEach(function(b){
+  function hideLocationEqual(){
+    A('button,a,input[type=button]').forEach(function(b){
       var txt=L(b.textContent||b.value||'');
-      if(/klant is zelfde als bezorg adres|klant is locatie/.test(txt)) b.classList.add('bns666-hide');
+      if(/klant\s*=\s*locatie/.test(txt)) b.classList.add('bns667-hide');
     });
   }
-  function installCustomer(){
-    var name=E('customerName');
-    var panel=E('customerPanel') || (name && name.closest('.card,.panel,.workpanel,section,div'));
-    if(!panel) return;
-    hideOldAddressButtons(panel);
-    var wrap=E('bns666CustomerWrap');
-    if(!wrap){
-      wrap=document.createElement('div'); wrap.id='bns666CustomerWrap'; wrap.className='bns666-wrap';
-      wrap.innerHTML='<div class="bns666-title">Klantenbestand</div><input id="bns666CustomerSearch" class="bns666-search" placeholder="Zoek klant"><div id="bns666CustomerList" class="bns666-list"><div class="bns666-empty">Typ minimaal 2 letters om te zoeken.</div></div>';
-      if(name && name.parentNode) name.parentNode.insertBefore(wrap,name); else panel.insertBefore(wrap,panel.firstChild||null);
-      var inp=E('bns666CustomerSearch'); if(inp){ inp.addEventListener('input',function(){ renderList('customer'); }); inp.addEventListener('focus',function(){ renderList('customer'); }); }
+  function ensureCustomer(){
+    var name=E('customerName'); if(!name) return;
+    var panel=E('customerPanel') || name.closest('.workpanel,.card,.panel,section,div'); if(!panel) return;
+    hideOld(panel);
+    if(!E('bns667CustomerWrap')){
+      var wrap=document.createElement('div'); wrap.id='bns667CustomerWrap'; wrap.className='bns667-wrap';
+      wrap.innerHTML='<div class="bns667-title">Klantenbestand</div><input id="bns667CustomerSearch" class="bns667-search" placeholder="Zoek klant"><div id="bns667CustomerList" class="bns667-list">'+emptyText('customer')+'</div>';
+      var parent=name.parentNode || panel;
+      parent.insertBefore(wrap,name);
+      var inp=E('bns667CustomerSearch');
+      if(inp){ inp.addEventListener('input',function(){ render('customer'); }); inp.addEventListener('focus',function(){ render('customer'); }); }
     }
-    if(name && !name.__bns666Sync){ name.__bns666Sync=true; name.addEventListener('input',function(){ syncFromName('customer'); }); name.addEventListener('focus',function(){ syncFromName('customer'); }); }
+    if(!name.__bns667Sync){ name.__bns667Sync=true; name.addEventListener('input',function(){ sync('customer'); }); name.addEventListener('focus',function(){ sync('customer'); }); }
   }
-  function installLocation(){
-    var name=E('locationName');
-    var panel=E('locationPanel') || (name && name.closest('.card,.panel,.workpanel,section,div'));
-    if(!panel) return;
-    hideOldAddressButtons(panel); hideLocationSameButton(panel);
-    var wrap=E('bns666LocationWrap');
-    if(!wrap){
-      wrap=document.createElement('div'); wrap.id='bns666LocationWrap'; wrap.className='bns666-wrap';
-      wrap.innerHTML='<div class="bns666-title">Locatiebestand</div><input id="bns666LocationSearch" class="bns666-search" placeholder="Zoek locatie"><div id="bns666LocationList" class="bns666-list"><div class="bns666-empty">Typ minimaal 2 letters om te zoeken.</div></div>';
-      if(name && name.parentNode) name.parentNode.insertBefore(wrap,name); else panel.insertBefore(wrap,panel.firstChild||null);
-      var inp=E('bns666LocationSearch'); if(inp){ inp.addEventListener('input',function(){ renderList('location'); }); inp.addEventListener('focus',function(){ renderList('location'); }); }
+  function ensureLocation(){
+    var name=E('locationName'); if(!name) return;
+    var panel=E('locationPanel') || name.closest('.workpanel,.card,.panel,section,div'); if(!panel) return;
+    hideOld(panel); hideLocationEqual();
+    if(!E('bns667LocationWrap')){
+      var wrap=document.createElement('div'); wrap.id='bns667LocationWrap'; wrap.className='bns667-wrap';
+      wrap.innerHTML='<div class="bns667-title">Locatiebestand</div><input id="bns667LocationSearch" class="bns667-search" placeholder="Zoek locatie"><div id="bns667LocationList" class="bns667-list">'+emptyText('location')+'</div>';
+      var parent=name.parentNode || panel;
+      parent.insertBefore(wrap,name);
+      var inp=E('bns667LocationSearch');
+      if(inp){ inp.addEventListener('input',function(){ render('location'); }); inp.addEventListener('focus',function(){ render('location'); }); }
     }
-    if(name && !name.__bns666Sync){ name.__bns666Sync=true; name.addEventListener('input',function(){ syncFromName('location'); }); name.addEventListener('focus',function(){ syncFromName('location'); }); }
+    if(!name.__bns667Sync){ name.__bns667Sync=true; name.addEventListener('input',function(){ sync('location'); }); name.addEventListener('focus',function(){ sync('location'); }); }
   }
-  function tick(){ style(); installCustomer(); installLocation(); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,400); }); else setTimeout(tick,250);
-  [900,1800,3200,5200].forEach(function(ms){ setTimeout(tick,ms); });
+  function tick(){ style(); ensureCustomer(); ensureLocation(); hideLocationEqual(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,350); }); else setTimeout(tick,200);
+  [800,1600,3000,5000].forEach(function(ms){ setTimeout(tick,ms); });
   document.addEventListener('click',function(ev){
-    var b=ev.target && ev.target.closest && ev.target.closest('button,a,input[type=button]');
+    var b=ev.target&&ev.target.closest&&ev.target.closest('button,a,input[type=button]');
     var txt=b?L(b.textContent||b.value||''):'';
     if(/leegmaken/.test(txt)){ setTimeout(function(){ clearFields(); },80); }
-    if(/annuleren/.test(txt)){ setTimeout(function(){ clearFields(); },160); }
-    if(/opslaan/.test(txt)){ setTimeout(function(){ closeList('customer'); closeList('location'); },420); }
+    if(/annuleren/.test(txt)){ setTimeout(function(){ clearFields(); },150); }
+    if(/opslaan/.test(txt)){ setTimeout(function(){ clearSearch('customer'); clearSearch('location'); },350); }
     setTimeout(tick,120);
   },true);
+  setInterval(tick,1200);
+  console.info('[BNS 667] Schoon adresboek v661: meetypen, leesbaar, locatie knop klant=locatie weg.');
 })();
