@@ -51133,109 +51133,112 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 })();
 
 /* =========================================================
-   BNS 662 - Admin adresboek-kiezer gebruiken in Nieuwe opdracht
-   Basis: v661.
-   Doel:
-   - Oude typ-dropdown bij klant/locatie in Nieuwe opdracht weg/rustig.
-   - Duidelijke knoppen Adresboek klant / Adresboek locatie gebruiken.
-   - De bestaande mooie adresboek modal (BNS639/admin bron) openen.
-   - Gekozen klant/locatie vult alleen formulier velden.
+   BNS 663 - Nieuwe opdracht: adresboek openen zoals Admin
+   Basis: v661. Alleen visuele/klik-koppeling voor klant/locatie.
+   - Verwijdert/verbergt de donkere extra Adresboek-knoppen.
+   - Maakt de bestaande knop/nieuwe knop 'Zoek klant' en 'Zoek locatie'.
+   - Opent dezelfde BNS639 adresboek-kiezer met zoekveld en lijst.
    Raakt niet: status, save, transport, documenten, driver/telefoon,
-   materiaal, reserveringen of admin materiaal.
+   materialen, reserveringen of admin materiaal.
 ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS662_ADMIN_ADRESBOEK_KIEZER__) return;
-  window.__BNS662_ADMIN_ADRESBOEK_KIEZER__ = true;
+  if(window.__BNS663_ADRESBOEK_KNOPPEN_ADMIN_STIJL__) return;
+  window.__BNS663_ADRESBOEK_KNOPPEN_ADMIN_STIJL__ = true;
 
   function E(id){ return document.getElementById(id); }
-  function T(v){ return String(v==null?'':v).trim(); }
-  function hideOldBoxes(){
-    ['bnsV164CustomerBox','bnsV164LocationBox','customerSuggest','locationSuggest','customerSuggestions','locationSuggestions'].forEach(function(id){
-      var b=E(id); if(b){ b.style.display='none'; b.classList.add('hidden'); }
-    });
-    document.querySelectorAll('.bns-v164-suggest').forEach(function(b){ b.style.display='none'; b.classList.add('hidden'); });
-  }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function has(el){ return !!(el && el.isConnected); }
+  function all(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+
   function ensureCss(){
-    if(E('bns662AdresboekCss')) return;
-    var st=document.createElement('style'); st.id='bns662AdresboekCss';
+    if(E('bns663AdresboekCss')) return;
+    var st=document.createElement('style'); st.id='bns663AdresboekCss';
     st.textContent = ''+
-      '#bnsV164CustomerBox,#bnsV164LocationBox,#customerSuggest,#locationSuggest,#customerSuggestions,#locationSuggestions{display:none!important;visibility:hidden!important;pointer-events:none!important}'+
-      '.bns-v164-suggest{display:none!important;visibility:hidden!important;pointer-events:none!important}'+
-      '.bns662-ab-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin:7px 7px 0 0;padding:10px 13px;border:0;border-radius:13px;background:#0f172a;color:#fff;font-weight:1000;box-shadow:0 5px 14px rgba(15,23,42,.18);cursor:pointer}'+
-      '.bns662-ab-btn:hover{filter:brightness(1.08)}'+
-      '.bns662-loc-btn{background:#1d4ed8}.bns662-copy-btn{background:#0ea5e9}'+
-      '@media(max-width:640px){.bns662-ab-btn{width:100%;margin-right:0}}';
+      '#bns639CustomerBtn,#bns639LocationBtn{display:none!important}'+
+      '.bns663-ab-open{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:6px 8px 8px 0;padding:10px 14px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-weight:1000;box-shadow:0 4px 12px rgba(37,99,235,.25);cursor:pointer}'+
+      '.bns663-ab-open:hover{filter:brightness(1.06)}'+
+      '.bns663-ab-open.loc{background:#0f766e}'+
+      '@media(max-width:700px){.bns663-ab-open{width:100%;margin-right:0}}';
     document.head.appendChild(st);
   }
-  function setVal(id,val){
-    var el=E(id); if(!el) return;
-    el.value=T(val);
-    try{ el.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){}
-    try{ el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
+
+  function openBook(type){
+    type = type === 'location' ? 'location' : 'customer';
+    try{
+      if(typeof window.BNS639OpenAdresboek === 'function'){
+        window.BNS639OpenAdresboek(type);
+        return;
+      }
+    }catch(e){}
+    var fallback = E(type === 'location' ? 'bns639LocationBtn' : 'bns639CustomerBtn');
+    if(fallback){ try{ fallback.click(); return; }catch(e){} }
+    alert('Adresboek is nog niet geladen. Probeer over 1 seconde opnieuw.');
   }
-  function copyCustomerToLocation(){
-    setVal('locationName',(E('customerName')||{}).value||'');
-    setVal('locationStreet',(E('customerStreet')||{}).value||'');
-    setVal('locationZip',(E('customerZip')||{}).value||'');
-    setVal('locationCity',(E('customerCity')||{}).value||'');
-    setVal('locationPhone',(E('customerPhone')||{}).value||'');
+
+  function makeButton(id,label,type,cls){
+    var b=E(id);
+    if(!b){ b=document.createElement('button'); b.id=id; b.type='button'; }
+    b.className='bns663-ab-open '+(cls||'');
+    b.textContent=label;
+    b.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); openBook(type); return false; };
+    return b;
   }
-  function openBook(kind){
-    hideOldBoxes();
-    if(typeof window.BNS639OpenAdresboek === 'function'){
-      window.BNS639OpenAdresboek(kind==='location'?'location':'customer');
-      return;
-    }
-    alert('Adresboek wordt nog geladen. Probeer opnieuw.');
+
+  function looksLikeCustomerOpenButton(b){
+    var txt=L((b.textContent||'')+' '+(b.value||'')+' '+(b.id||'')+' '+(b.className||''));
+    return /klantenbestand openen|adresboek klant|zoek klant/.test(txt);
   }
-  function addAfter(anchor,id,text,kind,cls){
-    if(!anchor || E(id)) return;
-    var btn=document.createElement('button');
-    btn.type='button'; btn.id=id; btn.className='bns662-ab-btn '+(cls||''); btn.textContent=text;
-    btn.addEventListener('click',function(ev){
-      ev.preventDefault(); ev.stopPropagation(); hideOldBoxes();
-      if(kind==='copy') copyCustomerToLocation(); else openBook(kind);
-    },true);
-    anchor.insertAdjacentElement('afterend',btn);
+  function looksLikeLocationOpenButton(b){
+    var txt=L((b.textContent||'')+' '+(b.value||'')+' '+(b.id||'')+' '+(b.className||''));
+    return /locatiebestand openen|adresboek locatie|zoek locatie/.test(txt);
   }
-  function quietInputs(){
-    ['customerName','locationName'].forEach(function(id){
-      var el=E(id); if(!el) return;
-      el.removeAttribute('list');
-      el.setAttribute('autocomplete','off');
-      if(el.dataset.bns662Quiet==='1') return;
-      el.dataset.bns662Quiet='1';
-      ['focus','click','input','keydown'].forEach(function(evName){
-        el.addEventListener(evName,function(ev){
-          if(evName==='keydown' && ev.key!=='Escape') return;
-          setTimeout(hideOldBoxes,0);
-          setTimeout(hideOldBoxes,80);
-        },true);
-      });
+
+  function convertExisting(){
+    var buttons=all('button,input[type=button],a');
+    buttons.forEach(function(b){
+      if(!b || b.dataset.bns663Done==='1') return;
+      if(looksLikeCustomerOpenButton(b)){
+        if(b.id==='bns639CustomerBtn') return; // deze oude donkere knop blijft verborgen
+        b.dataset.bns663Done='1';
+        b.textContent='Zoek klant';
+        b.classList.add('bns663-ab-open');
+        b.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); openBook('customer'); return false; };
+      } else if(looksLikeLocationOpenButton(b)){
+        if(b.id==='bns639LocationBtn') return;
+        b.dataset.bns663Done='1';
+        b.textContent='Zoek locatie';
+        b.classList.add('bns663-ab-open','loc');
+        b.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); openBook('location'); return false; };
+      }
     });
   }
+
+  function insertIfMissing(){
+    var cn=E('customerName');
+    if(cn && !has(E('bns663CustomerOpenBtn'))){
+      var b=makeButton('bns663CustomerOpenBtn','Zoek klant','customer','');
+      // Bij voorkeur boven/bij klantnaam, maar niet midden in de velden.
+      cn.insertAdjacentElement('beforebegin', b);
+    }
+    var ln=E('locationName');
+    if(ln && !has(E('bns663LocationOpenBtn'))){
+      var bl=makeButton('bns663LocationOpenBtn','Zoek locatie','location','loc');
+      ln.insertAdjacentElement('beforebegin', bl);
+    }
+  }
+
   function install(){
-    ensureCss(); hideOldBoxes(); quietInputs();
-    var cn=E('customerName'), ln=E('locationName');
-    if(cn){
-      addAfter(cn,'bns662CustomerBookBtn','Adresboek klant','customer','');
-    }
-    if(ln){
-      addAfter(ln,'bns662LocationBookBtn','Adresboek locatie','location','bns662-loc-btn');
-      addAfter(E('bns662LocationBookBtn')||ln,'bns662CopyCustomerLocationBtn','Klant = locatie','copy','bns662-copy-btn');
-    }
-    // Oude BNS639 knoppen niet dubbel tonen als onze knoppen aanwezig zijn.
-    ['bns639CustomerBtn','bns639LocationBtn','bns639CopyCustomerBtn'].forEach(function(id){
-      var b=E(id); if(b){ b.style.display='none'; b.setAttribute('aria-hidden','true'); }
-    });
+    ensureCss();
+    convertExisting();
+    insertIfMissing();
   }
+
   install();
-  [200,600,1200,2500,4500].forEach(function(ms){ setTimeout(install,ms); });
-  document.addEventListener('click',function(){ setTimeout(install,120); },true);
-  document.addEventListener('input',function(ev){
-    if(ev.target && /^(customerName|locationName)$/.test(ev.target.id||'')) setTimeout(hideOldBoxes,0);
-  },true);
-  try{ new MutationObserver(function(){ hideOldBoxes(); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
-  console.info('[BNS 662] Admin adresboek-kiezer actief in Nieuwe opdracht; oude typ-dropdown verborgen.');
+  [200,600,1200,2500,5000].forEach(function(ms){ setTimeout(install,ms); });
+  document.addEventListener('click',function(){ setTimeout(install,80); },true);
+  document.addEventListener('input',function(){ setTimeout(install,80); },true);
+  try{ new MutationObserver(function(){ install(); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
+  console.info('[BNS 663] Nieuwe opdracht adresboekknoppen openen dezelfde kiezer als Admin.');
 })();
