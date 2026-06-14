@@ -51360,3 +51360,145 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   setTimeout(function(){ installBox(); loadFromOrder(true); },1400);
   console.info('[BNS 679] Bijzonderheden transport-kloon test actief.');
 })();
+
+/* =========================================================
+   BNS 680 - Documenten: bijzonderheden als transport-kopie tonen
+   Basis: v679 (bijzonderheden-rubriek werkt)
+   - Raakt de invoer/rubriek niet aan
+   - Overschrijft alleen document openen (factuur/opdracht document)
+   - Toont transportLines en serviceLines/bijzonderhedenLines op dezelfde manier
+   ========================================================= */
+(function BNS_V680_BIJZONDERHEDEN_DOCUMENT_TRANSPORT_COPY(){
+  'use strict';
+  if(window.__BNS_V680_BIJZONDERHEDEN_DOCUMENT_TRANSPORT_COPY__) return;
+  window.__BNS_V680_BIJZONDERHEDEN_DOCUMENT_TRANSPORT_COPY__ = true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function H(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function euro(n){ n=N(n); return '€ '+n.toFixed(2).replace('.',','); }
+  function clone(v){ try{return JSON.parse(JSON.stringify(v||[]));}catch(e){return [];} }
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || null; }
+  function orders(){ var s=S()||{}; return Array.isArray(s.orders) ? s.orders : []; }
+  function E(id){ return document.getElementById(id); }
+  function orderId(o){ return T(o && (o.id || o.orderId || o.docId)); }
+  function orderNo(o){ return T(o && (o.number || o.orderNumber || o.nr)); }
+  function titleOf(o){ return T(o && (o.title || o.name || o.eventName || '')); }
+  function niceDate(d){ if(!d) return ''; try{ var x=new Date(d); if(!isNaN(x)) return x.toLocaleDateString('nl-NL'); }catch(e){} return T(d); }
+  function customer(o){ return (o && o.customer) || {}; }
+  function locationObj(o){ return (o && o.location) || {}; }
+  function findOrder(key){
+    key=T(key);
+    var list=orders();
+    if(key){
+      var hit=list.find(function(o){ return [o.id,o.orderId,o.docId,o.number,o.orderNumber,o.nr].map(T).indexOf(key)>=0; });
+      if(hit) return hit;
+    }
+    try{
+      var ed=T(window.editing || (typeof editing!=='undefined' ? editing : ''));
+      if(ed){
+        var e=list.find(function(o){ return [o.id,o.orderId,o.docId,o.number,o.orderNumber,o.nr].map(T).indexOf(ed)>=0; });
+        if(e) return e;
+      }
+    }catch(_e){}
+    var nr=T(E('orderNumber')&&E('orderNumber').value);
+    if(nr){
+      var n=list.find(function(o){ return [o.number,o.orderNumber,o.nr].map(T).indexOf(nr)>=0; });
+      if(n) return n;
+    }
+    return null;
+  }
+  function lineTotal(l){ return (N(l&&l.qty)||1) * N(l&&l.price); }
+  function cleanLine(l, fallbackName){
+    l=l||{};
+    return {
+      name:T(l.name||l.title||l.omschrijving||l.description||fallbackName||''),
+      qty:N(l.qty||l.aantal||1)||1,
+      unit:T(l.unit||l.eenheid||'x')||'x',
+      price:N(l.price||l.prijs||l.amount||l.bedrag||l.total||l.totaal),
+      note:T(l.note||l.opmerking||l.remark||l.notes||'')
+    };
+  }
+  function cleanLines(arr, fallbackName){
+    return clone(arr).map(function(l){ return cleanLine(l, fallbackName); }).filter(function(l){ return T(l.name)||T(l.note)||N(l.price); });
+  }
+  function materialLines(o){ return cleanLines((o&&o.materials)||[], 'Materiaal'); }
+  function transportLines(o){ return cleanLines((o&&(o.transportLines||o.transport))||[], 'Transport'); }
+  function bijzonderLines(o){
+    var arr=[];
+    if(o && Array.isArray(o.bijzonderhedenLines)) arr=clone(o.bijzonderhedenLines);
+    else if(o && Array.isArray(o.serviceLines)) arr=clone(o.serviceLines);
+    else if(o && Array.isArray(o.services)) arr=clone(o.services);
+    else if(Array.isArray(window.__bns679BijzonderhedenLines)) arr=clone(window.__bns679BijzonderhedenLines);
+    return cleanLines(arr, 'Bijzonderheid');
+  }
+  function materialPrice(m){ return N(m.total||m.totaal||m.lineTotal||m.price||m.prijs||m.amount||m.bedrag); }
+  function materialTotal(o){ return materialLines(o).reduce(function(s,l){ return s + (N(l.price)||0); },0); }
+  function linesTotal(lines){ return (lines||[]).reduce(function(s,l){ return s + lineTotal(l); },0); }
+  function deposit(o){ return N(o&&((o.pricing&&o.pricing.deposit)||o.deposit||o.borg)); }
+  function rowsMaterials(o){
+    var mats=(o&&o.materials)||[];
+    if(!mats.length) return '<tr><td colspan="4">Geen materialen.</td></tr>';
+    return mats.map(function(m){
+      var qty=N(m.qty||m.aantal||1)||1;
+      var code=T(m.code||m.nr||m.number||m.materialCode||'');
+      var name=T(m.name||m.title||m.omschrijving||m.description||'Materiaal');
+      var price=materialPrice(m);
+      return '<tr><td>'+H(qty)+'</td><td>'+H(code)+'</td><td>'+H(name)+'</td><td class="amount">'+H(euro(price))+'</td></tr>';
+    }).join('');
+  }
+  function rowsLikeTransport(lines, emptyText){
+    lines=lines||[];
+    if(!lines.length) return '<tr><td colspan="4">'+H(emptyText||'Geen regels.')+'</td></tr>';
+    return lines.map(function(l){
+      var qty=(N(l.qty)||1)+(l.unit && l.unit!=='x' ? ' '+l.unit : 'x');
+      return '<tr><td>'+H(qty)+'</td><td>'+H(l.name||'')+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>';
+    }).join('');
+  }
+  function totals(o){
+    var tr=transportLines(o), bi=bijzonderLines(o);
+    var mat=materialTotal(o), trans=linesTotal(tr), bijz=linesTotal(bi), dep=deposit(o);
+    var sub=mat+trans+bijz;
+    var vat=N((o&&o.vat)||0); if(!vat) vat=sub*0.21;
+    var grand=sub+vat+dep;
+    return {mat:mat, trans:trans, bijz:bijz, sub:sub, vat:vat, dep:dep, grand:grand};
+  }
+  function docHtml(o,type){
+    type=/factuur/i.test(type||'')?'Factuur':'Opdracht document';
+    var c=customer(o), l=locationObj(o), tr=transportLines(o), bi=bijzonderLines(o), tt=totals(o);
+    var inv=T(o&&((o.invoice&&o.invoice.number)||o.invoiceNo||o.invoice||''));
+    var factMeta=type==='Factuur' ? '<br><b>Factuur:</b> '+H(inv||orderNo(o)) : '';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(type)+' '+H(orderNo(o))+'</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#172033;background:#f1f5f9;margin:0;padding:22px}.doc{max-width:980px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,.12)}.actions{position:sticky;top:0;background:#fff;padding:10px 0;display:flex;gap:8px;flex-wrap:wrap}.actions button{border:0;border-radius:10px;padding:9px 13px;background:#2563eb;color:#fff;font-weight:900}.top{display:flex;justify-content:space-between;border-bottom:4px solid #0f172a;padding-bottom:14px;margin-bottom:18px}.muted{color:#64748b}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:12px 0;background:#fff}table{width:100%;border-collapse:collapse;margin:8px 0 16px}th{background:#0f172a;color:#fff;text-align:left}td,th{border-bottom:1px solid #e5e7eb;padding:8px;vertical-align:top}.amount{text-align:right;font-weight:900}.totals{margin-left:auto;max-width:420px}.totals td:last-child{text-align:right}.total td{font-size:18px;font-weight:1000;border-top:2px solid #0f172a}.smallnote{white-space:pre-wrap}@media print{body{background:white;padding:0}.actions{display:none}.doc{box-shadow:none;border-radius:0;max-width:none}}@media(max-width:700px){.grid{grid-template-columns:1fr}}</style></head><body><main class="doc"><div class="actions"><button onclick="window.print()">Afdrukken</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){history.back()},100)">Terug</button></div><section class="top"><div><h1>'+H(type)+'</h1><div class="muted">Tapwagen.nl</div></div><div><b>Opdracht:</b> '+H(orderNo(o))+factMeta+'<br>'+H(new Date().toLocaleDateString('nl-NL'))+'</div></section><div class="grid"><div class="box"><b>Klant</b><br>'+H(c.name||o.customerName||'')+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+H(c.phone||'')+'<br>'+H(c.email||'')+'</div><div class="box"><b>Locatie</b><br>'+H(l.name||o.locationName||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'<br>'+H(l.phone||'')+'</div></div><div class="box"><b>'+H(titleOf(o))+'</b><br>Status: '+H(o.status||'')+'<br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand||'')+'</div><h2>Materialen</h2><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h2>Transport / extra kosten</h2><table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsLikeTransport(tr,'Geen transportregels.')+'</tbody></table><h2>Bijzonderheden</h2><table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsLikeTransport(bi,'Geen bijzonderheden.')+'</tbody></table>'+(T(o&&o.extra)?'<div class="box"><b>Extra tekst</b><br><div class="smallnote">'+H(o.extra)+'</div></div>':'')+'<table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal transport</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>Subtotaal bijzonderheden</td><td>'+H(euro(tt.bijz))+'</td></tr><tr><td>Subtotaal excl. btw</td><td>'+H(euro(tt.sub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="total"><td>Te betalen</td><td>'+H(euro(tt.grand))+'</td></tr></table></main></body></html>';
+  }
+  function openDocByOrder(o,type){
+    if(!o){ alert('Opdracht niet gevonden voor document.'); return false; }
+    var w=window.open('','_blank');
+    if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; }
+    w.document.open(); w.document.write(docHtml(o,type)); w.document.close();
+    return false;
+  }
+  var oldTW=window.TW300_AU_openDoc;
+  window.__BNS680_OLD_TW300_AU_OPEN_DOC__ = oldTW;
+  window.TW300_AU_openDoc=function(id,type){ return openDocByOrder(findOrder(id), type||'factuur'); };
+  window.BNS680_openDoc=function(id,type){ return window.TW300_AU_openDoc(id,type); };
+  window.makeInvoice=function(){ return openDocByOrder(findOrder(''),'factuur'); };
+  window.makeConfirmation=function(){ return openDocByOrder(findOrder(''),'opdrachtbevestiging'); };
+
+  document.addEventListener('click',function(ev){
+    var b=ev.target&&ev.target.closest&&ev.target.closest('button,a'); if(!b) return;
+    var txt=L(b.textContent||b.value||'');
+    if(/factuur bekijken|maak factuur|factuur maken|open factuur/.test(txt)){
+      var o=findOrder(''); if(!o) return;
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      return openDocByOrder(o,'factuur');
+    }
+    if(/opdracht document|opdrachtbevestiging|maak opdracht/.test(txt)){
+      var o2=findOrder(''); if(!o2) return;
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      return openDocByOrder(o2,'opdrachtbevestiging');
+    }
+  },true);
+
+  console.info('[BNS 680] Documenten tonen bijzonderheden als transport-kopie actief.');
+})();
