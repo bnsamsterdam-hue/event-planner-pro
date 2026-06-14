@@ -394,12 +394,32 @@ function materialRowsHtml(o){
     return `<div class="tw-row"><div><b>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${price?'<div class="tw-price">'+esc(money(price))+'</div>':''}</div>`;
   }).join('');
 }
+
+function driverLineTotal(l){
+  const qty=Number(String(l&& (l.qty||l.aantal||1)).replace(',','.'))||1;
+  const price=Number(String(l&& (l.price||l.prijs||l.amount||l.bedrag||0)).replace(/[^0-9,.-]/g,'').replace(',','.'))||0;
+  const total=Number(String(l&& (l.total||l.totaal||'')).replace(/[^0-9,.-]/g,'').replace(',','.'));
+  return Number.isFinite(total)&&total>0 ? total : qty*price;
+}
+function driverTransportLinesHtml(o){
+  const arr = Array.isArray(o&&o.transportLines) ? o.transportLines : (Array.isArray(o&&o.transport) ? o.transport : []);
+  if(!arr.length) return '<div class="tw-row muted">Geen bijzonderheden</div>';
+  return arr.map(l=>{
+    const qty=clean(l&& (l.qty||l.aantal||''));
+    const name=clean(l&& (l.name||l.naam||l.description||l.omschrijving||''));
+    const note=clean(l&& (l.note||l.opmerking||l.notes||''));
+    const amount=driverLineTotal(l);
+    const left=(qty?qty+'x ':'')+(name||'Bijzonderheid');
+    return `<div class="tw-row"><div><b>${esc(left)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${amount?'<div class="tw-price">'+esc(money(amount))+'</div>':''}</div>`;
+  }).join('');
+}
+
 function priceBlockHtml(o){
   const lines=[];
   lines.push(moneyLine('Totaal', orderField(o,['amount','total','totaal','price','bedrag','quoteTotal','invoiceTotal'])));
   lines.push(moneyLine('Borg', orderField(o,['deposit','borg','waarborg'])));
-  lines.push(moneyLine('Transport', orderField(o,['transport','transportPrice','transportkosten'])));
-  lines.push(moneyLine('Service', orderField(o,['service','servicekosten','servicePrice'])));
+  lines.push(moneyLine('Bijzonderheden', orderField(o,['transport','transportPrice','transportkosten','transportTotal'])));
+  
   lines.push(moneyLine('BTW', orderField(o,['vat','btw','tax'])));
   const html=lines.filter(Boolean).join('');
   return html || '<div class="muted">Geen apart totaalbedrag gevonden. Kijk ook bij tekst/bijzonderheden.</div>';
@@ -425,6 +445,7 @@ function fullOrderHtml(o, title){
   <div class="tw-card"><div class="tw-label">Datum / planning</div><div class="tw-big">${esc(dl||'Geen datum')}</div>${o.startTime||o.endTime?'<div>'+esc(o.startTime||'')+' - '+esc(o.endTime||'')+'</div>':''}<div>Bezorger: ${esc(driverName(o)||BNS.user?.name||'')}</div></div>
   <div class="tw-card"><div class="tw-label">Materialen</div>${materialRowsHtml(o)}</div>
   <div class="tw-card"><div class="tw-label">Prijzen / bedragen</div>${priceBlockHtml(o)}</div>
+  <div class="tw-card"><div class="tw-label">Bijzonderheden</div>${driverTransportLinesHtml(o)}</div>
   <div class="tw-card"><div class="tw-label">Tekst / bijzonderheden</div><div>${textBlockHtml(o)}</div></div>
   </div>`;
 }
