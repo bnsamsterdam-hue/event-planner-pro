@@ -51464,3 +51464,37 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   setTimeout(fixLabels,100);
   setTimeout(fixLabels,1000);
 })();
+
+
+// ===== BNS v685: zichtbare naam transport overal Bijzonderheden =====
+(function(){
+  if(window.__BNS685_BIJZONDERHEDEN_LABELS__) return;
+  window.__BNS685_BIJZONDERHEDEN_LABELS__ = true;
+  function fixTextNode(el){
+    if(!el || !el.childNodes) return;
+    Array.prototype.forEach.call(el.childNodes,function(n){
+      if(n.nodeType===3){
+        var v=n.nodeValue||'';
+        var nv=v.replace(/Bijkomende zaken/g,'Bijzonderheden')
+                .replace(/Subtotaal bijkomende zaken/g,'Subtotaal bijzonderheden')
+                .replace(/Transport\s*\/\s*extra kosten/g,'Bijzonderheden')
+                .replace(/Transportregel toevoegen/g,'Regel toevoegen')
+                .replace(/Transportkosten/g,'Bijzonderheden')
+                .replace(/\bTransport\b/g,'Bijzonderheden');
+        if(nv!==v) n.nodeValue=nv;
+      }
+    });
+  }
+  function run(){
+    try{
+      document.querySelectorAll('button,h1,h2,h3,h4,label,legend,summary,.tab,.label,.section-title,.card-title,.btn').forEach(function(el){
+        fixTextNode(el);
+        if(el.placeholder) el.placeholder=String(el.placeholder).replace(/Transport/g,'Bijzonderheden').replace(/Bijkomende zaken/g,'Bijzonderheden');
+        if(el.value && typeof el.value==='string') el.value=el.value.replace(/Transport/g,'Bijzonderheden').replace(/Bijkomende zaken/g,'Bijzonderheden');
+      });
+    }catch(e){}
+  }
+  document.addEventListener('DOMContentLoaded',function(){ setTimeout(run,100); setTimeout(run,800); });
+  setInterval(run,1200);
+  try{ console.info('[BNS 685] Planner labels: transport zichtbaar als Bijzonderheden.'); }catch(e){}
+})();
