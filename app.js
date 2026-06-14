@@ -51131,3 +51131,111 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   },true);
   console.info('[BNS 654] Overzichtkeuze gebruikt nu TW300_AU_openDoc/documenten-route voor gevulde factuur en opdrachtbevestiging.');
 })();
+
+/* =========================================================
+   BNS 662 - Admin adresboek-kiezer gebruiken in Nieuwe opdracht
+   Basis: v661.
+   Doel:
+   - Oude typ-dropdown bij klant/locatie in Nieuwe opdracht weg/rustig.
+   - Duidelijke knoppen Adresboek klant / Adresboek locatie gebruiken.
+   - De bestaande mooie adresboek modal (BNS639/admin bron) openen.
+   - Gekozen klant/locatie vult alleen formulier velden.
+   Raakt niet: status, save, transport, documenten, driver/telefoon,
+   materiaal, reserveringen of admin materiaal.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS662_ADMIN_ADRESBOEK_KIEZER__) return;
+  window.__BNS662_ADMIN_ADRESBOEK_KIEZER__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function hideOldBoxes(){
+    ['bnsV164CustomerBox','bnsV164LocationBox','customerSuggest','locationSuggest','customerSuggestions','locationSuggestions'].forEach(function(id){
+      var b=E(id); if(b){ b.style.display='none'; b.classList.add('hidden'); }
+    });
+    document.querySelectorAll('.bns-v164-suggest').forEach(function(b){ b.style.display='none'; b.classList.add('hidden'); });
+  }
+  function ensureCss(){
+    if(E('bns662AdresboekCss')) return;
+    var st=document.createElement('style'); st.id='bns662AdresboekCss';
+    st.textContent = ''+
+      '#bnsV164CustomerBox,#bnsV164LocationBox,#customerSuggest,#locationSuggest,#customerSuggestions,#locationSuggestions{display:none!important;visibility:hidden!important;pointer-events:none!important}'+
+      '.bns-v164-suggest{display:none!important;visibility:hidden!important;pointer-events:none!important}'+
+      '.bns662-ab-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin:7px 7px 0 0;padding:10px 13px;border:0;border-radius:13px;background:#0f172a;color:#fff;font-weight:1000;box-shadow:0 5px 14px rgba(15,23,42,.18);cursor:pointer}'+
+      '.bns662-ab-btn:hover{filter:brightness(1.08)}'+
+      '.bns662-loc-btn{background:#1d4ed8}.bns662-copy-btn{background:#0ea5e9}'+
+      '@media(max-width:640px){.bns662-ab-btn{width:100%;margin-right:0}}';
+    document.head.appendChild(st);
+  }
+  function setVal(id,val){
+    var el=E(id); if(!el) return;
+    el.value=T(val);
+    try{ el.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){}
+    try{ el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
+  }
+  function copyCustomerToLocation(){
+    setVal('locationName',(E('customerName')||{}).value||'');
+    setVal('locationStreet',(E('customerStreet')||{}).value||'');
+    setVal('locationZip',(E('customerZip')||{}).value||'');
+    setVal('locationCity',(E('customerCity')||{}).value||'');
+    setVal('locationPhone',(E('customerPhone')||{}).value||'');
+  }
+  function openBook(kind){
+    hideOldBoxes();
+    if(typeof window.BNS639OpenAdresboek === 'function'){
+      window.BNS639OpenAdresboek(kind==='location'?'location':'customer');
+      return;
+    }
+    alert('Adresboek wordt nog geladen. Probeer opnieuw.');
+  }
+  function addAfter(anchor,id,text,kind,cls){
+    if(!anchor || E(id)) return;
+    var btn=document.createElement('button');
+    btn.type='button'; btn.id=id; btn.className='bns662-ab-btn '+(cls||''); btn.textContent=text;
+    btn.addEventListener('click',function(ev){
+      ev.preventDefault(); ev.stopPropagation(); hideOldBoxes();
+      if(kind==='copy') copyCustomerToLocation(); else openBook(kind);
+    },true);
+    anchor.insertAdjacentElement('afterend',btn);
+  }
+  function quietInputs(){
+    ['customerName','locationName'].forEach(function(id){
+      var el=E(id); if(!el) return;
+      el.removeAttribute('list');
+      el.setAttribute('autocomplete','off');
+      if(el.dataset.bns662Quiet==='1') return;
+      el.dataset.bns662Quiet='1';
+      ['focus','click','input','keydown'].forEach(function(evName){
+        el.addEventListener(evName,function(ev){
+          if(evName==='keydown' && ev.key!=='Escape') return;
+          setTimeout(hideOldBoxes,0);
+          setTimeout(hideOldBoxes,80);
+        },true);
+      });
+    });
+  }
+  function install(){
+    ensureCss(); hideOldBoxes(); quietInputs();
+    var cn=E('customerName'), ln=E('locationName');
+    if(cn){
+      addAfter(cn,'bns662CustomerBookBtn','Adresboek klant','customer','');
+    }
+    if(ln){
+      addAfter(ln,'bns662LocationBookBtn','Adresboek locatie','location','bns662-loc-btn');
+      addAfter(E('bns662LocationBookBtn')||ln,'bns662CopyCustomerLocationBtn','Klant = locatie','copy','bns662-copy-btn');
+    }
+    // Oude BNS639 knoppen niet dubbel tonen als onze knoppen aanwezig zijn.
+    ['bns639CustomerBtn','bns639LocationBtn','bns639CopyCustomerBtn'].forEach(function(id){
+      var b=E(id); if(b){ b.style.display='none'; b.setAttribute('aria-hidden','true'); }
+    });
+  }
+  install();
+  [200,600,1200,2500,4500].forEach(function(ms){ setTimeout(install,ms); });
+  document.addEventListener('click',function(){ setTimeout(install,120); },true);
+  document.addEventListener('input',function(ev){
+    if(ev.target && /^(customerName|locationName)$/.test(ev.target.id||'')) setTimeout(hideOldBoxes,0);
+  },true);
+  try{ new MutationObserver(function(){ hideOldBoxes(); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
+  console.info('[BNS 662] Admin adresboek-kiezer actief in Nieuwe opdracht; oude typ-dropdown verborgen.');
+})();
