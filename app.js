@@ -46138,7 +46138,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 /* =========================================================
    BNS 521 - Transport prijsregels (vanaf schone 519-basis)
    - Voertuig tab wordt Transport
-   - Transportregels staan apart van materialen
+   - Regels staan apart van materialen
    - Geen reservering / geen blokkering / geen materiaalstatus
    - Telt wel mee in totaal, offerte/opdrachtbevestiging/factuur
    ========================================================= */
@@ -46211,7 +46211,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var css=document.createElement('style'); css.id=STYLE_ID;
     css.textContent =
       'button[data-tab="vehiclePanel"]{font-size:0!important}' +
-      'button[data-tab="vehiclePanel"]:after{content:"Bijkomende zaken";font-size:14px!important}' +
+      'button[data-tab="vehiclePanel"]:after{content:"Bijzonderheden";font-size:14px!important}' +
       '#'+BOX_ID+'{margin:10px 0 14px;padding:14px;border:2px solid #dbe3ef;border-radius:16px;background:#f8fafc;color:#0f172a}' +
       '#'+BOX_ID+' h3{margin:0 0 10px;font-size:20px;color:#0f172a}' +
       '#'+BOX_ID+' .bns521-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}' +
@@ -46238,7 +46238,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(!E(BOX_ID)){
       var box=document.createElement('div'); box.id=BOX_ID;
       box.innerHTML =
-        '<h3>Bijkomende zaken voor deze klant</h3>'+
+        '<h3>Bijzonderheden voor deze klant</h3>'+
         '<div class="bns521-row">'+
           '<label>Keuze<select id="bns521TransportPreset"></select></label>'+
           '<label>Aantal<input id="bns521Qty" class="small" type="number" step="1" value="1"></label>'+
@@ -46264,12 +46264,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
           '<button type="button" class="green" id="bns521AddFee">Toeslag toevoegen</button>'+
         '</div>'+
         '<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns521TransportRows"></tbody></table>'+
-        '<div class="bns521-total">Totaal bijkomende zaken: <span id="bns521TransportTotal">€ 0,00</span></div>'+
-        '<small>Bijkomende zaken zijn géén materialen. Ze blokkeren geen reservering en krijgen geen gereserveerd-status.</small>';
+        '<div class="bns521-total">Totaal bijzonderheden: <span id="bns521TransportTotal">€ 0,00</span></div>'+
+        '<small>Bijzonderheden zijn géén materialen. Ze blokkeren geen reservering en krijgen geen gereserveerd-status.</small>';
       field.parentNode.insertBefore(box, field);
-      // Het oude voertuigveld blijft bestaan voor compatibiliteit, maar transportregels zijn leidend.
+      // Het oude voertuigveld blijft bestaan voor compatibiliteit, maar bijzonderhedenregels zijn leidend.
       field.style.marginTop='10px';
-      field.placeholder='Automatisch gevuld vanuit transportregels';
+      field.placeholder='Automatisch gevuld vanuit bijzonderhedenregels';
       bindBox();
       fillPresetSelect();
     }
@@ -46308,13 +46308,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     body.innerHTML = lines.length ? lines.map(function(l,i){
       var qty=N(l.qty||1), unit=T(l.unit); var qtyTxt=qty+(unit?' '+H(unit):'');
       return '<tr><td>'+H(l.name)+'</td><td>'+H(qtyTxt)+'</td><td>'+H(euro(l.price))+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td><td><button type="button" class="red" data-bns521-del="'+i+'">x</button></td></tr>';
-    }).join('') : '<tr><td colspan="6"><small>Nog geen bijkomende zaken.</small></td></tr>';
+    }).join('') : '<tr><td colspan="6"><small>Nog geen bijzonderheden.</small></td></tr>';
     A('[data-bns521-del]',body).forEach(function(b){ b.onclick=function(){ var i=Number(b.getAttribute('data-bns521-del')); var lines=getLines(); lines.splice(i,1); setLines(lines); }; });
     var tt=E('bns521TransportTotal'); if(tt) tt.textContent=euro(transportTotal());
   }
   function renameTab(){
-    A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(b){ if(T(b.textContent)!=='Bijkomende zaken') b.textContent='Bijkomende zaken'; });
-    var panel=E('vehiclePanel'); if(panel){ var h=panel.querySelector('h2,h3,.panel-title'); if(h && /voertuig|transport/i.test(h.textContent||'')) h.textContent='Bijkomende zaken'; }
+    A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(b){ if(T(b.textContent)!=='Bijzonderheden') b.textContent='Bijzonderheden'; });
+    var panel=E('vehiclePanel'); if(panel){ var h=panel.querySelector('h2,h3,.panel-title'); if(h && /voertuig|transport/i.test(h.textContent||'')) h.textContent='Bijzonderheden'; }
   }
   function loadTransportFromOrder(o){
     var lines=[];
@@ -46355,7 +46355,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
   function transportRowsText(lines){
     lines=lines||getLines();
-    if(!lines.length) return 'Geen bijkomende zaken';
+    if(!lines.length) return 'Geen bijzonderheden';
     return lines.map(function(l){ return (N(l.qty||1))+(l.unit?' '+l.unit:'x')+' '+T(l.name)+' | prijs '+euro(l.price)+' | regel '+euro(lineTotal(l))+(l.note?' | '+l.note:''); }).join('\n');
   }
   var oldMakeText = (typeof window.makeConfirmationText==='function') ? window.makeConfirmationText : (typeof makeConfirmationText==='function' ? makeConfirmationText : null);
@@ -46363,7 +46363,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var base='';
     try{ base=oldMakeText?String(oldMakeText()||''):''; }catch(e){ base=''; }
     var lines=getLines(), total=transportTotal(lines);
-    var block='\n\nBIJKOMENDE ZAKEN\n-----------------\n'+transportRowsText(lines)+'\nTotaal bijkomende zaken: '+euro(total);
+    var block='\n\nBIJZONDERHEDEN\n-----------------\n'+transportRowsText(lines)+'\nTotaal bijzonderheden: '+euro(total);
     if(/TRANSPORT\n[-]+/i.test(base)) return base;
     return base + block;
   }
@@ -46383,9 +46383,9 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var matSub=0, dep=0;
     var matRows=(o.materials||[]).map(function(m){ var q=N(m.qty||1)||1, p=matLinePrice(m), line=q*p; matSub+=line; dep+=q*matLineDeposit(m); return '<tr><td>'+H(q)+'</td><td>'+H(m.code||'')+'</td><td>'+H((m.name||m.product||'')+(m.lineNote?' - '+m.lineNote:''))+'</td><td class="amount">'+H(euro(line))+'</td></tr>'; }).join('') || '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
     var trSub=transportTotal(o.transportLines||[]);
-    var trRows=(o.transportLines||[]).map(function(l){ return '<tr><td>'+H(N(l.qty||1)+(l.unit?' '+l.unit:'x'))+'</td><td></td><td>'+H(l.name+(l.note?' - '+l.note:''))+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join('') || '<tr><td colspan="4">Geen bijkomende zaken</td></tr>';
+    var trRows=(o.transportLines||[]).map(function(l){ return '<tr><td>'+H(N(l.qty||1)+(l.unit?' '+l.unit:'x'))+'</td><td></td><td>'+H(l.name+(l.note?' - '+l.note:''))+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join('') || '<tr><td colspan="4">Geen bijzonderheden</td></tr>';
     var sub=matSub+trSub, vat=sub*0.21, grand=sub+vat, pay=grand+dep;
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(o.number||''))+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;background:#e5e7eb;margin:0;color:#111}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:14mm}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px}.actions button{border:0;border-radius:8px;background:#2563eb;color:white;font-weight:900;padding:8px 12px}h1{text-align:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:12px;padding:10px;margin:10px 0}table{width:100%;border-collapse:collapse}th,td{padding:7px;border-bottom:1px solid #e5e7eb;text-align:left}.amount{text-align:right}.totals{width:85mm;margin-left:auto}.totals td:last-child{text-align:right;font-weight:900}@media print{.actions{display:none}body{background:white}.page{margin:0}}</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="history.back()">Terug</button></div><main class="page"><h1>'+H(title)+'</h1><div class="grid"><div class="card"><b>Tapwagen.nl</b><br>Molenlaan 30<br>1422 ZA Uithoorn<br>Info@tapwagen.nl</div><div class="card"><b>Opdracht:</b> '+H(o.number||'')+'<br><b>Status:</b> '+H(o.status||'')+'<br><b>Datum:</b> '+H(o.start||'')+(o.end&&o.end!==o.start?' t/m '+H(o.end):'')+'</div></div><div class="card"><b>Klant</b><br>'+H(o.customer.name)+'<br>'+H([o.customer.street,o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(o.location.name)+'<br>'+H([o.location.street,o.location.zip,o.location.city].filter(Boolean).join(' '))+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+matRows+'</tbody></table><h3>Bijkomende zaken</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+trRows+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(matSub))+'</td></tr><tr><td>Subtotaal bijkomende zaken</td><td>'+H(euro(trSub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(dep))+'</td></tr><tr><td><b>Eindtotaal</b></td><td><b>'+H(euro(pay))+'</b></td></tr></table></main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(o.number||''))+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;background:#e5e7eb;margin:0;color:#111}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:14mm}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px}.actions button{border:0;border-radius:8px;background:#2563eb;color:white;font-weight:900;padding:8px 12px}h1{text-align:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:12px;padding:10px;margin:10px 0}table{width:100%;border-collapse:collapse}th,td{padding:7px;border-bottom:1px solid #e5e7eb;text-align:left}.amount{text-align:right}.totals{width:85mm;margin-left:auto}.totals td:last-child{text-align:right;font-weight:900}@media print{.actions{display:none}body{background:white}.page{margin:0}}</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="history.back()">Terug</button></div><main class="page"><h1>'+H(title)+'</h1><div class="grid"><div class="card"><b>Tapwagen.nl</b><br>Molenlaan 30<br>1422 ZA Uithoorn<br>Info@tapwagen.nl</div><div class="card"><b>Opdracht:</b> '+H(o.number||'')+'<br><b>Status:</b> '+H(o.status||'')+'<br><b>Datum:</b> '+H(o.start||'')+(o.end&&o.end!==o.start?' t/m '+H(o.end):'')+'</div></div><div class="card"><b>Klant</b><br>'+H(o.customer.name)+'<br>'+H([o.customer.street,o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(o.location.name)+'<br>'+H([o.location.street,o.location.zip,o.location.city].filter(Boolean).join(' '))+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+matRows+'</tbody></table><h3>Bijzonderheden</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+trRows+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(matSub))+'</td></tr><tr><td>Subtotaal bijzonderheden</td><td>'+H(euro(trSub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(dep))+'</td></tr><tr><td><b>Eindtotaal</b></td><td><b>'+H(euro(pay))+'</b></td></tr></table></main></body></html>';
   }
   function openDoc(type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } w.document.open(); w.document.write(docHtml(type)); w.document.close(); return false; }
   window.BNS_V521_openDocument=openDoc;
@@ -46414,7 +46414,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   setInterval(renameTab,1500);
   setTimeout(function(){ loadTransportFromOrder(currentOrderFromState()); installBox(); },300);
   setTimeout(installBox,1200);
-  console.info('[BNS v521] Bijkomende zaken actief - apart van materialen/reservering.');
+  console.info('[BNS v521] Bijzonderheden actief - apart van materialen/reservering.');
 })();
 
 
@@ -46424,7 +46424,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
    - Factuur/opdrachtdocument openen niet blank
    - Boekhouding open factuur gebruikt exacte order
    - Zet betaald/openstaand exact op order/factuur en ververst
-   - Transportregels blijven apart van materialen en tellen mee
+   - Regels blijven apart van materialen en tellen mee
    - Geen reservering/materialen/telefoon-sync wijzigingen
    ========================================================= */
 (function BNS_V525_DOCS_BOEKHOUDING_STABIEL(){
@@ -46499,13 +46499,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function companyHtml(st){ var lines=[st.companyName||'Tapwagen.nl']; String(st.address||'').split(/\n+/).forEach(function(x){ if(T(x)) lines.push(T(x)); }); if(st.phone)lines.push('Tel.: '+st.phone); if(st.email)lines.push(st.email); if(st.kvk)lines.push('KVK: '+st.kvk); if(st.btw)lines.push('BTW NR: '+st.btw); if(st.iban)lines.push('Bank: '+st.iban); return lines.map(H).join('<br>'); }
   function logoHtml(st){ if(st.logo) return '<div class="bns525-logo"><img src="'+H(st.logo)+'"></div>'; return '<div class="bns525-logo"><div class="brand">🍺 '+H((st.companyName||'Tapwagen.nl').toUpperCase())+' 🍺</div><div class="tag">'+H(st.slogan||'WE KEEP YOUR PARTY COOL!!!')+'</div></div>'; }
   function rowsMaterials(o){ var rows=(o.materials||[]).map(function(m){ var q=matQty(m), line=q*matPrice(m); return '<tr><td>'+H(q)+'</td><td>'+H(m.code||m.id||'')+'</td><td>'+H((m.name||m.product||m.title||'')+(m.lineNote||m.note?' - '+(m.lineNote||m.note):''))+'</td><td class="amount">'+H(euro(line))+'</td></tr>'; }).join(''); return rows||'<tr><td colspan="4">Geen materialen gekozen</td></tr>'; }
-  function rowsTransport(o){ var rows=(o.transportLines||[]).map(function(l){ var qty=N(l.qty||1), unit=T(l.unit); return '<tr><td>'+H(qty+(unit?' '+unit:'x'))+'</td><td></td><td>'+H(T(l.name)+(T(l.note)?' - '+T(l.note):''))+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join(''); return rows||'<tr><td colspan="4">Geen bijkomende zaken</td></tr>'; }
+  function rowsTransport(o){ var rows=(o.transportLines||[]).map(function(l){ var qty=N(l.qty||1), unit=T(l.unit); return '<tr><td>'+H(qty+(unit?' '+unit:'x'))+'</td><td></td><td>'+H(T(l.name)+(T(l.note)?' - '+T(l.note):''))+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join(''); return rows||'<tr><td colspan="4">Geen bijzonderheden</td></tr>'; }
   function docTitle(o,type){ if(/factuur/i.test(type)) return 'FACTUUR'; var s=L(o.status); if(s.indexOf('offerte')>=0) return 'OFFERTE'; if(s.indexOf('optie')>=0) return 'OPTIE 14 DAGEN'; return 'OPDRACHTBEVESTIGING'; }
   function docHtml(o,type){
     o=o||{}; if(!Array.isArray(o.transportLines)) o.transportLines=[];
     var st=styleData(), fact=/factuur/i.test(type), title=docTitle(o,type), tt=totals(o), c=o.customer||{}, l=o.location||{};
     var css='@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:13px}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px;z-index:9}.actions button{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:8px 12px;font-weight:800}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:12mm 14mm}.bns525-logo{text-align:center;margin-bottom:4mm}.bns525-logo img{max-width:96mm;max-height:25mm;object-fit:contain}.brand{font-size:34px;font-weight:900;color:'+H(st.accent||'#0ea5e9')+'}.tag{font-weight:800;font-style:italic}.doc-title{text-align:center;font-size:20px;font-weight:900;margin:2mm 0 5mm}.top{display:grid;grid-template-columns:1fr 60mm;gap:10mm}.card{border:1px solid #dbe3ef;border-radius:10px;padding:9px;margin:8px 0}.line{border-top:1.5px solid #333;margin:5mm 0}table{width:100%;border-collapse:collapse}th{border-bottom:1px solid #333;text-align:left}td,th{padding:1.5mm;vertical-align:top}.amount{text-align:right}.totals{width:82mm;margin-left:auto;margin-top:7mm;border-top:1.5px solid #333}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}@media print{body{background:#fff}.actions{display:none}.page{margin:0}}';
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="(function(){var txt=document.body.innerText||&quot;&quot;;function fallback(){try{navigator.clipboard&&navigator.clipboard.writeText(txt)}catch(e){}alert(&quot;Delen lukt niet in deze browser. De tekst is gekopieerd; plak hem eventueel in e-mail of WhatsApp.&quot;)}if(navigator.share){navigator.share({title:document.title,text:txt}).catch(fallback)}else{fallback()}})()">Delen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){history.back()}}catch(e){}},120)">Terug</button></div><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div><div class="line"></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Bijkomende zaken</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal bijkomende zaken</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table></main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="(function(){var txt=document.body.innerText||&quot;&quot;;function fallback(){try{navigator.clipboard&&navigator.clipboard.writeText(txt)}catch(e){}alert(&quot;Delen lukt niet in deze browser. De tekst is gekopieerd; plak hem eventueel in e-mail of WhatsApp.&quot;)}if(navigator.share){navigator.share({title:document.title,text:txt}).catch(fallback)}else{fallback()}})()">Delen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){history.back()}}catch(e){}},120)">Terug</button></div><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div><div class="line"></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Bijzonderheden</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal bijzonderheden</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table></main></body></html>';
   }
   function openOrderDoc(o,type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } try{ w.document.open(); w.document.write(docHtml(o,type)); w.document.close(); }catch(e){ alert('Document kon niet worden geopend: '+e.message); } return false; }
   function dedupeAccountingDocs(){
@@ -49056,7 +49056,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
    BNS 610 - veilige scheiding materiaal / transport / service
    Basis: app(64).js. Alleen deze punten:
    - Materiaal zoeken nogmaals eind-wrappen: binnen rubriek, code/productnr/zoeknaam.
-   - Transportregels blijven geen materialen en krijgen reservable:false.
+   - Regels blijven geen materialen en krijgen reservable:false.
    - Servicekosten/bijzonderheden krijgen eigen serviceLines en blijven geen materialen.
    - Opslaan mag bestaande materialen/transport/service niet leeg overschrijven als de rubriek niet is aangepast.
    Geen wijziging aan materiaal reserveren/status, Firebase bron, PIN, mobiele knoppen of LET OP-balk.
@@ -49158,7 +49158,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(!extra || E(SERVICE_BOX)) return;
     installServiceCss();
     var box=document.createElement('div'); box.id=SERVICE_BOX;
-    box.innerHTML='<h3>Bijzonderheden</h3><div class="row"><label>Omschrijving<input id="bns610ServiceName" class="wide" placeholder="Bijv. schoonmaak, aansluiten, montage"></label><label>Aantal<input id="bns610ServiceQty" class="small" type="number" step="1" value="1"></label><label>Prijs €<input id="bns610ServicePrice" class="small" type="number" step="0.01" value="0"></label><label>Opmerking<input id="bns610ServiceNote" class="wide" placeholder="Optioneel"></label><button type="button" id="bns610AddService">Toevoegen</button></div><table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns610ServiceRows"></tbody></table><div style="text-align:right;font-weight:1000;margin-top:10px">Totaal: <span id="bns610ServiceTotal">€ 0,00</span></div><small>Bijzonderheden zijn tekst; prijzen zet je bij Bijkomende zaken.</small>';
+    box.innerHTML='<h3>Bijzonderheden</h3><div class="row"><label>Omschrijving<input id="bns610ServiceName" class="wide" placeholder="Bijv. schoonmaak, aansluiten, montage"></label><label>Aantal<input id="bns610ServiceQty" class="small" type="number" step="1" value="1"></label><label>Prijs €<input id="bns610ServicePrice" class="small" type="number" step="0.01" value="0"></label><label>Opmerking<input id="bns610ServiceNote" class="wide" placeholder="Optioneel"></label><button type="button" id="bns610AddService">Toevoegen</button></div><table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns610ServiceRows"></tbody></table><div style="text-align:right;font-weight:1000;margin-top:10px">Totaal: <span id="bns610ServiceTotal">€ 0,00</span></div><small>Bijzonderheden zijn tekst; prijzen zet je bij Bijzonderheden.</small>';
     extra.parentNode.insertBefore(box, extra.nextSibling);
     var add=E('bns610AddService');
     if(add){ add.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} serviceDirty=true; var name=T(E('bns610ServiceName').value)||'Service'; var qty=N(E('bns610ServiceQty').value)||1; var price=N(E('bns610ServicePrice').value); var note=T(E('bns610ServiceNote').value); var lines=getService(); lines.push({type:'service',name:name,qty:qty,price:price,note:note,reservable:false}); setService(lines); E('bns610ServiceName').value=''; E('bns610ServiceQty').value='1'; E('bns610ServicePrice').value='0'; E('bns610ServiceNote').value=''; return false; }; }
@@ -49240,10 +49240,10 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
 
 
 /* =========================================================
-   BNS 651 - Transportregels niet leeg overschrijven
+   BNS 651 - Regels niet leeg overschrijven
    Basis: aangeleverde app(81).js / v639-lijn.
    Doel: als een bestaande opdracht transportLines heeft, mag een save-route
-   die de transportregels niet geladen heeft deze niet leeg wegschrijven.
+   die de bijzonderhedenregels niet geladen heeft deze niet leeg wegschrijven.
    Raakt alleen transportLines/transportTotal/vehicle bij opslaan.
 ========================================================= */
 (function(){
@@ -49290,7 +49290,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       var box=E('bns521TransportBox');
       if(!box) return false;
       var txt=L(box.innerText||'');
-      return !!txt && !/nog geen transportregels/.test(txt) && /transport|kraanwagen|bakwagen|chauffeur|toeslag|€/.test(txt);
+      return !!txt && !/nog geen bijzonderhedenregels/.test(txt) && /transport|kraanwagen|bakwagen|chauffeur|toeslag|€/.test(txt);
     }catch(e){ return false; }
   }
   function preserve(order, oldOrder){
@@ -49299,7 +49299,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var oldLines = cleanTransport(old.transportLines || old.transport || []);
     var newLines = cleanTransport(order.transportLines || []);
 
-    /* Als oude transportregels bestaan en de nieuwe save komt leeg terug,
+    /* Als oude bijzonderhedenregels bestaan en de nieuwe save komt leeg terug,
        bewaren we oud transport. Dit voorkomt dat render/save timing transport wist. */
     if(oldLines.length && !newLines.length){
       order.transportLines = clone(oldLines);
@@ -49309,7 +49309,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       order.pricing = Object.assign({}, order.pricing || {});
       order.pricing.transport = order.transportTotal;
       order.__bns651TransportPreserved = true;
-      console.info('[BNS 651] Transportregels behouden bij opslaan:', order.number || order.id || 'opdracht', order.transportLines.length);
+      console.info('[BNS 651] Regels behouden bij opslaan:', order.number || order.id || 'opdracht', order.transportLines.length);
     }
     return order;
   }
@@ -50619,7 +50619,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
    Doel:
    - Overzicht bestelling krijgt duidelijke keuze: Overzicht / Opdrachtbevestiging / Factuur.
    - Overzicht toont transport/kosten duidelijker.
-   - Transportregels die opgeslagen zijn worden opnieuw teruggezet in Wijzig opdracht.
+   - Regels die opgeslagen zijn worden opnieuw teruggezet in Wijzig opdracht.
    Raakt niet: reserveringen, materialen kiezen, admin, driver, boekhoudingstatus.
 ========================================================= */
 (function(){
@@ -50703,7 +50703,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     updateVehicle(lines);
     var tt=E('bns521TransportTotal'); if(tt) tt.textContent=euro(totalTransport(lines));
     if(!body) return;
-    if(!lines.length){ body.innerHTML='<tr><td colspan="6"><small>Nog geen bijkomende zaken.</small></td></tr>'; return; }
+    if(!lines.length){ body.innerHTML='<tr><td colspan="6"><small>Nog geen bijzonderheden.</small></td></tr>'; return; }
     body.innerHTML=lines.map(function(l,i){
       var q=N(l.qty||1)||1, unit=T(l.unit); var qtxt=q+(unit?' '+H(unit):'');
       return '<tr><td>'+H(l.name)+'</td><td>'+H(qtxt)+'</td><td>'+H(euro(l.price))+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td><td><button type="button" class="red" data-bns652-del-transport="'+i+'">x</button></td></tr>';
@@ -50720,11 +50720,11 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     var current=cleanTransport(window.__bns521TransportLines||[]);
     var box=E('bns521TransportBox');
     var bodyTxt=L((E('bns521TransportRows')||{}).innerText||'');
-    var boxEmpty=!current.length || /nog geen transportregels/.test(bodyTxt);
+    var boxEmpty=!current.length || /nog geen bijzonderhedenregels/.test(bodyTxt);
     if(force || boxEmpty || lastLoadedKey!==key){
       lastLoadedKey=key;
       renderTransportBox(lines);
-      if(box) console.info('[BNS 652] Transportregels teruggeladen in Wijzig opdracht:', orderNumberOf(o)||orderIdOf(o), lines.length);
+      if(box) console.info('[BNS 652] Regels teruggeladen in Wijzig opdracht:', orderNumberOf(o)||orderIdOf(o), lines.length);
       return true;
     }
     return false;
@@ -50825,13 +50825,13 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(lines.length && !card.querySelector('#bns652OverviewTransport')){
       var tr=document.createElement('div'); tr.id='bns652OverviewTransport';
       var rows=lines.map(function(l){ return '<tr><td>'+H((N(l.qty)||1)+(l.unit?' '+l.unit:'x'))+'</td><td>'+H(l.name||'')+'</td><td>'+H(l.note||'')+'</td><td style="text-align:right;font-weight:900">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join('');
-      tr.innerHTML='<h3>Bijkomende zaken</h3><table class="bns-v493-table bns-order-overview-table"><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th style="text-align:right">Bedrag</th></tr></thead><tbody>'+rows+'</tbody></table>';
+      tr.innerHTML='<h3>Bijzonderheden</h3><table class="bns-v493-table bns-order-overview-table"><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th style="text-align:right">Bedrag</th></tr></thead><tbody>'+rows+'</tbody></table>';
       var total=card.querySelector('.bns-v493-total,.bns-order-overview-total');
       if(total && total.parentNode) total.parentNode.insertBefore(tr,total); else card.appendChild(tr);
     }
     if(!card.querySelector('#bns652CostBox')){
       var tt=costTotals(o), box=document.createElement('div'); box.id='bns652CostBox';
-      box.innerHTML='<h3>Kosten duidelijk overzicht</h3><table class="bns652-cost-table"><tbody><tr><td>Materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Bijkomende zaken</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>Subtotaal excl. btw</td><td>'+H(euro(tt.sub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="pay"><td>Te betalen incl. btw + borg</td><td>'+H(euro(tt.pay))+'</td></tr></tbody></table>';
+      box.innerHTML='<h3>Kosten duidelijk overzicht</h3><table class="bns652-cost-table"><tbody><tr><td>Materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Bijzonderheden</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>Subtotaal excl. btw</td><td>'+H(euro(tt.sub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="pay"><td>Te betalen incl. btw + borg</td><td>'+H(euro(tt.pay))+'</td></tr></tbody></table>';
       var total2=card.querySelector('.bns-v493-total,.bns-order-overview-total');
       if(total2 && total2.parentNode) total2.parentNode.insertBefore(box,total2.nextSibling); else card.appendChild(box);
     }
@@ -50864,7 +50864,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
    Doel:
    - Klik op Overzicht maken/Overzicht bestelling opent eerst 3 keuzes.
    - Factuur bekijken en Opdracht document worden direct gevuld vanuit opgeslagen opdracht.
-   - Transportregels extra stevig terugzetten in Wijzig opdracht.
+   - Regels extra stevig terugzetten in Wijzig opdracht.
    Raakt niet: driver, admin, reserveringen, materiaalkeuze, boekhoudingstatus.
 ========================================================= */
 (function(){
@@ -50929,9 +50929,9 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     var type=confirm?'Opdrachtbevestiging / Offerte':'Factuur';
     var c=o.customer||{}, l=o.location||{}, tt=totals(o);
     var mats=(Array.isArray(o.materials)?o.materials:[]).map(function(m,i){ var q=matQty(m); return '<tr><td>'+H(i+1)+'</td><td>'+H(q)+'</td><td><b>'+H(m.code||m.productNr||'')+'</b></td><td>'+H(m.name||m.product||m.description||'')+'</td><td>'+H(m.cat||m.rubriek||'')+'</td><td>'+H(m.price||m.linePrice||'')+'</td></tr>'; }).join('') || '<tr><td colspan="6">Geen materialen gekoppeld.</td></tr>';
-    var trans=transportLines(o).map(function(x){return '<tr><td>'+H((N(x.qty)||1)+(x.unit?' '+x.unit:'x'))+'</td><td>'+H(x.name||'')+'</td><td>'+H(x.note||'')+'</td><td style="text-align:right;font-weight:900">'+H(euro(lineTotal(x)))+'</td></tr>';}).join('') || '<tr><td colspan="4">Geen bijkomende zaken.</td></tr>';
+    var trans=transportLines(o).map(function(x){return '<tr><td>'+H((N(x.qty)||1)+(x.unit?' '+x.unit:'x'))+'</td><td>'+H(x.name||'')+'</td><td>'+H(x.note||'')+'</td><td style="text-align:right;font-weight:900">'+H(euro(lineTotal(x)))+'</td></tr>';}).join('') || '<tr><td colspan="4">Geen bijzonderheden.</td></tr>';
     var invoiceMeta=confirm?'':'<br><b>Factuur nr:</b> '+H(invoiceNo(o)||orderNo(o))+'<br><b>Status:</b> '+H(paid(o)?'Betaald':'Openstaand');
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(type)+' '+H(orderNo(o))+'</title><style>body{font-family:Arial,Helvetica,sans-serif;color:#172033;background:#f1f5f9;margin:0;padding:22px}.bns653-doc{max-width:980px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,.12)}h1{margin:0 0 8px}.top{display:flex;justify-content:space-between;border-bottom:4px solid #0f172a;padding-bottom:14px;margin-bottom:18px}.muted{color:#64748b}.box{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:12px 0;background:#fff}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}table{width:100%;border-collapse:collapse}th{background:#0f172a;color:#fff}td,th{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}.total{font-size:20px;font-weight:1000;color:#065f46}.actions{position:sticky;top:0;background:#fff;padding:10px 0;display:flex;gap:8px;flex-wrap:wrap}.actions button{border:0;border-radius:10px;padding:9px 13px;background:#2563eb;color:#fff;font-weight:900}@media print{body{background:white;padding:0}.actions{display:none}.bns653-doc{box-shadow:none;border-radius:0}}@media(max-width:700px){.grid{grid-template-columns:1fr}}</style></head><body><main class="bns653-doc"><div class="actions"><button onclick="window.print()">Afdrukken</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){history.back()},100)">Terug</button></div><section class="top"><div><h1>'+H(type)+'</h1><div class="muted">Powered by Tapwagen.nl</div></div><div><b>Opdracht '+H(orderNo(o))+'</b>'+invoiceMeta+'<br>'+H(new Date().toLocaleDateString())+'</div></section><div class="grid"><div class="box"><b>Klant</b><br>'+H(c.name||o.customerName||'')+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+H(c.phone||'')+'<br>'+H(c.email||'')+'</div><div class="box"><b>Locatie</b><br>'+H(l.name||o.locationName||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'<br>'+H(l.phone||'')+'</div></div><div class="box"><b>'+H(titleOf(o))+'</b><br>Status: '+H(o.status||'')+'<br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand||'')+'</div><h2>Materialen</h2><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Naam</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+mats+'</tbody></table><h2>Bijkomende zaken</h2><table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th>Bedrag</th></tr></thead><tbody>'+trans+'</tbody></table>'+''+'<div class="box"><table><tr><td>Materialen</td><td style="text-align:right">'+H(euro(tt.mat))+'</td></tr><tr><td>Bijkomende zaken</td><td style="text-align:right">'+H(euro(tt.trans))+'</td></tr><tr><td>Subtotaal excl. btw</td><td style="text-align:right">'+H(euro(tt.sub))+'</td></tr><tr><td>BTW</td><td style="text-align:right">'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td style="text-align:right">'+H(euro(tt.dep))+'</td></tr><tr class="total"><td>Te betalen</td><td style="text-align:right">'+H(euro(tt.grand))+'</td></tr></table></div></main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(type)+' '+H(orderNo(o))+'</title><style>body{font-family:Arial,Helvetica,sans-serif;color:#172033;background:#f1f5f9;margin:0;padding:22px}.bns653-doc{max-width:980px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,.12)}h1{margin:0 0 8px}.top{display:flex;justify-content:space-between;border-bottom:4px solid #0f172a;padding-bottom:14px;margin-bottom:18px}.muted{color:#64748b}.box{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:12px 0;background:#fff}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}table{width:100%;border-collapse:collapse}th{background:#0f172a;color:#fff}td,th{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}.total{font-size:20px;font-weight:1000;color:#065f46}.actions{position:sticky;top:0;background:#fff;padding:10px 0;display:flex;gap:8px;flex-wrap:wrap}.actions button{border:0;border-radius:10px;padding:9px 13px;background:#2563eb;color:#fff;font-weight:900}@media print{body{background:white;padding:0}.actions{display:none}.bns653-doc{box-shadow:none;border-radius:0}}@media(max-width:700px){.grid{grid-template-columns:1fr}}</style></head><body><main class="bns653-doc"><div class="actions"><button onclick="window.print()">Afdrukken</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){history.back()},100)">Terug</button></div><section class="top"><div><h1>'+H(type)+'</h1><div class="muted">Powered by Tapwagen.nl</div></div><div><b>Opdracht '+H(orderNo(o))+'</b>'+invoiceMeta+'<br>'+H(new Date().toLocaleDateString())+'</div></section><div class="grid"><div class="box"><b>Klant</b><br>'+H(c.name||o.customerName||'')+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+H(c.phone||'')+'<br>'+H(c.email||'')+'</div><div class="box"><b>Locatie</b><br>'+H(l.name||o.locationName||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'<br>'+H(l.phone||'')+'</div></div><div class="box"><b>'+H(titleOf(o))+'</b><br>Status: '+H(o.status||'')+'<br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand||'')+'</div><h2>Materialen</h2><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Naam</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+mats+'</tbody></table><h2>Bijzonderheden</h2><table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th>Bedrag</th></tr></thead><tbody>'+trans+'</tbody></table>'+''+'<div class="box"><table><tr><td>Materialen</td><td style="text-align:right">'+H(euro(tt.mat))+'</td></tr><tr><td>Bijzonderheden</td><td style="text-align:right">'+H(euro(tt.trans))+'</td></tr><tr><td>Subtotaal excl. btw</td><td style="text-align:right">'+H(euro(tt.sub))+'</td></tr><tr><td>BTW</td><td style="text-align:right">'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td style="text-align:right">'+H(euro(tt.dep))+'</td></tr><tr class="total"><td>Te betalen</td><td style="text-align:right">'+H(euro(tt.grand))+'</td></tr></table></div></main></body></html>';
   }
   function openFilledDoc(o,kind){
     if(!o) return false;
@@ -50991,7 +50991,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     var o=findOrder(''); if(!o) return;
     var txt=L((E('bns521TransportRows')||{}).innerText||'');
     var cur=cleanTransport(window.__bns521TransportLines||[]);
-    if(!cur.length || /nog geen transportregels/.test(txt)) renderTransportIntoForm(o);
+    if(!cur.length || /nog geen bijzonderhedenregels/.test(txt)) renderTransportIntoForm(o);
   }
 
   installOverviewMenu();
@@ -51324,11 +51324,11 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 })();
 
 
-// ===== BNS v681: Transport hernoemd naar Bijkomende zaken =====
+// ===== BNS v681: Transport hernoemd naar Bijzonderheden =====
 // Gebouwd vanaf app(86).js. Data blijft transportLines gebruiken zodat bestaande werkende opslag en documenten blijven werken.
 
 
-// ===== BNS v682: Bijkomende zaken definitief, bijzonderheden alleen tekst =====
+// ===== BNS v682: Bijzonderheden definitief, bijzonderheden alleen tekst =====
 (function(){
   if(window.__BNS682_BIJZONDERHEDEN_TEKST_ONLY__) return;
   window.__BNS682_BIJZONDERHEDEN_TEKST_ONLY__ = true;
@@ -51363,10 +51363,10 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     });
     var extra=E('orderExtra') || E('extra') || E('bijzonderheden');
     if(extra && extra.tagName && extra.tagName.toLowerCase()==='textarea'){
-      extra.placeholder='Vrije tekst / opmerkingen. Bedragen zet je bij Bijkomende zaken.';
+      extra.placeholder='Vrije tekst / opmerkingen. Bedragen zet je bij Bijzonderheden.';
     }
   }
-  // Bij opslaan servicekosten echt leegmaken. Bedragen horen nu alleen in Bijkomende zaken/transportLines.
+  // Bij opslaan servicekosten echt leegmaken. Bedragen horen nu alleen in Bijzonderheden/transportLines.
   function stripService(order){
     if(!order || typeof order!=='object') return order;
     order.serviceLines=[];
@@ -51392,11 +51392,11 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [600,1200,2500,5000].forEach(function(ms){ setTimeout(tick,ms); });
   setInterval(tick,1500);
   document.addEventListener('click',function(){ setTimeout(tick,120); setTimeout(tick,700); },true);
-  console.info('[BNS 682] Bijkomende zaken gebruikt prijzen; bijzonderheden is alleen tekst. Servicekostenblok verborgen en leeggemaakt bij opslaan.');
+  console.info('[BNS 682] Bijzonderheden gebruikt prijzen; bijzonderheden is alleen tekst. Servicekostenblok verborgen en leeggemaakt bij opslaan.');
 })();
 
 
-// ===== BNS v683: Rubriekknop Transport naar Bijkomende zaken =====
+// ===== BNS v683: Rubriekknop Transport naar Bijzonderheden =====
 // Alleen zichtbare teksten aangepast; transportLines/data blijft technisch gelijk.
 (function(){
   if(window.__BNS683_RUBRIEKKNOP_BIJKOMENDE_ZAKEN__) return;
@@ -51407,26 +51407,26 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function installStyle(){
     if(E('bns683BijkomendeTabStyle')) return;
     var st=document.createElement('style'); st.id='bns683BijkomendeTabStyle';
-    st.textContent = 'button[data-tab="vehiclePanel"]:after,.worktab[data-tab="vehiclePanel"]:after{content:"Bijkomende zaken"!important;font-size:14px!important}';
+    st.textContent = 'button[data-tab="vehiclePanel"]:after,.worktab[data-tab="vehiclePanel"]:after{content:"Bijzonderheden"!important;font-size:14px!important}';
     document.head.appendChild(st);
   }
   function rename(){
     installStyle();
     A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"],[data-tab="vehiclePanel"]').forEach(function(b){
-      if(/transport|voertuig/i.test(T(b.textContent)) || T(b.textContent)==='') b.textContent='Bijkomende zaken';
-      b.setAttribute('aria-label','Bijkomende zaken');
-      b.title='Bijkomende zaken';
+      if(/transport|voertuig/i.test(T(b.textContent)) || T(b.textContent)==='') b.textContent='Bijzonderheden';
+      b.setAttribute('aria-label','Bijzonderheden');
+      b.title='Bijzonderheden';
     });
     var panel=E('vehiclePanel');
     if(panel){
       A('h1,h2,h3,.panel-title,.tab-title',panel).forEach(function(h){
-        if(/transport|voertuig/i.test(T(h.textContent))) h.textContent='Bijkomende zaken';
+        if(/transport|voertuig/i.test(T(h.textContent))) h.textContent='Bijzonderheden';
       });
       A('button,label,small,div,span',panel).forEach(function(el){
         var txt=T(el.textContent);
-        if(txt==='Transportregel toevoegen') el.textContent='Regel toevoegen';
-        if(txt==='Transport') el.textContent='Bijkomende zaken';
-        if(txt.indexOf('Transportregels zijn')===0) el.textContent=txt.replace('Transportregels zijn','Bijkomende zaken zijn');
+        if(txt==='Regel toevoegen') el.textContent='Regel toevoegen';
+        if(txt==='Transport') el.textContent='Bijzonderheden';
+        if(txt.indexOf('Regels zijn')===0) el.textContent=txt.replace('Regels zijn','Bijzonderheden zijn');
       });
     }
   }
@@ -51434,5 +51434,33 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [250,600,1200,2500,5000].forEach(function(ms){ setTimeout(rename,ms); });
   setInterval(rename,700);
   document.addEventListener('click',function(){ setTimeout(rename,80); setTimeout(rename,400); },true);
-  console.info('[BNS 683] Rubriekknop Transport heet nu Bijkomende zaken.');
+  console.info('[BNS 683] Rubriekknop Transport heet nu Bijzonderheden.');
+})();
+
+
+// ===== BNS v684 label fix: transport heet zichtbaar overal Bijzonderheden =====
+(function(){
+  if(window.__BNS684_BIJZONDERHEDEN_LABELS__) return;
+  window.__BNS684_BIJZONDERHEDEN_LABELS__ = true;
+  function txt(el,s){ if(el && String(el.textContent||'').trim()!==s) el.textContent=s; }
+  function fixLabels(){
+    try{
+      document.querySelectorAll('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(b){ txt(b,'Bijzonderheden'); });
+      var panel=document.getElementById('vehiclePanel');
+      if(panel){
+        panel.querySelectorAll('h1,h2,h3,.panel-title').forEach(function(h){
+          var v=String(h.textContent||'');
+          if(/transport|bijkomende zaken/i.test(v)) h.textContent=v.replace(/Transport\s*\/\s*extra kosten/ig,'Bijzonderheden').replace(/Bijkomende zaken/ig,'Bijzonderheden').replace(/Transport/ig,'Bijzonderheden');
+        });
+        panel.querySelectorAll('button').forEach(function(b){
+          var v=String(b.textContent||'');
+          if(/transportregel/i.test(v)) b.textContent=v.replace(/Transportregel/ig,'Regel');
+        });
+      }
+    }catch(e){}
+  }
+  document.addEventListener('DOMContentLoaded',fixLabels);
+  setInterval(fixLabels,800);
+  setTimeout(fixLabels,100);
+  setTimeout(fixLabels,1000);
 })();
