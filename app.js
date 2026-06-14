@@ -46211,7 +46211,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var css=document.createElement('style'); css.id=STYLE_ID;
     css.textContent =
       'button[data-tab="vehiclePanel"]{font-size:0!important}' +
-      'button[data-tab="vehiclePanel"]:after{content:"Transport";font-size:14px!important}' +
+      'button[data-tab="vehiclePanel"]:after{content:"Bijkomende zaken";font-size:14px!important}' +
       '#'+BOX_ID+'{margin:10px 0 14px;padding:14px;border:2px solid #dbe3ef;border-radius:16px;background:#f8fafc;color:#0f172a}' +
       '#'+BOX_ID+' h3{margin:0 0 10px;font-size:20px;color:#0f172a}' +
       '#'+BOX_ID+' .bns521-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}' +
@@ -46244,7 +46244,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
           '<label>Aantal<input id="bns521Qty" class="small" type="number" step="1" value="1"></label>'+
           '<label>Prijs €<input id="bns521Price" class="small" type="number" step="0.01" value="0"></label>'+
           '<label>Opmerking<input id="bns521Note" class="bns521-wide" placeholder="Bijv. avond / extra rit"></label>'+
-          '<button type="button" class="green" id="bns521AddLine">Transportregel toevoegen</button>'+
+          '<button type="button" class="green" id="bns521AddLine">Regel toevoegen</button>'+
         '</div>'+
         '<div class="bns521-row">'+
           '<label>Nieuwe keuze<input id="bns521NewPreset" class="bns521-wide" placeholder="Bijv. kraanwagen, schoonmaak, extra personeel"></label>'+
@@ -46265,7 +46265,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         '</div>'+
         '<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns521TransportRows"></tbody></table>'+
         '<div class="bns521-total">Totaal bijkomende zaken: <span id="bns521TransportTotal">€ 0,00</span></div>'+
-        '<small>Transportregels zijn géén materialen. Ze blokkeren geen reservering en krijgen geen gereserveerd-status.</small>';
+        '<small>Bijkomende zaken zijn géén materialen. Ze blokkeren geen reservering en krijgen geen gereserveerd-status.</small>';
       field.parentNode.insertBefore(box, field);
       // Het oude voertuigveld blijft bestaan voor compatibiliteit, maar transportregels zijn leidend.
       field.style.marginTop='10px';
@@ -46288,7 +46288,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     }; }
     var del=E('bns521DeletePreset'); if(del && !del.__bns521){ del.__bns521=true; del.onclick=function(e){ e.preventDefault();
       var s=E('bns521TransportPreset'), val=T(s&&s.value); if(!val) return;
-      if(!confirm('Transportkeuze verwijderen uit lijst?\n\n'+val)) return;
+      if(!confirm('Keuze verwijderen uit lijst?\n\n'+val)) return;
       savePresets(presets().filter(function(x){ return x.toLowerCase()!==val.toLowerCase(); })); fillPresetSelect();
     }; }
     var km=E('bns521AddKm'); if(km && !km.__bns521){ km.__bns521=true; km.onclick=function(e){ e.preventDefault();
@@ -46313,8 +46313,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var tt=E('bns521TransportTotal'); if(tt) tt.textContent=euro(transportTotal());
   }
   function renameTab(){
-    A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(b){ if(T(b.textContent)!=='Transport') b.textContent='Transport'; });
-    var panel=E('vehiclePanel'); if(panel){ var h=panel.querySelector('h2,h3,.panel-title'); if(h && /voertuig/i.test(h.textContent||'')) h.textContent='Transport'; }
+    A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(b){ if(T(b.textContent)!=='Bijkomende zaken') b.textContent='Bijkomende zaken'; });
+    var panel=E('vehiclePanel'); if(panel){ var h=panel.querySelector('h2,h3,.panel-title'); if(h && /voertuig|transport/i.test(h.textContent||'')) h.textContent='Bijkomende zaken'; }
   }
   function loadTransportFromOrder(o){
     var lines=[];
@@ -51393,4 +51393,46 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   setInterval(tick,1500);
   document.addEventListener('click',function(){ setTimeout(tick,120); setTimeout(tick,700); },true);
   console.info('[BNS 682] Bijkomende zaken gebruikt prijzen; bijzonderheden is alleen tekst. Servicekostenblok verborgen en leeggemaakt bij opslaan.');
+})();
+
+
+// ===== BNS v683: Rubriekknop Transport naar Bijkomende zaken =====
+// Alleen zichtbare teksten aangepast; transportLines/data blijft technisch gelijk.
+(function(){
+  if(window.__BNS683_RUBRIEKKNOP_BIJKOMENDE_ZAKEN__) return;
+  window.__BNS683_RUBRIEKKNOP_BIJKOMENDE_ZAKEN__ = true;
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function installStyle(){
+    if(E('bns683BijkomendeTabStyle')) return;
+    var st=document.createElement('style'); st.id='bns683BijkomendeTabStyle';
+    st.textContent = 'button[data-tab="vehiclePanel"]:after,.worktab[data-tab="vehiclePanel"]:after{content:"Bijkomende zaken"!important;font-size:14px!important}';
+    document.head.appendChild(st);
+  }
+  function rename(){
+    installStyle();
+    A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"],[data-tab="vehiclePanel"]').forEach(function(b){
+      if(/transport|voertuig/i.test(T(b.textContent)) || T(b.textContent)==='') b.textContent='Bijkomende zaken';
+      b.setAttribute('aria-label','Bijkomende zaken');
+      b.title='Bijkomende zaken';
+    });
+    var panel=E('vehiclePanel');
+    if(panel){
+      A('h1,h2,h3,.panel-title,.tab-title',panel).forEach(function(h){
+        if(/transport|voertuig/i.test(T(h.textContent))) h.textContent='Bijkomende zaken';
+      });
+      A('button,label,small,div,span',panel).forEach(function(el){
+        var txt=T(el.textContent);
+        if(txt==='Transportregel toevoegen') el.textContent='Regel toevoegen';
+        if(txt==='Transport') el.textContent='Bijkomende zaken';
+        if(txt.indexOf('Transportregels zijn')===0) el.textContent=txt.replace('Transportregels zijn','Bijkomende zaken zijn');
+      });
+    }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(rename,100); }); else setTimeout(rename,50);
+  [250,600,1200,2500,5000].forEach(function(ms){ setTimeout(rename,ms); });
+  setInterval(rename,700);
+  document.addEventListener('click',function(){ setTimeout(rename,80); setTimeout(rename,400); },true);
+  console.info('[BNS 683] Rubriekknop Transport heet nu Bijkomende zaken.');
 })();
