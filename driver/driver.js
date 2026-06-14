@@ -562,13 +562,49 @@ async function openPhotoChoice(order){
   if(type) await sendPhoto(order,type);
 }
 
+function parseDriverAmount(v){
+  if(v===undefined||v===null||v==='') return 0;
+  if(typeof v==='number') return Number.isFinite(v)?v:0;
+  var x=String(v).replace(/\s/g,'').replace(/€|EUR|eur/g,'');
+  if(x.indexOf(',')>=0){ x=x.replace(/\./g,'').replace(',','.'); }
+  else { x=x.replace(/[^0-9.-]/g,''); }
+  var n=Number(x.replace(/[^0-9.-]/g,''));
+  return Number.isFinite(n)?n:0;
+}
+function materialLineTotalDriver(m){
+  var qty=parseDriverAmount(m&& (m.qty||m.aantal||m.count||1)) || 1;
+  var price=parseDriverAmount(m&& (m.price||m.prijs||m.amount||m.bedrag||m.total||m.totaal||0));
+  return qty*price;
+}
+function quoteTotalsHtml(o){
+  if(!canPrices()) return '';
+  var mats=Array.isArray(o&&o.materials)?o.materials:[];
+  var matSub=mats.reduce(function(sum,m){return sum+materialLineTotalDriver(m);},0);
+  var lines=Array.isArray(o&&o.transportLines)?o.transportLines:(Array.isArray(o&&o.transport)?o.transport:[]);
+  var bijzSub=lines.reduce(function(sum,l){return sum+driverLineTotal(l);},0);
+  var explicitTotal=parseDriverAmount(orderField(o,['quoteTotal','invoiceTotal','grandTotal','total','totaal','amount','bedrag']));
+  var borg=parseDriverAmount(orderField(o,['deposit','borg','waarborg']));
+  var excl=(matSub+bijzSub) || explicitTotal;
+  var vat=parseDriverAmount(orderField(o,['vat','btw','tax']));
+  if(!vat && excl) vat=excl*0.21;
+  var grand=explicitTotal || (excl+vat+borg);
+  function row(label,val,strong){ return val?`<div class="tw-row"><div>${esc(label)}</div><div class="tw-price">${esc(money(val))}</div></div>`:''; }
+  return `<div class="tw-card"><div class="tw-label">Totaal</div>
+    ${row('Subtotaal materialen',matSub)}
+    ${row('Subtotaal bijzonderheden',bijzSub)}
+    ${row('Subtotaal excl. btw',excl)}
+    ${row('BTW 21%',vat)}
+    ${row('Borg',borg)}
+    ${row('Totaal incl. btw',grand,true)}
+  </div>`;
+}
 function quoteHtml(o){
-  return fullOrderHtml(o,'Offerte / opdrachtbevestiging');
+  return `<div>${fullOrderHtml(o,'Offerte / opdrachtbevestiging').replace(/<div class="tw-card"><div class="tw-label">Prijzen \/ bedragen<\/div>[\s\S]*?<\/div>\s*<div class="tw-card"><div class="tw-label">Bijzonderheden<\/div>/,'<div class="tw-card"><div class="tw-label">Bijzonderheden</div>')}${quoteTotalsHtml(o)}</div>`;
 }
 function openQuote(order){
   const wrap=document.createElement("div");
   wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:12px";
-  wrap.innerHTML='<div style="background:#fff;border-radius:22px;width:min(760px,100%);max-height:92vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.35)"><div id="twQuoteBody">'+quoteHtml(order)+'</div><div style="position:sticky;bottom:0;background:#fff;padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;border-top:1px solid #e5e7eb"><button id="twQuoteClose" class="btn-dark" type="button">Sluiten</button><button id="twQuoteShare" type="button">Delen</button><button id="twQuotePrint" class="btn-green" type="button">Print</button></div></div>';
+  wrap.innerHTML='<div style="background:#fff;border-radius:22px;width:min(760px,100%);max-height:92vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.35)"><div id="twQuoteBody">'+quoteHtml(order)+'</div><div style="position:sticky;bottom:0;background:#fff;padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;border-top:1px solid #e5e7eb"><button id="twQuoteClose" class="btn-dark" type="button">Terug</button><button id="twQuoteShare" type="button">Delen</button><button id="twQuotePrint" class="btn-green" type="button">Print</button></div></div>';
   document.body.appendChild(wrap);
   wrap.querySelector('#twQuoteClose').onclick=()=>wrap.remove();
   wrap.querySelector('#twQuoteShare').onclick=async()=>{const text=(wrap.querySelector('#twQuoteBody').innerText||''); if(navigator.share){try{await navigator.share({title:'Offerte '+(order.number||''),text});}catch(e){}} else {location.href='mailto:?subject='+encodeURIComponent('Offerte '+(order.number||''))+'&body='+encodeURIComponent(text);}};
@@ -781,8 +817,8 @@ function showApp(){
 
 function installSearchKeyboard(){
   const inp=$("searchBox");
-  if(!inp||inp.dataset.bns686Keyboard) return;
-  inp.dataset.bns686Keyboard="1";
+  if(!inp||inp.dataset.bns687Keyboard) return;
+  inp.dataset.bns687Keyboard="1";
   inp.setAttribute("readonly","readonly");
   inp.setAttribute("inputmode","none");
   inp.setAttribute("autocomplete","off");
@@ -791,19 +827,42 @@ function installSearchKeyboard(){
   inp.placeholder=inp.placeholder||"Zoeken";
 
   function hideKb(){
-    const kb=$("bns686SearchKeyboard");
+    const kb=$("bns687SearchKeyboard") || $("bns686SearchKeyboard");
     if(kb) kb.classList.add("hidden");
     try{inp.blur()}catch(_e){}
   }
   function addText(t){ inp.value += t; applyDriverSearch(); }
+  function keyBtn(k, extra){
+    return `<button type="button" data-k="${esc(k)}" style="min-width:0;padding:12px 0;border-radius:10px;border:0;background:#ffffff;color:#111827;font-weight:800;font-size:20px;box-shadow:0 1px 2px rgba(15,23,42,.24);${extra||''}">${esc(k)}</button>`;
+  }
   function showKb(){
-    let kb=$("bns686SearchKeyboard");
+    let old=$("bns686SearchKeyboard");
+    if(old) old.remove();
+    let kb=$("bns687SearchKeyboard");
     if(kb){kb.classList.remove("hidden"); return;}
     kb=document.createElement("div");
-    kb.id="bns686SearchKeyboard";
-    kb.style.cssText="position:fixed;left:8px;right:8px;bottom:8px;z-index:999998;background:#f8fafc;border:2px solid #0284c7;border-radius:18px;box-shadow:0 -10px 34px rgba(15,23,42,.25);padding:8px;max-height:42vh;overflow:auto";
-    const keys=["1","2","3","4","5","6","7","8","9","0","Q","W","E","R","T","Y","U","I","O","P","A","S","D","F","G","H","J","K","L","Z","X","C","V","B","N","M","-","/","."];
-    kb.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px 0"><div style="font-weight:900;font-size:15px;color:#0f172a">Zoeken</div><button type="button" data-close-top style="padding:8px 12px;border-radius:12px;border:0;background:#16a34a;color:#fff;font-weight:900;font-size:14px">Klaar</button></div><div style="display:grid;grid-template-columns:repeat(8,1fr);gap:5px">${keys.map(k=>`<button type="button" data-k="${esc(k)}" style="padding:9px 0;border-radius:10px;border:1px solid #94a3b8;background:#ffffff;color:#0f172a;font-weight:900;font-size:15px;box-shadow:0 1px 0 rgba(15,23,42,.12)">${esc(k)}</button>`).join("")}</div><div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:6px;margin-top:7px"><button type="button" data-space style="padding:10px;border-radius:12px;border:0;background:#cbd5e1;color:#0f172a;font-weight:900;font-size:15px">Spatie</button><button type="button" data-backspace style="padding:10px;border-radius:12px;border:0;background:#334155;color:#fff;font-weight:900;font-size:15px">Wis</button><button type="button" data-clear style="padding:10px;border-radius:12px;border:0;background:#ef4444;color:#fff;font-weight:900;font-size:15px">Leeg</button><button type="button" data-close style="padding:10px;border-radius:12px;border:0;background:#16a34a;color:#fff;font-weight:900;font-size:15px">Klaar</button></div>`;
+    kb.id="bns687SearchKeyboard";
+    kb.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:999998;background:#e5e7eb;border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(15,23,42,.28);padding:10px 8px 12px;max-height:38vh;overflow:auto";
+    kb.innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+        <button type="button" data-clear style="padding:9px 14px;border-radius:12px;border:0;background:#9ca3af;color:#111827;font-weight:900;font-size:15px">Leeg</button>
+        <button type="button" data-close-top style="padding:9px 18px;border-radius:12px;border:0;background:#2563eb;color:#fff;font-weight:900;font-size:15px">Klaar</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin-bottom:8px">${['1','2','3','4','5','6','7','8','9','0'].map(k=>keyBtn(k)).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin-bottom:8px">${['Q','W','E','R','T','Y','U','I','O','P'].map(k=>keyBtn(k)).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin:0 5% 8px">${['A','S','D','F','G','H','J','K','L'].map(k=>keyBtn(k)).join('')}</div>
+      <div style="display:grid;grid-template-columns:1.15fr repeat(7,1fr) 1.15fr;gap:6px;margin-bottom:8px">
+        <button type="button" data-k="-" style="padding:12px 0;border-radius:10px;border:0;background:#cbd5e1;color:#111827;font-weight:900;font-size:20px">-</button>
+        ${['Z','X','C','V','B','N','M'].map(k=>keyBtn(k)).join('')}
+        <button type="button" data-backspace style="padding:12px 0;border-radius:10px;border:0;background:#9ca3af;color:#111827;font-weight:900;font-size:20px">⌫</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 4fr 1fr 1fr;gap:6px">
+        <button type="button" data-k="/" style="padding:12px 0;border-radius:10px;border:0;background:#cbd5e1;color:#111827;font-weight:900;font-size:18px">/</button>
+        <button type="button" data-k="," style="padding:12px 0;border-radius:10px;border:0;background:#fff;color:#111827;font-weight:900;font-size:18px">,</button>
+        <button type="button" data-space style="padding:12px;border-radius:10px;border:0;background:#fff;color:#111827;font-weight:900;font-size:15px">Spatie</button>
+        <button type="button" data-k="." style="padding:12px 0;border-radius:10px;border:0;background:#fff;color:#111827;font-weight:900;font-size:18px">.</button>
+        <button type="button" data-close style="padding:12px 0;border-radius:10px;border:0;background:#9ca3af;color:#111827;font-weight:900;font-size:18px">↵</button>
+      </div>`;
     document.body.appendChild(kb);
     qsa("[data-k]",kb).forEach(b=>b.onclick=()=>addText(b.dataset.k));
     kb.querySelector("[data-space]").onclick=()=>addText(" ");
@@ -990,5 +1049,5 @@ boot();
 
 // ===== BNS v685: prijzenrechten hard afdwingen op bezorgertelefoon =====
 (function(){
-  try{ console.info('[BNS 686] Driver zoeken/toetsenbord + prijzenrechten actief.'); }catch(e){}
+  try{ console.info('[BNS 687] Driver offertebon + toetsenbordindeling + prijzenrechten actief.'); }catch(e){}
 })();
