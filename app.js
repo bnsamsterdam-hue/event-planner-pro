@@ -51133,7 +51133,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 })();
 
 /* =========================================================
-   BNS v664 - Nieuwe opdracht adresboek zoals Admin + referentie
+   BNS v665 - Nieuwe opdracht adresboek typt mee + donker + schoon
    Basis: v661. Alleen klant/locatie-kiezer in Nieuwe opdracht.
    Geen status/save-structuur/transport/documenten/driver/materiaal/reservering.
    ========================================================= */
@@ -51141,6 +51141,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   'use strict';
   if(window.__bnsV664AdresboekZoalsAdmin) return;
   window.__bnsV664AdresboekZoalsAdmin = true;
+  window.__bnsV665AdresboekSchoon = true;
 
   function E(id){ return document.getElementById(id); }
   function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
@@ -51161,9 +51162,10 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       .bns-v664-title{font-weight:900!important;margin:0 0 8px 0!important;color:#172033!important}\
       .bns-v664-search{width:100%!important;box-sizing:border-box!important;border:1px solid #94a3b8!important;border-radius:12px!important;padding:12px 14px!important;font:inherit!important;background:#fff!important;margin-bottom:8px!important}\
       .bns-v664-list{display:block!important;max-height:270px!important;overflow:auto!important;margin-top:8px!important}\
-      .bns-v664-row{display:block!important;width:100%!important;text-align:left!important;background:#fff!important;border:0!important;border-left:7px solid #0ea5e9!important;border-radius:12px!important;margin:0 0 8px 0!important;padding:13px 15px!important;color:#172033!important;box-shadow:0 1px 5px rgba(15,23,42,.12)!important;cursor:pointer!important;font-weight:700!important}\
-      .bns-v664-row:hover{background:#e0f2fe!important}\
-      .bns-v664-row small{display:block!important;margin-top:4px!important;color:#334155!important;font-weight:600!important}\
+      .bns-v664-row{display:block!important;width:100%!important;text-align:left!important;background:#eaf4ff!important;border:1px solid #7dd3fc!important;border-left:8px solid #0284c7!important;border-radius:12px!important;margin:0 0 8px 0!important;padding:13px 15px!important;color:#0f172a!important;box-shadow:0 1px 5px rgba(15,23,42,.18)!important;cursor:pointer!important;font-weight:800!important;opacity:1!important}\
+      .bns-v664-row:hover{background:#dbeafe!important;color:#0f172a!important}\
+      .bns-v664-row small{display:block!important;margin-top:4px!important;color:#1e293b!important;font-weight:700!important;opacity:1!important}\
+      .bns-v664-row b{color:#0f172a!important;opacity:1!important}\
       .bns-v664-empty{padding:10px 4px!important;color:#475569!important;font-weight:700!important}\
       .bns-v664-ref{margin:10px 0 12px 0!important}\
       .bns-v664-ref input{width:100%!important;box-sizing:border-box!important;border:1px solid #cbd5e1!important;border-radius:10px!important;padding:11px 13px!important;font:inherit!important;background:#fff!important}\
@@ -51243,11 +51245,34 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     }).join('');
     A('.bns-v664-row', list).forEach(function(btn){ btn.onclick=function(ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); } var idx=Number(btn.getAttribute('data-index')||0); apply(kind, rows[idx]); return false; }; });
   }
+  function syncSearchFromName(kind){
+    var src=E(kind==='customer'?'customerName':'locationName');
+    var dst=E(kind==='customer'?'bnsV664CustomerSearch':'bnsV664LocationSearch');
+    if(!src || !dst) return;
+    var v=T(src.value);
+    if(v.length>=2 && dst.value!==v){ dst.value=v; renderList(kind); }
+    if(!v && T(dst.value)){ dst.value=''; renderList(kind); }
+  }
+  function clearAddressBook(kind){
+    if(kind==='customer' || !kind){
+      ['customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','bnsV664CustomerSearch'].forEach(function(id){ setVal(id,''); });
+      var cl=E('bnsV664CustomerList'); if(cl) cl.innerHTML='<div class="bns-v664-empty">Typ minimaal 2 letters om te zoeken.</div>';
+    }
+    if(kind==='location' || !kind){
+      ['locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','bnsV664LocationSearch'].forEach(function(id){ setVal(id,''); });
+      var ll=E('bnsV664LocationList'); if(ll) ll.innerHTML='<div class="bns-v664-empty">Typ minimaal 2 letters om te zoeken.</div>';
+    }
+  }
+  function clearSearchOnly(){
+    ['bnsV664CustomerSearch','bnsV664LocationSearch'].forEach(function(id){ var el=E(id); if(el){ el.value=''; fire(el); } });
+    var cl=E('bnsV664CustomerList'); if(cl) cl.innerHTML='<div class="bns-v664-empty">Typ minimaal 2 letters om te zoeken.</div>';
+    var ll=E('bnsV664LocationList'); if(ll) ll.innerHTML='<div class="bns-v664-empty">Typ minimaal 2 letters om te zoeken.</div>';
+  }
   function apply(kind, x){
     if(!x) return;
     if(kind==='customer'){
       setVal('customerName', x.name); setVal('customerStreet', x.street); setVal('customerZip', x.zip); setVal('customerCity', x.city); setVal('customerPhone', x.phone); setVal('customerEmail', x.email);
-      if(E('bnsCustomerReference')) setVal('bnsCustomerReference', x.reference);
+      
     } else {
       setVal('locationName', x.name); setVal('locationStreet', x.street); setVal('locationZip', x.zip); setVal('locationCity', x.city); setVal('locationContact', x.contact); setVal('locationPhone', x.phone);
     }
@@ -51269,7 +51294,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!panel || E('bnsV664CustomerWrap')) return;
     hideOldNewOrderAddressBookButtons(panel);
     var wrap=document.createElement('div'); wrap.id='bnsV664CustomerWrap'; wrap.className='bns-v664-wrap';
-    wrap.innerHTML='<div class="bns-v664-title">Klantenbestand</div><input id="bnsV664CustomerSearch" class="bns-v664-search" placeholder="Zoek klant"><div id="bnsV664CustomerList" class="bns-v664-list"><div class="bns-v664-empty">Typ minimaal 2 letters om te zoeken.</div></div><div class="bns-v664-ref"><input id="bnsCustomerReference" placeholder="Referentie"></div>';
+    wrap.innerHTML='<div class="bns-v664-title">Klantenbestand</div><input id="bnsV664CustomerSearch" class="bns-v664-search" placeholder="Zoek klant"><div id="bnsV664CustomerList" class="bns-v664-list"><div class="bns-v664-empty">Typ minimaal 2 letters om te zoeken.</div></div>';
     var oldButton=A('button,a,input[type=button]',panel).find(function(b){ return /klantenbestand openen|zoek klant|adresboek klant/i.test(b.textContent||b.value||''); });
     if(oldButton && oldButton.parentNode) oldButton.parentNode.insertBefore(wrap, oldButton.nextSibling);
     else {
@@ -51278,6 +51303,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       else panel.appendChild(wrap);
     }
     var inp=E('bnsV664CustomerSearch'); if(inp){ inp.addEventListener('input',function(){ renderList('customer'); }); inp.addEventListener('focus',function(){ renderList('customer'); }); }
+    var nm=E('customerName'); if(nm && !nm.__bnsV665NameSync){ nm.__bnsV665NameSync=true; nm.addEventListener('input',function(){ syncSearchFromName('customer'); }); nm.addEventListener('focus',function(){ syncSearchFromName('customer'); }); }
   }
   function installLocation(){
     var panel=E('locationPanel') || (E('locationName') && E('locationName').closest('.card,.panel,.workpanel,section,div'));
@@ -51293,6 +51319,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       else panel.appendChild(wrap);
     }
     var inp=E('bnsV664LocationSearch'); if(inp){ inp.addEventListener('input',function(){ renderList('location'); }); inp.addEventListener('focus',function(){ renderList('location'); }); }
+    var nm=E('locationName'); if(nm && !nm.__bnsV665NameSync){ nm.__bnsV665NameSync=true; nm.addEventListener('input',function(){ syncSearchFromName('location'); }); nm.addEventListener('focus',function(){ syncSearchFromName('location'); }); }
   }
   function currentOrder(){
     var s=appState();
@@ -51331,11 +51358,18 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     hideOldNewOrderAddressBookButtons(E('customerPanel'));
     hideOldNewOrderAddressBookButtons(E('locationPanel'));
     loadReference();
+    var same=E('bnsV311CustomerIsLocation'); if(same) same.classList.add('bns-v664-old-hide');
+    A('button,a,input[type=button]').forEach(function(b){ var txt=L(b.textContent||b.value||''); if(/klant is zelfde als bezorg adres|klant is locatie/.test(txt)) b.classList.add('bns-v664-old-hide'); });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(tick,500); }); else setTimeout(tick,300);
   [900,1800,3200].forEach(function(ms){ setTimeout(tick,ms); });
   document.addEventListener('click',function(ev){
-    if(ev.target && ev.target.closest && ev.target.closest('#saveOrder')) setTimeout(saveReference,180);
+    var b=ev.target && ev.target.closest && ev.target.closest('button,a,input[type=button]');
+    var txt=b?L(b.textContent||b.value||''):'';
+    if(ev.target && ev.target.closest && ev.target.closest('#saveOrder')){ setTimeout(function(){ saveReference(); clearSearchOnly(); },220); }
+    if(/opslaan/.test(txt)){ setTimeout(clearSearchOnly,450); }
+    if(/annuleren/.test(txt)){ setTimeout(function(){ clearAddressBook(); },120); }
+    if(/leegmaken/.test(txt)){ setTimeout(function(){ clearAddressBook(); },80); }
     setTimeout(tick,120);
   }, true);
   document.addEventListener('input',function(ev){
