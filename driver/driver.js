@@ -309,20 +309,45 @@ function canAnyReportAction(){return canReport()||canDamage()}
 function canAnyPhotoAction(){return canPhotoBefore()||canPhotoAfter()}
 function searchIndexText(o){
   const parts=[];
-  function add(v){v=clean(v); if(v) parts.push(v)}
-  add(o&&o.number); add(o&&o.title); add(o&&o.status); add(customerName(o)); add(customerPhone(o)); add(addressOf(o)); add(driverName(o));
-  if(o&&o.location&&typeof o.location==='object'){[o.location.name,o.location.street,o.location.city,o.location.zip].forEach(add)}
-  materialList(o).forEach(m=>{add(m.name); add(m.extra)});
-  return lower(parts.join(' '));
+  const seen=new Set();
+  function add(v){
+    if(v===undefined||v===null) return;
+    if(Array.isArray(v)){ v.forEach(add); return; }
+    if(typeof v==='object'){
+      ['id','number','title','name','naam','customer','client','bedrijf','company','street','straat','address','adres','zip','postcode','city','plaats','phone','telefoon','email','status','driver','bezorger','vehicle','kenteken','code','cat','rubriek','description','omschrijving','note','notes','opmerking','extra','bijzonderheden','zoeknaam','searchName'].forEach(k=>add(v[k]));
+      return;
+    }
+    let x=clean(v);
+    if(!x) return;
+    x=x.normalize ? x.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : x;
+    x=lower(x);
+    if(x && !seen.has(x)){ seen.add(x); parts.push(x); }
+  }
+  add(o&&o.number); add(o&&o.title); add(o&&o.status);
+  add(customerName(o)); add(customerPhone(o)); add(addressOf(o)); add(driverName(o));
+  if(o&&o.customer) add(o.customer);
+  if(o&&o.client) add(o.client);
+  if(o&&o.location) add(o.location);
+  if(o&&o.deliveryAddress) add(o.deliveryAddress);
+  if(o&&o.invoiceAddress) add(o.invoiceAddress);
+  materialList(o).forEach(add);
+  ['materials','items','materialen','transportLines','transport','bijzonderhedenLines','serviceLines','services'].forEach(k=>add(o&&o[k]));
+  add(o&&o.extra); add(o&&o.notes); add(o&&o.note); add(o&&o.description); add(o&&o.bijzonderheden); add(o&&o.text);
+  return parts.join(' ');
 }
 function applyDriverSearch(){
   const inp=$("searchBox");
-  const q=lower(inp&&inp.value);
+  let q=lower(inp&&inp.value||'');
+  q=q.normalize ? q.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : q;
+  const tokens=q.split(/\s+/).map(x=>x.trim()).filter(Boolean);
   qsa(".order").forEach(el=>{
-    const hay=lower(el.getAttribute('data-search')||el.innerText||'');
-    el.style.display=!q||hay.includes(q)?"":"none";
+    let hay=lower(el.getAttribute('data-search')||el.innerText||'');
+    hay=hay.normalize ? hay.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : hay;
+    const ok=!tokens.length || tokens.every(t=>hay.includes(t));
+    el.style.display=ok?"":"none";
   });
 }
+
 
 function orderBadges(o){
   // BNS v647: verwijder niet-klikbare bovenste knoppen/labels op de bezorgertelefoon.
@@ -362,6 +387,7 @@ function render(){
   const rows=getOrders();
   $("orders").innerHTML=rows.length?rows.map(orderCard).join(""):`<div class="empty">Geen opdrachten voor deze gebruiker.</div>`;
   bindActions();
+  setTimeout(applyDriverSearch,0);
 }
 
 function showOrders(){
@@ -391,7 +417,7 @@ function materialRowsHtml(o){
     const r=raw[i]||{};
     const price=clean(r.price||r.prijs||r.amount||r.bedrag||'');
     const note=clean(m.extra||r.note||r.notes||r.opmerking||'');
-    return `<div class="tw-row"><div><b>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${price?'<div class="tw-price">'+esc(money(price))+'</div>':''}</div>`;
+    return `<div class="tw-row"><div><b>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${(canPrices()&&price)?'<div class="tw-price">'+esc(money(price))+'</div>':''}</div>`;
   }).join('');
 }
 
@@ -410,11 +436,12 @@ function driverTransportLinesHtml(o){
     const note=clean(l&& (l.note||l.opmerking||l.notes||''));
     const amount=driverLineTotal(l);
     const left=(qty?qty+'x ':'')+(name||'Bijzonderheid');
-    return `<div class="tw-row"><div><b>${esc(left)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${amount?'<div class="tw-price">'+esc(money(amount))+'</div>':''}</div>`;
+    return `<div class="tw-row"><div><b>${esc(left)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${(canPrices()&&amount)?'<div class="tw-price">'+esc(money(amount))+'</div>':''}</div>`;
   }).join('');
 }
 
 function priceBlockHtml(o){
+  if(!canPrices()) return '';
   const lines=[];
   lines.push(moneyLine('Totaal', orderField(o,['amount','total','totaal','price','bedrag','quoteTotal','invoiceTotal'])));
   lines.push(moneyLine('Borg', orderField(o,['deposit','borg','waarborg'])));
@@ -424,9 +451,16 @@ function priceBlockHtml(o){
   const html=lines.filter(Boolean).join('');
   return html || '<div class="muted">Geen apart totaalbedrag gevonden. Kijk ook bij tekst/bijzonderheden.</div>';
 }
+function redactPricesForNoRight(txt){
+  if(canPrices()) return txt;
+  return String(txt||'')
+    .replace(/€\s*[0-9][0-9\s.,-]*/g,'[prijs verborgen]')
+    .replace(/\b[0-9]+(?:[,.][0-9]{1,2})?\s*(?:euro|ex\s*btw|incl\.?\s*btw)\b/ig,'[prijs verborgen]');
+}
 function textBlockHtml(o){
   const txt=clean(o&& (o.extra||o.notes||o.note||o.description||o.bijzonderheden||o.text||''));
-  return txt ? esc(txt).replace(/\n/g,'<br>') : '<span class="muted">Geen extra tekst.</span>';
+  const safe=redactPricesForNoRight(txt);
+  return safe ? esc(safe).replace(/\n/g,'<br>') : '<span class="muted">Geen extra tekst.</span>';
 }
 function fullOrderHtml(o, title){
   const a=addressOf(o), p=customerPhone(o), s=orderStart(o), e=orderEnd(o);
@@ -444,7 +478,7 @@ function fullOrderHtml(o, title){
   </div>
   <div class="tw-card"><div class="tw-label">Datum / planning</div><div class="tw-big">${esc(dl||'Geen datum')}</div>${o.startTime||o.endTime?'<div>'+esc(o.startTime||'')+' - '+esc(o.endTime||'')+'</div>':''}<div>Bezorger: ${esc(driverName(o)||BNS.user?.name||'')}</div></div>
   <div class="tw-card"><div class="tw-label">Materialen</div>${materialRowsHtml(o)}</div>
-  <div class="tw-card"><div class="tw-label">Prijzen / bedragen</div>${priceBlockHtml(o)}</div>
+  ${canPrices()?'<div class="tw-card"><div class="tw-label">Prijzen / bedragen</div>'+priceBlockHtml(o)+'</div>':''}
   <div class="tw-card"><div class="tw-label">Bijzonderheden</div>${driverTransportLinesHtml(o)}</div>
   <div class="tw-card"><div class="tw-label">Tekst / bijzonderheden</div><div>${textBlockHtml(o)}</div></div>
   </div>`;
@@ -500,7 +534,7 @@ function askConfirm(title, text){
     wrap.querySelector("#twYes").onclick=()=>{wrap.remove();resolve(true)};
   });
 }
-function canQuote(){return hasAnyRight(["invoice","factuur","offerte","quote","offer","orders"])||lower(BNS.user.role)==="admin"}
+function canQuote(){return canPrices() && (hasAnyRight(["invoice","factuur","offerte","quote","offer","orders"])||lower(BNS.user.role)==="admin")}
 function money(v){const n=Number(String(v||0).replace(',','.'));return Number.isFinite(n)&&n?('€ '+n.toFixed(2).replace('.',',')):clean(v||'')}
 function askChoice(title, options){
   return new Promise(resolve=>{
@@ -747,34 +781,42 @@ function showApp(){
 
 function installSearchKeyboard(){
   const inp=$("searchBox");
-  if(!inp||inp.dataset.bns649Keyboard) return;
-  inp.dataset.bns649Keyboard="1";
+  if(!inp||inp.dataset.bns686Keyboard) return;
+  inp.dataset.bns686Keyboard="1";
   inp.setAttribute("readonly","readonly");
   inp.setAttribute("inputmode","none");
   inp.setAttribute("autocomplete","off");
   inp.setAttribute("autocorrect","off");
   inp.setAttribute("spellcheck","false");
   inp.placeholder=inp.placeholder||"Zoeken";
+
+  function hideKb(){
+    const kb=$("bns686SearchKeyboard");
+    if(kb) kb.classList.add("hidden");
+    try{inp.blur()}catch(_e){}
+  }
+  function addText(t){ inp.value += t; applyDriverSearch(); }
   function showKb(){
-    let kb=$("bns649SearchKeyboard");
-    if(kb){kb.classList.remove("hidden");return;}
+    let kb=$("bns686SearchKeyboard");
+    if(kb){kb.classList.remove("hidden"); return;}
     kb=document.createElement("div");
-    kb.id="bns649SearchKeyboard";
-    kb.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:999998;background:#eaf6ff;border-top:4px solid #0284c7;box-shadow:0 -18px 60px rgba(15,23,42,.35);padding:12px;max-height:58vh;overflow:auto";
+    kb.id="bns686SearchKeyboard";
+    kb.style.cssText="position:fixed;left:8px;right:8px;bottom:8px;z-index:999998;background:#f8fafc;border:2px solid #0284c7;border-radius:18px;box-shadow:0 -10px 34px rgba(15,23,42,.25);padding:8px;max-height:42vh;overflow:auto";
     const keys=["1","2","3","4","5","6","7","8","9","0","Q","W","E","R","T","Y","U","I","O","P","A","S","D","F","G","H","J","K","L","Z","X","C","V","B","N","M","-","/","."];
-    kb.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px 0"><div style="font-weight:900;font-size:18px;color:#0f172a">Zoeken</div><button type="button" data-close-top style="padding:10px 14px;border-radius:14px;border:0;background:#16a34a;color:#fff;font-weight:900;font-size:16px">Klaar</button></div><div style="display:grid;grid-template-columns:repeat(10,1fr);gap:7px">${keys.map(k=>`<button type="button" data-k="${esc(k)}" style="padding:13px 0;border-radius:13px;border:2px solid #94a3b8;background:#ffffff;color:#0f172a;font-weight:900;font-size:19px;box-shadow:0 2px 0 rgba(15,23,42,.14)">${esc(k)}</button>`).join("")}</div><div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:9px;margin-top:10px"><button type="button" data-space style="padding:15px;border-radius:15px;border:0;background:#cbd5e1;color:#0f172a;font-weight:900;font-size:18px">Spatie</button><button type="button" data-backspace style="padding:15px;border-radius:15px;border:0;background:#334155;color:#fff;font-weight:900;font-size:18px">Wis</button><button type="button" data-clear style="padding:15px;border-radius:15px;border:0;background:#ef4444;color:#fff;font-weight:900;font-size:18px">Leeg</button><button type="button" data-close style="padding:15px;border-radius:15px;border:0;background:#16a34a;color:#fff;font-weight:900;font-size:18px">Klaar</button></div>`;
+    kb.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px 0"><div style="font-weight:900;font-size:15px;color:#0f172a">Zoeken</div><button type="button" data-close-top style="padding:8px 12px;border-radius:12px;border:0;background:#16a34a;color:#fff;font-weight:900;font-size:14px">Klaar</button></div><div style="display:grid;grid-template-columns:repeat(8,1fr);gap:5px">${keys.map(k=>`<button type="button" data-k="${esc(k)}" style="padding:9px 0;border-radius:10px;border:1px solid #94a3b8;background:#ffffff;color:#0f172a;font-weight:900;font-size:15px;box-shadow:0 1px 0 rgba(15,23,42,.12)">${esc(k)}</button>`).join("")}</div><div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:6px;margin-top:7px"><button type="button" data-space style="padding:10px;border-radius:12px;border:0;background:#cbd5e1;color:#0f172a;font-weight:900;font-size:15px">Spatie</button><button type="button" data-backspace style="padding:10px;border-radius:12px;border:0;background:#334155;color:#fff;font-weight:900;font-size:15px">Wis</button><button type="button" data-clear style="padding:10px;border-radius:12px;border:0;background:#ef4444;color:#fff;font-weight:900;font-size:15px">Leeg</button><button type="button" data-close style="padding:10px;border-radius:12px;border:0;background:#16a34a;color:#fff;font-weight:900;font-size:15px">Klaar</button></div>`;
     document.body.appendChild(kb);
-    qsa("[data-k]",kb).forEach(b=>b.onclick=()=>{inp.value+=b.dataset.k;applyDriverSearch()});
-    kb.querySelector("[data-space]").onclick=()=>{inp.value+=" ";applyDriverSearch()};
+    qsa("[data-k]",kb).forEach(b=>b.onclick=()=>addText(b.dataset.k));
+    kb.querySelector("[data-space]").onclick=()=>addText(" ");
     kb.querySelector("[data-backspace]").onclick=()=>{inp.value=inp.value.slice(0,-1);applyDriverSearch()};
     kb.querySelector("[data-clear]").onclick=()=>{inp.value="";applyDriverSearch()};
-    kb.querySelector("[data-close]").onclick=()=>{kb.classList.add("hidden");inp.blur()};
-    kb.querySelector("[data-close-top]").onclick=()=>{kb.classList.add("hidden");inp.blur()};
+    kb.querySelector("[data-close]").onclick=hideKb;
+    kb.querySelector("[data-close-top]").onclick=hideKb;
   }
   inp.addEventListener("focus",e=>{try{inp.blur()}catch(_e){};showKb()});
   inp.addEventListener("click",e=>{e.preventDefault();showKb()});
   inp.addEventListener("touchstart",e=>{showKb()},{passive:true});
 }
+
 
 async function boot(){
   try{
@@ -944,3 +986,9 @@ boot();
 
 
 /* BNS 650 - driver: vermissing verborgen, afmelden pas na einddatum. Alleen driver/driver.js. */
+
+
+// ===== BNS v685: prijzenrechten hard afdwingen op bezorgertelefoon =====
+(function(){
+  try{ console.info('[BNS 686] Driver zoeken/toetsenbord + prijzenrechten actief.'); }catch(e){}
+})();
