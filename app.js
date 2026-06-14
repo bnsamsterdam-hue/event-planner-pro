@@ -8061,6 +8061,13 @@ function toastMsg(t){
   setTimeout(()=>toast.textContent='',2200)
 }
 function showPage(p){
+  // BNS v690: bezorger mag niet in het planprogramma; gebruik /driver/
+  try{
+    if(user && String(user.role||'').toLowerCase()==='bezorger'){
+      toastMsg('Gebruik de bezorgertelefoon');
+      return;
+    }
+  }catch(e){}
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
@@ -8095,10 +8102,19 @@ function doLogin(){
     pinView.textContent='- - - -';
     return
   }
+  // BNS v690: hoofdapp is alleen voor Admin en Planner.
+  // Bezorger-PIN wordt hier geweigerd zodat chauffeurs niet in planning/opdrachten kunnen.
+  if(String(user.role||'').toLowerCase()==='bezorger'){
+    toastMsg('Bezorger: gebruik de bezorgertelefoon');
+    user=null;
+    pin='';
+    pinView.textContent='- - - -';
+    return;
+  }
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
   document.querySelectorAll('.admin-only').forEach(x=>x.style.display=user.role==='Admin'?'':'none');
-  showPage(user.role==='Bezorger'?'driver':'dashboard');
+  showPage('dashboard');
 }
 function money(n){
   n=Number(n||0);
@@ -8124,6 +8140,7 @@ function bindOrder(){
   openCustomer.onclick=()=>{
     customerBox.classList.remove('hidden');
     renderCustomers();
+    setTimeout(()=>{ try{ customerSearch.focus(); customerSearch.select(); }catch(e){} },50);
   };
   closeCustomer.onclick=()=>customerBox.classList.add('hidden');
   customerSearch.oninput=renderCustomers;
@@ -8134,6 +8151,7 @@ function bindOrder(){
   openLocation.onclick=()=>{
     locationBox.classList.remove('hidden');
     renderLocations();
+    setTimeout(()=>{ try{ locationSearch.focus(); locationSearch.select(); }catch(e){} },50);
   };
   closeLocation.onclick=()=>locationBox.classList.add('hidden');
   locationSearch.oninput=renderLocations;
@@ -8162,6 +8180,13 @@ function workTab(idv){
   document.querySelectorAll('.workpanel').forEach(x=>x.classList.add('hidden'));
   $(idv).classList.remove('hidden');
   document.querySelectorAll('.worktab').forEach(x=>x.classList.toggle('active',x.dataset.tab===idv));
+  // BNS v690: bij Klant/Locatie meteen op het naamveld starten.
+  if(idv==='customerPanel'){
+    setTimeout(()=>{ try{ customerName.focus(); customerName.select(); }catch(e){} },60);
+  }
+  if(idv==='locationPanel'){
+    setTimeout(()=>{ try{ locationName.focus(); locationName.select(); }catch(e){} },60);
+  }
   if(idv==='materialPanel'){
     renderCats();
     renderMaterials(currentCat)
@@ -51497,4 +51522,25 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   document.addEventListener('DOMContentLoaded',function(){ setTimeout(run,100); setTimeout(run,800); });
   setInterval(run,1200);
   try{ console.info('[BNS 685] Planner labels: transport zichtbaar als Bijzonderheden.'); }catch(e){}
+})();
+
+
+/* ===== BNS v690 bezorger blokkade + klant/locatie naamfocus vangnet ===== */
+(function(){
+  if(window.__BNS690_PLANNER_ACCESS_FOCUS__) return;
+  window.__BNS690_PLANNER_ACCESS_FOCUS__=true;
+  function E(id){ return document.getElementById(id); }
+  function isDriver(){ try{ return !!(window.user && String(window.user.role||'').toLowerCase()==='bezorger'); }catch(e){ return false; } }
+  function focusName(id){ var el=E(id); if(el){ try{ el.focus(); el.select(); }catch(e){} } }
+  document.addEventListener('click',function(ev){
+    var tab=ev.target && ev.target.closest && ev.target.closest('.worktab,[data-tab]');
+    var dt=tab && tab.getAttribute('data-tab');
+    if(dt==='customerPanel') setTimeout(function(){focusName('customerName');},80);
+    if(dt==='locationPanel') setTimeout(function(){focusName('locationName');},80);
+    var nav=ev.target && ev.target.closest && ev.target.closest('.nav,[data-page]');
+    if(nav && isDriver()){
+      ev.preventDefault(); ev.stopPropagation();
+      try{ if(typeof toastMsg==='function') toastMsg('Gebruik de bezorgertelefoon'); }catch(e){}
+    }
+  },true);
 })();
