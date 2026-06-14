@@ -51323,3 +51323,104 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   setInterval(tick,1200);
   console.info('[BNS 667] Schoon adresboek v661: meetypen, leesbaar, locatie knop klant=locatie weg.');
 })();
+
+/* =========================================================
+   BNS 668 - Bijzonderheden/service hetzelfde scherm als transport
+   Alleen UI voor serviceLines/bijzonderheden. Geen status/save/transport/materialen.
+========================================================= */
+(function(){
+  if(window.__BNS668_SERVICE_TRANSPORT_STYLE__) return;
+  window.__BNS668_SERVICE_TRANSPORT_STYLE__=true;
+  var BOX='bns610ServiceBox';
+  var STYLE='bns668ServiceTransportStyle';
+  var PRESET='bns668_bijzonderheden_presets_v1';
+  var DEFAULTS=['Schoonmaakkosten','Aansluitkosten','Montage','Demontage','Reiniging tapinstallatie','Extra werkzaamheden','Schade / herstel','Wachttijd','Avondtoeslag','Spoedtoeslag'];
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function N(v){ var n=parseFloat(String(v==null?'':v).replace(',','.')); return isFinite(n)?n:0; }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function euro(v){ try{ return new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(N(v)); }catch(e){ return '€ '+N(v).toFixed(2).replace('.',','); } }
+  function clone(o){ try{return JSON.parse(JSON.stringify(o||[]));}catch(e){return [];} }
+  function get(){ return clone(window.__bns610ServiceLines || []); }
+  function lineTotal(l){ return (N(l&&l.qty)||1)*N(l&&l.price); }
+  function total(lines){ return (lines||get()).reduce(function(s,l){return s+lineTotal(l);},0); }
+  function set(lines){ window.__bns610ServiceLines=clone(lines||[]); render(); try{ document.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
+  function presets(){
+    var arr=null; try{ arr=JSON.parse(localStorage.getItem(PRESET)||'null'); }catch(e){}
+    if(!Array.isArray(arr)||!arr.length) arr=DEFAULTS.slice();
+    var seen={}; return arr.map(T).filter(function(x){ var k=x.toLowerCase(); if(!x||seen[k]) return false; seen[k]=true; return true; });
+  }
+  function savePresets(arr){ try{ localStorage.setItem(PRESET,JSON.stringify(arr||[])); }catch(e){} }
+  function style(){
+    if(E(STYLE)) return;
+    var st=document.createElement('style'); st.id=STYLE;
+    st.textContent=
+      '#'+BOX+'{margin:10px 0 14px;padding:14px;border:2px solid #dbe3ef;border-radius:16px;background:#f8fafc!important;color:#0f172a!important}'+
+      '#'+BOX+' h3{margin:0 0 10px;font-size:20px;color:#0f172a!important}'+
+      '#'+BOX+' .bns668-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}'+
+      '#'+BOX+' label{font-weight:900;font-size:13px;color:#334155!important;display:flex;flex-direction:column;gap:4px}'+
+      '#'+BOX+' select,#'+BOX+' input{border:2px solid #94a3b8;border-radius:10px;padding:10px 11px;min-height:42px;background:#fff!important;color:#0f172a!important;font-size:15px}'+
+      '#'+BOX+' select{min-width:230px}#'+BOX+' input.small{width:90px}#'+BOX+' .bns668-wide{min-width:260px;flex:1}'+
+      '#'+BOX+' button{border:0;border-radius:10px;padding:11px 13px;font-weight:1000;cursor:pointer;color:#fff!important;background:#2563eb}'+
+      '#'+BOX+' button.green{background:#16a34a!important}#'+BOX+' button.dark{background:#0f172a!important}#'+BOX+' button.red{background:#dc2626!important}'+
+      '#'+BOX+' table{width:100%;border-collapse:collapse;margin-top:12px;background:#fff;border-radius:12px;overflow:hidden}'+
+      '#'+BOX+' th,#'+BOX+' td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:middle;color:#0f172a!important}'+
+      '#'+BOX+' th{background:#eaf6ff;color:#0f172a!important;font-weight:1000}'+
+      '#'+BOX+' .amount{text-align:right;font-weight:1000}'+
+      '#'+BOX+' .bns668-total{font-size:18px;font-weight:1000;margin-top:10px;text-align:right;color:#0f172a!important}'+
+      '#'+BOX+' small{color:#64748b!important;font-weight:700}';
+    document.head.appendChild(st);
+  }
+  function fill(){ var s=E('bns668ServicePreset'); if(!s) return; s.innerHTML=presets().map(function(x){return '<option value="'+H(x)+'">'+H(x)+'</option>';}).join(''); }
+  function buildBox(box){
+    style();
+    box.innerHTML=
+      '<h3>Bijzonderheden voor deze klant</h3>'+ 
+      '<div class="bns668-row">'+
+        '<label>Bijzonderheden keuze<select id="bns668ServicePreset"></select></label>'+ 
+        '<label>Aantal<input id="bns668Qty" class="small" type="number" step="1" value="1"></label>'+ 
+        '<label>Prijs €<input id="bns668Price" class="small" type="number" step="0.01" value="0"></label>'+ 
+        '<label>Opmerking<input id="bns668Note" class="bns668-wide" placeholder="Bijv. schoonmaak / extra werk"></label>'+ 
+        '<button type="button" class="green" id="bns668AddLine">Bijzonderheid toevoegen</button>'+ 
+      '</div>'+ 
+      '<div class="bns668-row">'+
+        '<label>Nieuwe keuze<input id="bns668NewPreset" class="bns668-wide" placeholder="Bijv. Schoonmaakkosten"></label>'+ 
+        '<button type="button" id="bns668SavePreset">Keuze opslaan</button>'+ 
+        '<button type="button" class="red" id="bns668DeletePreset">Gekozen keuze verwijderen</button>'+ 
+      '</div>'+ 
+      '<div class="bns668-row" style="border-top:1px solid #dbe3ef;padding-top:10px">'+
+        '<b>Toeslag</b>'+ 
+        '<label>Omschrijving<input id="bns668FeeName" class="bns668-wide" placeholder="Bijv. avondtoeslag / spoed / wachttijd"></label>'+ 
+        '<label>Bedrag €<input id="bns668FeePrice" class="small" type="number" step="0.01" value="0"></label>'+ 
+        '<button type="button" class="green" id="bns668AddFee">Toeslag toevoegen</button>'+ 
+      '</div>'+ 
+      '<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns668Rows"></tbody></table>'+ 
+      '<div class="bns668-total">Bijzonderheden totaal: <span id="bns668Total">€ 0,00</span></div>'+ 
+      '<small>Bijzonderheden zijn géén materialen. Ze blokkeren geen reservering en krijgen geen gereserveerd-status.</small>';
+    fill(); bind(); render(); box.__bns668Built=true;
+  }
+  function bind(){
+    var add=E('bns668AddLine'); if(add) add.onclick=function(e){ e.preventDefault(); e.stopPropagation(); var name=T(E('bns668ServicePreset')&&E('bns668ServicePreset').value)||'Bijzonderheid'; var lines=get(); lines.push({type:'service',name:name,qty:N(E('bns668Qty').value)||1,price:N(E('bns668Price').value),note:T(E('bns668Note').value),reservable:false}); set(lines); E('bns668Price').value='0'; E('bns668Note').value=''; return false; };
+    var save=E('bns668SavePreset'); if(save) save.onclick=function(e){ e.preventDefault(); var inp=E('bns668NewPreset'), val=T(inp&&inp.value); if(!val) return false; var arr=presets(); if(!arr.some(function(x){return x.toLowerCase()===val.toLowerCase();})){ arr.push(val); savePresets(arr); } fill(); if(E('bns668ServicePreset')) E('bns668ServicePreset').value=val; if(inp) inp.value=''; return false; };
+    var del=E('bns668DeletePreset'); if(del) del.onclick=function(e){ e.preventDefault(); var s=E('bns668ServicePreset'), val=T(s&&s.value); if(!val) return false; if(!confirm('Keuze verwijderen uit lijst?\n\n'+val)) return false; savePresets(presets().filter(function(x){return x.toLowerCase()!==val.toLowerCase();})); fill(); return false; };
+    var fee=E('bns668AddFee'); if(fee) fee.onclick=function(e){ e.preventDefault(); e.stopPropagation(); var name=T(E('bns668FeeName')&&E('bns668FeeName').value)||'Toeslag'; var price=N(E('bns668FeePrice')&&E('bns668FeePrice').value); var lines=get(); lines.push({type:'service',name:name,qty:1,price:price,note:'',reservable:false}); set(lines); E('bns668FeeName').value=''; E('bns668FeePrice').value='0'; return false; };
+  }
+  function render(){
+    var body=E('bns668Rows'); if(!body) return;
+    var lines=get();
+    body.innerHTML=lines.length?lines.map(function(l,i){ var qty=N(l.qty||1), unit=T(l.unit); return '<tr><td>'+H(l.name)+'</td><td>'+H(qty+(unit?' '+unit:''))+'</td><td>'+H(euro(l.price))+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td><td><button type="button" class="red" data-bns668-del="'+i+'">x</button></td></tr>'; }).join(''):'<tr><td colspan="6"><small>Nog geen bijzonderheden.</small></td></tr>';
+    var tt=E('bns668Total'); if(tt) tt.textContent=euro(total(lines));
+    Array.prototype.slice.call(body.querySelectorAll('[data-bns668-del]')).forEach(function(b){ b.onclick=function(e){ e.preventDefault(); e.stopPropagation(); var i=Number(b.getAttribute('data-bns668-del')); var lines=get(); lines.splice(i,1); set(lines); return false; }; });
+  }
+  function ensure(){
+    var box=E(BOX);
+    if(box && !box.__bns668Built){ buildBox(box); return; }
+    if(!box){
+      var extra=E('orderExtra') || E('extra') || document.querySelector('textarea[name="extra"],textarea[id*="bijzonder" i]');
+      if(extra && extra.parentNode){ box=document.createElement('div'); box.id=BOX; extra.parentNode.insertBefore(box, extra.nextSibling); buildBox(box); }
+    }
+  }
+  document.addEventListener('DOMContentLoaded',ensure);
+  ['click','input','change'].forEach(function(ev){ document.addEventListener(ev,function(){ setTimeout(ensure,80); },true); });
+  [100,400,900,1800,3500].forEach(function(ms){ setTimeout(ensure,ms); });
+})();
