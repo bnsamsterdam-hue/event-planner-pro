@@ -51133,206 +51133,230 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 })();
 
 /* =========================================================
-   BNS 678 - Bijzonderheden schoon als transport-kloon
-   Basis: v661. Doel: oude service/bijzonderheden-overlays negeren.
-   Raakt alleen serviceLines/bijzonderheden UI + documentweergave.
-   Geen status, materiaal, reservering, transport-invoer, driver of admin.
-========================================================= */
-(function(){
+   BNS 679 - Bijzonderheden als 1-op-1 Transport-kloon TEST
+   - Schoon vanaf v661
+   - Oude service/bijzonderheden-box verbergen
+   - Zelfde werking als transport: presets, aantal, prijs, opmerking, km, toeslag, regels, wissen
+   - Schrijft hard naar order.serviceLines + order.bijzonderhedenLines
+   - Bij leeg/wissen blijft leeg; geen oude serviceLines terugzetten
+   ========================================================= */
+(function BNS_V679_BIJZONDERHEDEN_TRANSPORT_CLONE_TEST(){
   'use strict';
-  if(window.__BNS678_BIJZONDERHEDEN_CLEAN__) return;
-  window.__BNS678_BIJZONDERHEDEN_CLEAN__ = true;
+  if(window.__BNS_V679_BIJZONDERHEDEN_TRANSPORT_CLONE_TEST__) return;
+  window.__BNS_V679_BIJZONDERHEDEN_TRANSPORT_CLONE_TEST__ = true;
 
-  var BOX_ID = 'bns610ServiceBox';
-  var dirty = false;
-  var lastOrderKey = '';
+  var PRESET_KEY = 'bns679_bijzonderheden_presets_v1';
+  var STYLE_ID = 'bns679BijzonderhedenStyle';
+  var BOX_ID = 'bns679BijzonderhedenBox';
+  var DEFAULT_PRESETS = [
+    'Schoonmaakkosten',
+    'Aansluiten',
+    'Montage',
+    'Demontage',
+    'Extra personeel',
+    'Wachttijd',
+    'Spoedtoeslag',
+    'Avondtoeslag',
+    'Zondagtoeslag',
+    'Huur extra dag',
+    'Schade / nacalculatie',
+    'Korting'
+  ];
+
+  window.__bns679BijzonderhedenLines = window.__bns679BijzonderhedenLines || [];
 
   function E(id){ return document.getElementById(id); }
-  function A(v){ return Array.isArray(v) ? v : []; }
-  function S(v){ return String(v == null ? '' : v); }
-  function T(v){ return S(v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function N(v){ var n = Number(S(v).replace(',', '.').replace(/[^0-9.-]/g, '')); return isFinite(n) ? n : 0; }
-  function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-  function clone(v){ try{return JSON.parse(JSON.stringify(v || []));}catch(e){return [];} }
-  function euro(n){ n=N(n); return '€ '+n.toFixed(2).replace('.', ','); }
-  function lineTotal(l){ return (N(l && l.qty) || 1) * N(l && l.price); }
-  function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || null; }
-  function orders(){ var s=stateObj(); return (s && Array.isArray(s.orders)) ? s.orders : []; }
-  function orderKey(o){ return T(o && (o.id || o.number || o.orderNumber || o.invoiceNumber)); }
-  function currentEditId(){ try{ if(typeof editing !== 'undefined') return T(editing); }catch(e){} return T(window.editing); }
-  function currentNumber(){ return T((E('orderNumber') || {}).value || (E('orderNo') || {}).value); }
-  function currentOrder(){
-    var id=currentEditId(), nr=currentNumber();
-    return orders().find(function(o){ return (id && T(o.id)===id) || (nr && (T(o.number)===nr || T(o.orderNumber)===nr)); }) || null;
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function H(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function euro(n){ n=N(n); return '€ '+n.toFixed(2).replace('.',','); }
+  function clone(v){ try{return JSON.parse(JSON.stringify(v||[]));}catch(e){return [];} }
+  function stateObj(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || null; }
+  function currentEditingId(){ try{return T(window.editing||editing||'');}catch(e){return T(window.editing||'');} }
+  function currentNumber(){ return T(E('orderNumber') && E('orderNumber').value); }
+  function currentOrderFromState(){
+    var s=stateObj(), id=currentEditingId(), nr=currentNumber();
+    if(!s || !Array.isArray(s.orders)) return null;
+    return s.orders.find(function(o){ return (id && T(o.id)===id) || (nr && T(o.number)===nr); }) || null;
   }
-  function findOrder(key){
-    key=T(key);
-    return orders().find(function(o){ return T(o.id)===key || T(o.number)===key || T(o.orderNumber)===key || T(o.invoiceNumber)===key || T(o.invoiceNo)===key; }) || currentOrder();
+  function presets(){
+    var arr=null;
+    try{ arr=JSON.parse(localStorage.getItem(PRESET_KEY)||'null'); }catch(e){}
+    if(!Array.isArray(arr) || !arr.length) arr=DEFAULT_PRESETS.slice();
+    var seen={};
+    return arr.map(T).filter(function(x){ var k=x.toLowerCase(); if(!x || seen[k]) return false; seen[k]=true; return true; });
   }
-  function isTransportish(l){ var t=L(l && l.type), n=L(l && l.name); return t==='transport' || t==='km' || t==='toeslag' || /transport|kraanwagen|bakwagen|rekeningrijden|chauffeur|toeslag|rit/.test(n); }
-  function isServiceish(l){ var t=L(l && l.type), n=L(l && l.name); return t==='service' || t==='bijzonderheid' || t==='servicekosten' || /bijzonder|service|schoonmaak|reinig|aansluit|montage|demontage|kosten/.test(n); }
-  function cleanTransport(list){ return A(list).filter(function(l){ return l && !isServiceish(l); }).map(function(l){ var x=Object.assign({},l); x.type = isTransportish(x) ? (L(x.type)==='km'?'km':(L(x.type)==='toeslag'?'toeslag':'transport')) : 'transport'; x.reservable=false; delete x.status; delete x.materialId; return x; }); }
-  function cleanService(list){ return A(list).filter(Boolean).map(function(l){
-    var name = T(l.name || l.title || l.description || l.omschrijving || l.label || l.item || l.note || l.opmerking || 'Bijzonderheid');
-    var note = T(l.note || l.opmerking || l.remark || '');
-    var x = { type:'service', name:name, qty:(N(l.qty || l.aantal || l.amount) || 1), price:N(l.price || l.prijs || l.bedrag), note:note, reservable:false };
-    return x;
-  }); }
-  function serviceTotal(lines){ return cleanService(lines || getLines()).reduce(function(s,l){ return s + lineTotal(l); }, 0); }
-  function getLines(){ return cleanService(window.__BNS678ServiceLines || []); }
-  function setLines(lines, touch){ window.__BNS678ServiceLines = cleanService(lines); if(touch) dirty = true; renderRows(); updateTotalsText(); }
-
-  function serviceFromOrder(o){
-    o = o || {};
-    if(Array.isArray(o.serviceLines)) return cleanService(o.serviceLines);
-    if(Array.isArray(o.services)) return cleanService(o.services);
-    return [];
+  function savePresets(arr){ try{ localStorage.setItem(PRESET_KEY, JSON.stringify(arr||[])); }catch(e){} }
+  function lineTotal(l){ return N(l.qty||1) * N(l.price); }
+  function bijzonderhedenTotal(lines){ return (lines||window.__bns679BijzonderhedenLines||[]).reduce(function(s,l){ return s + lineTotal(l); },0); }
+  function cleanLine(l){
+    l=l||{};
+    return {
+      type:'service',
+      source:'bns679',
+      name:T(l.name||l.title||l.omschrijving||'Bijzonderheid'),
+      qty:N(l.qty||l.aantal||1)||1,
+      unit:T(l.unit||'x')||'x',
+      price:N(l.price||l.prijs||l.amount||l.bedrag),
+      note:T(l.note||l.opmerking||l.remark||''),
+      reservable:false
+    };
   }
-  function loadForOrder(o){
-    o = o || currentOrder() || {};
-    var k = orderKey(o) || currentNumber() || '__new__';
-    if(k !== lastOrderKey){ dirty=false; lastOrderKey=k; }
-    window.__BNS678ServiceLines = serviceFromOrder(o);
-    window.__bns610ServiceLines = clone(window.__BNS678ServiceLines); // oude code stil houden
-    renderRows(); updateTotalsText();
+  function cleanLines(arr){ return clone(arr).map(cleanLine).filter(function(l){ return T(l.name) || N(l.price) || T(l.note); }); }
+  function getLines(){ return cleanLines(window.__bns679BijzonderhedenLines || []); }
+  function setLines(lines){ window.__bns679BijzonderhedenLines = cleanLines(lines||[]); renderLines(); updateTotals(); }
+  function fillPresetSelect(){
+    var s=E('bns679Preset'); if(!s) return;
+    s.innerHTML=presets().map(function(x){ return '<option value="'+H(x)+'">'+H(x)+'</option>'; }).join('');
   }
-
-  function addCss(){
-    if(E('bns678ServiceStyle')) return;
-    var st=document.createElement('style'); st.id='bns678ServiceStyle';
-    st.textContent = '#'+BOX_ID+'{margin:10px 0 14px;padding:14px;border:2px solid #dbe3ef;border-radius:16px;background:#fff7ed;color:#0f172a}#'+BOX_ID+' h3{margin:0 0 10px;font-size:20px}#'+BOX_ID+' .bns678-row{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:8px 0}#'+BOX_ID+' label{font-weight:900;font-size:13px;display:flex;flex-direction:column;gap:4px}#'+BOX_ID+' input,#'+BOX_ID+' select{border:2px solid #94a3b8;border-radius:10px;padding:10px 11px;min-height:42px;background:white;color:#0f172a;font-size:15px}#'+BOX_ID+' .wide{min-width:260px;flex:1}#'+BOX_ID+' .small{width:90px}#'+BOX_ID+' button{border:0;border-radius:10px;padding:11px 13px;font-weight:1000;cursor:pointer;color:white;background:#16a34a}#'+BOX_ID+' button.blue{background:#2563eb}#'+BOX_ID+' button.red{background:#dc2626}#'+BOX_ID+' table{width:100%;border-collapse:collapse;margin-top:10px;background:white;border-radius:12px;overflow:hidden}#'+BOX_ID+' th,#'+BOX_ID+' td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left;color:#0f172a}#'+BOX_ID+' .amount{text-align:right;font-weight:1000}#'+BOX_ID+' small{color:#475569;font-weight:800}';
-    document.head.appendChild(st);
+  function ensureStyle(){
+    if(E(STYLE_ID)) return;
+    var css=document.createElement('style'); css.id=STYLE_ID;
+    css.textContent =
+      '#bns610ServiceBox{display:none!important}' +
+      '#'+BOX_ID+'{margin:10px 0 14px;padding:14px;border:2px solid #dbe3ef;border-radius:16px;background:#f8fafc;color:#0f172a}' +
+      '#'+BOX_ID+' h3{margin:0 0 10px;font-size:20px;color:#0f172a}' +
+      '#'+BOX_ID+' .bns679-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}' +
+      '#'+BOX_ID+' label{font-weight:900;font-size:13px;color:#334155;display:flex;flex-direction:column;gap:4px}' +
+      '#'+BOX_ID+' select,#'+BOX_ID+' input{border:2px solid #94a3b8;border-radius:10px;padding:10px 11px;min-height:42px;background:white;color:#0f172a;font-size:15px}' +
+      '#'+BOX_ID+' select{min-width:230px}' +
+      '#'+BOX_ID+' input.small{width:90px}.bns679-wide{min-width:260px;flex:1}' +
+      '#'+BOX_ID+' button{border:0;border-radius:10px;padding:11px 13px;font-weight:1000;cursor:pointer;color:white;background:#2563eb}' +
+      '#'+BOX_ID+' button.green{background:#16a34a}#'+BOX_ID+' button.dark{background:#0f172a}#'+BOX_ID+' button.red{background:#dc2626}' +
+      '#'+BOX_ID+' table{width:100%;border-collapse:collapse;margin-top:12px;background:white;border-radius:12px;overflow:hidden}' +
+      '#'+BOX_ID+' th,#'+BOX_ID+' td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:middle}' +
+      '#'+BOX_ID+' th{background:#eaf6ff;color:#0f172a;font-weight:1000}' +
+      '#'+BOX_ID+' .amount{text-align:right;font-weight:1000}' +
+      '#'+BOX_ID+' .bns679-total{font-size:18px;font-weight:1000;margin-top:10px;text-align:right}' +
+      '#'+BOX_ID+' small{color:#64748b;font-weight:700}';
+    document.head.appendChild(css);
   }
-  function ensureBox(){
-    var extra = E('orderExtra') || E('extra') || document.querySelector('textarea[name="extra"],textarea[id*="bijzonder" i]');
-    if(!extra) return false;
-    addCss();
-    var box=E(BOX_ID);
-    if(!box){ box=document.createElement('div'); box.id=BOX_ID; extra.parentNode.insertBefore(box, extra.nextSibling); }
-    if(box.getAttribute('data-bns678') !== '1'){
-      box.setAttribute('data-bns678','1');
-      box.innerHTML = ''+
-        '<h3>Bijzonderheden voor deze klant</h3>'+
-        '<div class="bns678-row">'+
-          '<label>Bijzonderheden keuze<input id="bns678ServiceName" class="wide" placeholder="Bijv. schoonmaak, aansluiten, montage"></label>'+
-          '<label>Aantal<input id="bns678ServiceQty" class="small" type="number" step="1" value="1"></label>'+
-          '<label>Prijs €<input id="bns678ServicePrice" class="small" type="number" step="0.01" value="0"></label>'+
-          '<label>Opmerking<input id="bns678ServiceNote" class="wide" placeholder="Optioneel"></label>'+
-          '<button type="button" id="bns678AddService">Bijzonderheid toevoegen</button>'+
-        '</div>'+
-        '<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns678ServiceRows"></tbody></table>'+
-        '<div style="text-align:right;font-weight:1000;margin-top:10px">Bijzonderheden totaal: <span id="bns678ServiceTotal">€ 0,00</span></div>'+
-        '<small>Bijzonderheden zijn géén materialen en blokkeren geen reserveringen.</small>';
-      var add=E('bns678AddService');
-      if(add) add.onclick=function(ev){
-        if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-        var name=T((E('bns678ServiceName')||{}).value) || 'Bijzonderheid';
-        var qty=N((E('bns678ServiceQty')||{}).value) || 1;
-        var price=N((E('bns678ServicePrice')||{}).value);
-        var note=T((E('bns678ServiceNote')||{}).value);
-        var lines=getLines();
-        lines.push({type:'service',name:name,qty:qty,price:price,note:note,reservable:false});
-        setLines(lines,true);
-        if(E('bns678ServiceName')) E('bns678ServiceName').value='';
-        if(E('bns678ServiceQty')) E('bns678ServiceQty').value='1';
-        if(E('bns678ServicePrice')) E('bns678ServicePrice').value='0';
-        if(E('bns678ServiceNote')) E('bns678ServiceNote').value='';
-        return false;
-      };
+  function installBox(){
+    var extra=E('orderExtra') || E('extra') || document.querySelector('textarea[name="extra"],textarea[id*="bijzonder" i]');
+    if(!extra) return;
+    ensureStyle();
+    var old=E('bns610ServiceBox'); if(old) old.style.display='none';
+    if(!E(BOX_ID)){
+      var box=document.createElement('div'); box.id=BOX_ID;
+      box.innerHTML =
+        '<h3>Bijzonderheden voor deze klant</h3>'+ 
+        '<div class="bns679-row">'+
+          '<label>Bijzonderheden keuze<select id="bns679Preset"></select></label>'+ 
+          '<label>Aantal<input id="bns679Qty" class="small" type="number" step="1" value="1"></label>'+ 
+          '<label>Prijs €<input id="bns679Price" class="small" type="number" step="0.01" value="0"></label>'+ 
+          '<label>Opmerking<input id="bns679Note" class="bns679-wide" placeholder="Bijv. avond / extra werk"></label>'+ 
+          '<button type="button" class="green" id="bns679AddLine">Bijzonderheid toevoegen</button>'+ 
+        '</div>'+ 
+        '<div class="bns679-row">'+
+          '<label>Nieuwe keuze<input id="bns679NewPreset" class="bns679-wide" placeholder="Bijv. Schoonmaak"></label>'+ 
+          '<button type="button" id="bns679SavePreset">Keuze opslaan</button>'+ 
+          '<button type="button" class="red" id="bns679DeletePreset">Gekozen keuze verwijderen</button>'+ 
+        '</div>'+ 
+        '<div class="bns679-row" style="border-top:1px solid #dbe3ef;padding-top:10px">'+
+          '<b>Rekeningrijden</b>'+ 
+          '<label>Aantal km<input id="bns679KmQty" class="small" type="number" step="0.1" value="0"></label>'+ 
+          '<label>Prijs per km €<input id="bns679KmPrice" class="small" type="number" step="0.01" value="0"></label>'+ 
+          '<button type="button" class="green" id="bns679AddKm">Km-regel toevoegen</button>'+ 
+        '</div>'+ 
+        '<div class="bns679-row">'+
+          '<b>Toeslag</b>'+ 
+          '<label>Omschrijving<input id="bns679FeeName" class="bns679-wide" placeholder="Bijv. avondtoeslag / spoed / wachttijd"></label>'+ 
+          '<label>Bedrag €<input id="bns679FeePrice" class="small" type="number" step="0.01" value="0"></label>'+ 
+          '<button type="button" class="green" id="bns679AddFee">Toeslag toevoegen</button>'+ 
+        '</div>'+ 
+        '<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns679Rows"></tbody></table>'+ 
+        '<div class="bns679-total">Bijzonderheden totaal: <span id="bns679Total">€ 0,00</span></div>'+ 
+        '<small>Bijzonderheden zijn géén materialen. Ze reserveren niets en wissen geen materialen.</small>';
+      extra.parentNode.insertBefore(box, extra);
     }
-    renderRows(); return true;
+    wireButtons(); fillPresetSelect(); renderLines();
   }
-  function renderRows(){
-    var body=E('bns678ServiceRows'); if(!body) return;
+  function wireButtons(){
+    var add=E('bns679AddLine');
+    if(add && !add.dataset.bns679){ add.dataset.bns679='1'; add.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();}
+      var s=E('bns679Preset'), q=E('bns679Qty'), p=E('bns679Price'), n=E('bns679Note');
+      var lines=getLines(); lines.push(cleanLine({name:s&&s.value, qty:q&&q.value, price:p&&p.value, note:n&&n.value}));
+      setLines(lines); if(q)q.value='1'; if(p)p.value='0'; if(n)n.value=''; return false;
+    }; }
+    var save=E('bns679SavePreset');
+    if(save && !save.dataset.bns679){ save.dataset.bns679='1'; save.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();}
+      var v=T(E('bns679NewPreset')&&E('bns679NewPreset').value); if(!v) return false;
+      var arr=presets(); if(arr.map(function(x){return x.toLowerCase();}).indexOf(v.toLowerCase())<0) arr.push(v);
+      savePresets(arr); fillPresetSelect(); var s=E('bns679Preset'); if(s) s.value=v; E('bns679NewPreset').value=''; return false;
+    }; }
+    var del=E('bns679DeletePreset');
+    if(del && !del.dataset.bns679){ del.dataset.bns679='1'; del.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();}
+      var s=E('bns679Preset'), v=T(s&&s.value); if(!v) return false;
+      savePresets(presets().filter(function(x){ return x.toLowerCase()!==v.toLowerCase(); })); fillPresetSelect(); return false;
+    }; }
+    var km=E('bns679AddKm');
+    if(km && !km.dataset.bns679){ km.dataset.bns679='1'; km.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();}
+      var qty=N(E('bns679KmQty')&&E('bns679KmQty').value), price=N(E('bns679KmPrice')&&E('bns679KmPrice').value);
+      if(!qty && !price) return false;
+      var lines=getLines(); lines.push(cleanLine({name:'Rekeningrijden', qty:qty||1, unit:'km', price:price, note:''})); setLines(lines);
+      E('bns679KmQty').value='0'; E('bns679KmPrice').value='0'; return false;
+    }; }
+    var fee=E('bns679AddFee');
+    if(fee && !fee.dataset.bns679){ fee.dataset.bns679='1'; fee.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();}
+      var name=T(E('bns679FeeName')&&E('bns679FeeName').value)||'Toeslag', price=N(E('bns679FeePrice')&&E('bns679FeePrice').value);
+      var lines=getLines(); lines.push(cleanLine({name:name, qty:1, price:price, note:''})); setLines(lines);
+      E('bns679FeeName').value=''; E('bns679FeePrice').value='0'; return false;
+    }; }
+  }
+  function renderLines(){
+    var body=E('bns679Rows'); if(!body) return;
     var lines=getLines();
-    body.innerHTML = lines.length ? lines.map(function(l,i){ return '<tr><td>'+H(l.name)+'</td><td>'+H(N(l.qty)||1)+'</td><td>'+H(euro(l.price))+'</td><td>'+H(l.note)+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td><td><button type="button" class="red" data-bns678-del="'+i+'">Wis</button></td></tr>'; }).join('') : '<tr><td colspan="6"><small>Nog geen bijzonderheden.</small></td></tr>';
-    body.querySelectorAll('[data-bns678-del]').forEach(function(b){ b.onclick=function(ev){
-      if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-      var i=N(b.getAttribute('data-bns678-del')); var lines=getLines(); lines.splice(i,1); setLines(lines,true); return false;
+    body.innerHTML = lines.length ? lines.map(function(l,i){
+      return '<tr><td>'+H(l.name)+'</td><td>'+H((N(l.qty)||1)+(l.unit&&l.unit!=='x'?' '+l.unit:''))+'</td><td>'+H(euro(l.price))+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td><td><button type="button" class="red" data-bns679-del="'+i+'">x</button></td></tr>';
+    }).join('') : '<tr><td colspan="6"><small>Nog geen bijzonderheden.</small></td></tr>';
+    var tot=E('bns679Total'); if(tot) tot.textContent=euro(bijzonderhedenTotal(lines));
+    body.querySelectorAll('[data-bns679-del]').forEach(function(b){ b.onclick=function(ev){ if(ev){ev.preventDefault();ev.stopPropagation();}
+      var i=Number(b.getAttribute('data-bns679-del')), arr=getLines(); arr.splice(i,1); setLines(arr); return false;
     }; });
   }
-  function updateTotalsText(){ var t=E('bns678ServiceTotal'); if(t) t.textContent=euro(serviceTotal(getLines())); }
+  function updateTotals(){ try{ if(typeof window.updateTotals==='function') window.updateTotals(); }catch(e){} }
+  function orderKey(o){ return T((o&&o.id)||currentEditingId()||currentNumber()||'new'); }
+  var lastKey='';
+  function loadFromOrder(force){
+    var o=currentOrderFromState()||{};
+    var key=orderKey(o);
+    if(!force && key===lastKey) return;
+    lastKey=key;
+    var lines=[];
+    if(Array.isArray(o.bijzonderhedenLines)) lines=clone(o.bijzonderhedenLines);
+    else if(Array.isArray(o.serviceLines)) lines=clone(o.serviceLines);
+    else if(Array.isArray(o.services)) lines=clone(o.services);
+    window.__bns679BijzonderhedenLines=cleanLines(lines);
+    try{ window.__bns610ServiceLines=[]; }catch(e){}
+    setTimeout(renderLines,40);
+  }
+  function clearLines(){ window.__bns679BijzonderhedenLines=[]; try{ window.__bns610ServiceLines=[]; }catch(e){} lastKey=''; renderLines(); updateTotals(); }
+  var oldPrepare=window.BNS_v519PrepareOrderBeforeSave;
+  window.BNS_v519PrepareOrderBeforeSave=function(order, oldOrder){
+    if(typeof oldPrepare==='function') oldPrepare(order, oldOrder);
+    if(order && typeof order==='object'){
+      var lines=getLines();
+      order.bijzonderhedenLines=clone(lines);
+      order.serviceLines=clone(lines);
+      order.services=clone(lines);
+      order.serviceTotal=bijzonderhedenTotal(lines);
+      if(!lines.length){ order.bijzonderhedenLines=[]; order.serviceLines=[]; order.services=[]; order.serviceTotal=0; }
+    }
+    return order;
+  };
+  window.BNS_v519PrepareOrderBeforeSave.__bns679=true;
 
-  function prepareOverride(){
-    var old = window.BNS_v519PrepareOrderBeforeSave;
-    if(typeof old === 'function' && old.__bns678ServiceHard) return;
-    window.BNS_v519PrepareOrderBeforeSave = function(order, oldOrder){
-      oldOrder = oldOrder || currentOrder() || {};
-      if(typeof old === 'function') old(order, oldOrder);
-      if(!order || typeof order !== 'object') return order;
-      var formExists = !!E(BOX_ID);
-      var lines = getLines();
-      // Als de gebruiker in dit formulier aan bijzonderheden zat, ook lege lijst hard opslaan.
-      if(formExists && (dirty || lines.length || !A(oldOrder.serviceLines).length)){
-        order.serviceLines = cleanService(lines);
-      } else {
-        order.serviceLines = cleanService(oldOrder.serviceLines || order.serviceLines || []);
-      }
-      order.services = clone(order.serviceLines);
-      order.serviceTotal = serviceTotal(order.serviceLines);
-      if(Array.isArray(order.transportLines)) order.transportLines = cleanTransport(order.transportLines);
-      var mat=0, dep=0, trans=0;
-      A(order.materials).forEach(function(m){ var q=N(m.qty||m.amount||m.aantal||1)||1; mat += q*N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs)); dep += q*N(m.lineDeposit||m.deposit||m.borg); });
-      A(order.transportLines).forEach(function(l){ trans += lineTotal(l); });
-      var sub=mat+trans+order.serviceTotal;
-      order.pricing = Object.assign({}, order.pricing||{}, {materialSubtotal:mat, transport:trans, service:order.serviceTotal, serviceSubtotal:order.serviceTotal, deposit:dep, vat:sub*0.21, grand:sub*1.21+dep, materials:sub});
-      window.__bns610ServiceLines = clone(order.serviceLines);
-      window.__BNS678ServiceLines = clone(order.serviceLines);
-      return order;
-    };
-    window.BNS_v519PrepareOrderBeforeSave.__bns678ServiceHard = true;
-  }
-
-  function customerName(o){ var c=o&&o.customer||{}; return T(c.name||o.customerName||o.clientName); }
-  function titleOf(o){ return T(o&&o.title||o.name||o.description||''); }
-  function orderNo(o){ return T(o&&(o.number||o.orderNumber||o.id)); }
-  function paid(o){ return !!(o && (o.paid || o.betaald || L(o.paymentStatus).indexOf('betaald')>=0)); }
-  function invoiceNo(o){ return T(o&&(o.invoiceNumber||o.invoiceNo||o.factuurnummer||('F-'+orderNo(o)))); }
-  function materialRows(o){
-    var rows=A(o&&o.materials).map(function(m){ return '<tr><td>'+H(N(m.qty||m.amount||m.aantal||1)||1)+'</td><td>'+H(m.code||'')+'</td><td>'+H(m.name||m.title||'')+'</td><td class="amount">'+H(euro(m.linePrice!=null?m.linePrice:(m.price||m.prijs)))+'</td></tr>'; }).join('');
-    return rows || '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
-  }
-  function transportRows(o){
-    var rows=cleanTransport(o&&(o.transportLines||o.transport)).map(function(l){ return '<tr><td>'+H((N(l.qty)||1)+(l.unit?' '+l.unit:'x'))+'</td><td>'+H(l.name||'')+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join('');
-    return rows || '<tr><td colspan="4">Geen transportregels</td></tr>';
-  }
-  function serviceRows(o){
-    var rows=serviceFromOrder(o).map(function(l){ return '<tr><td>'+H((N(l.qty)||1)+'x')+'</td><td>'+H(l.name||'Bijzonderheid')+'</td><td>'+H(l.note||'')+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join('');
-    return rows || '<tr><td colspan="4">Geen bijzonderheden</td></tr>';
-  }
-  function totals(o){
-    var mat=0, trans=0, serv=0, dep=0;
-    A(o&&o.materials).forEach(function(m){ var q=N(m.qty||m.amount||m.aantal||1)||1; mat += q*N(m.linePrice!=null?m.linePrice:(m.price||m.prijs)); dep += q*N(m.lineDeposit||m.deposit||m.borg); });
-    cleanTransport(o&&(o.transportLines||o.transport)).forEach(function(l){ trans += lineTotal(l); });
-    serviceFromOrder(o).forEach(function(l){ serv += lineTotal(l); });
-    if(!serv && o && o.serviceTotal) serv=N(o.serviceTotal);
-    var sub=mat+trans+serv, vat=sub*0.21, grand=sub+vat+dep;
-    return {mat:mat,trans:trans,serv:serv,dep:dep,sub:sub,vat:vat,grand:grand};
-  }
-  function docHtml(o,type){
-    o=o||{}; var c=o.customer||{}, l=o.location||{}, tt=totals(o); var fact=L(type).indexOf('fact')>=0;
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+(fact?'FACTUUR':'OPDRACHTBEVESTIGING')+' '+H(orderNo(o))+'</title><style>@page{size:A4;margin:12mm}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827;font-size:12px}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:16mm}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px}.actions button{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:8px 12px;font-weight:800}.logo{text-align:center;font-weight:1000;font-size:24px;color:#0ea5e9}.tag{text-align:center;font-size:11px;font-weight:800}.top{display:grid;grid-template-columns:1fr 60mm;gap:10mm;margin-top:8mm}.line{border-top:1px solid #333;margin:7mm 0}.box{border:1px solid #d1d5db;border-radius:8px;padding:7px;margin:5px 0}h1{text-align:center;font-size:18px;margin:8px 0 4px}h3{margin:10px 0 4px}table{width:100%;border-collapse:collapse}td,th{padding:4px 5px;vertical-align:top}th{border-bottom:1px solid #333;text-align:left}.amount{text-align:right}.totals{width:78mm;margin-left:auto;margin-top:6mm;border-top:1px solid #333}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}@media print{body{background:#fff}.actions{display:none}.page{margin:0}}</style></head><body><div class="actions"><button onclick="print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="try{close()}catch(e){}">Terug</button></div><main class="page"><div class="logo">🍺 TAPWAGEN.NL 🍺</div><div class="tag">WE KEEP YOUR PARTY COOL!!!</div><h1>'+(fact?'FACTUUR':'OPDRACHTBEVESTIGING')+'</h1><div class="top"><div>Tapwagen.nl<br>Molenlaan 30<br>1422 ZA Uithoorn<br>Tel.: 088-1888000<br>Info@tapwagen.nl<br>KVK: 32157678<br>BTW NR: NL001611849B73<br>Bank: NL97ABNA0409126675</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(new Date().toLocaleDateString('nl-NL'))+'<br>'+(fact?'<b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<b>Status:</b> '+H(o.status||''))+'</div></div><div class="line"></div><div class="box"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="box"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div><div class="box"><b>Opdracht: '+H(orderNo(o))+'</b><br>Titel: '+H(titleOf(o))+'<br>Datum: '+H(o.start||'')+(o.end&&o.end!==o.start?' t/m '+H(o.end):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table><h3>Transport</h3><table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th class="amount">Bedrag</th></tr></thead><tbody>'+transportRows(o)+'</tbody></table><h3>Bijzonderheden</h3><table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Opmerking</th><th class="amount">Bedrag</th></tr></thead><tbody>'+serviceRows(o)+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal transport</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>Subtotaal bijzonderheden</td><td>'+H(euro(tt.serv))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.grand))+'</td></tr></table></main></body></html>';
-  }
-  function openDocFor(id,type){ var o=findOrder(id); if(!o){ alert('Geen opdracht gevonden.'); return false; } var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } w.document.open(); w.document.write(docHtml(o,type)); w.document.close(); return false; }
-  function patchDocs(){
-    window.BNS678_openDoc=openDocFor;
-    window.TW300_AU_openDoc=function(id,type){ return openDocFor(id,type||'factuur'); };
-    window.BNS528_openDoc=function(id,type){ return openDocFor(id,type||'factuur'); };
-    window.makeInvoice=function(){ var o=currentOrder(); return openDocFor(orderKey(o)||currentNumber(),'factuur'); };
-    window.makeConfirmation=function(){ var o=currentOrder(); return openDocFor(orderKey(o)||currentNumber(),'opdrachtbevestiging'); };
-  }
-
-  function clearService(touch){ setLines([], !!touch); window.__bns610ServiceLines=[]; }
   document.addEventListener('click',function(ev){
-    var b=ev.target && ev.target.closest && ev.target.closest('button'); if(!b) return;
-    var txt=L(b.textContent);
-    if(txt==='leegmaken' || txt==='annuleren') setTimeout(function(){ clearService(true); },0);
-    setTimeout(function(){ ensureBox(); prepareOverride(); patchDocs(); var o=currentOrder(); var k=orderKey(o)||currentNumber()||''; if(k && k!==lastOrderKey) loadForOrder(o); },160);
+    var t=ev.target;
+    if(t && t.closest && t.closest('#'+BOX_ID)) return;
+    if(t && /annuleren|cancel/i.test(T(t.textContent||t.value||''))) setTimeout(clearLines,50);
+    if(t && /leegmaken/i.test(T(t.textContent||t.value||''))) setTimeout(clearLines,50);
   },true);
 
-  function boot(){ ensureBox(); prepareOverride(); patchDocs(); loadForOrder(currentOrder()||{}); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,400); }); else setTimeout(boot,400);
-  setTimeout(boot,1200); setTimeout(boot,2600); setTimeout(boot,5000);
-  console.info('[BNS 678] Bijzonderheden schoon geladen: aparte serviceLines-lijst + hard wissen + documentregels.');
+  function tick(){ installBox(); loadFromOrder(false); }
+  setInterval(tick,700);
+  setTimeout(function(){ installBox(); loadFromOrder(true); },300);
+  setTimeout(function(){ installBox(); loadFromOrder(true); },1400);
+  console.info('[BNS 679] Bijzonderheden transport-kloon test actief.');
 })();
