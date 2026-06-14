@@ -1082,10 +1082,20 @@ boot();
   }
   function has(keys){
     var u=currentUserFresh();
-    if(!u) return false;
+    if(!u) return true;
     if(isAdmin()) return true;
-    var r=u.rights||{};
-    return (keys||[]).some(function(k){ return r[k]===true; });
+    var r=(u && u.rights) ? u.rights : {};
+    keys = keys || [];
+    // Belangrijk: alleen blokkeren als het admin-recht echt expliciet UIT staat.
+    // Oude of nog niet mee gesyncte gebruikers hebben soms niet alle nieuwe keys;
+    // dan mag de telefoon niet ineens alle knoppen verbergen.
+    for(var i=0;i<keys.length;i++){
+      if(r[keys[i]] === true) return true;
+    }
+    for(var j=0;j<keys.length;j++){
+      if(r[keys[j]] === false) return false;
+    }
+    return true;
   }
 
   window.canPrices = canPrices = function(){ return has(['prices','prijzen']); };
