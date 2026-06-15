@@ -52071,3 +52071,267 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   setInterval(function(){ try{ applyStats(); }catch(e){} }, 2500);
 })();
 /* ===== einde BNS v697 ===== */
+
+/* ===== BNS v698 - Optie 14 dagen werking terug (alleen optie-logica) =====
+   - Status Optie 14 dagen krijgt optionCreatedAt bij opslaan.
+   - Opties tonen zandloper + nog X dagen.
+   - Dag 13: planner-melding met actie nodig.
+   - Dag 14 verlopen: automatisch terug naar Offerte / Offertes.
+   - Bevestigen: Bevestigd / Lopende opdrachten.
+   - Terug: Offerte / Offertes.
+   Raakt geen driver, geen Waze, geen opdrachtnummers, geen dashboard-statistiek.
+*/
+(function(){
+  if(window.__BNS_V698_OPTION14__) return;
+  window.__BNS_V698_OPTION14__ = true;
+
+  function S(){ return window.state || (typeof state !== 'undefined' ? state : null) || {}; }
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function nowIso(){ return new Date().toISOString(); }
+  function today0(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
+  function parseDate(v){
+    v=T(v); if(!v) return null;
+    var m=v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+    var d=new Date(v); if(isNaN(d.getTime())) return null;
+    d.setHours(0,0,0,0); return d;
+  }
+  function isOpt(o){ return /optie\s*14|optie14|option\s*14/.test(L(o && o.status)); }
+  function isQuote(o){ return /offerte/.test(L(o && o.status)); }
+  function idOf(o){ return T(o && (o.id || o.docId || o.orderId || o.number || o.orderNumber)); }
+  function optionStart(o){ return parseDate(o && (o.optionCreatedAt || o.optionDate || o.optionStartAt || o.createdAt || o.created || o.start || o.date)); }
+  function daysLeft(o){
+    var st=optionStart(o);
+    if(!st) return 14;
+    var diff=Math.floor((today0().getTime()-st.getTime())/86400000);
+    return 14-diff;
+  }
+  function optionText(o){
+    var d=daysLeft(o);
+    if(d<=0) return '⏳ verlopen';
+    if(d===1) return '⏳ nog 1 dag';
+    return '⏳ nog '+d+' dagen';
+  }
+  function setFolder(o, folder){
+    if(!o) return;
+    o.folder = folder;
+    o.map = folder;
+    o.orderFolder = folder;
+  }
+  function saveLocal(){
+    try{ if(typeof saveSt === 'function') saveSt(); }catch(e){}
+    try{ if(typeof saveState === 'function') saveState(); }catch(e){}
+    try{ if(typeof saveIt === 'function') saveIt(); }catch(e){}
+    try{ if(typeof localStorage !== 'undefined') localStorage.setItem('bns_state', JSON.stringify(S())); }catch(e){}
+  }
+  function syncOrder(o){
+    if(!o) return;
+    try{ if(typeof syncO === 'function') return syncO(o); }catch(e){}
+    try{ if(typeof syncOrder === 'function') return syncOrder(o); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncOrder === 'function') return window.BNS.syncOrder(o); }catch(e){}
+    try{ if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncOrder === 'function') return window.BNSFirebaseSync.syncOrder(o); }catch(e){}
+  }
+  function findOrder(id){
+    id=T(id); var s=S();
+    return ((s && s.orders) || []).find(function(o){ return T(o.id)===id || T(o.docId)===id || T(o.orderId)===id || T(o.number)===id || T(o.orderNumber)===id; });
+  }
+  function normalizeOptionOrder(o){
+    if(!o || !isOpt(o)) return false;
+    var changed=false;
+    if(!o.optionCreatedAt){ o.optionCreatedAt = nowIso(); changed=true; }
+    if(o.optionDate && !o.optionCreatedAt){ o.optionCreatedAt = o.optionDate; changed=true; }
+    if(o.status !== 'Optie 14 dagen'){ o.status = 'Optie 14 dagen'; changed=true; }
+    if(o.folder !== 'Opties 14 dagen' || o.map !== 'Opties 14 dagen' || o.orderFolder !== 'Opties 14 dagen'){
+      setFolder(o,'Opties 14 dagen'); changed=true;
+    }
+    return changed;
+  }
+  function toOfferte(o, reason){
+    if(!o) return;
+    o.status='Offerte';
+    setFolder(o,'Offertes');
+    o.optionClosedAt=nowIso();
+    o.optionCloseReason=reason || 'Terug naar offerte';
+    // Bewaar optionCreatedAt als historie, maar laat offerte niet meer blokkeren.
+    syncOrder(o);
+  }
+  function toBevestigd(o){
+    if(!o) return;
+    o.status='Bevestigd';
+    setFolder(o,'Lopende opdrachten');
+    o.confirmedAt=nowIso();
+    o.optionClosedAt=nowIso();
+    o.optionCloseReason='Bevestigd door planner';
+    syncOrder(o);
+  }
+  function alertKey(o){ return 'bns698-optie14-dag13-'+idOf(o)+'-'+T(o.optionCreatedAt || o.optionDate || optionStart(o)); }
+  function ensurePlannerAlert(o){
+    var s=S(); if(!s || !o) return false;
+    var left=daysLeft(o);
+    // Dag 13 = nog 1 dag over. Ook als hij net verlopen is, nog tonen tot automatische verwerking.
+    if(left > 1) return false;
+    if(!Array.isArray(s.alerts)) s.alerts=[];
+    var key=alertKey(o);
+    var exists=s.alerts.some(function(a){ return a && (a.bnsKey===key || (a.type==='optie14' && T(a.orderId)===idOf(o) && !a.resolved)); });
+    if(exists) return false;
+    s.alerts.push({
+      id:'opt14_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+      bnsKey:key,
+      type:'optie14',
+      source:'planner',
+      orderId:idOf(o),
+      title:'⏳ Optie 14 dagen actie nodig',
+      message:(T(o.number||o.orderNumber)||'Optie')+' - '+T(o.title||'')+' verloopt bijna. Bevestig of zet terug naar Offerte.',
+      note:'Planner moet antwoorden: bevestigen of terug naar Offerte.',
+      time:new Date().toLocaleString(),
+      resolved:false,
+      actionNeeded:true,
+      seenByPlanner:false
+    });
+    return true;
+  }
+  function processOptions(){
+    var s=S(); if(!s || !Array.isArray(s.orders)) return;
+    var changed=false, expired=[];
+    s.orders.forEach(function(o){
+      if(!isOpt(o)) return;
+      if(normalizeOptionOrder(o)) changed=true;
+      var left=daysLeft(o);
+      if(left<=1){ if(ensurePlannerAlert(o)) changed=true; }
+      if(left<=0){ expired.push(o); }
+    });
+    expired.forEach(function(o){
+      toOfferte(o,'Automatisch na 14 dagen verlopen');
+      changed=true;
+    });
+    if(changed){ saveLocal(); try{ if(typeof renderDashboard==='function') renderDashboard(); }catch(e){} }
+  }
+
+  function action(id, what){
+    var o=findOrder(id); if(!o) return;
+    var s=S();
+    if(what==='confirm') toBevestigd(o); else toOfferte(o, what==='expired'?'Automatisch verlopen':'Terug naar offerte door planner');
+    if(s && Array.isArray(s.alerts)){
+      s.alerts.forEach(function(a){
+        if(T(a.orderId)===idOf(o) && a.type==='optie14' && !a.resolved){
+          a.resolved=true; a.resolvedAt=new Date().toLocaleString(); a.resolvedBy='planner';
+        }
+      });
+    }
+    saveLocal();
+    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+    try{ if(typeof renderDashboard==='function') renderDashboard(); }catch(e){}
+    try{ if(typeof updateAlertButtons==='function') updateAlertButtons(); }catch(e){}
+  }
+  window.BNS698OptionConfirm=function(id){ action(id,'confirm'); };
+  window.BNS698OptionBackToQuote=function(id){ action(id,'quote'); };
+  // Oudere knoppen ombuigen: niet door = terug naar Offerte, niet Geannuleerd.
+  window.TW_V309_optionConfirm=function(id){ action(id,'confirm'); };
+  window.TW_V309_optionCancel=function(id){ action(id,'quote'); };
+  window.BNS_V356_CONFIRM=function(id){ action(id,'confirm'); };
+  window.BNS_V356_CANCEL=function(id){ action(id,'quote'); };
+  window.BNS_V356_RENEW=function(id){
+    var o=findOrder(id); if(!o) return;
+    o.status='Optie 14 dagen';
+    o.optionCreatedAt=nowIso();
+    setFolder(o,'Opties 14 dagen');
+    saveLocal(); syncOrder(o);
+    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+  };
+
+  function installSavePrepare(){
+    if(window.BNS_v519PrepareOrderBeforeSave && !window.BNS_v519PrepareOrderBeforeSave.__bns698Option){
+      var old=window.BNS_v519PrepareOrderBeforeSave;
+      var wrapped=function(order, oldOrder){
+        var r=old.call(this, order, oldOrder) || order;
+        if(isOpt(r)){
+          if(oldOrder && isOpt(oldOrder) && oldOrder.optionCreatedAt && !r.optionCreatedAt) r.optionCreatedAt=oldOrder.optionCreatedAt;
+          normalizeOptionOrder(r);
+        }else if(isQuote(r)){
+          setFolder(r,'Offertes');
+        }else if(/bevestigd|opdracht/.test(L(r.status))){
+          setFolder(r,'Lopende opdrachten');
+        }
+        return r;
+      };
+      wrapped.__bns698Option=true;
+      window.BNS_v519PrepareOrderBeforeSave=wrapped;
+    }
+    if(window.saveCurrentOrder && !window.saveCurrentOrder.__bns698Option){
+      var oldSave=window.saveCurrentOrder;
+      var nw=function(){
+        var r=oldSave.apply(this, arguments);
+        setTimeout(processOptions,150);
+        return r;
+      };
+      nw.__bns698Option=true;
+      window.saveCurrentOrder=nw;
+      try{ saveCurrentOrder=nw; }catch(e){}
+    }
+  }
+
+  function decorateOptionCards(){
+    processOptions();
+    var list=E('ordersList') || document;
+    A('.order-card,.bns-v126-order-card,[data-bns-order-id]', list).forEach(function(card){
+      var txt=L(card.textContent);
+      if(!/optie\s*14/.test(txt)) return;
+      var id=card.getAttribute('data-bns-order-id') || card.getAttribute('data-order-id') || '';
+      var o=id ? findOrder(id) : null;
+      if(!o){
+        var title=card.querySelector('.order-title') || card;
+        var m=T(title.textContent).match(/(\d{4}-\d+)/);
+        if(m) o=findOrder(m[1]);
+      }
+      if(!o || !isOpt(o)) return;
+      var titleEl=card.querySelector('.order-title') || card.querySelector('b') || card.firstElementChild || card;
+      if(!card.querySelector('.bns698-opt-badge')){
+        var badge=document.createElement('span');
+        badge.className='bns698-opt-badge';
+        badge.textContent=optionText(o);
+        if(daysLeft(o)<=1) badge.className+=' warn';
+        titleEl.appendChild(document.createTextNode(' '));
+        titleEl.appendChild(badge);
+      }else{
+        var b=card.querySelector('.bns698-opt-badge');
+        b.textContent=optionText(o);
+        b.classList.toggle('warn', daysLeft(o)<=1);
+      }
+      var actions=card.querySelector('.actions,.bns-v126-card-actions') || card;
+      if(!card.querySelector('.bns698-opt-actions')){
+        var box=document.createElement('div');
+        box.className='bns698-opt-actions';
+        box.innerHTML='<button type="button" class="bns698-confirm">✓ Bevestigen</button><button type="button" class="bns698-quote">↩ Terug naar Offerte</button>';
+        box.querySelector('.bns698-confirm').onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); window.BNS698OptionConfirm(idOf(o)); };
+        box.querySelector('.bns698-quote').onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); window.BNS698OptionBackToQuote(idOf(o)); };
+        actions.appendChild(box);
+      }
+    });
+  }
+
+  function css(){
+    if(E('bns698OptionCss')) return;
+    var st=document.createElement('style'); st.id='bns698OptionCss';
+    st.textContent='.bns698-opt-badge{display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:4px 9px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:900;font-size:12px;border:1px solid #f59e0b}.bns698-opt-badge.warn{background:#fee2e2;color:#991b1b;border-color:#ef4444}.bns698-opt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.bns698-opt-actions button{border:0;border-radius:10px;padding:8px 10px;font-weight:900;cursor:pointer}.bns698-confirm{background:#16a34a!important;color:white!important}.bns698-quote{background:#f97316!important;color:white!important}';
+    document.head.appendChild(st);
+  }
+  function wrapRender(){
+    if(window.renderOrders && !window.renderOrders.__bns698Option){
+      var old=window.renderOrders;
+      var nw=function(){ var r=old.apply(this,arguments); setTimeout(decorateOptionCards,80); return r; };
+      nw.__bns698Option=true;
+      window.renderOrders=nw;
+      try{ renderOrders=nw; }catch(e){}
+    }
+  }
+  function boot(){ css(); installSavePrepare(); wrapRender(); processOptions(); setTimeout(decorateOptionCards,150); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else setTimeout(boot,80);
+  setTimeout(boot,800); setTimeout(boot,1800);
+  setInterval(function(){ try{ boot(); }catch(e){} }, 5000);
+  try{ console.info('[BNS v698] Optie 14 dagen teller/melding/terug naar Offerte actief'); }catch(e){}
+})();
+/* ===== einde BNS v698 ===== */
