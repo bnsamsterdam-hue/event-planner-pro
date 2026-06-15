@@ -51856,3 +51856,125 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
   try{ console.info('[BNS 691] Zoekbalk in Bijzonderheden-keuze actief.'); }catch(e){}
 })();
+
+/* =========================================================
+   BNS 696 - Bezorger meldingen robuust binnenhalen in planner
+   Doel:
+   - Driver schrijft meldingen/foto/handtekening naar Firestore collection alerts.
+   - Planner moet die alerts ook zien als Firebase later klaar is dan de oude listener.
+   - Alleen lezen/merge van alerts + knop-telling, geen driver, geen orders, geen nummering.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS696_DRIVER_ALERTS_ROBUST__) return;
+  window.__BNS696_DRIVER_ALERTS_ROBUST__ = true;
+
+  var startedSnapshot = false;
+  var lastLoad = 0;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function S(){
+    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function fsReady(){ return !!(window.BNS && window.BNS.fs && window.BNS.db); }
+  function fs(){ return window.BNS && window.BNS.fs; }
+  function db(){ return window.BNS && window.BNS.db; }
+
+  function normalizeAlert(a){
+    a = Object.assign({}, a || {});
+    if(!a.id) a.id = 'alert_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+    if(!a.createdAt) a.createdAt = a.time || new Date().toISOString();
+    if(!a.time){
+      try{ a.time = new Date(a.createdAt).toLocaleString('nl-NL'); }catch(e){ a.time = new Date().toLocaleString('nl-NL'); }
+    }
+    if(!a.note && a.message) a.note = a.message;
+    if(!a.message && a.note) a.message = a.note;
+    if(!a.text && (a.note || a.message)) a.text = a.note || a.message;
+    if(!a.type && a.title) a.type = a.title;
+    if(!a.title && a.type) a.title = a.type;
+    if(a.resolved == null && a.done == null) a.resolved = false;
+    if(a.done === true) a.resolved = true;
+    if(a.hidden == null) a.hidden = false;
+    if(!a.source && (a.fromDriver || a.fromPhone || a.portal === 'driver')) a.source = 'driver';
+    return a;
+  }
+
+  function mergeAlerts(rows){
+    var s = S();
+    if(!s) return;
+    if(!Array.isArray(s.alerts)) s.alerts = [];
+    var map = {};
+    s.alerts.forEach(function(a){ if(a && a.id) map[String(a.id)] = normalizeAlert(a); });
+    (rows || []).forEach(function(a){ if(a && a.id) map[String(a.id)] = normalizeAlert(a); });
+    s.alerts = Object.keys(map).map(function(k){ return map[k]; }).sort(function(a,b){
+      return String(b.createdAt || b.time || '').localeCompare(String(a.createdAt || a.time || ''));
+    });
+    try{ localStorage.setItem('bns_state', JSON.stringify(s)); }catch(e){}
+    try{ localStorage.setItem('bns_app_state', JSON.stringify(s)); }catch(e){}
+    updateAlertButtons();
+  }
+
+  function isOpenPlannerAlert(a){
+    if(!a || a.resolved || a.done || a.hidden || a.deleted || a.removed) return false;
+    var txt = L([a.source,a.portal,a.type,a.title,a.note,a.message,a.text,a.from].join(' '));
+    return txt.indexOf('driver') >= 0 || txt.indexOf('telefoon') >= 0 || txt.indexOf('bezorger') >= 0 ||
+           txt.indexOf('melding') >= 0 || txt.indexOf('schade') >= 0 || txt.indexOf('storing') >= 0 ||
+           txt.indexOf('vermissing') >= 0 || txt.indexOf('foto') >= 0 || txt.indexOf('handtekening') >= 0;
+  }
+
+  function updateAlertButtons(){
+    var s = S();
+    var n = s && Array.isArray(s.alerts) ? s.alerts.filter(isOpenPlannerAlert).length : 0;
+    ['alertsBtn','statAlerts'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(!el) return;
+      if(id === 'statAlerts') el.textContent = String(n);
+      else el.textContent = n ? '🚨 Systeemmeldingen (' + n + ')' : 'Systeemmeldingen (0)';
+      try{ el.classList.toggle('alarm-red', n > 0); el.classList.toggle('bns-alert-open', n > 0); }catch(e){}
+    });
+  }
+
+  function loadAlertsOnce(){
+    if(!fsReady() || !fs().getDocs || !fs().collection) return false;
+    lastLoad = Date.now();
+    fs().getDocs(fs().collection(db(), 'alerts')).then(function(snap){
+      var rows = [];
+      snap.forEach(function(d){ rows.push(Object.assign({id:d.id}, d.data() || {})); });
+      mergeAlerts(rows);
+    }).catch(function(e){ try{ console.warn('[BNS 696] alerts laden mislukt', e); }catch(_){} });
+    return true;
+  }
+
+  function startSnapshot(){
+    if(startedSnapshot || !fsReady() || !fs().onSnapshot || !fs().collection) return false;
+    startedSnapshot = true;
+    try{
+      fs().onSnapshot(fs().collection(db(), 'alerts'), function(snap){
+        var rows = [];
+        snap.forEach(function(d){ rows.push(Object.assign({id:d.id}, d.data() || {})); });
+        mergeAlerts(rows);
+      }, function(e){
+        startedSnapshot = false;
+        try{ console.warn('[BNS 696] alerts snapshot gestopt', e); }catch(_){}
+      });
+      return true;
+    }catch(e){ startedSnapshot = false; return false; }
+  }
+
+  function tick(){
+    startSnapshot();
+    if(Date.now() - lastLoad > 10000) loadAlertsOnce();
+    updateAlertButtons();
+  }
+
+  window.BNS696RefreshDriverAlerts = loadAlertsOnce;
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,300); });
+  else setTimeout(tick,100);
+  setTimeout(tick,1200);
+  setTimeout(tick,3000);
+  setInterval(tick,5000);
+  try{ console.info('[BNS 696] robuuste bezorger-meldingen lezer actief'); }catch(e){}
+})();
