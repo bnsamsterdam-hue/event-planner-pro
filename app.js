@@ -14192,10 +14192,68 @@ setTimeout(()=>{
     paintModeButtons();
   }
   function renderDashboardFinal(){
+    function _txt(v){ return String(v == null ? '' : v).trim(); }
+    function _low(v){ return _txt(v).toLowerCase(); }
+    function _yearNow(){ return String(new Date().getFullYear()); }
+    function _orderYear(o){
+      o = o || {};
+      var d = _txt(o.start || o.date || o.end || o.deliveryDate || o.orderDate);
+      var m = d.match(/^(\d{4})-/);
+      if(m) return m[1];
+      var n = _txt(o.number || o.orderNumber || o.id || o.docId || o.orderId);
+      var m2 = n.match(/^(\d{4})-/);
+      if(m2) return m2[1];
+      return '';
+    }
+    function _stat(o){ return _low(o && o.status); }
+    function _fold(o){ return _low(o && (o.folder || o.map || o.orderFolder)); }
+    function _deleted(o){
+      var s = _stat(o) + ' ' + _fold(o);
+      return !!(o && (o.deleted || o.deletedAt || o.removed || o.removedAt)) || /geannuleerd|verwijderd|deleted|gewist|trash/.test(s);
+    }
+    function _offerte(o){ return /offerte/.test(_stat(o) + ' ' + _fold(o)); }
+    function _optie(o){ return /optie\s*14|optie14|opties\s*14/.test(_stat(o) + ' ' + _fold(o)); }
+    function _done(o){ return /uitgevoerd|afgehandeld|klaar|gereed|archief/.test(_stat(o) + ' ' + _fold(o)); }
+    function _active(o){ return !_deleted(o) && !_offerte(o) && !_optie(o) && !_done(o); }
+    function _card(el){
+      if(!el) return null;
+      var n = el;
+      for(var i=0;i<6 && n;i++,n=n.parentElement){
+        if(n.querySelector && n.querySelector('#'+el.id) && /opdrachten|materialen|systeemmeldingen|offerte|optie|uitgevoerd/i.test(n.textContent||'')) return n;
+      }
+      return el.parentElement;
+    }
+    function _setLabel(el,label){
+      var c = _card(el); if(!c) return;
+      var nodes = c.querySelectorAll('b,strong,h3,h4,.label,small,div,span');
+      for(var i=0;i<nodes.length;i++){
+        if(nodes[i] === el) continue;
+        var t = _txt(nodes[i].textContent);
+        if(/^(opdrachten|materialen|systeemmeldingen|offerte|uitgevoerd|optie\s*14\s*dagen)(\s+\d{4})?$/i.test(t)){
+          nodes[i].textContent = label;
+          return;
+        }
+      }
+    }
+    function _clean(el){
+      var c = _card(el); if(!c) return;
+      [c].concat(Array.prototype.slice.call(c.querySelectorAll('*'))).forEach(function(x){
+        x.classList.remove('alarm-red','bns-alert-open','danger','error','red','alert','warn','warning','is-danger','is-error');
+        x.style.background=''; x.style.backgroundColor=''; x.style.color=''; x.style.borderColor=''; x.style.boxShadow='';
+      });
+    }
+    function _set(id,label,val){
+      var el=byId(id); if(!el) return;
+      el.textContent=String(val);
+      _setLabel(el,label);
+      _clean(el);
+    }
     try {
-      if (byId("statOrders")) byId("statOrders").textContent = (S().orders || []).length;
-      if (byId("statMaterials")) byId("statMaterials").textContent = (S().materials || []).length;
-      if (byId("statAlerts")) byId("statAlerts").textContent = (S().alerts || []).length;
+      var y = _yearNow();
+      var all = (S().orders || []).filter(function(o){ return _orderYear(o) === y; });
+      _set('statOrders','Opdrachten ' + y, all.filter(_active).length);
+      _set('statMaterials','Offerte ' + y, all.filter(function(o){ return !_deleted(o) && _offerte(o); }).length);
+      _set('statAlerts','Optie 14 dagen ' + y, all.filter(function(o){ return !_deleted(o) && _optie(o); }).length);
     } catch(e) {
     }
     var box = byId("dashOrders");
@@ -51928,11 +51986,12 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function updateAlertButtons(){
     var s = S();
     var n = s && Array.isArray(s.alerts) ? s.alerts.filter(isOpenPlannerAlert).length : 0;
-    ['alertsBtn','statAlerts'].forEach(function(id){
+    // Alleen de groene Systeemmeldingen-knop bovenin bijwerken.
+    // statAlerts is vanaf v702 weer een gewone dashboard-statistiek en mag niet meer rood/alert worden.
+    ['alertsBtn'].forEach(function(id){
       var el = document.getElementById(id);
       if(!el) return;
-      if(id === 'statAlerts') el.textContent = String(n);
-      else el.textContent = n ? '🚨 Systeemmeldingen (' + n + ')' : 'Systeemmeldingen (0)';
+      el.textContent = n ? '🚨 Systeemmeldingen (' + n + ')' : 'Systeemmeldingen (0)';
       try{ el.classList.toggle('alarm-red', n > 0); el.classList.toggle('bns-alert-open', n > 0); }catch(e){}
     });
   }
@@ -51979,126 +52038,36 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   try{ console.info('[BNS 696] robuuste bezorger-meldingen lezer actief'); }catch(e){}
 })();
 
-/* ===== BNS v701 - dashboard statistieken lopend jaar rustig (alleen weergave) =====
-   Doel: dashboard-statistieken tonen voor huidig jaar:
+/* ===== BNS v702 - dashboard statistieken vervangen, niet plakken =====
+   Vervangt de oude v697/v701 dashboard-statistiek-aanpak.
+   Doel: geen flikkeren, geen rood, geen dubbele teller.
+   Statistieken huidig jaar:
    1. Opdrachten  2. Offerte  3. Optie 14 dagen
-   Uitgevoerd/archief wordt hier NIET meer geteld omdat archief-tabs oude totaalwaarden kunnen geven.
-   Rood/flikker op de derde kaart wordt verwijderd.
-   Raakt geen driver, geen Waze, geen save/Firebase-write, geen opdracht-nummers, geen reserveringen.
+   Let op: statAlerts wordt niet meer gebruikt voor systeemmeldingen op dashboard.
 */
 (function(){
-  if(window.__BNS_V701_DASHBOARD_STATS_YEAR__) return;
-  window.__BNS_V701_DASHBOARD_STATS_YEAR__ = true;
-
-  function S(){ return (window.state || (typeof state !== 'undefined' ? state : {}) || {}); }
-  function txt(v){ return String(v == null ? '' : v); }
-  function norm(v){ return txt(v).toLowerCase().trim(); }
-  function yearNow(){ return String(new Date().getFullYear()); }
-  function orderYear(o){
-    o = o || {};
-    var d = txt(o.start || o.date || o.end || o.deliveryDate || o.orderDate);
-    var m = d.match(/^(\d{4})-/);
-    if(m) return m[1];
-    var n = txt(o.number || o.orderNumber || o.id || o.docId || o.orderId);
-    var m2 = n.match(/^(\d{4})-/);
-    if(m2) return m2[1];
-    return '';
+  if(window.__BNS_V702_DASHBOARD_REPLACED__) return;
+  window.__BNS_V702_DASHBOARD_REPLACED__ = true;
+  function tick(){
+    try{
+      var el = document.getElementById('statAlerts');
+      if(el){
+        var n = el;
+        for(var i=0;i<6 && n;i++,n=n.parentElement){
+          n.classList && n.classList.remove('alarm-red','bns-alert-open','danger','error','red','alert','warn','warning');
+          if(n.style){ n.style.background=''; n.style.backgroundColor=''; n.style.color=''; n.style.borderColor=''; n.style.boxShadow=''; }
+        }
+      }
+      if(typeof renderDashboard === 'function') renderDashboard();
+    }catch(e){}
   }
-  function statusOf(o){ return norm(o && o.status); }
-  function folderOf(o){ return norm(o && (o.folder || o.map || o.orderFolder)); }
-  function isDeleted(o){
-    var s = statusOf(o), f = folderOf(o);
-    return !!(o && (o.deleted || o.deletedAt)) || /geannuleerd|verwijderd|deleted|gewist|trash/.test(s+' '+f);
-  }
-  function isOfferte(o){ return /offerte/.test(statusOf(o)) || /offerte/.test(folderOf(o)); }
-  function isOptie14(o){ return /optie\s*14|optie14|opties\s*14/.test(statusOf(o)+' '+folderOf(o)); }
-  function isUitgevoerd(o){ return /uitgevoerd|afgehandeld|klaar|gereed|archief/.test(statusOf(o)+' '+folderOf(o)); }
-  function isOpdracht(o){
-    if(isDeleted(o) || isOfferte(o) || isOptie14(o) || isUitgevoerd(o)) return false;
-    var s=statusOf(o), f=folderOf(o);
-    if(/bevestigd|opdracht|lopend|lopende/.test(s+' '+f)) return true;
-    return true;
-  }
-  function statCardFromValue(el){
-    if(!el) return null;
-    var n=el;
-    for(var i=0;i<5 && n;i++,n=n.parentElement){
-      var tx=(n.textContent||'').toLowerCase();
-      if(/opdrachten|materialen|systeemmeldingen|offerte|uitgevoerd|optie/.test(tx) && n.querySelector && n.querySelector('#'+el.id)) return n;
-    }
-    return el.closest('.summary-card,.stat-card,.card,[class*="stat"]') || el.parentElement;
-  }
-  function findLabelNode(valueNode){
-    var card = statCardFromValue(valueNode);
-    if(!card) return null;
-    var tags = card.querySelectorAll('b,strong,h3,h4,.label,small,div,span');
-    for(var i=0;i<tags.length;i++){
-      if(tags[i] === valueNode) continue;
-      var t = (tags[i].textContent || '').trim();
-      if(/^(opdrachten|materialen|systeemmeldingen|offerte|uitgevoerd|optie\s*14\s*dagen)(\s+\d{4})?$/i.test(t)) return tags[i];
-    }
-    return null;
-  }
-  function cleanCard(card){
-    if(!card) return;
-    card.style.background='';
-    card.style.backgroundColor='';
-    card.style.color='';
-    card.style.borderColor='';
-    card.style.boxShadow='';
-    card.classList.remove('danger','error','red','alert','warn','warning','is-danger','is-error');
-    Array.prototype.slice.call(card.querySelectorAll('*')).forEach(function(x){
-      x.style.background='';
-      x.style.backgroundColor='';
-      x.style.color='';
-      x.style.borderColor='';
-      x.classList.remove('danger','error','red','alert','warn','warning','is-danger','is-error');
-    });
-  }
-  function setStat(id,label,value){
-    var el = document.getElementById(id);
-    if(!el) return;
-    el.textContent = String(value);
-    var lab = findLabelNode(el);
-    if(lab) lab.textContent = label;
-    cleanCard(statCardFromValue(el));
-  }
-  function applyStats(){
-    var y = yearNow();
-    var orders = (S().orders || []).filter(function(o){ return orderYear(o) === y && !isDeleted(o); });
-    var opdracht = orders.filter(isOpdracht).length;
-    var offerte = orders.filter(isOfferte).length;
-    var optie = orders.filter(isOptie14).length;
-    setStat('statOrders','Opdrachten ' + y, opdracht);
-    setStat('statMaterials','Offerte ' + y, offerte);
-    setStat('statAlerts','Optie 14 dagen ' + y, optie);
-  }
-  function wrap(name){
-    var old = window[name] || (typeof globalThis !== 'undefined' ? globalThis[name] : null);
-    if(typeof old !== 'function' || old.__bnsV701Wrapped) return;
-    var wrapped = function(){
-      var r = old.apply(this, arguments);
-      try{ setTimeout(applyStats, 0); }catch(e){}
-      return r;
-    };
-    wrapped.__bnsV701Wrapped = true;
-    try{ window[name] = wrapped; }catch(e){}
-    try{ if(name === 'renderDashboard') renderDashboard = wrapped; }catch(e){}
-    try{ if(name === 'renderAll') renderAll = wrapped; }catch(e){}
-  }
-  function boot(){
-    wrap('renderDashboard');
-    wrap('renderAll');
-    try{ applyStats(); }catch(e){}
-  }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
-  setTimeout(boot, 250);
-  setTimeout(applyStats, 800);
-  setTimeout(applyStats, 1800);
-  try{ console.info('[BNS 701] dashboard statistieken: Opdrachten/Offerte/Optie 14 dagen huidig jaar'); }catch(e){}
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick,150); });
+  else setTimeout(tick,100);
+  setTimeout(tick,800);
+  setTimeout(tick,1800);
+  try{ console.info('[BNS v702] dashboard statistieken hard vervangen: opdrachten/offerte/optie14'); }catch(e){}
 })();
-/* ===== einde BNS v701 ===== */
+/* ===== einde BNS v702 ===== */
 
 /* ===== BNS v698 - Optie 14 dagen werking terug (alleen optie-logica) =====
    - Status Optie 14 dagen krijgt optionCreatedAt bij opslaan.
