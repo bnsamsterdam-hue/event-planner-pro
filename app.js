@@ -52600,3 +52600,181 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   try{ console.info('[BNS v703] dashboard eerstvolgende opdrachten stabiel, oude her-render flikker geneutraliseerd'); }catch(e){}
 })();
 /* ===== einde BNS v703 ===== */
+
+/* =========================================================
+   BNS 704 - Bezorger-velden synchroniseren bij opslaan
+   Basis: v703-lijn. Doel:
+   - assignedDrivers / drivers blijft leidend.
+   - Lege oude velden (driver, bezorger, assignedDriver) mogen gekozen bezorgers niet overschrijven.
+   - Vult oude enkelvoudige en meervoudige velden automatisch mee.
+   - Raakt geen driver.js, Waze, materiaal/reservering, dashboard of opdrachtnummers.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS704_DRIVER_FIELD_SYNC__) return;
+  window.__BNS704_DRIVER_FIELD_SYNC__ = true;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function clone(v){ try{return JSON.parse(JSON.stringify(v));}catch(e){return v;} }
+  function S(){ try{return window.state || state || null;}catch(e){return window.state || null;} }
+  function users(){ var s=S(); return s && Array.isArray(s.users) ? s.users : []; }
+  function isDriverUser(u){ return u && L(u.role || '') === 'bezorger' && u.deleted !== true && u.active !== false; }
+  function findUser(v){
+    var t=T(v); if(!t) return null;
+    var lt=L(t);
+    return users().find(function(u){
+      return isDriverUser(u) && (T(u.id) === t || L(u.name) === lt || T(u.pin) === t);
+    }) || null;
+  }
+  function addUnique(list, item){
+    if(!item) return;
+    var id=T(item.id), name=T(item.name);
+    if(!id && !name) return;
+    var key=(id || name).toLowerCase();
+    if(list.some(function(x){ return ((T(x.id) || T(x.name)).toLowerCase()) === key; })) return;
+    list.push({id:id || name, name:name || id, role:T(item.role) || 'Bezorger'});
+  }
+  function addFromUser(list, v){
+    var u=findUser(v);
+    if(u) addUnique(list,{id:u.id,name:u.name,role:u.role});
+    else if(T(v)) addUnique(list,{id:T(v),name:T(v),role:'Bezorger'});
+  }
+  function readDriversFromOrder(o){
+    var out=[];
+    if(!o || typeof o !== 'object') return out;
+
+    ['assignedDrivers','drivers','bezorgers','driverList'].forEach(function(k){
+      if(Array.isArray(o[k])){
+        o[k].forEach(function(d){
+          if(d && typeof d === 'object'){
+            var id=T(d.id || d.userId || d.uid || d.driverId || d.bezorgerId);
+            var name=T(d.name || d.driverName || d.bezorgerName || d.label || d.title);
+            var u=findUser(id) || findUser(name);
+            if(u) addUnique(out,{id:u.id,name:u.name,role:u.role});
+            else addUnique(out,{id:id || name,name:name || id,role:T(d.role)||'Bezorger'});
+          }else{
+            addFromUser(out,d);
+          }
+        });
+      }
+    });
+
+    ['assignedDriverIds','driverIds','bezorgerIds','userIds','selectedDrivers'].forEach(function(k){
+      if(Array.isArray(o[k])) o[k].forEach(function(v){ addFromUser(out,v); });
+      else if(T(o[k])) T(o[k]).split(/[,;]/).forEach(function(v){ addFromUser(out,v); });
+    });
+    ['assignedDriverNames','driverNames','bezorgerNames'].forEach(function(k){
+      if(Array.isArray(o[k])) o[k].forEach(function(v){ addFromUser(out,v); });
+      else if(T(o[k])) T(o[k]).split(/[,;]/).forEach(function(v){ addFromUser(out,v); });
+    });
+    ['assignedDriver','assignedDriverName','driver','driverName','bezorger','bezorgerName','assigned','userId'].forEach(function(k){
+      if(T(o[k])) T(o[k]).split(/[,;]/).forEach(function(v){ addFromUser(out,v); });
+    });
+    return out;
+  }
+  function selectedDriversFromForm(){
+    var out=[];
+    try{
+      Array.prototype.slice.call(document.querySelectorAll('#bnsV83DriverBox input[type=checkbox]:checked')).forEach(function(i){ addFromUser(out,i.value); });
+      var sel=document.getElementById('orderDriver');
+      if(!out.length && sel && T(sel.value)) addFromUser(out,sel.value);
+    }catch(e){}
+    return out;
+  }
+  function hasDriverTouched(){
+    return !!(window.__bns458DriverTouched || window.__bns459DriverTouched || window.__bns474DriverTouched || window.__bns516DriverTouched || window.__bns519DriverTouched);
+  }
+  function applyDrivers(o, drivers){
+    if(!o || typeof o !== 'object') return o;
+    drivers=(drivers||[]).filter(function(d){ return T(d && (d.id || d.name)); });
+    if(!drivers.length) return o;
+    var ids=drivers.map(function(d){ return T(d.id || d.name); }).filter(Boolean);
+    var names=drivers.map(function(d){ return T(d.name || d.id); }).filter(Boolean);
+    var objs=drivers.map(function(d){ return {id:T(d.id || d.name), name:T(d.name || d.id), role:T(d.role)||'Bezorger'}; });
+    var first=objs[0];
+    var joined=names.join(', ');
+
+    o.assignedDrivers=clone(objs);
+    o.drivers=clone(objs);
+    o.bezorgers=clone(objs);
+    o.driverList=clone(objs);
+
+    o.driverIds=ids.slice();
+    o.driverNames=names.slice();
+    o.assignedDriverIds=ids.slice();
+    o.assignedDriverNames=names.slice();
+    o.bezorgerIds=ids.slice();
+    o.bezorgerNames=names.slice();
+    o.userIds=ids.slice();
+    o.selectedDrivers=ids.slice();
+
+    // Oude enkelvoudige velden mee vullen zodat oude render/save-routes niet leeg kunnen winnen.
+    o.driver=joined;
+    o.driverName=joined;
+    o.driverId=first.id;
+    o.assigned=joined;
+    o.assignedDriver=joined;
+    o.assignedDriverName=joined;
+    o.assignedDriverId=first.id;
+    o.bezorger=joined;
+    o.bezorgerName=joined;
+    o.bezorgerId=first.id;
+    o.userId=first.id;
+    o.driverTruthAt=new Date().toISOString();
+    return o;
+  }
+  function normalizeDriverFields(order, oldOrder){
+    if(!order || typeof order !== 'object') return order;
+    var drivers=[];
+    // Als de planner in dit formulier bezorgers heeft aangepast, is de UI leidend.
+    if(hasDriverTouched()) drivers=selectedDriversFromForm();
+    // Anders eerst de nieuwe order-data, daarna oude order-data als fallback.
+    if(!drivers.length) drivers=readDriversFromOrder(order);
+    if(!drivers.length && oldOrder) drivers=readDriversFromOrder(oldOrder);
+    if(drivers.length) applyDrivers(order,drivers);
+    order.updatedAt=new Date().toISOString();
+    return order;
+  }
+
+  // Centrale definitieve save-route.
+  function installPrepare(){
+    var old=window.BNS_v519PrepareOrderBeforeSave;
+    if(typeof old === 'function' && !old.__bns704DriverSync){
+      var wrapped=function(order, oldOrder){
+        var out=old.call(this, order, oldOrder) || order;
+        return normalizeDriverFields(out, oldOrder);
+      };
+      wrapped.__bns704DriverSync=true;
+      window.BNS_v519PrepareOrderBeforeSave=wrapped;
+    }
+  }
+
+  // Extra vangnet: ook als een oude route rechtstreeks naar Firebase sync't.
+  function installSyncGuard(){
+    try{
+      if(window.BNS && typeof window.BNS.syncOrder === 'function' && !window.BNS.syncOrder.__bns704DriverSync){
+        var oldSync=window.BNS.syncOrder;
+        window.BNS.syncOrder=function(order){
+          return oldSync.call(this, normalizeDriverFields(order, null));
+        };
+        window.BNS.syncOrder.__bns704DriverSync=true;
+      }
+    }catch(e){}
+    try{
+      if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncOrder === 'function' && !window.BNSFirebaseSync.syncOrder.__bns704DriverSync){
+        var oldSync2=window.BNSFirebaseSync.syncOrder;
+        window.BNSFirebaseSync.syncOrder=function(order){
+          return oldSync2.call(this, normalizeDriverFields(order, null));
+        };
+        window.BNSFirebaseSync.syncOrder.__bns704DriverSync=true;
+      }
+    }catch(e){}
+  }
+
+  function install(){ installPrepare(); installSyncGuard(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,150); setTimeout(install,900); });
+  else { setTimeout(install,80); setTimeout(install,800); }
+  setInterval(install,2500);
+  console.info('[BNS 704] Bezorger-velden sync bij opslaan actief. assignedDrivers blijft leidend.');
+})();
