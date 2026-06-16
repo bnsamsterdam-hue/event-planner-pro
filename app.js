@@ -52462,3 +52462,141 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
   console.info('[BNS v699] Overzicht bestelling: Wis schrijft nu ook Firebase-alert weg en dubbele WhatsApp-knoppen worden opgeschoond.');
 })();
+
+/* ===== BNS v703 - dashboard eerstvolgende opdrachten rust / geen flikker =====
+   Gebouwd vanaf v702.
+   Alleen dashboard-rendering wordt gestabiliseerd.
+   - Geen driver
+   - Geen Waze
+   - Geen save/Firebase-write
+   - Geen opdrachtnummers
+   - Geen materiaal/reservering
+   - Geen Optie 14 dagen werking
+*/
+(function(){
+  if(window.__BNS_V703_DASHBOARD_STABLE__) return;
+  window.__BNS_V703_DASHBOARD_STABLE__ = true;
+
+  var lastStatsKey = '';
+  var lastDashHtml = '';
+  var lastRun = 0;
+
+  function txt(v){ return String(v == null ? '' : v).trim(); }
+  function low(v){ return txt(v).toLowerCase(); }
+  function currentYear(){ return String(new Date().getFullYear()); }
+  function getState(){ try{ return (typeof S === 'function' ? S() : (window.state || state || {})); }catch(e){ return window.state || {}; } }
+  function by(id){ return document.getElementById(id); }
+
+  function orderYear(o){
+    o = o || {};
+    var d = txt(o.start || o.date || o.end || o.deliveryDate || o.orderDate);
+    var m = d.match(/^(\d{4})-/);
+    if(m) return m[1];
+    var n = txt(o.number || o.orderNumber || o.id || o.docId || o.orderId);
+    var m2 = n.match(/^(\d{4})-/);
+    return m2 ? m2[1] : '';
+  }
+  function stat(o){ return low(o && o.status); }
+  function fold(o){ return low(o && (o.folder || o.map || o.orderFolder)); }
+  function deleted(o){
+    var s = stat(o) + ' ' + fold(o);
+    return !!(o && (o.deleted || o.deletedAt || o.removed || o.removedAt)) || /geannuleerd|verwijderd|deleted|gewist|trash/.test(s);
+  }
+  function isOfferte(o){ return /offerte/.test(stat(o) + ' ' + fold(o)); }
+  function isOptie14(o){ return /optie\s*14|optie14|opties\s*14/.test(stat(o) + ' ' + fold(o)); }
+  function isDone(o){ return /uitgevoerd|afgehandeld|klaar|gereed|archief/.test(stat(o) + ' ' + fold(o)); }
+  function isActive(o){ return !deleted(o) && !isOfferte(o) && !isOptie14(o) && !isDone(o); }
+
+  function cardHolder(el){
+    if(!el) return null;
+    var n = el;
+    for(var i=0;i<7 && n;i++,n=n.parentElement){
+      if(n.querySelector && n.querySelector('#'+el.id)) return n;
+    }
+    return el.parentElement;
+  }
+  function cleanCard(el){
+    var c = cardHolder(el); if(!c) return;
+    [c].concat(Array.prototype.slice.call(c.querySelectorAll('*'))).forEach(function(x){
+      try{ x.classList.remove('alarm-red','bns-alert-open','danger','error','red','alert','warn','warning','is-danger','is-error'); }catch(e){}
+      try{ x.style.background=''; x.style.backgroundColor=''; x.style.color=''; x.style.borderColor=''; x.style.boxShadow=''; }catch(e){}
+    });
+  }
+  function setLabel(el,label){
+    var c = cardHolder(el); if(!c) return;
+    var nodes = c.querySelectorAll('b,strong,h3,h4,.label,small,div,span');
+    for(var i=0;i<nodes.length;i++){
+      if(nodes[i] === el) continue;
+      var t = txt(nodes[i].textContent);
+      if(/^(opdrachten|materialen|systeemmeldingen|offerte|uitgevoerd|optie\s*14\s*dagen)(\s+\d{4})?$/i.test(t)){
+        if(nodes[i].textContent !== label) nodes[i].textContent = label;
+        return;
+      }
+    }
+  }
+  function setStat(id,label,val){
+    var el = by(id); if(!el) return;
+    var v = String(val);
+    if(el.textContent !== v) el.textContent = v;
+    setLabel(el,label);
+    cleanCard(el);
+  }
+
+  function sortRows(rows){
+    try{
+      if(typeof sortedOrders === 'function') return sortedOrders().filter(function(o){ return rows.indexOf(o) >= 0; });
+    }catch(e){}
+    return rows.slice().sort(function(a,b){ return txt(a.start || a.date || a.end).localeCompare(txt(b.start || b.date || b.end)); });
+  }
+  function makeCard(o){
+    try{ if(typeof bnsCard === 'function') return bnsCard(o); }catch(e){}
+    try{ if(typeof card === 'function') return card(o); }catch(e){}
+    return '<div class="order-card"><b>'+txt(o.number || o.id)+' - '+txt(o.title || '')+'</b></div>';
+  }
+
+  function renderDashboardStable(force){
+    var now = Date.now();
+    if(!force && now - lastRun < 80) return;
+    lastRun = now;
+
+    var s = getState();
+    var orders = Array.isArray(s.orders) ? s.orders : [];
+    var y = currentYear();
+    var thisYear = orders.filter(function(o){ return orderYear(o) === y; });
+    var activeCount = thisYear.filter(isActive).length;
+    var offerteCount = thisYear.filter(function(o){ return !deleted(o) && isOfferte(o); }).length;
+    var optieCount = thisYear.filter(function(o){ return !deleted(o) && isOptie14(o); }).length;
+    var statsKey = y + '|' + activeCount + '|' + offerteCount + '|' + optieCount;
+    if(force || statsKey !== lastStatsKey){
+      setStat('statOrders','Opdrachten ' + y, activeCount);
+      setStat('statMaterials','Offerte ' + y, offerteCount);
+      setStat('statAlerts','Optie 14 dagen ' + y, optieCount);
+      lastStatsKey = statsKey;
+    }else{
+      cleanCard(by('statAlerts'));
+    }
+
+    var box = by('dashOrders');
+    if(!box) return;
+    var rows;
+    try{ rows = (typeof sortedOrders === 'function' ? sortedOrders() : sortRows(orders)).filter(function(o){
+      try{ return typeof activeOrder === 'function' ? activeOrder(o) : isActive(o); }catch(e){ return isActive(o); }
+    }).slice(0,6); }catch(e){ rows = sortRows(orders.filter(isActive)).slice(0,6); }
+    var html = rows.length ? rows.map(makeCard).join('') : '<p>Geen aankomende opdrachten.</p>';
+    if(force || html !== lastDashHtml){
+      box.innerHTML = html;
+      lastDashHtml = html;
+    }
+  }
+
+  window.renderDashboard = renderDashboardStable;
+  try{ renderDashboard = renderDashboardStable; }catch(e){}
+  window.BNS703RenderDashboardStable = function(){ renderDashboardStable(true); };
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){renderDashboardStable(true);},100); });
+  else setTimeout(function(){renderDashboardStable(true);},100);
+  setTimeout(function(){renderDashboardStable(true);},800);
+  setTimeout(function(){renderDashboardStable(true);},1800);
+  try{ console.info('[BNS v703] dashboard eerstvolgende opdrachten stabiel, oude her-render flikker geneutraliseerd'); }catch(e){}
+})();
+/* ===== einde BNS v703 ===== */
