@@ -52335,3 +52335,133 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   try{ console.info('[BNS v698] Optie 14 dagen teller/melding/terug naar Offerte actief'); }catch(e){}
 })();
 /* ===== einde BNS v698 ===== */
+
+/* =========================================================
+   BNS v699 - Overzicht bestelling: Wis hard + WhatsApp dubbel weg
+   Basis: v698.
+   Alleen overzicht-bestelling dossierknoppen.
+   - Driver niet geraakt.
+   - Opdrachtnummers niet geraakt.
+   - Save/order aanmaken niet geraakt.
+   - Optie 14 dagen niet geraakt.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS_V699_OVERVIEW_WIS_WA_FIX__) return;
+  window.__BNS_V699_OVERVIEW_WIS_WA_FIX__ = true;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+
+  function stateObj(){
+    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return {};
+  }
+  function orders(){ var s=stateObj(); return Array.isArray(s.orders) ? s.orders : []; }
+  function findOrder(id){
+    id=T(id);
+    return orders().find(function(o){
+      return T(o.id)===id || T(o.number)===id || T(o.orderId)===id || T(o.docId)===id || T(o.orderNumber)===id;
+    }) || null;
+  }
+  function mediaSrc(a){
+    return T(a && (a.data || a.photoData || a.photo || a.image || a.imageUrl || a.imageURL || a.photoUrl || a.photoURL || a.signatureData || a.signature || a.customerSignature || a.base64 || a.thumb || a.thumbnail || (a.media && (a.media.data || a.media.url || a.media.src || a.media.photoData || a.media.photoUrl)) || ''));
+  }
+  function mediaText(a){ return T(a && (a.note || a.message || a.text || a.description || a.customerName || a.driverName || '')); }
+  function mediaTime(a){ return T(a && (a.createdAt || a.time || a.date || a.updatedAt || '')); }
+
+  function sameMedia(x,a){
+    if(!x || !a) return false;
+    var id=T(a.id), xid=T(x.id);
+    if(id && xid && id===xid) return true;
+    var src=mediaSrc(a), xsrc=mediaSrc(x);
+    if(src && xsrc && src===xsrc) return true;
+    var txt=mediaText(a), xtxt=mediaText(x), tm=mediaTime(a), xtm=mediaTime(x);
+    if(txt && xtxt && txt===xtxt && (!tm || !xtm || tm===xtm)) return true;
+    return false;
+  }
+  function removeFromArray(arr,a){
+    if(!Array.isArray(arr)) return arr;
+    return arr.filter(function(x){ return !sameMedia(x,a); });
+  }
+
+  function saveLocalNow(){
+    try{ if(typeof saveLocal==='function') saveLocal(); }catch(e){}
+    try{ if(typeof saveState==='function') saveState(); }catch(e){}
+    try{ if(typeof save==='function') save(); }catch(e){}
+  }
+  function syncOrder(o){
+    if(!o) return;
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+    try{ if(typeof syncDoc==='function') syncDoc('orders', T(o.id || o.number || o.orderId), o); }catch(e){}
+    try{ if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc){ window.BNS.fs.setDoc(window.BNS.fs.doc(window.BNS.db,'orders',T(o.id || o.number || o.orderId)), o, {merge:true}).catch(function(){}); } }catch(e){}
+  }
+  function deleteAlertRemote(id){
+    id=T(id);
+    if(!id) return;
+    try{ if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.deleteDoc && window.BNS.fs.doc){ window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'alerts',id)).catch(function(){}); return; } }catch(e){}
+    try{ if(window.firebase && firebase.firestore){ firebase.firestore().collection('alerts').doc(id).delete().catch(function(){}); return; } }catch(e){}
+    try{ if(typeof db!=='undefined' && typeof deleteDoc==='function' && typeof doc==='function'){ deleteDoc(doc(db,'alerts',id)).catch(function(){}); } }catch(e){}
+  }
+
+  function deleteMatchingAlertsLocal(a){
+    var s=stateObj();
+    if(!Array.isArray(s.alerts)) return;
+    s.alerts.slice().forEach(function(x){ if(sameMedia(x,a) && T(x.id)) deleteAlertRemote(x.id); });
+    s.alerts=removeFromArray(s.alerts,a);
+  }
+
+  function renderOverview(orderId){
+    try{ if(typeof window.BNS_V493_RENDER==='function') window.BNS_V493_RENDER(orderId || window.__BNS_V493_OPEN_ORDER_ID || ''); }catch(e){}
+    try{ if(typeof window.BNS_v493PatchMediaOverview==='function') window.BNS_v493PatchMediaOverview(); }catch(e){}
+    setTimeout(dedupeWhatsAppButtons,80);
+    setTimeout(dedupeWhatsAppButtons,400);
+  }
+
+  window.BNS_V493_WIS=function(orderId,key){
+    var a=window.BNS_V493_MEDIA && window.BNS_V493_MEDIA[key];
+    if(!a) return false;
+    if(!confirm('Deze melding/foto/handtekening wissen?')) return false;
+
+    var o=findOrder(orderId || window.__BNS_V493_OPEN_ORDER_ID || '');
+    if(o){
+      ['media','driverUploads','photos','fotos','images','signatures','handtekeningen','customerSignatures','customerMessages','klantmeldingen','messages','driverMessages','driverAlerts','meldingen','attachments','defects','storingen','bezorgerMeldingen','klantMeldingen','orderMedia'].forEach(function(k){
+        if(Array.isArray(o[k])) o[k]=removeFromArray(o[k],a);
+      });
+      if(mediaSrc(a) && T(o.customerSignature)===mediaSrc(a)){
+        o.customerSignature='';
+        o.customerSignedAt='';
+        o.customerSignedName='';
+      }
+      o.updatedAt=new Date().toISOString();
+      syncOrder(o);
+    }
+
+    if(T(a.id)) deleteAlertRemote(a.id);
+    deleteMatchingAlertsLocal(a);
+    saveLocalNow();
+    try{ document.dispatchEvent(new CustomEvent('bns:phone-media-updated')); }catch(e){}
+    renderOverview(orderId);
+    return false;
+  };
+
+  function dedupeWhatsAppButtons(root){
+    root=root||document;
+    A('.bns-v493-actions,.tw-v141-actions',root).forEach(function(actions){
+      var buttons=A('button',actions).filter(function(b){ return L(b.textContent||b.value||b.title)==='whatsapp'; });
+      if(buttons.length<2) return;
+      buttons.forEach(function(b,i){ if(i>0){ try{ b.remove(); }catch(e){} } });
+    });
+  }
+  window.BNS_V699_DEDUPE_WHATSAPP=dedupeWhatsAppButtons;
+
+  document.addEventListener('click',function(){ setTimeout(dedupeWhatsAppButtons,120); },true);
+  document.addEventListener('bns:firebase-updated',function(){ setTimeout(dedupeWhatsAppButtons,180); });
+  document.addEventListener('bns:phone-media-updated',function(){ setTimeout(dedupeWhatsAppButtons,180); });
+  setTimeout(dedupeWhatsAppButtons,300);
+  setTimeout(dedupeWhatsAppButtons,1200);
+
+  console.info('[BNS v699] Overzicht bestelling: Wis schrijft nu ook Firebase-alert weg en dubbele WhatsApp-knoppen worden opgeschoond.');
+})();
