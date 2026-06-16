@@ -664,3 +664,88 @@ console.log("[BNS v482 sync] ongewijzigd vanaf basis; app-popup gebruikt nu fold
   }catch(e){}
 })();
 console.log("[BNS v493 sync] update-signaal actief.");
+
+
+/* =========================================================
+   BNS 706 — Firebase live-listener bezorger-fix
+   
+   Oorzaak "5 seconden zichtbaar dan weg":
+   De onSnapshot live-listener overschrijft de volledige
+   orders-array met Firebase-data zonder preserveOrder te
+   gebruiken. Als Firebase een oudere versie zonder bezorger
+   terugstuurt, verdwijnt de bezorger na ~5 seconden.
+   
+   Fix: patch saveLocal zodat per order de lokale bezorger-
+   velden bewaard blijven als Firebase die niet teruggeeft.
+   
+   Niet aangeraakt: statistieken, lay-out, materiaal, factuur,
+   dashboard, opdracht-layout, driver/planner bestanden.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS_706_FIREBASE_LIVE_FIX__) return;
+  window.__BNS_706_FIREBASE_LIVE_FIX__ = true;
+
+  var DRIVER_FIELDS = [
+    'driver','driverId','driverName','bezorger','bezorgerId','bezorgerName',
+    'assignedDriver','assignedDriverId','assignedDriverName','userId','assigned',
+    'driverIds','driverNames','bezorgerIds','bezorgerNames',
+    'assignedDriverIds','assignedDriverNames','userIds',
+    'drivers','bezorgers','driverList','assignedDrivers','driverTruthAt'
+  ];
+
+  function hasDriver(o){
+    if(!o) return false;
+    return !!(
+      (o.driver && String(o.driver).trim()) ||
+      (o.bezorger && String(o.bezorger).trim()) ||
+      (Array.isArray(o.assignedDrivers) && o.assignedDrivers.length) ||
+      (Array.isArray(o.driverIds) && o.driverIds.length) ||
+      (Array.isArray(o.bezorgerIds) && o.bezorgerIds.length)
+    );
+  }
+
+  function patchSaveLocal(){
+    if(typeof saveLocal !== 'function' || saveLocal.__bns706LiveFix) return false;
+    var _orig = saveLocal;
+    function patched(s){
+      try{
+        if(s && Array.isArray(s.orders) && typeof loadLocal === 'function'){
+          var local = loadLocal() || {};
+          if(Array.isArray(local.orders) && local.orders.length){
+            s.orders = s.orders.map(function(remote){
+              if(!remote || !remote.id) return remote;
+              var loc = local.orders.find(function(l){
+                return l && (String(l.id) === String(remote.id) || String(l.docId) === String(remote.id));
+              });
+              if(!loc) return remote;
+              // Lokaal heeft bezorger, Firebase niet → bewaar lokale bezorger-velden
+              if(hasDriver(loc) && !hasDriver(remote)){
+                DRIVER_FIELDS.forEach(function(k){
+                  if(loc[k] !== undefined) remote[k] = loc[k];
+                });
+                try{ console.info('[BNS 706] Bezorger bewaard na live-sync:', remote.number || remote.id); }catch(e){}
+              }
+              return remote;
+            });
+          }
+        }
+      }catch(e){ try{ console.warn('[BNS 706] live-fix fout:', e); }catch(_){} }
+      return _orig.apply(this, arguments);
+    }
+    patched.__bns706LiveFix = true;
+    window.saveLocal = patched;
+    try{ saveLocal = patched; }catch(e){}
+    return true;
+  }
+
+  if(!patchSaveLocal()){
+    var _tries = 0;
+    var _iv = setInterval(function(){
+      _tries++;
+      if(patchSaveLocal() || _tries > 30) clearInterval(_iv);
+    }, 400);
+  }
+
+  console.info('[BNS 706] Firebase live-listener bezorger-fix actief.');
+})();
