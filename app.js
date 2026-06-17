@@ -52081,3 +52081,130 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   },2000);
   console.info('[BNS v713] Materiaalrubriek blijft vast bij gereserveerd/toegevoegd materiaal.');
 })();
+
+/* =========================================================
+   BNS 714 - Echte rubriek-vastzetting materiaal kiezen
+   Vanaf v713. Haalt gericht het werkende principe uit BNS700 terug:
+   BNS711 blijft de enige eind-renderer en oude v392/v611/renderMaterials
+   mogen de lijst niet meer terugtekenen naar BIERSLANG/eerste rubriek.
+   Geen wijziging aan reserveringsregels, save, admin, driver of sync.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS714_MATERIAL_PICKER_CAT_STABLE__) return;
+  window.__BNS714_MATERIAL_PICKER_CAT_STABLE__ = true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function U(v){ return T(v).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,24); }
+  function activeButtonCat(){
+    var b = document.querySelector('#materialCats [data-bns711-cat].active,#materialCats button.active');
+    if(!b) return '';
+    return U(b.getAttribute('data-bns711-cat') || b.getAttribute('data-bns392-cat') || b.getAttribute('data-bns386-cat') || b.getAttribute('data-bns-v50-cat') || b.textContent);
+  }
+  function remember(cat){
+    cat = U(cat || activeButtonCat() || window.__BNS714_KEEP_CAT || window.currentCat || localStorage.getItem('bns714MaterialCat') || '');
+    if(!cat) return '';
+    window.__BNS714_KEEP_CAT = cat;
+    window.currentCat = cat;
+    try{ currentCat = cat; }catch(e){}
+    try{ localStorage.setItem('bns714MaterialCat', cat); }catch(e){}
+    try{ localStorage.setItem('bns713ActiveMaterialCat', cat); }catch(e){}
+    return cat;
+  }
+  function rowCat(row){
+    if(!row) return '';
+    var key = T(row.getAttribute('data-bns711-mid') || row.getAttribute('data-material-id') || row.getAttribute('data-bns392-mid') || row.getAttribute('data-bns386-mid') || row.getAttribute('data-mid'));
+    try{
+      var st = (typeof state !== 'undefined' && state) ? state : window.state;
+      var list = st && Array.isArray(st.materials) ? st.materials : [];
+      var m = list.find(function(x){
+        if(!x) return false;
+        return T(x.id||x.materialId||x.docId||x.code) === key || U(x.code) === U(key);
+      });
+      return U(m && (m.cat || m.rubriek || m.category));
+    }catch(e){ return ''; }
+  }
+  function install(){
+    try{
+      if(!window.BNS_V711 || typeof window.BNS_V711.renderMaterials !== 'function') return false;
+      if(window.BNS_V711.__bns714Installed) return true;
+      var r0 = window.BNS_V711.renderMaterials;
+      var t0 = window.BNS_V711.toggleMaterial;
+      var wrappedRender = function(cat, force){
+        var c = remember(cat || window.__BNS714_KEEP_CAT || activeButtonCat());
+        return r0.call(this, c, force===undefined ? true : force);
+      };
+      wrappedRender.__bns714Wrapped = true;
+      window.BNS_V711.renderMaterials = wrappedRender;
+      if(typeof t0 === 'function') window.BNS_V711.toggleMaterial = function(key){
+        remember(rowCat(document.querySelector('#materialList [data-bns711-mid="'+String(key).replace(/"/g,'\\"')+'"]')) || activeButtonCat());
+        var out = t0.apply(this, arguments);
+        setTimeout(function(){ wrappedRender(window.__BNS714_KEEP_CAT, true); }, 80);
+        setTimeout(function(){ wrappedRender(window.__BNS714_KEEP_CAT, true); }, 350);
+        return out;
+      };
+      window.BNS_V711.__bns714Installed = true;
+
+      // Oude renderers laten doorverwijzen naar de eind-renderer. Dit was de kern van de oude BNS700-fix.
+      window.BNS_V392 = window.BNS_V392 || {};
+      window.BNS_V392.renderMaterials = wrappedRender;
+      if(typeof window.BNS_V711.toggleMaterial === 'function') window.BNS_V392.toggleMaterial = window.BNS_V711.toggleMaterial;
+      window.BNS_V392.__bns714DelegatesTo711 = true;
+
+      window.BNS_V611 = window.BNS_V611 || {};
+      window.BNS_V611.renderMaterials = wrappedRender;
+      if(typeof window.BNS_V711.toggleMaterial === 'function') window.BNS_V611.toggleMaterial = window.BNS_V711.toggleMaterial;
+      window.BNS_V611.__bns714DelegatesTo711 = true;
+
+      window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
+      window.BNS_STABLE_CORE.renderMaterials = wrappedRender;
+      if(typeof window.BNS_V711.toggleMaterial === 'function') window.BNS_STABLE_CORE.toggleMat = window.BNS_V711.toggleMaterial;
+
+      window.renderMaterials = wrappedRender;
+      if(typeof window.BNS_V711.toggleMaterial === 'function') window.addMat = window.BNS_V711.toggleMaterial;
+      try{ renderMaterials = wrappedRender; }catch(e){}
+      try{ if(typeof window.BNS_V711.toggleMaterial === 'function') addMat = window.BNS_V711.toggleMaterial; }catch(e){}
+      return true;
+    }catch(e){ return false; }
+  }
+  function renderNow(cat){
+    var c = remember(cat || activeButtonCat());
+    if(!install()) return;
+    try{ window.BNS_V711.renderMaterials(c, true); }catch(e){}
+  }
+  document.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t || !t.closest) return;
+    var catBtn = t.closest('#materialCats [data-bns711-cat],#materialCats button');
+    if(catBtn){
+      remember(catBtn.getAttribute('data-bns711-cat') || catBtn.getAttribute('data-bns392-cat') || catBtn.getAttribute('data-bns386-cat') || catBtn.getAttribute('data-bns-v50-cat') || catBtn.textContent);
+      setTimeout(function(){ renderNow(window.__BNS714_KEEP_CAT); }, 90);
+      setTimeout(function(){ renderNow(window.__BNS714_KEEP_CAT); }, 360);
+      return;
+    }
+    var row = t.closest('#materialList [data-bns711-mid],#materialList [data-material-id],#materialList [data-bns392-mid],#materialList [data-bns386-mid],#materialList [data-mid]');
+    if(row){
+      remember(rowCat(row) || activeButtonCat());
+      setTimeout(function(){ renderNow(window.__BNS714_KEEP_CAT); }, 90);
+      setTimeout(function(){ renderNow(window.__BNS714_KEEP_CAT); }, 360);
+      return;
+    }
+    if(t.closest('[data-bns711-close],[data-bns711-return-add],.bns-modal button,.modal button')){
+      setTimeout(function(){ renderNow(window.__BNS714_KEEP_CAT); }, 120);
+      setTimeout(function(){ renderNow(window.__BNS714_KEEP_CAT); }, 420);
+    }
+  }, true);
+  document.addEventListener('input', function(ev){
+    if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStart|orderEnd|startDate|endDate|orderStatus)$/.test(ev.target.id||'')){
+      setTimeout(function(){ renderNow(window.__BNS714_KEEP_CAT || activeButtonCat()); }, 80);
+    }
+  }, true);
+  document.addEventListener('change', function(ev){
+    if(ev.target && /^(dateStart|dateEnd|orderStart|orderEnd|startDate|endDate|orderStatus)$/.test(ev.target.id||'')){
+      setTimeout(function(){ renderNow(window.__BNS714_KEEP_CAT || activeButtonCat()); }, 80);
+    }
+  }, true);
+  [0,250,800,1600,3000].forEach(function(ms){ setTimeout(function(){ install(); renderNow(window.__BNS714_KEEP_CAT || activeButtonCat()); }, ms); });
+  setInterval(install, 1200);
+  try{ console.info('[BNS 714] materiaal kiezen: BNS711 is eind-renderer, rubriek blijft vast.'); }catch(e){}
+})();
