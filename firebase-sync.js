@@ -518,11 +518,25 @@ function bns708DriverValues(o){
   return vals.map(function(x){ return bns708Trim(x); }).filter(Boolean);
 }
 function bns708HasDriver(o){ return bns708DriverValues(o).length>0; }
+function bns708StatusText(o){
+  return bns708Norm([o&&o.folder,o&&o.map,o&&o.orderFolder,o&&o.status,o&&o.state,o&&o.orderStatus].filter(Boolean).join(' '));
+}
+function bns708MayHaveDriver(remote, local){
+  const t=bns708StatusText(remote)+' '+bns708StatusText(local);
+  if(/old_|archief|offerte|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|done|klaar|afgemeld/.test(t)) return false;
+  if(/lopend|lopende opdracht|lopende opdrachten|bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief/.test(t)) return true;
+  return false;
+}
 function bns708CopyDriverFields(remote, local){
   const fields=['driver','driverId','driverName','bezorger','bezorgerId','bezorgerName','assignedDriver','assignedDriverId','assignedDriverName','userId','assigned','driverTruthAt','driverIds','driverNames','bezorgerIds','bezorgerNames','assignedDriverIds','assignedDriverNames','userIds','drivers','bezorgers','driverList','assignedDrivers'];
   fields.forEach(function(k){
     if(local && Object.prototype.hasOwnProperty.call(local,k)) remote[k]=local[k];
   });
+  if(bns708MayHaveDriver(remote, local)){
+    remote.folder='lopend';
+    remote.map='lopend';
+    remote.orderFolder='lopend';
+  }
   return remote;
 }
 function bns708PreserveLiveOrderDrivers(remoteRows, localRows){
@@ -534,14 +548,14 @@ function bns708PreserveLiveOrderDrivers(remoteRows, localRows){
       if(!local) return remote;
       const localHas=bns708HasDriver(local);
       const remoteHas=bns708HasDriver(remote);
-      if(localHas && !remoteHas){
+      if(localHas && !remoteHas && bns708MayHaveDriver(remote, local)){
         bns708CopyDriverFields(remote, local);
-        try{ console.info('[BNS 708] Bezorger beschermd bij Firebase live-sync:', remote.number || remote.orderNumber || remote.id); }catch(e){}
+        try{ console.info('[BNS 708b] Bezorger beschermd na Firebase live-sync:', remote.number || remote.orderNumber || remote.id); }catch(e){}
       }
       return remote;
     });
   }catch(e){
-    try{ console.warn('[BNS 708] live driver preserve fout', e); }catch(_){ }
+    try{ console.warn('[BNS 708b] live driver preserve fout', e); }catch(_){ }
     return remoteRows;
   }
 }
@@ -563,6 +577,7 @@ async function live(){
       var bns708Rows=snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()}));
       if(col==="orders") bns708Rows=bns708PreserveLiveOrderDrivers(bns708Rows, s.orders);
       s[col]=bns460FilterRows(col,bns708Rows,false);
+      if(col==="orders") s[col]=bns708PreserveLiveOrderDrivers(s[col], s.orders);
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
