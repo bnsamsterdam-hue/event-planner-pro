@@ -41189,7 +41189,8 @@ setTimeout(()=>{
       if(p) msg += '<br><b>Datum reservering:</b> '+esc(nlDate(p.start))+' tot '+esc(nlDate(p.end));
       var wp=wantedPeriod(); if(wp) msg += '<br><b>Jouw datum:</b> '+esc(nlDate(wp.start))+' tot '+esc(nlDate(wp.end));
     }
-    if(typeof window.bnsAlert==='function') window.bnsAlert(msg,'Materiaal status');
+    if(typeof window.BNS710_MATERIAL_HTML_ALERT==='function') window.BNS710_MATERIAL_HTML_ALERT(msg,'Materiaal status');
+    else if(typeof window.bnsAlert==='function') window.bnsAlert(msg,'Materiaal status');
     else alert((m.code||'')+' '+(m.name||'')+'\n'+(st.label||'Niet beschikbaar'));
   }
   function nlDate(d){ if(!d) return ''; return d.getDate()+'-'+(d.getMonth()+1)+'-'+d.getFullYear(); }
@@ -42174,7 +42175,8 @@ setTimeout(()=>{
       if(p) html += '<br><b>Datum reservering:</b> '+H(nlDate(p.start))+' tot '+H(nlDate(p.end));
       var wp=wantedPeriod(); if(wp) html += '<br><b>Jouw datum:</b> '+H(nlDate(wp.start))+' tot '+H(nlDate(wp.end));
     }
-    if(typeof window.bnsAlert === 'function') window.bnsAlert(html,'Materiaal status');
+    if(typeof window.BNS710_MATERIAL_HTML_ALERT==='function') window.BNS710_MATERIAL_HTML_ALERT(html,'Materiaal status');
+    else if(typeof window.bnsAlert === 'function') window.bnsAlert(html,'Materiaal status');
     else alert((codeOf(m)+' '+nameOf(m)+'\n'+(st.label||'Niet beschikbaar')));
   }
 
@@ -49392,7 +49394,24 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return null; }
   function orders(){ var s=stateObj(); return s && Array.isArray(s.orders) ? s.orders : []; }
   function isOldArt(m){ return /^art_/i.test(T(m&&m.id)) || /oude prijs/i.test(T(m&&m.price)); }
-  function codeOf(m){ return T(m && (m.code || m.productCode || m.materialCode || m.nrCode)); }
+  function codeOf(m){
+    if(!m) return '';
+    function canon(v){
+      v=U(v).replace(/[^A-Z0-9]/g,'');
+      if(!v) return '';
+      if(/^(EXTRA|NVT|GEEN|LOS|OVERIG|DIVERS|ALGEMEEN|TRANSPORT|SERVICE|SERV|BEZORGING|BEZORG|KORTING|BORG|TEKST)$/.test(v)) return '';
+      var mm=v.match(/^(TAPW|TW|KW|TO|SLANG|BIERSLANG|POMP|CONT|KOEL|WC|BAR|TANK)0*(\d{1,6})$/);
+      if(mm){ var pr=mm[1]; if(pr==='TAPW') pr='TW'; return pr+String(parseInt(mm[2],10)); }
+      mm=v.match(/\b(TAPW|TW|KW|TO|SLANG|BIERSLANG|POMP|CONT|KOEL|WC|BAR|TANK)\s*[-_]?\s*0*(\d{1,6})\b/);
+      if(mm){ var pr2=mm[1]; if(pr2==='TAPW') pr2='TW'; return pr2+String(parseInt(mm[2],10)); }
+      return '';
+    }
+    var direct=[m.code,m.productCode,m.materialCode,m.artikelcode,m.articleCode,m.nrCode,m.productNr,m.productNo,m.nr,m.number,m.type,m.sku,m.oldCode];
+    for(var i=0;i<direct.length;i++){ var c=canon(direct[i]); if(c) return c; }
+    var text=[m.product,m.searchName,m.zoeknaam,m.name,m.description,m.beschrijving];
+    for(var j=0;j<text.length;j++){ var c2=canon(text[j]); if(c2) return c2; }
+    return T(m.code||m.productCode||m.materialCode||m.nrCode||m.productNr||m.nr||m.number||m.type||'');
+  }
   function nameOf(m){ return T(m && (m.name || m.product || m.productName || m.searchName || m.zoeknaam || m.type || m.description || m.desc)); }
   function descOf(m){ return T(m && (m.description || m.beschrijving || m.desc || m.notes || m.note || m.price)); }
   function catFromCode(code){ var m=U(code).match(/^[A-Z]+/); return m ? m[0] : ''; }
@@ -49452,12 +49471,33 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
   function sameMaterial(a,b){
     if(!a || !b) return false;
-    var ai=T(a.id||a.materialId||a.docId), bi=T(b.id||b.materialId||b.docId);
-    if(ai && bi && U(ai)===U(bi)) return true;
-    var ao=T(a.oldId), bo=T(b.oldId);
-    if(ao && bo && U(ao)===U(bo)) return true;
-    var ac=codeOf(a), bc=codeOf(b);
-    if(ac && bc && U(ac)===U(bc)) return true;
+    function clean(v){ return U(v).replace(/[^A-Z0-9]/g,''); }
+    function canon(v){
+      v=clean(v);
+      if(!v) return '';
+      if(/^(EXTRA|NVT|GEEN|LOS|OVERIG|DIVERS|ALGEMEEN|TRANSPORT|SERVICE|SERV|BEZORGING|BEZORG|KORTING|BORG|TEKST)$/.test(v)) return '';
+      var m=v.match(/^(TAPW|TW|KW|TO|SLANG|BIERSLANG|POMP|CONT|KOEL|WC|BAR|TANK)0*(\d{1,6})$/);
+      if(m){ var p=m[1]; if(p==='TAPW') p='TW'; return p+String(parseInt(m[2],10)); }
+      m=v.match(/\b(TAPW|TW|KW|TO|SLANG|BIERSLANG|POMP|CONT|KOEL|WC|BAR|TANK)\s*[-_]?\s*0*(\d{1,6})\b/);
+      if(m){ var p2=m[1]; if(p2==='TAPW') p2='TW'; return p2+String(parseInt(m[2],10)); }
+      return '';
+    }
+    function vals(o,fields){
+      var out=[];
+      fields.forEach(function(k){
+        var v=o&&o[k];
+        if(Array.isArray(v)) v.forEach(function(x){ out.push(x); });
+        else if(v && typeof v==='object') ['id','materialId','docId','oldId','code','materialCode','productCode','productNr','nr','number','type','sku','name','description'].forEach(function(kk){ if(v[kk]) out.push(v[kk]); });
+        else if(v!=null && v!=='') out.push(v);
+      });
+      return out;
+    }
+    var idFields=['id','materialId','docId','oldId','firebaseId','originalId'];
+    var codeFields=['code','productCode','materialCode','artikelcode','articleCode','nrCode','productNr','productNo','nr','number','type','sku','oldCode','product','searchName','zoeknaam','name','description','beschrijving'];
+    var ai=vals(a,idFields).map(clean).filter(Boolean), bi=vals(b,idFields).map(clean).filter(Boolean);
+    for(var i=0;i<ai.length;i++){ if(bi.indexOf(ai[i])>=0) return true; }
+    var ac=vals(a,codeFields).map(canon).filter(Boolean), bc=vals(b,codeFields).map(canon).filter(Boolean);
+    for(var j=0;j<ac.length;j++){ if(bc.indexOf(ac[j])>=0) return true; }
     return false;
   }
   function chosenList(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen) ? window.chosen : []; }
@@ -49479,7 +49519,20 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var e=E('dateEnd')||E('orderEnd')||E('endDate')||E('datumEnd');
     return period(s&&s.value,(e&&e.value)||(s&&s.value));
   }
-  function orderRange(o){ return period(o && (o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o && (o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
+  function orderRange(o){
+    if(!o) return null;
+    var start=o.start||o.dateStart||o.startDate||o.datumStart||o.from||o.fromDate||o.start_at||o.startAt||o.deliveryDate||o.deliverDate||o.bezorgDatum||o.datum||o.date;
+    var end=o.end||o.dateEnd||o.endDate||o.datumEnd||o.to||o.toDate||o.end_at||o.endAt||o.pickupDate||o.returnDate||o.retourDatum||o.eindDatum||o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum;
+    if(o.period && typeof o.period==='object'){
+      start=start||o.period.start||o.period.from||o.period.dateStart;
+      end=end||o.period.end||o.period.to||o.period.dateEnd;
+    }
+    if(o.reservation && typeof o.reservation==='object'){
+      start=start||o.reservation.start||o.reservation.from||o.reservation.dateStart;
+      end=end||o.reservation.end||o.reservation.to||o.reservation.dateEnd;
+    }
+    return period(start,end);
+  }
   function todayMs(){ var d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
   function endPast(o){ var p=orderRange(o); return !!(p && p.end.getTime() < todayMs()); }
   function optionExpired(o){
@@ -49488,28 +49541,58 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     return todayMs() >= d.getTime() + 14*24*60*60*1000;
   }
   function blocksOrder(o){
-    var s=L(o&&o.status);
-    if(!o || !s) return false;
-    if(/geannuleerd|cancel|verwijderd|deleted|trash/.test(s)) return false;
-    if(/offerte/.test(s)) return false;
-    if(/uitgevoerd|afgerond|voltooid|done|klaar/.test(s)) return false;
-    if(/optie\s*14|optie14/.test(s)) return !optionExpired(o);
-    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(s)) return !endPast(o);
+    if(!o) return false;
+    var s=L(o.status||o.state||o.orderStatus||'');
+    var f=L(o.folder||o.map||o.orderFolder||'');
+    if(f==='live') f='lopend';
+    if(f==='optie') f='optie14';
+    if(f==='old') f='archief';
+    var all=(s+' '+f);
+    if(/old_|archief|geannuleerd|geann|annul|cancel|verwijderd|deleted|trash|uitgevoerd|afgerond|voltooid|done|klaar|afgemeld/.test(all)) return false;
+    if(/offerte/.test(all)) return false;
+    if(/optie\s*14|optie14|option/.test(all)) return !optionExpired(o);
+    if(/lopend|lopende opdracht|lopende opdrachten|bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|gereserveerd|actief/.test(all)) return !endPast(o);
     return false;
   }
-  function editingId(){ try{ if(T(editing)) return T(editing); }catch(e){} return T(window.editing||''); }
-  function editingNumber(){ var n=E('orderNumber'); return T(n&&n.value); }
-
+  function editKeys(){
+    var out=[];
+    function add(v){ v=U(v); if(v && out.indexOf(v)<0) out.push(v); }
+    try{ add(editing); }catch(e){}
+    add(window.editing); add(window.currentOrderId); add(window.currentOrderNumber); add(window.__currentOrderId); add(window.__currentOrderNumber);
+    ['orderNumber','number','orderNo','orderNr','orderId','docId','id'].forEach(function(id){ var el=E(id); if(el) add(el.value); });
+    return out;
+  }
+  function orderKeys(o){
+    var out=[];
+    function add(v){ v=U(v); if(v && out.indexOf(v)<0) out.push(v); }
+    ['id','docId','orderId','firebaseId','number','orderNumber','orderNo','orderNr'].forEach(function(k){ add(o&&o[k]); });
+    return out;
+  }
+  function sameOrderAsCurrent(o){
+    var ek=editKeys(), ok=orderKeys(o);
+    if(!ek.length || !ok.length) return false;
+    return ek.some(function(k){ return ok.indexOf(k)>=0; });
+  }
+  function orderMaterials(o){
+    var out=[];
+    ['materials','orderMaterials','selectedMaterials','materiaal','materialen','items','lines'].forEach(function(k){
+      var v=o&&o[k];
+      if(Array.isArray(v)) out=out.concat(v);
+    });
+    return out.filter(function(x){
+      var c=codeOf(x);
+      if(!c) return false;
+      return !/^(TRANSPORT|SERVICE|SERV|BEZORGING|BEZORG|KORTING|BORG|TEKST)$/i.test(c);
+    });
+  }
   function reservationFor(m){
     var want=currentRange(); if(!want || !m) return null;
-    var eid=editingId(), nr=editingNumber();
     var os=orders();
     for(var i=0;i<os.length;i++){
       var o=os[i]; if(!o || !blocksOrder(o)) continue;
-      if(eid && T(o.id)===eid) continue;
-      if(nr && T(o.number)===nr) continue;
+      if(sameOrderAsCurrent(o)) continue;
       var op=orderRange(o); if(!overlaps(want,op)) continue;
-      var ml=A(o.materials);
+      var ml=orderMaterials(o);
       for(var j=0;j<ml.length;j++){
         if(sameMaterial(ml[j],m)) return {order:o,period:op,wanted:want,match:ml[j]};
       }
@@ -52382,4 +52465,32 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   setTimeout(dedupeWhatsAppButtons,1200);
 
   console.info('[BNS v699] Overzicht bestelling: Wis schrijft nu ook Firebase-alert weg en dubbele WhatsApp-knoppen worden opgeschoond.');
+})();
+
+
+/* =========================================================
+   BNS 710 - materiaal reservering waterdicht + nette HTML-popup
+   Alleen app.js materiaalstatus/reserveringscheck. Geen Firebase, geen
+   dashboard/statistiek, geen factuur/layout, geen driver, geen materiaalbeheer.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS710_MATERIAL_POPUP__) return;
+  window.__BNS710_MATERIAL_POPUP__=true;
+  function esc(s){ return String(s==null?'':s); }
+  window.BNS710_MATERIAL_HTML_ALERT=function(html,title){
+    try{
+      var id='bns710MaterialStatusModal';
+      var modal=document.getElementById(id);
+      if(!modal){
+        modal=document.createElement('div'); modal.id=id; document.body.appendChild(modal);
+        modal.addEventListener('click',function(ev){ if(ev.target===modal || (ev.target&&ev.target.getAttribute&&ev.target.getAttribute('data-bns710-close'))){ modal.style.display='none'; } },true);
+      }
+      modal.style.cssText='position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+      modal.innerHTML='<div style="background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:720px;width:100%;box-shadow:0 20px 60px rgba(15,23,42,.35);font-family:inherit"><h2 style="margin:0 0 12px 0">'+esc(title||'Materiaal status')+'</h2><div style="border:1px solid #dbe3ef;border-radius:14px;padding:14px;margin:12px 0;line-height:1.55">'+esc(html||'')+'</div><button type="button" data-bns710-close="1" style="border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:900;padding:11px 18px;cursor:pointer">OK</button></div>';
+    }catch(e){
+      try{ alert(String(html||'').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'')); }catch(_){ }
+    }
+  };
+  console.info('[BNS 710] materiaal reservering/popup fix actief');
 })();
