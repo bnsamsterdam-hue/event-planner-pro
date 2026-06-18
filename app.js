@@ -51918,3 +51918,159 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
   try{ console.info('[BNS 718] materiaal kiezen rust: BNS611 enige renderer, retourdag override zonder flikker.'); }catch(e){}
 })();
+
+
+/* =========================================================
+   BNS 719 — Rubriek fix + flikker fix (minimaal, gericht)
+   
+   Oorzaak 1 (bierslang): setCat() valt terug op firstCat()
+   als de opgeslagen cat niet in categoryList() zit op het
+   moment dat renderKeep() wordt aangeroepen. Eerste cat
+   alphabetisch is BIERSLANG.
+   
+   Oorzaak 2 (flikker): installAll() elke 900ms roept
+   renderKeep(force=true) aan wat altijd de DOM herwritet.
+   
+   Fix: patch setCat zodat de opgeslagen cat ALTIJD wint,
+   ook als categoryList hem nog niet kent. En stop de
+   force=true renders van BNS718 installAll.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS_719__) return;
+  window.__BNS_719__ = true;
+
+  function U(v){ return String(v==null?'':v).trim().toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+  /* --- Fix 1: patch setCat in BNS611 zodat opgeslagen cat altijd wint --- */
+  function patchSetCat(){
+    if(!window.BNS_V611) return false;
+    // BNS611 setCat zit als closure - we kunnen hem niet direct patchen
+    // Maar renderMaterials611 wordt aangeroepen met cat-argument
+    // We zorgen dat het cat-argument altijd de opgeslagen cat meekrijgt
+    // door renderMaterials611 te wrappen
+    var origRender = window.BNS_V611.renderMaterials;
+    if(!origRender || origRender.__bns719) return false;
+    var wrapped = function(cat, force){
+      // Bepaal de beste cat: opgegeven > opgeslagen > huidige
+      var saved = U(window.__BNS718_KEEP_CAT || window.__BNS613_LAST_CAT || window.__BNS_LAST_CAT__ || '');
+      var best = U(cat) || saved || U(window.currentCat || '');
+      // Zet de opgeslagen cat altijd ook in window.currentCat zodat setCat hem vindt
+      if(saved){
+        window.currentCat = saved;
+        window.__BNS_LAST_CAT__ = saved;
+        try{ currentCat = saved; }catch(e){}
+      }
+      return origRender.call(this, best || cat, force);
+    };
+    wrapped.__bns719 = true;
+    wrapped.__bns718ReturnWrapped = origRender.__bns718ReturnWrapped;
+    wrapped.__bnsV611 = true;
+    wrapped.__bnsMatDebounced = true;
+    window.BNS_V611.renderMaterials = wrapped;
+    window.renderMaterials = wrapped;
+    window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
+    window.BNS_STABLE_CORE.renderMaterials = wrapped;
+    if(window.BNS_V392) window.BNS_V392.renderMaterials = wrapped;
+    try{ renderMaterials = wrapped; }catch(e){}
+    return true;
+  }
+
+  /* --- Fix 2: stop de force=true flikker van BNS718 installAll --- */
+  // BNS718 roept setInterval(installAll, 900) aan
+  // installAll roept renderKeep(true) aan
+  // renderKeep(true) triggert altijd DOM-update
+  // We patchen renderKeep zodat force=true alleen werkt als sig veranderd is
+  function patchRenderKeep(){
+    if(!window.__BNS_718_RENDERKEEP_PATCHED__){
+      var origRK = window.renderKeep;
+      // renderKeep is een lokale closure in BNS718, we kunnen hem niet direct patchen
+      // Maar we kunnen de sig-check imiteren: track de laatste render-sig
+      window.__BNS_718_RENDERKEEP_PATCHED__ = true;
+    }
+    // Alternatief: patch renderMaterials611 zodat force=true genegeerd wordt
+    // als de sig hetzelfde is (BNS611 doet dit al intern via lastSig)
+    // Het probleem is dat BNS718 force=true doorgeeft wat lastSig overschrijft
+    // Oplossing: na installeren, override de sig-check door force=false te sturen
+    // tenzij er echt iets veranderd is
+    if(!window.BNS_V611) return false;
+    var r = window.BNS_V611.renderMaterials;
+    if(!r || r.__bns719NoForce) return false;
+    var lastForceSig = '';
+    var orig719 = r;
+    var withSig = function(cat, force){
+      if(force){
+        // Bereken een snelle sig om te zien of force echt nodig is
+        var c = U(cat || window.currentCat || '');
+        var chosen = '';
+        try{ chosen = (window.chosen||[]).map(function(x){ return x&&(x.id||x.code); }).join(','); }catch(e){}
+        var ds = (document.getElementById('dateStart')||{}).value||'';
+        var de = (document.getElementById('dateEnd')||{}).value||'';
+        var sig = c+'|'+ds+'|'+de+'|'+chosen;
+        if(sig === lastForceSig){
+          force = false; // Niets veranderd - geen force nodig
+        } else {
+          lastForceSig = sig;
+        }
+      }
+      return orig719.call(this, cat, force);
+    };
+    withSig.__bns719NoForce = true;
+    withSig.__bns719 = true;
+    withSig.__bnsV611 = true;
+    withSig.__bnsMatDebounced = true;
+    window.BNS_V611.renderMaterials = withSig;
+    window.renderMaterials = withSig;
+    window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
+    window.BNS_STABLE_CORE.renderMaterials = withSig;
+    if(window.BNS_V392) window.BNS_V392.renderMaterials = withSig;
+    try{ renderMaterials = withSig; }catch(e){}
+    return true;
+  }
+
+  /* --- Rubriek-klik en materiaal-klik: cat opslaan --- */
+  document.addEventListener('pointerdown', function(ev){
+    var t = ev.target; if(!t || !t.closest) return;
+    var cb = t.closest('#materialCats button,[data-bns611-cat],[data-bns392-cat],[data-cat]');
+    if(cb){
+      var c = U(cb.getAttribute('data-bns611-cat') || cb.getAttribute('data-bns392-cat') || cb.getAttribute('data-cat') || cb.textContent);
+      if(c){
+        window.__BNS718_KEEP_CAT = c;
+        window.__BNS613_LAST_CAT = c;
+        window.__BNS_LAST_CAT__ = c;
+        window.currentCat = c;
+        try{ currentCat = c; }catch(e){}
+        try{ localStorage.setItem('bns613LastMaterialCat', c); }catch(e){}
+      }
+    }
+  }, true);
+
+  /* --- Na popup sluiten: herstel cat --- */
+  document.addEventListener('click', function(ev){
+    var t = ev.target; if(!t || !t.closest) return;
+    if(t.closest('[data-bns718-close],[data-bns718-add],[data-bns611-close],#bns611MaterialInfoModal button')){
+      var c = U(window.__BNS718_KEEP_CAT || window.__BNS613_LAST_CAT || window.currentCat || '');
+      if(c){
+        window.currentCat = c;
+        window.__BNS_LAST_CAT__ = c;
+        try{ currentCat = c; }catch(e){}
+        setTimeout(function(){
+          var r = window.BNS_V611 && window.BNS_V611.renderMaterials;
+          if(typeof r === 'function') r(c, false);
+        }, 50);
+      }
+    }
+  }, true);
+
+  /* --- Installeer en herinstalleer na BNS718 elke 900ms --- */
+  function install(){
+    patchSetCat();
+    patchRenderKeep();
+  }
+
+  [100, 500, 1000, 2000].forEach(function(ms){ setTimeout(install, ms); });
+  // Elke 950ms - net na BNS718's 900ms installAll
+  setInterval(install, 950);
+
+  console.info('[BNS 719] Rubriek-fix: bierslang terugval geblokkeerd, force-flikker gestopt.');
+})();
