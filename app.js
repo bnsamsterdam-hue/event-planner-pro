@@ -52137,3 +52137,125 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
   try{ console.info('[BNS 716] V392 keepCat actief - gereserveerd blijft strak, rubriek blijft vast.'); }catch(e){}
 })();
+
+/* =========================================================
+   BNS 717 - Materiaal kiezen: BNS611 wint definitief van V392/V393/BNS711
+   Alleen UI/render-stabilisatie. Geen wijziging aan reserveringslogica,
+   Firebase writes, save, opdrachtnummers, driver, Waze of admin-data.
+
+   Oorzaak gezien in test:
+   - V393 zet elke 2000ms window.addMat/window.renderMaterials terug naar BNS_V392.
+   - BNS711 kon ook opnieuw eigen rows/render activeren.
+   - Daarom moet BNS_V392 zelf blijvend doorverwijzen naar BNS_V611.
+   Gevolg: als V393 wint, zet hij alsnog BNS611 terug.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS717_BNS611_WINT_V392_V393__) return;
+  window.__BNS717_BNS611_WINT_V392_V393__ = true;
+
+  function U(v){ return String(v==null?'':v).trim().toUpperCase(); }
+  function activeCat(){
+    try{
+      var b=document.querySelector('#materialCats .active[data-bns611-cat],#materialCats .active[data-cat],#materialCats button.active,#materialCats [aria-pressed="true"]');
+      if(b){
+        var c=b.getAttribute('data-bns611-cat')||b.getAttribute('data-cat')||(b.dataset&&b.dataset.cat)||b.textContent;
+        c=U(c); if(c) return c;
+      }
+    }catch(e){}
+    try{ if(window.__BNS629_KEEP_CAT) return U(window.__BNS629_KEEP_CAT); }catch(e){}
+    try{ if(window.__BNS626_KEEP_CAT) return U(window.__BNS626_KEEP_CAT); }catch(e){}
+    try{ if(window.__BNS613_LAST_CAT) return U(window.__BNS613_LAST_CAT); }catch(e){}
+    try{ if(window.__BNS716_KEEP_CAT) return U(window.__BNS716_KEEP_CAT); }catch(e){}
+    try{ if(window.currentCat) return U(window.currentCat); }catch(e){}
+    try{ return U(localStorage.getItem('bns613LastMaterialCat')||''); }catch(e){}
+    return '';
+  }
+  function rememberCat(c){
+    c=U(c||activeCat()); if(!c) return '';
+    window.currentCat=c;
+    window.__BNS629_KEEP_CAT=c;
+    window.__BNS626_KEEP_CAT=c;
+    window.__BNS613_LAST_CAT=c;
+    window.__BNS716_KEEP_CAT=c;
+    try{ currentCat=c; }catch(e){}
+    try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
+    return c;
+  }
+  function wrapToggle(t){
+    if(typeof t!=='function') return t;
+    if(t.__bns717KeepCat) return t;
+    var original=t.__bns717Original || t;
+    var wrapped=function(){
+      var c=rememberCat(activeCat());
+      var out;
+      try{ out=original.apply(this,arguments); }
+      finally{
+        if(c){
+          rememberCat(c);
+          [0,60,180,420].forEach(function(ms){ setTimeout(function(){ try{ window.BNS_V611.renderMaterials(c,true); }catch(e){} },ms); });
+        }
+      }
+      return out;
+    };
+    wrapped.__bns717KeepCat=true;
+    wrapped.__bns717Original=original;
+    return wrapped;
+  }
+  function install(){
+    try{
+      if(!window.BNS_V611 || typeof window.BNS_V611.renderMaterials!=='function') return false;
+      var r=window.BNS_V611.renderMaterials;
+      var t=wrapToggle(window.BNS_V611.toggleMaterial);
+      if(typeof t==='function') window.BNS_V611.toggleMaterial=t;
+
+      // Cruciaal: V392 zelf naar V611 laten wijzen. Als V393 daarna exposeOnce doet,
+      // zet hij dus ook weer V611 terug, niet de oude V392-renderer.
+      window.BNS_V392=window.BNS_V392||{};
+      window.BNS_V392.renderMaterials=r;
+      if(typeof t==='function') window.BNS_V392.toggleMaterial=t;
+      window.BNS_V392.__bns717DelegatesTo611=true;
+
+      window.BNS_STABLE_CORE=window.BNS_STABLE_CORE||{};
+      window.BNS_STABLE_CORE.renderMaterials=r;
+      if(typeof t==='function') window.BNS_STABLE_CORE.toggleMat=t;
+
+      window.renderMaterials=r;
+      if(typeof t==='function') window.addMat=t;
+      try{ renderMaterials=r; }catch(e){}
+      try{ if(typeof t==='function') addMat=t; }catch(e){}
+      return true;
+    }catch(e){ return false; }
+  }
+  function renderNow(){
+    if(!install()) return;
+    var c=rememberCat(activeCat());
+    try{ if(c) window.BNS_V611.renderMaterials(c,true); }catch(e){}
+  }
+
+  [0,100,300,700,1200,2100,3200,5000].forEach(function(ms){ setTimeout(renderNow,ms); });
+  // Sneller dan V393 en na V393. Geen data-writes, alleen functieverwijzingen.
+  setInterval(install,500);
+  setInterval(function(){ var c=activeCat(); if(c) rememberCat(c); },700);
+  setInterval(function(){ var c=activeCat(); if(c) renderNow(); },2100);
+
+  document.addEventListener('pointerdown',function(ev){
+    try{
+      var t=ev.target; if(!t||!t.closest) return;
+      var b=t.closest('#materialCats [data-bns611-cat],#materialCats [data-cat],#materialCats button');
+      if(b) rememberCat(b.getAttribute('data-bns611-cat')||b.getAttribute('data-cat')||(b.dataset&&b.dataset.cat)||b.textContent);
+      else if(t.closest('#materialList [data-bns611-mid],#materialList [data-material-id],#materialList .bns611-row')) rememberCat(activeCat());
+    }catch(e){}
+  },true);
+  document.addEventListener('click',function(ev){
+    try{
+      var t=ev.target; if(!t||!t.closest) return;
+      if(t.closest('#materialList [data-bns611-mid],#materialList [data-material-id],#materialList .bns611-row,#materialCats button,#bns611MaterialInfoModal button,#bns611MaterialStatusModal button,.modal button')){
+        var c=rememberCat(activeCat());
+        [80,220,600].forEach(function(ms){ setTimeout(function(){ if(c) renderNow(); },ms); });
+      }
+    }catch(e){}
+  },true);
+
+  try{ console.info('[BNS 717] BNS611 wint definitief van V392/V393/BNS711; gereserveerd blijft strak.'); }catch(e){}
+})();
