@@ -51672,8 +51672,12 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   try{ console.info('[BNS 691] Zoekbalk in Bijzonderheden-keuze actief.'); }catch(e){}
 })();
 
-
-
+/* =========================================================
+   BNS 711 - UITGESCHAKELD IN V720
+   Reden: deze laag tekende materiaal kiezen opnieuw naast BNS V392/V393
+   en veroorzaakte flikkeren/terugspringen naar Bierslang.
+   Reserveringslogica blijft via BNS V392 actief.
+   ========================================================= */
 /* =========================================================
    BNS 712 - Status/folder borging voor bezorgertelefoon
    Doel: een bevestigde opdracht mag niet door een oude folder/map waarde
@@ -51711,366 +51715,135 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 })();
 
 /* =========================================================
-   BNS 718 - Materiaal kiezen rust: BNS611 blijft enige renderer
-   Basis: v712. Verwijdert de BNS711 eigen materiaal-renderlaag.
-   Doel:
-   - geen flikkeren van Gereserveerd door dubbele renderers;
-   - geen terugval naar Bierslang/TW na popup of klik;
-   - V392/V393 mogen alleen nog doorverwijzen naar BNS611;
-   - reservering blijft strak: gereserveerd blijft geblokkeerd;
-   - alleen retourdag krijgt bewuste knop "Toch toevoegen op ophaaldag".
-   Raakt niet aan: driver, firebase-sync, dashboard, admin, factuur/layout.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS718_MATERIAL_RUST__) return;
-  window.__BNS718_MATERIAL_RUST__ = true;
-
-  var MODAL_ID = 'bns718ReturnDayModal';
-  var STYLE_ID = 'bns718ReturnDayCss';
-
-  function E(id){ return document.getElementById(id); }
-  function A(v){ return Array.isArray(v) ? v : []; }
-  function T(v){ return String(v == null ? '' : v).trim(); }
-  function U(v){ return T(v).toUpperCase().replace(/\s+/g,''); }
-  function L(v){ return T(v).toLowerCase(); }
-  function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-  function clone(o){ try{ return JSON.parse(JSON.stringify(o)); }catch(e){ return Object.assign({}, o || {}); } }
-  function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} try{ if(window.state) return window.state; }catch(e){} return {}; }
-  function chosenList(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return A(window.chosen); }
-  function setChosen(list){ try{ chosen = list; }catch(e){} window.chosen = list; }
-  function refreshChosen(){ try{ if(typeof renderChosen === 'function') renderChosen(); }catch(e){} try{ if(typeof summaryRender === 'function') summaryRender(); }catch(e){} try{ if(typeof calcTotals === 'function') calcTotals(); }catch(e){} }
-  function parseDate(v){
-    v=T(v); if(!v) return null;
-    var m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m){ var d=new Date(+m[1],+m[2]-1,+m[3]); d.setHours(0,0,0,0); return isNaN(d)?null:d; }
-    m=v.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})/); if(m){ var y=+m[3]; if(y<100)y+=2000; var d2=new Date(y,+m[2]-1,+m[1]); d2.setHours(0,0,0,0); return isNaN(d2)?null:d2; }
-    var d3=new Date(v); if(!isNaN(d3)){ d3.setHours(0,0,0,0); return d3; }
-    return null;
-  }
-  function currentStart(){
-    var el=E('dateStart')||E('orderStart')||E('startDate')||E('datumStart')||E('date');
-    return parseDate(el && el.value);
-  }
-  function sameDay(a,b){ return !!(a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()); }
-  function nice(d){ return d ? (d.getDate()+'-'+(d.getMonth()+1)+'-'+d.getFullYear()) : ''; }
-  function codeOf(m){ return T(m && (m.code || m.materialCode || m.productNr || m.nr || m.nummer || m.number || m.id)); }
-  function nameOf(m){ return T(m && (m.name || m.title || m.productName || m.zoeknaam || m.searchName || m.description || m.omschrijving)); }
-  function catOf(m){
-    var c=U(m && (m.cat || m.rubriek || m.category || m.categorie));
-    if(!c){ var cd=codeOf(m); var mm=U(cd).match(/^[A-Z]+/); c=mm?mm[0]:''; }
-    return c || U(window.currentCat || window.__BNS613_LAST_CAT || 'TAPW');
-  }
-  function keyOf(m){ return U(m && (m.id || m.materialId || m.docId || m.oldId || m.code || m.materialCode || m.productNr || m.nr || m.nummer || m.number)); }
-  function materialLists(){
-    var out=[];
-    try{ if(Array.isArray(window.__BNS611_MATERIALS)) out=out.concat(window.__BNS611_MATERIALS); }catch(e){}
-    try{ if(Array.isArray(window.__BNS609_MATERIALS)) out=out.concat(window.__BNS609_MATERIALS); }catch(e){}
-    try{ if(Array.isArray(window.__BNS608_MATERIALS)) out=out.concat(window.__BNS608_MATERIALS); }catch(e){}
-    try{ var s=stateObj(); if(Array.isArray(s.materials)) out=out.concat(s.materials); }catch(e){}
-    return out;
-  }
-  function findMaterial(key){
-    key=U(key); if(!key) return null;
-    var list=materialLists();
-    for(var i=0;i<list.length;i++){
-      var m=list[i];
-      if(!m) continue;
-      if(keyOf(m)===key || U(codeOf(m))===key) return m;
-    }
-    return null;
-  }
-  function keepCat(c){
-    c=U(c || window.currentCat || window.__BNS613_LAST_CAT || '');
-    if(!c) return '';
-    window.currentCat=c; window.__BNS613_LAST_CAT=c; window.__BNS718_KEEP_CAT=c;
-    try{ currentCat=c; }catch(e){}
-    try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
-    return c;
-  }
-  function renderKeep(force){
-    var c=keepCat(window.__BNS718_KEEP_CAT || window.currentCat || window.__BNS613_LAST_CAT);
-    try{ if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') window.BNS_V611.renderMaterials(c, force!==false); }
-    catch(e){}
-  }
-
-  function installRenderer(){
-    try{
-      if(!window.BNS_V611 || typeof window.BNS_V611.renderMaterials !== 'function') return false;
-      var r = window.BNS_V611.renderMaterials;
-      var t = window.BNS_V611.toggleMaterial;
-
-      // BNS711 mag geen eigen renderer meer zijn. Als oude cache hem nog heeft, verwijst hij door.
-      window.BNS_V711 = window.BNS_V711 || {};
-      window.BNS_V711.renderMaterials = r;
-      if(typeof t === 'function') window.BNS_V711.toggleMaterial = t;
-      window.BNS_V711.__bns718DelegatesTo611 = true;
-
-      // V392/V393 blijven bestaan, maar kunnen alleen nog BNS611 terugzetten.
-      window.BNS_V392 = window.BNS_V392 || {};
-      window.BNS_V392.renderMaterials = r;
-      if(typeof t === 'function') window.BNS_V392.toggleMaterial = t;
-      window.BNS_V392.__bns718DelegatesTo611 = true;
-
-      window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
-      window.BNS_STABLE_CORE.renderMaterials = r;
-      if(typeof t === 'function') window.BNS_STABLE_CORE.toggleMat = t;
-
-      if(window.renderMaterials !== r) window.renderMaterials = r;
-      if(typeof t === 'function' && window.addMat !== t) window.addMat = t;
-      try{ renderMaterials = r; }catch(e){}
-      try{ if(typeof t === 'function') addMat = t; }catch(e){}
-      return true;
-    }catch(e){ return false; }
-  }
-
-  function installCss(){
-    if(E(STYLE_ID)) return;
-    var st=document.createElement('style'); st.id=STYLE_ID;
-    st.textContent = '#'+MODAL_ID+'{position:fixed;z-index:2147483647;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px}'
-      +'#'+MODAL_ID+'.hidden{display:none!important}'
-      +'#'+MODAL_ID+' .card{background:#fff;color:#172033;border-radius:22px;padding:22px;max-width:760px;width:100%;box-shadow:0 20px 60px rgba(15,23,42,.35)}'
-      +'#'+MODAL_ID+' .box{border:1px solid #dbe3ef;border-radius:14px;padding:14px;margin:12px 0;line-height:1.55}'
-      +'#'+MODAL_ID+' button{border:0;border-radius:10px;background:#0f172a;color:#fff;font-weight:900;padding:11px 16px;cursor:pointer}';
-    document.head.appendChild(st);
-  }
-  function showReturnDay(m,res){
-    installCss();
-    var modal=E(MODAL_ID); if(!modal){ modal=document.createElement('div'); modal.id=MODAL_ID; modal.className='hidden'; document.body.appendChild(modal); }
-    var o=res && res.order, p=res && res.period;
-    var freeDate = p && p.end ? new Date(p.end.getTime()+24*60*60*1000) : null;
-    window.__BNS718_RETURN_MATERIAL = clone(m);
-    window.__BNS718_KEEP_CAT = keepCat(catOf(m));
-    modal.innerHTML = '<div class="card"><h2>Materiaal komt op ophaaldag terug</h2><div class="box"><b>'+H(codeOf(m))+'</b> '+H(nameOf(m))+'<br><br>'
-      +H(codeOf(m)+' '+nameOf(m))+' komt op '+H(nice(p&&p.end))+' terug uit opdracht '+H(o&&(o.number||o.orderNumber||o.id))+'.<br><br>'
-      +'Het systeem houdt dit materiaal standaard tot en met de ophaaldag gereserveerd.'
-      +(freeDate?'<br>Normaal is dit materiaal vanaf '+H(nice(freeDate))+' weer vrij.':'')
-      +'<br><br>Wil je dit materiaal toch direct op de ophaaldag inzetten voor deze nieuwe opdracht? Controleer dan zelf of het materiaal op tijd terug is.'
-      +(o?'<br><br><b>Klant:</b> '+H((o.customer&&o.customer.name)||o.customerName||o.klant||'Onbekend')+'<br><b>Opdracht:</b> '+H(o.number||o.orderNumber||o.id||'')+' - '+H(o.title||o.name||''):'')
-      +'</div><div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end"><button type="button" data-bns718-close="1" style="background:#64748b">Niet toevoegen</button><button type="button" data-bns718-add="1" style="background:#16a34a">Toch toevoegen op ophaaldag</button></div></div>';
-    modal.classList.remove('hidden');
-  }
-
-  function wrapToggle(){
-    try{
-      if(!window.BNS_V611 || typeof window.BNS_V611.toggleMaterial !== 'function') return false;
-      if(window.BNS_V611.toggleMaterial.__bns718ReturnWrapped) return true;
-      var old = window.BNS_V611.toggleMaterial;
-      var wrapped = function(key){
-        var m = findMaterial(key);
-        var c = keepCat((m && catOf(m)) || window.currentCat || window.__BNS613_LAST_CAT);
-        if(m && window.BNS_V611 && typeof window.BNS_V611.reservationFor === 'function'){
-          var r = null; try{ r = window.BNS_V611.reservationFor(m); }catch(e){}
-          var start = currentStart();
-          if(r && r.period && sameDay(start, r.period.end)){
-            showReturnDay(m, r);
-            setTimeout(function(){ keepCat(c); renderKeep(true); },80);
-            return false;
-          }
-        }
-        var out = old.apply(this, arguments);
-        setTimeout(function(){ keepCat(c); renderKeep(true); },80);
-        return out;
-      };
-      wrapped.__bns718ReturnWrapped = true;
-      window.BNS_V611.toggleMaterial = wrapped;
-      window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
-      window.BNS_STABLE_CORE.toggleMat = wrapped;
-      window.addMat = wrapped;
-      try{ addMat = wrapped; }catch(e){}
-      return true;
-    }catch(e){ return false; }
-  }
-
-  function installAll(){
-    installRenderer();
-    wrapToggle();
-    installRenderer();
-  }
-
-  document.addEventListener('click',function(ev){
-    var t=ev.target; if(!t || !t.closest) return;
-    var add=t.closest('[data-bns718-add]');
-    if(add){
-      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      var m=window.__BNS718_RETURN_MATERIAL;
-      if(m){
-        var exists=false;
-        try{ exists=chosenList().some(function(x){ return window.BNS_V611 && window.BNS_V611.sameMaterial ? window.BNS_V611.sameMaterial(x,m) : keyOf(x)===keyOf(m); }); }catch(e){}
-        if(!exists){ var item=clone(m); item.status='reserved'; if(item.qty==null)item.qty=1; var list=chosenList(); list.push(item); setChosen(list); refreshChosen(); }
-        try{ if(typeof toastMsg==='function') toastMsg('Materiaal toegevoegd op ophaaldag. Controleer retourtijd handmatig.'); }catch(e){}
-      }
-      var modal=E(MODAL_ID); if(modal) modal.classList.add('hidden');
-      setTimeout(function(){ renderKeep(true); },80);
-      return false;
-    }
-    var close=t.closest('[data-bns718-close]');
-    if(close){ ev.preventDefault(); var modal=E(MODAL_ID); if(modal) modal.classList.add('hidden'); setTimeout(function(){ renderKeep(true); },80); return false; }
-    var cat=t.closest('#materialCats [data-bns611-cat],#materialCats [data-cat],#materialCats button');
-    if(cat){ keepCat(cat.getAttribute('data-bns611-cat') || cat.getAttribute('data-cat') || cat.dataset.cat || cat.textContent); setTimeout(function(){ renderKeep(true); },60); return; }
-    var row=t.closest('#materialList [data-bns611-mid],#materialList [data-material-id]');
-    if(row){ keepCat(window.currentCat || window.__BNS613_LAST_CAT || window.__BNS718_KEEP_CAT); setTimeout(function(){ renderKeep(true); },100); }
-  },true);
-
-  document.addEventListener('input',function(ev){ if(ev.target && ev.target.id==='materialSearch'){ keepCat(window.currentCat || window.__BNS613_LAST_CAT); setTimeout(function(){ renderKeep(true); },80); } },true);
-
-  [0,250,800,1600,3000].forEach(function(ms){ setTimeout(function(){ installAll(); renderKeep(true); },ms); });
-  setInterval(installAll, 900);
-
-  try{ console.info('[BNS 718] materiaal kiezen rust: BNS611 enige renderer, retourdag override zonder flikker.'); }catch(e){}
-})();
-
-
-/* =========================================================
-   BNS 719 — Rubriek fix + flikker fix (minimaal, gericht)
-   
-   Oorzaak 1 (bierslang): setCat() valt terug op firstCat()
-   als de opgeslagen cat niet in categoryList() zit op het
-   moment dat renderKeep() wordt aangeroepen. Eerste cat
-   alphabetisch is BIERSLANG.
-   
-   Oorzaak 2 (flikker): installAll() elke 900ms roept
-   renderKeep(force=true) aan wat altijd de DOM herwritet.
-   
-   Fix: patch setCat zodat de opgeslagen cat ALTIJD wint,
-   ook als categoryList hem nog niet kent. En stop de
-   force=true renders van BNS718 installAll.
+   BNS 720 - SCHOON: V392 keepCat tegen Bierslang-terugval
+   - Geen nieuwe materiaal-renderer
+   - Geen extra lijst-tekenlaag
+   - BNS V392 blijft de actieve renderer
+   - BNS V393 mag elke 2 sec exposen, maar expose gebruikt nu de
+     gewrapte V392 toggleMaterial
+   - Gereserveerd blijft strak: originele V392 status/reservering blijft leidend
    ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS_719__) return;
-  window.__BNS_719__ = true;
+  if(window.__BNS720_V392_KEEPCAT__) return;
+  window.__BNS720_V392_KEEPCAT__ = true;
 
-  function U(v){ return String(v==null?'':v).trim().toUpperCase().replace(/[^A-Z0-9]/g,''); }
-
-  /* --- Fix 1: patch setCat in BNS611 zodat opgeslagen cat altijd wint --- */
-  function patchSetCat(){
-    if(!window.BNS_V611) return false;
-    // BNS611 setCat zit als closure - we kunnen hem niet direct patchen
-    // Maar renderMaterials611 wordt aangeroepen met cat-argument
-    // We zorgen dat het cat-argument altijd de opgeslagen cat meekrijgt
-    // door renderMaterials611 te wrappen
-    var origRender = window.BNS_V611.renderMaterials;
-    if(!origRender || origRender.__bns719) return false;
-    var wrapped = function(cat, force){
-      // Bepaal de beste cat: opgegeven > opgeslagen > huidige
-      var saved = U(window.__BNS718_KEEP_CAT || window.__BNS613_LAST_CAT || window.__BNS_LAST_CAT__ || '');
-      var best = U(cat) || saved || U(window.currentCat || '');
-      // Zet de opgeslagen cat altijd ook in window.currentCat zodat setCat hem vindt
-      if(saved){
-        window.currentCat = saved;
-        window.__BNS_LAST_CAT__ = saved;
-        try{ currentCat = saved; }catch(e){}
-      }
-      return origRender.call(this, best || cat, force);
-    };
-    wrapped.__bns719 = true;
-    wrapped.__bns718ReturnWrapped = origRender.__bns718ReturnWrapped;
-    wrapped.__bnsV611 = true;
-    wrapped.__bnsMatDebounced = true;
-    window.BNS_V611.renderMaterials = wrapped;
-    window.renderMaterials = wrapped;
-    window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
-    window.BNS_STABLE_CORE.renderMaterials = wrapped;
-    if(window.BNS_V392) window.BNS_V392.renderMaterials = wrapped;
-    try{ renderMaterials = wrapped; }catch(e){}
-    return true;
+  function T(v){ return String(v==null?'':v).trim(); }
+  function U(v){ return T(v).toUpperCase(); }
+  function E(id){ return document.getElementById(id); }
+  function getState(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || {}; }
+  function mats(){ var s=getState(); return Array.isArray(s.materials) ? s.materials : []; }
+  function catOf(m){ return U(m && (m.cat || m.rubriek || m.category || '')); }
+  function findMat(key){
+    key=T(key); if(!key) return null;
+    var all=mats();
+    for(var i=0;i<all.length;i++){
+      var m=all[i]||{};
+      if(T(m.id)===key || T(m.materialId)===key || T(m.docId)===key || T(m.code)===key) return m;
+    }
+    return null;
   }
-
-  /* --- Fix 2: stop de force=true flikker van BNS718 installAll --- */
-  // BNS718 roept setInterval(installAll, 900) aan
-  // installAll roept renderKeep(true) aan
-  // renderKeep(true) triggert altijd DOM-update
-  // We patchen renderKeep zodat force=true alleen werkt als sig veranderd is
-  function patchRenderKeep(){
-    if(!window.__BNS_718_RENDERKEEP_PATCHED__){
-      var origRK = window.renderKeep;
-      // renderKeep is een lokale closure in BNS718, we kunnen hem niet direct patchen
-      // Maar we kunnen de sig-check imiteren: track de laatste render-sig
-      window.__BNS_718_RENDERKEEP_PATCHED__ = true;
-    }
-    // Alternatief: patch renderMaterials611 zodat force=true genegeerd wordt
-    // als de sig hetzelfde is (BNS611 doet dit al intern via lastSig)
-    // Het probleem is dat BNS718 force=true doorgeeft wat lastSig overschrijft
-    // Oplossing: na installeren, override de sig-check door force=false te sturen
-    // tenzij er echt iets veranderd is
-    if(!window.BNS_V611) return false;
-    var r = window.BNS_V611.renderMaterials;
-    if(!r || r.__bns719NoForce) return false;
-    var lastForceSig = '';
-    var orig719 = r;
-    var withSig = function(cat, force){
-      if(force){
-        // Bereken een snelle sig om te zien of force echt nodig is
-        var c = U(cat || window.currentCat || '');
-        var chosen = '';
-        try{ chosen = (window.chosen||[]).map(function(x){ return x&&(x.id||x.code); }).join(','); }catch(e){}
-        var ds = (document.getElementById('dateStart')||{}).value||'';
-        var de = (document.getElementById('dateEnd')||{}).value||'';
-        var sig = c+'|'+ds+'|'+de+'|'+chosen;
-        if(sig === lastForceSig){
-          force = false; // Niets veranderd - geen force nodig
-        } else {
-          lastForceSig = sig;
-        }
-      }
-      return orig719.call(this, cat, force);
-    };
-    withSig.__bns719NoForce = true;
-    withSig.__bns719 = true;
-    withSig.__bnsV611 = true;
-    withSig.__bnsMatDebounced = true;
-    window.BNS_V611.renderMaterials = withSig;
-    window.renderMaterials = withSig;
-    window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
-    window.BNS_STABLE_CORE.renderMaterials = withSig;
-    if(window.BNS_V392) window.BNS_V392.renderMaterials = withSig;
-    try{ renderMaterials = withSig; }catch(e){}
-    return true;
+  function buttonCat(btn){
+    if(!btn) return '';
+    return U(btn.getAttribute('data-bns392-cat') || btn.getAttribute('data-bns386-cat') || btn.getAttribute('data-bns611-cat') || btn.getAttribute('data-bns711-cat') || btn.getAttribute('data-cat') || btn.textContent || '');
   }
-
-  /* --- Rubriek-klik en materiaal-klik: cat opslaan --- */
-  document.addEventListener('pointerdown', function(ev){
-    var t = ev.target; if(!t || !t.closest) return;
-    var cb = t.closest('#materialCats button,[data-bns611-cat],[data-bns392-cat],[data-cat]');
-    if(cb){
-      var c = U(cb.getAttribute('data-bns611-cat') || cb.getAttribute('data-bns392-cat') || cb.getAttribute('data-cat') || cb.textContent);
-      if(c){
-        window.__BNS718_KEEP_CAT = c;
-        window.__BNS613_LAST_CAT = c;
-        window.__BNS_LAST_CAT__ = c;
-        window.currentCat = c;
-        try{ currentCat = c; }catch(e){}
-        try{ localStorage.setItem('bns613LastMaterialCat', c); }catch(e){}
-      }
+  function currentCatSafe(){
+    var active=document.querySelector('#materialCats button.active,#materialCats .active');
+    var c=buttonCat(active);
+    if(c) return c;
+    try{ if(T(window.currentCat)) return U(window.currentCat); }catch(e){}
+    try{ if(typeof currentCat !== 'undefined' && T(currentCat)) return U(currentCat); }catch(e){}
+    try{ var ls=localStorage.getItem('bns_last_material_cat_v720'); if(T(ls)) return U(ls); }catch(e){}
+    var first=document.querySelector('#materialCats button');
+    c=buttonCat(first);
+    return c || 'TW';
+  }
+  function rememberCat(c){
+    c=U(c); if(!c) return '';
+    try{ window.currentCat=c; }catch(e){}
+    try{ currentCat=c; }catch(e){}
+    try{ localStorage.setItem('bns_last_material_cat_v720',c); }catch(e){}
+    return c;
+  }
+  function markActive(c){
+    c=U(c); if(!c) return;
+    try{
+      document.querySelectorAll('#materialCats button,#materialCats .bns392-cat,#materialCats .bns386-cat,#materialCats .bns611-cat,#materialCats .bns711-cat').forEach(function(b){
+        var bc=buttonCat(b);
+        if(bc===c) b.classList.add('active'); else b.classList.remove('active');
+      });
+    }catch(e){}
+  }
+  function restoreCat(c, doRender){
+    c=rememberCat(c || currentCatSafe());
+    markActive(c);
+    if(doRender && window.BNS_V392 && typeof window.BNS_V392.renderMaterials==='function'){
+      try{ window.BNS_V392.renderMaterials(c,true); }catch(e){}
     }
-  }, true);
-
-  /* --- Na popup sluiten: herstel cat --- */
-  document.addEventListener('click', function(ev){
-    var t = ev.target; if(!t || !t.closest) return;
-    if(t.closest('[data-bns718-close],[data-bns718-add],[data-bns611-close],#bns611MaterialInfoModal button')){
-      var c = U(window.__BNS718_KEEP_CAT || window.__BNS613_LAST_CAT || window.currentCat || '');
-      if(c){
-        window.currentCat = c;
-        window.__BNS_LAST_CAT__ = c;
-        try{ currentCat = c; }catch(e){}
-        setTimeout(function(){
-          var r = window.BNS_V611 && window.BNS_V611.renderMaterials;
-          if(typeof r === 'function') r(c, false);
-        }, 50);
-      }
-    }
-  }, true);
-
-  /* --- Installeer en herinstalleer na BNS718 elke 900ms --- */
+  }
+  function restoreCatLater(c){
+    c=rememberCat(c || currentCatSafe());
+    [0,40,120,300,750].forEach(function(ms){
+      setTimeout(function(){ restoreCat(c, ms===120); }, ms);
+    });
+  }
+  function keyFromRow(row){
+    if(!row) return '';
+    return T(row.getAttribute('data-bns392-mid') || row.getAttribute('data-bns386-mid') || row.getAttribute('data-bns611-mid') || row.getAttribute('data-bns711-mid') || row.getAttribute('data-material-id') || row.getAttribute('data-mid') || '');
+  }
   function install(){
-    patchSetCat();
-    patchRenderKeep();
+    try{
+      if(!window.BNS_V392 || typeof window.BNS_V392.toggleMaterial!=='function') return false;
+      var cur=window.BNS_V392.toggleMaterial;
+      if(cur && cur.__bns720KeepCat){
+        window.addMat=cur;
+        try{ addMat=cur; }catch(e){}
+        if(window.BNS_STABLE_CORE) window.BNS_STABLE_CORE.toggleMat=cur;
+        return true;
+      }
+      var original=(cur && cur.__bns720Original) || cur;
+      var wrapped=function(key){
+        var m=findMat(key);
+        var c=catOf(m) || currentCatSafe();
+        rememberCat(c);
+        var result;
+        try{ result=original.apply(this,arguments); }
+        finally{ restoreCatLater(c); }
+        return result;
+      };
+      wrapped.__bns720KeepCat=true;
+      wrapped.__bns720Original=original;
+      window.BNS_V392.toggleMaterial=wrapped;
+      window.addMat=wrapped;
+      try{ addMat=wrapped; }catch(e){}
+      try{
+        window.BNS_STABLE_CORE=window.BNS_STABLE_CORE||{};
+        window.BNS_STABLE_CORE.toggleMat=wrapped;
+        window.BNS_STABLE_CORE.renderMaterials=window.BNS_V392.renderMaterials;
+      }catch(e){}
+      return true;
+    }catch(e){ return false; }
   }
 
-  [100, 500, 1000, 2000].forEach(function(ms){ setTimeout(install, ms); });
-  // Elke 950ms - net na BNS718's 900ms installAll
-  setInterval(install, 950);
+  document.addEventListener('pointerdown',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var cat=t.closest('#materialCats button,#materialCats [data-bns392-cat],#materialCats [data-bns386-cat],#materialCats [data-bns611-cat],#materialCats [data-bns711-cat]');
+    if(cat){ rememberCat(buttonCat(cat)); return; }
+    var row=t.closest('#materialList [data-bns392-mid],#materialList [data-bns386-mid],#materialList [data-bns611-mid],#materialList [data-bns711-mid],#materialList [data-material-id],#materialList [data-mid]');
+    if(row){ var m=findMat(keyFromRow(row)); rememberCat(catOf(m) || currentCatSafe()); }
+  },true);
 
-  console.info('[BNS 719] Rubriek-fix: bierslang terugval geblokkeerd, force-flikker gestopt.');
+  document.addEventListener('click',function(ev){
+    var t=ev.target; if(!t || !t.closest) return;
+    var cat=t.closest('#materialCats button,#materialCats [data-bns392-cat],#materialCats [data-bns386-cat],#materialCats [data-bns611-cat],#materialCats [data-bns711-cat]');
+    if(cat){ rememberCat(buttonCat(cat)); setTimeout(function(){restoreCat(currentCatSafe(),false);},0); return; }
+    var row=t.closest('#materialList [data-bns392-mid],#materialList [data-bns386-mid],#materialList [data-bns611-mid],#materialList [data-bns711-mid],#materialList [data-material-id],#materialList [data-mid]');
+    if(row){ var m=findMat(keyFromRow(row)); restoreCatLater(catOf(m) || currentCatSafe()); }
+  },true);
+
+  function boot(){ install(); restoreCat(currentCatSafe(),false); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,600); }); else setTimeout(boot,300);
+  setInterval(function(){ install(); },2100);
+  try{ console.info('[BNS 720] V392 keepCat schoon actief: geen extra renderer, gereserveerd blijft strak.'); }catch(e){}
 })();
+
