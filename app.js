@@ -42150,7 +42150,12 @@ setTimeout(()=>{
       if(eid && T(o.id)===eid) continue;
       if(nr && T(o.number)===nr) continue;
       if(!overlaps(wp, orderPeriod(o))) continue;
-      var ml=Array.isArray(o.materials) ? o.materials : [];
+      // BNS 721: ook andere materiaalnamen controleren (oude orders)
+      var ml=[];
+      ['materials','orderMaterials','selectedMaterials','materiaal','materialen','items','lines','orderLines'].forEach(function(k){
+        if(Array.isArray(o[k])) ml=ml.concat(o[k]);
+        else if(o[k] && typeof o[k]==='object' && !Array.isArray(o[k])) ml.push(o[k]);
+      });
       if(ml.some(function(x){ return sameMaterial(x,m); })) return {order:o,period:orderPeriod(o)};
     }
     return null;
@@ -42187,9 +42192,16 @@ setTimeout(()=>{
   function firstCat(){ var cats=categoryList(); return cats[0] || 'TW'; }
   function setCat(c){
     var cats=categoryList();
-    c=T(c||window.currentCat||firstCat()).toUpperCase();
-    if(cats.indexOf(c)<0) c=firstCat();
-    window.currentCat=c; try{ currentCat=c; }catch(e){} return c;
+    // BNS 721: gebruik opgeslagen cat als fallback VÓÓR firstCat()
+    // zodat rubriek nooit terugvalt op BIERSLANG na popup
+    var saved=T(window.__BNS721_CAT||window.currentCat||'').toUpperCase();
+    c=T(c||saved||firstCat()).toUpperCase();
+    if(cats.indexOf(c)<0){
+      // Probeer eerst de opgeslagen cat
+      if(saved && cats.indexOf(saved)>=0) c=saved;
+      else c=firstCat();
+    }
+    window.currentCat=c; window.__BNS721_CAT=c; try{ currentCat=c; }catch(e){} return c;
   }
   function getCatColor(cat){
     // Lees kleur uit localStorage (zelfde key als admin gebruikt)
@@ -42301,9 +42313,16 @@ setTimeout(()=>{
   window.addEventListener('click',function(ev){
     var t=ev.target; if(!t || !t.closest) return;
     var catBtn=t.closest('#materialCats button');
-    if(catBtn){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); setCat(catBtn.getAttribute('data-bns392-cat')||catBtn.getAttribute('data-bns386-cat')||catBtn.textContent); schedule(window.currentCat,true); return false; }
+    if(catBtn){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      var nc=(catBtn.getAttribute('data-bns392-cat')||catBtn.getAttribute('data-bns386-cat')||catBtn.textContent||'').trim().toUpperCase();
+      if(nc) window.__BNS721_CAT=nc;
+      setCat(nc||catBtn.getAttribute('data-bns392-cat')||catBtn.getAttribute('data-bns386-cat')||catBtn.textContent); schedule(window.currentCat,true); return false; }
     var row=t.closest('#materialList [data-bns392-mid],#materialList [data-mid],#materialList [data-bns386-mid]');
-    if(row){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); toggleMaterial(row.getAttribute('data-bns392-mid')||row.getAttribute('data-bns386-mid')||row.getAttribute('data-mid')); return false; }
+    if(row){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      // BNS 721: sla actieve rubriek op VÓÓR toggleMaterial zodat setCat hem vindt
+      var activeBtn=document.querySelector('#materialCats button.active');
+      if(activeBtn){ var ac=(activeBtn.getAttribute('data-bns392-cat')||activeBtn.getAttribute('data-bns386-cat')||activeBtn.textContent||'').trim().toUpperCase(); if(ac) window.__BNS721_CAT=ac; }
+      toggleMaterial(row.getAttribute('data-bns392-mid')||row.getAttribute('data-bns386-mid')||row.getAttribute('data-mid')); return false; }
   },true);
   document.addEventListener('input',function(ev){
     if(ev.target && /^(materialSearch|dateStart|dateEnd|orderStatus)$/.test(ev.target.id||'')) schedule(window.currentCat||firstCat(),true);
