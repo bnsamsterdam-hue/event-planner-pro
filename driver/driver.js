@@ -59,7 +59,7 @@ function materialList(o){
     const info=findMaterialInfo(raw);
     const qty=raw.qty||raw.count||raw.aantal||raw.amount||"";
     const code=matCodeOf(raw)||matCodeOf(info)||matClean(typeof x==="string"?x:"");
-    const nm=matNameOf(info)||matNameOf(raw);
+    const nm=matNameOf(raw)||matNameOf(info); // BNS723: naam uit opdrachtregel wint boven algemene materialenlijst
     let label=code||nm;
     if(code&&nm&&matKey(code)!==matKey(nm)) label=code+" - "+nm;
     const extra=raw.extra||raw.note||"";
