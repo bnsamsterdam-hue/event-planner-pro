@@ -8072,10 +8072,6 @@ function showPage(p){
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
   renderAll();
-  // BNS 746: scroll NA renderAll (renderAll is synchroon, daarna pas scroll)
-  document.documentElement.scrollTop=0;
-  document.body.scrollTop=0;
-  try{ window.scrollTo(0,0); }catch(e){}
 }
 function init(){
   document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{
@@ -8184,13 +8180,11 @@ function workTab(idv){
   document.querySelectorAll('.workpanel').forEach(x=>x.classList.add('hidden'));
   $(idv).classList.remove('hidden');
   document.querySelectorAll('.worktab').forEach(x=>x.classList.toggle('active',x.dataset.tab===idv));
-  // BNS 746: op mobiel geen focus (veroorzaakte scroll naar veld)
-  var mobile=false;
-  try{ mobile = !!(window.matchMedia && window.matchMedia('(max-width: 950px)').matches); }catch(e){ mobile = (window.innerWidth||9999) <= 950; }
-  if(!mobile && idv==='customerPanel'){
+  // BNS v690: bij Klant/Locatie meteen op het naamveld starten.
+  if(idv==='customerPanel'){
     setTimeout(()=>{ try{ customerName.focus(); customerName.select(); }catch(e){} },60);
   }
-  if(!mobile && idv==='locationPanel'){
+  if(idv==='locationPanel'){
     setTimeout(()=>{ try{ locationName.focus(); locationName.select(); }catch(e){} },60);
   }
   if(idv==='materialPanel'){
@@ -8199,31 +8193,6 @@ function workTab(idv){
   }
   summaryRender();
 }
-// BNS 746: vaste Terug-knop bovenaan #newOrder op mobiel — werkt altijd, onafhankelijk van bars/intervals
-(function(){
-  function bns746EnsureBack(){
-    if((window.innerWidth||9999)>950) return;
-    var page=document.getElementById('newOrder');
-    if(!page) return;
-    if(document.getElementById('bns746BackBtn')) return;
-    var btn=document.createElement('button');
-    btn.id='bns746BackBtn';
-    btn.type='button';
-    btn.textContent='← Terug naar opdrachten';
-    btn.style.cssText='display:block;width:100%;margin:0 0 12px;padding:10px;background:#475569;color:#fff;border:0;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;';
-    btn.addEventListener('click',function(){
-      try{ showPage('orders'); }catch(e){ try{ window.showPage('orders'); }catch(e2){} }
-    });
-    page.insertBefore(btn, page.firstChild);
-  }
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',function(){ setTimeout(bns746EnsureBack,200); });
-  } else {
-    setTimeout(bns746EnsureBack,200);
-  }
-  document.addEventListener('click',function(){ setTimeout(bns746EnsureBack,100); },true);
-  setInterval(bns746EnsureBack,500);
-})();
 function summaryRender(){
   summary.innerHTML=[['Klant',customerName.value||'Nog niet gekozen'],['Locatie',[locationName.value,locationCity.value].filter(Boolean).join(' - ')||'Nog niet gekozen'],['Materialen',chosen.length?chosen.map(m=>m.code).join(', '):'Nog niets'],['Bezorger',orderDriver.value||'Nog niet gekozen'],['Status',orderStatus.value],['Totaal',$('grandTotal')?.value||'€ 0,00']].map(i=>`<div class="summary-card"><b>${i[0]}</b>${i[1]}</div>`).join('');
 }
@@ -8442,20 +8411,7 @@ function editOrder(oid){
   orderExtra.value=o.extra||'';
   renderChosen();
   summaryRender();
-  // BNS 746: workTab alleen op desktop; op mobiel direct panel tonen zonder focus/scroll-cascade
-  var _isMob=(window.innerWidth||9999)<=950;
-  if(_isMob){
-    document.querySelectorAll('.workpanel').forEach(function(x){x.classList.add('hidden');});
-    var _cp=document.getElementById('customerPanel');
-    if(_cp) _cp.classList.remove('hidden');
-    document.querySelectorAll('.worktab').forEach(function(x){x.classList.toggle('active',x.dataset&&x.dataset.tab==='customerPanel');});
-  } else {
-    workTab('customerPanel');
-  }
-  // Scroll naar boven — na alle synchrone renders
-  document.documentElement.scrollTop=0;
-  document.body.scrollTop=0;
-  try{ window.scrollTo(0,0); }catch(e){}
+  workTab('customerPanel')
 }
 function nice(d){
   if(!d)return '';
@@ -8501,19 +8457,10 @@ function markDone(oid){
   }
 }
 function renderDashboard(){
-  try{ statOrders.textContent=(state.orders||[]).length; }catch(e){}
-  try{ statMaterials.textContent=(state.materials||[]).length; }catch(e){}
-  try{ statAlerts.textContent=(state.alerts||[]).length; }catch(e){}
-  var rows=[];
-  try{ rows = (typeof sortedOrders==='function'?sortedOrders():(state.orders||[]).slice()); }catch(e){ rows=(state.orders||[]).slice(); }
-  function dashOk(o){
-    var st=String(o&&o.status||'').toLowerCase();
-    return !(/geannuleerd|verwijderd|deleted|trash|uitgevoerd|afgerond/.test(st));
-  }
-  var active = rows.filter(dashOk);
-  if(!active.length) active = rows;
-  var draw = (typeof card==='function') ? card : function(o){ return '<div class="order-card"><b>'+(o.number||'')+' - '+(o.title||'')+'</b></div>'; };
-  dashOrders.innerHTML=active.slice(0,6).map(draw).join('') || '<p>Geen aankomende opdrachten.</p>';
+  statOrders.textContent=state.orders.length;
+  statMaterials.textContent=state.materials.length;
+  statAlerts.textContent=state.alerts.length;
+  dashOrders.innerHTML=sortedOrders().filter(o=>o.status!=='Geannuleerd').slice(0,6).map(card).join('')
 }
 function renderDriver(){
   driverList.innerHTML=sortedOrders().slice(0,25).map(o=>`<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><b>${o.number} - ${o.title}</b><br>${(o.materials||[]).map(m=>m.code).join(', ')}</div><div><button onclick="alertFor('${o.id}','Schade')">Schade</button><button onclick="alertFor('${o.id}','Foto voor')">Foto voor</button><button onclick="alertFor('${o.id}','Foto na')">Foto na</button></div></div>`).join('')
@@ -14245,27 +14192,18 @@ setTimeout(()=>{
     paintModeButtons();
   }
   function renderDashboardFinal(){
-    var stateNow = S();
     try {
-      if (byId("statOrders")) byId("statOrders").textContent = (stateNow.orders || []).length;
-      if (byId("statMaterials")) byId("statMaterials").textContent = (stateNow.materials || []).length;
-      if (byId("statAlerts")) byId("statAlerts").textContent = (stateNow.alerts || []).length;
-    } catch(e) {}
+      if (byId("statOrders")) byId("statOrders").textContent = (S().orders || []).length;
+      if (byId("statMaterials")) byId("statMaterials").textContent = (S().materials || []).length;
+      if (byId("statAlerts")) byId("statAlerts").textContent = (S().alerts || []).length;
+    } catch(e) {
+    }
     var box = byId("dashOrders");
     if (!box) return;
-    var rows=[];
-    try { rows = sortedOrders(); } catch(e) { rows = (stateNow.orders || []).slice(); }
-    function dashOk(order){
-      var st = String(order && order.status || "").toLowerCase();
-      if (/geannuleerd|verwijderd|deleted|trash|uitgevoerd|afgerond/.test(st)) return false;
-      return true;
-    }
-    var active = rows.filter(dashOk);
-    if (!active.length && rows.length) active = rows;
-    var draw = (typeof bnsCard === "function") ? bnsCard : ((typeof card === "function") ? card : function(order){
-      return '<div class="order-card"><b>' + esc(order.number || "") + ' - ' + esc(order.title || "") + '</b></div>';
-    });
-    box.innerHTML = active.slice(0, 6).map(draw).join("") || "<p>Geen aankomende opdrachten.</p>";
+    var rows = sortedOrders()
+    .filter(activeOrder)
+    .slice(0, 6);
+    box.innerHTML = rows.map(bnsCard).join("") || "<p>Geen aankomende opdrachten.</p>";
   }
   function renderDriverFinal(){
     var box = byId("driverList");
@@ -20389,6 +20327,14 @@ setTimeout(()=>{
     }
   }
   async function syncOrder(order){
+    try{
+      var nr = String(order && (order.number || order.orderNumber) || '').trim();
+      var oldId = String(order && order.id || '').trim();
+      if(/^20\d{2}-\d{3,}$/.test(nr) && !/^old_/i.test(oldId)){
+        order.id = nr;
+        order.number = nr;
+      }
+    }catch(_e){}
     if(!order || !order.id) return;
     if(!isOrderForFirebase(order)) return;
     addPending(order);
@@ -20554,8 +20500,17 @@ setTimeout(()=>{
     var e=parseDate(val("dateEnd") || val("dateStart"));
     return !!(s && e && e < s);
   }
+  function bnsV746OrderDocId(existing, currentEditing, nr){
+    nr = String(nr || '').trim();
+    var exId = String(existing && existing.id || '').trim();
+    // Oude importregels old_... blijven met rust. Nieuwe/gewone opdrachten krijgen het opdrachtnummer als document-id.
+    if(/^old_/i.test(exId)) return exId;
+    if(/^20\d{2}-\d{3,}$/.test(nr)) return nr;
+    return exId || String(currentEditing || makeId());
+  }
   function buildOrder(existing){
     var currentEditing = editingId();
+    var orderNr = val("orderNumber");
     var driverValue = val("orderDriver");
     var totals = null;
     try{
@@ -20563,8 +20518,8 @@ setTimeout(()=>{
     } catch(e){
     }
     return {
-      id: existing && existing.id ? existing.id : (currentEditing || makeId()),
-      number: val("orderNumber"),
+      id: bnsV746OrderDocId(existing, currentEditing, orderNr),
+      number: orderNr,
       status: val("orderStatus") || "Offerte",
       title: val("orderTitle") || "Zonder titel",
       start: val("dateStart"),
@@ -32938,7 +32893,7 @@ setTimeout(()=>{
 /* =========================================================
    BNS V173 AUTOMATISCHE DAGBACKUP
    - maakt maximaal 1 automatische backup per dag
-   - schrijft naar backups/daily_latest en naar 14-dagen roulatie backups/daily_00 t/m daily_13
+   - schrijft naar backups/daily_latest en 14-dagen roulatie backups/daily_00 t/m daily_13
    - grote backups worden in vaste chunks opgeslagen, zodat Firebase documentlimiet niet snel breekt
    - werkt lokaal door als Firebase niet klaar is en probeert later opnieuw
    - raakt opdrachten/materialen/klanten NIET aan
@@ -33023,35 +32978,32 @@ setTimeout(()=>{
   function firebaseReady(){
     return !!(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db);
   }
-  function slotForDay(day){
-    var n = 0;
+  function backupSlotForDay(day){
     try{
-      var m = String(day||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if(m){
-        var d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
-        n = Math.floor(d.getTime()/86400000);
-      } else {
-        n = Math.floor(Date.now()/86400000);
-      }
-    }catch(e){ n = Math.floor(Date.now()/86400000); }
-    return String(((n % 14) + 14) % 14).padStart(2,'0');
+      var parts = String(day||todayKey()).split("-").map(function(x){ return parseInt(x,10)||0; });
+      var utc = Date.UTC(parts[0], (parts[1]||1)-1, parts[2]||1);
+      var days = Math.floor(utc / 86400000);
+      return ((days % 14) + 14) % 14;
+    }catch(e){
+      return Math.abs(new Date().getDate() % 14);
+    }
   }
-  async function writeBackupDoc(fs, db, docId, json, day, chunks, updatedAt){
+  async function writeFirebaseBackupDoc(fs, db, docId, json, day, chunks, updatedAt){
     var meta = {
-      type: docId === 'daily_latest' ? 'eventplanner-daily-latest' : 'eventplanner-daily-rotation-14',
+      type: docId === "daily_latest" ? "eventplanner-daily-latest" : "eventplanner-daily-rotation-14",
       date: day,
       updatedAt: updatedAt,
       chunkCount: chunks.length,
       size: json.length,
-      rotationSlot: docId,
-      note: docId === 'daily_latest'
-        ? 'Automatische dagbackup: laatste backup.'
-        : 'Automatische dagbackup 14 dagen roulatie. Slot ' + docId + ' wordt na 14 dagen hergebruikt.'
+      rotationDays: 14,
+      note: docId === "daily_latest"
+        ? "Automatische dagbackup: laatste backup."
+        : "Automatische 14-dagen roulatiebackup. Slot wordt dagelijks overschreven."
     };
-    await fs.setDoc(fs.doc(db, 'backups', docId), meta, { merge:false });
+    await fs.setDoc(fs.doc(db, "backups", docId), meta, { merge:false });
     for(var i=0; i<chunks.length; i++){
       await fs.setDoc(
-        fs.doc(db, 'backups', docId, 'chunks', String(i).padStart(4,'0')),
+        fs.doc(db, "backups", docId, "chunks", String(i).padStart(4,"0")),
         { index:i, data:chunks[i], updatedAt:updatedAt },
         { merge:false }
       );
@@ -33063,16 +33015,17 @@ setTimeout(()=>{
     var db = window.BNS.db;
     var chunks = jsonChunks(json);
     var updatedAt = nowIso();
-    var slot = 'daily_' + slotForDay(day);
+    var slot = String(backupSlotForDay(day)).padStart(2,"0");
+    var slotDoc = "daily_" + slot;
     try{
-      await writeBackupDoc(fs, db, 'daily_latest', json, day, chunks, updatedAt);
-      await writeBackupDoc(fs, db, slot, json, day, chunks, updatedAt);
+      await writeFirebaseBackupDoc(fs, db, "daily_latest", json, day, chunks, updatedAt);
+      await writeFirebaseBackupDoc(fs, db, slotDoc, json, day, chunks, updatedAt);
       localStorage.setItem(FIREBASE_DATE_KEY, day);
-      setStatus('Firebase dagbackup gemaakt: ' + day + ' (' + slot + ', ' + chunks.length + ' deel' + (chunks.length===1?'':'en') + ')');
+      setStatus("Firebase dagbackup gemaakt: " + day + " naar daily_latest en " + slotDoc + " (" + chunks.length + " deel" + (chunks.length===1?"":"en") + ")");
       return true;
     } catch(e){
-      console.warn('[BNS backup] Firebase backup mislukt', e);
-      setStatus('Firebase dagbackup mislukt; lokale backup blijft beschikbaar');
+      console.warn("[BNS backup] Firebase backup mislukt", e);
+      setStatus("Firebase dagbackup mislukt; lokale backup blijft beschikbaar");
       return false;
     }
   }
@@ -33136,7 +33089,7 @@ setTimeout(()=>{
       (localStorage.getItem(LOCAL_STATUS_KEY) || "Nog geen status")+
       '</div>'+
       '<button type="button" id="bnsAutoBackupNow" style="background:#16a34a;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:900;cursor:pointer;">Backup nu naar Firebase</button>'+
-      '<div style="font-size:13px;margin-top:8px;color:#374151;">Maakt maximaal 1 automatische backup per dag: backups/daily_latest plus 14-dagen roulatie backups/daily_00 t/m daily_13.</div>';
+      '<div style="font-size:13px;margin-top:8px;color:#374151;">Maakt maximaal 1 automatische backup per dag naar backups/daily_latest en een 14-dagen roulatie: backups/daily_00 t/m backups/daily_13.</div>';
       anchor.parentNode.insertBefore(box, anchor.nextSibling);
       var btn = document.getElementById("bnsAutoBackupNow");
       if(btn){
@@ -51863,14 +51816,16 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function isMobile(){ return (window.innerWidth||document.documentElement.clientWidth||9999) <= 760; }
   function text(el){ return String(el && (el.innerText||el.textContent)||'').trim().toLowerCase(); }
   function clickExistingBack(){
-    try{
-      if(typeof showPage === 'function'){
-        showPage('orders');
-        if(typeof renderOrders === 'function') renderOrders();
-        try{ document.documentElement.scrollTop=0; document.body.scrollTop=0; if(window.scrollTo) window.scrollTo(0,0); }catch(_e){}
-        return;
+    var btns=[].slice.call(document.querySelectorAll('button,a,[role="button"]'));
+    for(var i=0;i<btns.length;i++){
+      var el=btns[i];
+      if(!el || el.id==='bnsV724Back') continue;
+      if(el.offsetParent===null) continue;
+      var t=text(el);
+      if(/^(terug|annuleren|sluiten|cancel)$/.test(t) || /terug|annuleren/.test(t)){
+        try{ el.click(); return; }catch(e){}
       }
-    }catch(e){}
+    }
     try{ history.back(); }catch(e){}
   }
   function ensureBackButton(){
@@ -51890,6 +51845,64 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   document.addEventListener('DOMContentLoaded', tick);
   document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
   window.addEventListener('resize', tick);
-  // BNS v744: geen herhalende mobiele interval-loop meer; tick draait bij laden/klik/resize.
-  try{console.info('[BNS 724/v744] mobiele planner-rust actief zonder interval; terugknop direct naar Opdrachten.');}catch(e){}
+  setInterval(tick, 1500);
+  try{console.info('[BNS 724] mobiele planner-rust + opslaan/terug onderaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
+})();
+
+
+/* =========================================================
+   BNS v746 - vanaf schone v724: opdrachtnummer/Firebase document-id veilig
+   Doel: normale nieuwe/gewijzigde opdrachten schrijven als orders/<opdrachtnummer>.
+   Raakt niet aan: mobiel, dashboard, filters, mappen, archief, verwijderen,
+   materialen, reserveringen, driver.
+   Bestaande random documenten worden niet verwijderd of samengevoegd.
+========================================================= */
+(function BNS_V746_ORDER_DOC_ID_SAFE(){
+  'use strict';
+  if(window.__BNS_V746_ORDER_DOC_ID_SAFE__) return;
+  window.__BNS_V746_ORDER_DOC_ID_SAFE__ = true;
+
+  var COUNTER_KEY = 'bns_order_seq_max_v690';
+  var FLOOR_SEQ = 2566;
+  var START_YEAR = 2026;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function E(id){ return document.getElementById(id); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || null; }
+  function orders(){ var s=S(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function currentYear(){ return new Date().getFullYear(); }
+  function parseNr(v){ var m = T(v).match(/^(20\d{2})-(\d{1,})$/); return m ? {year:Number(m[1]), seq:Number(m[2])} : null; }
+  function storedMax(){ try{ return Math.max(0, Number(localStorage.getItem(COUNTER_KEY) || 0) || 0); }catch(e){ return 0; } }
+  function saveMax(n){ n = Number(n || 0) || 0; if(n < FLOOR_SEQ) n = FLOOR_SEQ; if(n < storedMax()) n = storedMax(); try{ localStorage.setItem(COUNTER_KEY, String(n)); }catch(e){} return n; }
+  function maxSeqFromOrders(){ var max = FLOOR_SEQ; orders().forEach(function(o){ var p = parseNr(o && (o.number || o.orderNumber || o.orderNo || o.opdrachtNr || o.id)); if(!p) return; if(p.year < START_YEAR) return; if(p.seq < 1000) return; if(p.seq > max) max = p.seq; }); return max; }
+  function currentMaxSeq(){ return Math.max(FLOOR_SEQ, storedMax(), maxSeqFromOrders()); }
+  function nextOrderNumber(){ return currentYear() + '-' + String(currentMaxSeq() + 1).padStart(4,'0'); }
+  function bumpFromNumber(nr){ var p = parseNr(nr); if(!p || p.year < START_YEAR || p.seq < 1000) return; saveMax(Math.max(storedMax(), p.seq)); }
+  function isEditingExisting(){ try{ if(typeof editing !== 'undefined' && editing) return true; }catch(e){} if(window.editing) return true; var nr = T(E('orderNumber') && E('orderNumber').value); if(!nr) return false; return orders().some(function(o){ return T(o && (o.number || o.orderNumber || o.id)) === nr; }); }
+  function numberExists(nr){ return orders().some(function(o){ return T(o && (o.number || o.orderNumber || o.id)) === T(nr); }); }
+  function shouldReplaceCurrentNumber(){ var el = E('orderNumber'); if(!el) return false; var nr = T(el.value); var p = parseNr(nr); if(!nr) return true; if(!p) return true; if(p.year < START_YEAR) return true; if(p.seq < 1000 && !isEditingExisting()) return true; if(p.seq < currentMaxSeq() && !isEditingExisting()) return true; return false; }
+  function applyNextNumber(force){ var el = E('orderNumber'); if(!el) return ''; if(!force && isEditingExisting()) return T(el.value); if(force || shouldReplaceCurrentNumber()){ var nr = nextOrderNumber(); while(numberExists(nr)){ var p = parseNr(nr); saveMax(p.seq); nr = nextOrderNumber(); } el.value = nr; try{ el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} return nr; } return T(el.value); }
+  function hardNewNo(){ return applyNextNumber(true) || nextOrderNumber(); }
+  function hardMakeNumber(){ return nextOrderNumber(); }
+  try{ window.newNo = hardNewNo; newNo = hardNewNo; }catch(e){}
+  try{ window.makeNumber = hardMakeNumber; makeNumber = hardMakeNumber; }catch(e){}
+  try{ window.nextNo = hardMakeNumber; nextNo = hardMakeNumber; }catch(e){}
+
+  function seed(){ saveMax(currentMaxSeq()); }
+  seed(); setTimeout(seed,800); setTimeout(seed,2500); setTimeout(seed,6000);
+
+  document.addEventListener('click', function(ev){ var t = ev.target; if(!t || !t.closest) return; var btn = t.closest('#saveOrder,button,input[type="button"],input[type="submit"]'); if(!btn) return; var label = T(btn.id + ' ' + (btn.textContent || btn.value || '')).toLowerCase(); if(label.indexOf('saveorder') < 0 && label.indexOf('opslaan') < 0 && label.indexOf('save') < 0) return; applyNextNumber(false); }, true);
+
+  function wrapSave(){ var old = window.saveCurrentOrder || (typeof saveCurrentOrder === 'function' ? saveCurrentOrder : null); if(!old || old.__bnsV746OrderNo) return; var wrapped = function(){ applyNextNumber(false); var nrBefore = T(E('orderNumber') && E('orderNumber').value); var r = old.apply(this, arguments); bumpFromNumber(nrBefore); return r; }; wrapped.__bnsV746OrderNo = true; window.saveCurrentOrder = wrapped; try{ saveCurrentOrder = wrapped; }catch(e){} }
+  wrapSave(); setTimeout(wrapSave,800); setTimeout(wrapSave,2500);
+
+  function refreshIfNew(){ if(!isEditingExisting()) applyNextNumber(false); }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(refreshIfNew,500); setTimeout(refreshIfNew,1800); });
+  setTimeout(refreshIfNew,1000);
+
+  function normalizeOrderForFixedDocId(order){ if(!order || typeof order !== 'object') return order; var nr = T(order.number || order.orderNumber); if(/^20\d{2}-\d{3,}$/.test(nr)){ var oldId = T(order.id); if(!/^old_/i.test(oldId)){ order.id = nr; order.number = nr; bumpFromNumber(nr); } } return order; }
+  function wrapSync(){ try{ if(!window.BNS || typeof window.BNS.syncOrder !== 'function' || window.BNS.syncOrder.__bnsV746Sync) return; var oldSync = window.BNS.syncOrder; window.BNS.syncOrder = function(order){ normalizeOrderForFixedDocId(order); return oldSync.apply(this, arguments); }; window.BNS.syncOrder.__bnsV746Sync = true; }catch(e){} }
+  wrapSync(); setTimeout(wrapSync,1200); setTimeout(wrapSync,3500); setTimeout(wrapSync,7000);
+
+  try{ console.info('[BNS v746] schone v724 + 14-dagen backup + veilige opdrachtnummer/doc-id fix actief.'); }catch(e){}
 })();
