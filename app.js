@@ -51736,62 +51736,124 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* =========================================================
-   BNS 726 - Alleen mobiel: scroll herstellen zonder overlay
+   BNS 727 - Alleen mobiel: wijzigen start boven + Terug-knop
    Basis: v723/v722 werkend. Alleen toegevoegd:
-   - mobiel bewerkscherm blijft scrollbaar
-   - bestaande BNS v597 knoppenblok blijft statisch onderaan de pagina
-   - geen fixed overlay over formulier/knoppen
-   - geen menu linksboven
-   - geen Firebase, materialen, reservering, driver of save/wis-logica wijziging
+   - Bij Wijzigen/Openen van opdracht op mobiel altijd naar boven in Nieuwe opdracht.
+   - Terug-knop in het bestaande mobiele opdrachtknoppenblok.
+   - Oude vaste orderknoppenbalk op mobiel niet als overlay over formulier.
+   - Geen Firebase, materialen, reservering, driver, opslaan/wissen-logica wijziging.
+   - Geen menu linksboven.
    ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS726_MOBILE_SCROLL_NO_OVERLAY__) return;
-  window.__BNS726_MOBILE_SCROLL_NO_OVERLAY__ = true;
+  if(window.__BNS727_MOBILE_EDIT_TOP_BACK__) return;
+  window.__BNS727_MOBILE_EDIT_TOP_BACK__ = true;
 
-  function mobile(){ return (window.innerWidth || document.documentElement.clientWidth || 9999) <= 760; }
+  var pendingUntil = 0;
   function E(id){ return document.getElementById(id); }
-  function addCss(){
-    if(E('bns726MobileScrollNoOverlayCSS')) return;
-    var st=document.createElement('style');
-    st.id='bns726MobileScrollNoOverlayCSS';
+  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function mobile(){ return (window.innerWidth || document.documentElement.clientWidth || 9999) <= 900; }
+
+  function css(){
+    if(E('bns727MobileEditTopBackCSS')) return;
+    var st = document.createElement('style');
+    st.id = 'bns727MobileEditTopBackCSS';
     st.textContent = ''+
-      '@media (max-width:760px){'+
+      '@media(max-width:900px){'+
       'html,body{height:auto!important;min-height:100%!important;max-height:none!important;overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch!important;}'+
-      'body{padding-bottom:20px!important;}'+
-      '#app,.app,.layout,.shell,.main,.content,main,.page,.screen,.planner,.workpanel{height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important;overflow-x:hidden!important;}'+
-      '#newOrder,#orderForm,.page.active{height:auto!important;min-height:100vh!important;max-height:none!important;overflow-y:visible!important;overflow-x:hidden!important;box-sizing:border-box!important;padding-bottom:40px!important;}'+
-      '#newOrder .grid,#orderForm .grid{display:block!important;}'+
-      '#newOrder input,#newOrder select,#newOrder textarea,#orderForm input,#orderForm select,#orderForm textarea{max-width:100%!important;box-sizing:border-box!important;}'+
-      '#newOrder .card,#newOrder .panel,#newOrder section,#orderForm .card,#orderForm .panel,#orderForm section{max-width:100%!important;box-sizing:border-box!important;}'+
-      '#bnsV597OrderBottomActions{position:static!important;display:flex!important;clear:both!important;width:100%!important;max-height:none!important;overflow:visible!important;margin:18px 0 28px!important;padding:12px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:16px!important;box-shadow:0 8px 22px rgba(15,23,42,.10)!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;pointer-events:auto!important;}'+
-      '#bnsV597OrderBottomActions button{pointer-events:auto!important;font-size:14px!important;min-height:38px!important;padding:9px 12px!important;border-radius:12px!important;line-height:1.1!important;}'+
+      '#app,.app,.layout,.shell,.main,.content,main,.page,.screen,.planner,.workpanel{max-height:none!important;overflow-x:hidden!important;}'+
+      '#newOrder,#orderForm,.page.active{max-height:none!important;overflow-x:hidden!important;box-sizing:border-box!important;}'+
+      '#newOrder{padding-bottom:40px!important;}'+
+      '.bns-v333-order-bottom{position:static!important;left:auto!important;right:auto!important;bottom:auto!important;top:auto!important;z-index:1!important;width:100%!important;max-width:100%!important;margin:14px 0 22px!important;box-shadow:0 8px 22px rgba(15,23,42,.10)!important;border-radius:16px!important;border:1px solid #dbe3ef!important;background:#fff!important;}'+
+      '#bnsV597OrderBottomActions{position:static!important;left:auto!important;right:auto!important;bottom:auto!important;top:auto!important;z-index:2!important;pointer-events:auto!important;}'+
+      '#bnsV597OrderBottomActions button,.bns-v333-order-bottom button{pointer-events:auto!important;}'+
+      '#bnsV727Back{background:#334155!important;color:#fff!important;}'+
       '}';
     (document.head||document.documentElement).appendChild(st);
   }
 
-  function unlockScroll(){
+  function scrollTopNow(){
     if(!mobile()) return;
-    var nodes=[document.documentElement,document.body,E('app'),document.querySelector('.app'),document.querySelector('.layout'),document.querySelector('.shell'),document.querySelector('.main'),document.querySelector('.content'),document.querySelector('main'),document.querySelector('.page.active'),E('newOrder'),E('orderForm')];
+    try{ window.scrollTo(0,0); }catch(e){}
+    var nodes = [document.documentElement, document.body, E('newOrder'), E('orderForm'), document.querySelector('.page.active'), document.querySelector('main'), document.querySelector('.content')];
     nodes.forEach(function(el){
-      if(!el||!el.style) return;
-      el.style.maxHeight='none';
-      el.style.overflowX='hidden';
-      if(el===document.documentElement||el===document.body){
-        el.style.height='auto';
-        el.style.minHeight='100%';
-        el.style.overflowY='auto';
-      }else{
-        el.style.height='auto';
-        el.style.overflowY='visible';
-      }
+      if(!el) return;
+      try{ el.scrollTop = 0; }catch(e){}
+      try{ if(el.scrollTo) el.scrollTo(0,0); }catch(e){}
     });
   }
-  function tick(){ addCss(); unlockScroll(); }
-  tick();
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', tick); else setTimeout(tick,80);
-  document.addEventListener('click', function(){ setTimeout(tick,80); setTimeout(tick,350); }, true);
+  function scheduleTop(){
+    pendingUntil = Date.now() + 3500;
+    [0,80,180,350,650,1000,1500,2300,3200].forEach(function(ms){ setTimeout(scrollTopNow, ms); });
+  }
+
+  function backToList(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    try{ if(typeof window.showPage === 'function'){ window.showPage('orders'); scrollTopNow(); return false; } }catch(e){}
+    try{ if(typeof showPage === 'function'){ showPage('orders'); scrollTopNow(); return false; } }catch(e){}
+    var nav = document.querySelector('[data-page="orders"],.nav[data-page="orders"]');
+    if(nav){ try{ nav.click(); scrollTopNow(); return false; }catch(e){} }
+    try{ history.back(); }catch(e){}
+    return false;
+  }
+
+  function ensureBackButton(){
+    css();
+    var bar = E('bnsV597OrderBottomActions') || document.querySelector('.bns-v333-order-bottom');
+    if(!bar) return;
+    if(!E('bnsV727Back')){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.id = 'bnsV727Back';
+      b.textContent = 'Terug';
+      b.title = 'Terug naar opdrachten';
+      b.addEventListener('click', backToList, true);
+      bar.appendChild(b);
+    }
+  }
+
+  function patchEditOrder(){
+    var old = window.editOrder || (typeof editOrder === 'function' ? editOrder : null);
+    if(typeof old !== 'function' || old.__bns727MobileTop) return;
+    var wrap = function(id){
+      scheduleTop();
+      var r = old.apply(this, arguments);
+      scheduleTop();
+      return r;
+    };
+    for(var k in old){ try{ wrap[k] = old[k]; }catch(e){} }
+    wrap.__bns727MobileTop = true;
+    window.editOrder = wrap;
+    try{ editOrder = wrap; }catch(e){}
+  }
+
+  function looksLikeEditClick(t){
+    if(!t || !t.closest) return false;
+    var b = t.closest('button,a,[onclick]');
+    if(!b) return false;
+    var oc = String(b.getAttribute && b.getAttribute('onclick') || '');
+    var tx = L(b.textContent || b.value || '');
+    return /editOrder\s*\(/.test(oc) || tx === 'wijzigen' || tx === 'open' || tx === 'open opdracht';
+  }
+
+  function tick(){
+    css();
+    patchEditOrder();
+    ensureBackButton();
+    if(Date.now() < pendingUntil) scrollTopNow();
+  }
+
+  document.addEventListener('click', function(ev){
+    if(looksLikeEditClick(ev.target)) scheduleTop();
+    setTimeout(tick,60);
+    setTimeout(tick,300);
+    setTimeout(tick,900);
+  }, true);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tick); else tick();
   window.addEventListener('resize', tick);
-  setInterval(tick, 1500);
-  try{ console.info('[BNS 726] mobiele planner scroll hersteld zonder fixed overlay; geen data/Firebase/materiaal/driver wijziging.'); }catch(e){}
+  setInterval(tick, 1000);
+
+  try{ console.info('[BNS 727] mobiel: wijzigen start boven + Terug-knop; geen data/Firebase/materiaal/driver wijziging.'); }catch(e){}
 })();
