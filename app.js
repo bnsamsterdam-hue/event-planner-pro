@@ -32906,7 +32906,7 @@ setTimeout(()=>{
   }
   function backupSlotForDay(day){
     // 14-dagen roulatie: elke kalenderdag naar een vast slot 00 t/m 13.
-    // Zo blijft daily_latest bestaan en blijven daarnaast ongeveer 13 oudere dagen beschikbaar.
+    // daily_latest blijft laatste backup; daily_00 t/m daily_13 bewaren eerdere dagen.
     try{
       var d = new Date(String(day||todayKey()) + 'T12:00:00');
       var start = new Date(d.getFullYear(), 0, 0);
@@ -33016,7 +33016,6 @@ setTimeout(()=>{
       }
     }
     try{
-      // daily_latest blijft bestaan voor huidige hersteltools. Daarnaast krijgt elke dag een roulatie-slot.
       await writeBackupDoc("daily_latest", "eventplanner-daily-latest");
       await writeBackupDoc(slotId, "eventplanner-daily-rolling-14");
       localStorage.setItem(FIREBASE_DATE_KEY, day);
@@ -42859,12 +42858,17 @@ setTimeout(()=>{
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
     try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    /* BNS v736: mobiel wijzigen gebruikt Nieuwe opdracht flow zonder focus-scroll.
-       Geen save/Firebase/materialen/driver wijziging. */
+    /* BNS v737: mobiel wijzigen gebruikt dezelfde rustige start als Nieuwe opdracht, zonder focus-scroll. */
     try{
-      document.querySelectorAll('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
-      var cp=document.getElementById('customerPanel'); if(cp) cp.classList.remove('hidden');
-      document.querySelectorAll('.worktab').forEach(function(x){ x.classList.toggle('active', x.dataset && x.dataset.tab==='customerPanel'); });
+      var isMob = !!(window.matchMedia && window.matchMedia('(max-width:900px)').matches);
+      if(isMob){
+        document.querySelectorAll('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
+        var cp=document.getElementById('customerPanel'); if(cp) cp.classList.remove('hidden');
+        document.querySelectorAll('.worktab').forEach(function(x){ x.classList.toggle('active', x.dataset && x.dataset.tab==='customerPanel'); });
+        [0,80,250,700].forEach(function(ms){ setTimeout(function(){ try{ window.scrollTo(0,0); document.documentElement.scrollTop=0; document.body.scrollTop=0; }catch(e){} }, ms); });
+      }else if(typeof workTab==='function'){
+        workTab('customerPanel');
+      }
     }catch(e){}
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
   }
@@ -48431,7 +48435,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       '#bnsV597OrderBottomActions button{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:38px!important;padding:9px 12px!important;border-radius:12px!important;border:0!important;font-size:14px!important;font-weight:800!important;line-height:1.1!important;white-space:nowrap!important;flex:0 1 auto!important;max-width:100%!important;}' +
       '#bnsV597Save{background:#16a34a!important;color:#fff!important;}' +
       '#bnsV597Clear{background:#fee2e2!important;color:#991b1b!important;}' +
-      '#bnsV597Print,#bnsV597Overview{background:#e2e8f0!important;color:#0f172a!important;}' +
+      '#bnsV597Print,#bnsV597Overview,#bnsV597Back{background:#e2e8f0!important;color:#0f172a!important;}' +
       '}';
     document.head.appendChild(st);
   }
@@ -48473,6 +48477,11 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function doOverview(){
     if(clickExisting(/overzicht maken|overzicht bestelling|overzicht/i)) return;
   }
+  function doBack(){
+    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+    try{ if(typeof showPage==='function'){ showPage('orders'); return; } }catch(e){}
+    try{ window.scrollTo(0,0); }catch(e){}
+  }
 
   function ensureBar(){
     addCss();
@@ -48486,12 +48495,14 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         '<button type="button" id="bnsV597Save">Opslaan</button>' +
         '<button type="button" id="bnsV597Clear">Wis</button>' +
         '<button type="button" id="bnsV597Print">Afdrukken</button>' +
-        '<button type="button" id="bnsV597Overview">Overzicht maken</button>';
+        '<button type="button" id="bnsV597Overview">Overzicht maken</button>' +
+        '<button type="button" id="bnsV597Back">Terug</button>';
       page.appendChild(bar);
       E('bnsV597Save').addEventListener('click', doSave);
       E('bnsV597Clear').addEventListener('click', doClear);
       E('bnsV597Print').addEventListener('click', doPrint);
       E('bnsV597Overview').addEventListener('click', doOverview);
+      E('bnsV597Back').addEventListener('click', doBack);
     } else if(bar.parentElement !== page){
       page.appendChild(bar);
     } else if(page.lastElementChild !== bar){
@@ -51774,25 +51785,62 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* =========================================================
-   BNS v736 - Mobiel wijzigen als Nieuwe opdracht flow
-   Alleen mobiele rust/scroll. Geen materiaal, reservering, Firebase of driver.
+   BNS v737 - Schone weergave-rust: dubbelen niet tonen, niets verwijderen
+   Basis: schone upload 18-6 + backup14 + mobiel. Alleen app-weergave.
+   - Verwijdert NIETS uit Firebase
+   - Verplaatst/archieveert NIETS
+   - Bij dubbele opdrachtnummers toont de app 1 beste versie
+   - Random-only opdrachten blijven zichtbaar
    ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS_V736_MOBIEL_WIJZIGEN_ALS_NIEUW__) return;
-  window.__BNS_V736_MOBIEL_WIJZIGEN_ALS_NIEUW__ = true;
-  function addCss(){
-    if(document.getElementById('bns-v736-mobile-edit-css')) return;
-    var st=document.createElement('style');
-    st.id='bns-v736-mobile-edit-css';
-    st.textContent='@media(max-width:900px){'
-      +'html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important;overscroll-behavior:auto!important;}'
-      +'#app,.app,.main,.content,.page,#newOrder{height:auto!important;max-height:none!important;overflow:visible!important;}'
-      +'#newOrder{padding-bottom:28px!important;}'
-      +'#newOrder input,#newOrder textarea,#newOrder select{font-size:16px!important;}'
-      +'}';
+  if(window.__BNS_V737_VIEW_DEDUP_MOBILE__) return;
+  window.__BNS_V737_VIEW_DEDUP_MOBILE__ = true;
+  function T(v){ return String(v==null?'':v).trim(); }
+  function isOrderNumber(v){ return /^20\d{2}-\d{3,6}$/.test(T(v)); }
+  function key(o){ return T(o && o.number) || T(o && o.id); }
+  function stamp(o){ var v=T(o && (o.updatedAt||o.modifiedAt||o.createdAt||o.date)); var t=Date.parse(v); return isNaN(t)?0:t; }
+  function score(o){
+    var id=T(o&&o.id), nr=T(o&&o.number), s=0;
+    if(o && o.__bnsHersteldUitBackup) s-=1000000000;
+    if(nr && id===nr) s+=10000000;
+    if(isOrderNumber(id)) s+=5000000;
+    s+=stamp(o);
+    try{ s+=Math.min(JSON.stringify(o||{}).length, 999999); }catch(e){}
+    return s;
+  }
+  function dedupe(list){
+    var map={}, order=[];
+    (Array.isArray(list)?list:[]).forEach(function(o){
+      if(!o || typeof o!=='object') return;
+      var k=key(o);
+      if(!k){ order.push('__no_'+order.length); map[order[order.length-1]]=o; return; }
+      if(!map[k]){ map[k]=o; order.push(k); }
+      else if(score(o)>score(map[k])) map[k]=o;
+    });
+    return order.map(function(k){ return map[k]; }).filter(Boolean);
+  }
+  function wrapSorted(){
+    var old = window.sortedOrders || (typeof sortedOrders==='function' ? sortedOrders : null);
+    if(typeof old!=='function' || old.__bnsV737Dedupe) return;
+    var nw=function(){
+      var arr=[];
+      try{ arr=old.apply(this,arguments)||[]; }catch(e){ try{ arr=(state&&state.orders||[]).slice(); }catch(_){ arr=[]; } }
+      return dedupe(arr).sort(function(a,b){ return String(a.start||'9999-99-99').localeCompare(String(b.start||'9999-99-99')); });
+    };
+    nw.__bnsV737Dedupe=true;
+    window.sortedOrders=nw;
+    try{ sortedOrders=nw; }catch(e){}
+  }
+  function css(){
+    if(document.getElementById('bns-v737-mobile-css')) return;
+    var st=document.createElement('style'); st.id='bns-v737-mobile-css';
+    st.textContent='@media(max-width:900px){html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important;}#app,.app,.main,.content,.page,#newOrder{height:auto!important;max-height:none!important;overflow:visible!important;}#newOrder{padding-bottom:32px!important;}#newOrder input,#newOrder textarea,#newOrder select{font-size:16px!important;}}';
     document.head.appendChild(st);
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addCss); else addCss();
-  console.info('[BNS v736] mobiel wijzigen als Nieuwe opdracht flow actief.');
+  function boot(){ wrapSorted(); css(); try{ if(typeof renderAll==='function') renderAll(); }catch(e){} }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else setTimeout(boot,50);
+  setTimeout(wrapSorted,1000);
+  setTimeout(function(){ try{ if(typeof renderDashboard==='function') renderDashboard(); if(typeof renderOrders==='function') renderOrders(); }catch(e){} },1500);
+  console.info('[BNS v737] schone mobiele flow + 14 dagen backup + weergave-dedupe actief.');
 })();
