@@ -32876,7 +32876,7 @@ setTimeout(()=>{
 /* =========================================================
    BNS V173 AUTOMATISCHE DAGBACKUP
    - maakt maximaal 1 automatische backup per dag
-   - overschrijft steeds dezelfde Firebase backup: backups/daily_latest
+   - schrijft naar backups/daily_latest en 14-dagen roulatie backups/daily_00 t/m daily_13
    - grote backups worden in vaste chunks opgeslagen, zodat Firebase documentlimiet niet snel breekt
    - werkt lokaal door als Firebase niet klaar is en probeert later opnieuw
    - raakt opdrachten/materialen/klanten NIET aan
@@ -32961,35 +32961,50 @@ setTimeout(()=>{
   function firebaseReady(){
     return !!(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db);
   }
+  function backupSlotForDay(day){
+    try{
+      var parts = String(day||todayKey()).split("-").map(function(x){ return parseInt(x,10)||0; });
+      var utc = Date.UTC(parts[0], (parts[1]||1)-1, parts[2]||1);
+      var days = Math.floor(utc / 86400000);
+      return ((days % 14) + 14) % 14;
+    }catch(e){
+      return Math.abs(new Date().getDate() % 14);
+    }
+  }
+  async function writeFirebaseBackupDoc(fs, db, docId, json, day, chunks, updatedAt){
+    var meta = {
+      type: docId === "daily_latest" ? "eventplanner-daily-latest" : "eventplanner-daily-rotation-14",
+      date: day,
+      updatedAt: updatedAt,
+      chunkCount: chunks.length,
+      size: json.length,
+      rotationDays: 14,
+      note: docId === "daily_latest"
+        ? "Automatische dagbackup: laatste backup."
+        : "Automatische 14-dagen roulatiebackup. Slot wordt dagelijks overschreven."
+    };
+    await fs.setDoc(fs.doc(db, "backups", docId), meta, { merge:false });
+    for(var i=0; i<chunks.length; i++){
+      await fs.setDoc(
+        fs.doc(db, "backups", docId, "chunks", String(i).padStart(4,"0")),
+        { index:i, data:chunks[i], updatedAt:updatedAt },
+        { merge:false }
+      );
+    }
+  }
   async function saveFirebaseBackup(json, day){
     if(!firebaseReady()) return false;
     var fs = window.BNS.fs;
     var db = window.BNS.db;
     var chunks = jsonChunks(json);
-    var meta = {
-      type: "eventplanner-daily-latest",
-      date: day,
-      updatedAt: nowIso(),
-      chunkCount: chunks.length,
-      size: json.length,
-      note: "Automatische dagbackup. Deze overschrijft steeds dezelfde backup en groeit dus niet per dag."
-    };
+    var updatedAt = nowIso();
+    var slot = String(backupSlotForDay(day)).padStart(2,"0");
+    var slotDoc = "daily_" + slot;
     try{
-      await fs.setDoc(fs.doc(db, "backups", "daily_latest"), meta, {
-        merge:false
-      });
-      for(var i=0; i<chunks.length; i++){
-        await fs.setDoc(
-        fs.doc(db, "backups", "daily_latest", "chunks", String(i).padStart(4,"0")),
-        {
-          index:i, data:chunks[i], updatedAt:meta.updatedAt
-        },
-        {
-          merge:false
-        });
-      }
+      await writeFirebaseBackupDoc(fs, db, "daily_latest", json, day, chunks, updatedAt);
+      await writeFirebaseBackupDoc(fs, db, slotDoc, json, day, chunks, updatedAt);
       localStorage.setItem(FIREBASE_DATE_KEY, day);
-      setStatus("Firebase dagbackup gemaakt: " + day + " (" + chunks.length + " deel" + (chunks.length===1?"":"en") + ")");
+      setStatus("Firebase dagbackup gemaakt: " + day + " naar daily_latest en " + slotDoc + " (" + chunks.length + " deel" + (chunks.length===1?"":"en") + ")");
       return true;
     } catch(e){
       console.warn("[BNS backup] Firebase backup mislukt", e);
@@ -33057,7 +33072,7 @@ setTimeout(()=>{
       (localStorage.getItem(LOCAL_STATUS_KEY) || "Nog geen status")+
       '</div>'+
       '<button type="button" id="bnsAutoBackupNow" style="background:#16a34a;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:900;cursor:pointer;">Backup nu naar Firebase</button>'+
-      '<div style="font-size:13px;margin-top:8px;color:#374151;">Maakt maximaal 1 automatische backup per dag en overschrijft dezelfde backup: backups/daily_latest.</div>';
+      '<div style="font-size:13px;margin-top:8px;color:#374151;">Maakt maximaal 1 automatische backup per dag naar backups/daily_latest en een 14-dagen roulatie: backups/daily_00 t/m backups/daily_13.</div>';
       anchor.parentNode.insertBefore(box, anchor.nextSibling);
       var btn = document.getElementById("bnsAutoBackupNow");
       if(btn){
@@ -51736,7 +51751,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* =========================================================
-   BNS 724 - Alleen mobiel: planner rust + opslaan/terug onderaan
+   BNS 740 - mobiel rustig zonder interval + 14-dagen backup basis
    Basis: v723/v722 werkend. Raakt niet aan: Firebase, materialen,
    reservering, driver, opslaan-logica, wissen of menu linksboven.
    Doel: planner op telefoon compacter en de mobiele knoppen onderaan
@@ -51808,11 +51823,28 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); clickExistingBack(); }, true);
     bar.appendChild(b);
   }
-  function tick(){ addStyle(); ensureBackButton(); }
-  tick();
-  document.addEventListener('DOMContentLoaded', tick);
-  document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
+  function patchProgrammaticFocus(){
+    try{
+      if(window.__BNS740_PREVENT_MOBILE_FOCUS_SCROLL__) return;
+      window.__BNS740_PREVENT_MOBILE_FOCUS_SCROLL__ = true;
+      var proto = window.HTMLElement && window.HTMLElement.prototype;
+      if(!proto || !proto.focus) return;
+      var orig = proto.focus;
+      proto.focus = function(opts){
+        try{
+          if(isMobile() && (!opts || typeof opts !== 'object')){
+            return orig.call(this, {preventScroll:true});
+          }
+        }catch(e){}
+        return orig.apply(this, arguments);
+      };
+    }catch(e){}
+  }
+  function tick(){ addStyle(); patchProgrammaticFocus(); ensureBackButton(); }
+  function scheduleTicks(){ [0,80,250,700,1400,2600].forEach(function(ms){ setTimeout(tick, ms); }); }
+  scheduleTicks();
+  document.addEventListener('DOMContentLoaded', scheduleTicks);
+  document.addEventListener('click', function(){ setTimeout(tick,80); setTimeout(tick,450); }, true);
   window.addEventListener('resize', tick);
-  setInterval(tick, 1500);
-  try{console.info('[BNS 724] mobiele planner-rust + opslaan/terug onderaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
+  try{console.info('[BNS 740] mobiel rustig vanaf app104: geen interval-loop, geen menu, 14-dagen backup actief.');}catch(e){}
 })();
