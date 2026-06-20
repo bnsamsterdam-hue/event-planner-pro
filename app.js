@@ -8071,17 +8071,22 @@ function showPage(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
-  // BNS v744: page-wissel moet echt bovenaan starten; wijzigen gebruikt dezelfde pagina als Nieuwe opdracht.
+  renderAll();
+  // BNS 745: scroll NA renderAll zodat renders de pagina niet meer kunnen verlengen na de scroll
   try{
     if(p === 'newOrder' || p === 'orders' || p === 'dashboard'){
-      document.activeElement && document.activeElement.blur && document.activeElement.blur();
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-      if(window.scrollTo) window.scrollTo({top:0,left:0,behavior:'auto'});
-      ['app','newOrder','orders','dashboard'].forEach(function(id){ var el=document.getElementById(id); if(el) el.scrollTop=0; });
+      try{ document.activeElement && document.activeElement.blur && document.activeElement.blur(); }catch(e){}
+      var _scrollTop = function(){
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{ window.scrollTo(0,0); }catch(e2){} }
+        ['app','newOrder','orders','dashboard'].forEach(function(id){ var el=document.getElementById(id); if(el) el.scrollTop=0; });
+      };
+      // Meerdere momenten: direct, na summaryRender (60ms), na workTab-focus (120ms), na async renders (300ms)
+      _scrollTop();
+      [20, 70, 130, 300, 600].forEach(function(ms){ setTimeout(_scrollTop, ms); });
     }
   }catch(e){}
-  renderAll();
 }
 function init(){
   document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{
@@ -8423,7 +8428,18 @@ function editOrder(oid){
   orderExtra.value=o.extra||'';
   renderChosen();
   summaryRender();
-  workTab('customerPanel')
+  workTab('customerPanel');
+  // BNS 745: scroll na workTab (workTab roept summaryRender aan - dat verlengt de pagina)
+  try{
+    var _mob = (window.innerWidth||9999) <= 950;
+    if(_mob){
+      var _st = function(){
+        document.documentElement.scrollTop=0; document.body.scrollTop=0;
+        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{ window.scrollTo(0,0); }catch(e2){} }
+      };
+      [0,70,150,300,600,1200].forEach(function(ms){ setTimeout(_st,ms); });
+    }
+  }catch(e){}
 }
 function nice(d){
   if(!d)return '';
@@ -51858,6 +51874,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   document.addEventListener('DOMContentLoaded', tick);
   document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
   window.addEventListener('resize', tick);
-  // BNS v744: geen herhalende mobiele interval-loop meer; tick draait bij laden/klik/resize.
+  // BNS 745: kleine interval zodat terug-knop ook verschijnt zonder klik (bijv. via editOrder)
+  setInterval(tick, 400);
   try{console.info('[BNS 724/v744] mobiele planner-rust actief zonder interval; terugknop direct naar Opdrachten.');}catch(e){}
 })();
