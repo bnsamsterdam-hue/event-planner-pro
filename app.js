@@ -20492,8 +20492,17 @@ setTimeout(()=>{
     var e=parseDate(val("dateEnd") || val("dateStart"));
     return !!(s && e && e < s);
   }
+  function bnsV731OrderDocId(existing, currentEditing, nr){
+    nr = String(nr || '').trim();
+    var exId = String(existing && existing.id || '').trim();
+    // Oude importregels old_... blijven met rust. Nieuwe/gewone opdrachten krijgen het opdrachtnummer als document-id.
+    if(/^old_/i.test(exId)) return exId;
+    if(/^20\d{2}-\d{3,}$/.test(nr)) return nr;
+    return exId || String(currentEditing || makeId());
+  }
   function buildOrder(existing){
     var currentEditing = editingId();
+    var orderNr = val("orderNumber");
     var driverValue = val("orderDriver");
     var totals = null;
     try{
@@ -20501,8 +20510,8 @@ setTimeout(()=>{
     } catch(e){
     }
     return {
-      id: existing && existing.id ? existing.id : (currentEditing || makeId()),
-      number: val("orderNumber"),
+      id: bnsV731OrderDocId(existing, currentEditing, orderNr),
+      number: orderNr,
       status: val("orderStatus") || "Offerte",
       title: val("orderTitle") || "Zonder titel",
       start: val("dateStart"),
@@ -51771,4 +51780,147 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addCss); else addCss();
   console.info('[BNS v728] mobiel wijzigen als Nieuwe opdracht flow actief.');
+})();
+
+
+/* =========================================================
+   BNS v731 - Opdrachtnummer/Firebase document-id veilig terug
+   Basis: v728 mobiel goed.
+   Doel: normale nieuwe/gewijzigde opdrachten schrijven weer als orders/<opdrachtnummer>.
+   Raakt niet aan: filters, mappen, archief, verwijderen, materialen, reserveringen, driver, mobiel.
+   Bestaande random documenten worden niet verwijderd, verplaatst of samengevoegd.
+========================================================= */
+(function BNS_V731_ORDER_DOC_ID_SAFE(){
+  'use strict';
+  if(window.__BNS_V731_ORDER_DOC_ID_SAFE__) return;
+  window.__BNS_V731_ORDER_DOC_ID_SAFE__ = true;
+
+  var COUNTER_KEY = 'bns_order_seq_max_v690';
+  var FLOOR_SEQ = 2566;
+  var START_YEAR = 2026;
+
+  function T(v){ return String(v == null ? '' : v).trim(); }
+  function E(id){ return document.getElementById(id); }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || null; }
+  function orders(){ var s=S(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  function currentYear(){ return new Date().getFullYear(); }
+  function parseNr(v){ var m = T(v).match(/^(20\d{2})-(\d{1,})$/); return m ? {year:Number(m[1]), seq:Number(m[2])} : null; }
+  function storedMax(){ try{ return Math.max(0, Number(localStorage.getItem(COUNTER_KEY) || 0) || 0); }catch(e){ return 0; } }
+  function saveMax(n){
+    n = Number(n || 0) || 0;
+    if(n < FLOOR_SEQ) n = FLOOR_SEQ;
+    if(n < storedMax()) n = storedMax();
+    try{ localStorage.setItem(COUNTER_KEY, String(n)); }catch(e){}
+    return n;
+  }
+  function maxSeqFromOrders(){
+    var max = FLOOR_SEQ;
+    orders().forEach(function(o){
+      var p = parseNr(o && (o.number || o.orderNumber || o.orderNo || o.opdrachtNr || o.id));
+      if(!p) return;
+      if(p.year < START_YEAR) return;
+      if(p.seq < 1000) return;
+      if(p.seq > max) max = p.seq;
+    });
+    return max;
+  }
+  function currentMaxSeq(){ return Math.max(FLOOR_SEQ, storedMax(), maxSeqFromOrders()); }
+  function nextOrderNumber(){ return currentYear() + '-' + String(currentMaxSeq() + 1).padStart(4,'0'); }
+  function bumpFromNumber(nr){ var p = parseNr(nr); if(!p || p.year < START_YEAR || p.seq < 1000) return; saveMax(Math.max(storedMax(), p.seq)); }
+  function isEditingExisting(){
+    try{ if(typeof editing !== 'undefined' && editing) return true; }catch(e){}
+    if(window.editing) return true;
+    var nr = T(E('orderNumber') && E('orderNumber').value);
+    if(!nr) return false;
+    return orders().some(function(o){ return T(o && (o.number || o.orderNumber || o.id)) === nr; });
+  }
+  function numberExists(nr){ return orders().some(function(o){ return T(o && (o.number || o.orderNumber || o.id)) === T(nr); }); }
+  function shouldReplaceCurrentNumber(){
+    var el = E('orderNumber'); if(!el) return false;
+    var nr = T(el.value); var p = parseNr(nr);
+    if(!nr) return true;
+    if(!p) return true;
+    if(p.year < START_YEAR) return true;
+    if(p.seq < 1000 && !isEditingExisting()) return true;
+    if(p.seq < currentMaxSeq() && !isEditingExisting()) return true;
+    return false;
+  }
+  function applyNextNumber(force){
+    var el = E('orderNumber'); if(!el) return '';
+    if(!force && isEditingExisting()) return T(el.value);
+    if(force || shouldReplaceCurrentNumber()){
+      var nr = nextOrderNumber();
+      while(numberExists(nr)){ var p = parseNr(nr); saveMax(p.seq); nr = nextOrderNumber(); }
+      el.value = nr;
+      try{ el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
+      return nr;
+    }
+    return T(el.value);
+  }
+  function hardNewNo(){ return applyNextNumber(true) || nextOrderNumber(); }
+  function hardMakeNumber(){ return nextOrderNumber(); }
+  try{ window.newNo = hardNewNo; newNo = hardNewNo; }catch(e){}
+  try{ window.makeNumber = hardMakeNumber; makeNumber = hardMakeNumber; }catch(e){}
+  try{ window.nextNo = hardMakeNumber; nextNo = hardMakeNumber; }catch(e){}
+
+  function seed(){ saveMax(currentMaxSeq()); }
+  seed(); setTimeout(seed,800); setTimeout(seed,2500); setTimeout(seed,6000);
+
+  document.addEventListener('click', function(ev){
+    var t = ev.target; if(!t || !t.closest) return;
+    var btn = t.closest('#saveOrder,button,input[type="button"],input[type="submit"]');
+    if(!btn) return;
+    var label = T(btn.id + ' ' + (btn.textContent || btn.value || '')).toLowerCase();
+    if(label.indexOf('saveorder') < 0 && label.indexOf('opslaan') < 0 && label.indexOf('save') < 0) return;
+    applyNextNumber(false);
+  }, true);
+
+  function wrapSave(){
+    var old = window.saveCurrentOrder || (typeof saveCurrentOrder === 'function' ? saveCurrentOrder : null);
+    if(!old || old.__bnsV731OrderNo) return;
+    var wrapped = function(){
+      applyNextNumber(false);
+      var nrBefore = T(E('orderNumber') && E('orderNumber').value);
+      var r = old.apply(this, arguments);
+      bumpFromNumber(nrBefore);
+      return r;
+    };
+    wrapped.__bnsV731OrderNo = true;
+    window.saveCurrentOrder = wrapped;
+    try{ saveCurrentOrder = wrapped; }catch(e){}
+  }
+  wrapSave(); setTimeout(wrapSave,800); setTimeout(wrapSave,2500);
+
+  function refreshIfNew(){ if(!isEditingExisting()) applyNextNumber(false); }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(refreshIfNew,500); setTimeout(refreshIfNew,1800); });
+  setTimeout(refreshIfNew,1000);
+
+  function normalizeOrderForFixedDocId(order){
+    if(!order || typeof order !== 'object') return order;
+    var nr = T(order.number || order.orderNumber);
+    if(/^20\d{2}-\d{3,}$/.test(nr)){
+      var oldId = T(order.id);
+      if(!/^old_/i.test(oldId)){
+        order.id = nr;
+        order.number = nr;
+        bumpFromNumber(nr);
+      }
+    }
+    return order;
+  }
+
+  function wrapSync(){
+    try{
+      if(!window.BNS || typeof window.BNS.syncOrder !== 'function' || window.BNS.syncOrder.__bnsV731Sync) return;
+      var oldSync = window.BNS.syncOrder;
+      window.BNS.syncOrder = function(order){
+        normalizeOrderForFixedDocId(order);
+        return oldSync.apply(this, arguments);
+      };
+      window.BNS.syncOrder.__bnsV731Sync = true;
+    }catch(e){}
+  }
+  wrapSync(); setTimeout(wrapSync,1200); setTimeout(wrapSync,3500); setTimeout(wrapSync,7000);
+
+  try{ console.info('[BNS v731] veilige opdrachtnummer/doc-id fix actief. Bestaande random documenten blijven ongemoeid.'); }catch(e){}
 })();
