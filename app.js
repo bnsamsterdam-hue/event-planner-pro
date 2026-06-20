@@ -8182,10 +8182,11 @@ function workTab(idv){
   document.querySelectorAll('.worktab').forEach(x=>x.classList.toggle('active',x.dataset.tab===idv));
   // BNS v690: bij Klant/Locatie meteen op het naamveld starten.
   if(idv==='customerPanel'){
-    setTimeout(()=>{ try{ customerName.focus(); customerName.select(); }catch(e){} },60);
+    // BNS 744: preventScroll zodat mobiel niet naar het veld scrolt
+    setTimeout(()=>{ try{ customerName.focus({preventScroll:true}); customerName.select(); }catch(e){} },60);
   }
   if(idv==='locationPanel'){
-    setTimeout(()=>{ try{ locationName.focus(); locationName.select(); }catch(e){} },60);
+    setTimeout(()=>{ try{ locationName.focus({preventScroll:true}); locationName.select(); }catch(e){} },60);
   }
   if(idv==='materialPanel'){
     renderCats();
@@ -8411,7 +8412,17 @@ function editOrder(oid){
   orderExtra.value=o.extra||'';
   renderChosen();
   summaryRender();
-  workTab('customerPanel')
+  workTab('customerPanel');
+  // BNS 744: scroll naar boven op mobiel, NA alle renders en NA de focus-timer
+  var _isMob = (window.innerWidth||9999) <= 900;
+  if(_isMob){
+    [0, 70, 160, 350, 700, 1400].forEach(function(ms){
+      setTimeout(function(){
+        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{ window.scrollTo(0,0); }catch(e2){} }
+        try{ document.documentElement.scrollTop=0; document.body.scrollTop=0; }catch(e){}
+      }, ms);
+    });
+  }
 }
 function nice(d){
   if(!d)return '';
@@ -51829,9 +51840,10 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function tick(){ addStyle(); ensureBackButton(); }
   tick();
   document.addEventListener('DOMContentLoaded', tick);
-  document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
+  document.addEventListener('click', function(){ setTimeout(tick,80); setTimeout(tick,400); }, true);
   window.addEventListener('resize', tick);
-  setInterval(tick, 1500);
+  // BNS 744: 300ms interval zodat terug-knop na re-render snel terug is
+  setInterval(tick, 300);
   try{console.info('[BNS 724] mobiele planner-rust + opslaan/terug onderaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
 })();
 
