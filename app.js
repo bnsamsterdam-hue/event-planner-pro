@@ -8072,21 +8072,10 @@ function showPage(p){
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
   renderAll();
-  // BNS 745: scroll NA renderAll zodat renders de pagina niet meer kunnen verlengen na de scroll
-  try{
-    if(p === 'newOrder' || p === 'orders' || p === 'dashboard'){
-      try{ document.activeElement && document.activeElement.blur && document.activeElement.blur(); }catch(e){}
-      var _scrollTop = function(){
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{ window.scrollTo(0,0); }catch(e2){} }
-        ['app','newOrder','orders','dashboard'].forEach(function(id){ var el=document.getElementById(id); if(el) el.scrollTop=0; });
-      };
-      // Meerdere momenten: direct, na summaryRender (60ms), na workTab-focus (120ms), na async renders (300ms)
-      _scrollTop();
-      [20, 70, 130, 300, 600].forEach(function(ms){ setTimeout(_scrollTop, ms); });
-    }
-  }catch(e){}
+  // BNS 746: scroll NA renderAll (renderAll is synchroon, daarna pas scroll)
+  document.documentElement.scrollTop=0;
+  document.body.scrollTop=0;
+  try{ window.scrollTo(0,0); }catch(e){}
 }
 function init(){
   document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{
@@ -8195,7 +8184,7 @@ function workTab(idv){
   document.querySelectorAll('.workpanel').forEach(x=>x.classList.add('hidden'));
   $(idv).classList.remove('hidden');
   document.querySelectorAll('.worktab').forEach(x=>x.classList.toggle('active',x.dataset.tab===idv));
-  // BNS v744: op mobiel NIET focussen/selecteren. Dat liet Wijzigen naar Klantgegevens/onderkant springen.
+  // BNS 746: op mobiel geen focus (veroorzaakte scroll naar veld)
   var mobile=false;
   try{ mobile = !!(window.matchMedia && window.matchMedia('(max-width: 950px)').matches); }catch(e){ mobile = (window.innerWidth||9999) <= 950; }
   if(!mobile && idv==='customerPanel'){
@@ -8210,6 +8199,31 @@ function workTab(idv){
   }
   summaryRender();
 }
+// BNS 746: vaste Terug-knop bovenaan #newOrder op mobiel — werkt altijd, onafhankelijk van bars/intervals
+(function(){
+  function bns746EnsureBack(){
+    if((window.innerWidth||9999)>950) return;
+    var page=document.getElementById('newOrder');
+    if(!page) return;
+    if(document.getElementById('bns746BackBtn')) return;
+    var btn=document.createElement('button');
+    btn.id='bns746BackBtn';
+    btn.type='button';
+    btn.textContent='← Terug naar opdrachten';
+    btn.style.cssText='display:block;width:100%;margin:0 0 12px;padding:10px;background:#475569;color:#fff;border:0;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;';
+    btn.addEventListener('click',function(){
+      try{ showPage('orders'); }catch(e){ try{ window.showPage('orders'); }catch(e2){} }
+    });
+    page.insertBefore(btn, page.firstChild);
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',function(){ setTimeout(bns746EnsureBack,200); });
+  } else {
+    setTimeout(bns746EnsureBack,200);
+  }
+  document.addEventListener('click',function(){ setTimeout(bns746EnsureBack,100); },true);
+  setInterval(bns746EnsureBack,500);
+})();
 function summaryRender(){
   summary.innerHTML=[['Klant',customerName.value||'Nog niet gekozen'],['Locatie',[locationName.value,locationCity.value].filter(Boolean).join(' - ')||'Nog niet gekozen'],['Materialen',chosen.length?chosen.map(m=>m.code).join(', '):'Nog niets'],['Bezorger',orderDriver.value||'Nog niet gekozen'],['Status',orderStatus.value],['Totaal',$('grandTotal')?.value||'€ 0,00']].map(i=>`<div class="summary-card"><b>${i[0]}</b>${i[1]}</div>`).join('');
 }
@@ -8428,18 +8442,20 @@ function editOrder(oid){
   orderExtra.value=o.extra||'';
   renderChosen();
   summaryRender();
-  workTab('customerPanel');
-  // BNS 745: scroll na workTab (workTab roept summaryRender aan - dat verlengt de pagina)
-  try{
-    var _mob = (window.innerWidth||9999) <= 950;
-    if(_mob){
-      var _st = function(){
-        document.documentElement.scrollTop=0; document.body.scrollTop=0;
-        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{ window.scrollTo(0,0); }catch(e2){} }
-      };
-      [0,70,150,300,600,1200].forEach(function(ms){ setTimeout(_st,ms); });
-    }
-  }catch(e){}
+  // BNS 746: workTab alleen op desktop; op mobiel direct panel tonen zonder focus/scroll-cascade
+  var _isMob=(window.innerWidth||9999)<=950;
+  if(_isMob){
+    document.querySelectorAll('.workpanel').forEach(function(x){x.classList.add('hidden');});
+    var _cp=document.getElementById('customerPanel');
+    if(_cp) _cp.classList.remove('hidden');
+    document.querySelectorAll('.worktab').forEach(function(x){x.classList.toggle('active',x.dataset&&x.dataset.tab==='customerPanel');});
+  } else {
+    workTab('customerPanel');
+  }
+  // Scroll naar boven — na alle synchrone renders
+  document.documentElement.scrollTop=0;
+  document.body.scrollTop=0;
+  try{ window.scrollTo(0,0); }catch(e){}
 }
 function nice(d){
   if(!d)return '';
@@ -51874,7 +51890,6 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   document.addEventListener('DOMContentLoaded', tick);
   document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
   window.addEventListener('resize', tick);
-  // BNS 745: kleine interval zodat terug-knop ook verschijnt zonder klik (bijv. via editOrder)
-  setInterval(tick, 400);
+  // BNS v744: geen herhalende mobiele interval-loop meer; tick draait bij laden/klik/resize.
   try{console.info('[BNS 724/v744] mobiele planner-rust actief zonder interval; terugknop direct naar Opdrachten.');}catch(e){}
 })();
