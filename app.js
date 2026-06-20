@@ -42846,12 +42846,38 @@ setTimeout(()=>{
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
     try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
+    // BNS v750: direct in de oude V408 wijzigen-route oplossen.
+    // Op mobiel NIET workTab('customerPanel') gebruiken, want die focust klantvelden
+    // en trekt de ingevulde opdracht naar onderaan. Toon het klantpaneel zonder focus
+    // en zet alle relevante scroll-lagen terug naar boven.
+    try{
+      var isMob = false;
+      try{ isMob = window.matchMedia && window.matchMedia('(max-width: 950px)').matches; }catch(_){ isMob = (window.innerWidth||9999) <= 950; }
+      if(isMob){
+        try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(_){ }
+        try{ document.querySelectorAll('.workpanel').forEach(function(x){ x.classList.add('hidden'); }); }catch(_){ }
+        try{ var cp=E('customerPanel'); if(cp) cp.classList.remove('hidden'); }catch(_){ }
+        try{ document.querySelectorAll('.worktab').forEach(function(x){ x.classList.toggle('active', x.dataset && x.dataset.tab==='customerPanel'); }); }catch(_){ }
+        try{
+          var scrollTopNow=function(){
+            try{ window.scrollTo(0,0); }catch(_){ }
+            try{ document.documentElement.scrollTop=0; }catch(_){ }
+            try{ document.body.scrollTop=0; }catch(_){ }
+            try{ var pg=E('newOrder'); if(pg) pg.scrollTop=0; }catch(_){ }
+            try{ document.querySelectorAll('.page,.page.active,main,.content,.app,.wrap,.container').forEach(function(el){ if(el && typeof el.scrollTop==='number') el.scrollTop=0; }); }catch(_){ }
+          };
+          [0,60,180,420,900].forEach(function(ms){ setTimeout(scrollTopNow,ms); });
+        }catch(_){ }
+      }else{
+        try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(_){ }
+      }
+    }catch(e){}
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
   }
   window.BNS_V408_fastEditOrder=fastEditOrder;
   setTimeout(function(){ try{ window.editOrder=fastEditOrder; editOrder=fastEditOrder; }catch(e){ window.editOrder=fastEditOrder; } },1000);
-  setInterval(function(){ try{ if(window.editOrder!==fastEditOrder){ window.editOrder=fastEditOrder; try{editOrder=fastEditOrder;}catch(e){} } }catch(e){} },3500);
+  // BNS v750: de oude 3,5 seconde bewaker is uitgezet. Die zette editOrder steeds terug
+  // naar de oude mobiele wijzig-route en overschreef latere veilige fixes.
   document.addEventListener('click',function(ev){
     var btn=ev.target && ev.target.closest && ev.target.closest('button,[onclick]');
     if(!btn) return;
