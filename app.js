@@ -42828,7 +42828,14 @@ setTimeout(()=>{
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
     try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
+    /* BNS v728: bij wijzigen niet automatisch focus/select op klantveld zetten.
+       Nieuwe opdracht werkt mobiel goed omdat hij niet naar een input onderin forceert.
+       We tonen hetzelfde klantpaneel, maar zonder focus-scroll. */
+    try{
+      document.querySelectorAll('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
+      var cp=document.getElementById('customerPanel'); if(cp) cp.classList.remove('hidden');
+      document.querySelectorAll('.worktab').forEach(function(x){ x.classList.toggle('active', x.dataset && x.dataset.tab==='customerPanel'); });
+    }catch(e){}
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
   }
   window.BNS_V408_fastEditOrder=fastEditOrder;
@@ -48449,12 +48456,17 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         '<button type="button" id="bnsV597Save">Opslaan</button>' +
         '<button type="button" id="bnsV597Clear">Wis</button>' +
         '<button type="button" id="bnsV597Print">Afdrukken</button>' +
-        '<button type="button" id="bnsV597Overview">Overzicht maken</button>';
+        '<button type="button" id="bnsV597Overview">Overzicht maken</button>' +
+        '<button type="button" id="bnsV597Back">Terug</button>';
       page.appendChild(bar);
       E('bnsV597Save').addEventListener('click', doSave);
       E('bnsV597Clear').addEventListener('click', doClear);
       E('bnsV597Print').addEventListener('click', doPrint);
       E('bnsV597Overview').addEventListener('click', doOverview);
+      E('bnsV597Back').addEventListener('click', function(){
+        try{ if(typeof showPage==='function'){ showPage('orders'); return; } }catch(e){}
+        try{ history.back(); }catch(e){}
+      });
     } else if(bar.parentElement !== page){
       page.appendChild(bar);
     } else if(page.lastElementChild !== bar){
@@ -51735,125 +51747,28 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 
+
 /* =========================================================
-   BNS 727 - Alleen mobiel: wijzigen start boven + Terug-knop
-   Basis: v723/v722 werkend. Alleen toegevoegd:
-   - Bij Wijzigen/Openen van opdracht op mobiel altijd naar boven in Nieuwe opdracht.
-   - Terug-knop in het bestaande mobiele opdrachtknoppenblok.
-   - Oude vaste orderknoppenbalk op mobiel niet als overlay over formulier.
-   - Geen Firebase, materialen, reservering, driver, opslaan/wissen-logica wijziging.
-   - Geen menu linksboven.
+   BNS v728 - Mobiel wijzigen gebruikt Nieuwe opdracht flow
+   Alleen mobiele rust/scroll. Geen materiaal, reservering, Firebase of driver.
    ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS727_MOBILE_EDIT_TOP_BACK__) return;
-  window.__BNS727_MOBILE_EDIT_TOP_BACK__ = true;
-
-  var pendingUntil = 0;
-  function E(id){ return document.getElementById(id); }
-  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function T(v){ return String(v==null?'':v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function mobile(){ return (window.innerWidth || document.documentElement.clientWidth || 9999) <= 900; }
-
-  function css(){
-    if(E('bns727MobileEditTopBackCSS')) return;
-    var st = document.createElement('style');
-    st.id = 'bns727MobileEditTopBackCSS';
-    st.textContent = ''+
-      '@media(max-width:900px){'+
-      'html,body{height:auto!important;min-height:100%!important;max-height:none!important;overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch!important;}'+
-      '#app,.app,.layout,.shell,.main,.content,main,.page,.screen,.planner,.workpanel{max-height:none!important;overflow-x:hidden!important;}'+
-      '#newOrder,#orderForm,.page.active{max-height:none!important;overflow-x:hidden!important;box-sizing:border-box!important;}'+
-      '#newOrder{padding-bottom:40px!important;}'+
-      '.bns-v333-order-bottom{position:static!important;left:auto!important;right:auto!important;bottom:auto!important;top:auto!important;z-index:1!important;width:100%!important;max-width:100%!important;margin:14px 0 22px!important;box-shadow:0 8px 22px rgba(15,23,42,.10)!important;border-radius:16px!important;border:1px solid #dbe3ef!important;background:#fff!important;}'+
-      '#bnsV597OrderBottomActions{position:static!important;left:auto!important;right:auto!important;bottom:auto!important;top:auto!important;z-index:2!important;pointer-events:auto!important;}'+
-      '#bnsV597OrderBottomActions button,.bns-v333-order-bottom button{pointer-events:auto!important;}'+
-      '#bnsV727Back{background:#334155!important;color:#fff!important;}'+
-      '}';
-    (document.head||document.documentElement).appendChild(st);
+  if(window.__BNS_V728_MOBIEL_WIJZIGEN_ALS_NIEUW__) return;
+  window.__BNS_V728_MOBIEL_WIJZIGEN_ALS_NIEUW__ = true;
+  function addCss(){
+    if(document.getElementById('bns-v728-mobile-edit-css')) return;
+    var st=document.createElement('style');
+    st.id='bns-v728-mobile-edit-css';
+    st.textContent='@media(max-width:900px){'
+      +'html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important;overscroll-behavior:auto!important;}'
+      +'#app,.app,.main,.content,.page,#newOrder{height:auto!important;max-height:none!important;overflow:visible!important;}'
+      +'#newOrder{padding-bottom:28px!important;}'
+      +'#newOrder input,#newOrder textarea,#newOrder select{font-size:16px!important;}'
+      +'#bnsV597Back{background:#334155!important;color:#fff!important;}'
+      +'}';
+    document.head.appendChild(st);
   }
-
-  function scrollTopNow(){
-    if(!mobile()) return;
-    try{ window.scrollTo(0,0); }catch(e){}
-    var nodes = [document.documentElement, document.body, E('newOrder'), E('orderForm'), document.querySelector('.page.active'), document.querySelector('main'), document.querySelector('.content')];
-    nodes.forEach(function(el){
-      if(!el) return;
-      try{ el.scrollTop = 0; }catch(e){}
-      try{ if(el.scrollTo) el.scrollTo(0,0); }catch(e){}
-    });
-  }
-  function scheduleTop(){
-    pendingUntil = Date.now() + 3500;
-    [0,80,180,350,650,1000,1500,2300,3200].forEach(function(ms){ setTimeout(scrollTopNow, ms); });
-  }
-
-  function backToList(ev){
-    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
-    try{ if(typeof window.showPage === 'function'){ window.showPage('orders'); scrollTopNow(); return false; } }catch(e){}
-    try{ if(typeof showPage === 'function'){ showPage('orders'); scrollTopNow(); return false; } }catch(e){}
-    var nav = document.querySelector('[data-page="orders"],.nav[data-page="orders"]');
-    if(nav){ try{ nav.click(); scrollTopNow(); return false; }catch(e){} }
-    try{ history.back(); }catch(e){}
-    return false;
-  }
-
-  function ensureBackButton(){
-    css();
-    var bar = E('bnsV597OrderBottomActions') || document.querySelector('.bns-v333-order-bottom');
-    if(!bar) return;
-    if(!E('bnsV727Back')){
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.id = 'bnsV727Back';
-      b.textContent = 'Terug';
-      b.title = 'Terug naar opdrachten';
-      b.addEventListener('click', backToList, true);
-      bar.appendChild(b);
-    }
-  }
-
-  function patchEditOrder(){
-    var old = window.editOrder || (typeof editOrder === 'function' ? editOrder : null);
-    if(typeof old !== 'function' || old.__bns727MobileTop) return;
-    var wrap = function(id){
-      scheduleTop();
-      var r = old.apply(this, arguments);
-      scheduleTop();
-      return r;
-    };
-    for(var k in old){ try{ wrap[k] = old[k]; }catch(e){} }
-    wrap.__bns727MobileTop = true;
-    window.editOrder = wrap;
-    try{ editOrder = wrap; }catch(e){}
-  }
-
-  function looksLikeEditClick(t){
-    if(!t || !t.closest) return false;
-    var b = t.closest('button,a,[onclick]');
-    if(!b) return false;
-    var oc = String(b.getAttribute && b.getAttribute('onclick') || '');
-    var tx = L(b.textContent || b.value || '');
-    return /editOrder\s*\(/.test(oc) || tx === 'wijzigen' || tx === 'open' || tx === 'open opdracht';
-  }
-
-  function tick(){
-    css();
-    patchEditOrder();
-    ensureBackButton();
-    if(Date.now() < pendingUntil) scrollTopNow();
-  }
-
-  document.addEventListener('click', function(ev){
-    if(looksLikeEditClick(ev.target)) scheduleTop();
-    setTimeout(tick,60);
-    setTimeout(tick,300);
-    setTimeout(tick,900);
-  }, true);
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tick); else tick();
-  window.addEventListener('resize', tick);
-  setInterval(tick, 1000);
-
-  try{ console.info('[BNS 727] mobiel: wijzigen start boven + Terug-knop; geen data/Firebase/materiaal/driver wijziging.'); }catch(e){}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addCss); else addCss();
+  console.info('[BNS v728] mobiel wijzigen als Nieuwe opdracht flow actief.');
 })();
