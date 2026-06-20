@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tapwagen.nl - Backup orders controle/herstel</title>
+  <script src="firebase-config.js"></script>
+  <style>
+    :root{font-family:Arial,Helvetica,sans-serif;color:#172033;background:#f5f7fb;}
+    body{margin:0;padding:18px;}
+    .wrap{max-width:1100px;margin:0 auto;}
+    .card{background:#fff;border:1px solid #dfe5ef;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(18,31,53,.08);}
+    h1{font-size:24px;margin:0 0 6px;} h2{font-size:18px;margin:0 0 10px;}
+    button{border:0;border-radius:10px;padding:12px 16px;font-weight:700;font-size:15px;cursor:pointer;margin:6px 8px 6px 0;}
+    .primary{background:#1769e0;color:white}.safe{background:#15803d;color:white}.warn{background:#b45309;color:white}.danger{background:#b91c1c;color:white}.muted{background:#e8eef7;color:#172033}
+    button:disabled{opacity:.45;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}.stat{background:#f8fafc;border:1px solid #e1e7f0;border-radius:12px;padding:12px}.stat b{display:block;font-size:24px;margin-top:4px}.small{font-size:13px;color:#516070;line-height:1.45}.ok{color:#15803d}.bad{color:#b91c1c}.warnText{color:#b45309}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;background:#0f172a;color:#dbeafe;border-radius:10px;padding:12px;max-height:320px;overflow:auto}.list{max-height:360px;overflow:auto;border:1px solid #e1e7f0;border-radius:10px;background:#fff}.row{display:grid;grid-template-columns:140px 1fr 150px;gap:8px;padding:8px 10px;border-bottom:1px solid #eef2f7;font-size:13px}.row.head{font-weight:700;background:#f8fafc;position:sticky;top:0}.row:last-child{border-bottom:0}.pill{display:inline-block;border-radius:999px;background:#eef2ff;padding:2px 8px;font-size:12px}.confirm{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;box-sizing:border-box;margin:8px 0;}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Tapwagen.nl - Backup orders controle/herstel</h1>
+    <div class="small">
+      Deze tool leest <b>backups / daily_latest / chunks</b> en vergelijkt die met de live collectie <b>orders</b>.
+      Standaard doet de tool alleen controle. Herstellen kan pas na analyse en na het typen van een bevestiging.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>1. Controle</h2>
+    <button id="btnAnalyze" class="primary">Controleer backup en live orders</button>
+    <button id="btnDownload" class="muted" disabled>Download controle-rapport</button>
+    <div id="status" class="small">Nog niet gestart.</div>
+  </div>
+
+  <div class="card">
+    <h2>Resultaat</h2>
+    <div class="grid">
+      <div class="stat">Backup orders <b id="sBackup">-</b></div>
+      <div class="stat">Live orders documenten <b id="sLiveDocs">-</b></div>
+      <div class="stat">Live opdrachtnummers <b id="sLiveNumbers">-</b></div>
+      <div class="stat">Ontbreekt volledig live <b id="sMissing">-</b></div>
+      <div class="stat">Alleen random doc-id <b id="sRandomOnly">-</b></div>
+      <div class="stat">Vaste doc-id aanwezig <b id="sFixed">-</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Veilig herstel</h2>
+    <div class="small">
+      <b>Veiligste herstel:</b> zet alleen opdrachten terug die in de backup staan maar live helemaal geen opdrachtnummer meer hebben.
+      Dit overschrijft niets en verwijdert niets.<br>
+      <b>Doc-id herstel:</b> maakt daarnaast een vaste <span class="pill">orders/2026-xxxx</span> kopie voor opdrachten die live alleen onder random doc-id staan. Dit verwijdert de random documenten niet.
+    </div>
+    <input id="confirm" class="confirm" placeholder="Typ exact: IK BEGRIJP HET" autocomplete="off">
+    <button id="btnRestoreMissing" class="safe" disabled>Herstel alleen volledig ontbrekende orders</button>
+    <button id="btnRestoreFixed" class="warn" disabled>Maak vaste doc-id voor random-only orders</button>
+    <div class="small bad">Gebruik deze knoppen pas na controle van het rapport. Er wordt nooit verwijderd, nooit gearchiveerd en bestaande vaste orders worden niet overschreven.</div>
+  </div>
+
+  <div class="card">
+    <h2>Ontbreekt volledig live</h2>
+    <div id="missingList" class="list"><div class="row head"><div>Nummer</div><div>Titel / klant</div><div>Status</div></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Alleen random doc-id live</h2>
+    <div id="randomList" class="list"><div class="row head"><div>Nummer</div><div>Random doc-id(s)</div><div>Status backup</div></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div id="log" class="mono"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { getFirestore, collection, getDocs, doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+const $ = id => document.getElementById(id);
+let db = null;
+let report = null;
+let backupOrdersByNumber = new Map();
+
+function log(msg){
+  const line = '[' + new Date().toLocaleTimeString('nl-NL') + '] ' + msg;
+  $('log').textContent += line + '\n';
+  $('log').scrollTop = $('log').scrollHeight;
+}
+function status(msg){ $('status').textContent = msg; log(msg); }
+function norm(v){ return String(v == null ? '' : v).trim(); }
+function orderNumber(o){
+  return norm(o && (o.number || o.orderNumber || o.nr || o.opdrachtnummer || o.id)).replace(/^orders\//,'');
+}
+function titleOf(o){
+  const t = norm(o && (o.title || o.eventName || o.name));
+  const c = norm(o && o.customer && o.customer.name);
+  return (t || c || '(zonder titel)') + (c && c !== t ? ' / ' + c : '');
+}
+function renderList(id, rows, type){
+  const el = $(id);
+  el.innerHTML = '<div class="row head"><div>Nummer</div><div>' + (type === 'random' ? 'Random doc-id(s)' : 'Titel / klant') + '</div><div>Status</div></div>';
+  rows.slice(0, 400).forEach(r => {
+    const div = document.createElement('div'); div.className = 'row';
+    div.innerHTML = '<div>' + escapeHtml(r.number) + '</div><div>' + escapeHtml(r.text || '') + '</div><div>' + escapeHtml(r.status || '') + '</div>';
+    el.appendChild(div);
+  });
+  if(rows.length > 400){
+    const div = document.createElement('div'); div.className = 'row';
+    div.innerHTML = '<div>...</div><div>Nog ' + (rows.length - 400) + ' meer in rapport</div><div></div>';
+    el.appendChild(div);
+  }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function ensureDb(){
+  if(db) return db;
+  if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey){ throw new Error('Firebase config niet gevonden. Zet dit bestand naast firebase-config.js.'); }
+  const app = getApps().length ? getApp() : initializeApp(window.BNS_FIREBASE_CONFIG);
+  db = getFirestore(app);
+  return db;
+}
+async function readBackupRaw(){
+  ensureDb();
+  status('Backup chunks lezen...');
+  const snap = await getDocs(collection(db, 'backups', 'daily_latest', 'chunks'));
+  const docs = [];
+  snap.forEach(d => docs.push({ id: d.id, data: d.data() }));
+  docs.sort((a,b) => a.id.localeCompare(b.id));
+  if(!docs.length) throw new Error('Geen chunks gevonden in backups/daily_latest/chunks');
+  let raw = '';
+  docs.forEach(d => {
+    const part = d.data.data || d.data.chunk || d.data.content || d.data.payload || '';
+    raw += typeof part === 'string' ? part : JSON.stringify(part || '');
+  });
+  status('Chunks gelezen: ' + docs.length + ', tekens: ' + raw.length);
+  return raw;
+}
+function parseBackup(raw){
+  let obj = null;
+  try { obj = JSON.parse(raw); }
+  catch(e1){
+    try { obj = JSON.parse(JSON.parse(raw)); }
+    catch(e2){ throw new Error('Backup JSON kon niet gelezen worden: ' + e1.message); }
+  }
+  const orders = (obj.state && obj.state.orders) || obj.orders || (obj.data && obj.data.orders) || [];
+  if(!Array.isArray(orders)) throw new Error('Geen orders-array gevonden in backup');
+  return { obj, orders };
+}
+async function readLiveOrders(){
+  ensureDb();
+  status('Live orders lezen...');
+  const snap = await getDocs(collection(db, 'orders'));
+  const docs = [];
+  snap.forEach(d => docs.push({ docId: d.id, order: d.data() }));
+  status('Live order-documenten gelezen: ' + docs.length);
+  return docs;
+}
+async function analyze(){
+  $('btnAnalyze').disabled = true;
+  $('btnDownload').disabled = true;
+  $('btnRestoreMissing').disabled = true;
+  $('btnRestoreFixed').disabled = true;
+  $('log').textContent = '';
+  try{
+    const raw = await readBackupRaw();
+    const parsed = parseBackup(raw);
+    const backupOrders = parsed.orders;
+    backupOrdersByNumber = new Map();
+    backupOrders.forEach(o => {
+      const n = orderNumber(o);
+      if(n) backupOrdersByNumber.set(n, o);
+    });
+    const liveDocs = await readLiveOrders();
+    const liveByNumber = new Map();
+    const fixedNumbers = new Set();
+    const randomByNumber = new Map();
+    liveDocs.forEach(x => {
+      const o = x.order || {};
+      const n = orderNumber(o) || norm(x.docId);
+      if(n){
+        if(!liveByNumber.has(n)) liveByNumber.set(n, []);
+        liveByNumber.get(n).push(x.docId);
+        if(x.docId === n) fixedNumbers.add(n);
+        else {
+          if(!randomByNumber.has(n)) randomByNumber.set(n, []);
+          randomByNumber.get(n).push(x.docId);
+        }
+      }
+    });
+
+    const missing = [];
+    const randomOnly = [];
+    backupOrdersByNumber.forEach((o,n) => {
+      if(!liveByNumber.has(n)) missing.push({ number:n, text:titleOf(o), status:norm(o.status) });
+      else if(!fixedNumbers.has(n) && randomByNumber.has(n)) randomOnly.push({ number:n, text:randomByNumber.get(n).join(', '), status:norm(o.status) });
+    });
+    missing.sort((a,b)=>a.number.localeCompare(b.number));
+    randomOnly.sort((a,b)=>a.number.localeCompare(b.number));
+
+    report = {
+      createdAt: new Date().toISOString(),
+      backupOrderCount: backupOrders.length,
+      backupUniqueNumbers: backupOrdersByNumber.size,
+      liveDocCount: liveDocs.length,
+      liveUniqueNumbers: liveByNumber.size,
+      fixedDocNumberCount: fixedNumbers.size,
+      missingCompletely: missing,
+      randomOnly: randomOnly
+    };
+    $('sBackup').textContent = String(report.backupUniqueNumbers);
+    $('sLiveDocs').textContent = String(report.liveDocCount);
+    $('sLiveNumbers').textContent = String(report.liveUniqueNumbers);
+    $('sMissing').textContent = String(missing.length);
+    $('sRandomOnly').textContent = String(randomOnly.length);
+    $('sFixed').textContent = String(fixedNumbers.size);
+    renderList('missingList', missing, 'missing');
+    renderList('randomList', randomOnly, 'random');
+    status('Controle klaar. Bekijk eerst de aantallen en lijsten.');
+    $('btnDownload').disabled = false;
+    updateRestoreButtons();
+  }catch(e){
+    status('FOUT: ' + (e && e.message ? e.message : e));
+  }finally{
+    $('btnAnalyze').disabled = false;
+  }
+}
+function updateRestoreButtons(){
+  const ok = $('confirm').value.trim() === 'IK BEGRIJP HET' && report;
+  $('btnRestoreMissing').disabled = !ok || !report.missingCompletely.length;
+  $('btnRestoreFixed').disabled = !ok || !report.randomOnly.length;
+}
+async function restoreRows(rows, label){
+  if(!report) return;
+  ensureDb();
+  const again = prompt('Laatste controle: typ HERSTEL om ' + rows.length + ' orders te schrijven. Er wordt niets verwijderd.');
+  if(again !== 'HERSTEL') { status('Herstel afgebroken.'); return; }
+  let done = 0, skipped = 0, failed = 0;
+  for(const r of rows){
+    const n = r.number;
+    const order = backupOrdersByNumber.get(n);
+    if(!order){ failed++; log('Geen backup order gevonden voor ' + n); continue; }
+    try{
+      const ref = doc(db, 'orders', n);
+      const existing = await getDoc(ref);
+      if(existing.exists()) { skipped++; log('Overslaan, vaste doc bestaat al: ' + n); continue; }
+      const copy = JSON.parse(JSON.stringify(order));
+      copy.number = n;
+      copy.id = n;
+      copy.__bnsHersteldUitBackup = true;
+      copy.__bnsHerstelDatum = new Date().toISOString();
+      copy.__bnsHerstelBron = 'backups/daily_latest/chunks';
+      copy.__bnsHerstelSoort = label;
+      await setDoc(ref, copy, { merge:false });
+      done++;
+      log('Hersteld: orders/' + n);
+    }catch(e){ failed++; log('FOUT bij ' + n + ': ' + e.message); }
+  }
+  status('Herstel klaar. Geschreven: ' + done + ', overgeslagen: ' + skipped + ', fouten: ' + failed + '. Draai daarna opnieuw Controle.');
+}
+function downloadReport(){
+  if(!report) return;
+  const blob = new Blob([JSON.stringify(report, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tapwagen_backup_order_controle_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+$('btnAnalyze').addEventListener('click', analyze);
+$('btnDownload').addEventListener('click', downloadReport);
+$('confirm').addEventListener('input', updateRestoreButtons);
+$('btnRestoreMissing').addEventListener('click', () => restoreRows(report.missingCompletely, 'missing-completely'));
+$('btnRestoreFixed').addEventListener('click', () => restoreRows(report.randomOnly, 'random-only-fixed-doc-copy'));
+</script>
+</body>
+</html>
