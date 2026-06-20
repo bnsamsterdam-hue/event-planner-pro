@@ -8071,6 +8071,16 @@ function showPage(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
+  // BNS v744: page-wissel moet echt bovenaan starten; wijzigen gebruikt dezelfde pagina als Nieuwe opdracht.
+  try{
+    if(p === 'newOrder' || p === 'orders' || p === 'dashboard'){
+      document.activeElement && document.activeElement.blur && document.activeElement.blur();
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      if(window.scrollTo) window.scrollTo({top:0,left:0,behavior:'auto'});
+      ['app','newOrder','orders','dashboard'].forEach(function(id){ var el=document.getElementById(id); if(el) el.scrollTop=0; });
+    }
+  }catch(e){}
   renderAll();
 }
 function init(){
@@ -8180,13 +8190,14 @@ function workTab(idv){
   document.querySelectorAll('.workpanel').forEach(x=>x.classList.add('hidden'));
   $(idv).classList.remove('hidden');
   document.querySelectorAll('.worktab').forEach(x=>x.classList.toggle('active',x.dataset.tab===idv));
-  // BNS v690: bij Klant/Locatie meteen op het naamveld starten.
-  if(idv==='customerPanel'){
-    // BNS 744: preventScroll zodat mobiel niet naar het veld scrolt
-    setTimeout(()=>{ try{ customerName.focus({preventScroll:true}); customerName.select(); }catch(e){} },60);
+  // BNS v744: op mobiel NIET focussen/selecteren. Dat liet Wijzigen naar Klantgegevens/onderkant springen.
+  var mobile=false;
+  try{ mobile = !!(window.matchMedia && window.matchMedia('(max-width: 950px)').matches); }catch(e){ mobile = (window.innerWidth||9999) <= 950; }
+  if(!mobile && idv==='customerPanel'){
+    setTimeout(()=>{ try{ customerName.focus(); customerName.select(); }catch(e){} },60);
   }
-  if(idv==='locationPanel'){
-    setTimeout(()=>{ try{ locationName.focus({preventScroll:true}); locationName.select(); }catch(e){} },60);
+  if(!mobile && idv==='locationPanel'){
+    setTimeout(()=>{ try{ locationName.focus(); locationName.select(); }catch(e){} },60);
   }
   if(idv==='materialPanel'){
     renderCats();
@@ -8412,17 +8423,7 @@ function editOrder(oid){
   orderExtra.value=o.extra||'';
   renderChosen();
   summaryRender();
-  workTab('customerPanel');
-  // BNS 744: scroll naar boven op mobiel, NA alle renders en NA de focus-timer
-  var _isMob = (window.innerWidth||9999) <= 900;
-  if(_isMob){
-    [0, 70, 160, 350, 700, 1400].forEach(function(ms){
-      setTimeout(function(){
-        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{ window.scrollTo(0,0); }catch(e2){} }
-        try{ document.documentElement.scrollTop=0; document.body.scrollTop=0; }catch(e){}
-      }, ms);
-    });
-  }
+  workTab('customerPanel')
 }
 function nice(d){
   if(!d)return '';
@@ -8468,10 +8469,19 @@ function markDone(oid){
   }
 }
 function renderDashboard(){
-  statOrders.textContent=state.orders.length;
-  statMaterials.textContent=state.materials.length;
-  statAlerts.textContent=state.alerts.length;
-  dashOrders.innerHTML=sortedOrders().filter(o=>o.status!=='Geannuleerd').slice(0,6).map(card).join('')
+  try{ statOrders.textContent=(state.orders||[]).length; }catch(e){}
+  try{ statMaterials.textContent=(state.materials||[]).length; }catch(e){}
+  try{ statAlerts.textContent=(state.alerts||[]).length; }catch(e){}
+  var rows=[];
+  try{ rows = (typeof sortedOrders==='function'?sortedOrders():(state.orders||[]).slice()); }catch(e){ rows=(state.orders||[]).slice(); }
+  function dashOk(o){
+    var st=String(o&&o.status||'').toLowerCase();
+    return !(/geannuleerd|verwijderd|deleted|trash|uitgevoerd|afgerond/.test(st));
+  }
+  var active = rows.filter(dashOk);
+  if(!active.length) active = rows;
+  var draw = (typeof card==='function') ? card : function(o){ return '<div class="order-card"><b>'+(o.number||'')+' - '+(o.title||'')+'</b></div>'; };
+  dashOrders.innerHTML=active.slice(0,6).map(draw).join('') || '<p>Geen aankomende opdrachten.</p>';
 }
 function renderDriver(){
   driverList.innerHTML=sortedOrders().slice(0,25).map(o=>`<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><b>${o.number} - ${o.title}</b><br>${(o.materials||[]).map(m=>m.code).join(', ')}</div><div><button onclick="alertFor('${o.id}','Schade')">Schade</button><button onclick="alertFor('${o.id}','Foto voor')">Foto voor</button><button onclick="alertFor('${o.id}','Foto na')">Foto na</button></div></div>`).join('')
@@ -14203,18 +14213,27 @@ setTimeout(()=>{
     paintModeButtons();
   }
   function renderDashboardFinal(){
+    var stateNow = S();
     try {
-      if (byId("statOrders")) byId("statOrders").textContent = (S().orders || []).length;
-      if (byId("statMaterials")) byId("statMaterials").textContent = (S().materials || []).length;
-      if (byId("statAlerts")) byId("statAlerts").textContent = (S().alerts || []).length;
-    } catch(e) {
-    }
+      if (byId("statOrders")) byId("statOrders").textContent = (stateNow.orders || []).length;
+      if (byId("statMaterials")) byId("statMaterials").textContent = (stateNow.materials || []).length;
+      if (byId("statAlerts")) byId("statAlerts").textContent = (stateNow.alerts || []).length;
+    } catch(e) {}
     var box = byId("dashOrders");
     if (!box) return;
-    var rows = sortedOrders()
-    .filter(activeOrder)
-    .slice(0, 6);
-    box.innerHTML = rows.map(bnsCard).join("") || "<p>Geen aankomende opdrachten.</p>";
+    var rows=[];
+    try { rows = sortedOrders(); } catch(e) { rows = (stateNow.orders || []).slice(); }
+    function dashOk(order){
+      var st = String(order && order.status || "").toLowerCase();
+      if (/geannuleerd|verwijderd|deleted|trash|uitgevoerd|afgerond/.test(st)) return false;
+      return true;
+    }
+    var active = rows.filter(dashOk);
+    if (!active.length && rows.length) active = rows;
+    var draw = (typeof bnsCard === "function") ? bnsCard : ((typeof card === "function") ? card : function(order){
+      return '<div class="order-card"><b>' + esc(order.number || "") + ' - ' + esc(order.title || "") + '</b></div>';
+    });
+    box.innerHTML = active.slice(0, 6).map(draw).join("") || "<p>Geen aankomende opdrachten.</p>";
   }
   function renderDriverFinal(){
     var box = byId("driverList");
@@ -32887,7 +32906,7 @@ setTimeout(()=>{
 /* =========================================================
    BNS V173 AUTOMATISCHE DAGBACKUP
    - maakt maximaal 1 automatische backup per dag
-   - schrijft naar backups/daily_latest en 14-dagen roulatie backups/daily_00 t/m daily_13
+   - schrijft naar backups/daily_latest en naar 14-dagen roulatie backups/daily_00 t/m daily_13
    - grote backups worden in vaste chunks opgeslagen, zodat Firebase documentlimiet niet snel breekt
    - werkt lokaal door als Firebase niet klaar is en probeert later opnieuw
    - raakt opdrachten/materialen/klanten NIET aan
@@ -32972,32 +32991,35 @@ setTimeout(()=>{
   function firebaseReady(){
     return !!(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db);
   }
-  function backupSlotForDay(day){
+  function slotForDay(day){
+    var n = 0;
     try{
-      var parts = String(day||todayKey()).split("-").map(function(x){ return parseInt(x,10)||0; });
-      var utc = Date.UTC(parts[0], (parts[1]||1)-1, parts[2]||1);
-      var days = Math.floor(utc / 86400000);
-      return ((days % 14) + 14) % 14;
-    }catch(e){
-      return Math.abs(new Date().getDate() % 14);
-    }
+      var m = String(day||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if(m){
+        var d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+        n = Math.floor(d.getTime()/86400000);
+      } else {
+        n = Math.floor(Date.now()/86400000);
+      }
+    }catch(e){ n = Math.floor(Date.now()/86400000); }
+    return String(((n % 14) + 14) % 14).padStart(2,'0');
   }
-  async function writeFirebaseBackupDoc(fs, db, docId, json, day, chunks, updatedAt){
+  async function writeBackupDoc(fs, db, docId, json, day, chunks, updatedAt){
     var meta = {
-      type: docId === "daily_latest" ? "eventplanner-daily-latest" : "eventplanner-daily-rotation-14",
+      type: docId === 'daily_latest' ? 'eventplanner-daily-latest' : 'eventplanner-daily-rotation-14',
       date: day,
       updatedAt: updatedAt,
       chunkCount: chunks.length,
       size: json.length,
-      rotationDays: 14,
-      note: docId === "daily_latest"
-        ? "Automatische dagbackup: laatste backup."
-        : "Automatische 14-dagen roulatiebackup. Slot wordt dagelijks overschreven."
+      rotationSlot: docId,
+      note: docId === 'daily_latest'
+        ? 'Automatische dagbackup: laatste backup.'
+        : 'Automatische dagbackup 14 dagen roulatie. Slot ' + docId + ' wordt na 14 dagen hergebruikt.'
     };
-    await fs.setDoc(fs.doc(db, "backups", docId), meta, { merge:false });
+    await fs.setDoc(fs.doc(db, 'backups', docId), meta, { merge:false });
     for(var i=0; i<chunks.length; i++){
       await fs.setDoc(
-        fs.doc(db, "backups", docId, "chunks", String(i).padStart(4,"0")),
+        fs.doc(db, 'backups', docId, 'chunks', String(i).padStart(4,'0')),
         { index:i, data:chunks[i], updatedAt:updatedAt },
         { merge:false }
       );
@@ -33009,17 +33031,16 @@ setTimeout(()=>{
     var db = window.BNS.db;
     var chunks = jsonChunks(json);
     var updatedAt = nowIso();
-    var slot = String(backupSlotForDay(day)).padStart(2,"0");
-    var slotDoc = "daily_" + slot;
+    var slot = 'daily_' + slotForDay(day);
     try{
-      await writeFirebaseBackupDoc(fs, db, "daily_latest", json, day, chunks, updatedAt);
-      await writeFirebaseBackupDoc(fs, db, slotDoc, json, day, chunks, updatedAt);
+      await writeBackupDoc(fs, db, 'daily_latest', json, day, chunks, updatedAt);
+      await writeBackupDoc(fs, db, slot, json, day, chunks, updatedAt);
       localStorage.setItem(FIREBASE_DATE_KEY, day);
-      setStatus("Firebase dagbackup gemaakt: " + day + " naar daily_latest en " + slotDoc + " (" + chunks.length + " deel" + (chunks.length===1?"":"en") + ")");
+      setStatus('Firebase dagbackup gemaakt: ' + day + ' (' + slot + ', ' + chunks.length + ' deel' + (chunks.length===1?'':'en') + ')');
       return true;
     } catch(e){
-      console.warn("[BNS backup] Firebase backup mislukt", e);
-      setStatus("Firebase dagbackup mislukt; lokale backup blijft beschikbaar");
+      console.warn('[BNS backup] Firebase backup mislukt', e);
+      setStatus('Firebase dagbackup mislukt; lokale backup blijft beschikbaar');
       return false;
     }
   }
@@ -33083,7 +33104,7 @@ setTimeout(()=>{
       (localStorage.getItem(LOCAL_STATUS_KEY) || "Nog geen status")+
       '</div>'+
       '<button type="button" id="bnsAutoBackupNow" style="background:#16a34a;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:900;cursor:pointer;">Backup nu naar Firebase</button>'+
-      '<div style="font-size:13px;margin-top:8px;color:#374151;">Maakt maximaal 1 automatische backup per dag naar backups/daily_latest en een 14-dagen roulatie: backups/daily_00 t/m backups/daily_13.</div>';
+      '<div style="font-size:13px;margin-top:8px;color:#374151;">Maakt maximaal 1 automatische backup per dag: backups/daily_latest plus 14-dagen roulatie backups/daily_00 t/m daily_13.</div>';
       anchor.parentNode.insertBefore(box, anchor.nextSibling);
       var btn = document.getElementById("bnsAutoBackupNow");
       if(btn){
@@ -51810,18 +51831,13 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function isMobile(){ return (window.innerWidth||document.documentElement.clientWidth||9999) <= 760; }
   function text(el){ return String(el && (el.innerText||el.textContent)||'').trim().toLowerCase(); }
   function clickExistingBack(){
-    try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
     try{
       if(typeof showPage === 'function'){
         showPage('orders');
-        try{ if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
-        try{ window.scrollTo(0,0); }catch(e){}
+        if(typeof renderOrders === 'function') renderOrders();
+        try{ document.documentElement.scrollTop=0; document.body.scrollTop=0; if(window.scrollTo) window.scrollTo(0,0); }catch(_e){}
         return;
       }
-    }catch(e){}
-    try{
-      var nav = document.querySelector('[data-page="orders"]');
-      if(nav){ nav.click(); return; }
     }catch(e){}
     try{ history.back(); }catch(e){}
   }
@@ -51840,12 +51856,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function tick(){ addStyle(); ensureBackButton(); }
   tick();
   document.addEventListener('DOMContentLoaded', tick);
-  document.addEventListener('click', function(){ setTimeout(tick,80); setTimeout(tick,400); }, true);
+  document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
   window.addEventListener('resize', tick);
-  // BNS 744: 300ms interval zodat terug-knop na re-render snel terug is
-  setInterval(tick, 300);
-  try{console.info('[BNS 724] mobiele planner-rust + opslaan/terug onderaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
+  // BNS v744: geen herhalende mobiele interval-loop meer; tick draait bij laden/klik/resize.
+  try{console.info('[BNS 724/v744] mobiele planner-rust actief zonder interval; terugknop direct naar Opdrachten.');}catch(e){}
 })();
-
-
-/* BNS 743 - basis app(104): alleen 14-dagen backup + werkende mobiele Terug-knop. Geen dashboard/dedupe/Firebase-orderdata wijziging. */
