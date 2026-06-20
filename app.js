@@ -8411,7 +8411,7 @@ function editOrder(oid){
   orderExtra.value=o.extra||'';
   renderChosen();
   summaryRender();
-  workTab('customerPanel')
+  if(window.BNS741_mobileEditAsNew) window.BNS741_mobileEditAsNew(); else workTab('customerPanel')
 }
 function nice(d){
   if(!d)return '';
@@ -42843,7 +42843,7 @@ setTimeout(()=>{
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
     try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
+    try{ if(window.BNS741_mobileEditAsNew) window.BNS741_mobileEditAsNew(); else if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
   }
   window.BNS_V408_fastEditOrder=fastEditOrder;
@@ -51847,4 +51847,64 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   document.addEventListener('click', function(){ setTimeout(tick,80); setTimeout(tick,450); }, true);
   window.addEventListener('resize', tick);
   try{console.info('[BNS 740] mobiel rustig vanaf app104: geen interval-loop, geen menu, 14-dagen backup actief.');}catch(e){}
+})();
+
+
+/* =========================================================
+   BNS 741 - Mobiel wijzigen opent als Nieuwe opdracht bovenaan
+   Basis: v740/app104.
+   Probleem: editOrder/fastEditOrder riep workTab('customerPanel') aan.
+   workTab + BNS690 focust customerName, en op mobiel scrolt de browser
+   daardoor naar beneden zodra de opdracht gevuld is. Nieuwe opdracht doet
+   dat niet op dezelfde manier.
+   Oplossing: bij wijzigen op mobiel alleen het klantpaneel actief zetten,
+   zonder focus/select, en daarna het formulier bovenaan zetten.
+   Geen Firebase, dashboard, materialen, reserveringen, driver of save-wijziging.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS741_MOBILE_EDIT_AS_NEW__) return;
+  window.__BNS741_MOBILE_EDIT_AS_NEW__ = true;
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function isMobile(){ try{return window.matchMedia && window.matchMedia('(max-width: 900px)').matches;}catch(e){return window.innerWidth<=900;} }
+  function topNow(){
+    if(!isMobile()) return;
+    try{ window.scrollTo(0,0); }catch(e){}
+    ['newOrder','app','main','content','customerPanel'].forEach(function(id){
+      var el=E(id); if(el){ try{ el.scrollTop=0; }catch(e){} }
+    });
+    A('.page,.content,.main,.workpanel,.planner,.screen').forEach(function(el){ try{ el.scrollTop=0; }catch(e){} });
+  }
+  function activateCustomerNoFocus(){
+    var panel=E('customerPanel');
+    if(panel){
+      A('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
+      panel.classList.remove('hidden');
+      A('.worktab').forEach(function(x){ x.classList.toggle('active', x.getAttribute('data-tab')==='customerPanel'); });
+    } else {
+      try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
+    }
+    try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+    [0,40,120,300,700,1300].forEach(function(ms){ setTimeout(topNow,ms); });
+  }
+  window.BNS741_mobileEditAsNew = activateCustomerNoFocus;
+
+  /* Extra vangnet: als oudere code toch customerName/locationName wil focussen tijdens mobiel wijzigen,
+     mag dat geen scroll veroorzaken. */
+  try{
+    var proto=window.HTMLElement && window.HTMLElement.prototype;
+    if(proto && proto.focus && !proto.__BNS741_FOCUS_PATCHED__){
+      var orig=proto.focus;
+      proto.focus=function(opts){
+        if(isMobile()){
+          try{return orig.call(this,{preventScroll:true});}catch(e){}
+        }
+        return orig.apply(this,arguments);
+      };
+      proto.__BNS741_FOCUS_PATCHED__=true;
+    }
+  }catch(e){}
+
+  try{ console.info('[BNS 741] mobiel wijzigen gebruikt klantpaneel zonder focus-scroll, zoals Nieuwe opdracht.'); }catch(e){}
 })();
