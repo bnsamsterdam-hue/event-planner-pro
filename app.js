@@ -8411,7 +8411,7 @@ function editOrder(oid){
   orderExtra.value=o.extra||'';
   renderChosen();
   summaryRender();
-  if(window.BNS741_mobileEditAsNew) window.BNS741_mobileEditAsNew(); else workTab('customerPanel')
+  workTab('customerPanel')
 }
 function nice(d){
   if(!d)return '';
@@ -42843,7 +42843,7 @@ setTimeout(()=>{
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
     try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    try{ if(window.BNS741_mobileEditAsNew) window.BNS741_mobileEditAsNew(); else if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
+    try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
   }
   window.BNS_V408_fastEditOrder=fastEditOrder;
@@ -51751,7 +51751,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* =========================================================
-   BNS 740 - mobiel rustig zonder interval + 14-dagen backup basis
+   BNS 724 - Alleen mobiel: planner rust + opslaan/terug onderaan
    Basis: v723/v722 werkend. Raakt niet aan: Firebase, materialen,
    reservering, driver, opslaan-logica, wissen of menu linksboven.
    Doel: planner op telefoon compacter en de mobiele knoppen onderaan
@@ -51799,16 +51799,19 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function isMobile(){ return (window.innerWidth||document.documentElement.clientWidth||9999) <= 760; }
   function text(el){ return String(el && (el.innerText||el.textContent)||'').trim().toLowerCase(); }
   function clickExistingBack(){
-    var btns=[].slice.call(document.querySelectorAll('button,a,[role="button"]'));
-    for(var i=0;i<btns.length;i++){
-      var el=btns[i];
-      if(!el || el.id==='bnsV724Back') continue;
-      if(el.offsetParent===null) continue;
-      var t=text(el);
-      if(/^(terug|annuleren|sluiten|cancel)$/.test(t) || /terug|annuleren/.test(t)){
-        try{ el.click(); return; }catch(e){}
+    try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
+    try{
+      if(typeof showPage === 'function'){
+        showPage('orders');
+        try{ if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
+        try{ window.scrollTo(0,0); }catch(e){}
+        return;
       }
-    }
+    }catch(e){}
+    try{
+      var nav = document.querySelector('[data-page="orders"]');
+      if(nav){ nav.click(); return; }
+    }catch(e){}
     try{ history.back(); }catch(e){}
   }
   function ensureBackButton(){
@@ -51823,200 +51826,14 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); clickExistingBack(); }, true);
     bar.appendChild(b);
   }
-  function patchProgrammaticFocus(){
-    try{
-      if(window.__BNS740_PREVENT_MOBILE_FOCUS_SCROLL__) return;
-      window.__BNS740_PREVENT_MOBILE_FOCUS_SCROLL__ = true;
-      var proto = window.HTMLElement && window.HTMLElement.prototype;
-      if(!proto || !proto.focus) return;
-      var orig = proto.focus;
-      proto.focus = function(opts){
-        try{
-          if(isMobile() && (!opts || typeof opts !== 'object')){
-            return orig.call(this, {preventScroll:true});
-          }
-        }catch(e){}
-        return orig.apply(this, arguments);
-      };
-    }catch(e){}
-  }
-  function tick(){ addStyle(); patchProgrammaticFocus(); ensureBackButton(); }
-  function scheduleTicks(){ [0,80,250,700,1400,2600].forEach(function(ms){ setTimeout(tick, ms); }); }
-  scheduleTicks();
-  document.addEventListener('DOMContentLoaded', scheduleTicks);
-  document.addEventListener('click', function(){ setTimeout(tick,80); setTimeout(tick,450); }, true);
+  function tick(){ addStyle(); ensureBackButton(); }
+  tick();
+  document.addEventListener('DOMContentLoaded', tick);
+  document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
   window.addEventListener('resize', tick);
-  try{console.info('[BNS 740] mobiel rustig vanaf app104: geen interval-loop, geen menu, 14-dagen backup actief.');}catch(e){}
+  setInterval(tick, 1500);
+  try{console.info('[BNS 724] mobiele planner-rust + opslaan/terug onderaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
 })();
 
 
-/* =========================================================
-   BNS 741 - Mobiel wijzigen opent als Nieuwe opdracht bovenaan
-   Basis: v740/app104.
-   Probleem: editOrder/fastEditOrder riep workTab('customerPanel') aan.
-   workTab + BNS690 focust customerName, en op mobiel scrolt de browser
-   daardoor naar beneden zodra de opdracht gevuld is. Nieuwe opdracht doet
-   dat niet op dezelfde manier.
-   Oplossing: bij wijzigen op mobiel alleen het klantpaneel actief zetten,
-   zonder focus/select, en daarna het formulier bovenaan zetten.
-   Geen Firebase, dashboard, materialen, reserveringen, driver of save-wijziging.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS741_MOBILE_EDIT_AS_NEW__) return;
-  window.__BNS741_MOBILE_EDIT_AS_NEW__ = true;
-  function E(id){ return document.getElementById(id); }
-  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function isMobile(){ try{return window.matchMedia && window.matchMedia('(max-width: 900px)').matches;}catch(e){return window.innerWidth<=900;} }
-  function topNow(){
-    if(!isMobile()) return;
-    try{ window.scrollTo(0,0); }catch(e){}
-    ['newOrder','app','main','content','customerPanel'].forEach(function(id){
-      var el=E(id); if(el){ try{ el.scrollTop=0; }catch(e){} }
-    });
-    A('.page,.content,.main,.workpanel,.planner,.screen').forEach(function(el){ try{ el.scrollTop=0; }catch(e){} });
-  }
-  function activateCustomerNoFocus(){
-    var panel=E('customerPanel');
-    if(panel){
-      A('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
-      panel.classList.remove('hidden');
-      A('.worktab').forEach(function(x){ x.classList.toggle('active', x.getAttribute('data-tab')==='customerPanel'); });
-    } else {
-      try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
-    }
-    try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    [0,40,120,300,700,1300].forEach(function(ms){ setTimeout(topNow,ms); });
-  }
-  window.BNS741_mobileEditAsNew = activateCustomerNoFocus;
-
-  /* Extra vangnet: als oudere code toch customerName/locationName wil focussen tijdens mobiel wijzigen,
-     mag dat geen scroll veroorzaken. */
-  try{
-    var proto=window.HTMLElement && window.HTMLElement.prototype;
-    if(proto && proto.focus && !proto.__BNS741_FOCUS_PATCHED__){
-      var orig=proto.focus;
-      proto.focus=function(opts){
-        if(isMobile()){
-          try{return orig.call(this,{preventScroll:true});}catch(e){}
-        }
-        return orig.apply(this,arguments);
-      };
-      proto.__BNS741_FOCUS_PATCHED__=true;
-    }
-  }catch(e){}
-
-  try{ console.info('[BNS 741] mobiel wijzigen gebruikt klantpaneel zonder focus-scroll, zoals Nieuwe opdracht.'); }catch(e){}
-})();
-
-/* =========================================================
-   BNS 742 - Mobiel wijzigen HARD als Nieuwe opdracht bovenaan
-   Basis: v741/app104.
-   Probleem bleef: na Wijzigen bleef mobiel onderaan de pagina staan.
-   Oorzaak zit niet alleen in focus, maar ook in scrollpositie/scroll-anker
-   van de orderslijst en late patches. Daarom tijdens het openen van een
-   bestaande opdracht kort alle mobiele scroll-containers naar boven zetten.
-   Geen Firebase/orderdata/dashboard/materialen/reservering/driver wijzigingen.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS742_MOBILE_EDIT_SCROLL_HARD__) return;
-  window.__BNS742_MOBILE_EDIT_SCROLL_HARD__ = true;
-
-  function E(id){ return document.getElementById(id); }
-  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function isMobile(){ try{return window.matchMedia && window.matchMedia('(max-width: 900px)').matches;}catch(e){return window.innerWidth<=900;} }
-  var editOpenUntil = 0;
-
-  function addCss(){
-    if(E('bns742-mobile-edit-scroll-css')) return;
-    var st=document.createElement('style');
-    st.id='bns742-mobile-edit-scroll-css';
-    st.textContent='@media(max-width:900px){html,body,#app,#newOrder,.page,.workpanel{overflow-anchor:none!important;scroll-behavior:auto!important;}#newOrder.active{display:block!important;}}';
-    document.head.appendChild(st);
-  }
-
-  function blurActive(){
-    try{ var a=document.activeElement; if(a && a.blur && a!==document.body) a.blur(); }catch(e){}
-  }
-
-  function topAll(){
-    if(!isMobile()) return;
-    blurActive();
-    try{ document.documentElement.scrollTop=0; }catch(e){}
-    try{ document.body.scrollTop=0; }catch(e){}
-    try{ if(document.scrollingElement) document.scrollingElement.scrollTop=0; }catch(e){}
-    try{ window.scrollTo(0,0); }catch(e){}
-    ['app','newOrder','content','main','customerPanel','locationPanel','materialPanel','vehiclePanel','extraPanel'].forEach(function(id){
-      var el=E(id); if(el){ try{ el.scrollTop=0; }catch(e){} }
-    });
-    A('.page,.content,.main,.planner,.screen,.workpanel,.card,.container,.wrap,.shell,main,section').forEach(function(el){
-      try{ if(el.scrollTop) el.scrollTop=0; }catch(e){}
-    });
-  }
-
-  function activateCustomerPanelNoFocus(){
-    var panel=E('customerPanel');
-    if(panel){
-      A('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
-      panel.classList.remove('hidden');
-      A('.worktab').forEach(function(x){ x.classList.toggle('active', x.getAttribute('data-tab')==='customerPanel'); });
-    }
-    try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-  }
-
-  function startMobileEditTop(){
-    addCss();
-    if(!isMobile()){
-      activateCustomerPanelNoFocus();
-      return;
-    }
-    editOpenUntil = Date.now() + 4200;
-    activateCustomerPanelNoFocus();
-    [0,10,30,60,100,180,300,500,800,1200,1800,2600,3600,4200].forEach(function(ms){ setTimeout(topAll, ms); });
-    try{ requestAnimationFrame(function(){ topAll(); requestAnimationFrame(topAll); }); }catch(e){}
-  }
-
-  // Oude fastEditOrder gebruikt deze hook. We vervangen hem nu harder.
-  window.BNS741_mobileEditAsNew = startMobileEditTop;
-  window.BNS742_mobileEditTop = startMobileEditTop;
-
-  // Tijdens openen mogen late patches niet naar beneden scrollen.
-  try{
-    if(!window.__BNS742_SCROLLTO_PATCHED__ && window.scrollTo){
-      window.__BNS742_SCROLLTO_PATCHED__ = true;
-      var origScrollTo = window.scrollTo.bind(window);
-      window.scrollTo = function(a,b){
-        if(isMobile() && Date.now() < editOpenUntil){
-          try{ return origScrollTo(0,0); }catch(e){ return; }
-        }
-        return origScrollTo.apply(window, arguments);
-      };
-    }
-  }catch(e){}
-
-  // Focus op mobiel mag nooit scroll veroorzaken tijdens wijzigen.
-  try{
-    var proto=window.HTMLElement && window.HTMLElement.prototype;
-    if(proto && proto.focus && !proto.__BNS742_FOCUS_PATCHED__){
-      var origFocus=proto.focus;
-      proto.focus=function(opts){
-        if(isMobile() && Date.now() < editOpenUntil){
-          try{return origFocus.call(this,{preventScroll:true});}catch(e){}
-        }
-        if(isMobile() && (!opts || typeof opts!=='object')){
-          try{return origFocus.call(this,{preventScroll:true});}catch(e){}
-        }
-        return origFocus.apply(this,arguments);
-      };
-      proto.__BNS742_FOCUS_PATCHED__=true;
-    }
-  }catch(e){}
-
-  // Als de browser toch scrollt tijdens de eerste seconden, zet terug bovenaan.
-  window.addEventListener('scroll', function(){
-    if(isMobile() && Date.now() < editOpenUntil) setTimeout(topAll,0);
-  }, true);
-
-  try{ console.info('[BNS 742] mobiel wijzigen hard bovenaan gehouden; geen data/Firebase wijzigingen.'); }catch(e){}
-})();
+/* BNS 743 - basis app(104): alleen 14-dagen backup + werkende mobiele Terug-knop. Geen dashboard/dedupe/Firebase-orderdata wijziging. */
