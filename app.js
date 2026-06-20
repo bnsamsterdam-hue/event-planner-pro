@@ -51736,94 +51736,62 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* =========================================================
-   BNS 725 - Alleen mobiel: planner scroll fix + opslaan/terug
+   BNS 726 - Alleen mobiel: scroll herstellen zonder overlay
    Basis: v723/v722 werkend. Alleen toegevoegd:
-   - mobiel bewerk-scherm mag weer scrollen
-   - bestaande BNS v597 Opslaan-blok blijft bruikbaar
-   - Terug-knop op mobiel erbij
-   Raakt niet aan: Firebase, materialen, reservering, driver, opslaan/wissen-logica.
-   Geen menu linksboven.
+   - mobiel bewerkscherm blijft scrollbaar
+   - bestaande BNS v597 knoppenblok blijft statisch onderaan de pagina
+   - geen fixed overlay over formulier/knoppen
+   - geen menu linksboven
+   - geen Firebase, materialen, reservering, driver of save/wis-logica wijziging
    ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS725_MOBILE_SCROLL_ACTIONS__) return;
-  window.__BNS725_MOBILE_SCROLL_ACTIONS__ = true;
+  if(window.__BNS726_MOBILE_SCROLL_NO_OVERLAY__) return;
+  window.__BNS726_MOBILE_SCROLL_NO_OVERLAY__ = true;
 
   function mobile(){ return (window.innerWidth || document.documentElement.clientWidth || 9999) <= 760; }
+  function E(id){ return document.getElementById(id); }
   function addCss(){
-    if(document.getElementById('bns725MobileScrollActionsCSS')) return;
-    var css = ''+
+    if(E('bns726MobileScrollNoOverlayCSS')) return;
+    var st=document.createElement('style');
+    st.id='bns726MobileScrollNoOverlayCSS';
+    st.textContent = ''+
       '@media (max-width:760px){'+
       'html,body{height:auto!important;min-height:100%!important;max-height:none!important;overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch!important;}'+
-      'body{padding-bottom:150px!important;}'+
-      '#app,.app,.layout,.shell,.main,.content,main{height:auto!important;min-height:100%!important;max-height:none!important;overflow-y:visible!important;overflow-x:hidden!important;}'+
-      '.page,.page.active,#newOrder,#orderForm,.workpanel,.screen,.planner{height:auto!important;min-height:100vh!important;max-height:none!important;overflow-y:visible!important;overflow-x:hidden!important;box-sizing:border-box!important;}'+
-      '#newOrder,#orderForm{padding-bottom:170px!important;}'+
-      '#newOrder input,#newOrder select,#newOrder textarea,#orderForm input,#orderForm select,#orderForm textarea{max-width:100%!important;box-sizing:border-box!important;}'+
+      'body{padding-bottom:20px!important;}'+
+      '#app,.app,.layout,.shell,.main,.content,main,.page,.screen,.planner,.workpanel{height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important;overflow-x:hidden!important;}'+
+      '#newOrder,#orderForm,.page.active{height:auto!important;min-height:100vh!important;max-height:none!important;overflow-y:visible!important;overflow-x:hidden!important;box-sizing:border-box!important;padding-bottom:40px!important;}'+
       '#newOrder .grid,#orderForm .grid{display:block!important;}'+
+      '#newOrder input,#newOrder select,#newOrder textarea,#orderForm input,#orderForm select,#orderForm textarea{max-width:100%!important;box-sizing:border-box!important;}'+
       '#newOrder .card,#newOrder .panel,#newOrder section,#orderForm .card,#orderForm .panel,#orderForm section{max-width:100%!important;box-sizing:border-box!important;}'+
-      '#bnsV597OrderBottomActions{display:flex!important;position:fixed!important;left:10px!important;right:10px!important;bottom:10px!important;width:auto!important;max-height:34vh!important;overflow:auto!important;box-sizing:border-box!important;margin:0!important;padding:10px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:16px!important;box-shadow:0 10px 30px rgba(15,23,42,.22)!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:2147482000!important;}'+
-      '#bnsV597OrderBottomActions button{font-size:14px!important;min-height:38px!important;padding:9px 12px!important;border-radius:12px!important;line-height:1.1!important;}'+
-      '#bnsV725Back{background:#475569!important;color:#fff!important;}'+
+      '#bnsV597OrderBottomActions{position:static!important;display:flex!important;clear:both!important;width:100%!important;max-height:none!important;overflow:visible!important;margin:18px 0 28px!important;padding:12px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:16px!important;box-shadow:0 8px 22px rgba(15,23,42,.10)!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;pointer-events:auto!important;}'+
+      '#bnsV597OrderBottomActions button{pointer-events:auto!important;font-size:14px!important;min-height:38px!important;padding:9px 12px!important;border-radius:12px!important;line-height:1.1!important;}'+
       '}';
-    var st=document.createElement('style');
-    st.id='bns725MobileScrollActionsCSS';
-    st.appendChild(document.createTextNode(css));
     (document.head||document.documentElement).appendChild(st);
-  }
-
-  function text(el){ return String(el && (el.innerText || el.textContent || '') || '').trim().toLowerCase(); }
-  function clickBack(){
-    var list=[].slice.call(document.querySelectorAll('button,a,[role="button"]'));
-    for(var i=0;i<list.length;i++){
-      var el=list[i];
-      if(!el || el.id==='bnsV725Back') continue;
-      if(el.offsetParent===null) continue;
-      var t=text(el);
-      if(t==='terug' || t==='annuleren' || t==='sluiten' || t==='cancel'){
-        try{ el.click(); return; }catch(e){}
-      }
-    }
-    try{ if(typeof showPage==='function'){ showPage('orders'); return; } }catch(e){}
-    try{ history.back(); }catch(e){}
-  }
-
-  function ensureBack(){
-    if(!mobile()) return;
-    var bar=document.getElementById('bnsV597OrderBottomActions');
-    if(!bar) return;
-    if(document.getElementById('bnsV725Back')) return;
-    var b=document.createElement('button');
-    b.type='button';
-    b.id='bnsV725Back';
-    b.textContent='Terug';
-    b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); clickBack(); }, true);
-    bar.appendChild(b);
   }
 
   function unlockScroll(){
     if(!mobile()) return;
-    var nodes=[document.documentElement, document.body, document.getElementById('app'), document.querySelector('.app'), document.querySelector('.main'), document.querySelector('.content'), document.querySelector('.page.active'), document.getElementById('newOrder'), document.getElementById('orderForm')];
+    var nodes=[document.documentElement,document.body,E('app'),document.querySelector('.app'),document.querySelector('.layout'),document.querySelector('.shell'),document.querySelector('.main'),document.querySelector('.content'),document.querySelector('main'),document.querySelector('.page.active'),E('newOrder'),E('orderForm')];
     nodes.forEach(function(el){
-      if(!el || !el.style) return;
+      if(!el||!el.style) return;
       el.style.maxHeight='none';
-      if(el===document.documentElement || el===document.body){
-        el.style.overflowY='auto';
+      el.style.overflowX='hidden';
+      if(el===document.documentElement||el===document.body){
         el.style.height='auto';
         el.style.minHeight='100%';
+        el.style.overflowY='auto';
       }else{
-        el.style.overflowY='visible';
         el.style.height='auto';
+        el.style.overflowY='visible';
       }
-      el.style.overflowX='hidden';
     });
   }
-
-  function tick(){ addCss(); unlockScroll(); ensureBack(); }
+  function tick(){ addCss(); unlockScroll(); }
   tick();
-  document.addEventListener('DOMContentLoaded', tick);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', tick); else setTimeout(tick,80);
   document.addEventListener('click', function(){ setTimeout(tick,80); setTimeout(tick,350); }, true);
   window.addEventListener('resize', tick);
-  setInterval(tick, 1200);
-  try{ console.info('[BNS 725] mobiele planner scroll + opslaan/terug actief; alleen layout, geen data/Firebase/materiaal/driver wijziging.'); }catch(e){}
+  setInterval(tick, 1500);
+  try{ console.info('[BNS 726] mobiele planner scroll hersteld zonder fixed overlay; geen data/Firebase/materiaal/driver wijziging.'); }catch(e){}
 })();
