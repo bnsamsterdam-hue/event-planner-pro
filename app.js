@@ -42828,14 +42828,7 @@ setTimeout(()=>{
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
     try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    /* BNS v728: bij wijzigen niet automatisch focus/select op klantveld zetten.
-       Nieuwe opdracht werkt mobiel goed omdat hij niet naar een input onderin forceert.
-       We tonen hetzelfde klantpaneel, maar zonder focus-scroll. */
-    try{
-      document.querySelectorAll('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
-      var cp=document.getElementById('customerPanel'); if(cp) cp.classList.remove('hidden');
-      document.querySelectorAll('.worktab').forEach(function(x){ x.classList.toggle('active', x.dataset && x.dataset.tab==='customerPanel'); });
-    }catch(e){}
+    try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
   }
   window.BNS_V408_fastEditOrder=fastEditOrder;
@@ -48456,17 +48449,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         '<button type="button" id="bnsV597Save">Opslaan</button>' +
         '<button type="button" id="bnsV597Clear">Wis</button>' +
         '<button type="button" id="bnsV597Print">Afdrukken</button>' +
-        '<button type="button" id="bnsV597Overview">Overzicht maken</button>' +
-        '<button type="button" id="bnsV597Back">Terug</button>';
+        '<button type="button" id="bnsV597Overview">Overzicht maken</button>';
       page.appendChild(bar);
       E('bnsV597Save').addEventListener('click', doSave);
       E('bnsV597Clear').addEventListener('click', doClear);
       E('bnsV597Print').addEventListener('click', doPrint);
       E('bnsV597Overview').addEventListener('click', doOverview);
-      E('bnsV597Back').addEventListener('click', function(){
-        try{ if(typeof showPage==='function'){ showPage('orders'); return; } }catch(e){}
-        try{ history.back(); }catch(e){}
-      });
     } else if(bar.parentElement !== page){
       page.appendChild(bar);
     } else if(page.lastElementChild !== bar){
@@ -51747,28 +51735,84 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 
-
 /* =========================================================
-   BNS v728 - Mobiel wijzigen gebruikt Nieuwe opdracht flow
-   Alleen mobiele rust/scroll. Geen materiaal, reservering, Firebase of driver.
+   BNS 724 - Alleen mobiel: planner rust + opslaan/terug onderaan
+   Basis: v723/v722 werkend. Raakt niet aan: Firebase, materialen,
+   reservering, driver, opslaan-logica, wissen of menu linksboven.
+   Doel: planner op telefoon compacter en de mobiele knoppen onderaan
+   bruikbaar houden. Geen nieuw hamburger/menu.
    ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS_V728_MOBIEL_WIJZIGEN_ALS_NIEUW__) return;
-  window.__BNS_V728_MOBIEL_WIJZIGEN_ALS_NIEUW__ = true;
-  function addCss(){
-    if(document.getElementById('bns-v728-mobile-edit-css')) return;
+  if(window.__BNS724_MOBILE_PLANNER_RUST__) return;
+  window.__BNS724_MOBILE_PLANNER_RUST__ = true;
+
+  function addStyle(){
+    if(document.getElementById('bns724MobilePlannerRustCSS')) return;
+    var css = ''+
+      '@media (max-width: 760px){' +
+      'html,body{font-size:13px!important;}' +
+      'body{overflow-x:hidden!important;}' +
+      '#app,.app,.main,.content,.page,.planner,.screen{max-width:100vw!important;box-sizing:border-box!important;}' +
+      '.main,.content,.page,.planner,.screen{padding:8px!important;}' +
+      '.card,.order-card,.job-card,.list-card,.panel,.box,.form-card{padding:10px!important;margin:8px 0!important;border-radius:14px!important;}' +
+      '.card *,.order-card *,.job-card *,.list-card *,.panel *,.box *,.form-card *{max-width:100%!important;box-sizing:border-box!important;}' +
+      'h1{font-size:22px!important;line-height:1.15!important;margin:8px 0 10px!important;}' +
+      'h2{font-size:18px!important;line-height:1.15!important;margin:8px 0!important;}' +
+      'h3{font-size:15px!important;line-height:1.15!important;margin:6px 0!important;}' +
+      'button,.btn,[role="button"],input,select,textarea{font-size:14px!important;}' +
+      'button,.btn,[role="button"]{min-height:36px!important;padding:8px 10px!important;border-radius:11px!important;line-height:1.1!important;}' +
+      'input,select,textarea{min-height:34px!important;padding:7px 9px!important;border-radius:10px!important;}' +
+      '.tab,.tabs button,.pill,.chip{font-size:13px!important;padding:7px 9px!important;min-height:32px!important;border-radius:10px!important;}' +
+      '.order-card,.job-card{display:block!important;min-height:0!important;}' +
+      '.order-card .actions,.job-card .actions,.card .actions{gap:6px!important;flex-wrap:wrap!important;}' +
+      '.material-list,.materials-list,#materialList,#materialsList{max-height:48vh!important;overflow:auto!important;}' +
+      '.material-card,.material-row,.mat-card,.mat-row{font-size:13px!important;padding:8px!important;margin:6px 0!important;border-radius:12px!important;}' +
+      '.material-card button,.material-row button,.mat-card button,.mat-row button{font-size:12px!important;min-height:30px!important;padding:6px 8px!important;}' +
+      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:14px 0 22px!important;padding:10px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:14px!important;box-shadow:0 6px 18px rgba(15,23,42,.10)!important;gap:7px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
+      '#bnsV597OrderBottomActions button{font-size:13px!important;min-height:34px!important;padding:8px 10px!important;border-radius:10px!important;flex:0 1 auto!important;}' +
+      '#bnsV724Back{background:#475569!important;color:#fff!important;}' +
+      'table{font-size:12px!important;}' +
+      'td,th{padding:5px!important;}' +
+      '}' ;
     var st=document.createElement('style');
-    st.id='bns-v728-mobile-edit-css';
-    st.textContent='@media(max-width:900px){'
-      +'html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important;overscroll-behavior:auto!important;}'
-      +'#app,.app,.main,.content,.page,#newOrder{height:auto!important;max-height:none!important;overflow:visible!important;}'
-      +'#newOrder{padding-bottom:28px!important;}'
-      +'#newOrder input,#newOrder textarea,#newOrder select{font-size:16px!important;}'
-      +'#bnsV597Back{background:#334155!important;color:#fff!important;}'
-      +'}';
-    document.head.appendChild(st);
+    st.id='bns724MobilePlannerRustCSS';
+    st.appendChild(document.createTextNode(css));
+    (document.head||document.documentElement).appendChild(st);
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addCss); else addCss();
-  console.info('[BNS v728] mobiel wijzigen als Nieuwe opdracht flow actief.');
+
+  function isMobile(){ return (window.innerWidth||document.documentElement.clientWidth||9999) <= 760; }
+  function text(el){ return String(el && (el.innerText||el.textContent)||'').trim().toLowerCase(); }
+  function clickExistingBack(){
+    var btns=[].slice.call(document.querySelectorAll('button,a,[role="button"]'));
+    for(var i=0;i<btns.length;i++){
+      var el=btns[i];
+      if(!el || el.id==='bnsV724Back') continue;
+      if(el.offsetParent===null) continue;
+      var t=text(el);
+      if(/^(terug|annuleren|sluiten|cancel)$/.test(t) || /terug|annuleren/.test(t)){
+        try{ el.click(); return; }catch(e){}
+      }
+    }
+    try{ history.back(); }catch(e){}
+  }
+  function ensureBackButton(){
+    if(!isMobile()) return;
+    var bar=document.getElementById('bnsV597OrderBottomActions');
+    if(!bar) return;
+    if(document.getElementById('bnsV724Back')) return;
+    var b=document.createElement('button');
+    b.type='button';
+    b.id='bnsV724Back';
+    b.textContent='Terug';
+    b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); clickExistingBack(); }, true);
+    bar.appendChild(b);
+  }
+  function tick(){ addStyle(); ensureBackButton(); }
+  tick();
+  document.addEventListener('DOMContentLoaded', tick);
+  document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
+  window.addEventListener('resize', tick);
+  setInterval(tick, 1500);
+  try{console.info('[BNS 724] mobiele planner-rust + opslaan/terug onderaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
 })();
