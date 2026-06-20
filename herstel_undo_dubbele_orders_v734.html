@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tapwagen.nl - Undo dubbele herstelkopieen v734</title>
+  <script src="firebase-config.js"></script>
+  <style>
+    :root{font-family:Arial,Helvetica,sans-serif;color:#172033;background:#f5f7fb;}
+    body{margin:0;padding:18px;}
+    .wrap{max-width:1100px;margin:0 auto;}
+    .card{background:#fff;border:1px solid #dfe5ef;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(18,31,53,.08);}
+    h1{font-size:24px;margin:0 0 6px;} h2{font-size:18px;margin:0 0 10px;}
+    button{border:0;border-radius:10px;padding:12px 16px;font-weight:700;font-size:15px;cursor:pointer;margin:6px 8px 6px 0;}
+    .primary{background:#1769e0;color:white}.danger{background:#b91c1c;color:white}.muted{background:#e8eef7;color:#172033}
+    button:disabled{opacity:.45;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.stat{background:#f8fafc;border:1px solid #e1e7f0;border-radius:12px;padding:12px}.stat b{display:block;font-size:24px;margin-top:4px}.small{font-size:13px;color:#516070;line-height:1.45}.bad{color:#b91c1c}.ok{color:#15803d}.warn{color:#b45309}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;background:#0f172a;color:#dbeafe;border-radius:10px;padding:12px;max-height:320px;overflow:auto}.list{max-height:420px;overflow:auto;border:1px solid #e1e7f0;border-radius:10px;background:#fff}.row{display:grid;grid-template-columns:150px 180px 1fr 120px;gap:8px;padding:8px 10px;border-bottom:1px solid #eef2f7;font-size:13px}.row.head{font-weight:700;background:#f8fafc;position:sticky;top:0}.row:last-child{border-bottom:0}.confirm{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;box-sizing:border-box;margin:8px 0;}.pill{display:inline-block;border-radius:999px;background:#eef2ff;padding:2px 8px;font-size:12px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Tapwagen.nl - Undo dubbele herstelkopieen v734</h1>
+    <div class="small">
+      Deze tool verwijdert <b>alleen</b> vaste <span class="pill">orders/2026-xxxx</span> kopieen die door de v733 hersteltool zijn aangemaakt.
+      De originele random documenten blijven staan. Er wordt niets gearchiveerd, niets samengevoegd en geen gewone opdracht verwijderd.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>1. Controle</h2>
+    <button id="btnAnalyze" class="primary">Controleer herstelkopieen</button>
+    <button id="btnDownload" class="muted" disabled>Download undo-rapport</button>
+    <div id="status" class="small">Nog niet gestart.</div>
+  </div>
+
+  <div class="card">
+    <h2>Resultaat</h2>
+    <div class="grid">
+      <div class="stat">Live order-documenten <b id="sLive">-</b></div>
+      <div class="stat">Gemarkeerde herstelkopieen <b id="sMarked">-</b></div>
+      <div class="stat">Veilig te verwijderen <b id="sSafe">-</b></div>
+      <div class="stat">Overgeslagen / twijfel <b id="sSkip">-</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Alleen na controle: herstelkopieen verwijderen</h2>
+    <div class="small">
+      Verwijdert alleen documenten die voldoen aan alle voorwaarden:<br>
+      - document-id is een vast opdrachtnummer zoals <span class="pill">2026-2575</span><br>
+      - document heeft markering <span class="pill">__bnsHersteldUitBackup = true</span><br>
+      - herstelsoort is <span class="pill">random-only-fixed-doc-copy</span><br>
+      - er bestaat nog een random document met hetzelfde opdrachtnummer als veilige bron
+    </div>
+    <input id="confirm" class="confirm" placeholder="Typ exact: IK BEGRIJP HET" autocomplete="off">
+    <button id="btnUndo" class="danger" disabled>Verwijder alleen gemarkeerde vaste herstelkopieen</button>
+    <div class="small bad">Niet gebruiken voordat de controlelijst klopt. Deze tool verwijdert geen random documenten en raakt geen gewone vaste opdrachten aan.</div>
+  </div>
+
+  <div class="card">
+    <h2>Veilig te verwijderen</h2>
+    <div id="safeList" class="list"><div class="row head"><div>Nummer</div><div>Doc-id</div><div>Titel / klant</div><div>Status</div></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Overgeslagen / twijfel</h2>
+    <div id="skipList" class="list"><div class="row head"><div>Nummer</div><div>Doc-id</div><div>Reden</div><div>Status</div></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div id="log" class="mono"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { getFirestore, collection, getDocs, doc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+const $ = id => document.getElementById(id);
+let db = null;
+let report = null;
+
+function log(msg){
+  const line = '[' + new Date().toLocaleTimeString('nl-NL') + '] ' + msg;
+  $('log').textContent += line + '\n';
+  $('log').scrollTop = $('log').scrollHeight;
+}
+function status(msg){ $('status').textContent = msg; log(msg); }
+function norm(v){ return String(v == null ? '' : v).trim(); }
+function isFixedDocId(id){ return /^20\d{2}-\d{3,6}$/.test(norm(id)); }
+function orderNumber(o){ return norm(o && (o.number || o.orderNumber || o.nr || o.opdrachtnummer || o.id)).replace(/^orders\//,''); }
+function titleOf(o){
+  const t = norm(o && (o.title || o.eventName || o.name));
+  const c = norm(o && o.customer && o.customer.name);
+  return (t || c || '(zonder titel)') + (c && c !== t ? ' / ' + c : '');
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function ensureDb(){
+  if(db) return db;
+  if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey){ throw new Error('Firebase config niet gevonden. Zet dit bestand naast firebase-config.js.'); }
+  const app = getApps().length ? getApp() : initializeApp(window.BNS_FIREBASE_CONFIG);
+  db = getFirestore(app);
+  return db;
+}
+function renderList(id, rows, mode){
+  const el = $(id);
+  const third = mode === 'safe' ? 'Titel / klant' : 'Reden';
+  el.innerHTML = '<div class="row head"><div>Nummer</div><div>Doc-id</div><div>' + third + '</div><div>Status</div></div>';
+  rows.slice(0, 500).forEach(r => {
+    const div = document.createElement('div'); div.className = 'row';
+    div.innerHTML = '<div>' + escapeHtml(r.number) + '</div><div>' + escapeHtml(r.docId) + '</div><div>' + escapeHtml(r.text) + '</div><div>' + escapeHtml(r.status) + '</div>';
+    el.appendChild(div);
+  });
+  if(rows.length > 500){
+    const div = document.createElement('div'); div.className = 'row';
+    div.innerHTML = '<div>...</div><div></div><div>Nog ' + (rows.length - 500) + ' meer in rapport</div><div></div>';
+    el.appendChild(div);
+  }
+}
+async function analyze(){
+  $('btnAnalyze').disabled = true;
+  $('btnDownload').disabled = true;
+  $('btnUndo').disabled = true;
+  $('log').textContent = '';
+  try{
+    ensureDb();
+    status('Live orders lezen...');
+    const snap = await getDocs(collection(db, 'orders'));
+    const docs = [];
+    snap.forEach(d => docs.push({docId:d.id, order:d.data()}));
+    const randomByNumber = new Map();
+    docs.forEach(x => {
+      const n = orderNumber(x.order) || norm(x.docId);
+      if(!n) return;
+      if(x.docId !== n){
+        if(!randomByNumber.has(n)) randomByNumber.set(n, []);
+        randomByNumber.get(n).push(x.docId);
+      }
+    });
+
+    const marked = [];
+    const safe = [];
+    const skipped = [];
+    docs.forEach(x => {
+      const o = x.order || {};
+      const n = orderNumber(o) || norm(x.docId);
+      const markedCopy = o.__bnsHersteldUitBackup === true && norm(o.__bnsHerstelSoort) === 'random-only-fixed-doc-copy';
+      if(!markedCopy) return;
+      marked.push(x);
+      if(!isFixedDocId(x.docId)){
+        skipped.push({number:n, docId:x.docId, text:'Gemarkeerd, maar doc-id is geen vaste 2026-xxxx id', status:norm(o.status)});
+      }else if(x.docId !== n){
+        skipped.push({number:n, docId:x.docId, text:'Doc-id en opdrachtnummer verschillen', status:norm(o.status)});
+      }else if(!randomByNumber.has(n) || !randomByNumber.get(n).length){
+        skipped.push({number:n, docId:x.docId, text:'Geen random brondocument met hetzelfde opdrachtnummer gevonden', status:norm(o.status)});
+      }else{
+        safe.push({number:n, docId:x.docId, text:titleOf(o), status:norm(o.status)});
+      }
+    });
+    safe.sort((a,b)=>a.number.localeCompare(b.number));
+    skipped.sort((a,b)=>a.number.localeCompare(b.number));
+    report = {
+      createdAt: new Date().toISOString(),
+      liveDocCount: docs.length,
+      markedRecoveryCopies: marked.length,
+      safeToDelete: safe,
+      skipped: skipped
+    };
+    $('sLive').textContent = String(docs.length);
+    $('sMarked').textContent = String(marked.length);
+    $('sSafe').textContent = String(safe.length);
+    $('sSkip').textContent = String(skipped.length);
+    renderList('safeList', safe, 'safe');
+    renderList('skipList', skipped, 'skip');
+    $('btnDownload').disabled = false;
+    updateUndoButton();
+    status('Controle klaar. Veilig te verwijderen: ' + safe.length + '. Overgeslagen/twijfel: ' + skipped.length + '.');
+  }catch(e){
+    status('FOUT: ' + (e && e.message ? e.message : e));
+  }finally{
+    $('btnAnalyze').disabled = false;
+  }
+}
+function updateUndoButton(){
+  const ok = $('confirm').value.trim() === 'IK BEGRIJP HET' && report && report.safeToDelete && report.safeToDelete.length;
+  $('btnUndo').disabled = !ok;
+}
+async function undo(){
+  if(!report || !report.safeToDelete.length) return;
+  const again = prompt('Laatste controle: typ VERWIJDER om ' + report.safeToDelete.length + ' gemarkeerde herstelkopieen te verwijderen. Random documenten blijven staan.');
+  if(again !== 'VERWIJDER'){ status('Verwijderen afgebroken.'); return; }
+  ensureDb();
+  let done = 0, failed = 0;
+  $('btnUndo').disabled = true;
+  for(const r of report.safeToDelete){
+    try{
+      await deleteDoc(doc(db, 'orders', r.docId));
+      done++;
+      log('Verwijderd gemarkeerde herstelkopie: orders/' + r.docId);
+    }catch(e){
+      failed++;
+      log('FOUT bij ' + r.docId + ': ' + e.message);
+    }
+  }
+  status('Undo klaar. Verwijderd: ' + done + ', fouten: ' + failed + '. Draai daarna opnieuw Controle.');
+}
+function downloadReport(){
+  if(!report) return;
+  const blob = new Blob([JSON.stringify(report, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tapwagen_undo_herstelkopieen_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+$('btnAnalyze').addEventListener('click', analyze);
+$('btnDownload').addEventListener('click', downloadReport);
+$('confirm').addEventListener('input', updateUndoButton);
+$('btnUndo').addEventListener('click', undo);
+</script>
+</body>
+</html>
