@@ -51908,3 +51908,115 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
   try{ console.info('[BNS 741] mobiel wijzigen gebruikt klantpaneel zonder focus-scroll, zoals Nieuwe opdracht.'); }catch(e){}
 })();
+
+/* =========================================================
+   BNS 742 - Mobiel wijzigen HARD als Nieuwe opdracht bovenaan
+   Basis: v741/app104.
+   Probleem bleef: na Wijzigen bleef mobiel onderaan de pagina staan.
+   Oorzaak zit niet alleen in focus, maar ook in scrollpositie/scroll-anker
+   van de orderslijst en late patches. Daarom tijdens het openen van een
+   bestaande opdracht kort alle mobiele scroll-containers naar boven zetten.
+   Geen Firebase/orderdata/dashboard/materialen/reservering/driver wijzigingen.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS742_MOBILE_EDIT_SCROLL_HARD__) return;
+  window.__BNS742_MOBILE_EDIT_SCROLL_HARD__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function isMobile(){ try{return window.matchMedia && window.matchMedia('(max-width: 900px)').matches;}catch(e){return window.innerWidth<=900;} }
+  var editOpenUntil = 0;
+
+  function addCss(){
+    if(E('bns742-mobile-edit-scroll-css')) return;
+    var st=document.createElement('style');
+    st.id='bns742-mobile-edit-scroll-css';
+    st.textContent='@media(max-width:900px){html,body,#app,#newOrder,.page,.workpanel{overflow-anchor:none!important;scroll-behavior:auto!important;}#newOrder.active{display:block!important;}}';
+    document.head.appendChild(st);
+  }
+
+  function blurActive(){
+    try{ var a=document.activeElement; if(a && a.blur && a!==document.body) a.blur(); }catch(e){}
+  }
+
+  function topAll(){
+    if(!isMobile()) return;
+    blurActive();
+    try{ document.documentElement.scrollTop=0; }catch(e){}
+    try{ document.body.scrollTop=0; }catch(e){}
+    try{ if(document.scrollingElement) document.scrollingElement.scrollTop=0; }catch(e){}
+    try{ window.scrollTo(0,0); }catch(e){}
+    ['app','newOrder','content','main','customerPanel','locationPanel','materialPanel','vehiclePanel','extraPanel'].forEach(function(id){
+      var el=E(id); if(el){ try{ el.scrollTop=0; }catch(e){} }
+    });
+    A('.page,.content,.main,.planner,.screen,.workpanel,.card,.container,.wrap,.shell,main,section').forEach(function(el){
+      try{ if(el.scrollTop) el.scrollTop=0; }catch(e){}
+    });
+  }
+
+  function activateCustomerPanelNoFocus(){
+    var panel=E('customerPanel');
+    if(panel){
+      A('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
+      panel.classList.remove('hidden');
+      A('.worktab').forEach(function(x){ x.classList.toggle('active', x.getAttribute('data-tab')==='customerPanel'); });
+    }
+    try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+  }
+
+  function startMobileEditTop(){
+    addCss();
+    if(!isMobile()){
+      activateCustomerPanelNoFocus();
+      return;
+    }
+    editOpenUntil = Date.now() + 4200;
+    activateCustomerPanelNoFocus();
+    [0,10,30,60,100,180,300,500,800,1200,1800,2600,3600,4200].forEach(function(ms){ setTimeout(topAll, ms); });
+    try{ requestAnimationFrame(function(){ topAll(); requestAnimationFrame(topAll); }); }catch(e){}
+  }
+
+  // Oude fastEditOrder gebruikt deze hook. We vervangen hem nu harder.
+  window.BNS741_mobileEditAsNew = startMobileEditTop;
+  window.BNS742_mobileEditTop = startMobileEditTop;
+
+  // Tijdens openen mogen late patches niet naar beneden scrollen.
+  try{
+    if(!window.__BNS742_SCROLLTO_PATCHED__ && window.scrollTo){
+      window.__BNS742_SCROLLTO_PATCHED__ = true;
+      var origScrollTo = window.scrollTo.bind(window);
+      window.scrollTo = function(a,b){
+        if(isMobile() && Date.now() < editOpenUntil){
+          try{ return origScrollTo(0,0); }catch(e){ return; }
+        }
+        return origScrollTo.apply(window, arguments);
+      };
+    }
+  }catch(e){}
+
+  // Focus op mobiel mag nooit scroll veroorzaken tijdens wijzigen.
+  try{
+    var proto=window.HTMLElement && window.HTMLElement.prototype;
+    if(proto && proto.focus && !proto.__BNS742_FOCUS_PATCHED__){
+      var origFocus=proto.focus;
+      proto.focus=function(opts){
+        if(isMobile() && Date.now() < editOpenUntil){
+          try{return origFocus.call(this,{preventScroll:true});}catch(e){}
+        }
+        if(isMobile() && (!opts || typeof opts!=='object')){
+          try{return origFocus.call(this,{preventScroll:true});}catch(e){}
+        }
+        return origFocus.apply(this,arguments);
+      };
+      proto.__BNS742_FOCUS_PATCHED__=true;
+    }
+  }catch(e){}
+
+  // Als de browser toch scrollt tijdens de eerste seconden, zet terug bovenaan.
+  window.addEventListener('scroll', function(){
+    if(isMobile() && Date.now() < editOpenUntil) setTimeout(topAll,0);
+  }, true);
+
+  try{ console.info('[BNS 742] mobiel wijzigen hard bovenaan gehouden; geen data/Firebase wijzigingen.'); }catch(e){}
+})();
