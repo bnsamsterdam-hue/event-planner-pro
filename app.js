@@ -51911,7 +51911,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(oldShowPage && !oldShowPage.__bns756Top){
       var sp=function(p){
         var r=oldShowPage.apply(this,arguments);
-        try{ if(p==='newOrder'){ ensureTopBackButton(); scrollTopSoon(); } }catch(e){}
+        try{ if(p==='newOrder'){ ensureTopBackButton(); } }catch(e){}
         return r;
       };
       sp.__bns756Top=true;
@@ -51988,4 +51988,128 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   setInterval(function(){ runBackup(false); }, 30*60*1000);
 
   log('actief: app106-basis, dataveilig, backup14, wijzigen bovenaan; geen dashboard-startdatumfilter');
+})();
+
+
+/* =========================================================
+   BNS 757 - kleine herstelpatch op v756
+   - Nieuwe opdracht: focus blijft op datum, niet na 1 sec weg.
+   - Bij opslaan/annuleren/nieuwe opdracht: oude documenttekst/preview leeg.
+   - Geen dashboardfilter, geen reserveringswijziging, geen Firebase/datawijziging.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS757_NEW_ORDER_DOC_RESET__) return;
+  window.__BNS757_NEW_ORDER_DOC_RESET__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function low(v){ return T(v).toLowerCase(); }
+  function page(){ return E('newOrder') || document; }
+  function isVisible(el){ return !!(el && (!el.offsetParent || true)); }
+
+  function clearDocFields(){
+    var root=page();
+    var ids=[
+      'confirmationText','invoiceText','factuurText','orderDocText','orderConfirmationText',
+      'opdrachtText','documentText','docText','mailText','printText'
+    ];
+    ids.forEach(function(id){
+      var el=E(id);
+      if(!el) return;
+      if(root!==document && !root.contains(el)) return;
+      try{ if('value' in el) el.value=''; else el.textContent=''; }catch(e){}
+    });
+    ['confirmationBox','invoiceBox','factuurBox','docBox','documentBox','overviewBox'].forEach(function(id){
+      var el=E(id);
+      if(!el) return;
+      if(root!==document && !root.contains(el)) return;
+      try{ el.classList.add('hidden'); }catch(e){}
+    });
+    ['confirmationPreview','invoicePreview','factuurPreview','docPreview','documentPreview','overviewPreview'].forEach(function(id){
+      var el=E(id);
+      if(!el) return;
+      if(root!==document && !root.contains(el)) return;
+      try{ el.innerHTML=''; el.textContent=''; }catch(e){}
+    });
+  }
+
+  function focusDate(){
+    var ids=['dateStart','orderStart','startDate','datumStart','date'];
+    for(var i=0;i<ids.length;i++){
+      var el=E(ids[i]);
+      if(el){
+        try{ el.scrollIntoView({block:'center',behavior:'auto'}); }catch(e){}
+        try{ el.focus({preventScroll:true}); }catch(e){ try{el.focus();}catch(_){} }
+        try{ if(el.select) el.select(); }catch(e){}
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function afterNewOrder(){
+    [80,220,500,900,1400].forEach(function(ms){
+      setTimeout(function(){
+        try{ clearDocFields(); focusDate(); }catch(e){}
+      },ms);
+    });
+  }
+
+  // Nieuwe opdracht-knop: leeg document en focus datum.
+  document.addEventListener('click',function(ev){
+    var t=ev.target;
+    var btn=t && t.closest && t.closest('button,a,[role="button"],#newOrderBtn');
+    if(!btn) return;
+    var txt=low(btn.textContent||btn.value||btn.id||'');
+    var id=low(btn.id||'');
+    if(id==='neworderbtn' || /nieuwe\s+opdracht/.test(txt)){
+      afterNewOrder();
+    }
+    if(/^(opslaan|annuleren|terug|sluiten|cancel)$/.test(txt) || /annuleren|terug naar opdrachten/.test(txt)){
+      setTimeout(function(){ try{ clearDocFields(); }catch(e){} },180);
+    }
+  },true);
+
+  // Wrap clearOrder: na opslaan of handmatig leegmaken ook documenten leeg.
+  setTimeout(function(){
+    try{
+      var oldClear=window.clearOrder || (typeof clearOrder==='function'?clearOrder:null);
+      if(oldClear && !oldClear.__bns757){
+        var co=function(){ var r=oldClear.apply(this,arguments); try{ clearDocFields(); }catch(e){} return r; };
+        co.__bns757=true;
+        window.clearOrder=co; try{ clearOrder=co; }catch(e){}
+      }
+    }catch(e){}
+    try{
+      var oldCancel=window.cancel || (typeof cancel==='function'?cancel:null);
+      if(oldCancel && !oldCancel.__bns757){
+        var ca=function(){ var r=oldCancel.apply(this,arguments); try{ clearDocFields(); }catch(e){} return r; };
+        ca.__bns757=true;
+        window.cancel=ca; try{ cancel=ca; }catch(e){}
+      }
+    }catch(e){}
+  },600);
+
+  // Als de pagina Nieuwe opdracht actief wordt zonder editing, datum vasthouden.
+  try{
+    var oldShow=window.showPage || (typeof showPage==='function'?showPage:null);
+    if(oldShow && !oldShow.__bns757NewDate){
+      var sp=function(name){
+        var r=oldShow.apply(this,arguments);
+        try{
+          if(name==='newOrder'){
+            var editingNow=false;
+            try{ editingNow=!!(window.editing || editing); }catch(e){}
+            if(!editingNow) afterNewOrder();
+          }
+        }catch(e){}
+        return r;
+      };
+      sp.__bns757NewDate=true;
+      window.showPage=sp; try{ showPage=sp; }catch(e){}
+    }
+  }catch(e){}
+
+  try{ console.info('[BNS757] nieuwe opdracht datumfocus + document reset actief; geen dashboard/reservering/Firebase wijzigingen.'); }catch(e){}
 })();
