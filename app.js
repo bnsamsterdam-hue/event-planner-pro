@@ -13971,7 +13971,8 @@ setTimeout(()=>{
     } catch(e) {
     }
     try {
-      var raw = localStorage.getItem("eventPlannerProV91") ||
+      var raw = localStorage.getItem("event-planner-pro-v87") ||
+      localStorage.getItem("eventPlannerProV91") ||
       localStorage.getItem("eventPlannerPro") ||
       localStorage.getItem("eventPlannerState") ||
       localStorage.getItem("plannerState");
@@ -14448,7 +14449,8 @@ setTimeout(()=>{
     } catch(e) {
     }
     try {
-      var raw = localStorage.getItem("eventPlannerProV91") ||
+      var raw = localStorage.getItem("event-planner-pro-v87") ||
+      localStorage.getItem("eventPlannerProV91") ||
       localStorage.getItem("eventPlannerPro") ||
       localStorage.getItem("plannerState");
       var parsed = JSON.parse(raw || "{}");
@@ -15858,7 +15860,7 @@ setTimeout(()=>{
     } catch(e) {
     }
     try {
-      var keys = ['eventPlannerProV91','eventPlannerPro','plannerState'];
+      var keys = ['event-planner-pro-v87','eventPlannerProV91','eventPlannerPro','plannerState'];
       for (var i=0; i<keys.length; i++) {
         var raw = localStorage.getItem(keys[i]);
         if (raw) {

@@ -470,6 +470,7 @@ async function download(){
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
     try{if(typeof renderOrders==="function")renderOrders();}catch(e){}
+    try{if(typeof renderDashboard==="function")renderDashboard();}catch(e){}
   }catch(e){console.error(e);status("Firebase download fout")}
   finally{downloading=false}
 }
@@ -525,7 +526,10 @@ async function live(){
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
-        if(col==="orders"&&typeof renderOrders==="function")renderOrders();
+        if(col==="orders"){
+          if(typeof renderOrders==="function")renderOrders();
+          if(typeof renderDashboard==="function")renderDashboard();
+        }
         if(col==="alerts"){
           if(typeof renderDriver==="function")renderDriver();
           var ab=document.getElementById("alertsBtn");
