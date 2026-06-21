@@ -13963,26 +13963,25 @@ setTimeout(()=>{
   }
   function S(){
     try {
-      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
-    } catch(e) {
-    }
-    try {
-      if (window.state && Array.isArray(window.state.orders)) return window.state;
-    } catch(e) {
-    }
-    try {
+      var _a = (typeof state !== "undefined") ? state : null;
+      var _b = window.state || null;
+      var _ao = (_a && Array.isArray(_a.orders)) ? _a.orders.length : 0;
+      var _bo = (_b && Array.isArray(_b.orders)) ? _b.orders.length : 0;
+      // BNS 765: firebase wint als die meer orders heeft dan lokale state
+      if (_bo > _ao) return _b;
+      if (_ao > 0) return _a;
+      // Beide leeg: probeer localStorage
       var raw = localStorage.getItem("event-planner-pro-v87") ||
       localStorage.getItem("eventPlannerProV91") ||
       localStorage.getItem("eventPlannerPro") ||
       localStorage.getItem("eventPlannerState") ||
       localStorage.getItem("plannerState");
       var parsed = JSON.parse(raw || "{}");
-      if (parsed && Array.isArray(parsed.orders)) return parsed;
+      if (parsed && Array.isArray(parsed.orders) && parsed.orders.length > 0) return parsed;
+      return _b || _a || { orders: [], materials: [], alerts: [], users: [] };
     } catch(e) {
+      return window.state || { orders: [], materials: [], alerts: [], users: [] };
     }
-    return {
-      orders: [], materials: [], alerts: [], users: []
-    };
   }
   function saveState(){
     try {
