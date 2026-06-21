@@ -13944,25 +13944,25 @@ setTimeout(()=>{
   }
   function S(){
     try {
-      // BNS 770: window.state/Firebase wint zodra die orders heeft
-      var _loc = (typeof state !== "undefined") ? state : null;
-      var _win = window.state || null;
-      var _lo = (_loc && Array.isArray(_loc.orders)) ? _loc.orders.length : 0;
-      var _wo = (_win && Array.isArray(_win.orders)) ? _win.orders.length : 0;
-      if (_wo > 0) return _win; // Firebase altijd leidend zodra geladen
-      if (_lo > 0) return _loc;
-      // Beide leeg: localStorage als noodval
-      var raw = localStorage.getItem("event-planner-pro-v87") ||
-      localStorage.getItem("eventPlannerProV91") ||
+      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
+    } catch(e) {
+    }
+    try {
+      if (window.state && Array.isArray(window.state.orders)) return window.state;
+    } catch(e) {
+    }
+    try {
+      var raw = localStorage.getItem("eventPlannerProV91") ||
       localStorage.getItem("eventPlannerPro") ||
       localStorage.getItem("eventPlannerState") ||
       localStorage.getItem("plannerState");
       var parsed = JSON.parse(raw || "{}");
-      if (parsed && Array.isArray(parsed.orders) && parsed.orders.length > 0) return parsed;
-      return _win || _loc || { orders: [], materials: [], alerts: [], users: [] };
+      if (parsed && Array.isArray(parsed.orders)) return parsed;
     } catch(e) {
-      return window.state || { orders: [], materials: [], alerts: [], users: [] };
     }
+    return {
+      orders: [], materials: [], alerts: [], users: []
+    };
   }
   function saveState(){
     try {
@@ -14001,13 +14001,11 @@ setTimeout(()=>{
     d.getFullYear();
   }
   function endDate(order){
-    // BNS 770: geen startdatum fallback
-    return parseDate(order && (order.end || order.dateEnd || order.endDate));
+    return parseDate(order && (order.end || order.start));
   }
   function isPastEnd(order){
     var e = endDate(order);
-    if(!e) return false; // geen einddatum = nooit voorbij
-    return e < today();
+    return !!e && e < today();
   }
   function group(order){
     var status = String(order && order.status || "").toLowerCase().trim();
@@ -15246,8 +15244,7 @@ setTimeout(()=>{
     return String(d.getDate()).padStart(2,"0") + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + d.getFullYear();
   }
   function orderEnd(o){
-    // BNS 770: geen startdatum fallback
-    return parseDate(o && (o.end || o.dateEnd || o.endDate));
+    return parseDate(o && (o.end || o.start));
   }
   function orderActive(o){
     var st = String(o && o.status || "").toLowerCase();
@@ -17261,8 +17258,7 @@ setTimeout(()=>{
     return d;
   }
   function endDate(o){
-    // BNS 770: geen startdatum fallback
-    return parseDate(o && (o.end || o.dateEnd || o.endDate));
+    return parseDate(o && (o.end || o.start));
   }
   function startDate(o){
     return parseDate(o && (o.start || o.end));
@@ -17825,8 +17821,7 @@ setTimeout(()=>{
   function isActiveOrder(o){
     var st=String(o&&o.status||'').toLowerCase();
     if(st==='geannuleerd' || st==='uitgevoerd') return false;
-    // BNS 770: geen startdatum fallback - geen einddatum = altijd actief
-    var d=parseDate(o && (o.end||o.dateEnd||o.endDate));
+    var d=parseDate(o && (o.end||o.start));
     return !d || d>=today();
   }
   function money(v){
@@ -40654,10 +40649,10 @@ setTimeout(()=>{
     if(m){ var d3=new Date(+m[1],0,1); if(!isNaN(d3.getTime())) return d3; }
     return null;
   }
-  function orderDate(o){ return parseDate(o && (o.end || o.endDate || o.finish)); } // BNS 770: geen start fallback
+  function orderDate(o){ return parseDate(o && (o.end || o.endDate || o.finish || o.start || o.date)); }
   function orderYear(o){ var d=orderDate(o); if(d) return String(d.getFullYear()); var m=String([o&&o.end,o&&o.start,o&&o.date,o&&o.number].filter(Boolean).join(' ')).match(/20\d{2}/); return m?m[0]:''; }
   function fmtDate(v){ var d=parseDate(v); return d ? (String(d.getDate())+'-'+String(d.getMonth()+1)+'-'+String(d.getFullYear())) : String(v||''); }
-  function isPastEnd(o){ var d=orderDate(o); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); } // geen einddatum = nooit voorbij
+  function isPastEnd(o){ var d=orderDate(o); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); }
   function isDeleted(o){ var st=norm(o&&o.status); return !!(o&&(o.deleted||o.removed||o.deletedAt||/verwijderd|deleted|gewist|trash|prullenbak/.test(st))); }
   function isCancelled(o){ return /geannuleerd|annulering|cancelled|canceled/.test(norm(o&&o.status)); }
   function isOption(o){ return /optie|14\s*dagen|option/.test(norm(o&&o.status)); }
@@ -42265,7 +42260,7 @@ setTimeout(()=>{
       renderChosenSafe(); renderMaterials(window.currentCat,true); return false;
     }
     var st=statusFor(m);
-    if(st.blocked){ info(m,st); renderMaterials(window.currentCat,true); return false; }
+    if(st.blocked){ info(m,st); setTimeout(function(){ renderMaterials(window.currentCat,false); },350); return false; } // BNS 771: geen force render tijdens popup
     var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
     var list=chosenList(); list.push(item); setChosen(list);
     renderChosenSafe(); renderMaterials(window.currentCat,true); return false;
