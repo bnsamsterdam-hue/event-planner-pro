@@ -14020,7 +14020,9 @@ setTimeout(()=>{
     d.getFullYear();
   }
   function endDate(order){
-    return parseDate(order && (order.end || order.start));
+    // BNS v762: lopende opdracht mag NIET verdwijnen omdat alleen de startdatum voorbij is.
+    // Alleen een echte einddatum mag automatisch naar done/archief sturen.
+    return parseDate(order && (order.end || order.dateEnd || order.endDate));
   }
   function isPastEnd(order){
     var e = endDate(order);
@@ -38094,7 +38096,8 @@ setTimeout(()=>{
   function isConf(o)  { return /bevestigd|opdrachtbevestiging/.test(ns(o)); }
   function isDoneSt(o){ return /uitgevoerd|afgerond|done|klaar|voltooid/.test(ns(o)); }
   function isPast(o)  {
-    var e=parseD(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||'');
+    // BNS v762: geen fallback naar startdatum; zonder einddatum blijft hij zichtbaar.
+    var e=parseD(o.end||o.dateEnd||o.endDate||'');
     return !!e&&e<today0();
   }
   function isDone(o)  { return !isDel(o)&&!isCan(o)&&(isDoneSt(o)||isPast(o)); }
@@ -38781,12 +38784,20 @@ setTimeout(()=>{
   function dateMs(v){var x=T(v),m=x.match(/(20\d{2})-(\d{1,2})-(\d{1,2})/);if(m)return new Date(+m[1],+m[2]-1,+m[3]).getTime();m=x.match(/(\d{1,2})-(\d{1,2})-(20\d{2})/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():NaN;}
   function st(o){return L(o&&o.status);}
   function startOf(o){return T(o&&(o.start||o.dateStart||o.startDate||o.date||o.end||o.dateEnd||o.endDate));}
-  function endOf(o){return T(o&&(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||o.startDate||o.date));}
+  function endOf(o){return T(o&&(o.end||o.dateEnd||o.endDate));}
   function isCan(o){return /geannuleerd|annul/.test(st(o));}
   function isDel(o){return /verwijder/.test(st(o))||!!(o&&o.deletedAt);}
   function isOpt(o){return /optie/.test(st(o))&&/14/.test(st(o));}
   function isQuote(o){return /offerte/.test(st(o));}
-  function isDone(o){if(isCan(o)||isDel(o))return false;if(/uitgevoerd|afgerond|done/.test(st(o)))return true;var e=dateMs(endOf(o));return !isNaN(e)&&e<todayMs();}
+  function isDone(o){
+    if(isCan(o)||isDel(o))return false;
+    if(/uitgevoerd|afgerond|done/.test(st(o)))return true;
+    // BNS v762: alleen echte einddatum telt; startdatum voorbij is nog lopend.
+    var end=endOf(o);
+    if(!end)return false;
+    var e=dateMs(end);
+    return !isNaN(e)&&e<todayMs();
+  }
   function isRunning(o){return !isCan(o)&&!isDel(o)&&!isDone(o)&&!isOpt(o)&&!isQuote(o);}
   function optStart(o){return T(o&&(o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||o.date));}
   function optLeft(o){var ms=dateMs(optStart(o));if(isNaN(ms))return null;return 14-Math.floor((todayMs()-ms)/86400000);}
@@ -40448,7 +40459,8 @@ setTimeout(()=>{
     return String(d.getDate()) + '-' + String(d.getMonth()+1) + '-' + String(d.getFullYear());
   }
   function isPastEnd(o){
-    var d = orderDate(o);
+    // BNS v762: niet via orderDate(), want die valt terug op startdatum.
+    var d = parseDate(o && (o.end || o.endDate || o.dateEnd || o.finish));
     if(!d) return false;
     d.setHours(0,0,0,0);
     return d.getTime() < todayMs();
@@ -40725,7 +40737,7 @@ setTimeout(()=>{
   function orderDate(o){ return parseDate(o && (o.end || o.endDate || o.finish || o.start || o.date)); }
   function orderYear(o){ var d=orderDate(o); if(d) return String(d.getFullYear()); var m=String([o&&o.end,o&&o.start,o&&o.date,o&&o.number].filter(Boolean).join(' ')).match(/20\d{2}/); return m?m[0]:''; }
   function fmtDate(v){ var d=parseDate(v); return d ? (String(d.getDate())+'-'+String(d.getMonth()+1)+'-'+String(d.getFullYear())) : String(v||''); }
-  function isPastEnd(o){ var d=orderDate(o); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); }
+  function isPastEnd(o){ var d=parseDate(o&&(o.end||o.endDate||o.dateEnd||o.finish)); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); }
   function isDeleted(o){ var st=norm(o&&o.status); return !!(o&&(o.deleted||o.removed||o.deletedAt||/verwijderd|deleted|gewist|trash|prullenbak/.test(st))); }
   function isCancelled(o){ return /geannuleerd|annulering|cancelled|canceled/.test(norm(o&&o.status)); }
   function isOption(o){ return /optie|14\s*dagen|option/.test(norm(o&&o.status)); }
