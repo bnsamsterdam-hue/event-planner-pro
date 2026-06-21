@@ -38778,7 +38778,13 @@ setTimeout(()=>{
 
   function E(id){return document.getElementById(id);} 
   function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
-  function S(){try{return (typeof state!=='undefined'&&state)||window.state||null;}catch(e){return window.state||null;}}
+  function S(){try{
+    var a=(typeof state!=='undefined'&&state)||null;
+    var b=window.state||null;
+    var ao=(a&&Array.isArray(a.orders))?a.orders.length:0;
+    var bo=(b&&Array.isArray(b.orders))?b.orders.length:0;
+    return (bo>ao?b:a)||b||null;
+  }catch(e){return window.state||null;}}
   function T(v){return String(v==null?'':v).trim();}
   function L(v){return T(v).toLowerCase();}
   function H(v){return T(v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
@@ -52587,4 +52593,26 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     }
   },true);
   try{ console.info('[BNS761] final guards actief: clearOrder op terug/nieuw, SAFE_MIN nummering, retour-overleg popup.'); }catch(e){}
+})();
+
+
+// BNS v765 - Firebase/live state zichtbaar maken voor dashboard en opdrachten.
+// Probleem: app.js heeft lokale `state`, firebase-sync schrijft naar `window.state`.
+// Als lokale state leeg is door dataveiligheid, moet window.state met Firebase orders winnen.
+(function BNS_V765_SYNC_LOCAL_STATE_FROM_FIREBASE(){
+  if(window.__BNS_V765_SYNC_LOCAL_STATE_FROM_FIREBASE__) return;
+  window.__BNS_V765_SYNC_LOCAL_STATE_FROM_FIREBASE__ = true;
+  function countOrders(x){ return (x && Array.isArray(x.orders)) ? x.orders.length : 0; }
+  function syncFromWindowState(){
+    try{
+      if(typeof state === 'undefined' || !window.state) return;
+      if(countOrders(window.state) >= countOrders(state)){
+        state = window.state;
+      }
+      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(_e){}
+      try{ if(typeof renderOrders === 'function') renderOrders(); }catch(_e){}
+    }catch(e){}
+  }
+  document.addEventListener('bns:firebase-updated', function(){ setTimeout(syncFromWindowState, 50); setTimeout(syncFromWindowState, 350); });
+  window.addEventListener('load', function(){ setTimeout(syncFromWindowState, 800); });
 })();
