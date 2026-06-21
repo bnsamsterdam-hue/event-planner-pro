@@ -289,8 +289,10 @@ function bns460DriverCount(o){
 function bns460NormalizeOrder(o){
   if(!o)return o;
   o.folder=bns460Folder(o);
-  if(o.folder!=="lopend")bns460ClearDrivers(o);
-  else bns460NormalizeDrivers(o);
+  // BNS763: nooit bezorger/driver velden wissen tijdens normaliseren.
+  // Ook uitgevoerde/geannuleerde orders mogen hun bezorger-historie bewaren.
+  // Alleen normaliseren als er werkelijk driver/bezorger-data aanwezig is.
+  if(bns460DriverCount(o)>0) bns460NormalizeDrivers(o);
   return o;
 }
 function bns460HasDriver(o){
@@ -299,6 +301,33 @@ function bns460HasDriver(o){
   const f=[o.driver,o.driverName,o.bezorger,o.bezorgerName,o.assignedDriver,o.assignedDriverName];
   return f.some(v=>String(v||'').trim().length>0);
 }
+
+function bns763CopyDriverFields(to, from){
+  if(!to||!from)return to;
+  ["driver","driverId","driverName","bezorger","bezorgerId","bezorgerName","assignedDriver","assignedDriverId","assignedDriverName","userId"].forEach(function(k){
+    if((to[k]===undefined||to[k]===null||to[k]==="") && from[k]!==undefined && from[k]!==null && from[k]!=="") to[k]=from[k];
+  });
+  ["driverIds","driverNames","bezorgerIds","bezorgerNames","assignedDriverIds","assignedDriverNames","userIds","drivers","bezorgers","driverList"].forEach(function(k){
+    if((!Array.isArray(to[k])||to[k].length===0) && Array.isArray(from[k]) && from[k].length>0) to[k]=from[k].slice();
+  });
+  if(bns460DriverCount(to)>0) bns460NormalizeDrivers(to);
+  return to;
+}
+function bns763PreserveDriversForRows(incomingRows, existingRows){
+  try{
+    var byId={};
+    (existingRows||[]).forEach(function(o){ if(o&&(o.id||o.number)) byId[String(o.id||o.number)]=o; });
+    return (incomingRows||[]).map(function(row){
+      if(!row)return row;
+      var old=byId[String(row.id||row.number)];
+      if(old && bns460DriverCount(old)>0 && bns460DriverCount(row)===0){
+        bns763CopyDriverFields(row, old);
+      }
+      return row;
+    });
+  }catch(e){return incomingRows||[];}
+}
+
 function bns460IsPhoneClient(){
   const h=String(location.href||"").toLowerCase();
   const b=String(document.body&&document.body.innerText||"").toLowerCase();
@@ -406,15 +435,11 @@ async function upload(reason){
           bns460NormalizeOrder(row);
         }
         row.updatedAt=row.updatedAt||new Date().toISOString();
-        // Orders zonder merge zodat geclearde velden (driver=[]) echt worden opgeslagen
+        // Orders zonder merge zodat bewust geclearde velden echt worden opgeslagen.
         if(col==="orders"){
-          await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row);
-        } else {
-          if(col==="orders"){
           await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row);
         }else{
           await t.fsMod.setDoc(t.fsMod.doc(t.db,col,String(row.id)),row,{merge:true});
-        }
         }
       }
     }
@@ -438,7 +463,9 @@ async function download(){
         continue;
       }
       const snap=await t.fsMod.getDocs(t.fsMod.collection(t.db,col));
-      s[col]=bns460FilterRows(col,snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()})),false);
+      var incoming=snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()}));
+      if(col==="orders") incoming=bns763PreserveDriversForRows(incoming,s[col]||[]);
+      s[col]=bns460FilterRows(col,incoming,false);
       if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
@@ -492,7 +519,9 @@ async function live(){
     t.fsMod.onSnapshot(t.fsMod.collection(t.db,col), snap=>{
       if(uploading)return;
       const s=norm(loadLocal()||{});
-      s[col]=bns460FilterRows(col,snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()})),false);
+      var incoming=snap.docs.map(d=>bns481NormalizeFolder({id:d.id,...d.data()}));
+      if(col==="orders") incoming=bns763PreserveDriversForRows(incoming,s[col]||[]);
+      s[col]=bns460FilterRows(col,incoming,false);
       if(col==="materials")cleanMaterialStatuses(s);
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
@@ -534,11 +563,7 @@ async function syncDoc(col,row){
     // Orders: GEEN merge - volledige overschrijving zodat geclearde velden echt weg zijn
     const useMerge = col !== 'orders';
     if(useMerge){
-      if(String(col)==="orders"){
-      await t.fsMod.setDoc(t.fsMod.doc(t.db,String(col),String(row.id)),row);
-    }else{
       await t.fsMod.setDoc(t.fsMod.doc(t.db,String(col),String(row.id)),row,{merge:true});
-    }
     } else {
       // Order zonder merge: zorgt dat driver=[] echt wordt opgeslagen
       row.updatedAt = row.updatedAt || new Date().toISOString();
@@ -617,6 +642,7 @@ console.log('[BNS v473] BNSFirebaseSync veilig aangemaakt met loadArchief.');
     preserveOrder.__bns474=true;
   }
   console.log('[BNS v474] firebase-sync lege bezorger blijft leeg actief.');
+console.log('[BNS v763] firebase-sync driver/bezorger preserve actief, dubbele orders-if opgeschoond.');
 })();
 
 /* BNS v481 download folder correction wrapper */
