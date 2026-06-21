@@ -8087,6 +8087,15 @@ function showPage(p){
       return;
     }
   }catch(e){}
+  // BNS 747: weggaan van newOrder = velden leegmaken zodat factuur/bevestiging leeg zijn
+  try{
+    var _prev = window.__bns747Page||'';
+    window.__bns747Page = p;
+    if(_prev==='newOrder' && p!=='newOrder'){
+      editing=null;
+      if(typeof clearOrder==='function') clearOrder();
+    }
+  }catch(e){}
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
@@ -51902,7 +51911,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!b){
       b=document.createElement('button'); b.type='button'; b.id='bnsV756TopBack'; b.textContent='← Terug naar opdrachten';
       b.style.cssText='display:block;margin:6px 0 10px;padding:10px 12px;border-radius:12px;border:0;background:#475569;color:#fff;font-weight:900;';
-      b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ if(typeof showPage==='function') showPage('orders'); }catch(e){} try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} scrollTopSoon(); },true);
+      b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ editing=null; if(typeof clearOrder==='function') clearOrder(); }catch(e){} try{ if(typeof showPage==='function') showPage('orders'); }catch(e){} try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} scrollTopSoon(); },true); // BNS 747: clearOrder bij terug
       page.insertBefore(b,page.firstChild);
     }
   }
@@ -52112,143 +52121,4 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   }catch(e){}
 
   try{ console.info('[BNS757] nieuwe opdracht datumfocus + document reset actief; geen dashboard/reservering/Firebase wijzigingen.'); }catch(e){}
-})();
-
-/* =========================================================
-   BNS 758 - harde nieuwe-opdracht reset op v757
-   Doel: na Wijzigen -> Annuleren/Terug -> Nieuwe opdracht mag
-   Factuur/Opdrachtbevestiging nooit meer de vorige opdracht pakken.
-   Alleen UI/formulier/document-state reset. Geen Firebase, reservering,
-   materiaal, dashboard of driver wijziging.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS758_HARD_NEW_ORDER_RESET__) return;
-  window.__BNS758_HARD_NEW_ORDER_RESET__ = true;
-
-  function E(id){ return document.getElementById(id); }
-  function T(v){ return String(v==null?'':v).trim(); }
-  function low(v){ return T(v).toLowerCase(); }
-  function setVal(id,v){ var el=E(id); if(!el) return; try{ if('value' in el) el.value=v; else el.textContent=v; }catch(e){} }
-  function clearHtml(id){ var el=E(id); if(!el) return; try{ el.innerHTML=''; el.textContent=''; if('value' in el) el.value=''; }catch(e){} }
-
-  function forceClearEditing(){
-    try{ if(typeof editing!=='undefined') editing=null; }catch(e){}
-    try{ window.editing=''; }catch(e){}
-    try{ window.currentEditing=''; }catch(e){}
-    try{ window.currentOrderId=''; }catch(e){}
-    try{ window.__BNS_CURRENT_ORDER_ID__=''; }catch(e){}
-    try{ window.__BNS_CURRENT_ORDER__=null; }catch(e){}
-    try{ window.BNS_CURRENT_ORDER=null; }catch(e){}
-    try{ window.BNS_CURRENT_ORDER_ID=''; }catch(e){}
-  }
-
-  function clearOrderFormHard(){
-    forceClearEditing();
-    [
-      'orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail',
-      'locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderDriver','orderVehicle','orderExtra',
-      'selectedDriversText','orderNotes','notes','extra','bijzonderheden'
-    ].forEach(function(id){ setVal(id,''); });
-    try{ chosen=[]; }catch(e){}
-    try{ window.chosen=[]; }catch(e){}
-    try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
-    try{ if(E('priceExcl')) E('priceExcl').value='0.00'; }catch(e){}
-    try{ if(E('discountAmount')) E('discountAmount').value='0.00'; }catch(e){}
-    try{ if(E('vatPercent')) E('vatPercent').value='21'; }catch(e){}
-    try{ if(E('depositAmount')) E('depositAmount').value='0.00'; }catch(e){}
-    try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
-    try{ if(typeof newNo==='function') newNo(); }catch(e){}
-    try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-  }
-
-  function clearDocumentStateHard(){
-    [
-      'confirmationText','invoiceText','factuurText','orderDocText','orderConfirmationText','opdrachtText','documentText','docText','mailText','printText',
-      'overviewText','quoteText','offerText','factuurBody','opdrachtBody','confirmationBody'
-    ].forEach(function(id){ clearHtml(id); });
-    [
-      'confirmationPreview','invoicePreview','factuurPreview','docPreview','documentPreview','overviewPreview','quotePreview','offerPreview',
-      'invoiceBox','factuurBox','confirmationBox','docBox','documentBox','overviewBox'
-    ].forEach(function(id){
-      var el=E(id); if(!el) return;
-      try{ el.innerHTML=''; el.textContent=''; if('value' in el) el.value=''; }catch(e){}
-      try{ el.classList.add('hidden'); }catch(e){}
-    });
-    // Oude documentpatches gebruiken soms eigen globals. Maak die ook leeg.
-    [
-      '__BNS_DOC_ORDER__','__BNS_DOC_ORDER_ID__','__BNS_LAST_DOC_ORDER__','__BNS_LAST_DOC_ORDER_ID__',
-      '__BNS_CURRENT_DOC_ORDER__','__BNS_CURRENT_DOC_ORDER_ID__','lastDocOrder','lastDocOrderId','currentDocOrder','currentDocOrderId'
-    ].forEach(function(k){ try{ window[k]=(/ID$/i.test(k)||/Id$/.test(k))?'':null; }catch(e){} });
-  }
-
-  function focusDate(){
-    var ids=['dateStart','orderStart','startDate','datumStart','date'];
-    for(var i=0;i<ids.length;i++){
-      var el=E(ids[i]);
-      if(el){
-        try{ el.scrollIntoView({block:'center',behavior:'auto'}); }catch(e){}
-        try{ el.focus({preventScroll:true}); }catch(e){ try{el.focus();}catch(_){} }
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function prepareNewOrderHard(){
-    clearOrderFormHard();
-    clearDocumentStateHard();
-    [80,250,600,1100].forEach(function(ms){ setTimeout(function(){ forceClearEditing(); clearDocumentStateHard(); focusDate(); },ms); });
-  }
-
-  function isNewOrderTrigger(el){
-    if(!el) return false;
-    var btn=el.closest && el.closest('button,a,[role="button"],#newOrderBtn,.newOrderBtn');
-    if(!btn) return false;
-    var txt=low((btn.textContent||'')+' '+(btn.value||'')+' '+(btn.id||'')+' '+(btn.className||''));
-    return /nieuwe\s+opdracht|neworderbtn|new\s*order/.test(txt);
-  }
-
-  // Capture: voor oude handlers alvast schoon zetten.
-  document.addEventListener('click',function(ev){
-    if(isNewOrderTrigger(ev.target)) prepareNewOrderHard();
-  },true);
-  // Bubbling: na oude handlers nogmaals schoon zetten.
-  document.addEventListener('click',function(ev){
-    if(isNewOrderTrigger(ev.target)) setTimeout(prepareNewOrderHard,60);
-  },false);
-
-  // showPage('newOrder') zonder editing = echte nieuwe opdracht, dus hard schoon.
-  try{
-    var oldShow=window.showPage || (typeof showPage==='function'?showPage:null);
-    if(oldShow && !oldShow.__bns758HardNewOrder){
-      var sp=function(name){
-        var beforeEdit=''; try{ beforeEdit=T(window.editing || (typeof editing!=='undefined'?editing:'')); }catch(e){}
-        var r=oldShow.apply(this,arguments);
-        try{
-          if(name==='newOrder'){
-            var afterEdit=''; try{ afterEdit=T(window.editing || (typeof editing!=='undefined'?editing:'')); }catch(e){}
-            if(!beforeEdit && !afterEdit) setTimeout(prepareNewOrderHard,40);
-          }
-        }catch(e){}
-        return r;
-      };
-      sp.__bns758HardNewOrder=true;
-      window.showPage=sp; try{ showPage=sp; }catch(e){}
-    }
-  }catch(e){}
-
-  // Als clearOrder door bestaande code wordt gebruikt, laat die ook echt documenten en editing wissen.
-  setTimeout(function(){
-    try{
-      var oldClear=window.clearOrder || (typeof clearOrder==='function'?clearOrder:null);
-      if(oldClear && !oldClear.__bns758HardClear){
-        var co=function(){ var r=oldClear.apply(this,arguments); try{ forceClearEditing(); clearDocumentStateHard(); }catch(e){} return r; };
-        co.__bns758HardClear=true;
-        window.clearOrder=co; try{ clearOrder=co; }catch(e){}
-      }
-    }catch(e){}
-  },700);
-
-  try{ console.info('[BNS758] harde nieuwe-opdracht reset actief; vorige factuur/opdrachtbevestiging kan niet meer aan editing blijven hangen.'); }catch(e){}
 })();
