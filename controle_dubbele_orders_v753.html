@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tapwagen.nl READ-ONLY dubbele opdrachten controle v753</title>
+  <script src="firebase-config.js"></script>
+  <style>
+    :root{font-family:Arial,Helvetica,sans-serif;color:#152033;background:#f4f7fb}
+    body{margin:0;padding:18px}.wrap{max-width:1380px;margin:0 auto}.card{background:white;border:1px solid #dfe6ef;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(15,23,42,.07)}
+    h1{font-size:24px;margin:0 0 8px}h2{font-size:18px;margin:0 0 10px}.small{font-size:13px;color:#4b5c70;line-height:1.45}.danger{border-left:4px solid #b91c1c;background:#fff7f7;border-radius:8px;padding:10px 12px}.note{border-left:4px solid #1769e0;background:#f8fbff;border-radius:8px;padding:10px 12px}.ok{color:#15803d}.bad{color:#b91c1c}.warn{color:#b45309}
+    button{border:0;border-radius:10px;padding:12px 16px;font-weight:700;font-size:15px;cursor:pointer;margin:6px 8px 6px 0}.primary{background:#1769e0;color:white}.muted{background:#e8eef7;color:#172033}button:disabled{opacity:.45;cursor:not-allowed}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.stat{background:#f8fafc;border:1px solid #e1e7f0;border-radius:12px;padding:12px}.stat b{display:block;font-size:24px;margin-top:4px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;background:#0f172a;color:#dbeafe;border-radius:10px;padding:12px;max-height:320px;overflow:auto}.list{max-height:560px;overflow:auto;border:1px solid #e1e7f0;border-radius:10px;background:#fff}.row{display:grid;gap:8px;padding:8px 10px;border-bottom:1px solid #eef2f7;font-size:13px;align-items:start}.row.head{font-weight:700;background:#f8fafc;position:sticky;top:0;z-index:1}.row:last-child{border-bottom:0}.dups .row{grid-template-columns:120px 65px 105px 130px 1.2fr 1.2fr 1.1fr}.all .row{grid-template-columns:125px 120px 115px 115px 110px 1.6fr}.filter{padding:10px;border:1px solid #cbd5e1;border-radius:10px;width:100%;box-sizing:border-box;margin:8px 0}.pill{display:inline-block;border-radius:999px;background:#eef2ff;padding:2px 8px;font-size:12px;margin:1px}.keep{background:#dcfce7}.check{background:#fef9c3}.random{background:#fee2e2}.fixed{background:#dbeafe}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Tapwagen.nl READ-ONLY dubbele opdrachten controle v753</h1>
+    <div class="danger small"><b>Alleen lezen.</b> Deze tool gebruikt alleen <span class="pill">getDocs</span>. Hij gebruikt geen setDoc, addDoc, updateDoc of deleteDoc. Er wordt niets verwijderd, hersteld of aangepast.</div>
+  </div>
+  <div class="card">
+    <h2>Start</h2>
+    <button id="btnAnalyze" class="primary">Lees Firebase orders en maak dubbel-rapport</button>
+    <button id="btnJson" class="muted" disabled>Download JSON rapport</button>
+    <button id="btnDupCsv" class="muted" disabled>Download dubbelen CSV</button>
+    <button id="btnAllCsv" class="muted" disabled>Download alle orders CSV</button>
+    <div id="status" class="small">Nog niet gestart.</div>
+  </div>
+  <div class="card">
+    <h2>Samenvatting</h2>
+    <div class="grid">
+      <div class="stat">Live orders <b id="sOrders">-</b></div>
+      <div class="stat">Unieke nummers <b id="sUnique">-</b></div>
+      <div class="stat">Dubbele nummers <b id="sDupNums">-</b></div>
+      <div class="stat">Dubbele documenten <b id="sDupDocs">-</b></div>
+      <div class="stat">Vaste doc-id's <b id="sFixed">-</b></div>
+      <div class="stat">Random doc-id's <b id="sRandom">-</b></div>
+      <div class="stat">Zonder nummer <b id="sNoNr">-</b></div>
+      <div class="stat">Mogelijk veilig op te ruimen <b id="sSafe">-</b></div>
+    </div>
+    <div id="conclusion" class="note small" style="margin-top:12px">Conclusie komt na analyse.</div>
+  </div>
+  <div class="card">
+    <h2>Dubbele opdrachtnummers</h2>
+    <div class="small">Advies is alleen een voorstel. Eerst controleren voordat we later eventueel een aparte opruimtool maken.</div>
+    <input id="filterDups" class="filter" placeholder="Filter op nummer, doc-id, klant, titel, status...">
+    <div id="dupsList" class="list dups"><div class="row head"><div>Nummer</div><div>Aantal</div><div>Advies</div><div>Behouden</div><div>Docs</div><div>Details</div><div>Waarom</div></div></div>
+  </div>
+  <div class="card">
+    <h2>Alle orders</h2>
+    <input id="filterAll" class="filter" placeholder="Filter alle orders...">
+    <div id="allList" class="list all"><div class="row head"><div>Nummer</div><div>Doc-id</div><div>Status</div><div>Start</div><div>Type doc</div><div>Titel / klant</div></div></div>
+  </div>
+  <div class="card"><h2>Log</h2><div id="log" class="mono"></div></div>
+</div>
+<script type="module">
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+const $ = id => document.getElementById(id); let db=null, report=null;
+function log(m){ $('log').textContent += '['+new Date().toLocaleTimeString('nl-NL')+'] '+m+'\n'; $('log').scrollTop=$('log').scrollHeight; }
+function status(m){ $('status').textContent=m; log(m); }
+function norm(v){ return String(v==null?'':v).trim(); }
+function low(v){ return norm(v).toLowerCase(); }
+function esc(s){ return norm(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c)); }
+function looksNr(s){ return /^20\d{2}-\d{2,7}$/.test(norm(s)); }
+function dateOnly(v){ return norm(v).slice(0,10); }
+function ensureDb(){ if(db) return db; if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) throw new Error('firebase-config.js / BNS_FIREBASE_CONFIG niet gevonden'); const app=getApps().length?getApp():initializeApp(window.BNS_FIREBASE_CONFIG); db=getFirestore(app); return db; }
+async function readOrders(){ ensureDb(); const snap=await getDocs(collection(db,'orders')); const out=[]; snap.forEach(d=>out.push({docId:d.id, order:d.data()||{}})); return out; }
+function orderNumber(o,id){ const arr=[o.number,o.orderNumber,o.nr,o.opdrachtnummer,o.orderNo,o.id,id]; for(const v of arr){ const s=norm(v).replace(/^orders\//,''); if(looksNr(s)) return s; } return norm(o.number||o.orderNumber||o.nr||o.opdrachtnummer||o.id||id); }
+function titleOf(o){ const c=norm(o.customer && (o.customer.name||o.customer.company)) || norm(o.customerName||o.clientName); const l=norm(o.location && (o.location.name||o.location.city)); const t=norm(o.title||o.eventName||o.name||o.description); let out=t||c||l||'(zonder titel)'; if(c && !out.includes(c)) out += ' / '+c; return out; }
+function stamp(o){ return norm(o.updatedAt||o.modifiedAt||o.savedAt||o.createdAt||o.dateUpdated||o.timestamp||''); }
+function completeness(o){ let s=0; if(norm(o.number||o.orderNumber||o.nr||o.opdrachtnummer)) s+=10; if(norm(o.status)) s+=6; if(norm(o.start||o.date||o.deliveryDate||o.eventDate)) s+=8; if(norm(o.end||o.returnDate||o.endDate)) s+=4; if(titleOf(o)!=='(zonder titel)') s+=4; if(o.customer && Object.keys(o.customer||{}).length) s+=4; if(o.location && Object.keys(o.location||{}).length) s+=4; if(Array.isArray(o.materials) && o.materials.length) s+=8; if(norm(o.extra||o.notes||o.description)) s+=3; if(norm(o.driver||o.driverName)) s+=2; if(Number(o.amount||o.total||0)>0) s+=2; return s; }
+function classify(row){ if(row.docId===row.number) return 'vast'; if(/^old_/i.test(row.docId)||/^old_/i.test(norm(row.order.id))) return 'old'; if(row.number && looksNr(row.number)) return 'random'; return 'onbekend'; }
+function score(row){ let s=completeness(row.order); if(row.type==='vast') s+=100; if(row.type==='random') s+=20; if(row.type==='old') s-=20; if(stamp(row.order)) s+=5; return s; }
+function adviceFor(arr){ const sorted=arr.slice().sort((a,b)=>b.score-a.score || String(stamp(b.order)).localeCompare(String(stamp(a.order))) || a.docId.localeCompare(b.docId)); const keep=sorted[0]; const allHaveSameBasics=arr.every(x=>norm(x.order.status)===norm(keep.order.status) && dateOnly(x.order.start||x.order.date)===dateOnly(keep.order.start||keep.order.date)); const hasFixed=arr.some(x=>x.type==='vast'); const randomCount=arr.filter(x=>x.type==='random').length; let advice='controleren'; let why='Meerdere versies; controleer inhoud voordat je opruimt.';
+  if(hasFixed && keep.type==='vast' && randomCount>0 && allHaveSameBasics){ advice='waarschijnlijk veilig'; why='Er is een vaste doc-id met dezelfde basisgegevens; random kopieën lijken dubbele docs.'; }
+  else if(hasFixed && keep.type==='vast'){ advice='controle nodig'; why='Vaste doc-id lijkt beste kandidaat, maar inhoud verschilt mogelijk.'; }
+  else if(!hasFixed){ advice='controle nodig'; why='Geen vaste doc-id aanwezig; eerst bepalen welke versie het meest compleet/nieuw is.'; }
+  return {advice, keep:keep.docId, why, rows:sorted}; }
+function buildReport(raw){ const rows=raw.map(r=>{ const n=orderNumber(r.order,r.docId); const row={docId:r.docId, number:n, order:r.order}; row.type=classify(row); row.score=score(row); row.status=norm(r.order.status); row.start=dateOnly(r.order.start||r.order.date||r.order.deliveryDate||r.order.eventDate); row.title=titleOf(r.order); row.stamp=stamp(r.order); return row; });
+  const groups=new Map(); rows.forEach(r=>{ const k=r.number||'(geen nummer)'; if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(r); });
+  const duplicates=[]; groups.forEach((arr,n)=>{ if(arr.length>1){ const a=adviceFor(arr); duplicates.push({number:n,count:arr.length,advice:a.advice,keep:a.keep,why:a.why,docs:a.rows.map(x=>({docId:x.docId,type:x.type,status:x.status,start:x.start,title:x.title,score:x.score,updated:x.stamp}))}); }});
+  duplicates.sort((a,b)=>b.count-a.count || a.number.localeCompare(b.number));
+  rows.sort((a,b)=>String(b.start).localeCompare(String(a.start)) || String(b.number).localeCompare(String(a.number)) || a.docId.localeCompare(b.docId));
+  return {tool:'Tapwagen READ-ONLY dubbele opdrachten controle v753',createdAt:new Date().toISOString(),summary:{orders:rows.length,uniqueNumbers:groups.size,duplicateNumbers:duplicates.length,duplicateDocs:duplicates.reduce((s,d)=>s+d.count,0),fixed:rows.filter(r=>r.type==='vast').length,random:rows.filter(r=>r.type==='random').length,noNumber:rows.filter(r=>!r.number||r.number==='(geen nummer)').length,probablySafe:duplicates.filter(d=>d.advice==='waarschijnlijk veilig').length},duplicates,orders:rows.map(r=>({number:r.number,docId:r.docId,type:r.type,status:r.status,start:r.start,title:r.title,score:r.score,updated:r.stamp}))}; }
+function setStats(){ const s=report.summary; $('sOrders').textContent=s.orders; $('sUnique').textContent=s.uniqueNumbers; $('sDupNums').textContent=s.duplicateNumbers; $('sDupDocs').textContent=s.duplicateDocs; $('sFixed').textContent=s.fixed; $('sRandom').textContent=s.random; $('sNoNr').textContent=s.noNumber; $('sSafe').textContent=s.probablySafe; let msg=''; if(s.duplicateNumbers>0) msg+='<b class="bad">Er zijn dubbele opdrachtnummers gevonden.</b> Gebruik dit rapport eerst om te controleren wat behouden moet blijven. '; else msg+='<b class="ok">Geen dubbele opdrachtnummers gevonden.</b> '; if(s.probablySafe>0) msg+='<b class="warn">'+s.probablySafe+' groepen lijken waarschijnlijk veilig op te ruimen, maar nog niet automatisch verwijderen.</b>'; $('conclusion').innerHTML=msg; }
+function pill(t,cls){ return '<span class="pill '+(cls||'')+'">'+esc(t)+'</span>'; }
+function renderDups(){ const f=low($('filterDups').value); const rows=report.duplicates.filter(d=>!f || low(JSON.stringify(d)).includes(f)); let html='<div class="row head"><div>Nummer</div><div>Aantal</div><div>Advies</div><div>Behouden</div><div>Docs</div><div>Details</div><div>Waarom</div></div>'; for(const d of rows){ const docs=d.docs.map(x=>pill(x.docId,x.type==='vast'?'fixed':x.type==='random'?'random':'')).join(' '); const details=d.docs.map(x=>esc(x.type+' | '+x.status+' | '+x.start+' | score '+x.score+' | '+x.title)).join('<br>'); html+='<div class="row"><div>'+esc(d.number)+'</div><div>'+d.count+'</div><div>'+pill(d.advice,d.advice==='waarschijnlijk veilig'?'keep':'check')+'</div><div>'+esc(d.keep)+'</div><div>'+docs+'</div><div>'+details+'</div><div>'+esc(d.why)+'</div></div>'; } $('dupsList').innerHTML=html; }
+function renderAll(){ const f=low($('filterAll').value); const rows=report.orders.filter(r=>!f || low(JSON.stringify(r)).includes(f)); let html='<div class="row head"><div>Nummer</div><div>Doc-id</div><div>Status</div><div>Start</div><div>Type doc</div><div>Titel / klant</div></div>'; for(const r of rows){ html+='<div class="row"><div>'+esc(r.number)+'</div><div>'+esc(r.docId)+'</div><div>'+esc(r.status)+'</div><div>'+esc(r.start)+'</div><div>'+pill(r.type,r.type==='vast'?'fixed':r.type==='random'?'random':'')+'</div><div>'+esc(r.title)+'</div></div>'; } $('allList').innerHTML=html; }
+function download(name,mime,text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:mime})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+function csvCell(v){ const s=norm(v).replace(/"/g,'""'); return '"'+s+'"'; }
+function toCsv(rows,fields){ return fields.join(',')+'\n'+rows.map(r=>fields.map(f=>csvCell(r[f])).join(',')).join('\n'); }
+$('btnAnalyze').onclick=async()=>{ try{ $('btnAnalyze').disabled=true; status('Firebase orders lezen...'); const raw=await readOrders(); status('Rapport maken...'); report=buildReport(raw); setStats(); renderDups(); renderAll(); $('btnJson').disabled=false; $('btnDupCsv').disabled=false; $('btnAllCsv').disabled=false; status('Klaar. Er is niets gewijzigd.'); }catch(e){ console.error(e); status('Fout: '+e.message); alert('Fout: '+e.message); } finally { $('btnAnalyze').disabled=false; }};
+$('filterDups').addEventListener('input',()=>report&&renderDups()); $('filterAll').addEventListener('input',()=>report&&renderAll());
+$('btnJson').onclick=()=>download('tapwagen_dubbele_orders_v753_'+new Date().toISOString().slice(0,10)+'.json','application/json',JSON.stringify(report,null,2));
+$('btnDupCsv').onclick=()=>{ const rows=[]; report.duplicates.forEach(d=>d.docs.forEach(x=>rows.push({number:d.number,count:d.count,advice:d.advice,keep:d.keep,docId:x.docId,type:x.type,status:x.status,start:x.start,title:x.title,score:x.score,why:d.why}))); download('tapwagen_dubbele_orders_v753.csv','text/csv;charset=utf-8',toCsv(rows,['number','count','advice','keep','docId','type','status','start','title','score','why'])); };
+$('btnAllCsv').onclick=()=>download('tapwagen_alle_orders_v753.csv','text/csv;charset=utf-8',toCsv(report.orders,['number','docId','type','status','start','title','score','updated']));
+</script>
+</body>
+</html>
