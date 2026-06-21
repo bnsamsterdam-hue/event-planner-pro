@@ -37090,7 +37090,7 @@ setTimeout(()=>{
         return false;
       }
       var r=reservationForMaterial(base);
-      if(r){
+      if(r && !(list[i] && list[i].__bnsForceReserved)){
         alert('Opslaan geblokkeerd: '+T(base.code||materialToken(base))+' is al geblokkeerd door '+T(r.order.status)+' opdracht '+T(r.order.number||'')+'.');
         return false;
       }
@@ -39900,7 +39900,7 @@ setTimeout(()=>{
       }
       // Altijd checken op dubbele reservering — ook als item al in chosenList staat
       var r=reservationFor(base);
-      if(r){
+      if(r && !(list[i] && list[i].__bnsForceReserved)){
         var msg='Opslaan geblokkeerd: '+txt(base.code||base.name)+
           ' is al gereserveerd door opdracht '+txt(r.order.number||'')+
           ' ('+txt(r.order.status||'')+').';
@@ -42235,7 +42235,7 @@ setTimeout(()=>{
       var wp=wantedPeriod(); if(wp) html += '<br><b>Jouw datum:</b> '+H(nlDate(wp.start))+' tot '+H(nlDate(wp.end));
     }
     // BNS 774: retourdag = Ja/Nee modal ipv alleen info
-    if(st.key==='returnsToday'){
+    if(st.key==='returnsToday'||st.key==='reserved'){
       var MODAL='bns774RetourModal';
       var mdl=document.getElementById(MODAL);
       if(!mdl){ mdl=document.createElement('div'); mdl.id=MODAL;
@@ -42254,6 +42254,7 @@ setTimeout(()=>{
       document.getElementById('bns774Ja').onclick=function(){
         mdl.style.display='none';
         var item=clone(_m); item.status='reserved'; if(item.qty==null) item.qty=1;
+        if(st && st.key==='reserved'){ item.__bnsForceReserved=true; item.__bnsForceReservedAt=new Date().toISOString(); item.__bnsForceReservedReason='Handmatig bevestigd ondanks reservering'; }
         var list=chosenList(); list.push(item); setChosen(list);
         renderChosenSafe(); renderMaterials(window.currentCat,true);
       };
@@ -45067,7 +45068,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       }
       if(!range) continue;
       var r = reservationFor462(m);
-      if(r){
+      if(r && !(m && m.__bnsForceReserved)){
         var o = r.order||{};
         var msg = 'Opslaan geblokkeerd: '+T(m.code||m.name)+
           ' is al gereserveerd door opdracht '+T(o.number||o.title||o.id)+
@@ -49683,7 +49684,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(o){ html+='<br><b>Klant:</b> '+H((o.customer&&o.customer.name)||o.customerName||'Onbekend')+'<br><b>Opdracht:</b> '+H(o.number||'')+' - '+H(o.title||'')+'<br><b>Datum reservering:</b> '+H(nice(p&&p.start))+' tot '+H(nice(p&&p.end)); }
     if(w) html+='<br><b>Jouw datum:</b> '+H(nice(w.start))+' tot '+H(nice(w.end));
     // BNS 774: retourdag krijgt Ja/Nee knoppen
-    if(st&&st.key==='returnsToday'){
+    if(st&&(st.key==='returnsToday'||st.key==='reserved')){
+      html+='<br><br><b>Wil je dit materiaal toch inzetten?</b>';
       html+='</div><div style="display:flex;gap:10px;margin-top:12px">'
         +'<button type="button" id="bns774JaBtn" style="background:#15803d;color:#fff;border:0;border-radius:10px;padding:10px 20px;font-weight:900;font-size:15px;cursor:pointer">Ja, inzetten</button>'
         +'<button type="button" data-bns611-close="1" style="background:#64748b;color:#fff;border:0;border-radius:10px;padding:10px 20px;font-weight:900;font-size:15px;cursor:pointer">Nee</button>'
@@ -49696,6 +49698,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
           modal.classList.add('hidden');
           // Voeg materiaal toe
           var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
+          if(st && st.key==='reserved'){
+            item.__bnsForceReserved=true;
+            item.__bnsForceReservedAt=new Date().toISOString();
+            item.__bnsForceReservedReason='Handmatig bevestigd ondanks reservering';
+            if(st.reservation && st.reservation.order){ item.__bnsForceReservedAgainst=String(st.reservation.order.number||st.reservation.order.id||''); }
+          }
           var list=chosenList(); list.push(item); setChosen(list);
           renderChosenSafe(); renderMaterials611(window.currentCat,true);
         };
@@ -49757,15 +49765,10 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var m=materialByKey(key); if(!m) return false;
     var keepCat=catOf(m)||window.currentCat||'';
     if(keepCat){ window.currentCat=keepCat; try{ currentCat=keepCat; }catch(e){} }
-    var st=statusFor(m);
-    if(st.key==='reserved' || st.blocked){ showInfo(m,st); return false; } // BNS 773: geen render na info
-    // BNS 774: retourdag via showInfo met Ja/Nee knoppen
-    if(st.key==='returnsToday'){
-      showInfo(m,st);
-      return false; // showInfo handelt het verder af
-    }
     var exists=chosenList().some(function(x){ return sameMaterial(x,m); });
     if(exists){ setChosen(chosenList().filter(function(x){ return !sameMaterial(x,m); })); renderChosenSafe(); renderMaterials611(keepCat||window.currentCat,true); return false; }
+    var st=statusFor(m);
+    if(st.key==='reserved' || st.key==='returnsToday' || st.blocked){ showInfo(m,st); return false; }
     var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
     var list=chosenList(); list.push(item); setChosen(list); renderChosenSafe(); renderMaterials611(keepCat||window.currentCat,true); return false;
   }
@@ -52172,4 +52175,14 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   setInterval(function(){ runBackup(false); }, 30*60*1000);
 
   console.info('[BNS 767] Definitieve fix actief: state-sync, nummerbescherming, 14-dagen backup.');
+})();
+
+
+/* =========================================================
+   BNS 768 - Gereserveerd materiaal bewust toch inzetten
+   Basis: app(116).js. Alleen Ja/Nee bevestiging + save-vrijgave via __bnsForceReserved.
+========================================================= */
+(function(){
+  window.__BNS768_FORCE_RESERVED_READY__ = true;
+  try{ console.info('[BNS 768] Ja/Nee knop voor gereserveerd materiaal actief.'); }catch(e){}
 })();
