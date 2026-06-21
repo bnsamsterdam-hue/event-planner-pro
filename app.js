@@ -8429,7 +8429,15 @@ function editOrder(oid){
   orderExtra.value=o.extra||'';
   renderChosen();
   summaryRender();
-  workTab('customerPanel')
+  // BNS752: Wijzigen moet op laptop en mobiel bovenaan starten; geen workTab-focus naar klant/adres.
+  try{
+    document.querySelectorAll('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
+    var pp=document.getElementById('customerPanel'); if(pp) pp.classList.remove('hidden');
+    document.querySelectorAll('.worktab').forEach(function(x){ x.classList.toggle('active', x.dataset && x.dataset.tab==='customerPanel'); });
+  }catch(e){}
+  try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
+  try{ window.scrollTo(0,0); document.documentElement.scrollTop=0; document.body.scrollTop=0; }catch(e){}
+  try{ [60,180,420,900,1600,2800,4200].forEach(function(ms){ setTimeout(function(){ try{ window.scrollTo(0,0); document.documentElement.scrollTop=0; document.body.scrollTop=0; var pg=document.getElementById('newOrder'); if(pg) pg.scrollTop=0; }catch(e){} },ms); }); }catch(e){}
 }
 function nice(d){
   if(!d)return '';
@@ -42846,38 +42854,21 @@ setTimeout(()=>{
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
     try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    // BNS v750: direct in de oude V408 wijzigen-route oplossen.
-    // Op mobiel NIET workTab('customerPanel') gebruiken, want die focust klantvelden
-    // en trekt de ingevulde opdracht naar onderaan. Toon het klantpaneel zonder focus
-    // en zet alle relevante scroll-lagen terug naar boven.
+    // BNS752: geen workTab('customerPanel') meer bij Wijzigen; dat focust/scrolt naar onder.
     try{
-      var isMob = false;
-      try{ isMob = window.matchMedia && window.matchMedia('(max-width: 950px)').matches; }catch(_){ isMob = (window.innerWidth||9999) <= 950; }
-      if(isMob){
-        try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(_){ }
-        try{ document.querySelectorAll('.workpanel').forEach(function(x){ x.classList.add('hidden'); }); }catch(_){ }
-        try{ var cp=E('customerPanel'); if(cp) cp.classList.remove('hidden'); }catch(_){ }
-        try{ document.querySelectorAll('.worktab').forEach(function(x){ x.classList.toggle('active', x.dataset && x.dataset.tab==='customerPanel'); }); }catch(_){ }
-        try{
-          var scrollTopNow=function(){
-            try{ window.scrollTo(0,0); }catch(_){ }
-            try{ document.documentElement.scrollTop=0; }catch(_){ }
-            try{ document.body.scrollTop=0; }catch(_){ }
-            try{ var pg=E('newOrder'); if(pg) pg.scrollTop=0; }catch(_){ }
-            try{ document.querySelectorAll('.page,.page.active,main,.content,.app,.wrap,.container').forEach(function(el){ if(el && typeof el.scrollTop==='number') el.scrollTop=0; }); }catch(_){ }
-          };
-          [0,60,180,420,900].forEach(function(ms){ setTimeout(scrollTopNow,ms); });
-        }catch(_){ }
-      }else{
-        try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(_){ }
-      }
-    }catch(e){}
+    document.querySelectorAll('.workpanel').forEach(function(x){ x.classList.add('hidden'); });
+    var pp=document.getElementById('customerPanel'); if(pp) pp.classList.remove('hidden');
+    document.querySelectorAll('.worktab').forEach(function(x){ x.classList.toggle('active', x.dataset && x.dataset.tab==='customerPanel'); });
+  }catch(e){}
+  try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
+  try{ window.scrollTo(0,0); document.documentElement.scrollTop=0; document.body.scrollTop=0; }catch(e){}
+  try{ [60,180,420,900,1600,2800,4200].forEach(function(ms){ setTimeout(function(){ try{ window.scrollTo(0,0); document.documentElement.scrollTop=0; document.body.scrollTop=0; var pg=document.getElementById('newOrder'); if(pg) pg.scrollTop=0; }catch(e){} },ms); }); }catch(e){}
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
   }
   window.BNS_V408_fastEditOrder=fastEditOrder;
   setTimeout(function(){ try{ window.editOrder=fastEditOrder; editOrder=fastEditOrder; }catch(e){ window.editOrder=fastEditOrder; } },1000);
-  // BNS v750: de oude 3,5 seconde bewaker is uitgezet. Die zette editOrder steeds terug
-  // naar de oude mobiele wijzig-route en overschreef latere veilige fixes.
+  // BNS752: oude 3,5 sec bewaker uitgeschakeld; die zette Wijzigen terug naar oude scroll-route.
+  /* setInterval(function(){ try{ if(window.editOrder!==fastEditOrder){ window.editOrder=fastEditOrder; try{editOrder=fastEditOrder;}catch(e){} } }catch(e){} },3500); */
   document.addEventListener('click',function(ev){
     var btn=ev.target && ev.target.closest && ev.target.closest('button,[onclick]');
     if(!btn) return;
@@ -51958,7 +51949,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       wt.__bns749=true; window.workTab=wt; try{ workTab=wt; }catch(e){}
     }
   }catch(e){}
-  function scrollTopSoon(){ if(!isMobile()) return; [0,60,180,420,900,1600,2800,4300,6500].forEach(function(ms){ setTimeout(function(){ try{ window.scrollTo(0,0); }catch(e){} try{ document.documentElement.scrollTop=0; }catch(e){} try{ document.body.scrollTop=0; }catch(e){} try{ var pg=document.getElementById('newOrder'); if(pg) pg.scrollTop=0; }catch(e){} try{ document.querySelectorAll('#newOrder,.page,.page.active,#app,.app,.main,.content,.planner,.screen,.container,.wrap,main').forEach(function(x){ if(x && typeof x.scrollTop==='number') x.scrollTop=0; }); }catch(e){} },ms); }); }
+  function scrollTopSoon(){ [0,60,180,420,900,1600,2800,4200].forEach(function(ms){ setTimeout(function(){ try{ window.scrollTo(0,0); document.documentElement.scrollTop=0; document.body.scrollTop=0; var pg=document.getElementById('newOrder'); if(pg) pg.scrollTop=0; document.querySelectorAll('.page.active,.content,.main,.main-content,#app,#root').forEach(function(x){ try{x.scrollTop=0;}catch(e){} }); }catch(e){} },ms); }); }
   function ensureTopBackButton(){
     if(!isMobile()) return;
     var page=byId('newOrder'); if(!page) return;
@@ -51992,8 +51983,10 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     try{ chosen=clone(o.materials||[])||[]; }catch(e){}
     setVal('orderDriver',o.driver||o.driverName||o.bezorger||''); setVal('orderVehicle',o.vehicle||''); setVal('orderExtra',o.extra||'');
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){} try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){} try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    if(isMobile()) showPanelNoFocus('customerPanel'); else { try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){} }
-    ensureTopBackButton(); scrollTopSoon(); try{ if(window.BNS751StartMobileEditLock) window.BNS751StartMobileEditLock(); }catch(e){}
+    // BNS752: ook op laptop geen workTab-focus bij Wijzigen; Nieuwe opdracht-pagina start bovenaan.
+    showPanelNoFocus('customerPanel');
+    try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
+    ensureTopBackButton(); scrollTopSoon();
   }
   try{
     window.editOrder = editOrderMobileSafe; editOrder = editOrderMobileSafe;
@@ -52074,104 +52067,4 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 })();
 
 
-/* =========================================================
-   BNS 751 - mobiel wijzigen blijft boven + terugknop hard
-   Basis: v750/v749. Geen data/Firebase/reservering/materiaal/driver wijziging.
-   Doel: na Wijzigen blokkeren we automatische focus/late scroll naar
-   klant/adresvelden, en elke Terug-knop in newOrder gaat direct naar orders.
-   ========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS751_MOBILE_EDIT_TOP_BACK__) return;
-  window.__BNS751_MOBILE_EDIT_TOP_BACK__ = true;
-
-  function isMobile(){ return (window.innerWidth || document.documentElement.clientWidth || 9999) <= 760; }
-  function byId(id){ return document.getElementById(id); }
-  function activeNewOrder(){ var p=byId('newOrder'); return !!(p && p.classList && p.classList.contains('active')); }
-  function topAll(){
-    if(!isMobile()) return;
-    try{ window.scrollTo(0,0); }catch(e){}
-    try{ document.documentElement.scrollTop=0; }catch(e){}
-    try{ document.body.scrollTop=0; }catch(e){}
-    try{ var p=byId('newOrder'); if(p) p.scrollTop=0; }catch(e){}
-    try{ document.querySelectorAll('#newOrder,.page,.page.active,#app,.app,.main,.content,.planner,.screen,.container,.wrap,main').forEach(function(x){ if(x && typeof x.scrollTop==='number') x.scrollTop=0; }); }catch(e){}
-  }
-  function scheduleTop(ms){
-    [0,60,150,320,700,1200,2000,3200,5000,7200].forEach(function(t){ setTimeout(topAll,t+(ms||0)); });
-  }
-  function setEditLock(){
-    if(!isMobile()) return;
-    window.__BNS751_MOBILE_EDIT_LOCK_UNTIL = Date.now()+8000;
-    window.__BNS751_USER_TOUCH_IN_ORDER = false;
-    try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
-    ensureTopBack();
-    scheduleTop(0);
-  }
-  window.BNS751StartMobileEditLock = setEditLock;
-
-  // Wanneer gebruiker bewust in het formulier tikt, laten we focus weer toe.
-  document.addEventListener('pointerdown', function(ev){
-    try{ if(ev.target && ev.target.closest && ev.target.closest('#newOrder input,#newOrder textarea,#newOrder select')) window.__BNS751_USER_TOUCH_IN_ORDER=true; }catch(e){}
-  }, true);
-
-  // Blokkeer automatische focus tijdens de eerste seconden na Wijzigen.
-  try{
-    if(!HTMLElement.prototype.__bns751FocusPatched){
-      var origFocus = HTMLElement.prototype.focus;
-      HTMLElement.prototype.focus = function(opts){
-        try{
-          if(isMobile() && activeNewOrder() && Date.now() < (window.__BNS751_MOBILE_EDIT_LOCK_UNTIL||0) && !window.__BNS751_USER_TOUCH_IN_ORDER){
-            if(this && this.closest && this.closest('#newOrder')) return;
-          }
-        }catch(e){}
-        return origFocus.apply(this, arguments);
-      };
-      HTMLElement.prototype.__bns751FocusPatched = true;
-    }
-  }catch(e){}
-
-  function showOrders(){
-    try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
-    try{ window.__BNS751_MOBILE_EDIT_LOCK_UNTIL=0; }catch(e){}
-    try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
-    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
-    setTimeout(topAll,0); setTimeout(topAll,120);
-  }
-  function ensureTopBack(){
-    if(!isMobile()) return;
-    var page=byId('newOrder'); if(!page) return;
-    var b=byId('bnsV751TopBack');
-    if(!b){
-      b=document.createElement('button');
-      b.type='button'; b.id='bnsV751TopBack'; b.textContent='Terug naar opdrachten';
-      b.style.cssText='display:block!important;margin:6px 0 10px!important;padding:10px 12px!important;border-radius:12px!important;border:0!important;background:#475569!important;color:#fff!important;font-weight:900!important;';
-      page.insertBefore(b, page.firstChild);
-    }
-  }
-
-  // Vang ook de oude onderste BNS724 Terug-knop af voordat zijn eigen listener history.back doet.
-  document.addEventListener('click', function(ev){
-    try{
-      var t=ev.target; if(!t || !t.closest) return;
-      var b=t.closest('#newOrder #bnsV724Back,#newOrder #bnsV749TopBack,#newOrder #bnsV751TopBack,#newOrder button');
-      if(!b) return;
-      var txt=String(b.innerText||b.textContent||'').trim().toLowerCase();
-      if(b.id==='bnsV724Back' || b.id==='bnsV749TopBack' || b.id==='bnsV751TopBack' || txt==='terug' || txt.indexOf('terug naar opdrachten')>=0){
-        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-        showOrders();
-      }
-    }catch(e){}
-  }, true);
-
-  document.addEventListener('DOMContentLoaded', function(){ ensureTopBack(); }, true);
-  document.addEventListener('click', function(ev){
-    try{
-      var t=ev.target; if(!t || !t.closest) return;
-      var b=t.closest('button,[onclick]'); if(!b) return;
-      var oc=b.getAttribute('onclick')||'';
-      if(/editOrder\(['\"]/.test(oc)) setTimeout(setEditLock,30);
-    }catch(e){}
-  }, true);
-  setInterval(function(){ try{ if(activeNewOrder()) ensureTopBack(); }catch(e){} }, 1200);
-  try{ console.info('[BNS 751] mobiel wijzigen boven + terugknop hard actief'); }catch(e){}
-})();
+// ===== BNS752 bevestigd: Wijzigen start bovenaan op laptop en mobiel; V408 bewaker uitgeschakeld. =====
