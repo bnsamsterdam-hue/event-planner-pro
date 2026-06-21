@@ -49604,7 +49604,16 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function statusFor(m){
     if(!m) return {key:'missing',label:'Niet gevonden',blocked:true};
     var r=reservationFor(m);
-    if(r) return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:r};
+    if(r){
+      // BNS 773: retourdag check - einddatum reservering = jouw startdatum
+      try{
+        var wp611=currentRange(); var op611=r.period||null;
+        if(op611 && wp611 && op611.end.getTime()===wp611.start.getTime()){
+          return {key:'returnsToday',label:'Komt retour op jouw startdatum',blocked:false,reservation:r};
+        }
+      }catch(e){}
+      return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:r};
+    }
     if(chosenList().some(function(x){ return sameMaterial(x,m); })) return {key:'chosen',label:'Toegevoegd',blocked:false};
     var raw=L(m.status);
     if(/defect|schade|damage|missing|vermist/.test(raw)) return {key:'defect',label:'Defect',blocked:true};
