@@ -8007,17 +8007,6 @@ const INITIAL_STATE = {
   }], "vehicles": [], "extras": [], "adminPin": "1111"
 };
 const KEY='event-planner-pro-v87';
-// BNS 769: INITIAL_STATE leegmaken VOOR load() zodat oude data nooit in state komt
-try{
-  if(typeof INITIAL_STATE === 'object' && INITIAL_STATE){
-    INITIAL_STATE.orders    = [];
-    INITIAL_STATE.materials = [];
-    INITIAL_STATE.customers = [];
-    INITIAL_STATE.locations = [];
-    INITIAL_STATE.alerts    = [];
-    INITIAL_STATE.__BNS769_EMPTY = true;
-  }
-}catch(_e){}
 let state=load();
 ensure();
 let pin='', user=null, chosen=[], editing=null, currentCat='TW', mode='active';
@@ -13955,25 +13944,25 @@ setTimeout(()=>{
   }
   function S(){
     try {
-      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
-    } catch(e) {
-    }
-    try {
-      if (window.state && Array.isArray(window.state.orders)) return window.state;
-    } catch(e) {
-    }
-    try {
-      var raw = localStorage.getItem("eventPlannerProV91") ||
+      // BNS 770: window.state/Firebase wint zodra die orders heeft
+      var _loc = (typeof state !== "undefined") ? state : null;
+      var _win = window.state || null;
+      var _lo = (_loc && Array.isArray(_loc.orders)) ? _loc.orders.length : 0;
+      var _wo = (_win && Array.isArray(_win.orders)) ? _win.orders.length : 0;
+      if (_wo > 0) return _win; // Firebase altijd leidend zodra geladen
+      if (_lo > 0) return _loc;
+      // Beide leeg: localStorage als noodval
+      var raw = localStorage.getItem("event-planner-pro-v87") ||
+      localStorage.getItem("eventPlannerProV91") ||
       localStorage.getItem("eventPlannerPro") ||
       localStorage.getItem("eventPlannerState") ||
       localStorage.getItem("plannerState");
       var parsed = JSON.parse(raw || "{}");
-      if (parsed && Array.isArray(parsed.orders)) return parsed;
+      if (parsed && Array.isArray(parsed.orders) && parsed.orders.length > 0) return parsed;
+      return _win || _loc || { orders: [], materials: [], alerts: [], users: [] };
     } catch(e) {
+      return window.state || { orders: [], materials: [], alerts: [], users: [] };
     }
-    return {
-      orders: [], materials: [], alerts: [], users: []
-    };
   }
   function saveState(){
     try {
@@ -14012,13 +14001,12 @@ setTimeout(()=>{
     d.getFullYear();
   }
   function endDate(order){
-    // BNS 769: geen startdatum als fallback - geen einddatum = nooit automatisch done
+    // BNS 770: geen startdatum fallback
     return parseDate(order && (order.end || order.dateEnd || order.endDate));
   }
   function isPastEnd(order){
     var e = endDate(order);
-    // Geen einddatum = niet voorbij
-    if(!e) return false;
+    if(!e) return false; // geen einddatum = nooit voorbij
     return e < today();
   }
   function group(order){
@@ -15258,7 +15246,8 @@ setTimeout(()=>{
     return String(d.getDate()).padStart(2,"0") + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + d.getFullYear();
   }
   function orderEnd(o){
-    return parseDate(o && (o.end || o.start));
+    // BNS 770: geen startdatum fallback
+    return parseDate(o && (o.end || o.dateEnd || o.endDate));
   }
   function orderActive(o){
     var st = String(o && o.status || "").toLowerCase();
@@ -17272,7 +17261,7 @@ setTimeout(()=>{
     return d;
   }
   function endDate(o){
-    // BNS 769: geen startdatum als fallback
+    // BNS 770: geen startdatum fallback
     return parseDate(o && (o.end || o.dateEnd || o.endDate));
   }
   function startDate(o){
@@ -17836,7 +17825,8 @@ setTimeout(()=>{
   function isActiveOrder(o){
     var st=String(o&&o.status||'').toLowerCase();
     if(st==='geannuleerd' || st==='uitgevoerd') return false;
-    var d=parseDate(o && (o.end||o.start));
+    // BNS 770: geen startdatum fallback - geen einddatum = altijd actief
+    var d=parseDate(o && (o.end||o.dateEnd||o.endDate));
     return !d || d>=today();
   }
   function money(v){
@@ -32361,8 +32351,7 @@ setTimeout(()=>{
     return n;
   }
   function endDate(o){
-    // BNS 769: geen startdatum als fallback
-    return parseDate(o && (o.end || o.dateEnd || o.endDate));
+    return parseDate(o && (o.end || o.dateEnd || o.endDate || o.start || o.dateStart || o.startDate || o.date));
   }
   function isFutureOrToday(o){
     var d=endDate(o);
@@ -40665,10 +40654,10 @@ setTimeout(()=>{
     if(m){ var d3=new Date(+m[1],0,1); if(!isNaN(d3.getTime())) return d3; }
     return null;
   }
-  function orderDate(o){ return parseDate(o && (o.end || o.endDate || o.finish || o.start || o.date)); }
+  function orderDate(o){ return parseDate(o && (o.end || o.endDate || o.finish)); } // BNS 770: geen start fallback
   function orderYear(o){ var d=orderDate(o); if(d) return String(d.getFullYear()); var m=String([o&&o.end,o&&o.start,o&&o.date,o&&o.number].filter(Boolean).join(' ')).match(/20\d{2}/); return m?m[0]:''; }
   function fmtDate(v){ var d=parseDate(v); return d ? (String(d.getDate())+'-'+String(d.getMonth()+1)+'-'+String(d.getFullYear())) : String(v||''); }
-  function isPastEnd(o){ var d=orderDate(o); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); }
+  function isPastEnd(o){ var d=orderDate(o); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); } // geen einddatum = nooit voorbij
   function isDeleted(o){ var st=norm(o&&o.status); return !!(o&&(o.deleted||o.removed||o.deletedAt||/verwijderd|deleted|gewist|trash|prullenbak/.test(st))); }
   function isCancelled(o){ return /geannuleerd|annulering|cancelled|canceled/.test(norm(o&&o.status)); }
   function isOption(o){ return /optie|14\s*dagen|option/.test(norm(o&&o.status)); }
@@ -51868,8 +51857,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       if(typeof state === 'undefined') return;
       var wc = s.orders.length;
       var lc = Array.isArray(state.orders) ? state.orders.length : 0;
-      // BNS 769: Firebase wint zodra die orders heeft, niet alleen als meer
-      if(wc > 0){
+      if(wc > lc){
         state.orders    = s.orders;
         state.materials = s.materials  || state.materials  || [];
         state.users     = s.users      || state.users      || [];
