@@ -13963,25 +13963,26 @@ setTimeout(()=>{
   }
   function S(){
     try {
-      var _a = (typeof state !== "undefined") ? state : null;
-      var _b = window.state || null;
-      var _ao = (_a && Array.isArray(_a.orders)) ? _a.orders.length : 0;
-      var _bo = (_b && Array.isArray(_b.orders)) ? _b.orders.length : 0;
-      // BNS 765: firebase wint als die meer orders heeft dan lokale state
-      if (_bo > _ao) return _b;
-      if (_ao > 0) return _a;
-      // Beide leeg: probeer localStorage
+      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
+    } catch(e) {
+    }
+    try {
+      if (window.state && Array.isArray(window.state.orders)) return window.state;
+    } catch(e) {
+    }
+    try {
       var raw = localStorage.getItem("event-planner-pro-v87") ||
       localStorage.getItem("eventPlannerProV91") ||
       localStorage.getItem("eventPlannerPro") ||
       localStorage.getItem("eventPlannerState") ||
       localStorage.getItem("plannerState");
       var parsed = JSON.parse(raw || "{}");
-      if (parsed && Array.isArray(parsed.orders) && parsed.orders.length > 0) return parsed;
-      return _b || _a || { orders: [], materials: [], alerts: [], users: [] };
+      if (parsed && Array.isArray(parsed.orders)) return parsed;
     } catch(e) {
-      return window.state || { orders: [], materials: [], alerts: [], users: [] };
     }
+    return {
+      orders: [], materials: [], alerts: [], users: []
+    };
   }
   function saveState(){
     try {
@@ -52604,14 +52605,32 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function countOrders(x){ return (x && Array.isArray(x.orders)) ? x.orders.length : 0; }
   function syncFromWindowState(){
     try{
-      if(typeof state === 'undefined' || !window.state) return;
-      if(countOrders(window.state) >= countOrders(state)){
-        state = window.state;
-      }
+      var win = window.state;
+      if(!win || !Array.isArray(win.orders) || win.orders.length === 0) return;
+      try{
+        if(typeof state !== 'undefined' && state && typeof state === 'object'){
+          // Muteer het bestaande state object - NIET reassignen (let is niet reassignbaar vanuit closure)
+          if(countOrders(win) > countOrders(state)){
+            state.orders    = win.orders;
+            state.materials = win.materials  || state.materials  || [];
+            state.users     = win.users      || state.users      || [];
+            state.alerts    = win.alerts     || state.alerts     || [];
+            state.customers = win.customers  || state.customers  || [];
+            state.locations = win.locations  || state.locations  || [];
+            state.settings  = win.settings   || state.settings   || {};
+          }
+        }
+      }catch(e){}
       try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(_e){}
       try{ if(typeof renderOrders === 'function') renderOrders(); }catch(_e){}
     }catch(e){}
   }
-  document.addEventListener('bns:firebase-updated', function(){ setTimeout(syncFromWindowState, 50); setTimeout(syncFromWindowState, 350); });
-  window.addEventListener('load', function(){ setTimeout(syncFromWindowState, 800); });
+  document.addEventListener('bns:firebase-updated', function(){
+    setTimeout(syncFromWindowState, 50);
+    setTimeout(syncFromWindowState, 350);
+    setTimeout(syncFromWindowState, 1200);
+  });
+  window.addEventListener('load', function(){ setTimeout(syncFromWindowState, 800); setTimeout(syncFromWindowState, 2500); });
+  // Ook periodiek voor het geval het event gemist wordt
+  setInterval(syncFromWindowState, 6000);
 })();
