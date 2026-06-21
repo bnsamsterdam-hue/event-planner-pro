@@ -49681,6 +49681,15 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(keepCat){ window.currentCat=keepCat; try{ currentCat=keepCat; }catch(e){} }
     var st=statusFor(m);
     if(st.key==='reserved' || st.blocked){ showInfo(m,st); return false; } // BNS 773: geen render na info
+    // BNS 773: retourdag popup
+    if(st.key==='returnsToday'){
+      var r=st.reservation, ro=r&&r.order, rp=r&&r.period;
+      var msg='Let op: '+codeOf(m)+' '+nameOf(m)+'\n\nDit materiaal komt retour op '+
+        (rp?nlDate(rp.end):'jouw startdatum')+'\n'+
+        (ro?'Opdracht: '+T(ro.number)+' - '+T(ro.title||(ro.customer&&ro.customer.name)||'')+'\n':'')+
+        '\nDirect inzetten voor nieuwe klant?';
+      if(!confirm(msg)) return false;
+    }
     var exists=chosenList().some(function(x){ return sameMaterial(x,m); });
     if(exists){ setChosen(chosenList().filter(function(x){ return !sameMaterial(x,m); })); renderChosenSafe(); renderMaterials611(keepCat||window.currentCat,true); return false; }
     var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
