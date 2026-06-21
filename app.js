@@ -8457,10 +8457,18 @@ function markDone(oid){
   }
 }
 function renderDashboard(){
+  // BNS 768: sync state vanuit window.state voor render zodat dashboard niet flikkert
+  try{
+    var _w=window.state;
+    if(_w&&Array.isArray(_w.orders)&&_w.orders.length>(state.orders||[]).length){
+      state.orders=_w.orders; state.materials=_w.materials||state.materials||[];
+      state.users=_w.users||state.users||[]; state.alerts=_w.alerts||state.alerts||[];
+    }
+  }catch(e){}
   statOrders.textContent=state.orders.length;
   statMaterials.textContent=state.materials.length;
   statAlerts.textContent=state.alerts.length;
-  dashOrders.innerHTML=sortedOrders().filter(o=>o.status!=='Geannuleerd').slice(0,6).map(card).join('')
+  dashOrders.innerHTML=sortedOrders().filter(o=>o.status!=='Geannuleerd'&&o.status!=='Uitgevoerd'&&o.status!=='Verwijderd').slice(0,6).map(card).join('')
 }
 function renderDriver(){
   driverList.innerHTML=sortedOrders().slice(0,25).map(o=>`<div class="order-card"><div class="date-tile">${nice(o.start)}</div><div><b>${o.number} - ${o.title}</b><br>${(o.materials||[]).map(m=>m.code).join(', ')}</div><div><button onclick="alertFor('${o.id}','Schade')">Schade</button><button onclick="alertFor('${o.id}','Foto voor')">Foto voor</button><button onclick="alertFor('${o.id}','Foto na')">Foto na</button></div></div>`).join('')
@@ -13944,25 +13952,24 @@ setTimeout(()=>{
   }
   function S(){
     try {
-      if (typeof state !== "undefined" && state && Array.isArray(state.orders)) return state;
-    } catch(e) {
-    }
-    try {
-      if (window.state && Array.isArray(window.state.orders)) return window.state;
-    } catch(e) {
-    }
-    try {
-      var raw = localStorage.getItem("eventPlannerProV91") ||
+      var _a = (typeof state !== "undefined") ? state : null;
+      var _b = window.state || null;
+      var _ao = (_a && Array.isArray(_a.orders)) ? _a.orders.length : 0;
+      var _bo = (_b && Array.isArray(_b.orders)) ? _b.orders.length : 0;
+      // BNS 768: kies bron met meeste orders (firebase wint van lege let state)
+      if (_bo > _ao) return _b;
+      if (_ao > 0) return _a;
+      var raw = localStorage.getItem("event-planner-pro-v87") ||
+      localStorage.getItem("eventPlannerProV91") ||
       localStorage.getItem("eventPlannerPro") ||
       localStorage.getItem("eventPlannerState") ||
       localStorage.getItem("plannerState");
       var parsed = JSON.parse(raw || "{}");
-      if (parsed && Array.isArray(parsed.orders)) return parsed;
+      if (parsed && Array.isArray(parsed.orders) && parsed.orders.length > 0) return parsed;
+      return _b || _a || { orders: [], materials: [], alerts: [], users: [] };
     } catch(e) {
+      return window.state || { orders: [], materials: [], alerts: [], users: [] };
     }
-    return {
-      orders: [], materials: [], alerts: [], users: []
-    };
   }
   function saveState(){
     try {
@@ -51784,6 +51791,11 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   function isMobile(){ return (window.innerWidth||document.documentElement.clientWidth||9999) <= 760; }
   function text(el){ return String(el && (el.innerText||el.textContent)||'').trim().toLowerCase(); }
   function clickExistingBack(){
+    // BNS 768: altijd clearOrder aanroepen zodat factuur/bevestiging leeg is
+    try{ if(typeof editing !== 'undefined') editing = null; }catch(e){}
+    try{ window.editing = null; }catch(e){}
+    try{ if(typeof clearOrder === 'function') clearOrder(); }catch(e){}
+    // Daarna navigeren
     var btns=[].slice.call(document.querySelectorAll('button,a,[role="button"]'));
     for(var i=0;i<btns.length;i++){
       var el=btns[i];
@@ -51794,6 +51806,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
         try{ el.click(); return; }catch(e){}
       }
     }
+    try{ if(typeof showPage === 'function') showPage('orders'); }catch(e){}
     try{ history.back(); }catch(e){}
   }
   function ensureBackButton(){
