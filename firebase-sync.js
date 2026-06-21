@@ -91,7 +91,7 @@ if(window.__bnsFirebaseAutoSyncV2)return; window.__bnsFirebaseAutoSyncV2=true;
 
 const STORAGE_KEYS=["event-planner-pro-v87","event-planner-pro-v8","event-planner-pro","bns_event_planner"];
 const COLLECTIONS=["users","orders","materials","customers","locations","alerts","settings"];
-const UPLOAD_COLLECTIONS=["orders","materials","customers","locations","alerts","settings"]; // V197: users nooit massaal uploaden vanuit localStorage/INITIAL_STATE
+const UPLOAD_COLLECTIONS=["settings"]; // BNS749: geen bulk-upload van orders/materials/customers/locations/alerts vanuit localStorage/INITIAL_STATE
 const AUTO_KEY="bns_firebase_auto_sync_on";
 let tools=null, uploading=false, downloading=false, started=false, timer=null, lastJson="";
 
@@ -377,6 +377,8 @@ async function upload(reason){
   if(uploading||downloading)return;
   const t=await fb(); if(!t)return;
   const s=norm(loadLocal()); if(!s)return;
+  // BNS749 bulk upload guard: alleen expliciete syncDoc/syncOrder mag bedrijfsdata wijzigen; bulk upload is alleen settings.
+  try{ if(Array.isArray(UPLOAD_COLLECTIONS) && UPLOAD_COLLECTIONS.some(c=>["orders","materials","customers","locations","alerts"].includes(c))){ console.warn("[BNS749] bulk upload bedrijfsdata geblokkeerd"); return; } }catch(e){}
   uploading=true; status("Firebase opslaan...");
   try{
     for(const col of UPLOAD_COLLECTIONS){
