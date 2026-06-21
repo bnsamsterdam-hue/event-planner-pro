@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fix deletedAt - Tapwagen.nl</title>
+  <script src="firebase-config.js"></script>
+  <style>
+    body{font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:18px;color:#172033;}
+    .card{background:#fff;border:1px solid #dfe5ef;border-radius:14px;padding:16px;margin:12px 0;max-width:800px;}
+    h1{font-size:22px;margin:0 0 8px;}
+    button{border:0;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;margin:6px 6px 6px 0;}
+    .primary{background:#1769e0;color:#fff}
+    .safe{background:#15803d;color:#fff}
+    button:disabled{opacity:.4;cursor:not-allowed}
+    .log{font-family:monospace;background:#0f172a;color:#dbeafe;border-radius:10px;padding:12px;max-height:400px;overflow:auto;white-space:pre-wrap;margin-top:12px;}
+    .stat{display:inline-block;background:#f1f5f9;border-radius:10px;padding:8px 16px;margin:4px;font-weight:700;}
+    .bad{color:#b91c1c} .ok{color:#15803d}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>Fix deletedAt — Tapwagen.nl</h1>
+  <p>Deze tool zoekt alle opdrachten in Firebase die een <code>deletedAt</code> veld hebben
+  maar waarvan de status NIET "Verwijderd" of "Geannuleerd" is.
+  Die opdrachten zijn per ongeluk gemarkeerd als verwijderd door de backup-herstel tool.
+  Het <code>deletedAt</code> veld wordt verwijderd zodat ze weer zichtbaar worden.</p>
+  <p><strong>Er wordt niets verwijderd, geen status gewijzigd, geen andere velden aangeraakt.</strong></p>
+</div>
+
+<div class="card">
+  <button id="btnScan" class="primary">1. Scan Firebase op fout-deletedAt</button>
+  <button id="btnFix" class="safe" disabled>2. Fix — verwijder deletedAt van deze orders</button>
+  <div style="margin-top:10px">
+    Gevonden: <span class="stat" id="sFound">-</span>
+    Te fixen: <span class="stat" id="sFix">-</span>
+    Gefixed: <span class="stat ok" id="sDone">-</span>
+    Fouten: <span class="stat bad" id="sErr">-</span>
+  </div>
+</div>
+
+<div class="card">
+  <div id="log" class="log">Nog niet gestart...</div>
+</div>
+
+<script type="module">
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { getFirestore, collection, getDocs, doc, updateDoc, deleteField } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+let db, toFix = [];
+
+function log(m){
+  const el = document.getElementById('log');
+  el.textContent += '[' + new Date().toLocaleTimeString('nl-NL') + '] ' + m + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+function initDb(){
+  if(db) return db;
+  if(!window.BNS_FIREBASE_CONFIG?.apiKey) throw new Error('firebase-config.js niet gevonden');
+  const app = getApps().length ? getApp() : initializeApp(window.BNS_FIREBASE_CONFIG);
+  db = getFirestore(app);
+  return db;
+}
+
+function isBadStatus(s){
+  s = String(s||'').toLowerCase().trim();
+  return /verwijderd|deleted|trash|gewist/.test(s);
+}
+
+document.getElementById('btnScan').addEventListener('click', async () => {
+  document.getElementById('btnScan').disabled = true;
+  document.getElementById('btnFix').disabled = true;
+  document.getElementById('log').textContent = '';
+  toFix = [];
+  try{
+    initDb();
+    log('Firebase verbinden...');
+    const snap = await getDocs(collection(db, 'orders'));
+    let total = 0, found = 0;
+    snap.forEach(d => {
+      total++;
+      const o = d.data();
+      if(o.deletedAt && !isBadStatus(o.status)){
+        found++;
+        toFix.push({ docId: d.id, number: o.number||d.id, status: o.status||'', deletedAt: o.deletedAt });
+        log('Gevonden: ' + (o.number||d.id) + ' | status: ' + (o.status||'(leeg)') + ' | deletedAt: ' + o.deletedAt);
+      }
+    });
+    document.getElementById('sFound').textContent = total;
+    document.getElementById('sFix').textContent = found;
+    log('Scan klaar. ' + total + ' orders bekeken, ' + found + ' te fixen.');
+    if(found > 0) document.getElementById('btnFix').disabled = false;
+    else log('Niets te fixen — alles is al correct.');
+  }catch(e){
+    log('FOUT: ' + e.message);
+  }finally{
+    document.getElementById('btnScan').disabled = false;
+  }
+});
+
+document.getElementById('btnFix').addEventListener('click', async () => {
+  if(!toFix.length){ log('Niets te fixen.'); return; }
+  const confirm = window.prompt('Typ HERSTEL om deletedAt te verwijderen van ' + toFix.length + ' orders.');
+  if(confirm !== 'HERSTEL'){ log('Afgebroken.'); return; }
+  document.getElementById('btnFix').disabled = true;
+  let done = 0, err = 0;
+  for(const r of toFix){
+    try{
+      await updateDoc(doc(db, 'orders', r.docId), { deletedAt: deleteField() });
+      done++;
+      log('Gefixed: ' + r.number + ' (deletedAt verwijderd)');
+      document.getElementById('sDone').textContent = done;
+    }catch(e){
+      err++;
+      log('FOUT bij ' + r.number + ': ' + e.message);
+      document.getElementById('sErr').textContent = err;
+    }
+  }
+  log('Klaar. Gefixed: ' + done + ', fouten: ' + err);
+  log('Ververs nu de app — de opdrachten moeten weer zichtbaar zijn.');
+});
+</script>
+</body>
+</html>
