@@ -13706,6 +13706,24 @@ setTimeout(()=>{
       popup(mid);
       return
     }
+    // BNS 773: retourdag check via V392 statusFor
+    try{
+      if(window.BNS_V392 && typeof window.BNS_V392.statusFor==='function'){
+        var st=window.BNS_V392.statusFor(b.material||{id:mid});
+        if(st && st.key==='returnsToday'){
+          var r=st.reservation, ro=r&&r.order, rp=r&&r.period;
+          var msg='Let op: '+(b.material&&(b.material.code||b.material.name)||mid)+'\n\nDit materiaal komt retour op '+
+            (rp&&window.BNS_V392&&window.BNS_V392.nlDate?window.BNS_V392.nlDate(rp.end):'jouw startdatum')+'\n'+
+            (ro?'Opdracht: '+(ro.number||'')+(ro.title?' - '+ro.title:'')+'\n':'')+
+            '\nDirect inzetten voor nieuwe klant?';
+          if(!confirm(msg)) return;
+          // Ja: doorvallen naar toevoegen
+        }
+        if(st && st.key==='reserved'){
+          popup(mid); return;
+        }
+      }
+    }catch(e){}
     const m=b.material;
     if(!m)return;
     if(!CH().some(x=>String(x.id)===String(mid))){
@@ -42345,7 +42363,7 @@ setTimeout(()=>{
     toggleMaterial.__bnsMatDebounced=true; toggleMaterial.__bnsV392=true;
     window.renderMaterials=renderMaterials;
     window.addMat=toggleMaterial;
-    window.BNS_V392={renderMaterials:renderMaterials,toggleMaterial:toggleMaterial,statusFor:statusFor,reservationFor:reservationFor,sameMaterial:sameMaterial,keysFor:keysFor};
+    window.BNS_V392={renderMaterials:renderMaterials,toggleMaterial:toggleMaterial,statusFor:statusFor,reservationFor:reservationFor,sameMaterial:sameMaterial,keysFor:keysFor,nlDate:nlDate};
     // Belangrijk: oude v380/v356 intervals zetten window.renderMaterials terug naar BNS_STABLE_CORE.renderMaterials.
     // Daarom vervangen we die kern ook door v392, zodat de oude intervals juist vóór ons gaan werken.
     window.BNS_STABLE_CORE = window.BNS_STABLE_CORE || {};
