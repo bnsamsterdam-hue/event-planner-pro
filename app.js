@@ -42260,7 +42260,7 @@ setTimeout(()=>{
       renderChosenSafe(); renderMaterials(window.currentCat,true); return false;
     }
     var st=statusFor(m);
-    if(st.blocked){ info(m,st); setTimeout(function(){ renderMaterials(window.currentCat,false); },350); return false; } // BNS 771: geen force render tijdens popup
+    if(st.blocked){ info(m,st); return false; } // BNS 771: geen render na info - er verandert niets
     var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
     var list=chosenList(); list.push(item); setChosen(list);
     renderChosenSafe(); renderMaterials(window.currentCat,true); return false;
