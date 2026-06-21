@@ -8007,25 +8007,6 @@ const INITIAL_STATE = {
   }], "vehicles": [], "extras": [], "adminPin": "1111"
 };
 const KEY='event-planner-pro-v87';
-
-/* =========================================================
-   BNS 756 - DATAVEILIGE FALLBACK OP WERKENDE APP(106)-BASIS
-   App.js mag geen oude ingebouwde orders/materialen/klanten/locaties/alerts
-   als echte bron gebruiken. Live Firebase-data blijft leidend.
-   Dit wist niets in Firebase; het voorkomt alleen terugvallen naar oude data.
-========================================================= */
-try{
-  if(typeof INITIAL_STATE === 'object' && INITIAL_STATE){
-    INITIAL_STATE.orders = [];
-    INITIAL_STATE.materials = [];
-    INITIAL_STATE.customers = [];
-    INITIAL_STATE.locations = [];
-    INITIAL_STATE.alerts = [];
-    INITIAL_STATE.__BNS756_EMPTY_FALLBACK = true;
-    INITIAL_STATE.version = 'bns756-v106-empty-fallback-live-firebase-data';
-  }
-}catch(e){ console.warn('[BNS756] INITIAL_STATE leegmaken overgeslagen', e); }
-
 let state=load();
 ensure();
 let pin='', user=null, chosen=[], editing=null, currentCat='TW', mode='active';
@@ -13971,8 +13952,7 @@ setTimeout(()=>{
     } catch(e) {
     }
     try {
-      var raw = localStorage.getItem("event-planner-pro-v87") ||
-      localStorage.getItem("eventPlannerProV91") ||
+      var raw = localStorage.getItem("eventPlannerProV91") ||
       localStorage.getItem("eventPlannerPro") ||
       localStorage.getItem("eventPlannerState") ||
       localStorage.getItem("plannerState");
@@ -14021,9 +14001,7 @@ setTimeout(()=>{
     d.getFullYear();
   }
   function endDate(order){
-    // BNS v762: lopende opdracht mag NIET verdwijnen omdat alleen de startdatum voorbij is.
-    // Alleen een echte einddatum mag automatisch naar done/archief sturen.
-    return parseDate(order && (order.end || order.dateEnd || order.endDate));
+    return parseDate(order && (order.end || order.start));
   }
   function isPastEnd(order){
     var e = endDate(order);
@@ -14449,8 +14427,7 @@ setTimeout(()=>{
     } catch(e) {
     }
     try {
-      var raw = localStorage.getItem("event-planner-pro-v87") ||
-      localStorage.getItem("eventPlannerProV91") ||
+      var raw = localStorage.getItem("eventPlannerProV91") ||
       localStorage.getItem("eventPlannerPro") ||
       localStorage.getItem("plannerState");
       var parsed = JSON.parse(raw || "{}");
@@ -15860,7 +15837,7 @@ setTimeout(()=>{
     } catch(e) {
     }
     try {
-      var keys = ['event-planner-pro-v87','eventPlannerProV91','eventPlannerPro','plannerState'];
+      var keys = ['eventPlannerProV91','eventPlannerPro','plannerState'];
       for (var i=0; i<keys.length; i++) {
         var raw = localStorage.getItem(keys[i]);
         if (raw) {
@@ -21952,28 +21929,6 @@ setTimeout(()=>{
     if(!a||!b) return false;
     if(a.id&&b.id) return String(a.id)===String(b.id);
     return codeFromFields(a).toLowerCase()===codeFromFields(b).toLowerCase() && catKey(a.cat||a.rubriek)===catKey(b.cat||b.rubriek);
-  }
-  function bns761ReturnAllowed(res){
-    try{
-      if(!res || !res.order || !res.period || !res.period.end) return false;
-      var e=new Date(res.period.end.getFullYear(),res.period.end.getMonth(),res.period.end.getDate());
-      var t=new Date(); t.setHours(0,0,0,0);
-      var diff=Math.round((e.getTime()-t.getTime())/(24*60*60*1000));
-      // Alleen op de laatste dag of 1 dag voor retour/einddatum mag de planner bewust overrulen.
-      return diff===0 || diff===1;
-    }catch(e){ return false; }
-  }
-  function bns761ReturnLabel(res){
-    try{
-      var e=res && res.period && res.period.end;
-      if(!e) return 'Komt bijna terug - overleg';
-      var t=new Date(); t.setHours(0,0,0,0);
-      var ee=new Date(e.getFullYear(),e.getMonth(),e.getDate());
-      var diff=Math.round((ee.getTime()-t.getTime())/(24*60*60*1000));
-      if(diff===0) return 'Komt vandaag terug - overleg';
-      if(diff===1) return 'Komt morgen terug - overleg';
-    }catch(e){}
-    return 'Laatste dag - overleg';
   }
   function statusFor(m){
     // Gebruik v392's live berekening als beschikbaar
@@ -38098,8 +38053,7 @@ setTimeout(()=>{
   function isConf(o)  { return /bevestigd|opdrachtbevestiging/.test(ns(o)); }
   function isDoneSt(o){ return /uitgevoerd|afgerond|done|klaar|voltooid/.test(ns(o)); }
   function isPast(o)  {
-    // BNS v762: geen fallback naar startdatum; zonder einddatum blijft hij zichtbaar.
-    var e=parseD(o.end||o.dateEnd||o.endDate||'');
+    var e=parseD(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||'');
     return !!e&&e<today0();
   }
   function isDone(o)  { return !isDel(o)&&!isCan(o)&&(isDoneSt(o)||isPast(o)); }
@@ -38778,13 +38732,7 @@ setTimeout(()=>{
 
   function E(id){return document.getElementById(id);} 
   function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
-  function S(){try{
-    var a=(typeof state!=='undefined'&&state)||null;
-    var b=window.state||null;
-    var ao=(a&&Array.isArray(a.orders))?a.orders.length:0;
-    var bo=(b&&Array.isArray(b.orders))?b.orders.length:0;
-    return (bo>ao?b:a)||b||null;
-  }catch(e){return window.state||null;}}
+  function S(){try{return (typeof state!=='undefined'&&state)||window.state||null;}catch(e){return window.state||null;}}
   function T(v){return String(v==null?'':v).trim();}
   function L(v){return T(v).toLowerCase();}
   function H(v){return T(v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
@@ -38792,20 +38740,12 @@ setTimeout(()=>{
   function dateMs(v){var x=T(v),m=x.match(/(20\d{2})-(\d{1,2})-(\d{1,2})/);if(m)return new Date(+m[1],+m[2]-1,+m[3]).getTime();m=x.match(/(\d{1,2})-(\d{1,2})-(20\d{2})/);return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():NaN;}
   function st(o){return L(o&&o.status);}
   function startOf(o){return T(o&&(o.start||o.dateStart||o.startDate||o.date||o.end||o.dateEnd||o.endDate));}
-  function endOf(o){return T(o&&(o.end||o.dateEnd||o.endDate));}
+  function endOf(o){return T(o&&(o.end||o.dateEnd||o.endDate));} // BNS v762: geen startdatum als fallback
   function isCan(o){return /geannuleerd|annul/.test(st(o));}
   function isDel(o){return /verwijder/.test(st(o))||!!(o&&o.deletedAt);}
   function isOpt(o){return /optie/.test(st(o))&&/14/.test(st(o));}
   function isQuote(o){return /offerte/.test(st(o));}
-  function isDone(o){
-    if(isCan(o)||isDel(o))return false;
-    if(/uitgevoerd|afgerond|done/.test(st(o)))return true;
-    // BNS v762: alleen echte einddatum telt; startdatum voorbij is nog lopend.
-    var end=endOf(o);
-    if(!end)return false;
-    var e=dateMs(end);
-    return !isNaN(e)&&e<todayMs();
-  }
+  function isDone(o){if(isCan(o)||isDel(o))return false;if(/uitgevoerd|afgerond|done/.test(st(o)))return true;var e=dateMs(endOf(o));return !isNaN(e)&&e<todayMs();}
   function isRunning(o){return !isCan(o)&&!isDel(o)&&!isDone(o)&&!isOpt(o)&&!isQuote(o);}
   function optStart(o){return T(o&&(o.optionCreatedAt||o.optionDate||o.createdAt||o.created||o.start||o.date));}
   function optLeft(o){var ms=dateMs(optStart(o));if(isNaN(ms))return null;return 14-Math.floor((todayMs()-ms)/86400000);}
@@ -39798,14 +39738,7 @@ setTimeout(()=>{
       var op=orderPeriod(o);
       if(!overlaps(wp,op)) continue;
       var ml=Array.isArray(o.materials)?o.materials:[];
-      if(ml.some(function(x){return sameMaterial(x,m);})){
-        try{
-          var mk=materialKey(m);
-          var ok=txt(o.id||o.docId||o.orderId||o.number||'');
-          if(window.__BNS761_RETURN_OVERRIDE__ && mk && ok && window.__BNS761_RETURN_OVERRIDE__[mk]===ok) continue;
-        }catch(e){}
-        return {order:o,period:op};
-      }
+      if(ml.some(function(x){return sameMaterial(x,m);})){ return {order:o,period:op}; }
     }
     return null;
   }
@@ -39817,10 +39750,7 @@ setTimeout(()=>{
     if(/defect|damage|schade|missing|vermist/.test(raw)) return {key:'defect',label:'Defect',blocked:true};
     if(!wantedPeriod()) return {key:'nodate',label:'Vul eerst start/einddatum in',blocked:true};
     var r=reservationFor(m);
-    if(r){
-      if(bns761ReturnAllowed(r)) return {key:'reserved',label:bns761ReturnLabel(r),blocked:true,reservation:r,bns761ReturnAllowed:true};
-      return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:r};
-    }
+    if(r) return {key:'reserved',label:'Gereserveerd',blocked:true,reservation:r};
     return {key:'free',label:'Vrij',blocked:false};
   }
   function currentCatSafe(cat){
@@ -39896,22 +39826,9 @@ setTimeout(()=>{
     var st=statusFor(m);
     if(st.blocked){
       if(st.key==='nodate') alert('Vul eerst startdatum en einddatum in. De datum is de basis voor materiaal.');
-      else if(st.reservation && st.reservation.order && st.bns761ReturnAllowed){
-        var ord=st.reservation.order;
-        var endTxt='';
-        try{ endTxt=String(st.reservation.period.end.getDate()).padStart(2,'0')+'-'+String(st.reservation.period.end.getMonth()+1).padStart(2,'0')+'-'+st.reservation.period.end.getFullYear(); }catch(e){}
-        var msg='Dit materiaal staat nog op opdracht '+txt(ord.number||'')+' tot einddatum '+endTxt+'.\n\nDeze opdracht loopt nog, maar komt op/voor de laatste dag terug. Toch inzetten op deze nieuwe opdracht?';
-        var ok=false;
-        try{ ok=confirm(msg); }catch(e){ ok=false; }
-        if(!ok) return false;
-        try{
-          window.__BNS761_RETURN_OVERRIDE__=window.__BNS761_RETURN_OVERRIDE__||{};
-          window.__BNS761_RETURN_OVERRIDE__[materialKey(m)] = txt(ord.id||ord.docId||ord.orderId||ord.number||'');
-        }catch(e){}
-      }
       else if(st.reservation && st.reservation.order) alert('Dit materiaal is al geboekt door opdracht '+txt(st.reservation.order.number||'')+'.');
       else alert(st.label||'Materiaal niet beschikbaar.');
-      if(!(st.reservation && st.reservation.order && st.bns761ReturnAllowed)) return false;
+      return false;
     }
     var item=clone(m); item.status='reserved'; if(item.qty==null)item.qty=1;
     var list=chosenList(); list.push(item); setChosen(list); refreshMaterial(); return false;
@@ -39940,15 +39857,6 @@ setTimeout(()=>{
       // Altijd checken op dubbele reservering — ook als item al in chosenList staat
       var r=reservationFor(base);
       if(r){
-        try{
-          if(bns761ReturnAllowed(r)){
-            var mk=materialKey(base);
-            var ok=txt(r.order.id||r.order.docId||r.order.orderId||r.order.number||'');
-            if(window.__BNS761_RETURN_OVERRIDE__ && mk && ok && window.__BNS761_RETURN_OVERRIDE__[mk]===ok){
-              continue;
-            }
-          }
-        }catch(e){}
         var msg='Opslaan geblokkeerd: '+txt(base.code||base.name)+
           ' is al gereserveerd door opdracht '+txt(r.order.number||'')+
           ' ('+txt(r.order.status||'')+').';
@@ -40467,8 +40375,7 @@ setTimeout(()=>{
     return String(d.getDate()) + '-' + String(d.getMonth()+1) + '-' + String(d.getFullYear());
   }
   function isPastEnd(o){
-    // BNS v762: niet via orderDate(), want die valt terug op startdatum.
-    var d = parseDate(o && (o.end || o.endDate || o.dateEnd || o.finish));
+    var d = orderDate(o);
     if(!d) return false;
     d.setHours(0,0,0,0);
     return d.getTime() < todayMs();
@@ -40745,7 +40652,7 @@ setTimeout(()=>{
   function orderDate(o){ return parseDate(o && (o.end || o.endDate || o.finish || o.start || o.date)); }
   function orderYear(o){ var d=orderDate(o); if(d) return String(d.getFullYear()); var m=String([o&&o.end,o&&o.start,o&&o.date,o&&o.number].filter(Boolean).join(' ')).match(/20\d{2}/); return m?m[0]:''; }
   function fmtDate(v){ var d=parseDate(v); return d ? (String(d.getDate())+'-'+String(d.getMonth()+1)+'-'+String(d.getFullYear())) : String(v||''); }
-  function isPastEnd(o){ var d=parseDate(o&&(o.end||o.endDate||o.dateEnd||o.finish)); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); }
+  function isPastEnd(o){ var d=orderDate(o); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); }
   function isDeleted(o){ var st=norm(o&&o.status); return !!(o&&(o.deleted||o.removed||o.deletedAt||/verwijderd|deleted|gewist|trash|prullenbak/.test(st))); }
   function isCancelled(o){ return /geannuleerd|annulering|cancelled|canceled/.test(norm(o&&o.status)); }
   function isOption(o){ return /optie|14\s*dagen|option/.test(norm(o&&o.status)); }
@@ -51912,725 +51819,226 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* =========================================================
-   BNS 756 - v106 werkend + dataveilig + backup14 + wijzigen bovenaan
-   Bewust GEEN dashboard-filter op startdatum.
-   Bewust GEEN nieuwe reserveringslogica: app(106)-werking blijft leidend.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS756_V106_DATA_SAFE__) return;
-  window.__BNS756_V106_DATA_SAFE__ = true;
-
-  var VERSION = 'v756_v106_werkend_dataveilig_backup14';
-  var CHUNK_SIZE = 650000;
-  var DAY_MS = 24*60*60*1000;
-  var LOCAL_BACKUP_DAY = 'bns756_backup_day_v1';
-  var LOCAL_BACKUP_JSON = 'bns756_backup_latest_json_v1';
-
-  window.BNS = window.BNS || {};
-  window.BNS.version = VERSION;
-
-  function log(){ try{ console.log.apply(console, ['[BNS756]'].concat([].slice.call(arguments))); }catch(e){} }
-  function byId(id){ return document.getElementById(id); }
-  function isMobile(){ return (window.innerWidth || document.documentElement.clientWidth || 9999) <= 760; }
-
-  // Nieuwe/gewijzigde opdrachten zoveel mogelijk bewaren op vaste opdrachtnummer-doc-id.
-  function stableOrderId(o){
-    var n=String(o && o.number || '').trim();
-    if(/^\d{4}-\d+/.test(n)) return n.replace(/[^0-9A-Za-z_-]/g,'-');
-    return String(o && o.id || '').trim();
-  }
-  setTimeout(function(){
-    try{
-      if(window.BNS && typeof window.BNS.syncOrder==='function' && !window.BNS.syncOrder.__bns756){
-        var oldSync=window.BNS.syncOrder;
-        window.BNS.syncOrder=function(order){
-          try{ var sid=stableOrderId(order); if(sid) order.id=sid; }catch(e){}
-          return oldSync.apply(this,arguments);
-        };
-        window.BNS.syncOrder.__bns756=true;
-      }
-    }catch(e){}
-  },1200);
-
-  // Wijzigen opdracht: alleen bovenaan starten, geen eigen order-render/filter/reservering.
-  function scrollTopSoon(){
-    [0,60,180,420,900,1600].forEach(function(ms){
-      setTimeout(function(){
-        try{
-          window.scrollTo(0,0);
-          document.documentElement.scrollTop=0;
-          document.body.scrollTop=0;
-          var pg=byId('newOrder'); if(pg) pg.scrollTop=0;
-          document.querySelectorAll('.page.active,.content,.main,.main-content,#app,#root').forEach(function(x){ try{x.scrollTop=0;}catch(e){} });
-          try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
-        }catch(e){}
-      },ms);
-    });
-  }
-  function ensureTopBackButton(){
-    // app(106)/BNS724 had mobiel al goed; alleen een veilige extra knop bovenaan op telefoon.
-    if(!isMobile()) return;
-    var page=byId('newOrder'); if(!page) return;
-    var b=byId('bnsV756TopBack');
-    if(!b){
-      b=document.createElement('button'); b.type='button'; b.id='bnsV756TopBack'; b.textContent='← Terug naar opdrachten';
-      b.style.cssText='display:block;margin:6px 0 10px;padding:10px 12px;border-radius:12px;border:0;background:#475569;color:#fff;font-weight:900;';
-      b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ if(typeof showPage==='function') showPage('orders'); }catch(e){} try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} scrollTopSoon(); },true);
-      page.insertBefore(b,page.firstChild);
-    }
-  }
-  try{
-    var oldShowPage = window.showPage || (typeof showPage==='function'?showPage:null);
-    if(oldShowPage && !oldShowPage.__bns756Top){
-      var sp=function(p){
-        var r=oldShowPage.apply(this,arguments);
-        try{ if(p==='newOrder'){ ensureTopBackButton(); } }catch(e){}
-        return r;
-      };
-      sp.__bns756Top=true;
-      window.showPage=sp; try{ showPage=sp; }catch(e){}
-    }
-  }catch(e){}
-  try{
-    var oldEdit = window.editOrder || (typeof editOrder==='function'?editOrder:null);
-    if(oldEdit && !oldEdit.__bns756Top){
-      var eo=function(){
-        var r=oldEdit.apply(this,arguments);
-        try{ ensureTopBackButton(); scrollTopSoon(); }catch(e){}
-        return r;
-      };
-      eo.__bns756Top=true;
-      window.editOrder=eo; try{ editOrder=eo; }catch(e){}
-    }
-  }catch(e){}
-  document.addEventListener('DOMContentLoaded',function(){ ensureTopBackButton(); });
-
-  // 14-dagen Firebase backup: orders/lopende opdrachten, materialen, klanten, locaties, alerts en settings.
-  // Schrijft daily_latest + daily_00 t/m daily_13 en materials_latest + materials_daily_00 t/m materials_daily_13.
-  function slotForDay(day){ var d=new Date(day+'T00:00:00'); if(isNaN(d.getTime())) d=new Date(); return 'daily_'+String(Math.floor(d.getTime()/DAY_MS)%14).padStart(2,'0'); }
-  function chunks(str){ var out=[]; for(var i=0;i<str.length;i+=CHUNK_SIZE) out.push(str.slice(i,i+CHUNK_SIZE)); return out.length?out:['']; }
-  async function initFirebase(){
-    if(window.BNS && window.BNS.fs && window.BNS.db) return {fs:window.BNS.fs, db:window.BNS.db};
-    if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) return null;
-    var v='10.12.5';
-    var appMod=await import('https://www.gstatic.com/firebasejs/'+v+'/firebase-app.js');
-    var fsMod=await import('https://www.gstatic.com/firebasejs/'+v+'/firebase-firestore.js');
-    if(!window.BNS.app) window.BNS.app=appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
-    window.BNS.fs=fsMod; window.BNS.db=fsMod.getFirestore(window.BNS.app); window.BNS.firebaseReady=true;
-    return {fs:fsMod, db:window.BNS.db};
-  }
-  async function readCollection(name){
-    var t=await initFirebase(); if(!t) return [];
-    var snap=await t.fs.getDocs(t.fs.collection(t.db,name));
-    return snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
-  }
-  async function readSettings(){
-    try{ var t=await initFirebase(); if(!t) return {}; var s=await t.fs.getDoc(t.fs.doc(t.db,'settings','main')); return s.exists()?s.data():{}; }catch(e){ return {}; }
-  }
-  async function writeChunked(docId,payload){
-    var t=await initFirebase(); if(!t) return false;
-    var json=JSON.stringify(payload); var cs=chunks(json); var updatedAt=(new Date()).toISOString();
-    await t.fs.setDoc(t.fs.doc(t.db,'backups',docId), {type:payload.type||'eventplanner-backup',date:payload.date,updatedAt:updatedAt,chunkCount:cs.length,size:json.length,version:VERSION}, {merge:false});
-    for(var i=0;i<cs.length;i++) await t.fs.setDoc(t.fs.doc(t.db,'backups',docId,'chunks',String(i).padStart(4,'0')), {index:i,data:cs[i],updatedAt:updatedAt}, {merge:false});
-    return true;
-  }
-  var backupRunning=false;
-  async function runBackup(force){
-    if(backupRunning) return false; backupRunning=true;
-    var day=(new Date()).toISOString().slice(0,10); var slot=slotForDay(day); var matSlot='materials_'+slot;
-    try{
-      if(!force && localStorage.getItem(LOCAL_BACKUP_DAY)===day) return true;
-      var materials=await readCollection('materials');
-      var materialPayload={type:'eventplanner-materials-backup',date:day,createdAt:(new Date()).toISOString(),source:location.href,materials:materials};
-      await writeChunked('materials_latest',materialPayload);
-      await writeChunked(matSlot,materialPayload);
-      var fullPayload={type:'eventplanner-daily-backup',date:day,createdAt:(new Date()).toISOString(),source:location.href,
-        state:{orders:await readCollection('orders'),materials:materials,customers:await readCollection('customers'),locations:await readCollection('locations'),alerts:await readCollection('alerts'),settings:await readSettings()}};
-      await writeChunked('daily_latest',fullPayload);
-      await writeChunked(slot,fullPayload);
-      try{ localStorage.setItem(LOCAL_BACKUP_JSON,JSON.stringify({date:day,materialsCount:materials.length,slot:slot})); localStorage.setItem(LOCAL_BACKUP_DAY,day); }catch(e){}
-      log('backup klaar', day, slot, 'materialen:', materials.length);
-      return true;
-    }catch(e){ console.warn('[BNS756] backup mislukt',e); return false; }
-    finally{ backupRunning=false; }
-  }
-  window.BNS.runSafeBackup756=function(){ return runBackup(true); };
-  // alias zodat oude knop/console-oproep ook werkt
-  window.BNS.runSafeBackup749=window.BNS.runSafeBackup756;
-  setTimeout(function(){ runBackup(false); }, 4500);
-  setInterval(function(){ runBackup(false); }, 30*60*1000);
-
-  log('actief: app106-basis, dataveilig, backup14, wijzigen bovenaan; geen dashboard-startdatumfilter');
-})();
-
-
-/* =========================================================
-   BNS 757 - kleine herstelpatch op v756
-   - Nieuwe opdracht: focus blijft op datum, niet na 1 sec weg.
-   - Bij opslaan/annuleren/nieuwe opdracht: oude documenttekst/preview leeg.
-   - Geen dashboardfilter, geen reserveringswijziging, geen Firebase/datawijziging.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS757_NEW_ORDER_DOC_RESET__) return;
-  window.__BNS757_NEW_ORDER_DOC_RESET__ = true;
-
-  function E(id){ return document.getElementById(id); }
-  function T(v){ return String(v==null?'':v).trim(); }
-  function low(v){ return T(v).toLowerCase(); }
-  function page(){ return E('newOrder') || document; }
-  function isVisible(el){ return !!(el && (!el.offsetParent || true)); }
-
-  function clearDocFields(){
-    var root=page();
-    var ids=[
-      'confirmationText','invoiceText','factuurText','orderDocText','orderConfirmationText',
-      'opdrachtText','documentText','docText','mailText','printText'
-    ];
-    ids.forEach(function(id){
-      var el=E(id);
-      if(!el) return;
-      if(root!==document && !root.contains(el)) return;
-      try{ if('value' in el) el.value=''; else el.textContent=''; }catch(e){}
-    });
-    ['confirmationBox','invoiceBox','factuurBox','docBox','documentBox','overviewBox'].forEach(function(id){
-      var el=E(id);
-      if(!el) return;
-      if(root!==document && !root.contains(el)) return;
-      try{ el.classList.add('hidden'); }catch(e){}
-    });
-    ['confirmationPreview','invoicePreview','factuurPreview','docPreview','documentPreview','overviewPreview'].forEach(function(id){
-      var el=E(id);
-      if(!el) return;
-      if(root!==document && !root.contains(el)) return;
-      try{ el.innerHTML=''; el.textContent=''; }catch(e){}
-    });
-  }
-
-  function focusDate(){
-    var ids=['dateStart','orderStart','startDate','datumStart','date'];
-    for(var i=0;i<ids.length;i++){
-      var el=E(ids[i]);
-      if(el){
-        try{ el.scrollIntoView({block:'center',behavior:'auto'}); }catch(e){}
-        try{ el.focus({preventScroll:true}); }catch(e){ try{el.focus();}catch(_){} }
-        try{ if(el.select) el.select(); }catch(e){}
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function afterNewOrder(){
-    [80,220,500,900,1400].forEach(function(ms){
-      setTimeout(function(){
-        try{ clearDocFields(); focusDate(); }catch(e){}
-      },ms);
-    });
-  }
-
-  // Nieuwe opdracht-knop: leeg document en focus datum.
-  document.addEventListener('click',function(ev){
-    var t=ev.target;
-    var btn=t && t.closest && t.closest('button,a,[role="button"],#newOrderBtn');
-    if(!btn) return;
-    var txt=low(btn.textContent||btn.value||btn.id||'');
-    var id=low(btn.id||'');
-    if(id==='neworderbtn' || /nieuwe\s+opdracht/.test(txt)){
-      afterNewOrder();
-    }
-    if(/^(opslaan|annuleren|terug|sluiten|cancel)$/.test(txt) || /annuleren|terug naar opdrachten/.test(txt)){
-      setTimeout(function(){ try{ clearDocFields(); }catch(e){} },180);
-    }
-  },true);
-
-  // Wrap clearOrder: na opslaan of handmatig leegmaken ook documenten leeg.
-  setTimeout(function(){
-    try{
-      var oldClear=window.clearOrder || (typeof clearOrder==='function'?clearOrder:null);
-      if(oldClear && !oldClear.__bns757){
-        var co=function(){ var r=oldClear.apply(this,arguments); try{ clearDocFields(); }catch(e){} return r; };
-        co.__bns757=true;
-        window.clearOrder=co; try{ clearOrder=co; }catch(e){}
-      }
-    }catch(e){}
-    try{
-      var oldCancel=window.cancel || (typeof cancel==='function'?cancel:null);
-      if(oldCancel && !oldCancel.__bns757){
-        var ca=function(){ var r=oldCancel.apply(this,arguments); try{ clearDocFields(); }catch(e){} return r; };
-        ca.__bns757=true;
-        window.cancel=ca; try{ cancel=ca; }catch(e){}
-      }
-    }catch(e){}
-  },600);
-
-  // Als de pagina Nieuwe opdracht actief wordt zonder editing, datum vasthouden.
-  try{
-    var oldShow=window.showPage || (typeof showPage==='function'?showPage:null);
-    if(oldShow && !oldShow.__bns757NewDate){
-      var sp=function(name){
-        var r=oldShow.apply(this,arguments);
-        try{
-          if(name==='newOrder'){
-            var editingNow=false;
-            try{ editingNow=!!(window.editing || editing); }catch(e){}
-            if(!editingNow) afterNewOrder();
-          }
-        }catch(e){}
-        return r;
-      };
-      sp.__bns757NewDate=true;
-      window.showPage=sp; try{ showPage=sp; }catch(e){}
-    }
-  }catch(e){}
-
-  try{ console.info('[BNS757] nieuwe opdracht datumfocus + document reset actief; geen dashboard/reservering/Firebase wijzigingen.'); }catch(e){}
-})();
-
-/* =========================================================
-   BNS 759 - terug naar v757 + veilige nieuwe-opdracht documentbron
-   - v758 harde reset teruggedraaid: wijzigen blijft gewoon opdracht vullen.
-   - Alleen bij echte Nieuwe opdracht wordt oude editing/doc-bron losgelaten,
-     zodat Factuur/Opdrachtbevestiging niet vorige opdracht pakt.
-   - Geen Firebase, backup, reservering, dashboard, materiaal of driver wijziging.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS759_SAFE_NEW_DOC_SOURCE__) return;
-  window.__BNS759_SAFE_NEW_DOC_SOURCE__ = true;
-
-  function T(v){ return String(v==null?'':v).trim(); }
-  function low(v){ return T(v).toLowerCase(); }
-  function E(id){ return document.getElementById(id); }
-  function isDocButton(btn){
-    if(!btn) return false;
-    var t=low((btn.textContent||'')+' '+(btn.value||'')+' '+(btn.id||'')+' '+(btn.className||''));
-    return /factuur|opdrachtbevestiging|bevestiging|offerte/.test(t);
-  }
-  function isNewButton(btn){
-    if(!btn) return false;
-    var t=low((btn.textContent||'')+' '+(btn.value||'')+' '+(btn.id||'')+' '+(btn.className||''));
-    return /nieuwe\s+opdracht|neworderbtn|new\s*order/.test(t);
-  }
-  function isEditButton(btn){
-    if(!btn) return false;
-    var t=low((btn.textContent||'')+' '+(btn.value||'')+' '+(btn.id||'')+' '+(btn.className||'')+' '+(btn.getAttribute&&btn.getAttribute('onclick')||''));
-    return /wijzig|wijzigen|editorder/.test(t);
-  }
-  function clearEditingOnlyForNew(){
-    try{ window.__BNS759_NEW_ORDER_MODE__ = true; }catch(e){}
-    try{ window.__BNS_DOC_ORDER__ = null; window.__BNS_DOC_ORDER_ID__ = ''; }catch(e){}
-    try{ window.__BNS_LAST_DOC_ORDER__ = null; window.__BNS_LAST_DOC_ORDER_ID__ = ''; }catch(e){}
-    try{ window.currentDocOrder = null; window.currentDocOrderId = ''; }catch(e){}
-    try{ window.lastDocOrder = null; window.lastDocOrderId = ''; }catch(e){}
-    // Belangrijk: alleen de bron-id loslaten; GEEN formulier leegmaken.
-    try{ window.editing = ''; }catch(e){}
-    try{ if(typeof editing !== 'undefined') editing = ''; }catch(e){}
-  }
-  function leaveNewMode(){
-    try{ window.__BNS759_NEW_ORDER_MODE__ = false; }catch(e){}
-  }
-  function clearVisibleDocText(){
-    ['confirmationText','invoiceText','factuurText','orderDocText','orderConfirmationText','opdrachtText','documentText','docText','mailText','printText'].forEach(function(id){
-      var el=E(id); if(!el) return;
-      try{ if('value' in el) el.value=''; else el.textContent=''; }catch(e){}
-    });
-    ['confirmationPreview','invoicePreview','factuurPreview','docPreview','documentPreview','overviewPreview'].forEach(function(id){
-      var el=E(id); if(!el) return;
-      try{ el.innerHTML=''; el.textContent=''; }catch(e){}
-    });
-  }
-
-  document.addEventListener('click',function(ev){
-    var btn=ev.target && ev.target.closest && ev.target.closest('button,a,[role="button"],#newOrderBtn,.newOrderBtn');
-    if(!btn) return;
-    if(isEditButton(btn)){
-      leaveNewMode();
-      return;
-    }
-    if(isNewButton(btn)){
-      // Oude wijzig-opdracht loslaten, maar de bestaande nieuwe-opdracht-handler mag het formulier vullen.
-      clearEditingOnlyForNew();
-      setTimeout(function(){ clearEditingOnlyForNew(); clearVisibleDocText(); },80);
-      setTimeout(function(){ clearEditingOnlyForNew(); },400);
-      setTimeout(function(){ clearEditingOnlyForNew(); },900);
-      return;
-    }
-    if(isDocButton(btn) && window.__BNS759_NEW_ORDER_MODE__){
-      // Net voor documenten openen zorgen dat de doc-generator de formuliervelden pakt, niet vorige editing-order.
-      clearEditingOnlyForNew();
-    }
-  },true);
-
-  // Bij opslaan/echte wijziging na nieuwe opdracht mag nieuwe modus uit.
-  document.addEventListener('click',function(ev){
-    var btn=ev.target && ev.target.closest && ev.target.closest('button,a,[role="button"]');
-    if(!btn) return;
-    var t=low(btn.textContent||btn.value||btn.id||'');
-    if(/^opslaan$/.test(t) || /ja,\s*opslaan|opslaan opdracht/.test(t)) leaveNewMode();
-  },true);
-
-  try{ console.info('[BNS759] v758 teruggedraaid; wijzigen vult weer, nieuwe opdracht gebruikt geen oude documentbron.'); }catch(e){}
-})();
-
-/* =========================================================
-   BNS v760 - exacte clearOrder-route fix
-   Oorzaak: showPage('newOrder') kon worden aangeroepen terwijl editing
-   nog gevuld was. Daardoor gebruikten Factuur/Opdrachtbevestiging nog
-   de vorige opdracht. clearOrder() was goed, maar werd niet altijd
-   aangeroepen bij Terug/Nieuwe opdracht.
-
-   Veiligheidsregel:
-   - Bij Wijzigen: NIET leegmaken.
-   - Bij verlaten van newOrder: clearOrder() + editing leeg.
-   - Bij nieuw openen van newOrder terwijl editing nog gevuld is:
-     eerst clearOrder() + editing leeg.
-   - Geen Firebase, backup, reservering, dashboard, materiaal of driver wijziging.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS760_SHOWPAGE_CLEARORDER_FIX__) return;
-  window.__BNS760_SHOWPAGE_CLEARORDER_FIX__ = true;
-
-  function E(id){ return document.getElementById(id); }
-  function activePageId(){
-    try{
-      var a=document.querySelector('.page.active');
-      return a && a.id ? String(a.id) : '';
-    }catch(e){ return ''; }
-  }
-  function hasEditing(){
-    try{ if(typeof editing !== 'undefined' && editing) return true; }catch(e){}
-    try{ if(window.editing) return true; }catch(e){}
-    return false;
-  }
-  function clearDocFields(){
-    ['confirmationText','invoiceText','factuurText','orderDocText','orderConfirmationText','opdrachtText','documentText','docText','mailText','printText'].forEach(function(id){
-      var el=E(id); if(!el) return;
-      try{ if('value' in el) el.value=''; else el.textContent=''; }catch(e){}
-    });
-    ['confirmationPreview','invoicePreview','factuurPreview','docPreview','documentPreview','overviewPreview'].forEach(function(id){
-      var el=E(id); if(!el) return;
-      try{ el.innerHTML=''; el.textContent=''; }catch(e){}
-    });
-    try{ window.__BNS_DOC_ORDER__=null; window.__BNS_DOC_ORDER_ID__=''; }catch(e){}
-    try{ window.__BNS_LAST_DOC_ORDER__=null; window.__BNS_LAST_DOC_ORDER_ID__=''; }catch(e){}
-    try{ window.currentDocOrder=null; window.currentDocOrderId=''; }catch(e){}
-    try{ window.lastDocOrder=null; window.lastDocOrderId=''; }catch(e){}
-  }
-  function resetNewOrderState(){
-    try{ if(typeof clearOrder === 'function') clearOrder(); }catch(e){}
-    try{ editing = null; }catch(e){}
-    try{ window.editing = null; }catch(e){}
-    try{ window.__BNS759_NEW_ORDER_MODE__ = true; }catch(e){}
-    clearDocFields();
-  }
-
-  if(typeof showPage === 'function' && !showPage.__bnsV760ClearOrderWrapped){
-    var oldShowPageV760 = showPage;
-    showPage = function(p){
-      var target = String(p || '');
-      var before = activePageId();
-
-      // Terug/Annuleren/naar andere pagina vanuit opdrachtformulier:
-      // oude wijzig-opdracht moet los, anders blijft documentbron hangen.
-      if(before === 'newOrder' && target !== 'newOrder'){
-        resetNewOrderState();
-        try{ window.__BNS759_NEW_ORDER_MODE__ = false; }catch(e){}
-      }
-
-      // Nieuwe opdracht openen terwijl editing nog gevuld is:
-      // dit is de bugroute. Veld/documentbron eerst schoonmaken.
-      if(target === 'newOrder' && hasEditing()){
-        resetNewOrderState();
-      }
-
-      var r = oldShowPageV760.apply(this, arguments);
-
-      if(target === 'newOrder' && !hasEditing()){
-        try{ setTimeout(function(){ var d=E('dateStart'); if(d){ d.focus(); d.select && d.select(); } },80); }catch(e){}
-      }
-      return r;
-    };
-    showPage.__bnsV760ClearOrderWrapped = true;
-  }
-
-  // Extra vangnet: nav-knoppen met data-page="newOrder" die rechtstreeks door oude code lopen.
-  document.addEventListener('click',function(ev){
-    var el = ev.target && ev.target.closest && ev.target.closest('[data-page],button,a,[role="button"]');
-    if(!el) return;
-    var page = el.getAttribute && el.getAttribute('data-page');
-    var txt = String((el.textContent||'')+' '+(el.id||'')+' '+(el.className||'')).toLowerCase();
-    if(page === 'newOrder' || /nieuwe\s+opdracht/.test(txt)){
-      if(hasEditing()) resetNewOrderState();
-    }
-    if(activePageId()==='newOrder' && (page && page !== 'newOrder')){
-      resetNewOrderState();
-      try{ window.__BNS759_NEW_ORDER_MODE__ = false; }catch(e){}
-    }
-  }, true);
-
-  try{ console.info('[BNS760] clearOrder wordt nu aangeroepen bij Terug/Nieuwe opdracht; Wijzigen blijft gevuld.'); }catch(e){}
-})();
-
-
-/* =========================================================
-   BNS 692 - Opdrachtnummer jaarwissel + geen terugval
-   Basis: app(89).js met behoud van v690/v691 extra functies
-   Doel:
-   - Jaarprefix volgt startdatum, anders huidig kalenderjaar.
-   - Volgnummer loopt altijd door op hoogste normale opdracht.
-   - Oude import old_/Access en lage testnummers worden niet leidend.
-   - Nieuwe gewone opdracht wordt opgeslagen als orders/<opdrachtnummer>.
-   - Archief/jaarmappen blijven automatisch per eind/startjaar renderen.
+   BNS 767 — Definitieve fixes op schone basis (BNS 724)
+   
+   1. State-sync: saveLocal gepatcht zodat firebase-data
+      direct in let state.orders terechtkomt
+   2. INITIAL_STATE orders/materialen leegmaken zodat
+      oude ingebouwde data nooit Firebase wint
+   3. Opdrachtnummer bescherming (BNS 692): nooit terugval
+   4. 14-dagen backup: daily_00 t/m daily_13 + materials
    ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS_692_NUMMER_JAAR_ARCHIEF__) return;
-  window.__BNS_692_NUMMER_JAAR_ARCHIEF__ = true;
+  if(window.__BNS767_DEFINITIEF__) return;
+  window.__BNS767_DEFINITIEF__ = true;
 
-  var SAFE_MIN_SERIAL = 2566; // voorkomt terugval naar 0008/0011 als Firebase nog niet compleet geladen is
-
-  function T(v){ return String(v == null ? '' : v).trim(); }
-  function E(id){ return document.getElementById(id); }
-  function stateObj(){
-    try{ if(typeof state !== 'undefined' && state) return state; }catch(e){}
-    try{ if(window.state) return window.state; }catch(e){}
-    try{ return JSON.parse(localStorage.getItem('event-planner-pro-v87') || '{}') || {}; }catch(e){}
-    return {};
-  }
-  function orders(){ var s=stateObj(); return Array.isArray(s.orders) ? s.orders : []; }
-  function field(ids){
-    if(!Array.isArray(ids)) ids=[ids];
-    for(var i=0;i<ids.length;i++){
-      var el=E(ids[i]);
-      if(el) return el;
+  /* --- 1. INITIAL_STATE leegmaken --- */
+  try{
+    if(typeof INITIAL_STATE === 'object' && INITIAL_STATE){
+      INITIAL_STATE.orders    = [];
+      INITIAL_STATE.materials = [];
+      INITIAL_STATE.customers = [];
+      INITIAL_STATE.locations = [];
+      INITIAL_STATE.alerts    = [];
+      INITIAL_STATE.__BNS767_EMPTY = true;
     }
-    return null;
+  }catch(e){}
+
+  /* --- 2. State-sync via saveLocal patch --- */
+  function syncIntoState(s){
+    try{
+      if(!s || !Array.isArray(s.orders) || s.orders.length === 0) return;
+      if(typeof state === 'undefined') return;
+      var wc = s.orders.length;
+      var lc = Array.isArray(state.orders) ? state.orders.length : 0;
+      if(wc > lc){
+        state.orders    = s.orders;
+        state.materials = s.materials  || state.materials  || [];
+        state.users     = s.users      || state.users      || [];
+        state.alerts    = s.alerts     || state.alerts     || [];
+        state.customers = s.customers  || state.customers  || [];
+        state.locations = s.locations  || state.locations  || [];
+        state.settings  = s.settings   || state.settings   || {};
+      }
+    }catch(e){}
   }
-  function setField(ids,val){
-    var el=field(ids);
-    if(!el) return;
-    if('value' in el) el.value=val;
-    else el.textContent=val;
-    try{ el.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){}
-    try{ el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
+
+  function patchSaveLocal(){
+    var fn = (typeof saveLocal !== 'undefined' && typeof saveLocal === 'function') ? saveLocal : window.saveLocal;
+    if(!fn || fn.__bns767) return false;
+    var orig = fn;
+    var patched = function(s){
+      var r = orig.apply(this, arguments);
+      try{ syncIntoState(s); }catch(e){}
+      setTimeout(function(){
+        try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+        try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+      }, 0);
+      return r;
+    };
+    patched.__bns767 = true;
+    window.saveLocal = patched;
+    try{ saveLocal = patched; }catch(e){}
+    return true;
   }
-  function getField(ids){
-    var el=field(ids);
-    return el ? T(('value' in el) ? el.value : el.textContent) : '';
+
+  if(!patchSaveLocal()){
+    var _iv = setInterval(function(){
+      if(patchSaveLocal()) clearInterval(_iv);
+    }, 200);
+    setTimeout(function(){ clearInterval(_iv); }, 15000);
   }
-  function yearForNewOrder(){
-    var ds=getField(['dateStart','orderStart','startDate','datumStart','date']);
-    var m=ds.match(/^(20\d{2})/);
-    if(m) return m[1];
-    return String(new Date().getFullYear());
-  }
-  function isOldImport(o){
-    var id=T(o && (o.id || o.docId || o.orderId));
-    var src=T(o && o.source).toLowerCase();
-    return /^old_/i.test(id) || src.indexOf('access vanaf 2023') >= 0;
+
+  // Eenmalige sync na laden
+  [1000, 2500, 5000].forEach(function(ms){
+    setTimeout(function(){
+      syncIntoState(window.state);
+      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+      try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+    }, ms);
+  });
+
+  /* --- 3. Opdrachtnummer bescherming (BNS 692) --- */
+  var SAFE_MIN = 2566;
+  function allOrders(){
+    try{
+      var s = (typeof state !== 'undefined' && state) || window.state || {};
+      return Array.isArray(s.orders) ? s.orders : [];
+    }catch(e){ return []; }
   }
   function maxSerial(){
-    var max=SAFE_MIN_SERIAL;
-    orders().forEach(function(o){
-      if(isOldImport(o)) return;
-      var candidates=[o&&o.number,o&&o.orderNumber,o&&o.nr,o&&o.id,o&&o.docId,o&&o.orderId];
-      candidates.forEach(function(v){
-        var m=T(v).match(/^20\d{2}-(\d{3,})$/);
-        if(!m) return;
-        var n=parseInt(m[1],10)||0;
-        // Lage testnummers mogen nooit de reeks leiden.
-        if(n > max) max=n;
+    var max = SAFE_MIN, y = new Date().getFullYear();
+    allOrders().forEach(function(o){
+      var nums = [o.number, o.orderNumber, o.nr, o.id];
+      nums.forEach(function(v){
+        var m = String(v||'').match(new RegExp('^'+y+'-(\\d{3,})$'));
+        if(m){ var n = parseInt(m[1],10); if(n > max) max = n; }
       });
     });
     return max;
   }
   function nextOrderNumber(){
-    return yearForNewOrder() + '-' + String(maxSerial()+1).padStart(4,'0');
+    return new Date().getFullYear() + '-' + String(maxSerial()+1).padStart(4,'0');
   }
-  function currentNumber(){ return getField(['orderNumber','orderNo','orderNr','orderId','orderCode']); }
-  function isBadNewNumber(n){
-    var m=T(n).match(/^20\d{2}-(\d{1,})$/);
-    if(!m) return true;
-    var serial=parseInt(m[1],10)||0;
-    return serial < SAFE_MIN_SERIAL;
+  function isBadNumber(n){
+    var m = String(n||'').match(/^20\d{2}-(\d+)$/);
+    return m ? parseInt(m[1],10) < SAFE_MIN : false;
   }
-  function editingId(){
-    try{ if(typeof editing !== 'undefined' && editing) return T(editing); }catch(e){}
-    return T(window.editing || window.currentEditId || '');
+  function setField(ids, val){
+    ids.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el && 'value' in el) el.value = val;
+    });
   }
-  function ensureNumberForNewOrder(){
-    if(editingId()) return;
-    var n=currentNumber();
-    if(!n || isBadNewNumber(n)) setField(['orderNumber','orderNo','orderNr','orderId','orderCode'], nextOrderNumber());
-  }
-  function normalizeOrderBeforeSave(o){
-    if(!o || typeof o !== 'object') return o;
-    var nr=T(o.number || o.orderNumber || o.nr);
-    if(!/^20\d{2}-\d{3,}$/.test(nr) || isBadNewNumber(nr)){
-      nr=currentNumber();
-      if(!/^20\d{2}-\d{3,}$/.test(nr) || isBadNewNumber(nr)) nr=nextOrderNumber();
-    }
-    if(!isOldImport(o)){
-      o.number=nr;
-      o.orderNumber=nr;
-      o.id=nr;
-      o.docId=nr;
-      o.orderId=nr;
-    }
-    // Zorg dat status/folder altijd consequent blijft voor de mappen.
-    try{
-      if(typeof window.BNS_v460NormalizeOrder === 'function') window.BNS_v460NormalizeOrder(o);
-      else if(typeof window.BNS_v474FolderFromOrder === 'function') o.folder=window.BNS_v474FolderFromOrder(o);
-    }catch(e){}
-    return o;
-  }
-
-  window.BNS_692_NEXT_ORDER_NUMBER = nextOrderNumber;
-  window.BNS_692_NORMALIZE_ORDER = normalizeOrderBeforeSave;
-
-  function wrap(name){
-    var fn=window[name] || (function(){ try{return eval(name);}catch(e){return null;} })();
-    if(typeof fn !== 'function' || fn.__bns692) return;
-    var wrapped=function(){
-      ensureNumberForNewOrder();
-      var r=fn.apply(this,arguments);
-      try{
-        var s=stateObj();
-        if(s && Array.isArray(s.orders)) s.orders.forEach(normalizeOrderBeforeSave);
-      }catch(e){}
-      return r;
-    };
-    wrapped.__bns692=true;
-    window[name]=wrapped;
-    try{ eval(name+' = window[name];'); }catch(e){}
-  }
-
-  function patchFirebaseSync(){
-    if(window.BNS && typeof window.BNS.syncOrder === 'function' && !window.BNS.syncOrder.__bns692){
-      var old=window.BNS.syncOrder;
-      window.BNS.syncOrder=function(o){ return old.call(this, normalizeOrderBeforeSave(o)); };
-      window.BNS.syncOrder.__bns692=true;
-    }
-    if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.syncOrder === 'function' && !window.BNSFirebaseSync.syncOrder.__bns692){
-      var old2=window.BNSFirebaseSync.syncOrder;
-      window.BNSFirebaseSync.syncOrder=function(o){ return old2.call(this, normalizeOrderBeforeSave(o)); };
-      window.BNSFirebaseSync.syncOrder.__bns692=true;
-    }
-  }
-
-  function install(){
-    if(typeof window.newNo === 'function' && !window.newNo.__bns692){
-      var nn=function(){ setField(['orderNumber','orderNo','orderNr','orderId','orderCode'], nextOrderNumber()); };
-      nn.__bns692=true;
-      window.newNo=nn;
-      try{ newNo=nn; }catch(e){}
-    }
-    // Belangrijk voor app(89): de definitieve Ja-opslaan route gebruikt saveDirect()
-    // en roept BNS_v519PrepareOrderBeforeSave aan voordat hij lokaal pusht en naar Firebase sync't.
-    // Daarom normaliseren we precies daar ook id/number/docId/orderId.
-    if(window.BNS_v519PrepareOrderBeforeSave && !window.BNS_v519PrepareOrderBeforeSave.__bns692){
-      var oldPrep = window.BNS_v519PrepareOrderBeforeSave;
-      window.BNS_v519PrepareOrderBeforeSave = function(order, oldOrder){
-        var r = oldPrep.call(this, order, oldOrder) || order;
-        return normalizeOrderBeforeSave(r);
-      };
-      window.BNS_v519PrepareOrderBeforeSave.__bns692 = true;
-    }
-    wrap('saveCurrentOrder');
-    wrap('saveOrderV14');
-    patchFirebaseSync();
-  }
-
-  document.addEventListener('click',function(ev){
-    var txt=T(ev.target && (ev.target.textContent || ev.target.value || ev.target.title)).toLowerCase();
-    if(/nieuwe opdracht|nieuw opdracht|copy opdracht|kopieer opdracht/.test(txt)) setTimeout(ensureNumberForNewOrder,80);
-  },true);
-  document.addEventListener('change',function(ev){
-    if(ev.target && /^(dateStart|orderStart|startDate|datumStart)$/.test(ev.target.id||'')) setTimeout(ensureNumberForNewOrder,50);
-  },true);
-
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,250); setTimeout(install,1200); });
-  else { setTimeout(install,120); setTimeout(install,900); }
-  setInterval(install,2500);
-  console.info('[BNS 692] opdrachtnummer jaarwissel + archief/jaarmappen controle actief. Volgende nummer:', nextOrderNumber());
-})();
-
-
-/* =========================================================
-   BNS v761 - terug/nieuwe opdracht gebruikt bestaande clearOrder
-   - Wijzigen blijft gevuld.
-   - Terug-knop en Nieuwe opdracht maken oude documentbron schoon.
-   - Laatste dag/1 dag voor einddatum: materiaal mag alleen na overleg-popup.
-   - Geen wijzigingen aan Firebase-data, reserverings-id-matching of backup.
-========================================================= */
-(function(){
-  'use strict';
-  if(window.__BNS761_FINAL_GUARDS__) return;
-  window.__BNS761_FINAL_GUARDS__ = true;
-  function T(v){ return String(v==null?'':v).trim(); }
-  function clearSafe(){
-    try{ if(typeof clearOrder==='function') clearOrder(); }catch(e){}
-    try{ editing=null; }catch(e){}
-    try{ window.editing=null; }catch(e){}
-    try{ window.__BNS_DOC_ORDER__=null; window.__BNS_DOC_ORDER_ID__=''; window.__BNS_LAST_DOC_ORDER__=null; window.__BNS_LAST_DOC_ORDER_ID__=''; }catch(e){}
-    try{ window.currentDocOrder=null; window.currentDocOrderId=''; window.lastDocOrder=null; window.lastDocOrderId=''; }catch(e){}
-  }
-  document.addEventListener('click',function(ev){
-    var el=ev.target && ev.target.closest && ev.target.closest('button,a,[role="button"],[data-page],#bnsV756TopBack,#newOrderBtn');
-    if(!el) return;
-    var txt=T((el.textContent||'')+' '+(el.id||'')+' '+(el.className||'')+' '+(el.getAttribute&&el.getAttribute('data-page')||'')).toLowerCase();
-    if(el.id==='bnsV756TopBack'){
-      clearSafe();
-      return;
-    }
-    if(/nieuwe\s+opdracht/.test(txt) || (el.getAttribute && el.getAttribute('data-page')==='newOrder')){
-      clearSafe();
-      setTimeout(clearSafe,80);
-      return;
-    }
-  },true);
-  try{ console.info('[BNS761] final guards actief: clearOrder op terug/nieuw, SAFE_MIN nummering, retour-overleg popup.'); }catch(e){}
-})();
-
-
-// BNS v765 - Firebase/live state zichtbaar maken voor dashboard en opdrachten.
-// Probleem: app.js heeft lokale `state`, firebase-sync schrijft naar `window.state`.
-// Als lokale state leeg is door dataveiligheid, moet window.state met Firebase orders winnen.
-(function BNS_V765_SYNC_LOCAL_STATE_FROM_FIREBASE(){
-  if(window.__BNS_V765_SYNC_LOCAL_STATE_FROM_FIREBASE__) return;
-  window.__BNS_V765_SYNC_LOCAL_STATE_FROM_FIREBASE__ = true;
-  function countOrders(x){ return (x && Array.isArray(x.orders)) ? x.orders.length : 0; }
-  function syncFromWindowState(){
-    try{
-      var win = window.state;
-      if(!win || !Array.isArray(win.orders) || win.orders.length === 0) return;
-      try{
-        if(typeof state !== 'undefined' && state && typeof state === 'object'){
-          // Muteer het bestaande state object - NIET reassignen (let is niet reassignbaar vanuit closure)
-          if(countOrders(win) > countOrders(state)){
-            state.orders    = win.orders;
-            state.materials = win.materials  || state.materials  || [];
-            state.users     = win.users      || state.users      || [];
-            state.alerts    = win.alerts     || state.alerts     || [];
-            state.customers = win.customers  || state.customers  || [];
-            state.locations = win.locations  || state.locations  || [];
-            state.settings  = win.settings   || state.settings   || {};
-          }
+  function installNumGuard(){
+    if(window.__bns767NumGuard) return;
+    window.__bns767NumGuard = true;
+    // Patch newNo
+    var origNewNo = typeof newNo === 'function' ? newNo : null;
+    if(origNewNo && !origNewNo.__bns767){
+      var pNewNo = function(){
+        origNewNo.apply(this, arguments);
+        var el = document.getElementById('orderNumber');
+        if(el && isBadNumber(el.value)){
+          el.value = nextOrderNumber();
         }
-      }catch(e){}
-      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(_e){}
-      try{ if(typeof renderOrders === 'function') renderOrders(); }catch(_e){}
-    }catch(e){}
+      };
+      pNewNo.__bns767 = true;
+      try{ newNo = pNewNo; window.newNo = pNewNo; }catch(e){}
+    }
   }
-  document.addEventListener('bns:firebase-updated', function(){
-    setTimeout(syncFromWindowState, 50);
-    setTimeout(syncFromWindowState, 350);
-    setTimeout(syncFromWindowState, 1200);
-  });
-  window.addEventListener('load', function(){ setTimeout(syncFromWindowState, 800); setTimeout(syncFromWindowState, 2500); });
-  // Ook periodiek voor het geval het event gemist wordt
-  setInterval(syncFromWindowState, 6000);
+  setTimeout(installNumGuard, 500);
+  setTimeout(installNumGuard, 2000);
+
+  /* --- 4. 14-dagen backup --- */
+  var DAY_MS = 86400000;
+  var CHUNK  = 400000;
+  var BK_KEY = 'bns767_backup_day';
+  var VER    = 'bns767';
+
+  function bkLog(m){ try{ console.log('[BNS767 backup]', m); }catch(e){} }
+
+  function bkChunks(str){
+    var out = [];
+    for(var i=0; i<str.length; i+=CHUNK) out.push(str.slice(i,i+CHUNK));
+    return out.length ? out : [''];
+  }
+
+  function bkSlot(day){
+    var d = new Date(day+'T00:00:00');
+    if(isNaN(d.getTime())) d = new Date();
+    return 'daily_' + String(Math.floor(d.getTime()/DAY_MS)%14).padStart(2,'0');
+  }
+
+  async function bkGetFb(){
+    if(window.BNS && window.BNS.fs && window.BNS.db) return {fs:window.BNS.fs, db:window.BNS.db};
+    return null;
+  }
+
+  async function bkReadCol(name){
+    var t = await bkGetFb(); if(!t) return [];
+    var snap = await t.fs.getDocs(t.fs.collection(t.db, name));
+    var rows = [];
+    snap.forEach(function(d){ rows.push(Object.assign({id:d.id}, d.data())); });
+    return rows;
+  }
+
+  async function bkWrite(docId, payload){
+    var t = await bkGetFb(); if(!t) return;
+    var json = JSON.stringify(payload);
+    var cs = bkChunks(json);
+    var now = new Date().toISOString();
+    await t.fs.setDoc(t.fs.doc(t.db,'backups',docId),
+      {type:payload.type||'backup', date:payload.date, updatedAt:now, chunkCount:cs.length, size:json.length, version:VER},
+      {merge:false});
+    for(var i=0; i<cs.length; i++){
+      await t.fs.setDoc(
+        t.fs.doc(t.db,'backups',docId,'chunks',String(i).padStart(4,'0')),
+        {index:i, data:cs[i], updatedAt:now},
+        {merge:false});
+    }
+  }
+
+  async function runBackup(force){
+    var day = new Date().toISOString().slice(0,10);
+    if(!force && localStorage.getItem(BK_KEY) === day) return;
+    var t = await bkGetFb(); if(!t){ bkLog('Firebase niet beschikbaar'); return; }
+    try{
+      var orders    = await bkReadCol('orders');
+      var materials = await bkReadCol('materials');
+      var customers = await bkReadCol('customers');
+      var locations = await bkReadCol('locations');
+      var alerts    = await bkReadCol('alerts');
+      var settings  = {};
+      try{
+        var ss = await t.fs.getDoc(t.fs.doc(t.db,'settings','main'));
+        if(ss.exists()) settings = ss.data();
+      }catch(e){}
+
+      var slot    = bkSlot(day);
+      var matSlot = 'materials_' + slot;
+
+      var matPay = {type:'materials-backup', date:day, createdAt:new Date().toISOString(), materials:materials};
+      await bkWrite('materials_latest', matPay);
+      await bkWrite(matSlot, matPay);
+
+      var fullPay = {type:'daily-backup', date:day, createdAt:new Date().toISOString(),
+        state:{orders:orders, materials:materials, customers:customers,
+               locations:locations, alerts:alerts, settings:settings}};
+      await bkWrite('daily_latest', fullPay);
+      await bkWrite(slot, fullPay);
+
+      localStorage.setItem(BK_KEY, day);
+      bkLog('Backup klaar: ' + slot + ', orders: ' + orders.length + ', materialen: ' + materials.length);
+    }catch(e){ bkLog('Backup fout: ' + e); }
+  }
+
+  window.BNS = window.BNS || {};
+  window.BNS.runBackup767 = function(){ return runBackup(true); };
+
+  setTimeout(function(){ runBackup(false); }, 6000);
+  setInterval(function(){ runBackup(false); }, 30*60*1000);
+
+  console.info('[BNS 767] Definitieve fix actief: state-sync, nummerbescherming, 14-dagen backup.');
 })();
