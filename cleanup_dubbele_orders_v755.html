@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tapwagen.nl v755 dubbele opdrachten force cleanup</title>
+  <script src="firebase-config.js"></script>
+  <style>
+    :root{font-family:Arial,Helvetica,sans-serif;color:#142033;background:#f4f7fb}body{margin:0;padding:18px}.wrap{max-width:1450px;margin:0 auto}.card{background:#fff;border:1px solid #dfe6ef;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(15,23,42,.07)}h1{font-size:24px;margin:0 0 8px}h2{font-size:18px;margin:0 0 10px}.small{font-size:13px;color:#485b70;line-height:1.45}.danger{border-left:4px solid #b91c1c;background:#fff7f7;border-radius:8px;padding:10px 12px}.note{border-left:4px solid #1769e0;background:#f8fbff;border-radius:8px;padding:10px 12px}.okbox{border-left:4px solid #15803d;background:#f0fdf4;border-radius:8px;padding:10px 12px}.ok{color:#15803d}.bad{color:#b91c1c}.warn{color:#b45309}button{border:0;border-radius:10px;padding:12px 16px;font-weight:700;font-size:15px;cursor:pointer;margin:6px 8px 6px 0}.primary{background:#1769e0;color:white}.dangerBtn{background:#b91c1c;color:white}.green{background:#15803d;color:white}.muted{background:#e8eef7;color:#172033}button:disabled{opacity:.45;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.stat{background:#f8fafc;border:1px solid #e1e7f0;border-radius:12px;padding:12px}.stat b{display:block;font-size:24px;margin-top:4px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;background:#0f172a;color:#dbeafe;border-radius:10px;padding:12px;max-height:360px;overflow:auto}.list{max-height:620px;overflow:auto;border:1px solid #e1e7f0;border-radius:10px;background:#fff}.row{display:grid;gap:8px;padding:8px 10px;border-bottom:1px solid #eef2f7;font-size:13px;align-items:start}.row.head{font-weight:700;background:#f8fafc;position:sticky;top:0;z-index:1}.row:last-child{border-bottom:0}.plans .row{grid-template-columns:34px 105px 130px 155px 1.2fr 1.2fr 1.7fr}.pill{display:inline-block;border-radius:999px;background:#eef2ff;padding:2px 8px;font-size:12px;margin:1px}.fixed{background:#dbeafe}.random{background:#fee2e2}.keep{background:#dcfce7}.delete{background:#fee2e2}.copy{background:#fae8ff}.active{background:#dcfce7}.deleted{background:#fee2e2}.exec{background:#e0e7ff}.filter{padding:10px;border:1px solid #cbd5e1;border-radius:10px;width:100%;box-sizing:border-box;margin:8px 0}input[type=checkbox]{width:18px;height:18px}.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.confirm{font-weight:700;color:#b91c1c}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Tapwagen.nl dubbele opdrachten force cleanup v755</h1>
+    <div class="danger small"><b>Schrijft en verwijdert pas na verplichte backup.</b> Deze versie is strenger dan v754: per dubbel opdrachtnummer bewaart hij exact 1 document op de vaste doc-id <b>orders/&lt;opdrachtnummer&gt;</b> en verwijdert daarna alle andere documenten met hetzelfde nummer.</div>
+    <div class="note small" style="margin-top:10px"><b>Belangrijk:</b> als een random document beter/actiever/uitgevoerd is, wordt die inhoud eerst gekopieerd naar de vaste doc-id. Daarna wordt de random kopie verwijderd. Voorbeeld: de echte uitgevoerde 2026-0008 blijft inhoudelijk bewaard, maar staat daarna onder <b>orders/2026-0008</b>.</div>
+  </div>
+
+  <div class="card">
+    <h2>Stappen</h2>
+    <button id="btnAnalyze" class="primary">1. Lees Firebase en maak force-voorstel</button>
+    <button id="btnBackup" class="green" disabled>2. Maak verplichte backup</button>
+    <button id="btnRun" class="dangerBtn" disabled>3. Force cleanup geselecteerde dubbelen</button>
+    <button id="btnVerify" class="muted" disabled>4. Controleer opnieuw</button>
+    <button id="btnJson" class="muted" disabled>Download voorstel JSON</button>
+    <div id="status" class="small">Nog niet gestart.</div>
+  </div>
+
+  <div class="card">
+    <h2>Samenvatting</h2>
+    <div class="grid">
+      <div class="stat">Live orders <b id="sOrders">-</b></div>
+      <div class="stat">Dubbele nummers <b id="sDupNums">-</b></div>
+      <div class="stat">Geselecteerd <b id="sSelected">-</b></div>
+      <div class="stat">Te kopiëren naar vaste id <b id="sCopy">-</b></div>
+      <div class="stat">Te verwijderen docs <b id="sDelDocs">-</b></div>
+      <div class="stat">Backup <b id="sBackup">nee</b></div>
+      <div class="stat">Na controle dubbelen <b id="sAfter">-</b></div>
+    </div>
+    <div id="conclusion" class="note small" style="margin-top:12px">Conclusie komt na analyse.</div>
+  </div>
+
+  <div class="card">
+    <h2>Force-voorstel</h2>
+    <div class="bar small">
+      <button id="btnSelectAll" class="muted" disabled>Selecteer alles</button>
+      <button id="btnDeselectAll" class="muted" disabled>Deselecteer alles</button>
+      <span class="confirm">Deze tool behoudt per nummer 1 beste versie op vaste doc-id.</span>
+    </div>
+    <input id="filterPlans" class="filter" placeholder="Filter op nummer, doc-id, klant, status...">
+    <div id="plansList" class="list plans"><div class="row head"><div></div><div>Nummer</div><div>Actie</div><div>Bewaarlocatie</div><div>Beste bron</div><div>Verwijderen</div><div>Alle docs</div></div></div>
+  </div>
+
+  <div class="card"><h2>Log</h2><div id="log" class="mono"></div></div>
+</div>
+
+<script type="module">
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+const $ = id => document.getElementById(id);
+let db=null, proposal=null, selected=new Set(), backupDone=false, backupId='', afterDup='-';
+function log(m){ $('log').textContent += '['+new Date().toLocaleTimeString('nl-NL')+'] '+m+'\n'; $('log').scrollTop=$('log').scrollHeight; }
+function status(m){ $('status').textContent=m; log(m); }
+function norm(v){ return String(v==null?'':v).trim(); }
+function low(v){ return norm(v).toLowerCase(); }
+function esc(s){ return norm(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c)); }
+function looksNr(s){ return /^20\d{2}-\d{2,7}$/.test(norm(s)); }
+function ensureDb(){ if(db) return db; if(!window.BNS_FIREBASE_CONFIG || !window.BNS_FIREBASE_CONFIG.apiKey) throw new Error('firebase-config.js / BNS_FIREBASE_CONFIG niet gevonden'); const app=getApps().length?getApp():initializeApp(window.BNS_FIREBASE_CONFIG); db=getFirestore(app); return db; }
+async function readOrders(){ ensureDb(); const snap=await getDocs(collection(db,'orders')); const out=[]; snap.forEach(d=>out.push({docId:d.id, order:d.data()||{}})); return out; }
+function orderNumber(o,id){ const arr=[o.number,o.orderNumber,o.nr,o.opdrachtnummer,o.orderNo,o.id,id]; for(const v of arr){ const s=norm(v).replace(/^orders\//,''); if(looksNr(s)) return s; } return norm(o.number||o.orderNumber||o.nr||o.opdrachtnummer||o.id||id); }
+function titleOf(o){ const c=norm(o.customer && (o.customer.name||o.customer.company)) || norm(o.customerName||o.clientName); const l=norm(o.location && (o.location.name||o.location.city)); const t=norm(o.title||o.eventName||o.name||o.description); let out=t||c||l||'(zonder titel)'; if(c && !out.includes(c)) out += ' / '+c; return out; }
+function stamp(o){ return norm(o.updatedAt||o.modifiedAt||o.savedAt||o.createdAt||o.dateUpdated||o.timestamp||''); }
+function statusKind(o){ const s=low((o.status||'')+' '+(o.folder||'')+' '+(o.orderStatus||'')+' '+(o.documentStatus||'')); if(/verwijderd|deleted|trash|geannuleerd/.test(s) || o.deletedAt) return 'laag'; if(/uitgevoerd|done|afgerond/.test(s) || o.doneAt || o.customerSignature || (Array.isArray(o.signatures)&&o.signatures.length)) return 'uitgevoerd'; if(/opdrachtbevestiging|bevestigd|lopend|opdracht/.test(s)) return 'actief'; if(/optie|offerte/.test(s)) return 'open'; return 'onbekend'; }
+function statusPriority(o){ const k=statusKind(o); if(k==='uitgevoerd') return 100; if(k==='actief') return 90; if(k==='open') return 70; if(k==='onbekend') return 45; return 5; }
+function completeness(o){ let s=0; if(norm(o.number||o.orderNumber||o.nr||o.opdrachtnummer)) s+=12; if(norm(o.status)) s+=8; if(norm(o.start||o.date||o.deliveryDate||o.eventDate)) s+=9; if(norm(o.end||o.returnDate||o.endDate)) s+=5; if(titleOf(o)!=='(zonder titel)') s+=6; if(o.customer && Object.keys(o.customer||{}).length) s+=5; if(o.location && Object.keys(o.location||{}).length) s+=5; if(Array.isArray(o.materials) && o.materials.length) s+=10; if(norm(o.extra||o.notes||o.description)) s+=3; if(norm(o.driver||o.driverName||o.bezorgerName)) s+=4; if(o.invoice && Object.keys(o.invoice||{}).length) s+=5; if(o.customerSignature || o.doneAt || (Array.isArray(o.photos)&&o.photos.length) || (Array.isArray(o.media)&&o.media.length)) s+=18; if(Number(o.amount||o.total||0)>0 || (o.pricing && Number(o.pricing.grand||0)>0)) s+=5; return s; }
+function docType(row){ if(row.docId===row.number) return 'vast'; if(/^old_/i.test(row.docId)||/^old_/i.test(norm(row.order.id))) return 'old'; if(row.number && looksNr(row.number)) return 'random'; return 'onbekend'; }
+function score(row){ let s=completeness(row.order)+statusPriority(row.order); if(row.type==='vast') s+=8; if(row.type==='random') s+=5; if(row.type==='old') s-=30; if(stamp(row.order)) s+=4; return s; }
+function bestOf(arr){ return arr.slice().sort((a,b)=>b.score-a.score || String(stamp(b.order)).localeCompare(String(stamp(a.order))) || a.docId.localeCompare(b.docId))[0]; }
+function buildProposal(raw){
+  const rows=raw.map(r=>{ const n=orderNumber(r.order,r.docId); const row={docId:r.docId, number:n, order:r.order}; row.type=docType(row); row.status=norm(r.order.status); row.start=norm(r.order.start||r.order.date||r.order.deliveryDate||r.order.eventDate).slice(0,10); row.title=titleOf(r.order); row.stamp=stamp(r.order); row.kind=statusKind(r.order); row.score=score(row); return row; });
+  const groups=new Map(); rows.forEach(r=>{ const k=r.number||'(geen nummer)'; if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(r); });
+  const plans=[];
+  groups.forEach((arr,number)=>{
+    if(arr.length<2 || !looksNr(number)) return;
+    const best=bestOf(arr);
+    const keepDoc=number;
+    const deleteDocs=arr.filter(x=>x.docId!==keepDoc).map(x=>x.docId);
+    const fixed=arr.find(x=>x.docId===keepDoc);
+    const mustCopy=!fixed || best.docId!==keepDoc;
+    let action=mustCopy?'copy-best-to-fixed-then-delete-others':'keep-fixed-delete-others';
+    let why=mustCopy?'Beste bron is niet de vaste doc-id; kopieer beste inhoud naar '+keepDoc+' en verwijder alle andere docs.':'Vaste doc-id lijkt beste bron; verwijder alle andere docs.';
+    plans.push({number,count:arr.length,keepDoc,sourceDoc:best.docId,action,why,copy:mustCopy,deleteDocs,docs:arr.slice().sort((a,b)=>b.score-a.score).map(x=>({docId:x.docId,type:x.type,status:x.status,kind:x.kind,start:x.start,title:x.title,score:x.score,updated:x.stamp}))});
+  });
+  plans.sort((a,b)=>a.number.localeCompare(b.number));
+  return {tool:'Tapwagen v755 force dubbele opdrachten cleanup',createdAt:new Date().toISOString(),summary:{orders:rows.length,duplicateNumbers:plans.length,copyFirst:plans.filter(p=>p.copy).length,deleteDocs:plans.reduce((s,p)=>s+p.deleteDocs.length,0)},plans,orders:rows.map(r=>({number:r.number,docId:r.docId,type:r.type,status:r.status,kind:r.kind,start:r.start,title:r.title,score:r.score,updated:r.stamp,order:r.order}))};
+}
+function pill(t,cls){ return '<span class="pill '+(cls||'')+'">'+esc(t)+'</span>'; }
+function updateStats(){ if(!proposal){return;} const s=proposal.summary; $('sOrders').textContent=s.orders; $('sDupNums').textContent=s.duplicateNumbers; $('sSelected').textContent=selected.size; $('sCopy').textContent=proposal.plans.filter(p=>selected.has(p.number)&&p.copy).length; $('sDelDocs').textContent=proposal.plans.filter(p=>selected.has(p.number)).reduce((sum,p)=>sum+p.deleteDocs.length,0); $('sBackup').textContent=backupDone?'ja':'nee'; $('sAfter').textContent=afterDup; $('btnRun').disabled=!backupDone || selected.size===0; $('conclusion').innerHTML='<b>'+s.duplicateNumbers+'</b> dubbele nummers gevonden. <b>'+selected.size+'</b> geselecteerd. Na cleanup hoort controle 0 te zijn. Backup: '+(backupDone?'<b class="ok">gemaakt</b>.':'<b class="bad">nog niet gemaakt</b>.'); }
+function renderPlans(){ const f=low($('filterPlans').value); const rows=proposal.plans.filter(p=>!f || low(JSON.stringify(p)).includes(f)); let html='<div class="row head"><div></div><div>Nummer</div><div>Actie</div><div>Bewaarlocatie</div><div>Beste bron</div><div>Verwijderen</div><div>Alle docs</div></div>'; for(const p of rows){ const checked=selected.has(p.number)?'checked':''; const docs=p.docs.map(x=>pill(x.docId+' '+x.kind+' score '+x.score,x.type==='vast'?'fixed':x.type==='random'?'random':'')).join(' '); const del=p.deleteDocs.map(d=>pill(d,'delete')).join(' '); const src=p.docs.find(x=>x.docId===p.sourceDoc)||{}; const srcHtml=esc(p.sourceDoc)+'<br>'+pill(src.kind||'',src.kind==='uitgevoerd'?'exec':src.kind==='actief'?'active':src.kind==='laag'?'deleted':'')+' '+esc(src.status||'')+'<br>'+esc(src.title||''); html+='<div class="row"><div><input type="checkbox" data-n="'+esc(p.number)+'" '+checked+'></div><div><b>'+esc(p.number)+'</b><br>'+p.count+' docs</div><div>'+pill(p.action,p.copy?'copy':'keep')+'</div><div>'+pill('orders/'+p.keepDoc,'fixed')+'</div><div>'+srcHtml+'</div><div>'+del+'</div><div>'+docs+'<br><span class="small">'+esc(p.why)+'</span></div></div>'; } $('plansList').innerHTML=html; document.querySelectorAll('input[type=checkbox][data-n]').forEach(cb=>{ cb.onchange=()=>{ if(cb.checked) selected.add(cb.dataset.n); else selected.delete(cb.dataset.n); updateStats(); }; }); }
+function selectAll(){ selected.clear(); proposal.plans.forEach(p=>selected.add(p.number)); renderPlans(); updateStats(); }
+function deselectAll(){ selected.clear(); renderPlans(); updateStats(); }
+function download(name,mime,text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:mime})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+function chunkString(str,size){ const out=[]; for(let i=0;i<str.length;i+=size) out.push(str.slice(i,i+size)); return out; }
+function nowId(){ return new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14); }
+async function makeBackup(){ status('Backup maken: live orders opnieuw lezen...'); const raw=await readOrders(); const data={kind:'before_duplicate_force_cleanup_v755',createdAt:new Date().toISOString(),orders:raw.map(r=>({id:r.docId,...r.order}))}; const json=JSON.stringify(data); backupId='orders_cleanup_before_v755_'+nowId(); const chunks=chunkString(json,850000); status('Backup schrijven naar backups/'+backupId+' ('+raw.length+' orders, '+chunks.length+' chunks)...'); await setDoc(doc(db,'backups',backupId),{kind:data.kind,createdAt:data.createdAt,count:raw.length,chunks:chunks.length,size:json.length,tool:'v755'}); for(let i=0;i<chunks.length;i++){ await setDoc(doc(db,'backups',backupId,'chunks',String(i).padStart(3,'0')),{index:i,data:chunks[i]}); } backupDone=true; status('Backup klaar: backups/'+backupId); updateStats(); }
+function canonicalFromSource(src,number){ const o=JSON.parse(JSON.stringify(src.order||{})); o.id=number; o.number=number; o.__bns755CanonicalFrom=src.docId; o.__bns755CanonicalAt=new Date().toISOString(); o.__bns755Backup=backupId; return o; }
+async function runCleanup(){
+  if(!backupDone) return alert('Maak eerst backup.');
+  const plans=proposal.plans.filter(p=>selected.has(p.number));
+  if(!plans.length) return alert('Niets geselecteerd.');
+  const delCount=plans.reduce((s,p)=>s+p.deleteDocs.length,0);
+  if(!confirm('Force cleanup voor '+plans.length+' dubbele nummers.\nTe verwijderen docs: '+delCount+'\nBackup: '+backupId+'\n\nDoorgaan?')) return;
+  $('btnRun').disabled=true; $('btnAnalyze').disabled=true; $('btnBackup').disabled=true;
+  try{
+    for(const p of plans){
+      status('Verwerk '+p.number+'...');
+      const src=proposal.orders.find(r=>r.docId===p.sourceDoc && r.number===p.number);
+      if(!src) throw new Error('Bron niet gevonden voor '+p.number+' / '+p.sourceDoc);
+      const canonical=canonicalFromSource(src,p.number);
+      await setDoc(doc(db,'orders',p.keepDoc), canonical, {merge:false});
+      status('  bewaard/gekopieerd naar vaste doc-id orders/'+p.keepDoc+' vanaf '+p.sourceDoc);
+      for(const delId of p.deleteDocs){
+        if(delId===p.keepDoc) throw new Error('Veiligheidsstop: deleteDoc is gelijk aan keepDoc bij '+p.number);
+        await deleteDoc(doc(db,'orders',delId));
+        status('  verwijderd: orders/'+delId);
+      }
+    }
+    status('Cleanup klaar. Nu opnieuw controleren...');
+    await verifyOnly();
+    alert('Cleanup klaar. Controleer aantal overgebleven dubbelen in de samenvatting.');
+  }catch(e){ console.error(e); status('Fout tijdens cleanup: '+e.message); alert('Fout: '+e.message); }
+  finally{ $('btnAnalyze').disabled=false; $('btnBackup').disabled=false; updateStats(); }
+}
+async function analyze(){ backupDone=false; backupId=''; afterDup='-'; selected.clear(); status('Firebase orders lezen...'); const raw=await readOrders(); status('Force-voorstel maken...'); proposal=buildProposal(raw); selectAll(); $('btnBackup').disabled=false; $('btnJson').disabled=false; $('btnSelectAll').disabled=false; $('btnDeselectAll').disabled=false; $('btnVerify').disabled=false; status('Voorstel klaar. Nog niets gewijzigd.'); }
+async function verifyOnly(){ const raw=await readOrders(); const p=buildProposal(raw); afterDup=String(p.summary.duplicateNumbers); status('Controle na lezen: '+p.summary.duplicateNumbers+' dubbele nummers, '+p.summary.orders+' orders.'); updateStats(); if(p.summary.duplicateNumbers>0){ log('Overgebleven dubbelen: '+p.plans.map(x=>x.number).join(', ')); } }
+$('btnAnalyze').onclick=async()=>{ try{ $('btnAnalyze').disabled=true; await analyze(); }catch(e){ console.error(e); status('Fout: '+e.message); alert('Fout: '+e.message); } finally{$('btnAnalyze').disabled=false;} };
+$('btnBackup').onclick=async()=>{ try{ $('btnBackup').disabled=true; await makeBackup(); }catch(e){ console.error(e); status('Backup fout: '+e.message); alert('Backup fout: '+e.message); $('btnBackup').disabled=false; } };
+$('btnRun').onclick=runCleanup;
+$('btnVerify').onclick=async()=>{ try{ await verifyOnly(); }catch(e){ console.error(e); status('Controle fout: '+e.message); alert('Controle fout: '+e.message); } };
+$('btnJson').onclick=()=>download('tapwagen_v755_force_cleanup_voorstel_'+new Date().toISOString().slice(0,10)+'.json','application/json',JSON.stringify(proposal,null,2));
+$('btnSelectAll').onclick=selectAll; $('btnDeselectAll').onclick=deselectAll; $('filterPlans').addEventListener('input',()=>proposal&&renderPlans());
+</script>
+</body>
+</html>
