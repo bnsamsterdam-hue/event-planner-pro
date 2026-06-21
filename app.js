@@ -8087,13 +8087,16 @@ function showPage(p){
       return;
     }
   }catch(e){}
-  // BNS 747: weggaan van newOrder = velden leegmaken zodat factuur/bevestiging leeg zijn
+  // BNS 748: reset velden als:
+  // - we weggaan van newOrder naar andere pagina
+  // - we naar newOrder gaan terwijl editing nog gevuld is (vorige wijziging actief)
   try{
-    var _prev = window.__bns747Page||'';
-    window.__bns747Page = p;
-    if(_prev==='newOrder' && p!=='newOrder'){
-      editing=null;
-      if(typeof clearOrder==='function') clearOrder();
+    var _wasEditing = !!(typeof editing !== 'undefined' && editing);
+    var _prev = window.__bns748Page || '';
+    window.__bns748Page = p;
+    if((_prev === 'newOrder' && p !== 'newOrder') || (p === 'newOrder' && _wasEditing)){
+      editing = null;
+      if(typeof clearOrder === 'function') clearOrder();
     }
   }catch(e){}
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
@@ -51911,7 +51914,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!b){
       b=document.createElement('button'); b.type='button'; b.id='bnsV756TopBack'; b.textContent='← Terug naar opdrachten';
       b.style.cssText='display:block;margin:6px 0 10px;padding:10px 12px;border-radius:12px;border:0;background:#475569;color:#fff;font-weight:900;';
-      b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ editing=null; if(typeof clearOrder==='function') clearOrder(); }catch(e){} try{ if(typeof showPage==='function') showPage('orders'); }catch(e){} try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} scrollTopSoon(); },true); // BNS 747: clearOrder bij terug
+      b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); try{ editing=null; if(typeof clearOrder==='function') clearOrder(); }catch(e){} try{ if(typeof showPage==='function') showPage('orders'); }catch(e){} try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} scrollTopSoon(); },true); // BNS 748
       page.insertBefore(b,page.firstChild);
     }
   }
