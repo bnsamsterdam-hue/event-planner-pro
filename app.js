@@ -21437,13 +21437,8 @@ setTimeout(()=>{
   var oldAdd = window.addMat;
   setInterval(function(){
     // Als een oude patch addMat terugzet, zet hem weer terug naar V45 versie.
-    if (window.BNS_V45_PLANNING_DEBUG && window.addMat !== oldAdd && typeof oldAdd === "function") {
-      window.addMat = oldAdd;
-      try {
-        addMat = oldAdd;
-      } catch(e) {
-      }
-    }
+    // BNS 777: NIET terugzetten naar oldAdd - BNS 611 toggleMaterial611 is de correcte handler
+    // if (window.BNS_V45_PLANNING_DEBUG && window.addMat !== oldAdd ...) { UITGESCHAKELD }
     hideOldModals();
   }, 1500);
 })();
