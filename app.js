@@ -31843,23 +31843,29 @@ setTimeout(()=>{
     if(nee) nee.onclick=function(){ modal.classList.add('hidden'); };
     var ja=document.getElementById('bns778Ja');
     if(ja){
-      var _m=m;
+      var _m=m, _chosenList=chosenList, _setChosen=setChosen;
       ja.onclick=function(){
         modal.classList.add('hidden');
         try{
-          var list=typeof chosenList==='function'?chosenList():[];
-          if(!list.some(function(x){ return typeof sameMaterial==='function'&&sameMaterial(x,_m); })){
+          // Gebruik closure chosenList/setChosen van BNS V94
+          var list=_chosenList();
+          if(!list.some(function(x){ return sameMaterial(x,_m); })){
             var item=JSON.parse(JSON.stringify(_m));
             item.status='reserved';
             item.__bnsForceReserved=true;
             item.__bnsForceReservedAt=new Date().toISOString();
             if(item.qty==null)item.qty=1;
+            if(item.linePrice==null)item.linePrice=0;
+            if(item.lineDeposit==null)item.lineDeposit=0;
             list.push(item);
-            if(typeof setChosen==='function') setChosen(list);
+            _setChosen(list);
           }
-          if(typeof renderChosenSafe==='function') renderChosenSafe();
-          if(typeof renderMaterials==='function') renderMaterials(window.currentCat,false);
-        }catch(e){}
+          // Render via globals
+          try{ renderChosenSafe(); }catch(e){ try{ renderChosen(); }catch(e2){} }
+          try{ renderMaterials(window.currentCat,false); }catch(e){}
+          try{ summaryRender(); }catch(e){}
+          try{ calcTotals(); }catch(e){}
+        }catch(e){ console.warn('[BNS778] Ja onclick fout:',e); }
       };
     }
   }
