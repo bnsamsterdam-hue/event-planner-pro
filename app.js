@@ -31858,23 +31858,29 @@ setTimeout(()=>{
       ja781.onclick=function(){
         modal.classList.add('hidden');
         try{
-          var list=chosenList();
-          if(!list.some(function(x){ return sameMaterial(x,_m781); })){
-            var item=JSON.parse(JSON.stringify(_m781));
-            item.status='reserved';
-            item.__bnsForceReserved=true;
-            item.__bnsForceReservedAt=new Date().toISOString();
-            if(item.qty==null)item.qty=1;
-            if(item.linePrice==null)item.linePrice=0;
-            if(item.lineDeposit==null)item.lineDeposit=0;
-            list.push(item);
-            setChosenList(list);
+          var item=JSON.parse(JSON.stringify(_m781));
+          item.status='reserved';
+          item.__bnsForceReserved=true;
+          item.__bnsForceReservedAt=new Date().toISOString();
+          if(item.qty==null) item.qty=1;
+          if(item.linePrice==null) item.linePrice=0;
+          if(item.lineDeposit==null) item.lineDeposit=0;
+          // Voeg direct toe aan de globale chosen array
+          if(!Array.isArray(window.chosen)) window.chosen=[];
+          var al=window.chosen.some(function(x){
+            return x && (String(x.id)===String(item.id) || (x.code&&x.code===item.code));
+          });
+          if(!al){
+            window.chosen.push(item);
+            // Probeer ook de let chosen variabele bij te werken
+            try{ chosen=window.chosen; }catch(e){}
           }
-          try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
-          try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-          try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
-          try{ if(typeof renderMaterials==='function') renderMaterials(window.currentCat,false); }catch(e){}
-        }catch(e){}
+          // Render
+          try{ renderChosen(); }catch(e){}
+          try{ summaryRender(); }catch(e){}
+          try{ calcLineTotals(); }catch(e){ try{ calcTotals(); }catch(e2){} }
+          try{ renderMaterials(window.currentCat,false); }catch(e){}
+        }catch(e){ console.warn('[BNS781] Ja fout:',e); }
       };
     }
   }
