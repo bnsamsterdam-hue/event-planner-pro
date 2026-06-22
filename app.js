@@ -31823,8 +31823,45 @@ setTimeout(()=>{
       document.body.appendChild(modal);
     }
     var o=r && r.order, p=r && r.period, w=r && r.wanted;
-    modal.innerHTML='<div class="card"><h2>Materiaal status</h2><div class="box"><b>'+H((m&&m.code)||materialCode(m))+'</b> '+H(productName(m))+'<br><br><b>Status:</b> Gereserveerd<br><b>Klant:</b> '+H((o&&o.customer&&o.customer.name)||o&&o.customerName||'Onbekend')+'<br><b>Opdracht:</b> '+H((o&&o.number)||'')+' - '+H((o&&o.title)||'')+'<br><b>Datum reservering:</b> '+H(nice(p&&p.start))+' tot '+H(nice(p&&p.end))+(w?'<br><b>Jouw datum:</b> '+H(nice(w.start))+' tot '+H(nice(w.end)):'')+'</div><button type="button" onclick="document.getElementById(\''+MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button></div>';
+    // BNS 778: Ja/Nee knoppen
+    modal.innerHTML='<div class="card"><h2>Materiaal status</h2>'
+      +'<div class="box"><b>'+H((m&&m.code)||materialCode(m))+'</b> '+H(productName(m))
+      +'<br><br><b>Status:</b> Gereserveerd'
+      +'<br><b>Klant:</b> '+H((o&&o.customer&&o.customer.name)||o&&o.customerName||'Onbekend')
+      +'<br><b>Opdracht:</b> '+H((o&&o.number)||'')+' - '+H((o&&o.title)||'')
+      +'<br><b>Datum reservering:</b> '+H(nice(p&&p.start))+' tot '+H(nice(p&&p.end))
+      +(w?'<br><b>Jouw datum:</b> '+H(nice(w.start))+' tot '+H(nice(w.end)):'')
+      +'</div>'
+      +'<p style="margin:10px 0 12px;font-size:14px">Wil je dit materiaal toch inzetten?</p>'
+      +'<div style="display:flex;gap:10px">'
+      +'<button type="button" id="bns778Ja" style="flex:1;padding:11px;background:#15803d;color:#fff;border:0;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer">Ja, toch inzetten</button>'
+      +'<button type="button" id="bns778Nee" style="flex:1;padding:11px;background:#dc2626;color:#fff;border:0;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer">Nee</button>'
+      +'</div></div>';
     modal.className='';
+    // Knoppen
+    var nee=document.getElementById('bns778Nee');
+    if(nee) nee.onclick=function(){ modal.classList.add('hidden'); };
+    var ja=document.getElementById('bns778Ja');
+    if(ja){
+      var _m=m;
+      ja.onclick=function(){
+        modal.classList.add('hidden');
+        try{
+          var list=typeof chosenList==='function'?chosenList():[];
+          if(!list.some(function(x){ return typeof sameMaterial==='function'&&sameMaterial(x,_m); })){
+            var item=JSON.parse(JSON.stringify(_m));
+            item.status='reserved';
+            item.__bnsForceReserved=true;
+            item.__bnsForceReservedAt=new Date().toISOString();
+            if(item.qty==null)item.qty=1;
+            list.push(item);
+            if(typeof setChosen==='function') setChosen(list);
+          }
+          if(typeof renderChosenSafe==='function') renderChosenSafe();
+          if(typeof renderMaterials==='function') renderMaterials(window.currentCat,false);
+        }catch(e){}
+      };
+    }
   }
   function labelRow(row,m,r){
     if(!row || !m || !r) return;
