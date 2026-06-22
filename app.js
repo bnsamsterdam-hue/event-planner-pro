@@ -31652,6 +31652,10 @@ setTimeout(()=>{
   function overlaps(a,b){
     return !!(a && b && a.start.getTime() <= b.end.getTime() && b.start.getTime() <= a.end.getTime());
   }
+  // BNS 785: retourdag = overlap alleen omdat b.start === a.end (zelfde dag retour en start)
+  function isRetourOnly(a,b){
+    return !!(a && b && a.end.getTime() === b.start.getTime());
+  }
   function editingId(){
     try{
       if(typeof editing !== 'undefined' && editing) return String(editing);
@@ -31788,9 +31792,59 @@ setTimeout(()=>{
       modal.id=MODAL_ID;
       document.body.appendChild(modal);
     }
-    var o=r && r.order, p=r && r.period, w=r && r.wanted;
-    modal.innerHTML='<div class="card"><h2>Materiaal status</h2><div class="box"><b>'+H((m&&m.code)||materialCode(m))+'</b> '+H(productName(m))+'<br><br><b>Status:</b> Gereserveerd<br><b>Klant:</b> '+H((o&&o.customer&&o.customer.name)||o&&o.customerName||'Onbekend')+'<br><b>Opdracht:</b> '+H((o&&o.number)||'')+' - '+H((o&&o.title)||'')+'<br><b>Datum reservering:</b> '+H(nice(p&&p.start))+' tot '+H(nice(p&&p.end))+(w?'<br><b>Jouw datum:</b> '+H(nice(w.start))+' tot '+H(nice(w.end)):'')+'</div><button type="button" onclick="document.getElementById(\''+MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button></div>';
+    var o=r&&r.order, p=r&&r.period, w=r&&r.wanted;
+    // BNS 785: retourdag check
+    var retour = !!(p && w && isRetourOnly(p,w));
+    var infoHtml='<div class="card">'
+      +'<h2 style="color:'+(retour?'#b45309':'#991b1b')+'">Materiaal status</h2>'
+      +'<div class="box">'
+      +'<b>'+H((m&&m.code)||materialCode(m))+'</b> '+H(productName(m))+'<br><br>'
+      +'<b>Status:</b> '+(retour?'Komt retour op jouw startdatum':'Gereserveerd')+'<br>'
+      +'<b>Klant:</b> '+H((o&&o.customer&&o.customer.name)||(o&&o.customerName)||'Onbekend')+'<br>'
+      +'<b>Opdracht:</b> '+H((o&&o.number)||'')+' - '+H((o&&o.title)||'')+'<br>'
+      +'<b>Datum reservering:</b> '+H(nice(p&&p.start))+' tot '+H(nice(p&&p.end))
+      +(w?'<br><b>Jouw datum:</b> '+H(nice(w.start))+' tot '+H(nice(w.end)):'')
+      +'</div>';
+    if(retour){
+      infoHtml+='<p style="color:#b45309;margin:10px 0">Alleen mogelijk als direct doorgeplaatst.</p>'
+        +'<div style="display:flex;gap:10px">'
+        +'<button type="button" id="bns785Ja" style="flex:1;padding:11px;background:#15803d;color:#fff;border:0;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer">Ja, direct doorplaatsen</button>'
+        +'<button type="button" id="bns785Nee" style="flex:1;padding:11px;background:#dc2626;color:#fff;border:0;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer">Nee</button>'
+        +'</div>';
+    } else {
+      infoHtml+='<button type="button" id="bns785Sluit">Sluiten</button>';
+    }
+    infoHtml+='</div>';
+    modal.innerHTML=infoHtml;
     modal.className='';
+    var sluit785=document.getElementById('bns785Sluit');
+    if(sluit785) sluit785.onclick=function(){ modal.classList.add('hidden'); };
+    if(retour){
+      var nee=document.getElementById('bns785Nee');
+      if(nee) nee.onclick=function(){ modal.classList.add('hidden'); };
+      var ja=document.getElementById('bns785Ja');
+      if(ja){
+        var _m=m;
+        ja.onclick=function(){
+          modal.classList.add('hidden');
+          // Gewoon toevoegen als normaal materiaal - geen force, geen bypass
+          var list=chosenList();
+          if(!list.some(function(x){ return sameMaterial(x,_m); })){
+            var item=JSON.parse(JSON.stringify(_m));
+            item.status='reserved';
+            if(item.qty==null) item.qty=1;
+            if(item.linePrice==null) item.linePrice=0;
+            if(item.lineDeposit==null) item.lineDeposit=0;
+            list.push(item);
+            setChosenList(list);
+          }
+          try{ renderChosen(); }catch(e){}
+          try{ summaryRender(); }catch(e){}
+          try{ calcTotals(); }catch(e){}
+          try{ renderMaterials(window.currentCat,false); }catch(e){}
+        };
+      }
+    }
   }
   function labelRow(row,m,r){
     if(!row || !m || !r) return;
@@ -49629,11 +49683,18 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function materialByKey(k){ k=T(k); return materials().find(function(m){ return T(matId(m))===k || U(codeOf(m))===U(k); }) || null; }
   function rowHtml(m){
     var st=statusFor(m), cls='bns611-'+st.key, col=catColor(catOf(m));
-    var title = st.key==='reserved' ? 'Gereserveerd - klik voor klant/opdracht' : st.label;
-    return '<div class="material-row bns611-row '+cls+'" data-bns611-mid="'+H(matId(m)||codeOf(m))+'" data-material-id="'+H(matId(m)||codeOf(m))+'" data-bns611-reserved="'+(st.key==='reserved'?'1':'0')+'" title="'+H(title)+'" style="--cat-color:'+H(col)+'">'
+    // BNS 785: check retourdag voor oranje badge
+    var r611=st.key==='reserved'?reservationFor(m):null;
+    var wp611=r611?currentRange():null;
+    var rp611=r611?r611.period:null;
+    var isRetour611=!!(rp611&&wp611&&isRetourOnly(rp611,wp611));
+    var badgeStyle=isRetour611?'style="background:#f97316;color:#fff;font-size:11px;white-space:normal;text-align:center;line-height:1.2;max-width:130px"':'';
+    var badgeLabel=isRetour611?'Komt retour op jouw startdatum':H(st.label);
+    var title=isRetour611?'Komt retour - klik om door te plaatsen':(st.key==='reserved'?'Gereserveerd - klik voor klant/opdracht':st.label);
+    return '<div class="material-row bns611-row '+cls+'" data-bns611-mid="'+H(matId(m)||codeOf(m))+'" data-material-id="'+H(matId(m)||codeOf(m))+'" data-bns611-reserved="'+(st.key==='reserved'?'1':'0')+'" title="'+H(title)+'" style="--cat-color:'+H(col)+(isRetour611?';border-color:#f97316!important;background:#fff7ed!important;cursor:pointer!important':'')+'">'
       +'<div class="bns611-strip" style="background:'+H(col)+'"></div>'
-      +'<div class="bns611-text"><b>'+H(codeOf(m))+'</b> <span>'+H(nameOf(m))+'</span><br><small>'+H(descOf(m)||'')+(st.key==='reserved'?' · Klik voor klant/opdracht':'')+'</small></div>'
-      +'<div class="bns611-badge">'+H(st.label)+'</div></div>';
+      +'<div class="bns611-text"><b>'+H(codeOf(m))+'</b> <span>'+H(nameOf(m))+'</span><br><small>'+H(descOf(m)||'')+(isRetour611?' · Klik om door te plaatsen':st.key==='reserved'?' · Klik voor klant/opdracht':'')+'</small></div>'
+      +'<div class="bns611-badge" '+badgeStyle+'>'+badgeLabel+'</div></div>';
   }
   var lastSig='';
   function renderMaterials611(cat,force){
