@@ -31843,12 +31843,12 @@ setTimeout(()=>{
     if(nee) nee.onclick=function(){ modal.classList.add('hidden'); };
     var ja=document.getElementById('bns778Ja');
     if(ja){
-      var _m=m, _chosenList=chosenList, _setChosen=setChosen;
+      var _m=m;
       ja.onclick=function(){
         modal.classList.add('hidden');
         try{
-          // Gebruik closure chosenList/setChosen van BNS V94
-          var list=_chosenList();
+          // Gebruik BNS V94 closure functies
+          var list=chosenList();
           if(!list.some(function(x){ return sameMaterial(x,_m); })){
             var item=JSON.parse(JSON.stringify(_m));
             item.status='reserved';
@@ -31858,14 +31858,14 @@ setTimeout(()=>{
             if(item.linePrice==null)item.linePrice=0;
             if(item.lineDeposit==null)item.lineDeposit=0;
             list.push(item);
-            _setChosen(list);
+            setChosenList(list);
           }
-          // Render via globals
-          try{ renderChosenSafe(); }catch(e){ try{ renderChosen(); }catch(e2){} }
-          try{ renderMaterials(window.currentCat,false); }catch(e){}
-          try{ summaryRender(); }catch(e){}
-          try{ calcTotals(); }catch(e){}
-        }catch(e){ console.warn('[BNS778] Ja onclick fout:',e); }
+          // Render - probeer alle bekende render functies
+          try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
+          try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
+          try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
+          try{ if(typeof renderMaterials==='function') renderMaterials(window.currentCat,false); }catch(e){}
+        }catch(e){ console.warn('[BNS778] Ja fout:',e); }
       };
     }
   }
