@@ -49570,20 +49570,26 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(/defect|schade|damage|missing|vermist/.test(raw)) return {key:'defect',label:'Defect',blocked:true};
     if(/inactive|niet actief|niet beschikbaar/.test(raw)) return {key:'inactive',label:'Niet actief',blocked:true};
     if(!currentRange()) return {key:'nodate',label:'Datum nodig',blocked:true};
-    // BNS 786: materiaal is vrij maar check of er een opdracht is die vandaag eindigt
-    // Einddatum = vandaag -> oranje badge. Materiaal blijft vrij, alleen andere naam.
+    // BNS 786: materiaal is vrij maar check of er een opdracht eindigt
+    // op de startdatum van de nieuwe opdracht -> oranje retour badge
     try{
+      var w786=currentRange();
       var today786=new Date(); today786.setHours(0,0,0,0);
+      // Vergelijk met startdatum nieuwe opdracht OF vandaag als geen datum ingevuld
+      var checkDate786 = w786 ? w786.start : today786;
       var os786=orders();
       for(var i786=0;i786<os786.length;i786++){
         var o786=os786[i786];
         if(!o786||!blocksOrder(o786)) continue;
         var op786=orderRange(o786); if(!op786) continue;
-        // Einddatum = vandaag
-        if(op786.end.getTime()===today786.getTime()){
+        // Einddatum bestaande opdracht = startdatum nieuwe opdracht
+        if(op786.end.getTime()===checkDate786.getTime()){
           var ml786=A(o786.materials||[]);
           if(ml786.some(function(x){ return sameMaterial(x,m); })){
-            return {key:'retour',label:'Materiaal komt vandaag retour',blocked:false,
+            var label786 = checkDate786.getTime()===today786.getTime()
+              ? 'Materiaal komt vandaag retour'
+              : 'Materiaal komt retour op startdatum';
+            return {key:'retour',label:label786,blocked:false,
               retourOrder:o786,retourPeriod:op786};
           }
         }
