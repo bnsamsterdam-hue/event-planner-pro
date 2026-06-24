@@ -31788,9 +31788,47 @@ setTimeout(()=>{
       modal.id=MODAL_ID;
       document.body.appendChild(modal);
     }
-    var o=r && r.order, p=r && r.period, w=r && r.wanted;
-    modal.innerHTML='<div class="card"><h2>Materiaal status</h2><div class="box"><b>'+H((m&&m.code)||materialCode(m))+'</b> '+H(productName(m))+'<br><br><b>Status:</b> Gereserveerd<br><b>Klant:</b> '+H((o&&o.customer&&o.customer.name)||o&&o.customerName||'Onbekend')+'<br><b>Opdracht:</b> '+H((o&&o.number)||'')+' - '+H((o&&o.title)||'')+'<br><b>Datum reservering:</b> '+H(nice(p&&p.start))+' tot '+H(nice(p&&p.end))+(w?'<br><b>Jouw datum:</b> '+H(nice(w.start))+' tot '+H(nice(w.end)):'')+'</div><button type="button" onclick="document.getElementById(\''+MODAL_ID+'\').classList.add(\'hidden\')">Sluiten</button></div>';
+    var o=r&&r.order, p=r&&r.period, w=r&&r.wanted;
+    // BNS 792: retourdag check - einddatum reservering = jouw startdatum
+    var isRetour=!!(p&&w&&p.end.getTime()===w.start.getTime());
+    var infoHtml='<div class="card">'
+      +'<h2 style="color:'+(isRetour?'#b45309':'inherit')+'">Materiaal status</h2>'
+      +'<div class="box"><b>'+H((m&&m.code)||materialCode(m))+'</b> '+H(productName(m))+'<br><br>'
+      +'<b>Status:</b> '+(isRetour?'Komt retour op jouw startdatum':'Gereserveerd')+'<br>'
+      +'<b>Klant:</b> '+H((o&&o.customer&&o.customer.name)||(o&&o.customerName)||'Onbekend')+'<br>'
+      +'<b>Opdracht:</b> '+H((o&&o.number)||'')+' - '+H((o&&o.title)||'')+'<br>'
+      +'<b>Datum reservering:</b> '+H(nice(p&&p.start))+' tot '+H(nice(p&&p.end))
+      +(w?'<br><b>Jouw datum:</b> '+H(nice(w.start))+' tot '+H(nice(w.end)):'')
+      +'</div>';
+    if(isRetour){
+      infoHtml+='<p style="color:#b45309;margin:10px 0 12px;font-size:14px">Alleen inzetbaar als dit materiaal direct wordt doorgezet.</p>'
+        +'<div style="display:flex;gap:10px">'
+        +'<button type="button" id="bns792Ja" style="flex:1;padding:11px;background:#15803d;color:#fff;border:0;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer">Ja, direct doorplaatsen</button>'
+        +'<button type="button" id="bns792Nee" style="flex:1;padding:11px;background:#dc2626;color:#fff;border:0;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer">Nee</button>'
+        +'</div>';
+    } else {
+      infoHtml+='<button type="button" id="bns792Sluit" style="margin-top:10px">Sluiten</button>';
+    }
+    infoHtml+='</div>';
+    modal.innerHTML=infoHtml;
     modal.className='';
+    var sluit=document.getElementById('bns792Sluit');
+    if(sluit) sluit.onclick=function(){ modal.classList.add('hidden'); };
+    if(isRetour){
+      var nee=document.getElementById('bns792Nee');
+      if(nee) nee.onclick=function(){ modal.classList.add('hidden'); };
+      var ja=document.getElementById('bns792Ja');
+      if(ja){
+        var _m=m;
+        ja.onclick=function(){
+          modal.classList.add('hidden');
+          // Materiaal toevoegen - gebruik BNS_V611 toggleMaterial direct
+          var fn=window.BNS_V611&&window.BNS_V611.toggleMaterial;
+          if(typeof fn==='function') fn(matId(_m)||codeOf(_m));
+          else if(typeof toggleMaterial611==='function') toggleMaterial611(matId(_m)||codeOf(_m));
+        };
+      }
+    }
   }
   function labelRow(row,m,r){
     if(!row || !m || !r) return;
