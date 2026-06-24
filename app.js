@@ -49570,25 +49570,6 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(/defect|schade|damage|missing|vermist/.test(raw)) return {key:'defect',label:'Defect',blocked:true};
     if(/inactive|niet actief|niet beschikbaar/.test(raw)) return {key:'inactive',label:'Niet actief',blocked:true};
     if(!currentRange()) return {key:'nodate',label:'Datum nodig',blocked:true};
-    // BNS 793: oranje badge als er een opdracht eindigt op jouw startdatum
-    try{
-      var w793=currentRange();
-      if(w793){
-        var src793=window.state||stateObj();
-        var os793=(src793&&Array.isArray(src793.orders))?src793.orders:orders();
-        for(var i793=0;i793<os793.length;i793++){
-          var o793=os793[i793]; if(!o793||!blocksOrder(o793)) continue;
-          var op793=orderRange(o793); if(!op793) continue;
-          if(op793.end.getTime()===w793.start.getTime()){
-            var ml793=A(o793.materials||[]);
-            if(ml793.some(function(x){ return sameMaterial(x,m); })){
-              return {key:'retour',label:'Komt vandaag retour',blocked:false,
-                retourOrder:o793,retourPeriod:op793};
-            }
-          }
-        }
-      }
-    }catch(_){}
     return {key:'free',label:'Vrij',blocked:false};
   }
 
@@ -49605,8 +49586,6 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       +'#materialList .bns611-free .bns611-badge{background:#dff5e8!important;color:#073d22!important}'
       +'#materialList .bns611-reserved{border-color:#ef4444!important;background:#fff1f2!important;cursor:not-allowed!important;box-shadow:0 0 0 2px rgba(239,68,68,.08)!important}'
       +'#materialList .bns611-reserved .bns611-badge{background:#dc2626!important;color:#fff!important}'
-      +'#materialList .bns611-retour{border-color:#f97316!important;background:#fff7ed!important}'
-      +'#materialList .bns611-retour .bns611-badge{background:#f97316!important;color:#fff!important}'
       +'#materialList .bns611-chosen{border-color:#2563eb!important;background:#eff6ff!important}'
       +'#materialList .bns611-chosen .bns611-badge{background:#dbeafe!important;color:#1e3a8a!important}'
       +'#materialList .bns611-defect .bns611-badge,#materialList .bns611-inactive .bns611-badge,#materialList .bns611-nodate .bns611-badge{background:#e5e7eb!important;color:#111827!important}'
@@ -49680,51 +49659,6 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(keepCat){ window.currentCat=keepCat; try{ currentCat=keepCat; }catch(e){} }
     var st=statusFor(m);
     if(st.key==='reserved' || st.blocked){ showInfo(m,st); renderMaterials611(keepCat||window.currentCat,true); return false; }
-    // BNS 793: retour popup
-    if(st.key==='retour'){
-      var _kc=keepCat,_m7=m,_st7=st;
-      var MID7='bns793Modal';
-      var mdl7=E(MID7)||document.createElement('div');
-      mdl7.id=MID7;
-      mdl7.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;padding:18px';
-      if(!E(MID7)) document.body.appendChild(mdl7);
-      var o7=_st7.retourOrder,p7=_st7.retourPeriod;
-      function fd7(d){try{return d?String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear():'?';}catch(e){return '?';}}
-      mdl7.innerHTML='<div style="background:#fff;border-radius:18px;padding:22px;max-width:430px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
-        +'<h2 style="margin:0 0 12px;font-size:17px;color:#b45309">&#9888; Materiaal komt vandaag retour</h2>'
-        +'<div style="border:1px solid #fed7aa;border-radius:12px;padding:14px;margin-bottom:14px;font-size:14px;line-height:1.8;background:#fff7ed">'
-        +'<b>'+H(codeOf(_m7))+' '+H(nameOf(_m7))+'</b><br>'
-        +(o7?'Opdracht: <b>'+H(o7.number||'')+' - '+H(o7.title||(o7.customer&&o7.customer.name)||'')+'</b><br>':'')
-        +(p7?'Retour op: <b>'+fd7(p7.end)+'</b>':'')
-        +'</div>'
-        +'<p style="margin:0 0 16px;font-size:14px">Alleen inzetbaar als direct doorgezet naar nieuwe opdracht.</p>'
-        +'<div style="display:flex;gap:10px">'
-        +'<button id="bns793Ja" style="flex:1;padding:12px;background:#15803d;color:#fff;border:0;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer">Ja, direct doorplaatsen</button>'
-        +'<button id="bns793Nee" style="flex:1;padding:12px;background:#dc2626;color:#fff;border:0;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer">Nee</button>'
-        +'</div></div>';
-      mdl7.style.display='flex';
-      document.getElementById('bns793Nee').onclick=function(){mdl7.style.display='none';};
-      document.getElementById('bns793Ja').onclick=function(){
-        mdl7.style.display='none';
-        var item7=clone(_m7);item7.status='reserved';
-        if(item7.qty==null)item7.qty=1;
-        if(item7.linePrice==null)item7.linePrice=0;
-        if(item7.lineDeposit==null)item7.lineDeposit=0;
-        var list7=chosenList();
-        if(!list7.some(function(x){return sameMaterial(x,_m7);})){
-          list7.push(item7);
-          setChosen(list7);
-          // Zorg dat de hoofd chosen variabele ook bijgewerkt wordt
-          try{ chosen=list7; }catch(e){}
-          window.chosen=list7;
-        }
-        try{ renderChosen(); }catch(e){}
-        try{ summaryRender(); }catch(e){}
-        try{ calcTotals(); }catch(e){}
-        renderMaterials611(_kc||window.currentCat,true);
-      };
-      return false;
-    }
     var exists=chosenList().some(function(x){ return sameMaterial(x,m); });
     if(exists){ setChosen(chosenList().filter(function(x){ return !sameMaterial(x,m); })); renderChosenSafe(); renderMaterials611(keepCat||window.currentCat,true); return false; }
     var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
