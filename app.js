@@ -49577,7 +49577,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       var today786=new Date(); today786.setHours(0,0,0,0);
       // Vergelijk met startdatum nieuwe opdracht OF vandaag als geen datum ingevuld
       var checkDate786 = w786 ? w786.start : today786;
-      var os786=orders();
+      // Gebruik beste statebron (window.state kan meer orders hebben dan let state)
+      var _s786=stateObj();
+      var _ws786=window.state;
+      var _lo786=(_s786&&Array.isArray(_s786.orders))?_s786.orders.length:0;
+      var _wo786=(_ws786&&Array.isArray(_ws786.orders))?_ws786.orders.length:0;
+      var _best786=(_wo786>_lo786)?_ws786:_s786;
+      var os786=(_best786&&Array.isArray(_best786.orders))?_best786.orders:orders();
       for(var i786=0;i786<os786.length;i786++){
         var o786=os786[i786];
         if(!o786||!blocksOrder(o786)) continue;
