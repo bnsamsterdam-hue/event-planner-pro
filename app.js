@@ -31846,25 +31846,25 @@ setTimeout(()=>{
     }
   }
   function patchAdd(){
-    if(!originalAddMat && typeof window.addMat === 'function') originalAddMat = window.addMat;
     if(window.addMat && window.addMat.__bnsV94Guard) return;
-    var prev = originalAddMat || window.addMat;
+    // BNS 786: gebruik altijd de meest recente addMat als prev (niet vroege versie)
+    var prev = window.addMat;
     var guarded=function(id){
       var m=byId(id) || byCodeFromText(id);
+      if(!m) return typeof prev === 'function' ? prev.apply(this, arguments) : false;
       var r=reservationFor(m);
       if(r){
         showReserved(m,r);
         patchRows();
         return false;
       }
+      // BNS 786: retour check - roep de echte toggleMaterial611 aan
+      // die heeft de retour popup ingebouwd
       return typeof prev === 'function' ? prev.apply(this, arguments) : false;
     };
     guarded.__bnsV94Guard = true;
     window.addMat = guarded;
-    try{
-      addMat = guarded;
-    } catch(e){
-    }
+    try{ addMat = guarded; } catch(e){}
   }
   function install(){
     css();
