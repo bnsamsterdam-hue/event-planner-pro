@@ -52530,3 +52530,140 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* BNS 787: centrale materiaal-overlap gelijkgetrokken. Einddatum/ophaaldag = vrij; oranje blijft alleen waarschuwing + Ja/Nee. Geen save-bypass, geen force-reservering. */
+
+/* =========================================================
+   BNS 788 - Wijzigen datum vast + mobiel bovenaan openen
+   Basis: v787.
+   Doel:
+   - Bij Wijzigen van bestaande opdracht exact opgeslagen begin/einde tonen.
+   - Geen automatische +3 dagen bij bestaande opdrachten.
+   - Op mobiel na Wijzigen bovenaan het formulier starten.
+   Raakt niet: materiaalreservering, retourdaglogica, save/Firebase, driver/telefoon.
+========================================================= */
+(function BNS_788_EDIT_DATUM_MOBIEL_BOVEN(){
+  'use strict';
+  if(window.__BNS788_EDIT_DATUM_MOBIEL_BOVEN__) return;
+  window.__BNS788_EDIT_DATUM_MOBIEL_BOVEN__ = true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function E(id){ return document.getElementById(id); }
+  function arr(v){ return Array.isArray(v) ? v : []; }
+  function S(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || {}; }
+  function orderId(o){ return T(o && (o.id || o.orderId || o.docId)); }
+  function orderNo(o){ return T(o && (o.number || o.orderNumber)); }
+  function startOf(o){ return T(o && (o.start || o.dateStart || o.startDate || o.datumStart || o.date)); }
+  function endOf(o){ return T(o && (o.end || o.dateEnd || o.endDate || o.datumEnd || o.finish || o.start || o.dateStart || o.startDate || o.date)); }
+  function findOrder(id){
+    id = T(id);
+    var orders = arr(S().orders);
+    return orders.find(function(o){ return orderId(o) === id || orderNo(o) === id; }) || null;
+  }
+  function setVal(id,v){ var el=E(id); if(el) el.value = v==null ? '' : String(v); }
+  function restoreDates(o){
+    if(!o) return;
+    var s = startOf(o), e = endOf(o) || s;
+    if(s) setVal('dateStart', s);
+    if(e) setVal('dateEnd', e);
+    window.__BNS788_EDITING_ORDER_ID__ = orderId(o) || orderNo(o);
+    window.__BNS788_EDITING_ORDER_START__ = s;
+    window.__BNS788_EDITING_ORDER_END__ = e;
+  }
+  function hardTop(){
+    try{ window.scrollTo(0,0); }catch(e){}
+    try{ document.documentElement.scrollTop = 0; }catch(e){}
+    try{ document.body.scrollTop = 0; }catch(e){}
+    try{
+      document.querySelectorAll('#newOrder,.page,.workpanel,.adminPane,main,section,.app,.content,.screen,.container').forEach(function(x){
+        try{ x.scrollTop = 0; x.scrollLeft = 0; }catch(e){}
+      });
+    }catch(e){}
+  }
+  function afterEdit(o){
+    [0,30,90,180,360,700,1200].forEach(function(ms){
+      setTimeout(function(){ restoreDates(o); hardTop(); }, ms);
+    });
+  }
+
+  // Automatische +3 dagen mag alleen bij nieuwe opdracht, niet tijdens Wijzigen.
+  try{
+    if(typeof window.setEndThreeDays === 'function' && !window.setEndThreeDays.__bns788){
+      var oldSetEnd3 = window.setEndThreeDays;
+      var newSetEnd3 = function(){
+        if(window.__BNS788_EDITING_ORDER_ID__){ return false; }
+        return oldSetEnd3.apply(this, arguments);
+      };
+      newSetEnd3.__bns788 = true;
+      window.setEndThreeDays = newSetEnd3;
+      try{ setEndThreeDays = newSetEnd3; }catch(e){}
+    }
+  }catch(e){}
+
+  // Bij Nieuwe opdracht/clearOrder mag +3 dagen daarna weer normaal werken.
+  try{
+    var oldClear = window.clearOrder || (typeof clearOrder === 'function' ? clearOrder : null);
+    if(typeof oldClear === 'function' && !oldClear.__bns788){
+      var clearWrap = function(){
+        window.__BNS788_EDITING_ORDER_ID__ = '';
+        window.__BNS788_EDITING_ORDER_START__ = '';
+        window.__BNS788_EDITING_ORDER_END__ = '';
+        return oldClear.apply(this, arguments);
+      };
+      clearWrap.__bns788 = true;
+      window.clearOrder = clearWrap;
+      try{ clearOrder = clearWrap; }catch(e){}
+    }
+  }catch(e){}
+
+  function installEditWrapper(){
+    var current = window.editOrder || (typeof editOrder === 'function' ? editOrder : null);
+    if(typeof current !== 'function') return;
+    if(current.__bns788) return;
+    var wrapped = function(id){
+      var o = findOrder(id);
+      window.__BNS788_EDITING_ORDER_ID__ = o ? (orderId(o) || orderNo(o)) : T(id);
+      var base = (window.BNS_V408_fastEditOrder && window.BNS_V408_fastEditOrder !== wrapped) ? window.BNS_V408_fastEditOrder : current;
+      var r;
+      try{ r = base.apply(this, arguments); }catch(e){ try{ r = current.apply(this, arguments); }catch(e2){ throw e; } }
+      if(o) afterEdit(o);
+      return r;
+    };
+    wrapped.__bns788 = true;
+    window.editOrder = wrapped;
+    try{ editOrder = wrapped; }catch(e){}
+  }
+  installEditWrapper();
+  setTimeout(installEditWrapper, 100);
+  setTimeout(installEditWrapper, 900);
+  setInterval(installEditWrapper, 900);
+
+  // Ook knoppen met inline onclick direct onderscheppen, zodat oude edit-lagen niet kunnen winnen.
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest && ev.target.closest('button,[onclick],a');
+    if(!b) return;
+    var oc = T(b.getAttribute('onclick') || '');
+    var m = oc.match(/editOrder\(['"]([^'"]+)['"]\)/);
+    if(!m) return;
+    var o = findOrder(m[1]);
+    if(!o) return;
+    try{ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }catch(e){}
+    window.__BNS788_EDITING_ORDER_ID__ = orderId(o) || orderNo(o);
+    var fn = window.editOrder || (typeof editOrder === 'function' ? editOrder : null);
+    if(typeof fn === 'function') fn(m[1]); else if(window.BNS_V408_fastEditOrder) window.BNS_V408_fastEditOrder(m[1]);
+    afterEdit(o);
+    return false;
+  }, true);
+
+  // Als een oudere datumlaag na openen toch +3 schrijft, zetten we tijdens edit terug naar de opdrachtwaarde.
+  ['input','change'].forEach(function(type){
+    document.addEventListener(type, function(ev){
+      var id = ev.target && ev.target.id;
+      if(id !== 'dateStart' && id !== 'dateEnd') return;
+      var oid = T(window.__BNS788_EDITING_ORDER_ID__);
+      if(!oid) return;
+      var o = findOrder(oid);
+      if(o) setTimeout(function(){ restoreDates(o); }, 0);
+    }, true);
+  });
+
+  try{ console.info('[BNS 788] Wijzigen: opgeslagen datums blijven staan en mobiel opent bovenaan.'); }catch(e){}
+})();
