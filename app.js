@@ -29867,9 +29867,9 @@ setTimeout(()=>{
         return sameMaterial(x,m);
       })) continue;
       var op=orderPeriod(o);
-      // BNS786: einddatum/ophaaldag is vrij voor direct doorzetten.
-      // In deze oude laag is orderPeriod.end exclusief (+1 dag), dus echte retourdag = end - 1.
-      if(op && wp && addDays && wp.start && addDays(op.end,-1).getTime() === wp.start.getTime()) continue;
+      // BNS787: centrale materiaalregel: oude einddatum/ophaaldag is vrij.
+      // Deze laag gebruikt een exclusieve periode; echte retourdag = op.end - 1 dag.
+      if(op && wp && typeof addDays==='function' && wp.start && addDays(op.end,-1).getTime() === wp.start.getTime()) continue;
       if(overlaps(wp,op)) return {
         order:o,period:op,wanted:wp
       };
@@ -31653,7 +31653,7 @@ setTimeout(()=>{
     return period(o && (o.start || o.dateStart || o.startDate || o.datumStart || o.date || o.datum), o && (o.end || o.dateEnd || o.endDate || o.datumEnd || o.start || o.dateStart || o.startDate || o.date || o.datum));
   }
   function overlaps(a,b){
-    return !!(a && b && a.start.getTime() <= b.end.getTime() && b.start.getTime() <= a.end.getTime());
+    return !!(a && b && a.start.getTime() < b.end.getTime() && b.start.getTime() < a.end.getTime());
   }
   function editingId(){
     try{
@@ -36968,9 +36968,9 @@ setTimeout(()=>{
         return sameMaterial(x,m);
       })) continue;
       var op=orderPeriod(o);
-      // BNS786: einddatum/ophaaldag is vrij voor direct doorzetten.
-      // In deze laag is orderPeriod.end exclusief (+1 dag), dus echte retourdag = end - 1.
-      if(op && wp && wp.start && typeof addDays==='function' && addDays(op.end,-1).getTime() === wp.start.getTime()) continue;
+      // BNS787: centrale materiaalregel: oude einddatum/ophaaldag is vrij.
+      // Deze laag gebruikt een exclusieve periode; echte retourdag = op.end - 1 dag.
+      if(op && wp && typeof addDays==='function' && wp.start && addDays(op.end,-1).getTime() === wp.start.getTime()) continue;
       if(overlaps(wp,op)) return {
         order:o,period:op,wanted:wp
       };
@@ -37778,7 +37778,8 @@ setTimeout(()=>{
     var we = _parseDate(wantedEnd || wantedStart);
     if (!ws || !we) return true;
     // Overlap: os <= we EN oe >= ws
-    return os <= we && oe >= ws;
+    // BNS787: einddatum/ophaaldag is vrij: alleen echte overlap blokkeert.
+    return os < we && oe > ws;
   }
   /**
    * BNS_materialIsBlocked(materialId, wantedStart, wantedEnd, editingOrderId)
@@ -39648,7 +39649,7 @@ setTimeout(()=>{
     return periodFrom(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum));
   }
   function overlaps(a,b){
-    return !!(a && b && a.start.getTime() <= b.end.getTime() && b.start.getTime() <= a.end.getTime());
+    return !!(a && b && a.start.getTime() < b.end.getTime() && b.start.getTime() < a.end.getTime());
   }
   function endIsPast(o){
     var p=orderPeriod(o);
@@ -39768,7 +39769,7 @@ setTimeout(()=>{
       if(eid && txt(o.id)===eid) continue;
       if(nr && txt(o.number)===nr) continue;
       var op=orderPeriod(o);
-      // BNS786: start op oude einddatum/oude ophaaldag is geen dubbele reservering.
+      // BNS787: centrale materiaalregel: start op oude einddatum/ophaaldag is vrij.
       if(op && wp && wp.start && op.end && wp.start.getTime() === op.end.getTime()) continue;
       if(!overlaps(wp,op)) continue;
       var ml=Array.isArray(o.materials)?o.materials:[];
@@ -41082,7 +41083,7 @@ setTimeout(()=>{
   function periodFrom(s,e){ var a=parseDate(s), b=parseDate(e||s); if(!a||!b) return null; if(a>b){var t=a;a=b;b=t;} return {start:a,end:b}; }
   function wantedPeriod(){ var ds=E('dateStart'), de=E('dateEnd'); return periodFrom(ds&&ds.value,(de&&de.value)||(ds&&ds.value)); }
   function orderPeriod(o){ return periodFrom(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
-  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<=b.end.getTime()&&b.start.getTime()<=a.end.getTime()); }
+  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<b.end.getTime()&&b.start.getTime()<a.end.getTime()); }
   function endIsPast(o){ var p=orderPeriod(o); return !!(p && p.end.getTime() < todayMs()); }
   function optionExpired(o){
     var s=low(o&&o.status); if(!/optie\s*14|optie14/.test(s)) return false;
@@ -44730,7 +44731,7 @@ console.log('[BNS v459] bezorger-vinkjes, Routenet uit, document-terug en telefo
   function oEnd(o){ return new Date(T(o&&(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||o.startDate||o.date)).slice(0,10)+"T00:00:00"); }
   function overlap(a,b,c,d){
     if(!a||!b||!c||!d||isNaN(a)||isNaN(b)||isNaN(c)||isNaN(d)) return true;
-    return a<=d && c<=b;
+    return a<d && c<b;
   }
   window.BNS_v460SameMaterial = sameMat;
   window.BNS_v460BlockingOrdersForMaterial = function(mat, range, ignoreId){
@@ -45009,7 +45010,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
   function overlap462(a, b){
     if(!a||!b||!a.start||!a.end||!b.start||!b.end) return true;
-    return a.start <= b.end && b.start <= a.end;
+    return a.start < b.end && b.start < a.end;
   }
 
   // ── State ophalen ───────────────────────────────────────
@@ -45036,7 +45037,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       if(!orderLive462(o)) continue;
       if(ignore && T(o.id)===ignore) continue;
       var or = orderRange462(o);
-      // BNS786: start op oude einddatum/oude ophaaldag is geen dubbele reservering.
+      // BNS787: centrale materiaalregel: start op oude einddatum/ophaaldag is vrij.
       if(or && range && range.start && or.end && range.start.getTime() === or.end.getTime()) continue;
       if(!overlap462(range, or)) continue;
       var mats = Array.isArray(o.materials)?o.materials:[];
@@ -52527,4 +52528,5 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   try{console.info('[BNS 785] retourdag klik breed actief: pointerdown/mousedown/click + V392/V611 rijen.');}catch(e){}
 })();
 
-/* BNS 786: save-controles laten einddatum/ophaaldag vrij voor doorzetten; geen save-bypass. */
+
+/* BNS 787: centrale materiaal-overlap gelijkgetrokken. Einddatum/ophaaldag = vrij; oranje blijft alleen waarschuwing + Ja/Nee. Geen save-bypass, geen force-reservering. */
