@@ -29867,6 +29867,9 @@ setTimeout(()=>{
         return sameMaterial(x,m);
       })) continue;
       var op=orderPeriod(o);
+      // BNS786: einddatum/ophaaldag is vrij voor direct doorzetten.
+      // In deze oude laag is orderPeriod.end exclusief (+1 dag), dus echte retourdag = end - 1.
+      if(op && wp && addDays && wp.start && addDays(op.end,-1).getTime() === wp.start.getTime()) continue;
       if(overlaps(wp,op)) return {
         order:o,period:op,wanted:wp
       };
@@ -36965,6 +36968,9 @@ setTimeout(()=>{
         return sameMaterial(x,m);
       })) continue;
       var op=orderPeriod(o);
+      // BNS786: einddatum/ophaaldag is vrij voor direct doorzetten.
+      // In deze laag is orderPeriod.end exclusief (+1 dag), dus echte retourdag = end - 1.
+      if(op && wp && wp.start && typeof addDays==='function' && addDays(op.end,-1).getTime() === wp.start.getTime()) continue;
       if(overlaps(wp,op)) return {
         order:o,period:op,wanted:wp
       };
@@ -39762,6 +39768,8 @@ setTimeout(()=>{
       if(eid && txt(o.id)===eid) continue;
       if(nr && txt(o.number)===nr) continue;
       var op=orderPeriod(o);
+      // BNS786: start op oude einddatum/oude ophaaldag is geen dubbele reservering.
+      if(op && wp && wp.start && op.end && wp.start.getTime() === op.end.getTime()) continue;
       if(!overlaps(wp,op)) continue;
       var ml=Array.isArray(o.materials)?o.materials:[];
       if(ml.some(function(x){return sameMaterial(x,m);})){ return {order:o,period:op}; }
@@ -45028,6 +45036,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       if(!orderLive462(o)) continue;
       if(ignore && T(o.id)===ignore) continue;
       var or = orderRange462(o);
+      // BNS786: start op oude einddatum/oude ophaaldag is geen dubbele reservering.
+      if(or && range && range.start && or.end && range.start.getTime() === or.end.getTime()) continue;
       if(!overlap462(range, or)) continue;
       var mats = Array.isArray(o.materials)?o.materials:[];
       for(var j=0; j<mats.length; j++){
@@ -52516,3 +52526,5 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',markRows); else setTimeout(markRows,100);
   try{console.info('[BNS 785] retourdag klik breed actief: pointerdown/mousedown/click + V392/V611 rijen.');}catch(e){}
 })();
+
+/* BNS 786: save-controles laten einddatum/ophaaldag vrij voor doorzetten; geen save-bypass. */
