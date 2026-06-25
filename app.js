@@ -8427,19 +8427,15 @@ function editOrder(oid){
   renderChosen();
   summaryRender();
   workTab('customerPanel');
-  // BNS 797: scroll naar boven op mobiel - ook na focus timer (60ms)
-  if((window.innerWidth||9999) <= 950){
-    [0,50,120,250,500,900].forEach(function(ms){
-      setTimeout(function(){
-        document.documentElement.scrollTop=0;
-        document.body.scrollTop=0;
-        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{window.scrollTo(0,0);}catch(e2){} }
-        // Ook de newOrder pagina zelf scrollen
-        var p=document.getElementById('newOrder');
-        if(p) p.scrollTop=0;
-      }, ms);
-    });
-  }
+  // BNS 799: scroll naar boven - zowel mobiel als laptop
+  [0,50,120,250,500,900].forEach(function(ms){
+    setTimeout(function(){
+      document.documentElement.scrollTop=0;
+      document.body.scrollTop=0;
+      try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{window.scrollTo(0,0);}catch(e2){} }
+      var p=document.getElementById('newOrder'); if(p) p.scrollTop=0;
+    }, ms);
+  });
 }
 function nice(d){
   if(!d)return '';
@@ -9236,7 +9232,9 @@ renderAll = function(){
 setTimeout(()=>{
   bindDateControlsV93();
   clampToday('dateStart');
-  if(!dateEnd.value || dateEnd.value<dateStart.value) setEndThreeDays();
+  // BNS 799: setEndThreeDays alleen bij nieuwe opdracht
+  var _isEditing=!!(typeof editing!=='undefined'&&editing)||!!(window.editing);
+  if(!_isEditing && (!dateEnd.value || dateEnd.value<dateStart.value)) setEndThreeDays();
   const ts=document.getElementById('globalThemeSelect');
   const ls=document.getElementById('globalLayoutSelect');
   if(ls) ls.onchange=()=>{
@@ -42867,6 +42865,15 @@ setTimeout(()=>{
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
     try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
+    // BNS 799: scroll naar boven na fastEditOrder - zowel mobiel als laptop
+    [0,50,120,250,500,900].forEach(function(ms){
+      setTimeout(function(){
+        document.documentElement.scrollTop=0;
+        document.body.scrollTop=0;
+        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{window.scrollTo(0,0);}catch(e2){} }
+        var p=document.getElementById('newOrder'); if(p) p.scrollTop=0;
+      },ms);
+    });
   }
   window.BNS_V408_fastEditOrder=fastEditOrder;
   setTimeout(function(){ try{ window.editOrder=fastEditOrder; editOrder=fastEditOrder; }catch(e){ window.editOrder=fastEditOrder; } },1000);
