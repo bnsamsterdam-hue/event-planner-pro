@@ -52382,3 +52382,137 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   window.BNS_V784={addReturnDayMaterial:addNormal,showReturnDayPopup:show};
   try{ console.info('[BNS 784] retourdag Ja/Nee popup met voorrang actief.'); }catch(e){}
 })();
+
+/* =========================================================
+   BNS 785 - Retourdag klik echt voor alle actieve materiaalrijen
+   Basis: v784 op originele v772 zip.
+   Doel: als de rij zichtbaar "Komt vandaag retour" toont, altijd eigen Ja/Nee popup.
+   Raakt niet: save/Firebase/driver/reservering opslaan/mappenlogica.
+========================================================= */
+(function BNS_785_RETOURDAG_DOM_KLIK(){
+  'use strict';
+  if(window.__BNS785_RETOURDAG_DOM_KLIK__) return;
+  window.__BNS785_RETOURDAG_DOM_KLIK__ = true;
+
+  var MODAL_ID='bns785RetourdagModal';
+  var STYLE_ID='bns785RetourdagStyle';
+  var lastRowKey='';
+
+  function T(v){return String(v==null?'':v).trim();}
+  function U(v){return T(v).toUpperCase();}
+  function H(v){return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function A(v){return Array.isArray(v)?v:[];}
+  function clone(v){try{return JSON.parse(JSON.stringify(v));}catch(e){var o={}; v=v||{}; for(var k in v){try{o[k]=v[k];}catch(_){}} return o;}}
+  function stateObj(){try{if(typeof state!=='undefined'&&state)return state;}catch(e){} return window.state||{};}
+  function materials(){var s=stateObj(); return A((s&&s.materials)||window.__BNS611_MATERIALS||window.__BNS609_MATERIALS||window.__BNS608_MATERIALS||window.materials);}
+  function chosenList(){try{if(Array.isArray(chosen))return chosen;}catch(e){} return Array.isArray(window.chosen)?window.chosen:[];}
+  function setChosen(list){try{chosen=list;}catch(e){} window.chosen=list;}
+  function idOf(m){return T(m&&(m.id||m.materialId||m.docId||m.key||m.code));}
+  function codeOf(m){return U(m&&(m.code||m.materialCode||m.productCode||m.productNr||m.nr||m.number||m.sku));}
+  function nameOf(m){return T(m&&(m.name||m.product||m.productName||m.description||m.beschrijving||m.title));}
+  function catOf(m){return U(m&&(m.cat||m.rubriek||m.category||m.categorie||m.group||m.type));}
+  function sameMat(a,b){
+    try{if(window.BNS_V611&&typeof window.BNS_V611.sameMaterial==='function')return window.BNS_V611.sameMaterial(a,b);}catch(e){}
+    try{if(window.BNS_V392&&typeof window.BNS_V392.sameMaterial==='function')return window.BNS_V392.sameMaterial(a,b);}catch(e){}
+    var ai=idOf(a),bi=idOf(b); if(ai&&bi&&U(ai)===U(bi))return true;
+    var ao=T(a&&a.oldId),bo=T(b&&b.oldId); if(ao&&bo&&U(ao)===U(bo))return true;
+    var ac=codeOf(a),bc=codeOf(b); if(ac&&bc&&ac===bc)return true;
+    return false;
+  }
+  function keyFromRow(row){
+    if(!row) return '';
+    var attrs=['data-bns611-mid','data-bns392-mid','data-bns386-mid','data-material-id','data-mid','data-id','data-mat-id','data-code','data-material-code'];
+    for(var i=0;i<attrs.length;i++){var v=T(row.getAttribute&&row.getAttribute(attrs[i])); if(v)return v;}
+    var txt=T(row.textContent||'');
+    var m=txt.match(/\b([A-Z]{1,8}\s*\d{1,5})\b/i); if(m)return U(m[1]).replace(/\s+/g,'');
+    return '';
+  }
+  function findMat(key){
+    key=T(key); var uk=U(key), list=materials();
+    for(var i=0;i<list.length;i++){
+      var m=list[i];
+      if(U(idOf(m))===uk || codeOf(m)===uk || U(T(m&&m.oldId))===uk) return m;
+    }
+    return null;
+  }
+  function rowForTarget(t){
+    if(!t||!t.closest)return null;
+    var row=t.closest('#materialList [data-bns611-mid],#materialList [data-bns392-mid],#materialList [data-bns386-mid],#materialList [data-material-id],#materialList [data-mid],#materialList [data-id],#materialList .bns611-row,#materialList .bns392-row,#materialList .bns386-row,#materialList .material-row,#materialList .material-card');
+    if(row) return row;
+    var p=t.closest('#materialList *');
+    while(p && p.id!=='materialList'){
+      if(/komt\s+vandaag\s+retour/i.test(p.textContent||'')) return p;
+      p=p.parentElement;
+    }
+    return null;
+  }
+  function isReturnRow(row){
+    if(!row) return false;
+    if(row.getAttribute('data-bns611-retour')==='1'||row.getAttribute('data-bns392-retour')==='1'||row.getAttribute('data-bns785-retour')==='1') return true;
+    if(row.classList && (row.classList.contains('bns611-retour')||row.classList.contains('bns392-retour')||row.classList.contains('bns386-retour')||row.classList.contains('status-retour')||row.classList.contains('return-day'))) return true;
+    return /komt\s+vandaag\s+retour/i.test(row.textContent||'');
+  }
+  function style(){
+    if(document.getElementById(STYLE_ID)) return;
+    var s=document.createElement('style'); s.id=STYLE_ID;
+    s.textContent='#'+MODAL_ID+'{position:fixed!important;z-index:2147483647!important;inset:0!important;background:rgba(15,23,42,.58)!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:20px!important}#'+MODAL_ID+'.hidden{display:none!important}#'+MODAL_ID+' .bns785-card{background:#fff!important;color:#172033!important;border-radius:22px!important;padding:22px!important;max-width:720px!important;width:100%!important;box-shadow:0 20px 60px rgba(15,23,42,.35)!important}#'+MODAL_ID+' .bns785-box{border:2px solid #f59e0b!important;background:#fff7ed!important;border-radius:14px!important;padding:14px!important;margin:12px 0!important;line-height:1.55!important}#'+MODAL_ID+' .bns785-actions{display:flex!important;gap:10px!important;flex-wrap:wrap!important;margin-top:12px!important}#'+MODAL_ID+' button{border:0!important;border-radius:10px!important;font-weight:1000!important;padding:12px 16px!important;cursor:pointer!important}#'+MODAL_ID+' .yes{background:#f59e0b!important;color:#111827!important}#'+MODAL_ID+' .no{background:#e5e7eb!important;color:#111827!important}';
+    document.head.appendChild(s);
+  }
+  function modal(){style(); var m=document.getElementById(MODAL_ID); if(!m){m=document.createElement('div');m.id=MODAL_ID;m.className='hidden';document.body.appendChild(m);} return m;}
+  function close(){var m=document.getElementById(MODAL_ID); if(m)m.classList.add('hidden');}
+  function hideOldModals(){
+    ['bns611MaterialStatusModal','bns611MaterialInfoModal','bns392RetourModal','bns784RetourdagModal'].forEach(function(id){var x=document.getElementById(id); if(x)x.classList.add('hidden');});
+    try{document.querySelectorAll('.swal2-container,.modal,.popup').forEach(function(x){ if(/Materiaal status|Gereserveerd/i.test(x.textContent||'')) x.style.display='none'; });}catch(e){}
+  }
+  function show(m,key){
+    hideOldModals();
+    var mm=modal();
+    mm.innerHTML='<div class="bns785-card"><h2>Komt vandaag retour</h2><div class="bns785-box"><b>'+H((m&&codeOf(m))||key)+'</b> '+H(m&&nameOf(m))+'<br><br>Alleen mogelijk als het materiaal direct doorgezet wordt.</div><div class="bns785-actions"><button type="button" class="yes" data-bns785-ja="'+H(key||idOf(m)||codeOf(m))+'">Ja, toevoegen</button><button type="button" class="no" data-bns785-nee="1">Nee, niet toevoegen</button></div></div>';
+    mm.classList.remove('hidden');
+    return false;
+  }
+  function renderChosenSafe(){try{if(typeof renderChosen==='function')renderChosen();}catch(e){} try{if(typeof summaryRender==='function')summaryRender();}catch(e){} try{if(typeof calcTotals==='function')calcTotals();}catch(e){}}
+  function rerender(cat){try{if(window.BNS_V392&&typeof window.BNS_V392.renderMaterials==='function')window.BNS_V392.renderMaterials(cat||window.currentCat,true);}catch(e){} try{if(window.BNS_V611&&typeof window.BNS_V611.renderMaterials==='function')window.BNS_V611.renderMaterials(cat||window.currentCat,true);}catch(e){} try{if(typeof window.renderMaterials==='function')window.renderMaterials(cat||window.currentCat,true);}catch(e){}}
+  function addNormal(m){
+    if(!m) return false;
+    var keep=catOf(m)||window.currentCat||''; if(keep){window.currentCat=keep; try{currentCat=keep;}catch(e){}}
+    var list=chosenList();
+    if(!list.some(function(x){return sameMat(x,m);})) {var item=clone(m); item.status='reserved'; if(item.qty==null)item.qty=1; list.push(item); setChosen(list);}
+    renderChosenSafe(); rerender(keep); return false;
+  }
+  function stop(ev){try{ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}catch(e){}}
+  function intercept(ev){
+    var t=ev.target; if(!t||!t.closest) return;
+    if(t.closest('#'+MODAL_ID)) return;
+    var row=rowForTarget(t);
+    if(!isReturnRow(row)) return;
+    stop(ev);
+    var key=keyFromRow(row); lastRowKey=key;
+    show(findMat(key),key);
+    return false;
+  }
+  ['pointerdown','mousedown','touchstart','pointerup','mouseup','touchend','click','dblclick'].forEach(function(type){
+    window.addEventListener(type,intercept,true);
+    document.addEventListener(type,intercept,true);
+  });
+  window.addEventListener('click',function(ev){
+    var t=ev.target; if(!t||!t.closest) return;
+    var y=t.closest('[data-bns785-ja]');
+    if(y){stop(ev); var key=y.getAttribute('data-bns785-ja')||lastRowKey; close(); addNormal(findMat(key)); return false;}
+    if(t.closest('[data-bns785-nee]')){stop(ev); close(); return false;}
+  },true);
+  document.addEventListener('click',function(ev){
+    var t=ev.target; if(!t||!t.closest) return;
+    var y=t.closest('[data-bns785-ja]');
+    if(y){stop(ev); var key=y.getAttribute('data-bns785-ja')||lastRowKey; close(); addNormal(findMat(key)); return false;}
+    if(t.closest('[data-bns785-nee]')){stop(ev); close(); return false;}
+  },true);
+  function markRows(){
+    try{document.querySelectorAll('#materialList .material-row,#materialList .material-card,#materialList [data-bns611-mid],#materialList [data-bns392-mid],#materialList [data-mid],#materialList [data-material-id]').forEach(function(r){
+      if(/komt\s+vandaag\s+retour/i.test(r.textContent||'')){ r.setAttribute('data-bns785-retour','1'); r.style.cursor='pointer'; }
+    });}catch(e){}
+  }
+  setInterval(markRows,500);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',markRows); else setTimeout(markRows,100);
+  try{console.info('[BNS 785] retourdag klik breed actief: pointerdown/mousedown/click + V392/V611 rijen.');}catch(e){}
+})();
