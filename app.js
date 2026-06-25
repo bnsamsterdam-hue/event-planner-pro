@@ -36348,7 +36348,7 @@ setTimeout(()=>{
       ds.value=today;
       // Geen fire() - dat triggert renderMaterials en reset de rubriek
     }
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(de.value||'')) || de.dataset.bnsV311AutoEnd==='1'){
+    if(!window.__bnsEditingOrder && (!/^\d{4}-\d{2}-\d{2}$/.test(String(de.value||'')) || de.dataset.bnsV311AutoEnd==='1')){
       de.value=addDaysISO(ds.value,3);
       de.dataset.bnsV311AutoEnd='1';
       // Geen fire() - dat triggert renderMaterials en reset de rubriek
@@ -36356,6 +36356,7 @@ setTimeout(()=>{
     if(ds.dataset.bnsV311DateBound!=='1'){
       ds.dataset.bnsV311DateBound='1';
       ds.addEventListener('change',function(){
+        if(window.__bnsEditingOrder) return; // BNS 801: niet bij wijzigen
         if(ds.value){
           de.value=addDaysISO(ds.value,3);
           de.dataset.bnsV311AutoEnd='1';
@@ -36363,6 +36364,7 @@ setTimeout(()=>{
         }
       },true);
       ds.addEventListener('input',function(){
+        if(window.__bnsEditingOrder) return; // BNS 801: niet bij wijzigen
         if(/^\d{4}-\d{2}-\d{2}$/.test(ds.value)){
           de.value=addDaysISO(ds.value,3);
           de.dataset.bnsV311AutoEnd='1';
