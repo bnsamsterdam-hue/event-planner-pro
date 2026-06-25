@@ -8377,6 +8377,7 @@ function upsertLocation(l){
   })
 }
 function clearOrder(){
+  window.__bnsEditingOrder=false; // BNS 800: reset vlag
   ['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderDriver','orderVehicle','orderExtra'].forEach(i=>$(i).value='');
   chosen=[];
   renderChosen();
@@ -8391,6 +8392,7 @@ function clearOrder(){
 function editOrder(oid){
   let o=state.orders.find(x=>x.id===oid);
   if(!o)return;
+  window.__bnsEditingOrder=true; // BNS 800: vlag voor datum bescherming
   showPage('newOrder');
   editing=oid;
   orderNumber.value=o.number||'';
@@ -9161,9 +9163,8 @@ function clampToday(idv){
   if(!el) return;
   const t=todayISO();
   el.min=t;
-  // BNS 798: bij wijzigen (editing actief) datum NIET forceren naar vandaag
-  var isEditing = !!(typeof editing !== 'undefined' && editing) || !!(window.editing);
-  if(!isEditing && (!el.value || el.value<t)) el.value=t;
+  // BNS 800: gebruik expliciete vlag zodat timing problemen geen rol spelen
+  if(!window.__bnsEditingOrder && (!el.value || el.value<t)) el.value=t;
 }
 function setEndThreeDays(){
   clampToday('dateStart');
@@ -9177,17 +9178,15 @@ function bindDateControlsV93(){
   if(ds){
     ds.min=todayISO();
     ds.onchange=()=>{
-      // BNS 798: clamp alleen bij nieuwe opdracht, niet bij wijzigen
-      var isEditing = !!(typeof editing !== 'undefined' && editing) || !!(window.editing);
-      if(!isEditing) clampToday('dateStart');
-      // +3 dagen alleen bij nieuwe opdracht en als einddatum leeg of te vroeg
-      if(!isEditing && de && (!de.value || de.value<ds.value)) de.value=addDaysISO(ds.value,3);
-      else if(isEditing && de && de.value<ds.value) de.value=ds.value;
+      // BNS 800: expliciete vlag - geen timing problemen
+      if(!window.__bnsEditingOrder) clampToday('dateStart');
+      if(!window.__bnsEditingOrder && de && (!de.value || de.value<ds.value)) de.value=addDaysISO(ds.value,3);
+      else if(window.__bnsEditingOrder && de && de.value<ds.value) de.value=ds.value;
     };
   }
   if(de){
     de.min=todayISO();
-    de.onchange=()=>{ var isEditing=!!(typeof editing!=='undefined'&&editing)||!!(window.editing); if(!isEditing) clampToday('dateEnd'); };
+    de.onchange=()=>{ if(!window.__bnsEditingOrder) clampToday('dateEnd'); };
   }
   const sm=document.getElementById('startMinus');
   const sp=document.getElementById('startPlus');
@@ -9232,9 +9231,7 @@ renderAll = function(){
 setTimeout(()=>{
   bindDateControlsV93();
   clampToday('dateStart');
-  // BNS 799: setEndThreeDays alleen bij nieuwe opdracht
-  var _isEditing=!!(typeof editing!=='undefined'&&editing)||!!(window.editing);
-  if(!_isEditing && (!dateEnd.value || dateEnd.value<dateStart.value)) setEndThreeDays();
+  if(!window.__bnsEditingOrder && (!dateEnd.value || dateEnd.value<dateStart.value)) setEndThreeDays(); // BNS 800
   const ts=document.getElementById('globalThemeSelect');
   const ls=document.getElementById('globalLayoutSelect');
   if(ls) ls.onchange=()=>{
@@ -42850,6 +42847,7 @@ setTimeout(()=>{
   function setVal(id,v){ var el=E(id); if(el) el.value=v==null?'':v; }
   function fastEditOrder(id){
     var o=orderById(id); if(!o){ toast('Opdracht niet gevonden.'); return; }
+    window.__bnsEditingOrder=true; // BNS 800: vlag voor datum bescherming
     try{ if(typeof showPage==='function') showPage('newOrder'); }catch(e){}
     try{ window.editing=o.id; }catch(e){}
     try{ editing=o.id; }catch(e){}
