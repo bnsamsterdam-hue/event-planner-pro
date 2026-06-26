@@ -469,8 +469,8 @@ async function download(){
       if(col==="materials")cleanMaterialStatuses(s);
     }
     saveLocal(s); lastJson=json(); status("Firebase geladen");
-    try{if(typeof renderOrders==="function")renderOrders();}catch(e){}
-    try{if(typeof renderDashboard==="function")renderDashboard();}catch(e){}
+    try{if(typeof window.renderOrders==="function")window.renderOrders();else if(typeof renderOrders==="function")renderOrders();}catch(e){}
+    try{if(typeof window.renderDashboard==="function")window.renderDashboard();else if(typeof renderDashboard==="function")renderDashboard();}catch(e){}
   }catch(e){console.error(e);status("Firebase download fout")}
   finally{downloading=false}
 }
@@ -527,8 +527,8 @@ async function live(){
       downloading=true; saveLocal(s); downloading=false; lastJson=json();
       try{
         if(col==="orders"){
-          if(typeof renderOrders==="function")renderOrders();
-          if(typeof renderDashboard==="function")renderDashboard();
+          if(typeof window.renderOrders==="function")window.renderOrders();else if(typeof renderOrders==="function")renderOrders();
+          if(typeof window.renderDashboard==="function")window.renderDashboard();else if(typeof renderDashboard==="function")renderDashboard();
         }
         if(col==="alerts"){
           if(typeof renderDriver==="function")renderDriver();
