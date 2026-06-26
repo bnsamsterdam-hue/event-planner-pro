@@ -52217,6 +52217,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   'use strict';
   if(window.__BNS782_RETOURDAG_FOLDER_GUARD__) return;
   window.__BNS782_RETOURDAG_FOLDER_GUARD__=true;
+  try{console.info('[BNS 806] BNS782 uitgeschakeld: oranje knop wijzigt geen opdracht/folder/render/save meer.');}catch(e){}
+  return;
   function T(v){return String(v==null?'':v).trim();}
   function L(v){return T(v).toLowerCase();}
   function parseDate(v){
@@ -52319,6 +52321,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   'use strict';
   if(window.__BNS784_RETOURDAG_POPUP_VOORRANG__) return;
   window.__BNS784_RETOURDAG_POPUP_VOORRANG__ = true;
+  try{console.info('[BNS 806] BNS784 dubbele retourdag-clicklaag uitgeschakeld; BNS785/BNS611 blijft materiaal-popup doen.');}catch(e){}
+  return;
 
   var MODAL_ID = 'bns784RetourdagModal';
   var STYLE_ID = 'bns784RetourdagStyle';
@@ -52546,3 +52550,6 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* BNS 787: centrale materiaal-overlap gelijkgetrokken. Einddatum/ophaaldag = vrij; oranje blijft alleen waarschuwing + Ja/Nee. Geen save-bypass, geen force-reservering. */
+
+
+/* BNS 806: kleine oranje materiaal-popup. Geen BNS782 folder/map/orderStatus/render/save patch. */
