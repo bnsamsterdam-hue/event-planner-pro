@@ -52035,8 +52035,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       var r = orig.apply(this, arguments);
       try{ syncIntoState(s); }catch(e){}
       setTimeout(function(){
-        try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-        try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+        try{ if(window.renderDashboard && typeof window.renderDashboard === 'function') window.renderDashboard(); }catch(e){}
+        try{ if(window.renderOrders && typeof window.renderOrders === 'function') window.renderOrders(); }catch(e){}
       }, 0);
       return r;
     };
@@ -52057,8 +52057,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [1000, 2500, 5000].forEach(function(ms){
     setTimeout(function(){
       syncIntoState(window.state);
-      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-      try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+      try{ if(window.renderDashboard && typeof window.renderDashboard === 'function') window.renderDashboard(); }catch(e){}
+      try{ if(window.renderOrders && typeof window.renderOrders === 'function') window.renderOrders(); }catch(e){}
     }, ms);
   });
 
@@ -52554,97 +52554,5 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 /* BNS 806: kleine oranje materiaal-popup. Geen BNS782 folder/map/orderStatus/render/save patch. */
 
-/* =========================================================
-   BNS 812 - Opdrachten rustig door echte tweede navigatieklik
-   Basis: v809/v806. Oranje blijft ongewijzigd.
-   Geen renderOrders/saveLocal/Firebase/localStorage wijzigingen.
-   Doel: exact de handeling nadoen die handmatig werkt: na laden nogmaals
-   op Opdrachten drukken, maar met volledige muis-event volgorde en later.
-   ========================================================= */
-(function BNS_812_ORDERS_SECOND_TAP_ONLY(){
-  'use strict';
-  if(window.__BNS812_ORDERS_SECOND_TAP__) return;
-  window.__BNS812_ORDERS_SECOND_TAP__ = true;
 
-  function E(id){ return document.getElementById(id); }
-  function text(el){ return String(el && el.textContent || '').replace(/\s+/g,' ').trim().toLowerCase(); }
-  function isOrdersActive(){
-    var p=E('orders');
-    if(!p) return false;
-    if(p.classList && p.classList.contains('active')) return true;
-    try{ var cs=getComputedStyle(p); return cs.display!=='none' && cs.visibility!=='hidden' && p.offsetParent!==null; }catch(e){ return false; }
-  }
-  function ordersButton(){
-    var b=document.querySelector('.nav[data-page="orders"],button[data-page="orders"],a[data-page="orders"]');
-    if(b) return b;
-    var all=Array.prototype.slice.call(document.querySelectorAll('button,a,.nav'));
-    for(var i=0;i<all.length;i++){ if(text(all[i])==='opdrachten') return all[i]; }
-    return null;
-  }
-  function addStyle(){
-    if(E('bns812Style')) return;
-    var s=document.createElement('style');
-    s.id='bns812Style';
-    s.textContent='#bns812Wait{position:fixed;left:50%;top:86px;transform:translateX(-50%);z-index:2147483000;background:#fff;color:#111827;border:1px solid #dbe3ef;border-radius:14px;padding:10px 15px;font-weight:900;box-shadow:0 12px 30px rgba(15,23,42,.16)}#bns812Wait small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:2px}body.bns812-waiting #orders.active{opacity:.03!important;pointer-events:none!important}';
-    (document.head||document.documentElement).appendChild(s);
-  }
-  function showWait(){
-    if(!isOrdersActive()) return;
-    addStyle();
-    document.body.classList.add('bns812-waiting');
-    if(!E('bns812Wait')){
-      var d=document.createElement('div');
-      d.id='bns812Wait';
-      d.innerHTML='Opdrachten laden<small>vaste weergave wordt geopend</small>';
-      document.body.appendChild(d);
-    }
-  }
-  function hideWait(){
-    document.body.classList.remove('bns812-waiting');
-    var d=E('bns812Wait'); if(d) d.remove();
-  }
-  function fire(el,type){
-    try{
-      var ev;
-      if(/^pointer/.test(type) && window.PointerEvent){ ev=new PointerEvent(type,{bubbles:true,cancelable:true,view:window,pointerType:'mouse',isPrimary:true}); }
-      else { ev=new MouseEvent(type,{bubbles:true,cancelable:true,view:window,button:0,buttons:type==='mousedown'?1:0}); }
-      el.dispatchEvent(ev);
-    }catch(e){ try{ el.dispatchEvent(new Event(type,{bubbles:true,cancelable:true})); }catch(ex){} }
-  }
-  function realTap(){
-    if(!isOrdersActive()) return false;
-    var b=ordersButton();
-    if(!b) return false;
-    window.__BNS812_SYNTHETIC_NAV__=true;
-    try{
-      ['pointerover','mouseover','pointerdown','mousedown','pointerup','mouseup','click'].forEach(function(t){ fire(b,t); });
-    }catch(e){ try{ b.click(); }catch(ex){} }
-    setTimeout(function(){ window.__BNS812_SYNTHETIC_NAV__=false; },250);
-    return true;
-  }
-  var seq=0;
-  function schedule(reason){
-    if(!isOrdersActive()) return;
-    seq++;
-    var my=seq;
-    showWait();
-    // Wacht bewust langer dan de eerste Firebase/render-storm. Niet de renderer vervangen.
-    [3200,5200,7600].forEach(function(ms){
-      setTimeout(function(){ if(my===seq && isOrdersActive()) realTap(); },ms);
-    });
-    setTimeout(function(){ if(my===seq) hideWait(); },8600);
-    setTimeout(function(){ if(my===seq && isOrdersActive()) hideWait(); },10200);
-  }
-  document.addEventListener('click',function(ev){
-    if(window.__BNS812_SYNTHETIC_NAV__) return;
-    var b=ev.target && ev.target.closest ? ev.target.closest('button,a,.nav,[data-page]') : null;
-    if(!b) return;
-    if((b.getAttribute && b.getAttribute('data-page')==='orders') || text(b)==='opdrachten'){
-      setTimeout(function(){ schedule('orders-click'); },220);
-    }
-  },true);
-  function boot(){ setTimeout(function(){ if(isOrdersActive()) schedule('startup'); },2200); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
-  window.addEventListener('load',function(){ setTimeout(function(){ if(isOrdersActive()) schedule('window-load'); },2600); });
-  try{console.info('[BNS 812] Opdrachten-rust: alleen vertraagde echte tweede Opdrachten-klik. Geen render/save/data wijzigingen.');}catch(e){}
-})();
+/* BNS 813 - BNS767 strict mode render fix: gebruikt alleen window.renderOrders/window.renderDashboard. */
