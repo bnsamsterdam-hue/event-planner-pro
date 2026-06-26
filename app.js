@@ -8448,10 +8448,6 @@ function sortedOrders(){
   return state.orders.slice().sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999'))
 }
 function renderOrders(){
-  // BNS 803: als window.renderOrders een betere versie heeft, gebruik die
-  if(window.renderOrders && window.renderOrders !== renderOrders){
-    try{ return window.renderOrders.apply(this,arguments); }catch(e){}
-  }
   let q=ordersSearch.value.toLowerCase();
   let list=sortedOrders().filter(o=>mode==='cancelled'?o.status==='Geannuleerd':(mode==='done'?o.status==='Uitgevoerd':(o.status!=='Geannuleerd'&&o.status!=='Uitgevoerd'))).filter(o=>!q||JSON.stringify(o).toLowerCase().includes(q));
   ordersList.innerHTML=list.map(card).join('')||'<p>Niets gevonden</p>'
@@ -29875,8 +29871,9 @@ setTimeout(()=>{
         return sameMaterial(x,m);
       })) continue;
       var op=orderPeriod(o);
-      // BNS 805: einddatum is vrij (overlaps gebruikt <) - ook hier overslaan als start=einddatum
-      if(op && wp && op.end.getTime() === wp.start.getTime()) continue;
+      // BNS787: centrale materiaalregel: oude einddatum/ophaaldag is vrij.
+      // Deze laag gebruikt een exclusieve periode; echte retourdag = op.end - 1 dag.
+      if(op && wp && typeof addDays==='function' && wp.start && addDays(op.end,-1).getTime() === wp.start.getTime()) continue;
       if(overlaps(wp,op)) return {
         order:o,period:op,wanted:wp
       };
@@ -42249,12 +42246,7 @@ setTimeout(()=>{
   function addMaterialDirect(m){
     var item=clone(m); item.status='reserved'; if(item.qty==null) item.qty=1;
     var list=chosenList(); list.push(item); setChosen(list);
-    // BNS 803: renderChosenSafe dan materiaallijst - niet de orders renderer aanraken
-    renderChosenSafe();
-    try{ renderMaterials611(window.currentCat,true); }catch(e){
-      try{ if(window.BNS_V611&&window.BNS_V611.renderMaterials) window.BNS_V611.renderMaterials(window.currentCat,true); }catch(e2){}
-    }
-    return false;
+    renderChosenSafe(); renderMaterials(window.currentCat,true); return false;
   }
   function retourModal(){
     var id='bns392RetourModal', modal=E(id);
@@ -52043,9 +52035,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       var r = orig.apply(this, arguments);
       try{ syncIntoState(s); }catch(e){}
       setTimeout(function(){
-        // BNS 806: gebruik window.renderOrders zodat altijd de beste renderer wordt gebruikt
-        try{ if(typeof window.renderDashboard === 'function') window.renderDashboard(); else if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-        try{ if(typeof window.renderOrders === 'function') window.renderOrders(); else if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
+        try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+        try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
       }, 0);
       return r;
     };
@@ -52066,8 +52057,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [1000, 2500, 5000].forEach(function(ms){
     setTimeout(function(){
       syncIntoState(window.state);
-      try{ if(typeof window.renderDashboard === 'function') window.renderDashboard(); else if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-      try{ if(typeof window.renderOrders === 'function') window.renderOrders(); else if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
+      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+      try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
     }, ms);
   });
 
