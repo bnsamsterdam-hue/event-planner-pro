@@ -52043,8 +52043,9 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       var r = orig.apply(this, arguments);
       try{ syncIntoState(s); }catch(e){}
       setTimeout(function(){
-        try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-        try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+        // BNS 806: gebruik window.renderOrders zodat altijd de beste renderer wordt gebruikt
+        try{ if(typeof window.renderDashboard === 'function') window.renderDashboard(); else if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+        try{ if(typeof window.renderOrders === 'function') window.renderOrders(); else if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
       }, 0);
       return r;
     };
@@ -52065,8 +52066,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [1000, 2500, 5000].forEach(function(ms){
     setTimeout(function(){
       syncIntoState(window.state);
-      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-      try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+      try{ if(typeof window.renderDashboard === 'function') window.renderDashboard(); else if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+      try{ if(typeof window.renderOrders === 'function') window.renderOrders(); else if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
     }, ms);
   });
 
