@@ -8192,14 +8192,15 @@ function workTab(idv){
   document.querySelectorAll('.workpanel').forEach(x=>x.classList.add('hidden'));
   $(idv).classList.remove('hidden');
   document.querySelectorAll('.worktab').forEach(x=>x.classList.toggle('active',x.dataset.tab===idv));
-  // BNS v690: bij Klant/Locatie meteen op het naamveld starten.
-  // BNS 772: preventScroll op mobiel zodat focus niet naar veld scrolt
+  // BNS 802: op mobiel geen focus - trekt pagina naar beneden
   var _mob = (window.innerWidth||9999) <= 950;
-  if(idv==='customerPanel'){
-    setTimeout(()=>{ try{ customerName.focus({preventScroll:_mob}); if(!_mob) customerName.select(); }catch(e){} },60);
-  }
-  if(idv==='locationPanel'){
-    setTimeout(()=>{ try{ locationName.focus({preventScroll:_mob}); if(!_mob) locationName.select(); }catch(e){} },60);
+  if(!_mob){
+    if(idv==='customerPanel'){
+      setTimeout(()=>{ try{ customerName.focus(); customerName.select(); }catch(e){} },60);
+    }
+    if(idv==='locationPanel'){
+      setTimeout(()=>{ try{ locationName.focus(); locationName.select(); }catch(e){} },60);
+    }
   }
   if(idv==='materialPanel'){
     renderCats();
@@ -8376,6 +8377,7 @@ function upsertLocation(l){
   })
 }
 function clearOrder(){
+  window.__bnsEditingOrder=false; // BNS 802 reset
   ['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderDriver','orderVehicle','orderExtra'].forEach(i=>$(i).value='');
   chosen=[];
   renderChosen();
@@ -8390,6 +8392,7 @@ function clearOrder(){
 function editOrder(oid){
   let o=state.orders.find(x=>x.id===oid);
   if(!o)return;
+  window.__bnsEditingOrder=true; // BNS 802
   showPage('newOrder');
   editing=oid;
   orderNumber.value=o.number||'';
@@ -8426,16 +8429,15 @@ function editOrder(oid){
   renderChosen();
   summaryRender();
   workTab('customerPanel');
-  // BNS 772: scroll naar boven op mobiel na wijzigen
-  if((window.innerWidth||9999) <= 950){
-    [0,80,200,450].forEach(function(ms){
-      setTimeout(function(){
-        document.documentElement.scrollTop=0;
-        document.body.scrollTop=0;
-        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{window.scrollTo(0,0);}catch(e2){} }
-      }, ms);
-    });
-  }
+  // BNS 802: scroll naar boven - mobiel en laptop, meer momenten
+  [0,50,120,250,500,900].forEach(function(ms){
+    setTimeout(function(){
+      document.documentElement.scrollTop=0;
+      document.body.scrollTop=0;
+      try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{window.scrollTo(0,0);}catch(e2){} }
+      var p=document.getElementById('newOrder'); if(p) p.scrollTop=0;
+    }, ms);
+  });
 }
 function nice(d){
   if(!d)return '';
@@ -9161,7 +9163,8 @@ function clampToday(idv){
   if(!el) return;
   const t=todayISO();
   el.min=t;
-  if(!el.value || el.value<t) el.value=t;
+  // BNS 802: bij wijzigen datum niet forceren
+  if(!window.__bnsEditingOrder && (!el.value || el.value<t)) el.value=t;
 }
 function setEndThreeDays(){
   clampToday('dateStart');
@@ -9175,13 +9178,14 @@ function bindDateControlsV93(){
   if(ds){
     ds.min=todayISO();
     ds.onchange=()=>{
-      clampToday('dateStart');
-      if(de && (!de.value || de.value<ds.value)) de.value=addDaysISO(ds.value,3);
+      if(!window.__bnsEditingOrder) clampToday('dateStart');
+      if(!window.__bnsEditingOrder && de && (!de.value || de.value<ds.value)) de.value=addDaysISO(ds.value,3);
+      else if(window.__bnsEditingOrder && de && de.value<ds.value) de.value=ds.value;
     };
   }
   if(de){
     de.min=todayISO();
-    de.onchange=()=>clampToday('dateEnd');
+    de.onchange=()=>{ if(!window.__bnsEditingOrder) clampToday('dateEnd'); };
   }
   const sm=document.getElementById('startMinus');
   const sp=document.getElementById('startPlus');
@@ -29867,6 +29871,9 @@ setTimeout(()=>{
         return sameMaterial(x,m);
       })) continue;
       var op=orderPeriod(o);
+      // BNS787: centrale materiaalregel: oude einddatum/ophaaldag is vrij.
+      // Deze laag gebruikt een exclusieve periode; echte retourdag = op.end - 1 dag.
+      if(op && wp && typeof addDays==='function' && wp.start && addDays(op.end,-1).getTime() === wp.start.getTime()) continue;
       if(overlaps(wp,op)) return {
         order:o,period:op,wanted:wp
       };
@@ -31650,7 +31657,7 @@ setTimeout(()=>{
     return period(o && (o.start || o.dateStart || o.startDate || o.datumStart || o.date || o.datum), o && (o.end || o.dateEnd || o.endDate || o.datumEnd || o.start || o.dateStart || o.startDate || o.date || o.datum));
   }
   function overlaps(a,b){
-    return !!(a && b && a.start.getTime() <= b.end.getTime() && b.start.getTime() <= a.end.getTime());
+    return !!(a && b && a.start.getTime() < b.end.getTime() && b.start.getTime() < a.end.getTime());
   }
   function editingId(){
     try{
@@ -36342,7 +36349,7 @@ setTimeout(()=>{
       ds.value=today;
       // Geen fire() - dat triggert renderMaterials en reset de rubriek
     }
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(de.value||'')) || de.dataset.bnsV311AutoEnd==='1'){
+    if(!window.__bnsEditingOrder && (!/^\d{4}-\d{2}-\d{2}$/.test(String(de.value||'')) || de.dataset.bnsV311AutoEnd==='1')){
       de.value=addDaysISO(ds.value,3);
       de.dataset.bnsV311AutoEnd='1';
       // Geen fire() - dat triggert renderMaterials en reset de rubriek
@@ -36350,6 +36357,7 @@ setTimeout(()=>{
     if(ds.dataset.bnsV311DateBound!=='1'){
       ds.dataset.bnsV311DateBound='1';
       ds.addEventListener('change',function(){
+        if(window.__bnsEditingOrder) return; // BNS 802
         if(ds.value){
           de.value=addDaysISO(ds.value,3);
           de.dataset.bnsV311AutoEnd='1';
@@ -36357,6 +36365,7 @@ setTimeout(()=>{
         }
       },true);
       ds.addEventListener('input',function(){
+        if(window.__bnsEditingOrder) return; // BNS 802
         if(/^\d{4}-\d{2}-\d{2}$/.test(ds.value)){
           de.value=addDaysISO(ds.value,3);
           de.dataset.bnsV311AutoEnd='1';
@@ -36965,6 +36974,9 @@ setTimeout(()=>{
         return sameMaterial(x,m);
       })) continue;
       var op=orderPeriod(o);
+      // BNS787: centrale materiaalregel: oude einddatum/ophaaldag is vrij.
+      // Deze laag gebruikt een exclusieve periode; echte retourdag = op.end - 1 dag.
+      if(op && wp && typeof addDays==='function' && wp.start && addDays(op.end,-1).getTime() === wp.start.getTime()) continue;
       if(overlaps(wp,op)) return {
         order:o,period:op,wanted:wp
       };
@@ -37772,7 +37784,8 @@ setTimeout(()=>{
     var we = _parseDate(wantedEnd || wantedStart);
     if (!ws || !we) return true;
     // Overlap: os <= we EN oe >= ws
-    return os <= we && oe >= ws;
+    // BNS787: einddatum/ophaaldag is vrij: alleen echte overlap blokkeert.
+    return os < we && oe > ws;
   }
   /**
    * BNS_materialIsBlocked(materialId, wantedStart, wantedEnd, editingOrderId)
@@ -39642,7 +39655,7 @@ setTimeout(()=>{
     return periodFrom(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum));
   }
   function overlaps(a,b){
-    return !!(a && b && a.start.getTime() <= b.end.getTime() && b.start.getTime() <= a.end.getTime());
+    return !!(a && b && a.start.getTime() < b.end.getTime() && b.start.getTime() < a.end.getTime());
   }
   function endIsPast(o){
     var p=orderPeriod(o);
@@ -39762,6 +39775,8 @@ setTimeout(()=>{
       if(eid && txt(o.id)===eid) continue;
       if(nr && txt(o.number)===nr) continue;
       var op=orderPeriod(o);
+      // BNS787: centrale materiaalregel: start op oude einddatum/ophaaldag is vrij.
+      if(op && wp && wp.start && op.end && wp.start.getTime() === op.end.getTime()) continue;
       if(!overlaps(wp,op)) continue;
       var ml=Array.isArray(o.materials)?o.materials:[];
       if(ml.some(function(x){return sameMaterial(x,m);})){ return {order:o,period:op}; }
@@ -41074,7 +41089,7 @@ setTimeout(()=>{
   function periodFrom(s,e){ var a=parseDate(s), b=parseDate(e||s); if(!a||!b) return null; if(a>b){var t=a;a=b;b=t;} return {start:a,end:b}; }
   function wantedPeriod(){ var ds=E('dateStart'), de=E('dateEnd'); return periodFrom(ds&&ds.value,(de&&de.value)||(ds&&ds.value)); }
   function orderPeriod(o){ return periodFrom(o&&(o.start||o.dateStart||o.startDate||o.datumStart||o.date||o.datum), o&&(o.end||o.dateEnd||o.endDate||o.datumEnd||o.start||o.dateStart||o.startDate||o.date||o.datum)); }
-  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<=b.end.getTime()&&b.start.getTime()<=a.end.getTime()); }
+  function overlaps(a,b){ return !!(a&&b&&a.start.getTime()<b.end.getTime()&&b.start.getTime()<a.end.getTime()); }
   function endIsPast(o){ var p=orderPeriod(o); return !!(p && p.end.getTime() < todayMs()); }
   function optionExpired(o){
     var s=low(o&&o.status); if(!/optie\s*14|optie14/.test(s)) return false;
@@ -42900,6 +42915,7 @@ setTimeout(()=>{
   function setVal(id,v){ var el=E(id); if(el) el.value=v==null?'':v; }
   function fastEditOrder(id){
     var o=orderById(id); if(!o){ toast('Opdracht niet gevonden.'); return; }
+    window.__bnsEditingOrder=true; // BNS 802
     try{ if(typeof showPage==='function') showPage('newOrder'); }catch(e){}
     try{ window.editing=o.id; }catch(e){}
     try{ editing=o.id; }catch(e){}
@@ -42915,6 +42931,15 @@ setTimeout(()=>{
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
     try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
+    // BNS 802: scroll naar boven na fastEditOrder
+    [0,50,120,250,500,900].forEach(function(ms){
+      setTimeout(function(){
+        document.documentElement.scrollTop=0;
+        document.body.scrollTop=0;
+        try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(e){ try{window.scrollTo(0,0);}catch(e2){} }
+        var p=document.getElementById('newOrder'); if(p) p.scrollTop=0;
+      },ms);
+    });
   }
   window.BNS_V408_fastEditOrder=fastEditOrder;
   setTimeout(function(){ try{ window.editOrder=fastEditOrder; editOrder=fastEditOrder; }catch(e){ window.editOrder=fastEditOrder; } },1000);
@@ -44722,7 +44747,7 @@ console.log('[BNS v459] bezorger-vinkjes, Routenet uit, document-terug en telefo
   function oEnd(o){ return new Date(T(o&&(o.end||o.dateEnd||o.endDate||o.start||o.dateStart||o.startDate||o.date)).slice(0,10)+"T00:00:00"); }
   function overlap(a,b,c,d){
     if(!a||!b||!c||!d||isNaN(a)||isNaN(b)||isNaN(c)||isNaN(d)) return true;
-    return a<=d && c<=b;
+    return a<d && c<b;
   }
   window.BNS_v460SameMaterial = sameMat;
   window.BNS_v460BlockingOrdersForMaterial = function(mat, range, ignoreId){
@@ -45001,7 +45026,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
   function overlap462(a, b){
     if(!a||!b||!a.start||!a.end||!b.start||!b.end) return true;
-    return a.start <= b.end && b.start <= a.end;
+    return a.start < b.end && b.start < a.end;
   }
 
   // ── State ophalen ───────────────────────────────────────
@@ -45028,6 +45053,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       if(!orderLive462(o)) continue;
       if(ignore && T(o.id)===ignore) continue;
       var or = orderRange462(o);
+      // BNS787: centrale materiaalregel: start op oude einddatum/ophaaldag is vrij.
+      if(or && range && range.start && or.end && range.start.getTime() === or.end.getTime()) continue;
       if(!overlap462(range, or)) continue;
       var mats = Array.isArray(o.materials)?o.materials:[];
       for(var j=0; j<mats.length; j++){
@@ -52008,9 +52035,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       var r = orig.apply(this, arguments);
       try{ syncIntoState(s); }catch(e){}
       setTimeout(function(){
-        // BNS805: gebruik window.* zodat BNS767 niet terugvalt op oude lokale renderer.
-        try{ if(typeof window.renderDashboard === 'function') window.renderDashboard(); }catch(e){}
-        try{ if(typeof window.renderOrders    === 'function') window.renderOrders();    }catch(e){}
+        try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+        try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
       }, 0);
       return r;
     };
@@ -52031,9 +52057,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [1000, 2500, 5000].forEach(function(ms){
     setTimeout(function(){
       syncIntoState(window.state);
-      // BNS805: gebruik window.* zodat BNS767 niet terugvalt op oude lokale renderer.
-      try{ if(typeof window.renderDashboard === 'function') window.renderDashboard(); }catch(e){}
-      try{ if(typeof window.renderOrders    === 'function') window.renderOrders();    }catch(e){}
+      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+      try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
     }, ms);
   });
 
@@ -52519,420 +52544,5 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   try{console.info('[BNS 785] retourdag klik breed actief: pointerdown/mousedown/click + V392/V611 rijen.');}catch(e){}
 })();
 
-/* =========================================================
-   BNS 802 - minimale fix op werkende v785 basis
-   - GEEN eigen opdrachten-render meer (oude goede layout blijft leidend)
-   - wijziging zonder datum/materiaal-wijziging opslaan voorrang via window-capture
-   - datum +3/today alleen bij nieuwe opdracht, niet bij wijzigen
-   - wijzigen scrollt boven op mobiel en laptop
-========================================================= */
-(function BNS_802_MINIMAAL_V785_FIX(){
-  'use strict';
-  if(window.__BNS802_MINIMAAL_V785_FIX__) return;
-  window.__BNS802_MINIMAAL_V785_FIX__ = true;
-  function E(id){ return document.getElementById(id); }
-  function T(v){ return String(v==null?'':v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state||{}; }
-  function orders(){ var s=S(); if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
-  function idOf(o){ return T(o&&(o.id||o.orderId||o.docId)); }
-  function numOf(o){ return T(o&&(o.number||o.orderNumber||o.opdrachtNr)); }
-  function statusOf(o){ return T(o&&(o.status||o.orderStatus||o.documentStatus)); }
-  function parseDate(v){ v=T(v); if(!v)return null; var m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m){var d=new Date(+m[1],+m[2]-1,+m[3]);d.setHours(0,0,0,0);return isNaN(d)?null:d;} m=v.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})/); if(m){var y=+m[3]; if(y<100)y+=2000; var d2=new Date(y,+m[2]-1,+m[1]); d2.setHours(0,0,0,0); return isNaN(d2)?null:d2;} var d3=new Date(v); if(!isNaN(d3)){d3.setHours(0,0,0,0);return d3;} return null; }
-  function iso(v){ var d=parseDate(v); if(!d) return T(v); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-  function addDaysISO2(dateStr, days){ var d=parseDate(dateStr)||new Date(); d.setDate(d.getDate()+days); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-  function editingId(){ try{ if(T(editing)) return T(editing); }catch(e){} return T(window.editing); }
-  function editingActive(){ return !!editingId(); }
-  function currentNumber(){ var ids=['orderNumber','orderNo','opdrachtNr','number']; for(var i=0;i<ids.length;i++){var el=E(ids[i]); if(el&&T(el.value)) return T(el.value);} return ''; }
-  function findCurrentOrder(){ var eid=editingId(), nr=currentNumber(); return orders().find(function(o){ return (eid&&(idOf(o)===eid||numOf(o)===eid)) || (nr&&numOf(o)===nr); })||null; }
-  function startOf(o){ return T(o&&(o.start||o.dateStart||o.startDate||o.begin)); }
-  function endOf(o){ return T(o&&(o.end||o.dateEnd||o.endDate||o.finish))||startOf(o); }
-  function mats(o){ return Array.isArray(o&&o.materials)?o.materials:[]; }
-  function code(m){ return T(m&&(m.code||m.materialCode||m.productCode||m.nr||m.number||m.id)); }
-  function name(m){ return T(m&&(m.name||m.product||m.productName||m.description||m.title)); }
-  function matKey(m){ return (code(m)||name(m)||T(m&&m.materialId)||T(m&&m.oldId)).toUpperCase().replace(/\s+/g,''); }
-  function matKeys(list){ return (Array.isArray(list)?list:[]).map(matKey).filter(Boolean).sort().join('|'); }
-  function chosenList(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
-  function formDate(id){ var el=E(id); return el?iso(el.value):''; }
-  function sameDateAndMaterials(old){
-    if(!old) return false;
-    var fs=formDate('dateStart'), fe=formDate('dateEnd')||fs;
-    var os=iso(startOf(old)), oe=iso(endOf(old))||os;
-    if(fs!==os || fe!==oe) return false;
-    var oldKeys=matKeys(mats(old)), newKeys=matKeys(chosenList());
-    if(oldKeys || newKeys) return oldKeys===newKeys;
-    return true;
-  }
-  function val(id){ var el=E(id); return el?T(el.value):''; }
-  function setIf(obj,key,v){ if(v!=='' && v!=null) obj[key]=v; }
-  function saveDirectEdit(){
-    var old=findCurrentOrder();
-    if(!old || !sameDateAndMaterials(old)) return false;
-    var arr=orders(); var idx=arr.findIndex(function(o){return (idOf(old)&&idOf(o)===idOf(old))||(numOf(old)&&numOf(o)===numOf(old));});
-    if(idx<0) return false;
-    var o=arr[idx];
-    o.number=currentNumber()||numOf(o); o.title=val('orderTitle')||o.title||'';
-    var st=val('orderStatus')||statusOf(o)||'Bevestigd'; o.status=st; o.orderStatus=st; o.documentStatus=st;
-    o.start=formDate('dateStart')||startOf(o); o.end=formDate('dateEnd')||endOf(o)||o.start; o.brand=val('orderBrand')||o.brand||'';
-    o.customer=o.customer||{}; setIf(o.customer,'name',val('customerName')); setIf(o.customer,'street',val('customerStreet')); setIf(o.customer,'zip',val('customerZip')); setIf(o.customer,'city',val('customerCity')); setIf(o.customer,'phone',val('customerPhone')); setIf(o.customer,'email',val('customerEmail'));
-    o.location=o.location||{}; setIf(o.location,'name',val('locationName')); setIf(o.location,'street',val('locationStreet')); setIf(o.location,'zip',val('locationZip')); setIf(o.location,'city',val('locationCity')); setIf(o.location,'contact',val('locationContact')); setIf(o.location,'phone',val('locationPhone'));
-    var d=val('orderDriver'); o.driver=d; o.driverName=d; o.bezorger=d; o.vehicle=val('orderVehicle')||o.vehicle||''; o.extra=val('orderExtra')||o.extra||''; o.updatedAt=new Date().toISOString();
-    try{ if(typeof save==='function') save(); else localStorage.setItem('event-planner-pro-v87',JSON.stringify(S())); }catch(e){ try{localStorage.setItem('event-planner-pro-v87',JSON.stringify(S()));}catch(_e){} }
-    try{ if(typeof window.fbSet==='function' && idOf(o)) window.fbSet('orders',idOf(o),o); }catch(e){}
-    try{ if(typeof toastMsg==='function') toastMsg('Opdracht opgeslagen'); else if(typeof toast==='function') toast('Opdracht opgeslagen'); }catch(e){}
-    try{ editing=null; window.editing=''; }catch(e){}
-    try{ if(typeof clearOrder==='function') clearOrder(); }catch(e){}
-    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
-    try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
-    try{ if(typeof renderOrders==='function') setTimeout(renderOrders,40); }catch(e){}
-    return true;
-  }
-  function isSaveButton(b){ if(!b) return false; var txt=T(b.textContent||b.value||''); var id=T(b.id); return id==='saveOrder'||id==='btnSave'||id==='opslaan'||id==='saveBtn'||/^opslaan$/i.test(txt); }
-  function captureSave(ev){ var b=ev.target&&ev.target.closest&&ev.target.closest('button,input[type=button],input[type=submit]'); if(!isSaveButton(b)) return; if(saveDirectEdit()){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); return false; } }
-  window.addEventListener('click',captureSave,true);
 
-  function forceTop(){ [0,50,120,250,500,900].forEach(function(ms){ setTimeout(function(){ try{var n=E('newOrder'); if(n)n.scrollTop=0;}catch(e){} document.documentElement.scrollTop=0; document.body.scrollTop=0; try{window.scrollTo({top:0,left:0,behavior:'instant'});}catch(e){try{window.scrollTo(0,0);}catch(_e){}} },ms); }); }
-  function wrapEdit(fn){ if(typeof fn!=='function'||fn.__bns802) return fn; var w=function(){ var r=fn.apply(this,arguments); forceTop(); return r; }; w.__bns802=true; return w; }
-  function installEditWrap(){ try{ if(typeof editOrder==='function' && !editOrder.__bns802) editOrder=wrapEdit(editOrder); }catch(e){} try{ if(window.editOrder && !window.editOrder.__bns802) window.editOrder=wrapEdit(window.editOrder); }catch(e){} }
-  installEditWrap(); setInterval(installEditWrap,700);
-
-  function installDateGuards(){
-    var ds=E('dateStart'), de=E('dateEnd');
-    if(ds && !ds.__bns802Date){ ds.__bns802Date=true; ds.addEventListener('change',function(ev){ if(editingActive()){ ev.stopImmediatePropagation(); return false; } },true); }
-    if(de && !de.__bns802Date){ de.__bns802Date=true; de.addEventListener('change',function(ev){ if(editingActive()){ ev.stopImmediatePropagation(); return false; } },true); }
-    try{ if(typeof clampToday==='function' && !clampToday.__bns802){ var oldClamp=clampToday; clampToday=function(idv){ if(editingActive()){ var el=E(idv); if(el) el.min=''; return; } return oldClamp.apply(this,arguments); }; clampToday.__bns802=true; window.clampToday=clampToday; } }catch(e){}
-  }
-  installDateGuards(); setInterval(installDateGuards,1000);
-
-  // Auto +3 dagen bij laden neutraliseren als er een bestaande opdracht open staat.
-  setTimeout(function(){ if(editingActive()){ var old=findCurrentOrder(); if(old){ var ds=E('dateStart'), de=E('dateEnd'); if(ds) ds.value=startOf(old); if(de) de.value=endOf(old); } } },80);
-  setTimeout(function(){ if(editingActive()){ var old=findCurrentOrder(); if(old){ var ds=E('dateStart'), de=E('dateEnd'); if(ds) ds.value=startOf(old); if(de) de.value=endOf(old); } } },500);
-  try{console.info('[BNS 802] minimale v785 fix actief: oranje behouden, save-edit voorrang, geen eigen opdrachten-render.');}catch(e){}
-})();
-
-/* =========================================================
-   BNS 803 - noodfix zonder extra oude lagen
-   1) Bestaande opdracht wijzigen slaat direct op (dus bezorger/status/tekst wijzigen blokkeert niet door materiaal).
-   2) Opdrachtenpagina krijgt een vaste render en geen wisselende oude kaartlagen.
-   3) Oranje retourdag uit v785/v802 blijft ongemoeid.
-========================================================= */
-(function BNS_803_FINAL_FIX(){
-  'use strict';
-  if(window.__BNS803_FINAL_FIX__) return;
-  window.__BNS803_FINAL_FIX__ = true;
-  function E(id){ return document.getElementById(id); }
-  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function T(v){ return String(v==null?'':v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function esc(s){ return T(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state||{}; }
-  function orders(){ var s=S(); if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
-  function idOf(o){ return T(o&&(o.id||o.orderId||o.docId)); }
-  function numOf(o){ return T(o&&(o.number||o.orderNumber||o.opdrachtNr)); }
-  function currentEditing(){ try{ if(T(editing)) return T(editing); }catch(e){} return T(window.editing); }
-  function currentNumber(){ var ids=['orderNumber','orderNo','opdrachtNr','number']; for(var i=0;i<ids.length;i++){ var el=E(ids[i]); if(el && T(el.value)) return T(el.value); } return ''; }
-  function findEditingOrder(){ var eid=currentEditing(), nr=currentNumber(); return orders().find(function(o){ return (eid && (idOf(o)===eid || numOf(o)===eid)) || (nr && numOf(o)===nr); }) || null; }
-  function val(id){ var el=E(id); return el ? T(el.value) : ''; }
-  function setFieldObj(obj,key,value){ if(value!=='' && value!=null) obj[key]=value; }
-  function chosenList(){ try{ if(Array.isArray(chosen)) return chosen; }catch(e){} return Array.isArray(window.chosen)?window.chosen:[]; }
-  function clone(v){ try{return JSON.parse(JSON.stringify(v));}catch(e){return v;} }
-  function money(n){ n=Number(n||0); return '€ '+n.toFixed(2).replace('.',','); }
-  function niceDate(v){ v=T(v); if(!v) return ''; var m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return String(m[3]).padStart(2,'0')+'-'+String(m[2]).padStart(2,'0')+'-'+m[1]; return v; }
-  function liveStatus(o){ var s=L(o&&o.status); return !(/geannuleerd|verwijderd|deleted|trash|uitgevoerd/.test(s)); }
-  function isOfferte(o){ return /offerte/.test(L(o&&o.status)); }
-  function isOptie(o){ return /optie/.test(L(o&&o.status)); }
-  function orderText(o){ return [numOf(o),o&&o.title,o&&o.customer&&o.customer.name,o&&o.location&&o.location.name,o&&o.location&&o.location.street,(o&&o.materials||[]).map(function(m){return (m.code||'')+' '+(m.name||'');}).join(' ')].join(' ').toLowerCase(); }
-  function meaningful(o){
-    if(!o) return false;
-    if(T(o.start||o.end)) return true;
-    if(T(o.title) || T(o.customer&&o.customer.name) || T(o.location&&o.location.name) || ((o.materials||[]).length>0)) return true;
-    return false;
-  }
-  function currentMode(){ return window.__BNS803_ORDERS_MODE || 'running'; }
-  function setMode(m){ window.__BNS803_ORDERS_MODE = m || 'running'; }
-  function rowsForMode(){
-    var q=L((E('ordersSearch')||{}).value||'');
-    var mode=currentMode();
-    return orders().filter(meaningful).filter(function(o){
-      if(mode==='quotes') return isOfferte(o);
-      if(mode==='options') return isOptie(o);
-      return liveStatus(o) && !isOfferte(o) && !isOptie(o);
-    }).filter(function(o){ return !q || orderText(o).indexOf(q)>=0; }).sort(function(a,b){ return T(a.start||'9999-99-99').localeCompare(T(b.start||'9999-99-99')) || numOf(a).localeCompare(numOf(b)); });
-  }
-  function statusLabel(o){ var s=T(o&&o.status)||'Bevestigd'; if(s==='Bevestigd') return 'Bevestigd'; return s; }
-  function buildCard(o){
-    var mats=(o.materials||[]).map(function(m){return esc(m.code||m.name||'');}).filter(Boolean).join(', ');
-    var addr=[o.location&&o.location.name,o.location&&o.location.street,o.location&&o.location.city].filter(Boolean).join(' ');
-    var total=(o.pricing && (o.pricing.grand!=null||o.pricing.incl!=null)) ? money(o.pricing.grand!=null?o.pricing.grand:o.pricing.incl) : '€ 0,00';
-    var dep=(o.pricing && o.pricing.deposit!=null) ? money(o.pricing.deposit) : '€ 0,00';
-    return '<div class="bns803-card" data-oid="'+esc(idOf(o))+'">'
-      + '<div class="bns803-date">'+esc(niceDate(o.start)||niceDate(o.end)||'')+'</div>'
-      + '<div class="bns803-main"><div class="bns803-title">'+esc(numOf(o))+' - '+esc(o.title||'')+' <span class="bns803-status">✓ '+esc(statusLabel(o))+'</span></div>'
-      + '<div><b>Datum:</b> '+esc(niceDate(o.start))+(o.end?' tot datum '+esc(niceDate(o.end)):'')+'</div>'
-      + '<div><b>Klant:</b> '+esc(o.customer&&o.customer.name||'')+'</div>'
-      + '<div><b>Locatie:</b> '+esc(addr)+'</div>'
-      + '<div><b>Materialen:</b> '+mats+'</div>'
-      + '<div>Totaal: '+esc(total)+' | Borg: '+esc(dep)+'</div></div>'
-      + '<div class="bns803-actions"><button type="button" data-bns803-overview="'+esc(idOf(o))+'">Overzicht bestelling</button><button type="button" data-bns803-edit="'+esc(idOf(o))+'">Wijzigen</button><button type="button" data-bns803-waze="'+esc(idOf(o))+'">Waze</button></div>'
-      + '</div>';
-  }
-  function ensureStyle(){
-    if(E('bns803Style')) return;
-    var s=document.createElement('style'); s.id='bns803Style'; s.textContent='\
-      #ordersList.bns803-owned{display:block!important;min-height:200px!important;}\
-      .bns803-tabs{display:flex!important;gap:10px!important;flex-wrap:wrap!important;margin:12px 0!important;}\
-      .bns803-tabs button{border:0!important;border-radius:12px!important;padding:14px 18px!important;font-weight:900!important;background:#111827!important;color:white!important;cursor:pointer!important;}\
-      .bns803-tabs button.active{background:#0ea5e9!important;}\
-      .bns803-card{display:grid!important;grid-template-columns:140px 1fr auto!important;gap:16px!important;align-items:start!important;margin:14px 0!important;padding:18px!important;background:#fff!important;border-left:6px solid #16a34a!important;border-radius:16px!important;box-shadow:0 8px 22px rgba(15,23,42,.08)!important;color:#111827!important;min-height:120px!important;overflow:visible!important;}\
-      .bns803-date{background:#111827!important;color:#fff!important;border-radius:14px!important;min-height:88px!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;font-weight:900!important;font-size:22px!important;padding:10px!important;white-space:pre-line!important;}\
-      .bns803-main{font-size:16px!important;line-height:1.35!important;min-width:0!important;}\
-      .bns803-title{font-size:20px!important;font-weight:900!important;margin-bottom:8px!important;}\
-      .bns803-status{display:inline-block!important;margin-left:8px!important;background:#dcfce7!important;color:#166534!important;border:1px solid #86efac!important;border-radius:999px!important;padding:5px 10px!important;font-size:14px!important;}\
-      .bns803-actions{display:flex!important;gap:8px!important;align-items:center!important;justify-content:flex-end!important;flex-wrap:wrap!important;}\
-      .bns803-actions button{border:0!important;border-radius:10px!important;padding:10px 14px!important;font-weight:900!important;color:#fff!important;background:#0ea5e9!important;cursor:pointer!important;}\
-      .bns803-actions button:first-child{background:#f59e0b!important;}\
-      .bns803-actions button:last-child{background:#16a34a!important;}\
-      @media(max-width:900px){.bns803-card{grid-template-columns:100px 1fr!important}.bns803-actions{grid-column:1 / -1!important;justify-content:flex-start!important}.bns803-date{font-size:16px!important;min-height:68px!important}}\
-    '; document.head.appendChild(s);
-  }
-  function ensureTabs(){
-    var list=E('ordersList'); if(!list) return;
-    var tabs=E('bns803Tabs');
-    if(!tabs){ tabs=document.createElement('div'); tabs.id='bns803Tabs'; tabs.className='bns803-tabs'; tabs.innerHTML='<button type="button" data-bns803-mode="running">Lopende opdrachten</button><button type="button" data-bns803-mode="options">14 dagen opties</button><button type="button" data-bns803-mode="quotes">Offertes</button>'; list.parentNode.insertBefore(tabs,list); }
-    A('[data-bns803-mode]',tabs).forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-bns803-mode')===currentMode()); b.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); setMode(b.getAttribute('data-bns803-mode')); stableRenderOrders(true); }; });
-    // Oude/dubbele tabrijen verbergen, behalve onze eigen rij.
-    A('button').forEach(function(b){ var txt=L(b.textContent); if((txt==='lopende opdrachten'||txt==='14 dagen opties'||txt==='offertes') && !b.closest('#bns803Tabs')){ var p=b.parentElement; if(p && p.id!=='bns803Tabs') p.style.display='none'; } });
-  }
-  function stableRenderOrders(force){
-    var list=E('ordersList'); if(!list) return;
-    ensureStyle(); ensureTabs();
-    var rows=rowsForMode();
-    var empty=currentMode()==='options'?'Geen 14 dagen opties gevonden.':(currentMode()==='quotes'?'Geen offertes gevonden.':'Geen lopende opdrachten gevonden.');
-    var html=rows.length?rows.map(buildCard).join(''):'<p>'+empty+'</p>';
-    if(force || list.__bns803Html!==html || !list.classList.contains('bns803-owned')){
-      list.__bns803Html=html; list.className='bns803-owned'; list.innerHTML=html;
-      A('[data-bns803-edit]',list).forEach(function(btn){ btn.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); var oid=btn.getAttribute('data-bns803-edit'); try{ if(typeof editOrder==='function') editOrder(oid); }catch(e){} }; });
-      A('[data-bns803-overview]',list).forEach(function(btn){ btn.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); var oid=btn.getAttribute('data-bns803-overview'); try{ if(typeof openOrderOverview==='function') openOrderOverview(oid); else if(typeof showOrderOverview==='function') showOrderOverview(oid); }catch(e){} }; });
-      A('[data-bns803-waze]',list).forEach(function(btn){ btn.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); var oid=btn.getAttribute('data-bns803-waze'); var o=orders().find(function(x){return idOf(x)===oid;}); var a=o&&o.location?[o.location.street,o.location.zip,o.location.city].filter(Boolean).join(' '):''; if(a) window.open('https://waze.com/ul?q='+encodeURIComponent(a),'_blank'); }; });
-    }
-  }
-  var oldRender=null;
-  function installRender(){
-    try{ if(typeof renderOrders==='function' && renderOrders!==stableRenderOrders) oldRender=renderOrders; }catch(e){}
-    try{ renderOrders=stableRenderOrders; }catch(e){}
-    window.renderOrders=stableRenderOrders;
-    var search=E('ordersSearch'); if(search && !search.__bns803){ search.__bns803=true; search.addEventListener('input',function(){stableRenderOrders(true);},true); }
-    var nav=A('.nav').filter(function(b){ return b && b.dataset && b.dataset.page==='orders'; })[0];
-    if(nav && !nav.__bns803){ nav.__bns803=true; nav.addEventListener('click',function(){ [0,60,180,450,900].forEach(function(ms){setTimeout(function(){stableRenderOrders(true);},ms);}); },true); }
-  }
-  installRender(); setInterval(installRender,1000);
-  setInterval(function(){ var page=E('orders'); if(page && page.classList.contains('active')) stableRenderOrders(false); },1200);
-
-  function buildOrderFromForm(existing){
-    var totals={}; try{ totals=(typeof calcLineTotals==='function')?calcLineTotals():((typeof calcTotals==='function')?calcTotals():(existing&&existing.pricing)||{}); }catch(e){ totals=(existing&&existing.pricing)||{}; }
-    var driver=val('orderDriver') || (existing&&existing.driver) || '';
-    return Object.assign({}, existing||{}, {
-      id: existing ? idOf(existing) : (currentEditing() || Math.random().toString(36).slice(2,10)),
-      number: currentNumber() || numOf(existing),
-      status: val('orderStatus') || (existing&&existing.status) || 'Bevestigd',
-      title: val('orderTitle') || (existing&&existing.title) || 'Zonder titel',
-      start: val('dateStart') || (existing&&existing.start) || '',
-      end: val('dateEnd') || val('dateStart') || (existing&&existing.end) || '',
-      brand: val('orderBrand') || (existing&&existing.brand) || '',
-      customer: {name:val('customerName'),street:val('customerStreet'),zip:val('customerZip'),city:val('customerCity'),phone:val('customerPhone'),email:val('customerEmail')},
-      location: {name:val('locationName'),street:val('locationStreet'),zip:val('locationZip'),city:val('locationCity'),contact:val('locationContact'),phone:val('locationPhone'),show:(E('showLocationOnDocs')?E('showLocationOnDocs').checked:true)},
-      materials: clone(chosenList() || []),
-      driver: driver, driverName: driver, bezorger: driver,
-      vehicle: val('orderVehicle') || (existing&&existing.vehicle) || '',
-      extra: val('orderExtra') || (existing&&existing.extra) || '',
-      pricing: totals || {},
-      confirmationText: (E('confirmationText')&&E('confirmationText').value) || (existing&&existing.confirmationText) || '',
-      updatedAt: new Date().toISOString()
-    });
-  }
-  function directSaveExistingEdit(){
-    var old=findEditingOrder();
-    if(!old) return false;
-    var oid=idOf(old), onr=numOf(old);
-    var idx=orders().findIndex(function(o){ return (oid&&idOf(o)===oid) || (onr&&numOf(o)===onr); });
-    if(idx<0) return false;
-    var o=buildOrderFromForm(old);
-    orders()[idx]=Object.assign({}, old, o);
-    try{ if(typeof save==='function') save(); else localStorage.setItem('event-planner-pro-v87',JSON.stringify(S())); }catch(e){ try{localStorage.setItem('event-planner-pro-v87',JSON.stringify(S()));}catch(_e){} }
-    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(orders()[idx]); }catch(e){}
-    try{ if(typeof window.fbSet==='function' && idOf(orders()[idx])) window.fbSet('orders',idOf(orders()[idx]),orders()[idx]); }catch(e){}
-    try{ if(typeof toastMsg==='function') toastMsg('Opdracht opgeslagen'); else if(typeof toast==='function') toast('Opdracht opgeslagen'); }catch(e){}
-    try{ editing=null; window.editing=''; }catch(e){}
-    try{ if(typeof clearOrder==='function') clearOrder(); }catch(e){}
-    try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
-    try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
-    [0,80,250,600].forEach(function(ms){ setTimeout(function(){stableRenderOrders(true);},ms); });
-    return true;
-  }
-  function isSaveButton(b){ if(!b) return false; var txt=L(b.textContent||b.value||''); var id=T(b.id); return id==='saveOrder'||id==='btnSave'||id==='opslaan'||id==='saveBtn'||txt==='opslaan'; }
-  function captureSave(ev){ var b=ev.target&&ev.target.closest&&ev.target.closest('button,input[type=button],input[type=submit]'); if(!isSaveButton(b)) return; if(currentEditing() || findEditingOrder()){ if(directSaveExistingEdit()){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); return false; } } }
-  window.addEventListener('click',captureSave,true);
-  document.addEventListener('click',captureSave,true);
-  try{ console.info('[BNS 803] vaste opdrachten-render + direct bestaande opdracht opslaan actief'); }catch(e){}
-})();
-
-/* =========================================================
-   BNS 804 - directe wijzig-opslag zonder materiaalblokkade
-   Doel:
-   - Bestaande opdracht wijzigen (bezorger/tekst/status/etc.) mag niet
-     opnieuw blokkeren op al gereserveerd materiaal.
-   - Oude save()/validatie niet aanroepen bij bestaande opdracht.
-   - Nieuwe opdracht behoudt normale materiaalcontrole.
-========================================================= */
-(function BNS_804_DIRECT_EDIT_SAVE_FIX(){
-  'use strict';
-  if(window.__BNS804_DIRECT_EDIT_SAVE_FIX__) return;
-  window.__BNS804_DIRECT_EDIT_SAVE_FIX__ = true;
-
-  function E(id){ return document.getElementById(id); }
-  function T(v){ return String(v==null?'':v).trim(); }
-  function L(v){ return T(v).toLowerCase(); }
-  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || {}; }
-  function orders(){ var s=S(); if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
-  function idOf(o){ return T(o && (o.id || o.orderId || o.docId)); }
-  function numOf(o){ return T(o && (o.number || o.orderNumber || o.opdrachtNr)); }
-  function val(id){ var el=E(id); return el ? (el.type==='checkbox' ? el.checked : T(el.value)) : ''; }
-  function setIf(obj,key,v){ if(v!=='' && v!=null) obj[key]=v; }
-  function currentNumber(){ return T(val('orderNumber') || val('orderNo') || val('opdrachtNr') || val('number')); }
-  function currentEditing(){ try{ if(T(editing)) return T(editing); }catch(e){} return T(window.editing); }
-  function findExistingOrder(){
-    var id=currentEditing(), nr=currentNumber();
-    if(!id && !nr) return null;
-    return orders().find(function(o){ return (id && (idOf(o)===id || numOf(o)===id)) || (nr && numOf(o)===nr); }) || null;
-  }
-  function parseChosen(){
-    try{ if(Array.isArray(chosen)) return JSON.parse(JSON.stringify(chosen)); }catch(e){}
-    if(Array.isArray(window.chosen)) { try{return JSON.parse(JSON.stringify(window.chosen));}catch(e){return window.chosen.slice();} }
-    return null;
-  }
-  function stateWrite(){
-    var s=S();
-    var raw='';
-    try{ raw=JSON.stringify(s); }catch(e){ raw=''; }
-    if(!raw) return;
-    ['event-planner-pro-v87','eventPlannerProV91','eventPlannerProState','plannerState','bns_state'].forEach(function(k){ try{ localStorage.setItem(k, raw); }catch(e){} });
-  }
-  function syncOne(o){
-    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
-    try{ if(typeof window.fbSet==='function' && idOf(o)) window.fbSet('orders',idOf(o),o); }catch(e){}
-    try{ if(typeof window.firebaseSaveOrder==='function') window.firebaseSaveOrder(o); }catch(e){}
-  }
-  function directSaveExisting(){
-    var old=findExistingOrder();
-    if(!old) return false;
-    var idx=orders().findIndex(function(o){ return (idOf(old)&&idOf(o)===idOf(old)) || (numOf(old)&&numOf(o)===numOf(old)); });
-    if(idx<0) return false;
-
-    var o=Object.assign({}, old);
-    o.id = idOf(old) || o.id || currentEditing() || ('ord_'+Date.now());
-    o.number = currentNumber() || numOf(old) || o.number || '';
-    o.title = val('orderTitle') || o.title || '';
-    var st = val('orderStatus') || o.status || 'Bevestigd';
-    o.status = st; o.orderStatus = st; o.documentStatus = st;
-    o.start = val('dateStart') || o.start || o.dateStart || '';
-    o.end = val('dateEnd') || o.end || o.dateEnd || o.start || '';
-    o.brand = val('orderBrand') || o.brand || '';
-
-    o.customer = Object.assign({}, o.customer || {});
-    setIf(o.customer,'name',val('customerName'));
-    setIf(o.customer,'street',val('customerStreet'));
-    setIf(o.customer,'zip',val('customerZip'));
-    setIf(o.customer,'city',val('customerCity'));
-    setIf(o.customer,'phone',val('customerPhone'));
-    setIf(o.customer,'email',val('customerEmail'));
-
-    o.location = Object.assign({}, o.location || {});
-    setIf(o.location,'name',val('locationName'));
-    setIf(o.location,'street',val('locationStreet'));
-    setIf(o.location,'zip',val('locationZip'));
-    setIf(o.location,'city',val('locationCity'));
-    setIf(o.location,'contact',val('locationContact'));
-    setIf(o.location,'phone',val('locationPhone'));
-    if(E('showLocationOnDocs')) o.location.show=!!E('showLocationOnDocs').checked;
-
-    var mats=parseChosen();
-    if(mats) o.materials=mats;
-
-    var d = val('orderDriver') || val('driver') || o.driver || o.driverName || o.bezorger || '';
-    o.driver=d; o.driverName=d; o.bezorger=d;
-    o.vehicle = val('orderVehicle') || o.vehicle || '';
-    o.extra = val('orderExtra') || o.extra || '';
-    if(E('confirmationText')) o.confirmationText=E('confirmationText').value;
-    o.updatedAt = new Date().toISOString();
-
-    orders()[idx] = Object.assign({}, old, o);
-    window.__BNS804_RECENT_DIRECT_EDIT_SAVE__ = Date.now();
-    stateWrite();
-    syncOne(orders()[idx]);
-
-    try{ if(typeof toastMsg==='function') toastMsg('Opdracht opgeslagen'); else if(typeof toast==='function') toast('Opdracht opgeslagen'); }catch(e){}
-    try{ editing=null; window.editing=''; }catch(e){}
-    try{ if(typeof clearOrder==='function') clearOrder(); }catch(e){}
-    try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
-    try{ if(typeof renderAll==='function') setTimeout(renderAll,40); }catch(e){}
-    try{ if(typeof renderOrders==='function') [80,250,600].forEach(function(ms){setTimeout(function(){try{renderOrders();}catch(e){}},ms);}); }catch(e){}
-    return true;
-  }
-  function isSaveControl(el){
-    if(!el || !el.closest) return false;
-    var b=el.closest('button,input[type=button],input[type=submit],a,.btn');
-    if(!b) return false;
-    var txt=L(b.textContent || b.value || b.title || b.id || '');
-    var id=T(b.id);
-    return id==='saveOrder' || id==='btnSave' || id==='saveBtn' || id==='opslaan' || txt==='opslaan' || /\bopslaan\b/.test(txt);
-  }
-  function intercept(ev){
-    if(!isSaveControl(ev.target)) return;
-    if(!findExistingOrder()) return; // nieuwe opdracht: normale controle behouden
-    if(directSaveExisting()){
-      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      return false;
-    }
-  }
-  ['pointerdown','mousedown','touchstart','click','submit'].forEach(function(type){
-    window.addEventListener(type,intercept,true);
-    document.addEventListener(type,intercept,true);
-  });
-
-  // Laat oude validators geen foutmelding meer tonen nadat de directe wijzig-opslag al gedaan is.
-  var oldAlert=window.alert;
-  window.alert=function(msg){
-    try{
-      if(/^Opslaan geblokkeerd/i.test(T(msg)) && window.__BNS804_RECENT_DIRECT_EDIT_SAVE__ && Date.now()-window.__BNS804_RECENT_DIRECT_EDIT_SAVE__<3500){
-        console.warn('[BNS804] oude save-blokkade onderdrukt na directe wijzig-opslag:', msg);
-        return;
-      }
-    }catch(e){}
-    return oldAlert.apply(window,arguments);
-  };
-  if(typeof window.bnsAlert==='function'){
-    var oldBnsAlert=window.bnsAlert;
-    window.bnsAlert=function(msg,title){
-      try{
-        if(/^Opslaan geblokkeerd/i.test(T(msg)) && window.__BNS804_RECENT_DIRECT_EDIT_SAVE__ && Date.now()-window.__BNS804_RECENT_DIRECT_EDIT_SAVE__<3500){
-          console.warn('[BNS804] oude bnsAlert-blokkade onderdrukt na directe wijzig-opslag:', msg);
-          return;
-        }
-      }catch(e){}
-      return oldBnsAlert.apply(this,arguments);
-    };
-  }
-
-  // Als de opdrachtenpagina even zwart/oud tekent, laat de bestaande render nog een keer rustig natekeken.
-  document.addEventListener('click',function(ev){
-    var b=ev.target && ev.target.closest && ev.target.closest('button,a,.nav'); if(!b) return;
-    var txt=L(b.textContent||b.title||b.id||'');
-    if(txt.indexOf('opdrachten')>=0){
-      [120,350,800,1400].forEach(function(ms){ setTimeout(function(){ try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} },ms); });
-    }
-  },true);
-
-  try{ console.info('[BNS804] directe wijzig-opslag zonder oude materiaalblokkade actief'); }catch(e){}
-})();
-
-/* BNS805: BNS767 saveLocal-render gebruikt window.renderOrders/window.renderDashboard; voorkomt terugschieten naar oude kale opdrachtkaarten. */
+/* BNS 787: centrale materiaal-overlap gelijkgetrokken. Einddatum/ophaaldag = vrij; oranje blijft alleen waarschuwing + Ja/Nee. Geen save-bypass, geen force-reservering. */
