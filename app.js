@@ -52034,10 +52034,9 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     var patched = function(s){
       var r = orig.apply(this, arguments);
       try{ syncIntoState(s); }catch(e){}
-      setTimeout(function(){
-        try{ if(window.renderDashboard && typeof window.renderDashboard === 'function') window.renderDashboard(); }catch(e){}
-        try{ if(window.renderOrders && typeof window.renderOrders === 'function') window.renderOrders(); }catch(e){}
-      }, 0);
+      /* BNS814: niet renderen vanuit BNS767/saveLocal.
+         Deze render-call zette op de Opdrachten pagina soms de oude zwarte renderer terug.
+         saveLocal synchroniseert alleen state; de bestaande UI/klik-render blijft leidend. */
       return r;
     };
     patched.__bns767 = true;
@@ -52057,8 +52056,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [1000, 2500, 5000].forEach(function(ms){
     setTimeout(function(){
       syncIntoState(window.state);
-      try{ if(window.renderDashboard && typeof window.renderDashboard === 'function') window.renderDashboard(); }catch(e){}
-      try{ if(window.renderOrders && typeof window.renderOrders === 'function') window.renderOrders(); }catch(e){}
+      /* BNS814: geen renderOrders/renderDashboard vanuit BNS767 timers. */
     }, ms);
   });
 
@@ -52555,4 +52553,6 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 /* BNS 806: kleine oranje materiaal-popup. Geen BNS782 folder/map/orderStatus/render/save patch. */
 
 
-/* BNS 813 - BNS767 strict mode render fix: gebruikt alleen window.renderOrders/window.renderDashboard. */
+/* BNS 814 - v809 basis: BNS767 mag niet meer automatisch renderOrders/renderDashboard aanroepen.
+   Doel: zwarte opdracht-render niet meer terugduwen na laden/sync. Oranje materiaal-popup blijft ongewijzigd. */
+try{console.info('[BNS 814] v809 basis + BNS767 render-calls uitgeschakeld; oranje ongewijzigd.');}catch(e){}
