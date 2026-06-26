@@ -52035,8 +52035,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       var r = orig.apply(this, arguments);
       try{ syncIntoState(s); }catch(e){}
       setTimeout(function(){
-        try{ if(window.renderDashboard && typeof window.renderDashboard === 'function') window.renderDashboard(); else if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-        try{ if(window.renderOrders && typeof window.renderOrders === 'function') window.renderOrders(); else if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
+        try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+        try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
       }, 0);
       return r;
     };
@@ -52057,8 +52057,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [1000, 2500, 5000].forEach(function(ms){
     setTimeout(function(){
       syncIntoState(window.state);
-      try{ if(window.renderDashboard && typeof window.renderDashboard === 'function') window.renderDashboard(); else if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-      try{ if(window.renderOrders && typeof window.renderOrders === 'function') window.renderOrders(); else if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
+      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+      try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
     }, ms);
   });
 
@@ -52554,53 +52554,95 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 /* BNS 806: kleine oranje materiaal-popup. Geen BNS782 folder/map/orderStatus/render/save patch. */
 
-
 /* =========================================================
-   BNS 807 - rustige opdrachten na kleine oranje knop
-   Doel: geen nieuwe renderer, geen save/folder/data wijziging.
-   Alleen zorgen dat bij openen van Opdrachten meteen de laatste
-   stabiele renderer (BNS_V356_RENDER_ORDERS / window.renderOrders)
-   wordt gebruikt, zodat de oude basiskaart niet blijft hangen.
-   ========================================================= */
-(function(){
+   BNS 808 - Opdrachten rustig houden zonder renderer te vervangen
+   Basis: v806 kleine oranje werkt.
+   Doel: zwarte/oude opdrachten-render niet zichtbaar laten blijven.
+   Raakt niet: oranje materiaal-popup, save, Firebase, folders, localStorage.
+========================================================= */
+(function BNS_808_OPDRACHTEN_RUST_ZONDER_RENDER_OVERRIDE(){
   'use strict';
-  if(window.__BNS807_ORDERS_RUSTIG__) return;
-  window.__BNS807_ORDERS_RUSTIG__ = true;
+  if(window.__BNS808_OPDRACHTEN_RUST__) return;
+  window.__BNS808_OPDRACHTEN_RUST__ = true;
 
-  function activeOrders(){
-    var p=document.getElementById('orders');
-    return !!(p && (p.classList.contains('active') || getComputedStyle(p).display !== 'none'));
+  function E(id){ return document.getElementById(id); }
+  function txt(el){ return String(el && (el.textContent || el.innerText) || '').replace(/\s+/g,' ').trim().toLowerCase(); }
+  function isOrdersActive(){ var p=E('orders'); return !!(p && p.classList && p.classList.contains('active')); }
+  function addStyle(){
+    if(E('bns808RustStyle')) return;
+    var st=document.createElement('style');
+    st.id='bns808RustStyle';
+    st.textContent =
+      '#orders.bns808-settling #ordersList{opacity:0!important;transition:none!important;}' +
+      '#orders.bns808-settling:after{content:"Opdrachten laden...";display:block;padding:14px;color:#64748b;font-weight:800;}' +
+      '#orders #bns356Tabs{display:flex!important;gap:8px!important;flex-wrap:wrap!important;margin:10px 0!important;}' +
+      '#orders #bns356Tabs .bns356-tab{border:0!important;border-radius:10px!important;padding:9px 12px!important;background:#e2e8f0!important;color:#0f172a!important;font-weight:900!important;}' +
+      '#orders #bns356Tabs .bns356-tab.active{background:#2563eb!important;color:#fff!important;}';
+    (document.head||document.documentElement).appendChild(st);
   }
-  function latestRender(){
+  function directRender(){
+    if(!isOrdersActive()) return;
+    window.__bns808Doing = true;
     try{
-      if(typeof window.BNS_V356_RENDER_ORDERS === 'function') return window.BNS_V356_RENDER_ORDERS;
-      if(typeof window.renderOrders === 'function') return window.renderOrders;
-    }catch(e){}
-    return null;
-  }
-  function renderQuiet(){
-    try{
-      if(!activeOrders()) return;
-      var fn=latestRender();
-      if(fn) fn();
-    }catch(e){}
-  }
-  function burst(){ [0,80,180,350,700].forEach(function(ms){ setTimeout(renderQuiet,ms); }); }
-
-  document.addEventListener('click',function(ev){
-    var t=ev.target;
-    while(t && t!==document){
-      var txt=String(t.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
-      var page=String((t.dataset&&t.dataset.page)||t.getAttribute&&t.getAttribute('data-page')||'').toLowerCase();
-      var href=String(t.getAttribute&&t.getAttribute('href')||'').toLowerCase();
-      if(page==='orders' || href==='#orders' || txt==='opdrachten'){
-        burst();
-        break;
+      if(typeof window.BNS_V356_RENDER_ORDERS === 'function'){
+        window.BNS_V356_RENDER_ORDERS();
+      } else if(typeof window.renderOrders === 'function'){
+        window.renderOrders();
+      } else if(typeof renderOrders === 'function'){
+        renderOrders();
       }
-      t=t.parentNode;
-    }
-  },true);
+    }catch(e){}
+    setTimeout(function(){ window.__bns808Doing = false; }, 120);
+  }
+  var lastKick = 0;
+  function kick(){
+    if(!isOrdersActive()) return;
+    var now=Date.now();
+    if(now-lastKick < 260) return;
+    lastKick = now;
+    addStyle();
+    var p=E('orders'); if(p) p.classList.add('bns808-settling');
+    [20,90,180,360].forEach(function(ms){ setTimeout(directRender, ms); });
+    setTimeout(function(){ var pg=E('orders'); if(pg) pg.classList.remove('bns808-settling'); }, 520);
+  }
 
-  var n=0,tm=setInterval(function(){ if(activeOrders()) renderQuiet(); if(++n>20) clearInterval(tm); },500);
-  try{ console.info('[BNS 807] opdrachten-rust actief: alleen laatste renderer na openen, geen data/save/folder wijzigingen.'); }catch(e){}
+  document.addEventListener('click', function(ev){
+    var el=ev.target && ev.target.closest && ev.target.closest('button,a,.nav,[data-page]');
+    if(!el) return;
+    var t=txt(el), dp=String(el.getAttribute('data-page')||'').toLowerCase();
+    if(dp==='orders' || t==='opdrachten' || /^opdrachten\b/.test(t)){
+      setTimeout(kick, 0);
+      setTimeout(kick, 450);
+    }
+  }, true);
+
+  if(typeof window.showPage === 'function' && !window.showPage.__bns808){
+    var oldShow = window.showPage;
+    var wrapped = function(page){
+      var r = oldShow.apply(this, arguments);
+      if(String(page).toLowerCase()==='orders'){
+        setTimeout(kick, 0);
+        setTimeout(kick, 450);
+      }
+      return r;
+    };
+    wrapped.__bns808 = true;
+    window.showPage = wrapped;
+    try{ showPage = wrapped; }catch(e){}
+  }
+
+  try{
+    var obs = new MutationObserver(function(){
+      if(window.__bns808Doing) return;
+      if(!isOrdersActive()) return;
+      if(!E('bns356Tabs')) { kick(); return; }
+      var list=E('ordersList');
+      if(list && /actieve opdrachten|uitgevoerde opdrachten|geannuleerde opdrachten/i.test(list.textContent||'')) kick();
+    });
+    obs.observe(document.documentElement,{childList:true,subtree:true});
+  }catch(e){}
+
+  addStyle();
+  setTimeout(kick, 800);
+  try{ console.info('[BNS 808] opdrachten-rust actief: geen render/save/folder/Firebase wijziging.'); }catch(e){}
 })();
