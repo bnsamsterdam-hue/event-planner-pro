@@ -52035,8 +52035,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       var r = orig.apply(this, arguments);
       try{ syncIntoState(s); }catch(e){}
       setTimeout(function(){
-        try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-        try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+        try{ if(window.renderDashboard && typeof window.renderDashboard === 'function') window.renderDashboard(); else if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+        try{ if(window.renderOrders && typeof window.renderOrders === 'function') window.renderOrders(); else if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
       }, 0);
       return r;
     };
@@ -52057,8 +52057,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [1000, 2500, 5000].forEach(function(ms){
     setTimeout(function(){
       syncIntoState(window.state);
-      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-      try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+      try{ if(window.renderDashboard && typeof window.renderDashboard === 'function') window.renderDashboard(); else if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
+      try{ if(window.renderOrders && typeof window.renderOrders === 'function') window.renderOrders(); else if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
     }, ms);
   });
 
@@ -52553,3 +52553,54 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
 
 /* BNS 806: kleine oranje materiaal-popup. Geen BNS782 folder/map/orderStatus/render/save patch. */
+
+
+/* =========================================================
+   BNS 807 - rustige opdrachten na kleine oranje knop
+   Doel: geen nieuwe renderer, geen save/folder/data wijziging.
+   Alleen zorgen dat bij openen van Opdrachten meteen de laatste
+   stabiele renderer (BNS_V356_RENDER_ORDERS / window.renderOrders)
+   wordt gebruikt, zodat de oude basiskaart niet blijft hangen.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS807_ORDERS_RUSTIG__) return;
+  window.__BNS807_ORDERS_RUSTIG__ = true;
+
+  function activeOrders(){
+    var p=document.getElementById('orders');
+    return !!(p && (p.classList.contains('active') || getComputedStyle(p).display !== 'none'));
+  }
+  function latestRender(){
+    try{
+      if(typeof window.BNS_V356_RENDER_ORDERS === 'function') return window.BNS_V356_RENDER_ORDERS;
+      if(typeof window.renderOrders === 'function') return window.renderOrders;
+    }catch(e){}
+    return null;
+  }
+  function renderQuiet(){
+    try{
+      if(!activeOrders()) return;
+      var fn=latestRender();
+      if(fn) fn();
+    }catch(e){}
+  }
+  function burst(){ [0,80,180,350,700].forEach(function(ms){ setTimeout(renderQuiet,ms); }); }
+
+  document.addEventListener('click',function(ev){
+    var t=ev.target;
+    while(t && t!==document){
+      var txt=String(t.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+      var page=String((t.dataset&&t.dataset.page)||t.getAttribute&&t.getAttribute('data-page')||'').toLowerCase();
+      var href=String(t.getAttribute&&t.getAttribute('href')||'').toLowerCase();
+      if(page==='orders' || href==='#orders' || txt==='opdrachten'){
+        burst();
+        break;
+      }
+      t=t.parentNode;
+    }
+  },true);
+
+  var n=0,tm=setInterval(function(){ if(activeOrders()) renderQuiet(); if(++n>20) clearInterval(tm); },500);
+  try{ console.info('[BNS 807] opdrachten-rust actief: alleen laatste renderer na openen, geen data/save/folder wijzigingen.'); }catch(e){}
+})();
