@@ -52008,8 +52008,9 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       var r = orig.apply(this, arguments);
       try{ syncIntoState(s); }catch(e){}
       setTimeout(function(){
-        try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-        try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+        // BNS805: gebruik window.* zodat BNS767 niet terugvalt op oude lokale renderer.
+        try{ if(typeof window.renderDashboard === 'function') window.renderDashboard(); }catch(e){}
+        try{ if(typeof window.renderOrders    === 'function') window.renderOrders();    }catch(e){}
       }, 0);
       return r;
     };
@@ -52030,8 +52031,9 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   [1000, 2500, 5000].forEach(function(ms){
     setTimeout(function(){
       syncIntoState(window.state);
-      try{ if(typeof renderDashboard === 'function') renderDashboard(); }catch(e){}
-      try{ if(typeof renderOrders    === 'function') renderOrders();    }catch(e){}
+      // BNS805: gebruik window.* zodat BNS767 niet terugvalt op oude lokale renderer.
+      try{ if(typeof window.renderDashboard === 'function') window.renderDashboard(); }catch(e){}
+      try{ if(typeof window.renderOrders    === 'function') window.renderOrders();    }catch(e){}
     }, ms);
   });
 
@@ -52932,3 +52934,5 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
   try{ console.info('[BNS804] directe wijzig-opslag zonder oude materiaalblokkade actief'); }catch(e){}
 })();
+
+/* BNS805: BNS767 saveLocal-render gebruikt window.renderOrders/window.renderDashboard; voorkomt terugschieten naar oude kale opdrachtkaarten. */
