@@ -52773,3 +52773,162 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   document.addEventListener('click',captureSave,true);
   try{ console.info('[BNS 803] vaste opdrachten-render + direct bestaande opdracht opslaan actief'); }catch(e){}
 })();
+
+/* =========================================================
+   BNS 804 - directe wijzig-opslag zonder materiaalblokkade
+   Doel:
+   - Bestaande opdracht wijzigen (bezorger/tekst/status/etc.) mag niet
+     opnieuw blokkeren op al gereserveerd materiaal.
+   - Oude save()/validatie niet aanroepen bij bestaande opdracht.
+   - Nieuwe opdracht behoudt normale materiaalcontrole.
+========================================================= */
+(function BNS_804_DIRECT_EDIT_SAVE_FIX(){
+  'use strict';
+  if(window.__BNS804_DIRECT_EDIT_SAVE_FIX__) return;
+  window.__BNS804_DIRECT_EDIT_SAVE_FIX__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function S(){ try{ if(typeof state!=='undefined' && state) return state; }catch(e){} return window.state || {}; }
+  function orders(){ var s=S(); if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
+  function idOf(o){ return T(o && (o.id || o.orderId || o.docId)); }
+  function numOf(o){ return T(o && (o.number || o.orderNumber || o.opdrachtNr)); }
+  function val(id){ var el=E(id); return el ? (el.type==='checkbox' ? el.checked : T(el.value)) : ''; }
+  function setIf(obj,key,v){ if(v!=='' && v!=null) obj[key]=v; }
+  function currentNumber(){ return T(val('orderNumber') || val('orderNo') || val('opdrachtNr') || val('number')); }
+  function currentEditing(){ try{ if(T(editing)) return T(editing); }catch(e){} return T(window.editing); }
+  function findExistingOrder(){
+    var id=currentEditing(), nr=currentNumber();
+    if(!id && !nr) return null;
+    return orders().find(function(o){ return (id && (idOf(o)===id || numOf(o)===id)) || (nr && numOf(o)===nr); }) || null;
+  }
+  function parseChosen(){
+    try{ if(Array.isArray(chosen)) return JSON.parse(JSON.stringify(chosen)); }catch(e){}
+    if(Array.isArray(window.chosen)) { try{return JSON.parse(JSON.stringify(window.chosen));}catch(e){return window.chosen.slice();} }
+    return null;
+  }
+  function stateWrite(){
+    var s=S();
+    var raw='';
+    try{ raw=JSON.stringify(s); }catch(e){ raw=''; }
+    if(!raw) return;
+    ['event-planner-pro-v87','eventPlannerProV91','eventPlannerProState','plannerState','bns_state'].forEach(function(k){ try{ localStorage.setItem(k, raw); }catch(e){} });
+  }
+  function syncOne(o){
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+    try{ if(typeof window.fbSet==='function' && idOf(o)) window.fbSet('orders',idOf(o),o); }catch(e){}
+    try{ if(typeof window.firebaseSaveOrder==='function') window.firebaseSaveOrder(o); }catch(e){}
+  }
+  function directSaveExisting(){
+    var old=findExistingOrder();
+    if(!old) return false;
+    var idx=orders().findIndex(function(o){ return (idOf(old)&&idOf(o)===idOf(old)) || (numOf(old)&&numOf(o)===numOf(old)); });
+    if(idx<0) return false;
+
+    var o=Object.assign({}, old);
+    o.id = idOf(old) || o.id || currentEditing() || ('ord_'+Date.now());
+    o.number = currentNumber() || numOf(old) || o.number || '';
+    o.title = val('orderTitle') || o.title || '';
+    var st = val('orderStatus') || o.status || 'Bevestigd';
+    o.status = st; o.orderStatus = st; o.documentStatus = st;
+    o.start = val('dateStart') || o.start || o.dateStart || '';
+    o.end = val('dateEnd') || o.end || o.dateEnd || o.start || '';
+    o.brand = val('orderBrand') || o.brand || '';
+
+    o.customer = Object.assign({}, o.customer || {});
+    setIf(o.customer,'name',val('customerName'));
+    setIf(o.customer,'street',val('customerStreet'));
+    setIf(o.customer,'zip',val('customerZip'));
+    setIf(o.customer,'city',val('customerCity'));
+    setIf(o.customer,'phone',val('customerPhone'));
+    setIf(o.customer,'email',val('customerEmail'));
+
+    o.location = Object.assign({}, o.location || {});
+    setIf(o.location,'name',val('locationName'));
+    setIf(o.location,'street',val('locationStreet'));
+    setIf(o.location,'zip',val('locationZip'));
+    setIf(o.location,'city',val('locationCity'));
+    setIf(o.location,'contact',val('locationContact'));
+    setIf(o.location,'phone',val('locationPhone'));
+    if(E('showLocationOnDocs')) o.location.show=!!E('showLocationOnDocs').checked;
+
+    var mats=parseChosen();
+    if(mats) o.materials=mats;
+
+    var d = val('orderDriver') || val('driver') || o.driver || o.driverName || o.bezorger || '';
+    o.driver=d; o.driverName=d; o.bezorger=d;
+    o.vehicle = val('orderVehicle') || o.vehicle || '';
+    o.extra = val('orderExtra') || o.extra || '';
+    if(E('confirmationText')) o.confirmationText=E('confirmationText').value;
+    o.updatedAt = new Date().toISOString();
+
+    orders()[idx] = Object.assign({}, old, o);
+    window.__BNS804_RECENT_DIRECT_EDIT_SAVE__ = Date.now();
+    stateWrite();
+    syncOne(orders()[idx]);
+
+    try{ if(typeof toastMsg==='function') toastMsg('Opdracht opgeslagen'); else if(typeof toast==='function') toast('Opdracht opgeslagen'); }catch(e){}
+    try{ editing=null; window.editing=''; }catch(e){}
+    try{ if(typeof clearOrder==='function') clearOrder(); }catch(e){}
+    try{ if(typeof showPage==='function') showPage('orders'); }catch(e){}
+    try{ if(typeof renderAll==='function') setTimeout(renderAll,40); }catch(e){}
+    try{ if(typeof renderOrders==='function') [80,250,600].forEach(function(ms){setTimeout(function(){try{renderOrders();}catch(e){}},ms);}); }catch(e){}
+    return true;
+  }
+  function isSaveControl(el){
+    if(!el || !el.closest) return false;
+    var b=el.closest('button,input[type=button],input[type=submit],a,.btn');
+    if(!b) return false;
+    var txt=L(b.textContent || b.value || b.title || b.id || '');
+    var id=T(b.id);
+    return id==='saveOrder' || id==='btnSave' || id==='saveBtn' || id==='opslaan' || txt==='opslaan' || /\bopslaan\b/.test(txt);
+  }
+  function intercept(ev){
+    if(!isSaveControl(ev.target)) return;
+    if(!findExistingOrder()) return; // nieuwe opdracht: normale controle behouden
+    if(directSaveExisting()){
+      ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      return false;
+    }
+  }
+  ['pointerdown','mousedown','touchstart','click','submit'].forEach(function(type){
+    window.addEventListener(type,intercept,true);
+    document.addEventListener(type,intercept,true);
+  });
+
+  // Laat oude validators geen foutmelding meer tonen nadat de directe wijzig-opslag al gedaan is.
+  var oldAlert=window.alert;
+  window.alert=function(msg){
+    try{
+      if(/^Opslaan geblokkeerd/i.test(T(msg)) && window.__BNS804_RECENT_DIRECT_EDIT_SAVE__ && Date.now()-window.__BNS804_RECENT_DIRECT_EDIT_SAVE__<3500){
+        console.warn('[BNS804] oude save-blokkade onderdrukt na directe wijzig-opslag:', msg);
+        return;
+      }
+    }catch(e){}
+    return oldAlert.apply(window,arguments);
+  };
+  if(typeof window.bnsAlert==='function'){
+    var oldBnsAlert=window.bnsAlert;
+    window.bnsAlert=function(msg,title){
+      try{
+        if(/^Opslaan geblokkeerd/i.test(T(msg)) && window.__BNS804_RECENT_DIRECT_EDIT_SAVE__ && Date.now()-window.__BNS804_RECENT_DIRECT_EDIT_SAVE__<3500){
+          console.warn('[BNS804] oude bnsAlert-blokkade onderdrukt na directe wijzig-opslag:', msg);
+          return;
+        }
+      }catch(e){}
+      return oldBnsAlert.apply(this,arguments);
+    };
+  }
+
+  // Als de opdrachtenpagina even zwart/oud tekent, laat de bestaande render nog een keer rustig natekeken.
+  document.addEventListener('click',function(ev){
+    var b=ev.target && ev.target.closest && ev.target.closest('button,a,.nav'); if(!b) return;
+    var txt=L(b.textContent||b.title||b.id||'');
+    if(txt.indexOf('opdrachten')>=0){
+      [120,350,800,1400].forEach(function(ms){ setTimeout(function(){ try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){} },ms); });
+    }
+  },true);
+
+  try{ console.info('[BNS804] directe wijzig-opslag zonder oude materiaalblokkade actief'); }catch(e){}
+})();
