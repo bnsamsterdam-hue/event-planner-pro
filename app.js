@@ -52555,144 +52555,101 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 /* BNS 806: kleine oranje materiaal-popup. Geen BNS782 folder/map/orderStatus/render/save patch. */
 
 /* =========================================================
-   BNS 810 - Opdrachten rustig zonder zwarte terugval
-   Basis: v809/v806 kleine oranje.
-   Doel: de basis renderAll/saveLocal laten eindigen met de v356 opdrachten renderer.
-   Raakt niet: oranje materiaal-popup, folder/map/orderFolder, Firebase-data, localStorage-data.
-========================================================= */
-(function BNS_810_ORDERS_RUST_NA_SYNC(){
+   BNS 811 - Opdrachten rustig zonder renderOrders te vervangen
+   Basis: v809/v806. Oranje blijft ongewijzigd.
+   Doel: niet opnieuw renderen, maar de handmatige 2e klik op Opdrachten
+   automatisch nadoen na het laden/syncen, met tijdelijk verbergen van
+   de zwarte tussenweergave.
+   ========================================================= */
+(function BNS_811_OPDRACHTEN_RUST_ZONDER_RENDER(){
   'use strict';
-  if(window.__BNS810_ORDERS_RUST__) return;
-  window.__BNS810_ORDERS_RUST__ = true;
+  if(window.__BNS_811_OPDRACHTEN_RUST__) return;
+  window.__BNS_811_OPDRACHTEN_RUST__ = true;
 
   function E(id){ return document.getElementById(id); }
-  function isOrdersActive(){ var p=E('orders'); return !!(p && p.classList.contains('active')); }
-
-  function goodOrders(){
+  function txt(el){ return String(el && el.textContent || '').trim().toLowerCase(); }
+  function isOrdersActive(){
+    var p = E('orders');
+    if(!p) return false;
+    if(p.classList && p.classList.contains('active')) return true;
     try{
-      if(typeof window.BNS_V356_RENDER_ORDERS === 'function'){
-        window.BNS_V356_RENDER_ORDERS();
-        return true;
-      }
-    }catch(e){}
+      var cs = getComputedStyle(p);
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && p.offsetParent !== null;
+    }catch(e){ return false; }
+  }
+  function findOrdersButton(){
+    var q = document.querySelector('.nav[data-page="orders"],button[data-page="orders"],a[data-page="orders"]');
+    if(q) return q;
+    var all = Array.prototype.slice.call(document.querySelectorAll('button,a,.nav'));
+    for(var i=0;i<all.length;i++){
+      if(txt(all[i]) === 'opdrachten') return all[i];
+    }
+    return null;
+  }
+  function installStyle(){
+    if(E('bns811OrdersStyle')) return;
+    var s = document.createElement('style');
+    s.id = 'bns811OrdersStyle';
+    s.textContent =
+      'body.bns811-orders-warm #orders.active{opacity:0!important;pointer-events:none!important;}'+
+      '#bns811OrdersWait{position:fixed;left:50%;top:88px;transform:translateX(-50%);z-index:999999;background:#ffffff;color:#172033;border:1px solid #dbe3ef;border-radius:16px;padding:11px 16px;font-weight:900;box-shadow:0 14px 34px rgba(15,23,42,.16)}'+
+      '#bns811OrdersWait small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:2px}';
+    (document.head || document.documentElement).appendChild(s);
+  }
+  function showWait(){
+    installStyle();
+    if(!isOrdersActive()) return;
+    document.body.classList.add('bns811-orders-warm');
+    if(!E('bns811OrdersWait')){
+      var d=document.createElement('div');
+      d.id='bns811OrdersWait';
+      d.innerHTML='Opdrachten laden<small>even wachten op de vaste weergave</small>';
+      document.body.appendChild(d);
+    }
+  }
+  function hideWait(){
+    document.body.classList.remove('bns811-orders-warm');
+    var d=E('bns811OrdersWait'); if(d) d.remove();
+  }
+  var running = false;
+  function nativeOrdersClick(){
+    var b = findOrdersButton();
+    if(!b || !isOrdersActive()) return false;
     try{
-      if(typeof window.renderOrders === 'function'){
-        window.renderOrders();
-        return true;
-      }
-    }catch(e){}
-    return false;
+      window.__BNS_811_SYNTHETIC_CLICK__ = true;
+      b.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));
+      setTimeout(function(){ window.__BNS_811_SYNTHETIC_CLICK__ = false; },80);
+      return true;
+    }catch(e){
+      try{ b.click(); return true; }catch(ex){ return false; }
+    }
+  }
+  function calm(reason){
+    if(running) return;
+    if(!isOrdersActive()) return;
+    running = true;
+    showWait();
+
+    // Niet renderen. Alleen dezelfde klik nadoen die handmatig de goede kaart terugbrengt.
+    setTimeout(function(){ if(isOrdersActive()) nativeOrdersClick(); }, 1800);
+    setTimeout(function(){ if(isOrdersActive()) nativeOrdersClick(); }, 3300);
+    setTimeout(function(){ hideWait(); running=false; }, 3900);
+    setTimeout(function(){ if(isOrdersActive()) hideWait(); }, 5200);
   }
 
-  function installGoodRenderer(){
-    try{
-      if(typeof window.BNS_V356_RENDER_ORDERS === 'function'){
-        window.renderOrders = window.BNS_V356_RENDER_ORDERS;
-        try{ renderOrders = window.BNS_V356_RENDER_ORDERS; }catch(e){}
-      }
-    }catch(e){}
-  }
+  document.addEventListener('click',function(ev){
+    if(window.__BNS_811_SYNTHETIC_CLICK__) return;
+    var b = ev.target && ev.target.closest ? ev.target.closest('button,a,.nav') : null;
+    if(!b) return;
+    if((b.getAttribute && b.getAttribute('data-page') === 'orders') || txt(b) === 'opdrachten'){
+      setTimeout(function(){ calm('user-click'); }, 120);
+    }
+  }, true);
 
-  function patchRenderAll(){
-    try{
-      if(typeof renderAll !== 'function' || renderAll.__bns810) return;
-      var old = renderAll;
-      var patched = function(){
-        installGoodRenderer();
-        try{
-          if(typeof renderDashboard === 'function') renderDashboard();
-        }catch(e){}
-        try{
-          goodOrders();
-        }catch(e){}
-        try{
-          if(typeof renderDriver === 'function') renderDriver();
-        }catch(e){}
-        try{
-          if(typeof orderDriver !== 'undefined' && orderDriver){
-            orderDriver.innerHTML='<option value="">Geen</option>'+((state&&Array.isArray(state.users)?state.users:[]).filter(function(u){return u&&u.role==='Bezorger';}).map(function(u){return '<option>'+String(u.name||'')+'</option>';}).join(''));
-          }
-        }catch(e){}
-        try{
-          if(typeof alertsBtn !== 'undefined' && alertsBtn && state && Array.isArray(state.alerts)){
-            alertsBtn.textContent='Systeemmeldingen ('+state.alerts.filter(function(a){return a&&!a.resolved;}).length+')';
-          }
-        }catch(e){}
-        try{
-          if(typeof summaryRender === 'function') summaryRender();
-        }catch(e){}
-      };
-      patched.__bns810 = true;
-      patched.__bns810Old = old;
-      renderAll = patched;
-      window.renderAll = patched;
-    }catch(e){}
-  }
+  function startup(){ setTimeout(function(){ calm('startup'); }, 900); setTimeout(function(){ calm('startup-late'); }, 2600); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startup);
+  else startup();
+  window.addEventListener('load', function(){ setTimeout(function(){ calm('window-load'); }, 1200); });
 
-  function afterBlackWins(){
-    installGoodRenderer();
-    if(isOrdersActive()) goodOrders();
-  }
-
-  function patchSaveLocalAfter(){
-    try{
-      if(typeof saveLocal !== 'function' || saveLocal.__bns810After) return;
-      var old = saveLocal;
-      var patched = function(){
-        var r = old.apply(this, arguments);
-        setTimeout(afterBlackWins, 40);
-        setTimeout(afterBlackWins, 180);
-        setTimeout(afterBlackWins, 500);
-        return r;
-      };
-      patched.__bns810After = true;
-      saveLocal = patched;
-      window.saveLocal = patched;
-    }catch(e){}
-  }
-
-  function patchSaveAfter(){
-    try{
-      if(typeof save !== 'function' || save.__bns810After) return;
-      var old = save;
-      var patched = function(){
-        var r = old.apply(this, arguments);
-        setTimeout(afterBlackWins, 40);
-        setTimeout(afterBlackWins, 180);
-        setTimeout(afterBlackWins, 500);
-        return r;
-      };
-      patched.__bns810After = true;
-      save = patched;
-      window.save = patched;
-    }catch(e){}
-  }
-
-  function patchOrdersClick(){
-    if(window.__BNS810_ORDERS_CLICK__) return;
-    window.__BNS810_ORDERS_CLICK__ = true;
-    document.addEventListener('click', function(ev){
-      var t = ev.target && ev.target.closest ? ev.target.closest('[data-page="orders"], .nav[data-page="orders"]') : null;
-      if(!t) return;
-      setTimeout(afterBlackWins, 30);
-      setTimeout(afterBlackWins, 150);
-      setTimeout(afterBlackWins, 450);
-      setTimeout(afterBlackWins, 900);
-    }, true);
-  }
-
-  function install(){
-    installGoodRenderer();
-    patchRenderAll();
-    patchSaveLocalAfter();
-    patchSaveAfter();
-    patchOrdersClick();
-    afterBlackWins();
-  }
-
-  [50,150,400,900,1500,2500,4000].forEach(function(ms){ setTimeout(install, ms); });
-  document.addEventListener('DOMContentLoaded', function(){ [50,250,750,1500,3000].forEach(function(ms){ setTimeout(install, ms); }); });
-  setInterval(function(){ installGoodRenderer(); patchRenderAll(); patchSaveLocalAfter(); patchSaveAfter(); if(isOrdersActive()) setTimeout(afterBlackWins,20); }, 3000);
-
-  try{console.info('[BNS 810] opdrachten-rust actief: v356 renderer wint na renderAll/saveLocal. Oranje niet aangeraakt.');}catch(e){}
+  console.info('[BNS 811] Opdrachten-rust actief zonder render/save/Firebase wijzigingen.');
 })();
