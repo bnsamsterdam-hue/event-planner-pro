@@ -8442,9 +8442,14 @@ function sortedOrders(){
   return state.orders.slice().sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999'))
 }
 function renderOrders(){
-  let q=ordersSearch.value.toLowerCase();
-  let list=sortedOrders().filter(o=>mode==='cancelled'?o.status==='Geannuleerd':(mode==='done'?o.status==='Uitgevoerd':(o.status!=='Geannuleerd'&&o.status!=='Uitgevoerd'))).filter(o=>!q||JSON.stringify(o).toLowerCase().includes(q));
-  ordersList.innerHTML=list.map(card).join('')||'<p>Niets gevonden</p>'
+  // BNS 828: gebruik altijd renderV356 - nooit de basis card() met zwarte styling
+  if(typeof window.BNS_V356_RENDER_ORDERS==='function'){
+    try{ window.BNS_V356_RENDER_ORDERS(); return; }catch(e){}
+  }
+  // renderV356 nog niet geladen: toon lege div zonder zwarte kaarten
+  // renderV356 komt via setInterval binnen 500ms
+  var list=document.getElementById('ordersList');
+  if(list && !list.innerHTML.trim()) list.innerHTML='<p style="padding:20px;color:#64748b">Laden...</p>';
 }
 function card(o){
   let addr=[o.location?.street,o.location?.zip,o.location?.city].filter(Boolean).join(' ');
