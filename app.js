@@ -45314,9 +45314,17 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       card.style.display=(folderFromOrder(o)===active)?'':'none';
     });
   }
+  // BNS 829: gebruik altijd window.BNS_V356_RENDER_ORDERS - niet de vaste oldRenderOrders
   var oldRenderOrders=window.renderOrders || (typeof renderOrders==='function'?renderOrders:null);
   if(oldRenderOrders && !oldRenderOrders.__bns474){
-    var wrappedRender=function(){ var r=oldRenderOrders.apply(this,arguments); setTimeout(function(){ensureStatusTabs(); filterStatusCards();},80); return r; };
+    var wrappedRender=function(){
+      // Pak altijd de meest recente renderer
+      var cur=window.BNS_V356_RENDER_ORDERS||window.renderOrders||oldRenderOrders;
+      if(cur===wrappedRender) cur=oldRenderOrders;
+      var r=cur.apply(this,arguments);
+      setTimeout(function(){ensureStatusTabs(); filterStatusCards();},80);
+      return r;
+    };
     wrappedRender.__bns474=true; window.renderOrders=wrappedRender; try{renderOrders=wrappedRender;}catch(e){}
   }
   setTimeout(ensureStatusTabs,800);
