@@ -8442,14 +8442,12 @@ function sortedOrders(){
   return state.orders.slice().sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999'))
 }
 function renderOrders(){
-  // BNS 828: gebruik altijd renderV356 - nooit de basis card() met zwarte styling
+  // BNS 832: gebruik altijd renderV356
   if(typeof window.BNS_V356_RENDER_ORDERS==='function'){
     try{ window.BNS_V356_RENDER_ORDERS(); return; }catch(e){}
   }
-  // renderV356 nog niet geladen: toon lege div zonder zwarte kaarten
-  // renderV356 komt via setInterval binnen 500ms
-  var list=document.getElementById('ordersList');
-  if(list && !list.innerHTML.trim()) list.innerHTML='<p style="padding:20px;color:#64748b">Laden...</p>';
+  // renderV356 nog niet beschikbaar - toon niets, renderV356 komt via interval
+  // Laat ordersList leeg - geen kaarten met lege data
 }
 function card(o){
   let addr=[o.location?.street,o.location?.zip,o.location?.city].filter(Boolean).join(' ');
@@ -38968,7 +38966,8 @@ setTimeout(()=>{
   }
   window.BNS_V356_RENDER_ORDERS=renderV356;
   function install(){css();ensureTabs();hideArchiveBad();if(window.renderOrders!==renderV356){window.renderOrders=renderV356;try{renderOrders=renderV356;}catch(e){}}var search=E('ordersSearch');if(search&&!search.__bns356){search.__bns356=true;search.addEventListener('input',function(){renderV356();});}var orders=E('orders');if(orders&&orders.classList.contains('active'))renderV356();}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,100);setTimeout(install,1000);});else setTimeout(install,100);
+  // BNS 831: start install zo vroeg mogelijk
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){install();setTimeout(install,100);setTimeout(install,500);});else{ install(); setTimeout(install,50); }
   var n=0,tm=setInterval(function(){install();if(++n>24)clearInterval(tm);},500);
   try{var mo=new MutationObserver(function(){hideArchiveBad();var orders=E('orders');if(orders&&orders.classList.contains('active')){A('#orders button,#orders a').forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||'')&&!b.classList.contains('bns356-route'))b.remove();});}});mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
   console.info('[BNS v356] Opdrachten tabs schoon actief.');
@@ -45314,19 +45313,16 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       card.style.display=(folderFromOrder(o)===active)?'':'none';
     });
   }
-  // BNS 829: gebruik altijd window.BNS_V356_RENDER_ORDERS - niet de vaste oldRenderOrders
-  var oldRenderOrders=window.renderOrders || (typeof renderOrders==='function'?renderOrders:null);
-  if(oldRenderOrders && !oldRenderOrders.__bns474){
-    var wrappedRender=function(){
-      // Pak altijd de meest recente renderer
-      var cur=window.BNS_V356_RENDER_ORDERS||window.renderOrders||oldRenderOrders;
-      if(cur===wrappedRender) cur=oldRenderOrders;
-      var r=cur.apply(this,arguments);
-      setTimeout(function(){ensureStatusTabs(); filterStatusCards();},80);
-      return r;
-    };
-    wrappedRender.__bns474=true; window.renderOrders=wrappedRender; try{renderOrders=wrappedRender;}catch(e){}
-  }
+  // BNS 832: wrappedRender altijd via renderV356
+  var wrappedRender=function(){
+    var cur=window.BNS_V356_RENDER_ORDERS;
+    if(typeof cur==='function'){ try{ cur(); }catch(e){} }
+    setTimeout(function(){ensureStatusTabs(); filterStatusCards();},80);
+  };
+  wrappedRender.__bns474=true;
+  wrappedRender.__bns830=true;
+  window.renderOrders=wrappedRender;
+  try{ renderOrders=wrappedRender; }catch(e){}
   setTimeout(ensureStatusTabs,800);
 
   /* ---------- Overzicht bestelling media + knoppen ---------- */
@@ -52710,4 +52706,19 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   }, 200);
 
   try{ console.info('[BNS 830] zwarte kaarten geblokkeerd - renderV356 wint altijd.'); }catch(e){}
+})();
+
+/* BNS 831b - date-tile kleur fix: als renderV356 nog niet geladen heeft,
+   toon een blauwe achtergrond ipv zwart zodat het nooit écht zwart oogt */
+(function(){
+  try{
+    if(document.getElementById('bns831DateTileFix')) return;
+    var st=document.createElement('style');
+    st.id='bns831DateTileFix';
+    // Maak basis order-card date-tile blauw ipv zwart
+    // renderV356 overschrijft dit met zijn eigen styling
+    st.textContent='.order-card:not([data-bns-order-id]) .date-tile{background:#1e40af!important;}'+
+      '#ordersList:empty::after{content:"Laden...";display:block;padding:20px;color:#64748b;}';
+    (document.head||document.documentElement).appendChild(st);
+  }catch(e){}
 })();
