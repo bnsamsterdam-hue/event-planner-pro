@@ -44693,7 +44693,8 @@ console.log('[BNS v459] bezorger-vinkjes, Routenet uit, document-terug en telefo
       try{ eval(name + " = window['"+name+"']"); }catch(e){}
     }catch(e){}
   }
-  ["save","saveLocal","saveState","saveCurrentOrder","saveStable","renderOrders","renderDashboard"].forEach(wrapSave);
+  // BNS 834: renderOrders/renderDashboard niet in save-wrapper - veroorzaakt flikker
+  ["save","saveLocal","saveState","saveCurrentOrder","saveStable"].forEach(wrapSave);
 
   // Statuswijziging direct folder laten bepalen; geen extra knop of styling.
   document.addEventListener("change", function(e){
@@ -52319,7 +52320,8 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       });
     }catch(e){}
   }
-  ['save','saveLocal','saveState','renderOrders','renderDashboard'].forEach(function(name){
+  // BNS 834: renderOrders/renderDashboard niet wrappen
+  ['save','saveLocal','saveState'].forEach(function(name){
     try{
       var fn=window[name]; if(typeof fn!=='function'||fn.__bns782Retourdag) return;
       var w=function(){ markState(); var r=fn.apply(this,arguments); setTimeout(addLabels,80); return r; };
