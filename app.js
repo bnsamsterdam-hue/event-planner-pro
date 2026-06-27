@@ -48563,7 +48563,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       '#bnsV597OrderBottomActions{display:none;}' +
       '@media(max-width:900px){' +
       '#newOrder{padding-bottom:28px!important;}' +
-      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:18px 0 28px!important;padding:12px!important;background:#ffffff!important;border:1px solid #dbe3ef!important;border-radius:16px!important;box-shadow:0 8px 22px rgba(15,23,42,.10)!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
+      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:0 0 14px!important;padding:12px!important;background:#ffffff!important;border:1px solid #dbe3ef!important;border-radius:16px!important;box-shadow:0 8px 22px rgba(15,23,42,.10)!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
       '#bnsV597OrderBottomActions button{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:38px!important;padding:9px 12px!important;border-radius:12px!important;border:0!important;font-size:14px!important;font-weight:800!important;line-height:1.1!important;white-space:nowrap!important;flex:0 1 auto!important;max-width:100%!important;}' +
       '#bnsV597Save{background:#16a34a!important;color:#fff!important;}' +
       '#bnsV597Clear{background:#fee2e2!important;color:#991b1b!important;}' +
@@ -48623,15 +48623,15 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         '<button type="button" id="bnsV597Clear">Wis</button>' +
         '<button type="button" id="bnsV597Print">Afdrukken</button>' +
         '<button type="button" id="bnsV597Overview">Overzicht maken</button>';
-      page.appendChild(bar);
+      page.insertBefore(bar, page.firstElementChild || null);
       E('bnsV597Save').addEventListener('click', doSave);
       E('bnsV597Clear').addEventListener('click', doClear);
       E('bnsV597Print').addEventListener('click', doPrint);
       E('bnsV597Overview').addEventListener('click', doOverview);
     } else if(bar.parentElement !== page){
-      page.appendChild(bar);
-    } else if(page.lastElementChild !== bar){
-      page.appendChild(bar);
+      page.insertBefore(bar, page.firstElementChild || null);
+    } else if(page.firstElementChild !== bar){
+      page.insertBefore(bar, page.firstElementChild || null);
     }
   }
 
@@ -48643,7 +48643,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   document.addEventListener('click', function(){ setTimeout(ensureBar, 80); }, true);
   document.addEventListener('bns:order-saved', function(){ setTimeout(ensureBar, 80); });
-  console.info('[BNS v597] mobiele opdrachtknoppen staan onderaan Nieuwe opdracht; geen materiaalwijzigingen.');
+  console.info('[BNS v597/BNS817] mobiele opdrachtknoppen staan bovenaan Nieuwe opdracht; geen materiaalwijzigingen.');
 })();
 
 /* =========================================================
@@ -52004,7 +52004,7 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       '.material-list,.materials-list,#materialList,#materialsList{max-height:48vh!important;overflow:auto!important;}' +
       '.material-card,.material-row,.mat-card,.mat-row{font-size:13px!important;padding:8px!important;margin:6px 0!important;border-radius:12px!important;}' +
       '.material-card button,.material-row button,.mat-card button,.mat-row button{font-size:12px!important;min-height:30px!important;padding:6px 8px!important;}' +
-      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:14px 0 22px!important;padding:10px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:14px!important;box-shadow:0 6px 18px rgba(15,23,42,.10)!important;gap:7px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
+      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:0 0 14px!important;padding:10px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:14px!important;box-shadow:0 6px 18px rgba(15,23,42,.10)!important;gap:7px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
       '#bnsV597OrderBottomActions button{font-size:13px!important;min-height:34px!important;padding:8px 10px!important;border-radius:10px!important;flex:0 1 auto!important;}' +
       '#bnsV724Back{background:#475569!important;color:#fff!important;}' +
       'table{font-size:12px!important;}' +
@@ -52019,17 +52019,11 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   function isMobile(){ return (window.innerWidth||document.documentElement.clientWidth||9999) <= 760; }
   function text(el){ return String(el && (el.innerText||el.textContent)||'').trim().toLowerCase(); }
   function clickExistingBack(){
-    var btns=[].slice.call(document.querySelectorAll('button,a,[role="button"]'));
-    for(var i=0;i<btns.length;i++){
-      var el=btns[i];
-      if(!el || el.id==='bnsV724Back') continue;
-      if(el.offsetParent===null) continue;
-      var t=text(el);
-      if(/^(terug|annuleren|sluiten|cancel)$/.test(t) || /terug|annuleren/.test(t)){
-        try{ el.click(); return; }catch(e){}
-      }
-    }
-    try{ history.back(); }catch(e){}
+    // BNS 817: veilig terug op mobiel.
+    // Niet meer blind op Terug/Annuleren/Sluiten knoppen klikken,
+    // want die kunnen clearOrder() starten en klantgegevens wissen.
+    try{ if(typeof window.showPage==='function'){ window.showPage('orders'); return; } }catch(e){}
+    try{ if(typeof showPage==='function'){ showPage('orders'); return; } }catch(e){}
   }
   function ensureBackButton(){
     if(!isMobile()) return;
@@ -52049,8 +52043,10 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
   window.addEventListener('resize', tick);
   setInterval(tick, 1500);
-  try{console.info('[BNS 724] mobiele planner-rust + opslaan/terug onderaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
+  try{console.info('[BNS 724/BNS817] mobiele planner-rust + veilig terug/bovenaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
 })();
+
+/* BNS 817 - telefoon wijzig-opdracht: knoppen bovenaan, Terug wist geen klantgegevens. */
 
 
 /* =========================================================
