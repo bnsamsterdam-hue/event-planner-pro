@@ -42973,9 +42973,14 @@ setTimeout(()=>{
     try{ if(typeof calcTotals==='function') calcTotals(); }catch(e){}
     try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
     try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
-    try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
+    // BNS 837: gebruik BNS741 op mobiel (geen focus), anders workTab
+    if(window.BNS741_mobileEditAsNew){
+      window.BNS741_mobileEditAsNew();
+    } else {
+      try{ if(typeof workTab==='function') workTab('customerPanel'); }catch(e){}
+    }
     try{ if(window.BNS_V383 && window.BNS_V383.writeLock) window.BNS_V383.writeLock(o.id); }catch(e){}
-    // BNS 802: scroll naar boven na fastEditOrder
+    // Scroll ook op laptop
     [0,50,120,250,500,900].forEach(function(ms){
       setTimeout(function(){
         document.documentElement.scrollTop=0;
