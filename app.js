@@ -8173,7 +8173,7 @@ function bindOrder(){
   };
   materialSearch.oninput=()=>renderMaterials(currentCat);
   $('saveOrder').onclick=saveCurrentOrder;
-  ordersSearch.oninput=function(){ try{ if(typeof window.BNS_V356_RENDER_ORDERS==='function') window.BNS_V356_RENDER_ORDERS(); }catch(e){} }; // BNS 816
+  ordersSearch.oninput=renderOrders;
   activeOrders.onclick=()=>{
     mode='active';
     renderOrders();
@@ -8565,10 +8565,8 @@ function bindModal(){
 }
 globalSearch.oninput=()=>{
   ordersSearch.value=globalSearch.value;
-  if(document.getElementById('orders') && !document.getElementById('orders').classList.contains('active')){
-    showPage('orders');
-  }
-  try{ if(typeof window.BNS_V356_RENDER_ORDERS==='function') window.BNS_V356_RENDER_ORDERS(); }catch(e){}
+  showPage('orders');
+  renderOrders()
 };
 syncBtn.onclick=()=>toastMsg('Systeem actief');
 init();
@@ -38950,8 +38948,12 @@ setTimeout(()=>{
     var ab=E('bns350ABtn')||E('bns352ArchiveBtn'); if(ab)ab.textContent='Archief';
   }
   function renderV356(){
-    if(RENDERING)return; RENDERING=true;
-    try{css();ensureTabs();hideArchiveBad();optionAlerts();var list=E('ordersList');if(!list)return;var r=rows();var empty=MODE==='options'?'Geen 14 dagen opties gevonden.':(MODE==='quotes'?'Geen offertes gevonden.':'Geen lopende opdrachten gevonden.');list.innerHTML=r.length?r.map(build).join(''):'<p>'+empty+'</p>';ensureTabs();enhance(r);}finally{RENDERING=false;}
+    // BNS 818: debounce via RAF ipv RENDERING flag - voorkomt geblokkeerde renders
+    if(window.__bns356Raf) cancelAnimationFrame(window.__bns356Raf);
+    window.__bns356Raf = requestAnimationFrame(function(){
+      window.__bns356Raf = null;
+      try{css();ensureTabs();hideArchiveBad();optionAlerts();var list=E('ordersList');if(!list)return;var r=rows();var empty=MODE==='options'?'Geen 14 dagen opties gevonden.':(MODE==='quotes'?'Geen offertes gevonden.':'Geen lopende opdrachten gevonden.');list.innerHTML=r.length?r.map(build).join(''):'<p>'+empty+'</p>';ensureTabs();enhance(r);}catch(e){}
+    });
   }
   window.BNS_V356_RENDER_ORDERS=renderV356;
   function install(){css();ensureTabs();hideArchiveBad();if(window.renderOrders!==renderV356){window.renderOrders=renderV356;try{renderOrders=renderV356;}catch(e){}}var search=E('ordersSearch');if(search&&!search.__bns356){search.__bns356=true;search.addEventListener('input',function(){renderV356();});}var orders=E('orders');if(orders&&orders.classList.contains('active'))renderV356();}
