@@ -8173,7 +8173,11 @@ function bindOrder(){
   };
   materialSearch.oninput=()=>renderMaterials(currentCat);
   $('saveOrder').onclick=saveCurrentOrder;
-  ordersSearch.oninput=renderOrders;
+  // BNS 833: ordersSearch alleen via renderV356 - nooit basis renderer
+  ordersSearch.oninput=function(){
+    var v356=window.BNS_V356_RENDER_ORDERS;
+    if(typeof v356==='function') try{ v356(); }catch(e){}
+  };
   activeOrders.onclick=()=>{
     mode='active';
     renderOrders();
