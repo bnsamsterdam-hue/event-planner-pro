@@ -52668,3 +52668,46 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
 
   try{ console.info('[BNS 741] mobiel wijzigen gebruikt klantpaneel zonder focus-scroll.'); }catch(e){}
 })();
+
+/* =========================================================
+   BNS 830 - Zwarte kaarten definitief geblokkeerd
+   Overschrijft alle renderOrders varianten met renderV356.
+   Draait via setInterval zodat hij altijd wint.
+   Raakt niet aan: Firebase, materialen, reservering, driver.
+========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS830__) return;
+  window.__BNS830__ = true;
+
+  function forceV356(){
+    var v356 = window.BNS_V356_RENDER_ORDERS;
+    if(typeof v356 !== 'function') return false;
+
+    // Overschrijf window.renderOrders als die niet renderV356 is
+    if(window.renderOrders !== v356 && !window.__bns830patched){
+      var safe = function(){
+        var cur = window.BNS_V356_RENDER_ORDERS;
+        if(typeof cur === 'function') try{ cur(); }catch(e){}
+      };
+      safe.__bns830 = true;
+      safe.__bns474 = true; // Voorkom dat BNS474 hem opnieuw wraps
+      window.renderOrders = safe;
+      try{ renderOrders = safe; }catch(e){}
+      window.__bns830patched = true;
+    }
+    return true;
+  }
+
+  // Probeer direct
+  forceV356();
+
+  // En blijf proberen tot renderV356 beschikbaar is
+  var n = 0;
+  var tm = setInterval(function(){
+    if(forceV356() && ++n > 5) clearInterval(tm);
+    if(++n > 30) clearInterval(tm);
+  }, 200);
+
+  try{ console.info('[BNS 830] zwarte kaarten geblokkeerd - renderV356 wint altijd.'); }catch(e){}
+})();
