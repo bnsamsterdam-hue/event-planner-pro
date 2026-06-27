@@ -8173,7 +8173,7 @@ function bindOrder(){
   };
   materialSearch.oninput=()=>renderMaterials(currentCat);
   $('saveOrder').onclick=saveCurrentOrder;
-  ordersSearch.oninput=function(){ try{ if(typeof window.BNS_V356_RENDER_ORDERS==='function') window.BNS_V356_RENDER_ORDERS(); else renderOrders(); }catch(e){ renderOrders(); } }; // BNS 815
+  ordersSearch.oninput=function(){ try{ if(typeof window.BNS_V356_RENDER_ORDERS==='function') window.BNS_V356_RENDER_ORDERS(); }catch(e){} }; // BNS 816
   activeOrders.onclick=()=>{
     mode='active';
     renderOrders();
@@ -8565,9 +8565,10 @@ function bindModal(){
 }
 globalSearch.oninput=()=>{
   ordersSearch.value=globalSearch.value;
-  showPage('orders');
-  // BNS 815: gebruik renderV356 bij zoeken
-  try{ if(typeof window.BNS_V356_RENDER_ORDERS==='function') window.BNS_V356_RENDER_ORDERS(); else renderOrders(); }catch(e){ renderOrders(); }
+  if(document.getElementById('orders') && !document.getElementById('orders').classList.contains('active')){
+    showPage('orders');
+  }
+  try{ if(typeof window.BNS_V356_RENDER_ORDERS==='function') window.BNS_V356_RENDER_ORDERS(); }catch(e){}
 };
 syncBtn.onclick=()=>toastMsg('Systeem actief');
 init();
