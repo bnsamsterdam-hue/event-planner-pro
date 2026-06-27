@@ -8083,26 +8083,12 @@ function showPage(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
-  renderDashboard();
-  renderDriver();
-  // BNS 811: bij orders pagina window.renderOrders (renderV356) gebruiken - geen zwart scherm
-  if(p==='orders'){
-    if(window.renderOrders && window.renderOrders !== renderOrders){
-      try{ window.renderOrders(); }catch(e){ try{renderOrders();}catch(e2){} }
-    } else {
-      try{ renderOrders(); }catch(e){}
-      var _n=0, _iv=setInterval(function(){
-        if(window.renderOrders && window.renderOrders !== renderOrders){
-          clearInterval(_iv);
-          try{ window.renderOrders(); }catch(e){}
-        }
-        if(++_n>=10) clearInterval(_iv);
-      },100);
-    }
-  } else {
-    try{ renderOrders(); }catch(e){}
+  renderAll();
+  // BNS 812: na renderAll alsnog window.renderOrders aanroepen als beschikbaar
+  // Zo ziet de gebruiker kort de basis kaarten maar meteen daarna de goede
+  if(p==='orders' && window.renderOrders && window.renderOrders !== renderOrders){
+    setTimeout(function(){ try{ window.renderOrders(); }catch(e){} }, 50);
   }
-  try{ summaryRender(); }catch(e){}
 }
 function init(){
   document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{
@@ -8520,11 +8506,7 @@ function alertFor(oid,type){
 }
 function renderAll(){
   renderDashboard();
-  // BNS 811: gebruik window.renderOrders (renderV356) als beschikbaar
-  try{
-    if(window.renderOrders && window.renderOrders !== renderOrders) window.renderOrders();
-    else renderOrders();
-  }catch(e){ try{renderOrders();}catch(e2){} }
+  renderOrders();
   renderDriver();
   orderDriver.innerHTML='<option value="">Geen</option>'+state.users.filter(u=>u.role==='Bezorger').map(u=>`<option>${u.name}</option>`).join('');
   alertsBtn.textContent='Systeemmeldingen ('+state.alerts.filter(a=>!a.resolved).length+')';
