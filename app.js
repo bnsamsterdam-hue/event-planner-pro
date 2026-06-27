@@ -8520,7 +8520,11 @@ function alertFor(oid,type){
 }
 function renderAll(){
   renderDashboard();
-  renderOrders();
+  // BNS 811: gebruik window.renderOrders (renderV356) als beschikbaar
+  try{
+    if(window.renderOrders && window.renderOrders !== renderOrders) window.renderOrders();
+    else renderOrders();
+  }catch(e){ try{renderOrders();}catch(e2){} }
   renderDriver();
   orderDriver.innerHTML='<option value="">Geen</option>'+state.users.filter(u=>u.role==='Bezorger').map(u=>`<option>${u.name}</option>`).join('');
   alertsBtn.textContent='Systeemmeldingen ('+state.alerts.filter(a=>!a.resolved).length+')';
