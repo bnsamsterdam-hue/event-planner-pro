@@ -37074,6 +37074,9 @@ setTimeout(()=>{
     return false;
   }
   function validateChosenBeforeSave(){
+    // BNS 823: bij wijzigen bestaande opdracht reserveringscheck overslaan
+    // Materialen waren al goedgekeurd - alleen defect/inactief nog blokkeren
+    var isEditing=editingId()||currentOrderNumber();
     var list=chosenList();
     for(var i=0; i<list.length; i++){
       var base=mats().find(function(m){
@@ -37084,6 +37087,7 @@ setTimeout(()=>{
         alert('Opslaan geblokkeerd: '+T(base.code||materialToken(base))+' is niet inzetbaar/defect.');
         return false;
       }
+      if(isEditing) continue; // Bij wijzigen: geen reserveringscheck
       var r=reservationForMaterial(base);
       if(r){
         alert('Opslaan geblokkeerd: '+T(base.code||materialToken(base))+' is al geblokkeerd door '+T(r.order.status)+' opdracht '+T(r.order.number||'')+'.');
