@@ -52712,3 +52712,90 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
 
   try{ console.info('[BNS 741] mobiel wijzigen opent bovenaan.'); }catch(e){}
 })();
+
+/* =========================================================
+   BNS 818 - Telefoon opdracht wijzigen: knoppen altijd zichtbaar bovenin
+   Basis: v817. Alleen mobiele layout van bestaande knoppenbalk.
+   Raakt niet aan: opslaan, klantgegevens, documenten, materialen, Firebase.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS818_MOBILE_ORDER_BUTTONS_FIXED_TOP__) return;
+  window.__BNS818_MOBILE_ORDER_BUTTONS_FIXED_TOP__ = true;
+
+  function isMobile(){
+    return (window.innerWidth || document.documentElement.clientWidth || 9999) <= 760;
+  }
+  function visible(el){
+    if(!el) return false;
+    var cs;
+    try{ cs = window.getComputedStyle(el); }catch(e){}
+    if(cs && (cs.display === 'none' || cs.visibility === 'hidden')) return false;
+    var r;
+    try{ r = el.getBoundingClientRect(); }catch(e){ return true; }
+    return !!(r.width || r.height || el.offsetParent);
+  }
+  function onOrderForm(){
+    var page = document.getElementById('newOrder');
+    if(page && visible(page)) return true;
+    try{
+      var h = String(location.hash || '').toLowerCase();
+      if(/neworder|order|opdracht/.test(h) && page) return true;
+    }catch(e){}
+    return false;
+  }
+  function addStyle(){
+    if(document.getElementById('bns818MobileTopButtonsCSS')) return;
+    var st = document.createElement('style');
+    st.id = 'bns818MobileTopButtonsCSS';
+    st.textContent = ''+
+      '@media(max-width:760px){' +
+      'body.bns818OrderButtonsTop{padding-top:92px!important;}' +
+      'body.bns818OrderButtonsTop #bnsV597OrderBottomActions.bns818TopBar{' +
+        'display:flex!important;' +
+        'position:fixed!important;' +
+        'top:calc(env(safe-area-inset-top,0px) + 6px)!important;' +
+        'left:8px!important;right:8px!important;width:auto!important;' +
+        'margin:0!important;padding:8px!important;' +
+        'background:#fff!important;border:2px solid #0ea5e9!important;border-radius:14px!important;' +
+        'box-shadow:0 10px 28px rgba(15,23,42,.24)!important;' +
+        'z-index:2147483000!important;clear:none!important;' +
+        'gap:7px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;' +
+        'max-height:82px!important;overflow:auto!important;-webkit-overflow-scrolling:touch!important;' +
+      '}' +
+      'body.bns818OrderButtonsTop #bnsV597OrderBottomActions.bns818TopBar button{' +
+        'font-size:13px!important;min-height:34px!important;padding:8px 10px!important;border-radius:10px!important;' +
+        'flex:0 0 auto!important;white-space:nowrap!important;' +
+      '}' +
+      'body.bns818OrderButtonsTop #newOrder{padding-top:8px!important;}' +
+      '}';
+    (document.head || document.documentElement).appendChild(st);
+  }
+  function ensureBackFirst(bar){
+    if(!bar) return;
+    var back = document.getElementById('bnsV724Back');
+    if(back && bar.firstElementChild !== back){
+      try{ bar.insertBefore(back, bar.firstElementChild || null); }catch(e){}
+    }
+  }
+  function tick(){
+    addStyle();
+    var bar = document.getElementById('bnsV597OrderBottomActions');
+    var active = isMobile() && onOrderForm() && bar;
+    if(active){
+      try{ bar.classList.add('bns818TopBar'); }catch(e){}
+      try{ document.body.classList.add('bns818OrderButtonsTop'); }catch(e){}
+      ensureBackFirst(bar);
+    }else{
+      try{ if(bar) bar.classList.remove('bns818TopBar'); }catch(e){}
+      try{ document.body.classList.remove('bns818OrderButtonsTop'); }catch(e){}
+    }
+  }
+  tick();
+  document.addEventListener('DOMContentLoaded', tick);
+  document.addEventListener('click', function(){ setTimeout(tick,50); setTimeout(tick,250); }, true);
+  window.addEventListener('resize', tick);
+  window.addEventListener('hashchange', function(){ setTimeout(tick,80); });
+  setInterval(tick, 700);
+  try{ console.info('[BNS 818] mobiele opdrachtknoppen vast bovenin zichtbaar; geen klantgegevens/save/Firebase wijzigingen.'); }catch(e){}
+})();
