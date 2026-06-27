@@ -8083,7 +8083,26 @@ function showPage(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
-  renderAll();
+  renderDashboard();
+  renderDriver();
+  // BNS 811: bij orders pagina window.renderOrders (renderV356) gebruiken - geen zwart scherm
+  if(p==='orders'){
+    if(window.renderOrders && window.renderOrders !== renderOrders){
+      try{ window.renderOrders(); }catch(e){ try{renderOrders();}catch(e2){} }
+    } else {
+      try{ renderOrders(); }catch(e){}
+      var _n=0, _iv=setInterval(function(){
+        if(window.renderOrders && window.renderOrders !== renderOrders){
+          clearInterval(_iv);
+          try{ window.renderOrders(); }catch(e){}
+        }
+        if(++_n>=10) clearInterval(_iv);
+      },100);
+    }
+  } else {
+    try{ renderOrders(); }catch(e){}
+  }
+  try{ summaryRender(); }catch(e){}
 }
 function init(){
   document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{
