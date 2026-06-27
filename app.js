@@ -48563,7 +48563,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       '#bnsV597OrderBottomActions{display:none;}' +
       '@media(max-width:900px){' +
       '#newOrder{padding-bottom:28px!important;}' +
-      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:0 0 14px!important;padding:12px!important;background:#ffffff!important;border:1px solid #dbe3ef!important;border-radius:16px!important;box-shadow:0 8px 22px rgba(15,23,42,.10)!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
+      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:18px 0 28px!important;padding:12px!important;background:#ffffff!important;border:1px solid #dbe3ef!important;border-radius:16px!important;box-shadow:0 8px 22px rgba(15,23,42,.10)!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
       '#bnsV597OrderBottomActions button{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:38px!important;padding:9px 12px!important;border-radius:12px!important;border:0!important;font-size:14px!important;font-weight:800!important;line-height:1.1!important;white-space:nowrap!important;flex:0 1 auto!important;max-width:100%!important;}' +
       '#bnsV597Save{background:#16a34a!important;color:#fff!important;}' +
       '#bnsV597Clear{background:#fee2e2!important;color:#991b1b!important;}' +
@@ -48623,15 +48623,15 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         '<button type="button" id="bnsV597Clear">Wis</button>' +
         '<button type="button" id="bnsV597Print">Afdrukken</button>' +
         '<button type="button" id="bnsV597Overview">Overzicht maken</button>';
-      page.insertBefore(bar, page.firstElementChild || null);
+      page.appendChild(bar);
       E('bnsV597Save').addEventListener('click', doSave);
       E('bnsV597Clear').addEventListener('click', doClear);
       E('bnsV597Print').addEventListener('click', doPrint);
       E('bnsV597Overview').addEventListener('click', doOverview);
     } else if(bar.parentElement !== page){
-      page.insertBefore(bar, page.firstElementChild || null);
-    } else if(page.firstElementChild !== bar){
-      page.insertBefore(bar, page.firstElementChild || null);
+      page.appendChild(bar);
+    } else if(page.lastElementChild !== bar){
+      page.appendChild(bar);
     }
   }
 
@@ -48643,7 +48643,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   document.addEventListener('click', function(){ setTimeout(ensureBar, 80); }, true);
   document.addEventListener('bns:order-saved', function(){ setTimeout(ensureBar, 80); });
-  console.info('[BNS v597/BNS817] mobiele opdrachtknoppen staan bovenaan Nieuwe opdracht; geen materiaalwijzigingen.');
+  console.info('[BNS v597] mobiele opdrachtknoppen staan onderaan Nieuwe opdracht; geen materiaalwijzigingen.');
 })();
 
 /* =========================================================
@@ -52004,7 +52004,7 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       '.material-list,.materials-list,#materialList,#materialsList{max-height:48vh!important;overflow:auto!important;}' +
       '.material-card,.material-row,.mat-card,.mat-row{font-size:13px!important;padding:8px!important;margin:6px 0!important;border-radius:12px!important;}' +
       '.material-card button,.material-row button,.mat-card button,.mat-row button{font-size:12px!important;min-height:30px!important;padding:6px 8px!important;}' +
-      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:0 0 14px!important;padding:10px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:14px!important;box-shadow:0 6px 18px rgba(15,23,42,.10)!important;gap:7px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
+      '#bnsV597OrderBottomActions{display:flex!important;position:static!important;clear:both!important;width:100%!important;box-sizing:border-box!important;margin:14px 0 22px!important;padding:10px!important;background:#fff!important;border:1px solid #dbe3ef!important;border-radius:14px!important;box-shadow:0 6px 18px rgba(15,23,42,.10)!important;gap:7px!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-start!important;z-index:1!important;}' +
       '#bnsV597OrderBottomActions button{font-size:13px!important;min-height:34px!important;padding:8px 10px!important;border-radius:10px!important;flex:0 1 auto!important;}' +
       '#bnsV724Back{background:#475569!important;color:#fff!important;}' +
       'table{font-size:12px!important;}' +
@@ -52019,11 +52019,17 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   function isMobile(){ return (window.innerWidth||document.documentElement.clientWidth||9999) <= 760; }
   function text(el){ return String(el && (el.innerText||el.textContent)||'').trim().toLowerCase(); }
   function clickExistingBack(){
-    // BNS 817: veilig terug op mobiel.
-    // Niet meer blind op Terug/Annuleren/Sluiten knoppen klikken,
-    // want die kunnen clearOrder() starten en klantgegevens wissen.
-    try{ if(typeof window.showPage==='function'){ window.showPage('orders'); return; } }catch(e){}
-    try{ if(typeof showPage==='function'){ showPage('orders'); return; } }catch(e){}
+    var btns=[].slice.call(document.querySelectorAll('button,a,[role="button"]'));
+    for(var i=0;i<btns.length;i++){
+      var el=btns[i];
+      if(!el || el.id==='bnsV724Back') continue;
+      if(el.offsetParent===null) continue;
+      var t=text(el);
+      if(/^(terug|annuleren|sluiten|cancel)$/.test(t) || /terug|annuleren/.test(t)){
+        try{ el.click(); return; }catch(e){}
+      }
+    }
+    try{ history.back(); }catch(e){}
   }
   function ensureBackButton(){
     if(!isMobile()) return;
@@ -52043,10 +52049,8 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   document.addEventListener('click', function(){ setTimeout(tick,80); }, true);
   window.addEventListener('resize', tick);
   setInterval(tick, 1500);
-  try{console.info('[BNS 724/BNS817] mobiele planner-rust + veilig terug/bovenaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
+  try{console.info('[BNS 724] mobiele planner-rust + opslaan/terug onderaan actief; geen menu/Firebase/materiaal/driver wijzigingen.');}catch(e){}
 })();
-
-/* BNS 817 - telefoon wijzig-opdracht: knoppen bovenaan, Terug wist geen klantgegevens. */
 
 
 /* =========================================================
@@ -52713,16 +52717,19 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   try{ console.info('[BNS 741] mobiel wijzigen opent bovenaan.'); }catch(e){}
 })();
 
+
 /* =========================================================
-   BNS 820 - Terug naar v817 + alleen Overzicht bestelling fallback
-   Basis: v817. Niet gebruiken: v818/v819 layout patches.
-   - Herstelt alleen de knop Overzicht bestelling in het keuzevenster.
-   - Geen wijziging aan opdracht wijzigen, actieknoppen, mobiele layout, render of save.
+   BNS 821 - v816 basis + alleen Overzicht bestelling + onderbalk uit
+   Basis: v816. Niet gebruiken: v817/v818/v819/v820 layoutlagen.
+   - Factuur/opdrachtbevestiging fix van v816 blijft.
+   - Verbergt/verwijdert de foutieve bnsV597 onderbalk op laptop en mobiel.
+   - Herstelt alleen Overzicht bestelling fallback.
+   - Geen wijzigingen aan oranje, saveLocal, Firebase/localStorage, materialen of render.
    ========================================================= */
 (function(){
   'use strict';
-  if(window.__BNS820_V817_OVERVIEW_ONLY__) return;
-  window.__BNS820_V817_OVERVIEW_ONLY__ = true;
+  if(window.__BNS821_V816_OVERVIEW_NO_BOTTOMBAR__) return;
+  window.__BNS821_V816_OVERVIEW_NO_BOTTOMBAR__ = true;
 
   function T(v){ return String(v==null?'':v).trim(); }
   function H(v){ return T(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -52757,39 +52764,50 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     ['extra','notes','remark','remarks','bijzonderheden'].forEach(function(k){ if(T(o&&o[k])) parts.push(T(o[k])); });
     return parts.join('\n\n');
   }
-  function addStyle(){
-    if(E('bns820OverviewStyle')) return;
-    var st=document.createElement('style'); st.id='bns820OverviewStyle';
-    st.textContent=''+
-      '#bns820OrderOverviewModal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2147483700;display:flex;align-items:flex-start;justify-content:center;padding:18px;overflow:auto}'+
-      '#bns820OrderOverviewModal .bns820-box{background:#fff;color:#0f172a;border-radius:20px;box-shadow:0 20px 70px rgba(0,0,0,.35);width:min(980px,96vw);padding:20px;font-family:Arial,sans-serif}'+
-      '#bns820OrderOverviewModal .bns820-actions{position:sticky;top:0;background:#fff;z-index:2;display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 12px}'+
-      '#bns820OrderOverviewModal button{border:0;border-radius:12px;padding:10px 14px;background:#2563eb;color:#fff;font-weight:900;cursor:pointer}'+
-      '#bns820OrderOverviewModal button.grey{background:#64748b!important;color:#fff!important}'+
-      '#bns820OrderOverviewModal h2{margin:6px 0 4px;font-size:28px}.bns820-sub{color:#475569;font-weight:800;margin-bottom:12px}'+
-      '#bns820OrderOverviewModal .bns820-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bns820-card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0;background:#fff}.bns820-pre{white-space:pre-wrap}'+
-      '#bns820OrderOverviewModal table{width:100%;border-collapse:collapse}#bns820OrderOverviewModal th{background:#0f172a;color:#fff}#bns820OrderOverviewModal td,#bns820OrderOverviewModal th{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}'+
-      '@media(max-width:700px){#bns820OrderOverviewModal .bns820-grid{grid-template-columns:1fr}#bns820OrderOverviewModal{padding:8px}#bns820OrderOverviewModal .bns820-box{padding:14px}}';
-    document.head.appendChild(st);
+  function addBaseStyle(){
+    if(!E('bns821NoBottomBarStyle')){
+      var st=document.createElement('style');
+      st.id='bns821NoBottomBarStyle';
+      st.textContent='#bnsV597OrderBottomActions{display:none!important;visibility:hidden!important;height:0!important;min-height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important;}';
+      document.head.appendChild(st);
+    }
+    if(E('bns821OverviewStyle')) return;
+    var st2=document.createElement('style'); st2.id='bns821OverviewStyle';
+    st2.textContent=''+
+      '#bns821OrderOverviewModal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2147483700;display:flex;align-items:flex-start;justify-content:center;padding:18px;overflow:auto}'+
+      '#bns821OrderOverviewModal .bns821-box{background:#fff;color:#0f172a;border-radius:20px;box-shadow:0 20px 70px rgba(0,0,0,.35);width:min(980px,96vw);padding:20px;font-family:Arial,sans-serif}'+
+      '#bns821OrderOverviewModal .bns821-actions{position:sticky;top:0;background:#fff;z-index:2;display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 12px}'+
+      '#bns821OrderOverviewModal button{border:0;border-radius:12px;padding:10px 14px;background:#2563eb;color:#fff;font-weight:900;cursor:pointer}'+
+      '#bns821OrderOverviewModal button.grey{background:#64748b!important;color:#fff!important}'+
+      '#bns821OrderOverviewModal h2{margin:6px 0 4px;font-size:28px}.bns821-sub{color:#475569;font-weight:800;margin-bottom:12px}'+
+      '#bns821OrderOverviewModal .bns821-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bns821-card{border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0;background:#fff}.bns821-pre{white-space:pre-wrap}'+
+      '#bns821OrderOverviewModal table{width:100%;border-collapse:collapse}#bns821OrderOverviewModal th{background:#0f172a;color:#fff}#bns821OrderOverviewModal td,#bns821OrderOverviewModal th{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}'+
+      '@media(max-width:700px){#bns821OrderOverviewModal .bns821-grid{grid-template-columns:1fr}#bns821OrderOverviewModal{padding:8px}#bns821OrderOverviewModal .bns821-box{padding:14px}}';
+    document.head.appendChild(st2);
   }
-  function closeOverview(){ var m=E('bns820OrderOverviewModal'); if(m) m.remove(); }
+  function removeBottomBar(){
+    addBaseStyle();
+    var b=E('bnsV597OrderBottomActions');
+    if(b){ try{ b.remove(); }catch(e){ try{ b.parentNode && b.parentNode.removeChild(b); }catch(_){} } }
+  }
+  function closeOverview(){ var m=E('bns821OrderOverviewModal'); if(m) m.remove(); }
   function openOverview(o){
     if(!o) return false;
-    addStyle(); closeOverview();
+    addBaseStyle(); closeOverview();
     var c=o.customer||{}, l=o.location||{};
     var m=document.createElement('div');
-    m.id='bns820OrderOverviewModal';
-    m.innerHTML='<div class="bns820-box"><div class="bns820-actions"><button type="button" class="grey" id="bns820Back">Terug</button><button type="button" id="bns820Print">Afdrukken</button><button type="button" id="bns820Share">Delen</button><button type="button" id="bns820WA">WhatsApp</button></div><h2>Overzicht bestelling</h2><div class="bns820-sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><div class="bns820-grid"><div class="bns820-card"><b>Klant</b><br>'+H(c.name||o.customerName||'')+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+H(c.phone||'')+'<br>'+H(c.email||'')+'</div><div class="bns820-card"><b>Locatie</b><br>'+H(l.name||o.locationName||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'<br>'+H(l.phone||'')+'</div></div><div class="bns820-card"><b>Opdracht</b><br>Datum: '+H(nice(o.start))+(o.end&&o.end!==o.start?' t/m '+H(nice(o.end)):'')+'<br>Status: '+H(o.status||'')+'<br>Merk: '+H(o.brand||'')+'</div><h3>Materialen</h3><table><thead><tr><th>#</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Aantal</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table><h3>Bijzonderheden</h3><div class="bns820-card bns820-pre">'+H(transportText(o)||'Geen bijzonderheden.')+'</div></div>';
+    m.id='bns821OrderOverviewModal';
+    m.innerHTML='<div class="bns821-box"><div class="bns821-actions"><button type="button" class="grey" id="bns821Back">Terug</button><button type="button" id="bns821Print">Afdrukken</button><button type="button" id="bns821Share">Delen</button><button type="button" id="bns821WA">WhatsApp</button></div><h2>Overzicht bestelling</h2><div class="bns821-sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><div class="bns821-grid"><div class="bns821-card"><b>Klant</b><br>'+H(c.name||o.customerName||'')+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+H(c.phone||'')+'<br>'+H(c.email||'')+'</div><div class="bns821-card"><b>Locatie</b><br>'+H(l.name||o.locationName||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'<br>'+H(l.phone||'')+'</div></div><div class="bns821-card"><b>Opdracht</b><br>Datum: '+H(nice(o.start))+(o.end&&o.end!==o.start?' t/m '+H(nice(o.end)):'')+'<br>Status: '+H(o.status||'')+'<br>Merk: '+H(o.brand||'')+'</div><h3>Materialen</h3><table><thead><tr><th>#</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Aantal</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table><h3>Bijzonderheden</h3><div class="bns821-card bns821-pre">'+H(transportText(o)||'Geen bijzonderheden.')+'</div></div>';
     document.body.appendChild(m);
-    E('bns820Back').onclick=closeOverview;
+    E('bns821Back').onclick=closeOverview;
     m.addEventListener('click',function(ev){ if(ev.target===m) closeOverview(); });
-    E('bns820Print').onclick=function(){ window.print(); };
-    E('bns820Share').onclick=function(){
+    E('bns821Print').onclick=function(){ window.print(); };
+    E('bns821Share').onclick=function(){
       var txt=m.innerText||'';
       if(navigator.share){ navigator.share({title:'Overzicht bestelling '+orderNo(o),text:txt}).catch(function(){}); }
       else { try{ navigator.clipboard&&navigator.clipboard.writeText(txt); }catch(e){} alert('Tekst gekopieerd voor delen.'); }
     };
-    E('bns820WA').onclick=function(){ window.open('https://wa.me/?text='+encodeURIComponent(m.innerText||''),'_blank'); };
+    E('bns821WA').onclick=function(){ window.open('https://wa.me/?text='+encodeURIComponent(m.innerText||''),'_blank'); };
     return false;
   }
   function openFromChoice(btn){
@@ -52801,7 +52819,11 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     return openOverview(o);
   }
 
+  addBaseStyle();
+  removeBottomBar();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', removeBottomBar); else setTimeout(removeBottomBar,0);
   document.addEventListener('click',function(ev){
+    removeBottomBar();
     var btn=ev.target&&ev.target.closest&&ev.target.closest('button,a');
     if(!btn) return;
     if(btn.id==='bns654OpenOverview' || btn.id==='bns653OpenOverview'){
@@ -52809,5 +52831,9 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       return openFromChoice(btn);
     }
   },true);
-  try{ console.info('[BNS 820] v817 basis + alleen Overzicht bestelling fallback actief.'); }catch(e){}
+  try{
+    var mo=new MutationObserver(function(){ removeBottomBar(); });
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+  }catch(e){}
+  try{ console.info('[BNS 821] v816 basis + overzicht fallback + bnsV597 onderbalk uit.'); }catch(e){}
 })();
