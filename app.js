@@ -8084,11 +8084,6 @@ function showPage(p){
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
   renderAll();
-  // BNS 812: na renderAll alsnog window.renderOrders aanroepen als beschikbaar
-  // Zo ziet de gebruiker kort de basis kaarten maar meteen daarna de goede
-  if(p==='orders' && window.renderOrders && window.renderOrders !== renderOrders){
-    setTimeout(function(){ try{ window.renderOrders(); }catch(e){} }, 50);
-  }
 }
 function init(){
   document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{
@@ -8453,6 +8448,13 @@ function sortedOrders(){
   return state.orders.slice().sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999'))
 }
 function renderOrders(){
+  // BNS 813: als renderV356 beschikbaar is, gebruik die altijd
+  if(typeof window.BNS_V356_RENDER_ORDERS === 'function'){
+    try{ window.BNS_V356_RENDER_ORDERS(); return; }catch(e){}
+  }
+  if(window.renderOrders && window.renderOrders !== renderOrders){
+    try{ window.renderOrders(); return; }catch(e){}
+  }
   let q=ordersSearch.value.toLowerCase();
   let list=sortedOrders().filter(o=>mode==='cancelled'?o.status==='Geannuleerd':(mode==='done'?o.status==='Uitgevoerd':(o.status!=='Geannuleerd'&&o.status!=='Uitgevoerd'))).filter(o=>!q||JSON.stringify(o).toLowerCase().includes(q));
   ordersList.innerHTML=list.map(card).join('')||'<p>Niets gevonden</p>'
