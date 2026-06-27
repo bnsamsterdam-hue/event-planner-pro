@@ -8083,7 +8083,19 @@ function showPage(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(p).classList.add('active');
   document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
-  renderAll();
+  // BNS 836: bij orders direct renderV356
+  if(p==='orders'){
+    renderDashboard();
+    renderDriver();
+    try{
+      var v356=window.BNS_V356_RENDER_ORDERS;
+      if(typeof v356==='function') v356();
+      else renderOrders();
+    }catch(e){ try{renderOrders();}catch(e2){} }
+    try{ summaryRender(); }catch(e){}
+  } else {
+    renderAll();
+  }
 }
 function init(){
   document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{
@@ -8173,8 +8185,10 @@ function bindOrder(){
   };
   materialSearch.oninput=()=>renderMaterials(currentCat);
   $('saveOrder').onclick=saveCurrentOrder;
-  // BNS fix: ordersSearch alleen via renderV356
+  // BNS 835: ordersSearch via renderV356, RENDERING flag resetten
   ordersSearch.oninput=function(){
+    // Reset RENDERING flag zodat een vorige render niet blokkeert
+    try{ if(window.BNS_V356_RENDERING !== undefined) window.BNS_V356_RENDERING=false; }catch(e){}
     var v356=window.BNS_V356_RENDER_ORDERS;
     if(typeof v356==='function') try{ v356(); }catch(e){}
   };
@@ -8363,8 +8377,11 @@ function saveCurrentOrder(){
   }
   toastMsg('Opdracht opgeslagen');
   clearOrder();
-  renderAll();
   showPage('orders');
+  // BNS 836: direct renderV356 na opslaan
+  setTimeout(function(){
+    try{ if(typeof window.BNS_V356_RENDER_ORDERS==='function') window.BNS_V356_RENDER_ORDERS(); }catch(e){}
+  },0);
 }
 function upsertCustomer(c){
   if(!c.name)return;
@@ -8432,8 +8449,13 @@ function editOrder(oid){
   orderExtra.value=o.extra||'';
   renderChosen();
   summaryRender();
-  workTab('customerPanel');
-  // BNS 802: scroll naar boven - mobiel en laptop, meer momenten
+  // BNS 836: gebruik BNS741 op mobiel (geen focus scroll), anders workTab
+  if(window.BNS741_mobileEditAsNew){
+    window.BNS741_mobileEditAsNew();
+  } else {
+    workTab('customerPanel');
+  }
+  // Scroll ook op laptop
   [0,50,120,250,500,900].forEach(function(ms){
     setTimeout(function(){
       document.documentElement.scrollTop=0;
@@ -8505,7 +8527,12 @@ function alertFor(oid,type){
 }
 function renderAll(){
   renderDashboard();
-  renderOrders();
+  // BNS 836: gebruik renderV356 als beschikbaar
+  try{
+    var v356=window.BNS_V356_RENDER_ORDERS;
+    if(typeof v356==='function'){ v356(); }
+    else renderOrders();
+  }catch(e){ try{renderOrders();}catch(e2){} }
   renderDriver();
   orderDriver.innerHTML='<option value="">Geen</option>'+state.users.filter(u=>u.role==='Bezorger').map(u=>`<option>${u.name}</option>`).join('');
   alertsBtn.textContent='Systeemmeldingen ('+state.alerts.filter(a=>!a.resolved).length+')';
@@ -38784,7 +38811,7 @@ setTimeout(()=>{
   if(window.__BNS_V356_ORDERS_TABS_CLEAN__) return;
   window.__BNS_V356_ORDERS_TABS_CLEAN__=true;
   var MODE='running';
-  var RENDERING=false;
+  var RENDERING=false; window.BNS_V356_RENDERING=RENDERING;
 
   function E(id){return document.getElementById(id);} 
   function A(sel,root){return Array.prototype.slice.call((root||document).querySelectorAll(sel));}
