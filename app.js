@@ -46664,8 +46664,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function currentOrderFromForm(){
     var id=currentEditingId(), nr=val(['orderNumber','opdrachtNr','orderNo']);
     var old=(id&&findOrderDirect(id)) || (nr&&findOrderDirect(nr)) || {};
-    var mats=[]; try{ if(Array.isArray(window.chosen)) mats=window.chosen; }catch(e){}
-    try{ if(!mats.length && typeof chosen!=='undefined' && Array.isArray(chosen)) mats=chosen; }catch(e){}
+    var hasSavedOrder=!!(old && (old.id || orderNo(old)));
+    var mats=[];
+    // BNS816: bij een bestaande/opgeslagen opdracht winnen altijd de materialen van die opdracht.
+    // window.chosen mag alleen nog als fallback bij een nieuwe, nog niet opgeslagen opdracht.
+    if(hasSavedOrder && Array.isArray(old.materials)) mats=old.materials;
+    if(!mats.length && !hasSavedOrder){ try{ if(Array.isArray(window.chosen)) mats=window.chosen; }catch(e){} }
+    if(!mats.length && !hasSavedOrder){ try{ if(typeof chosen!=='undefined' && Array.isArray(chosen)) mats=chosen; }catch(e){} }
     if(!mats.length && Array.isArray(old.materials)) mats=old.materials;
     var o=Object.assign({},old);
     o.number=nr||orderNo(o);
@@ -46755,7 +46760,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var b=ev.target && ev.target.closest && ev.target.closest('button,a,[data-bns423-doc],[data-bns422-doc],[data-bns421-doc],[data-doc]');
     var type=buttonDocType(b); if(!type) return;
     ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    return openOrderDoc(currentOrderFromForm(), type);
+    // BNS816: documentknoppen mogen geen spookdocument bouwen uit oude window.chosen.
+    // Als er een opgeslagen opdracht is, open die opdracht direct. Geen opgeslagen opdracht = blokkeren.
+    var key=currentEditingId() || val(['orderNumber','opdrachtNr','orderNo']);
+    var saved=(key&&findOrderDirect(key)) || null;
+    if(saved) return openOrderDoc(saved, type);
+    alert('Kies eerst een opgeslagen opdracht of sla de opdracht eerst op.');
+    return false;
   },true);
   console.info('[BNS v525] Documenten en boekhouding stabiel actief. 523/524 overgeslagen.');
 })();
@@ -51387,6 +51398,17 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   },true);
   console.info('[BNS 654] Overzichtkeuze gebruikt nu TW300_AU_openDoc/documenten-route voor gevulde factuur en opdrachtbevestiging.');
 })();
+
+
+/* =========================================================
+   BNS 816 - Documenten pakken opgeslagen opdracht-materialen
+   Basis: huidige draaiende app
+   - Factuur/opdrachtbevestiging openen niet meer uit oude window.chosen
+   - Bij bestaande opdracht winnen altijd old.materials
+   - Directe documentknop blokkeert als er geen opgeslagen opdracht is
+   - Raakt oranje, render, save, Firebase/localStorage niet aan
+   ========================================================= */
+try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.chosen.'); }catch(e){}
 
 // ===== BNS 667 - adresboek layout schoon + meetypen + leesbaar (v661 basis) =====
 (function(){
