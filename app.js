@@ -46760,16 +46760,29 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var b=ev.target && ev.target.closest && ev.target.closest('button,a,[data-bns423-doc],[data-bns422-doc],[data-bns421-doc],[data-doc]');
     var type=buttonDocType(b); if(!type) return;
     ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    // BNS816: documentknoppen mogen geen spookdocument bouwen uit oude window.chosen.
-    // Als er een opgeslagen opdracht is, open die opdracht direct. Geen opgeslagen opdracht = blokkeren.
+    // BNS822: document/status fix op v821.
+    // Niet direct saved openen, want dan blijft de oude status hangen.
+    // currentOrderFromForm() houdt opgeslagen materialen vast, maar neemt status/velden van het scherm mee.
     var key=currentEditingId() || val(['orderNumber','opdrachtNr','orderNo']);
     var saved=(key&&findOrderDirect(key)) || null;
-    if(saved) return openOrderDoc(saved, type);
+    if(saved){
+      var formOrder=currentOrderFromForm();
+      return openOrderDoc(formOrder||saved, type);
+    }
     alert('Kies eerst een opgeslagen opdracht of sla de opdracht eerst op.');
     return false;
   },true);
   console.info('[BNS v525] Documenten en boekhouding stabiel actief. 523/524 overgeslagen.');
 })();
+
+/* =========================================================
+   BNS 822 - Document status fix v821
+   - Materialen blijven uit opgeslagen opdracht komen
+   - Status/documenttitel komt uit huidig schermveld
+   - Oude window.chosen mag geen documenten meer vervuilen
+   - Geen Firebase/localStorage/render/oranje wijzigingen
+   ========================================================= */
+try{ console.info('[BNS 822] Documenten: status uit scherm, materialen uit saved order.'); }catch(e){}
 
 /* =========================================================
    BNS 526 - Admin Opruimen Boekhouding fix
