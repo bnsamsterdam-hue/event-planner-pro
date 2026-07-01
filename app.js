@@ -42973,6 +42973,14 @@ setTimeout(()=>{
     try{ window.editing=o.id; }catch(e){}
     try{ editing=o.id; }catch(e){}
     setVal('orderNumber',o.number||''); setVal('orderStatus',o.status||'Offerte'); setVal('dateStart',o.start||''); setVal('dateEnd',o.end||''); setVal('orderTitle',o.title||''); setVal('orderBrand',o.brand||'');
+    // BNS 843: status na fastEditOrder zeker stellen
+    var _bns843Status=o.status||'Offerte';
+    [100,400,900].forEach(function(ms){
+      setTimeout(function(){
+        var sel=document.getElementById('orderStatus');
+        if(sel && sel.value!==_bns843Status) sel.value=_bns843Status;
+      },ms);
+    });
     var p=o.pricing||{}; if(o.pricing){ setVal('priceExcl',((p.excl||0).toFixed? (p.excl||0).toFixed(2):p.excl)); setVal('discountAmount',((p.discount||0).toFixed? (p.discount||0).toFixed(2):p.discount)); setVal('vatPercent',p.vatP||p.vatPercent||21); setVal('depositAmount',((p.deposit||0).toFixed? (p.deposit||0).toFixed(2):p.deposit)); }
     var c=o.customer||{}, l=o.location||{};
     setVal('customerName',c.name||''); setVal('customerStreet',c.street||''); setVal('customerZip',c.zip||''); setVal('customerCity',c.city||''); setVal('customerPhone',c.phone||''); setVal('customerEmail',c.email||'');
