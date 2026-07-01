@@ -47117,14 +47117,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(typeof old !== 'function' || old.__bns527) return;
     var wrapped=function(id){
       var r=old.apply(this, arguments);
-      setTimeout(function(){
-        var o=findOrder(id) || currentEditingOrder();
-        if(o) applyFormStatusFromOrder(o);
-      },60);
-      setTimeout(function(){
-        var o=findOrder(id) || currentEditingOrder();
-        if(o) applyFormStatusFromOrder(o);
-      },250);
+      // BNS 842: meer momenten zodat status zeker wint van clearOrder reset
+      [60,250,600,1200].forEach(function(ms){
+        setTimeout(function(){
+          var o=findOrder(id) || currentEditingOrder();
+          if(o) applyFormStatusFromOrder(o);
+        },ms);
+      });
       return r;
     };
     wrapped.__bns527=true;
