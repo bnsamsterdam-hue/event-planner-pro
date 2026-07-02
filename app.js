@@ -46808,6 +46808,11 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     // Geen opgeslagen opdracht - lees formulierdata
     var formOrder=(function(){
       function fv(id){ var e=document.getElementById(id); return e?(e.value||e.textContent||'').trim():''; }
+      // BNS 846: transportLines en pricing meenemen
+      var tLines=[];
+      try{ tLines=typeof getLines==='function'?getLines():(window.__bns521TransportLines||[]); }catch(e){}
+      var mats=[];
+      try{ mats=window.chosen||chosen||[]; }catch(e){}
       return {
         number: fv('orderNumber'),
         title: fv('orderTitle'),
@@ -46816,6 +46821,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         end: fv('dateEnd'),
         brand: fv('orderBrand'),
         extra: fv('orderExtra'),
+        driver: fv('orderDriver'),
+        vehicle: fv('orderVehicle'),
         customer:{
           name:fv('customerName'),street:fv('customerStreet'),
           zip:fv('customerZip'),city:fv('customerCity'),
@@ -46824,10 +46831,10 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         location:{
           name:fv('locationName'),street:fv('locationStreet'),
           zip:fv('locationZip'),city:fv('locationCity'),
-          phone:fv('locationPhone')
+          contact:fv('locationContact'),phone:fv('locationPhone')
         },
-        materials: (function(){ try{ return window.chosen||chosen||[]; }catch(e){ return []; } })(),
-        transportLines:[]
+        materials: mats,
+        transportLines: tLines
       };
     })();
     return openOrderDoc(formOrder, type);
