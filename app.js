@@ -42973,12 +42973,19 @@ setTimeout(()=>{
     try{ window.editing=o.id; }catch(e){}
     try{ editing=o.id; }catch(e){}
     setVal('orderNumber',o.number||''); setVal('orderStatus',o.status||'Offerte'); setVal('dateStart',o.start||''); setVal('dateEnd',o.end||''); setVal('orderTitle',o.title||''); setVal('orderBrand',o.brand||'');
-    // BNS 843: status na fastEditOrder zeker stellen
-    var _bns843Status=o.status||'Offerte';
+    // BNS 844: status na fastEditOrder - map naar dropdown optie
+    var _bns844RawStatus=o.status||'Offerte';
     [100,400,900].forEach(function(ms){
       setTimeout(function(){
         var sel=document.getElementById('orderStatus');
-        if(sel && sel.value!==_bns843Status) sel.value=_bns843Status;
+        if(!sel) return;
+        var optVals=Array.prototype.slice.call(sel.options).map(function(op){return op.value||op.text;});
+        var st=_bns844RawStatus;
+        if(optVals.indexOf(st)<0){
+          var map={'Bevestigd':'Opdrachtbevestiging','Geannuleerd':'geannuleerd','Optie 14 dagen':'optie 14 dagen','Verwijderd':'geannuleerd'};
+          if(map[st] && optVals.indexOf(map[st])>=0) st=map[st];
+        }
+        if(sel.value!==st) sel.value=st;
       },ms);
     });
     var p=o.pricing||{}; if(o.pricing){ setVal('priceExcl',((p.excl||0).toFixed? (p.excl||0).toFixed(2):p.excl)); setVal('discountAmount',((p.discount||0).toFixed? (p.discount||0).toFixed(2):p.discount)); setVal('vatPercent',p.vatP||p.vatPercent||21); setVal('depositAmount',((p.deposit||0).toFixed? (p.deposit||0).toFixed(2):p.deposit)); }
@@ -47091,6 +47098,15 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var sel=E('orderStatus');
     if(!sel || !o) return;
     var st=canonicalStatus(o);
+    // BNS 844: map canonicalStatus naar bestaande dropdown opties
+    var optionValues=Array.prototype.slice.call(sel.options).map(function(op){return op.value||op.text;});
+    // Probeer exact match eerst
+    if(optionValues.indexOf(st)<0){
+      // Map bekende waarden
+      var map={'Bevestigd':'Opdrachtbevestiging','Uitgevoerd':'Uitgevoerd','Geannuleerd':'geannuleerd','Optie 14 dagen':'optie 14 dagen','Verwijderd':'geannuleerd'};
+      if(map[st] && optionValues.indexOf(map[st])>=0) st=map[st];
+      else if(optionValues.indexOf('Offerte')>=0) st='Offerte';
+    }
     sel.value = st;
     window.__bns527StatusTouched = false;
     try{ if(typeof summaryRender === 'function') summaryRender(); }catch(e){}
