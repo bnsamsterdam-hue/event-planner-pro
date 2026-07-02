@@ -42973,17 +42973,17 @@ setTimeout(()=>{
     try{ window.editing=o.id; }catch(e){}
     try{ editing=o.id; }catch(e){}
     setVal('orderNumber',o.number||''); setVal('orderStatus',o.status||'Offerte'); setVal('dateStart',o.start||''); setVal('dateEnd',o.end||''); setVal('orderTitle',o.title||''); setVal('orderBrand',o.brand||'');
-    // BNS 844: status na fastEditOrder - map naar dropdown optie
-    var _bns844RawStatus=o.status||'Offerte';
+    // BNS 845: status na fastEditOrder - gebruik o.status direct
+    var _bns845RawStatus=o.status||o.orderStatus||'Offerte';
     [100,400,900].forEach(function(ms){
       setTimeout(function(){
         var sel=document.getElementById('orderStatus');
         if(!sel) return;
         var optVals=Array.prototype.slice.call(sel.options).map(function(op){return op.value||op.text;});
-        var st=_bns844RawStatus;
+        var st=_bns845RawStatus;
         if(optVals.indexOf(st)<0){
-          var map={'Bevestigd':'Opdrachtbevestiging','Geannuleerd':'geannuleerd','Optie 14 dagen':'optie 14 dagen','Verwijderd':'geannuleerd'};
-          if(map[st] && optVals.indexOf(map[st])>=0) st=map[st];
+          var map={'Bevestigd':'Opdrachtbevestiging','Optie 14 dagen':'optie 14 dagen','optie14':'optie 14 dagen','Geannuleerd':'geannuleerd'};
+          st=map[st]||'Offerte';
         }
         if(sel.value!==st) sel.value=st;
       },ms);
@@ -47097,19 +47097,24 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function applyFormStatusFromOrder(o){
     var sel=E('orderStatus');
     if(!sel || !o) return;
-    var st=canonicalStatus(o);
-    // BNS 844: map canonicalStatus naar bestaande dropdown opties
+    // BNS 845: gebruik o.status direct - niet canonicalStatus
+    var raw=o.status||o.orderStatus||'Offerte';
     var optionValues=Array.prototype.slice.call(sel.options).map(function(op){return op.value||op.text;});
-    // Probeer exact match eerst
+    var st=raw;
+    // Alleen mappen als de waarde niet in de dropdown staat
     if(optionValues.indexOf(st)<0){
-      // Map bekende waarden
-      var map={'Bevestigd':'Opdrachtbevestiging','Uitgevoerd':'Uitgevoerd','Geannuleerd':'geannuleerd','Optie 14 dagen':'optie 14 dagen','Verwijderd':'geannuleerd'};
-      if(map[st] && optionValues.indexOf(map[st])>=0) st=map[st];
-      else if(optionValues.indexOf('Offerte')>=0) st='Offerte';
+      var map={
+        'Bevestigd':'Opdrachtbevestiging',
+        'Optie 14 dagen':'optie 14 dagen',
+        'optie14':'optie 14 dagen',
+        'Geannuleerd':'geannuleerd',
+        'geannuleerd':'geannuleerd'
+      };
+      st=map[raw]||'Offerte';
     }
-    sel.value = st;
-    window.__bns527StatusTouched = false;
-    try{ if(typeof summaryRender === 'function') summaryRender(); }catch(e){}
+    sel.value=st;
+    window.__bns527StatusTouched=false;
+    try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
   }
 
   // Planner handmatig aan status laat wijzigen = bewust respecteren.
