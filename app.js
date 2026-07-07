@@ -22081,27 +22081,23 @@ setTimeout(()=>{
     cats.sort();
     return cats.length?cats:["TW","TO","KW","EXTRA"];
   }
-  function currentCat(){
+  function currentCatV49(){
     try {
-      return catKey(window.currentCat || currentCat);
-    } catch(e) {
       return catKey(window.currentCat || "TW");
+    } catch(e) {
+      return catKey("TW");
     }
   }
   function setCurrentCat(c){
     c=catKey(c);
     window.currentCat=c;
-    try{
-      currentCat=c;
-    } catch(e){
-    }
     return c;
   }
   function renderCatsV49(){
     var box=E("materialCats");
     if(!box) return;
     var cats=allCats();
-    var active=currentCat();
+    var active=currentCatV49();
     if(cats.indexOf(active)<0) active=setCurrentCat(cats[0]);
     box.innerHTML=cats.map(function(c){
       return '<button type="button" '+(c===active?'class="active"':'')+' data-bns-v49-cat="'+esc(c)+'" style="--cat-color:'+catColor(c)+'">'+esc(c)+'</button>';
@@ -22122,7 +22118,7 @@ setTimeout(()=>{
     if(!box) return;
     var q=norm((E("materialSearch")||{
     }).value);
-    var cat=currentCat();
+    var cat=currentCatV49();
     var mats=(S().materials||[]);
     var rows=mats.filter(function(m){
       return q ? materialText(m).indexOf(q)>=0 : catKey(m.cat||m.rubriek||m.category)===cat;
@@ -49157,7 +49153,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(!good(mats)){ log('Firebase materialen niet veilig overgenomen ('+A(mats).length+')'); return false; }
     mats=clean(mats);
     var sig=mats.length+':'+mats.map(idOf).sort().slice(0,60).join('|')+':'+A(users).length;
-    if(sig===lastSig && reason!=='force') return true;
+    if(sig===lastSig) return true;
     lastSig=sig;
 
     var s=stateObj();
@@ -49211,7 +49207,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var old=window.renderMaterials || (typeof renderMaterials==='function'?renderMaterials:null);
     if(old && !old.__bns608Wrapped){
       var wrapped=function(cat){
-        try{ if(window.__BNS608_MATERIALS && good(window.__BNS608_MATERIALS)) apply(window.__BNS608_MATERIALS,window.__BNS608_USERS||[],'force'); }catch(e){}
+        try{ if(window.__BNS608_MATERIALS && good(window.__BNS608_MATERIALS)) apply(window.__BNS608_MATERIALS,window.__BNS608_USERS||[],'render'); }catch(e){}
         return old.apply(this,arguments);
       };
       wrapped.__bns608Wrapped=true;
@@ -53119,4 +53115,30 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     return {version:'v932', basis:'schone Tapwagen app', scope:'Tapwagen only', v350OrdersRenderer:'uitgeschakeld', v356OrdersRenderer:'leidend', documents:'eigen toolbar + Systeemmelding', firebaseChanged:false, dataChanged:false, amsterdam:false, rental:false};
   };
   try{ console.info('[Tapwagen v932] schone basis: v350 orders-render uit, documenten/eigen Systeemmelding actief.'); }catch(e){}
+})();
+
+
+/* =========================================================
+   Tapwagen v933 - clean docs/render + materiaal render-loop fix
+   Tapwagen-only. Geen Amsterdam/Rental, geen Firebase-config/datawijziging.
+========================================================= */
+(function(){
+  'use strict';
+  window.TapwagenV933Info=function(){
+    return {
+      version:'v933',
+      basis:'schone Tapwagen app + v932 documenten/render',
+      scope:'Tapwagen only',
+      fixes:[
+        'V49 currentCat functie-conflict opgelost',
+        'BNS608 force-render lus gedempt',
+        'documenten/eigen systeemmelding uit v932 behouden',
+        'v350 orders renderer blijft uitgeschakeld, v356 blijft leidend'
+      ],
+      data:'geen opdrachten/klanten/materialen/backups gewijzigd',
+      amsterdam:'niet gebruikt',
+      rental:'niet gebruikt'
+    };
+  };
+  try{ console.info('[Tapwagen v933] actief: currentCat/render-loop fix, Tapwagen-only.'); }catch(e){}
 })();
