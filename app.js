@@ -38784,7 +38784,9 @@ setTimeout(()=>{
   function install(){
     injectStyle();
     buildArchPage();buildSchadePage();
-    installRO();injectOrdTabs();hideOldTabs();
+    // BNS v932 Tapwagen-only: v350 mag Archief/Schade/admin blijven doen, maar mag de opdrachtenlijst niet meer renderen.
+    // installRO() en injectOrdTabs() blijven bewust uit, zodat v356 de enige renderer voor #ordersList is.
+    hideOldTabs();
     addNavBtns();patchShowPage();buildAdminTab();
   }
 
@@ -52922,453 +52924,199 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   try{ console.info('[BNS 821] v816 basis + overzicht fallback + bnsV597 onderbalk uit.'); }catch(e){}
 })();
 
-/* Tapwagen v928 - TAPWAGEN ONLY
-   - Revert v926/v927 render wrapping by building from Tapwagen backup app.js.
-   - Add document toolbar only inside generated Tapwagen document windows.
-   - Hide GitHub wording in UI/system alerts.
-   - Local update safety guard: never replaces real state with empty backup; restores only if arrays are missing/empty.
-   - No Amsterdam/Rental code, no Firebase config, no storage path changes.
+
+/* Tapwagen v932 - schone Tapwagen-basis + documenten/systeemmelding + v350 orders renderer uit
+   Scope: alleen Tapwagen. Geen Amsterdam/Rental, geen Firebase-config, geen data-opslag, geen klanten/materialen/opdrachten wijzigingen.
 */
-(function TapwagenV928Only(){
-  if (window.__TAPWAGEN_V928_ONLY__) return;
-  window.__TAPWAGEN_V928_ONLY__ = true;
+(function TapwagenV932CleanDocsRenderOnly(){
+  if (window.__TAPWAGEN_V932_CLEAN_DOCS_RENDER_ONLY__) return;
+  window.__TAPWAGEN_V932_CLEAN_DOCS_RENDER_ONLY__ = true;
 
-  var BACKUP_KEY = 'tapwagen_v928_business_safe_latest';
-  var BACKUP_LIST = 'tapwagen_v928_business_safe_list';
-  var MIN_INTERVAL = 3500;
-  var lastBackup = 0;
+  function S(v){ return String(v == null ? '' : v); }
+  function txt(v){ return S(v).replace(/\s+/g,' ').trim(); }
+  function cleanMsg(v){ return S(v).replace(/git\s*hub|github|gitup|bnsamsterdam-hue\.github\.io/ig,'Systeemmelding'); }
+  function qsa(sel, doc){ return Array.prototype.slice.call((doc||document).querySelectorAll(sel)); }
+  function safeName(v){ return (txt(v)||'tapwagen_document').replace(/[^a-z0-9\-_. ]/gi,'_').replace(/\s+/g,'_').slice(0,90) || 'tapwagen_document'; }
 
-  function A(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function T(v){ return String(v == null ? '' : v).replace(/\s+/g,' ').trim(); }
-  function cleanWord(v){ return String(v == null ? '' : v).replace(/git\s*hub|github|gitup/ig, 'Systeemmelding'); }
-  function parse(v, def){ try { return JSON.parse(v || ''); } catch(e){ return def; } }
-  function clone(v){ return parse(JSON.stringify(v == null ? null : v), null); }
-  function isArr(v){ return Array.isArray(v); }
-  function len(v){ return isArr(v) ? v.length : 0; }
-  function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || null; }
-  function get(obj, path){ var cur=obj; for(var i=0;i<path.length;i++){ if(!cur) return undefined; cur=cur[path[i]]; } return cur; }
-  function set(obj, path, val){ var cur=obj; for(var i=0;i<path.length-1;i++){ cur[path[i]]=cur[path[i]]||{}; cur=cur[path[i]]; } cur[path[path.length-1]]=val; }
-  function countQuality(s){ return len(s.orders)*5 + len(s.customers)*3 + len(s.materials)*3 + len(s.locations)*2 + (s.documentStyle?4:0) + ((s.settings&&s.settings.invoice)?4:0); }
-
-  function snapshot(){
-    var s = stateObj();
-    if(!s) return null;
-    var snap = {
-      version:'v928',
-      savedAt:new Date().toISOString(),
-      orders: clone(s.orders || []),
-      customers: clone(s.customers || []),
-      materials: clone(s.materials || []),
-      locations: clone(s.locations || []),
-      alerts: clone(s.alerts || []),
-      documentStyle: clone(s.documentStyle || null),
-      settings: { invoice: clone(get(s,['settings','invoice']) || null) }
-    };
-    snap.quality = countQuality(snap);
-    if(snap.quality <= 0) return null;
-    return snap;
-  }
-
-  function backupNow(reason){
-    var now = Date.now();
-    if(reason !== 'manual' && now - lastBackup < MIN_INTERVAL) return false;
-    var snap = snapshot();
-    if(!snap) return false;
-    var old = parse(localStorage.getItem(BACKUP_KEY), null);
-    if(old && Number(old.quality||0) > Number(snap.quality||0) && reason !== 'manual') return false;
-    lastBackup = now;
-    try{ localStorage.setItem(BACKUP_KEY, JSON.stringify(snap)); }catch(e){}
+  function installStyle(doc){
     try{
-      var list = parse(localStorage.getItem(BACKUP_LIST), []) || [];
-      list.unshift(snap);
-      list = list.slice(0,14);
-      localStorage.setItem(BACKUP_LIST, JSON.stringify(list));
+      if(!doc || !doc.head || doc.getElementById('tapV932DocStyle')) return;
+      var st = doc.createElement('style');
+      st.id = 'tapV932DocStyle';
+      st.textContent = ''+
+        '.tap-v932-toolbar{position:sticky;top:0;z-index:2147483646;background:#0f172a;color:#fff;padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-family:Arial,Helvetica,sans-serif;box-shadow:0 2px 14px rgba(0,0,0,.28)}'+
+        '.tap-v932-toolbar button{border:0;border-radius:9px;padding:9px 12px;font-weight:900;cursor:pointer;color:#fff;background:#2563eb;font-size:14px}.tap-v932-toolbar .green{background:#16a34a}.tap-v932-toolbar .orange{background:#f97316}.tap-v932-toolbar .grey{background:#64748b}.tap-v932-toolbar .red{background:#dc2626}.tap-v932-toolbar span{margin-left:auto;font-size:12px;opacity:.9}'+
+        '.tap-v932-system-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:18px;font-family:Arial,Helvetica,sans-serif}.tap-v932-system-card{background:#fff;color:#172033;border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.32);max-width:560px;width:100%;padding:22px;border:1px solid #dbe3ef}.tap-v932-system-card h2{margin:0 0 10px;font-size:24px;color:#0f172a}.tap-v932-system-card p{margin:0 0 18px;font-size:16px;line-height:1.45;color:#334155;white-space:pre-wrap}.tap-v932-system-card button{float:right;border:0;border-radius:12px;background:#2563eb;color:#fff;font-weight:900;padding:10px 18px;cursor:pointer;font-size:15px}'+
+        'body>.actions:not(.tap-v932-toolbar),body>.document-actions,body>.doc-actions{display:none!important}'+
+        '@media print{.tap-v932-toolbar,.tap-v932-system-backdrop,body>.actions{display:none!important}body{background:#fff!important}.page,main{box-shadow:none!important}}';
+      doc.head.appendChild(st);
     }catch(e){}
-    return true;
   }
 
-  function restoreIfEmpty(){
-    var s = stateObj(); if(!s) return false;
-    var b = parse(localStorage.getItem(BACKUP_KEY), null); if(!b) return false;
-    var changed = false;
-    [['orders'],['customers'],['materials'],['locations'],['alerts']].forEach(function(path){
-      var k = path[0];
-      if((!isArr(s[k]) || s[k].length === 0) && isArr(b[k]) && b[k].length){ s[k] = clone(b[k]); changed = true; }
-    });
-    if(!s.documentStyle && b.documentStyle){ s.documentStyle = clone(b.documentStyle); changed = true; }
-    if((!get(s,['settings','invoice'])) && b.settings && b.settings.invoice){
-      s.settings = s.settings || {}; s.settings.invoice = clone(b.settings.invoice); changed = true;
-    }
-    if(changed){
-      try{ if(typeof save === 'function') save(); else if(typeof saveAll === 'function') saveAll(); }catch(e){}
-      try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
-      try{ if(typeof renderOrders === 'function') renderOrders(); }catch(e){}
-    }
-    return changed;
-  }
-
-  function cleanupGithubText(){
+  function ownMsg(doc, title, message){
     try{
-      A('body, body *').forEach(function(n){
+      installStyle(doc);
+      var old = doc.getElementById('tapV932SystemMessage'); if(old) old.remove();
+      var box = doc.createElement('div');
+      box.id = 'tapV932SystemMessage';
+      box.className = 'tap-v932-system-backdrop';
+      box.innerHTML = '<div class="tap-v932-system-card"><h2></h2><p></p><button type="button">OK</button></div>';
+      box.querySelector('h2').textContent = cleanMsg(title || 'Systeemmelding');
+      box.querySelector('p').textContent = cleanMsg(message || '');
+      box.querySelector('button').onclick = function(){ box.remove(); };
+      box.addEventListener('click', function(ev){ if(ev.target === box) box.remove(); });
+      doc.body.appendChild(box);
+    }catch(e){}
+  }
+
+  function installSystemAlert(doc){
+    try{
+      if(!doc || !doc.defaultView) return;
+      doc.defaultView.TapwagenSysteemmelding = function(message){ ownMsg(doc, 'Systeemmelding', message); };
+      doc.defaultView.alert = function(message){ ownMsg(doc, 'Systeemmelding', message); };
+    }catch(e){}
+  }
+
+  function docTitle(doc){
+    try{
+      var h = doc.querySelector('h1,h2,.title,.doc-title');
+      return txt((h && h.textContent) || doc.title || 'Tapwagen document');
+    }catch(e){ return 'Tapwagen document'; }
+  }
+  function cleanDocText(doc){
+    try{
+      var bars = qsa('.tap-v932-toolbar,.tap-v928-toolbar,.tap-v929-toolbar,.tap-v930-toolbar,.actions,.document-actions,.doc-actions', doc);
+      var old = bars.map(function(b){ var d=b.style.display; b.style.display='none'; return [b,d]; });
+      var root = doc.querySelector('main,.page,.document,.invoice-preview,.doc') || doc.body;
+      var t = txt(root ? root.innerText : doc.body.innerText);
+      old.forEach(function(x){ x[0].style.display = x[1]; });
+      return cleanMsg(t);
+    }catch(e){ return ''; }
+  }
+  function cleanDocHtml(doc){
+    try{
+      var clone = doc.documentElement.cloneNode(true);
+      qsa('.tap-v932-toolbar,.tap-v928-toolbar,.tap-v929-toolbar,.tap-v930-toolbar,.tap-v932-system-backdrop,script', clone).forEach(function(x){ x.remove(); });
+      return '<!doctype html>\n' + clone.outerHTML;
+    }catch(e){ return '<!doctype html><html><body>'+cleanDocText(doc)+'</body></html>'; }
+  }
+  function download(doc, filename, type, content){
+    try{
+      var win = doc.defaultView || window;
+      var blob = new Blob([content], {type:type});
+      var url = win.URL.createObjectURL(blob);
+      var a = doc.createElement('a'); a.href=url; a.download=filename; doc.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ try{ win.URL.revokeObjectURL(url); }catch(e){} }, 1200);
+      return true;
+    }catch(e){ ownMsg(doc,'Systeemmelding','Download kon niet worden gestart. Gebruik Print / PDF.'); return false; }
+  }
+  function copyText(doc){
+    var t = cleanDocText(doc);
+    try{
+      var nav = (doc.defaultView && doc.defaultView.navigator) || navigator;
+      if(nav.clipboard && nav.clipboard.writeText){ nav.clipboard.writeText(t).then(function(){ ownMsg(doc,'Systeemmelding','Tekst gekopieerd.'); }).catch(function(){ fallbackCopy(doc,t); }); }
+      else fallbackCopy(doc,t);
+    }catch(e){ fallbackCopy(doc,t); }
+  }
+  function fallbackCopy(doc, t){
+    try{
+      var ta = doc.createElement('textarea'); ta.value = t; ta.style.position='fixed'; ta.style.left='-9999px'; doc.body.appendChild(ta); ta.select(); doc.execCommand('copy'); ta.remove();
+      ownMsg(doc,'Systeemmelding','Tekst gekopieerd.');
+    }catch(e){ ownMsg(doc,'Systeemmelding','Kopiëren lukt niet automatisch. Selecteer de tekst handmatig.'); }
+  }
+  function makePdf(doc){
+    try{
+      var w = doc.defaultView || window;
+      if(w.html2pdf){
+        var opt = { margin:8, filename:safeName(docTitle(doc))+'.pdf', image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} };
+        var root = doc.querySelector('main,.page,.document,.invoice-preview,.doc') || doc.body;
+        return w.html2pdf().set(opt).from(root).save();
+      }
+    }catch(e){}
+    ownMsg(doc,'Systeemmelding','PDF downloaden lukt niet direct in deze browser. Gebruik Print / PDF en kies Opslaan als PDF.');
+  }
+
+  function hideLegacy(doc){
+    try{
+      qsa('button,a,input[type="button"],input[type="submit"]', doc).forEach(function(el){
+        var t = txt(el.textContent || el.value || el.getAttribute('aria-label') || '');
+        var own = el.closest && el.closest('.tap-v932-toolbar');
+        if(own) return;
+        if(/^(mail|e-mail|email|delen|share|terug)$/i.test(t)){
+          el.style.display = 'none'; el.setAttribute('data-tap-v932-hidden','legacy-doc-action');
+        }
+      });
+      qsa('body, body *', doc).forEach(function(n){
         if(!n || !n.childNodes) return;
         Array.prototype.slice.call(n.childNodes).forEach(function(c){
-          if(c.nodeType === 3 && /git\s*hub|github|gitup/i.test(c.nodeValue||'')) c.nodeValue = cleanWord(c.nodeValue);
+          if(c.nodeType === 3 && /git\s*hub|github|gitup|bnsamsterdam-hue\.github\.io/i.test(c.nodeValue || '')) c.nodeValue = cleanMsg(c.nodeValue);
         });
       });
     }catch(e){}
-    try{
-      var s = stateObj();
-      if(s && Array.isArray(s.alerts)){
-        s.alerts.forEach(function(a){
-          ['title','note','message','source','type'].forEach(function(k){ if(a && a[k]) a[k]=cleanWord(a[k]); });
-          if(a && (!a.source || /git\s*hub|github|gitup/i.test(a.source))) a.source='systeem';
-          if(a && (!a.title || /git\s*hub|github|gitup/i.test(a.title))) a.title='Systeemmelding';
-        });
-      }
-    }catch(e){}
   }
 
-  function safeFile(v){ return String(v||'document').replace(/[^a-z0-9\-_. ]/gi,'_').replace(/\s+/g,'_').slice(0,90) || 'document'; }
-  function toolbarCss(){
-    return '.tap-v928-toolbar{position:sticky;top:0;z-index:2147483647;background:#0f172a;color:#fff;padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-family:Arial,Helvetica,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.28)}'+
-      '.tap-v928-toolbar button{border:0;border-radius:9px;padding:9px 12px;font-weight:900;cursor:pointer;color:#fff;background:#2563eb;font-size:14px}.tap-v928-toolbar .green{background:#16a34a}.tap-v928-toolbar .orange{background:#f97316}.tap-v928-toolbar .grey{background:#64748b}.tap-v928-toolbar .red{background:#dc2626}.tap-v928-toolbar span{margin-left:auto;font-size:12px;opacity:.9}'+
-      'body>.actions:not(.tap-v928-toolbar){display:none!important}@media print{.tap-v928-toolbar,body>.actions{display:none!important}body{background:white!important}.page,main{box-shadow:none!important}}';
-  }
-  function docText(doc){
-    var tb = doc.querySelector('.tap-v928-toolbar'); if(tb) tb.style.display='none';
-    var t = ((doc.querySelector('main,.page,.document,.invoice-preview,.doc') || doc.body).innerText || doc.body.innerText || '').trim();
-    if(tb) tb.style.display=''; return cleanWord(t);
-  }
-  function docHtmlClean(doc){
-    var tb = doc.querySelector('.tap-v928-toolbar'); if(tb) tb.remove();
-    return '<!doctype html>\n' + doc.documentElement.outerHTML;
-  }
-  function setNote(doc, msg){ var n=doc.getElementById('tapV928DocNote'); if(n) n.textContent = msg || ''; }
-  function injectToolbar(doc){
-    try{
-      if(!doc || !doc.body || doc.getElementById('tapV928Toolbar')) return;
-      var win = doc.defaultView || window;
-      var st = doc.createElement('style'); st.id='tapV928Css'; st.textContent = toolbarCss(); doc.head.appendChild(st);
-      A('body>.actions', doc).forEach(function(x){ if(!x.classList.contains('tap-v928-toolbar')) x.style.display='none'; });
-      var bar = doc.createElement('div'); bar.className='tap-v928-toolbar'; bar.id='tapV928Toolbar';
-      bar.innerHTML = '<button type="button" class="green" data-act="pdf">PDF downloaden</button>'+
-        '<button type="button" data-act="print">Print / PDF</button>'+
-        '<button type="button" data-act="mail">Mail</button>'+
-        '<button type="button" class="orange" data-act="whatsapp">WhatsApp</button>'+
-        '<button type="button" class="grey" data-act="eml">Download mailbestand</button>'+
-        '<button type="button" class="grey" data-act="copy">Kopieer tekst</button>'+
-        '<button type="button" class="red" data-act="close">Sluiten</button>'+
-        '<span id="tapV928DocNote">Tapwagen document</span>';
-      doc.body.insertBefore(bar, doc.body.firstChild);
-      bar.addEventListener('click', function(ev){
-        var b = ev.target && ev.target.closest && ev.target.closest('button[data-act]'); if(!b) return;
-        ev.preventDefault(); ev.stopPropagation();
-        var act = b.getAttribute('data-act');
-        if(act === 'print'){ setNote(doc,'Printvenster geopend. Kies eventueel Opslaan als PDF.'); try{ win.focus(); win.print(); }catch(e){} return; }
-        if(act === 'close'){ try{ win.close(); }catch(e){} setTimeout(function(){ try{ if(!win.closed) win.location.replace('about:blank'); }catch(e){} },100); return; }
-        if(act === 'copy'){
-          var txt = docText(doc);
-          try{ if(win.navigator.clipboard && win.navigator.clipboard.writeText){ win.navigator.clipboard.writeText(txt).then(function(){setNote(doc,'Documenttekst gekopieerd.');}).catch(function(){ win.prompt('Kopieer de tekst:', txt); }); } else win.prompt('Kopieer de tekst:', txt); }catch(e){ win.prompt('Kopieer de tekst:', txt); }
-          return;
-        }
-        if(act === 'mail'){
-          var body = docText(doc), subj = doc.title || 'Tapwagen document';
-          var url = 'mailto:?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
-          if(url.length < 1800){ setNote(doc,'Mailprogramma geopend.'); win.location.href = url; } else { setNote(doc,'Tekst is groot. Gebruik Download mailbestand of Kopieer tekst.'); win.alert('Tekst is te groot voor directe mail. Gebruik Download mailbestand of Kopieer tekst.'); }
-          return;
-        }
-        if(act === 'whatsapp'){
-          var msg = (doc.title || 'Tapwagen document') + '\n\n' + docText(doc);
-          if(msg.length > 4500){ try{ win.navigator.clipboard.writeText(msg); }catch(e){} win.alert('Tekst is te lang voor WhatsApp. De tekst is gekopieerd; plak hem zelf in WhatsApp.'); return; }
-          setNote(doc,'WhatsApp wordt geopend.'); win.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank'); return;
-        }
-        if(act === 'eml'){
-          var subject = doc.title || 'Tapwagen document';
-          var eml = 'To: \r\nSubject: ' + subject + '\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n' + docHtmlClean(doc);
-          var blob = new win.Blob([eml], {type:'message/rfc822;charset=utf-8'}); var a = doc.createElement('a');
-          a.href = win.URL.createObjectURL(blob); a.download = safeFile(subject) + '.eml'; doc.body.appendChild(a); a.click(); setTimeout(function(){ try{ win.URL.revokeObjectURL(a.href); a.remove(); }catch(e){} },1000); setNote(doc,'Mailbestand gedownload.'); return;
-        }
-        if(act === 'pdf'){
-          function make(){
-            try{
-              var old=doc.querySelector('.tap-v928-toolbar'); if(old) old.style.display='none';
-              var el = doc.querySelector('main,.page,.document,.invoice-preview,.doc') || doc.body;
-              win.html2pdf().set({margin:[8,8,8,8],filename:safeFile(doc.title)+'.pdf',image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(el).save().then(function(){ if(old) old.style.display=''; setNote(doc,'PDF gedownload.'); }).catch(function(){ if(old) old.style.display=''; setNote(doc,'PDF maken mislukt. Gebruik Print / PDF.'); win.alert('PDF maken mislukt. Gebruik Print / PDF.'); });
-            }catch(e){ setNote(doc,'PDF maken mislukt. Gebruik Print / PDF.'); win.alert('PDF maken mislukt: '+e.message); }
-          }
-          if(win.html2pdf) return make();
-          setNote(doc,'PDF-generator laden...');
-          var sc = doc.createElement('script'); sc.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'; sc.onload=make; sc.onerror=function(){ setNote(doc,'PDF-generator niet geladen. Gebruik Print / PDF.'); win.alert('PDF-generator kon niet laden. Gebruik Print / PDF.'); }; doc.head.appendChild(sc); return;
-        }
-      }, true);
-      setNote(doc,'Tapwagen documentknoppen actief.');
-    }catch(e){ try{ console.warn('[Tapwagen v928] document toolbar fout', e); }catch(_e){} }
-  }
-
-  var oldOpen = window.open;
-  if(typeof oldOpen === 'function' && !oldOpen.__tapV928){
-    var wrappedOpen = function(){
-      var w = oldOpen.apply(window, arguments);
-      if(w && arguments && (arguments[0] === '' || arguments[0] == null)){
-        [120,350,800,1600].forEach(function(ms){ setTimeout(function(){ try{ injectToolbar(w.document); }catch(e){} }, ms); });
-      }
-      return w;
-    };
-    wrappedOpen.__tapV928 = true;
-    window.open = wrappedOpen;
-  }
-
-  document.addEventListener('click', function(ev){
-    var txt = T(ev.target && ev.target.textContent).toLowerCase();
-    if(/factuur|opdrachtbevestiging|opdracht document|overzicht bestelling|maak opdracht/.test(txt)){
-      setTimeout(cleanupGithubText, 250);
-      setTimeout(function(){ try{ backupNow('doc-click'); }catch(e){} }, 400);
-    }
-  }, true);
-
-  ['click','change','input','beforeunload'].forEach(function(ev){
-    window.addEventListener(ev, function(){ setTimeout(function(){ restoreIfEmpty(); backupNow(ev); cleanupGithubText(); }, 250); }, true);
-  });
-  setInterval(function(){ restoreIfEmpty(); backupNow('interval'); cleanupGithubText(); }, 5000);
-  setTimeout(function(){ restoreIfEmpty(); backupNow('startup'); cleanupGithubText(); }, 500);
-  setTimeout(function(){ restoreIfEmpty(); backupNow('startup2'); cleanupGithubText(); }, 2200);
-
-  window.TapwagenV928BackupNow = function(){ backupNow('manual'); return parse(localStorage.getItem(BACKUP_KEY), null); };
-  window.TapwagenV928RestoreIfEmpty = restoreIfEmpty;
-  window.TapwagenV928SafeInfo = function(){
-    var s = stateObj() || {};
-    var b = parse(localStorage.getItem(BACKUP_KEY), null) || {};
-    return {active:{orders:len(s.orders),customers:len(s.customers),materials:len(s.materials),locations:len(s.locations),alerts:len(s.alerts),documentStyle:!!s.documentStyle,invoiceStyle:!!get(s,['settings','invoice'])}, backup:{orders:len(b.orders),customers:len(b.customers),materials:len(b.materials),locations:len(b.locations),alerts:len(b.alerts),documentStyle:!!b.documentStyle,invoiceStyle:!!(b.settings&&b.settings.invoice),savedAt:b.savedAt||''}};
-  };
-
-  try{ console.info('[Tapwagen v928] actief: originele Tapwagen-basis + documentknoppen + data-guard. Geen v926/v927 render-wrap.'); }catch(e){}
-})();
-
-/* Tapwagen v930 - TAPWAGEN ONLY
-   - Built on v928 original Tapwagen basis.
-   - No Amsterdam/Rental files, paths or keys.
-   - Document window: remove old Mail/Delen, own Systeemmelding, no browser alert text.
-   - Order cards: display-only date aliases for render, no saved data changes.
-*/
-(function TapwagenV930DocumentAndDateOnly(){
-  if (window.__TAPWAGEN_V930_DOC_DATE_ONLY__) return;
-  window.__TAPWAGEN_V930_DOC_DATE_ONLY__ = true;
-
-  function qsa(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-  function txt(v){ return String(v == null ? '' : v); }
-  function trim(v){ return txt(v).replace(/\s+/g,' ').trim(); }
-  function esc(v){ return txt(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function stateObj(){ try{ if(typeof state !== 'undefined' && state) return state; }catch(e){} return window.state || null; }
-  function isIso(v){ return /^\d{4}-\d{2}-\d{2}/.test(trim(v)); }
-  function pick(o, keys){
-    o = o || {};
-    for(var i=0;i<keys.length;i++){
-      var k = keys[i], v = o[k];
-      if(v != null && trim(v)) return trim(v).slice(0,10);
-    }
-    if(o.dateRange && typeof o.dateRange === 'object'){
-      for(var j=0;j<keys.length;j++){
-        var kk = keys[j], vv = o.dateRange[kk];
-        if(vv != null && trim(vv)) return trim(vv).slice(0,10);
-      }
-    }
-    return '';
-  }
-  function startOf(o){ return pick(o, ['start','dateStart','startDate','datumStart','startDatum','date','datum','begin','beginDatum','from','dateFrom','rentalStart','pickupDate']); }
-  function endOf(o){ return pick(o, ['end','dateEnd','endDate','datumEnd','eindDatum','to','dateTo','rentalEnd','returnDate']) || startOf(o); }
-  function nice(d){
-    d = trim(d).slice(0,10);
-    if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d.slice(8,10)+'-'+d.slice(5,7)+'-'+d.slice(0,4);
-    return d;
-  }
-  function range(o){ var s=startOf(o), e=endOf(o); if(!s && !e) return ''; return nice(s||e) + (s && e && e !== s ? ' t/m ' + nice(e) : ''); }
-  function orderNo(o){ return trim(o && (o.number || o.orderNumber || o.nr || o.id)); }
-  function allOrders(){ var s=stateObj() || {}; return Array.isArray(s.orders) ? s.orders : []; }
-
-  function prepareAliases(){
-    var changes=[];
-    allOrders().forEach(function(o){
-      if(!o || typeof o !== 'object') return;
-      var s=startOf(o), e=endOf(o);
-      [['start',s],['end',e]].forEach(function(pair){
-        var k=pair[0], v=pair[1];
-        if(!v) return;
-        var oldDesc;
-        try{ oldDesc = Object.getOwnPropertyDescriptor(o,k); }catch(err){}
-        var oldVal = o[k];
-        if(trim(oldVal)) return;
-        changes.push({obj:o,key:k,desc:oldDesc,had:Object.prototype.hasOwnProperty.call(o,k)});
-        try{ Object.defineProperty(o,k,{value:v,writable:true,configurable:true,enumerable:false}); }
-        catch(e){ try{o[k]=v;}catch(_e){} }
-      });
-    });
-    return function restore(){
-      for(var i=changes.length-1;i>=0;i--){
-        var c=changes[i];
-        try{
-          if(c.had && c.desc) Object.defineProperty(c.obj,c.key,c.desc);
-          else delete c.obj[c.key];
-        }catch(e){}
-      }
-    };
-  }
-
-  function patchRenderFunction(name){
-    var fn = window[name] || (function(){ try{ return eval(name); }catch(e){ return null; } })();
-    if(typeof fn !== 'function' || fn.__tapV930DateSafe) return false;
-    var wrapped = function(){
-      var restore = prepareAliases();
-      try{ return fn.apply(this, arguments); }
-      finally{ try{ restore(); }catch(e){} setTimeout(fixVisibleDates, 30); setTimeout(fixVisibleDates, 250); }
-    };
-    wrapped.__tapV930DateSafe = true;
-    try{ window[name]=wrapped; }catch(e){}
-    try{ eval(name + ' = wrapped'); }catch(e){}
-    return true;
-  }
-
-  function findOrderByText(t){
-    var orders=allOrders();
-    var m = trim(t).match(/\b(20\d{2}-\d{1,6})\b/);
-    if(m){
-      var num=m[1];
-      for(var i=0;i<orders.length;i++){ if(orderNo(orders[i]) === num) return orders[i]; }
-    }
-    return null;
-  }
-  function hasDateText(t){ return /\b\d{1,2}-\d{1,2}-\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/.test(t||''); }
-  function fixCardDate(card, o){
-    var r = range(o); if(!r) return;
-    var candidates = qsa('.bns-date,.date,.date-badge,.order-date,[class*="date"],[class*="datum"]', card).filter(function(el){ return !/input|select|textarea/i.test(el.tagName); });
-    var done=false;
-    candidates.forEach(function(el){
-      var t=trim(el.textContent);
-      if(!t || !hasDateText(t) || /^\d{4}$/.test(t)){
-        el.textContent = r;
-        done=true;
-      }
-    });
-    var bodyText = trim(card.innerText || card.textContent || '');
-    if(!hasDateText(bodyText) && !card.querySelector('.tap-v930-date-line')){
-      var line=document.createElement('div');
-      line.className='tap-v930-date-line';
-      line.style.cssText='margin-top:3px;font-weight:700;color:#172033;';
-      line.textContent='Datum: '+r;
-      var target = card.querySelector('.bns-main') || card.querySelector('[class*="main"]') || card;
-      target.appendChild(line);
-    }
-  }
-  function fixVisibleDates(){
-    try{
-      var cards = qsa('[data-order-id],[data-order-number],.order-card,.bns-card,.order-row,.job-card,.planning-card,.card').filter(function(el){
-        var t=trim(el.innerText || el.textContent || ''); return /\b20\d{2}-\d{1,6}\b/.test(t);
-      });
-      cards.forEach(function(card){ var o=findOrderByText(card.innerText||card.textContent||''); if(o) fixCardDate(card,o); });
-    }catch(e){}
-  }
-
-  function ownDocMsg(doc, title, message){
-    try{
-      var old=doc.getElementById('tapV930Msg'); if(old) old.remove();
-      var wrap=doc.createElement('div'); wrap.id='tapV930Msg';
-      wrap.style.cssText='position:fixed;z-index:2147483647;top:20px;left:50%;transform:translateX(-50%);max-width:520px;background:#fff;color:#111827;border:2px solid #2563eb;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.25);font-family:Arial,Helvetica,sans-serif;padding:16px 18px;';
-      wrap.innerHTML='<div style="font-weight:900;font-size:18px;margin-bottom:6px">'+esc(title||'Systeemmelding')+'</div><div style="font-size:14px;line-height:1.45">'+esc(message||'')+'</div><div style="text-align:right;margin-top:12px"><button type="button" id="tapV930MsgOk" style="border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:900;padding:8px 14px">OK</button></div>';
-      doc.body.appendChild(wrap);
-      var ok=doc.getElementById('tapV930MsgOk'); if(ok) ok.onclick=function(){ wrap.remove(); };
-      setTimeout(function(){ try{ wrap.remove(); }catch(e){} }, 6500);
-    }catch(e){}
-  }
-  function setNote(doc, msg){ var n=doc.getElementById('tapV930DocNote') || doc.getElementById('tapV928DocNote'); if(n) n.textContent=msg||''; }
-  function safeFile(v){ return trim(v||'document').replace(/[^a-z0-9\-_. ]/gi,'_').replace(/\s+/g,'_').slice(0,90)||'document'; }
-  function cleanTextFromDoc(doc){
-    var bars=qsa('.tap-v928-toolbar,.tap-v930-toolbar,body>.actions',doc); bars.forEach(function(b){ b.dataset.tapOldDisplay=b.style.display||''; b.style.display='none'; });
-    var text=trim(((doc.querySelector('main,.page,.document,.invoice-preview,.doc')||doc.body).innerText||doc.body.innerText||''));
-    bars.forEach(function(b){ b.style.display=b.dataset.tapOldDisplay||''; });
-    return text.replace(/git\s*hub|github|gitup/ig,'Systeemmelding');
-  }
-  function cleanHtml(doc){
-    var clone=doc.documentElement.cloneNode(true);
-    qsa('.tap-v928-toolbar,.tap-v930-toolbar,#tapV930Msg,script', clone).forEach(function(x){ x.remove(); });
-    qsa('body>.actions', clone).forEach(function(x){ x.remove(); });
-    return '<!doctype html>\n' + clone.outerHTML;
-  }
-  function installDocToolbar(doc){
+  function installToolbar(doc){
     try{
       if(!doc || !doc.body) return;
-      var win=doc.defaultView || window;
-      try{ win.alert=function(message){ ownDocMsg(doc,'Systeemmelding',message); }; }catch(e){}
-      qsa('body>.actions,.actions,.tap-v928-toolbar', doc).forEach(function(el){ el.style.display='none'; });
-      qsa('button,a', doc).forEach(function(el){
-        var t=trim(el.textContent).toLowerCase();
-        if(t==='mail' || t==='mailen' || t==='delen' || t==='share' || t==='terug') el.style.display='none';
-      });
-      var css=doc.getElementById('tapV930DocCss');
-      if(!css){ css=doc.createElement('style'); css.id='tapV930DocCss'; css.textContent='.tap-v930-toolbar{position:sticky;top:0;z-index:2147483646;background:#0f172a;color:#fff;padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-family:Arial,Helvetica,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.28)}.tap-v930-toolbar button{border:0;border-radius:9px;padding:9px 12px;font-weight:900;cursor:pointer;color:#fff;background:#2563eb;font-size:14px}.tap-v930-toolbar .green{background:#16a34a}.tap-v930-toolbar .orange{background:#f97316}.tap-v930-toolbar .grey{background:#64748b}.tap-v930-toolbar .red{background:#dc2626}.tap-v930-toolbar span{margin-left:auto;font-size:12px;opacity:.9}body>.actions:not(.tap-v930-toolbar){display:none!important}@media print{.tap-v930-toolbar,body>.actions,.actions{display:none!important}body{background:white!important}.page,main{box-shadow:none!important}}'; doc.head.appendChild(css); }
-      var bar=doc.getElementById('tapV930Toolbar');
-      if(!bar){
-        bar=doc.createElement('div'); bar.id='tapV930Toolbar'; bar.className='tap-v930-toolbar';
-        bar.innerHTML='<button type="button" class="green" data-tap930="pdf">PDF downloaden</button><button type="button" data-tap930="print">Print / PDF</button><button type="button" class="orange" data-tap930="whatsapp">WhatsApp</button><button type="button" class="grey" data-tap930="eml">Download mailbestand</button><button type="button" class="grey" data-tap930="copy">Kopieer tekst</button><button type="button" class="red" data-tap930="close">Sluiten</button><span id="tapV930DocNote">Systeemmelding</span>';
-        doc.body.insertBefore(bar, doc.body.firstChild);
-      }
-      if(bar.__tap930Bound) return; bar.__tap930Bound=true;
+      installStyle(doc); installSystemAlert(doc); hideLegacy(doc);
+      if(doc.getElementById('tapV932Toolbar')) return;
+      var bar = doc.createElement('div');
+      bar.id = 'tapV932Toolbar';
+      bar.className = 'tap-v932-toolbar';
+      bar.innerHTML = '<button type="button" class="green" data-tap932="pdf">PDF downloaden</button>'+
+        '<button type="button" data-tap932="print">Print / PDF</button>'+
+        '<button type="button" class="orange" data-tap932="whatsapp">WhatsApp</button>'+
+        '<button type="button" class="grey" data-tap932="eml">Download mailbestand</button>'+
+        '<button type="button" class="grey" data-tap932="copy">Kopieer tekst</button>'+
+        '<button type="button" class="red" data-tap932="close">Sluiten</button>'+
+        '<span>Systeemmelding</span>';
+      doc.body.insertBefore(bar, doc.body.firstChild);
       bar.addEventListener('click', function(ev){
-        var b=ev.target && ev.target.closest && ev.target.closest('button[data-tap930]'); if(!b) return;
-        ev.preventDefault(); ev.stopPropagation();
-        var act=b.getAttribute('data-tap930');
-        if(act==='close'){ try{ win.close(); }catch(e){} setTimeout(function(){ try{ if(!win.closed) win.location.replace('about:blank'); }catch(e){} },100); return; }
-        if(act==='print'){ setNote(doc,'Printvenster geopend. Kies eventueel Opslaan als PDF.'); try{ win.focus(); win.print(); }catch(e){ ownDocMsg(doc,'Systeemmelding','Printen lukt niet in deze browser.'); } return; }
-        if(act==='copy'){
-          var t=cleanTextFromDoc(doc);
-          try{ if(win.navigator.clipboard && win.navigator.clipboard.writeText){ win.navigator.clipboard.writeText(t).then(function(){ setNote(doc,'Tekst gekopieerd.'); ownDocMsg(doc,'Systeemmelding','Documenttekst is gekopieerd.'); }).catch(function(){ win.prompt('Kopieer de tekst:',t); }); } else win.prompt('Kopieer de tekst:',t); }catch(e){ win.prompt('Kopieer de tekst:',t); }
-          return;
+        var btn = ev.target && ev.target.closest && ev.target.closest('button[data-tap932]'); if(!btn) return;
+        ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+        var act = btn.getAttribute('data-tap932'); var w = doc.defaultView || window;
+        if(act === 'pdf') return makePdf(doc);
+        if(act === 'print') return w.print();
+        if(act === 'whatsapp'){
+          var msg = docTitle(doc)+'\n\n'+cleanDocText(doc);
+          if(msg.length > 4500){ copyText(doc); ownMsg(doc,'Systeemmelding','De tekst is te lang voor WhatsApp. De tekst is gekopieerd; plak hem zelf in WhatsApp.'); return; }
+          w.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); return;
         }
-        if(act==='whatsapp'){
-          var msg=(doc.title||'Tapwagen document')+'\n\n'+cleanTextFromDoc(doc);
-          if(msg.length>4500){ try{ win.navigator.clipboard.writeText(msg); }catch(e){} ownDocMsg(doc,'Systeemmelding','Tekst is te lang voor WhatsApp. De tekst is gekopieerd; plak hem zelf in WhatsApp.'); return; }
-          setNote(doc,'WhatsApp wordt geopend.'); try{ win.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); }catch(e){ ownDocMsg(doc,'Systeemmelding','WhatsApp openen lukt niet in deze browser.'); } return;
+        if(act === 'eml'){
+          var subj = docTitle(doc); var html = cleanDocHtml(doc);
+          var eml = 'To: \r\nSubject: =?UTF-8?B?'+btoa(unescape(encodeURIComponent(subj)))+'?=\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n'+html;
+          download(doc, safeName(subj)+'.eml', 'message/rfc822;charset=utf-8', eml); return;
         }
-        if(act==='eml'){
-          var subject=doc.title||'Tapwagen document';
-          var eml='To: \r\nSubject: '+subject+'\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n'+cleanHtml(doc);
-          try{ var blob=new win.Blob([eml],{type:'message/rfc822;charset=utf-8'}); var a=doc.createElement('a'); a.href=win.URL.createObjectURL(blob); a.download=safeFile(subject)+'.eml'; doc.body.appendChild(a); a.click(); setTimeout(function(){ try{win.URL.revokeObjectURL(a.href);a.remove();}catch(e){} },1000); setNote(doc,'Mailbestand gedownload.'); }
-          catch(e){ ownDocMsg(doc,'Systeemmelding','Mailbestand downloaden lukt niet in deze browser.'); }
-          return;
-        }
-        if(act==='pdf'){
-          function fallback(){ setNote(doc,'Gebruik Print / PDF om als PDF op te slaan.'); ownDocMsg(doc,'Systeemmelding','PDF downloaden lukt niet direct in deze browser. Gebruik Print / PDF en kies Opslaan als PDF.'); }
-          function make(){
-            try{
-              var old=bar; old.style.display='none';
-              var el=doc.querySelector('main,.page,.document,.invoice-preview,.doc')||doc.body;
-              win.html2pdf().set({margin:[8,8,8,8],filename:safeFile(doc.title)+'.pdf',image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(el).save().then(function(){ old.style.display=''; setNote(doc,'PDF gedownload.'); }).catch(function(){ old.style.display=''; fallback(); });
-            }catch(e){ fallback(); }
-          }
-          if(win.html2pdf) return make();
-          setNote(doc,'PDF-generator laden...');
-          var sc=doc.createElement('script'); sc.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'; sc.onload=make; sc.onerror=fallback; doc.head.appendChild(sc); return;
-        }
+        if(act === 'copy') return copyText(doc);
+        if(act === 'close') { try{ w.close(); }catch(e){} return; }
       }, true);
-      setNote(doc,'Tapwagen documentknoppen actief.');
     }catch(e){}
   }
 
-  var oldOpen=window.open;
-  if(typeof oldOpen==='function' && !oldOpen.__tapV930){
-    var newOpen=function(){
-      var w=oldOpen.apply(window, arguments);
-      if(w){ [80,220,600,1200,2200].forEach(function(ms){ setTimeout(function(){ try{ installDocToolbar(w.document); }catch(e){} },ms); }); }
-      return w;
-    };
-    newOpen.__tapV930=true;
-    window.open=newOpen;
+  function inspectWindow(w){
+    [20,80,180,400,900,1600,2600,4200].forEach(function(ms){
+      setTimeout(function(){ try{ if(w && !w.closed && w.document && w.document.body) installToolbar(w.document); }catch(e){} }, ms);
+    });
   }
 
-  function patchAll(){ patchRenderFunction('renderOrders'); patchRenderFunction('renderOrdersFinal'); fixVisibleDates(); }
-  [50,250,800,1600,3000].forEach(function(ms){ setTimeout(patchAll,ms); });
-  document.addEventListener('click',function(){ setTimeout(patchAll,80); setTimeout(fixVisibleDates,350); },true);
-  window.addEventListener('load',function(){ setTimeout(patchAll,200); setTimeout(fixVisibleDates,1200); },true);
-  setInterval(function(){ patchAll(); },4000);
+  var prevOpen = window.open;
+  if(typeof prevOpen === 'function' && !prevOpen.__tapV932){
+    var wrapped = function(){
+      var w = prevOpen.apply(window, arguments);
+      try{ if(w) inspectWindow(w); }catch(e){}
+      return w;
+    };
+    wrapped.__tapV932 = true;
+    window.open = wrapped;
+  }
 
-  window.TapwagenV930Info=function(){ return {active:true, basis:'Tapwagen v928 basis', document:'eigen systeemmelding, oude mail/delen verborgen', date:'display-only datumhelper actief', orders:allOrders().length}; };
-  try{ console.info('[Tapwagen v930] actief: document eigen systeemmelding + datumweergave kaart display-only. Geen Amsterdam/Rental.'); }catch(e){}
+  // Ook bestaande/modale documentoverzichten opschonen zonder data te wijzigen.
+  var scheduleMain = function(){ setTimeout(function(){ try{ installSystemAlert(document); hideLegacy(document); }catch(e){} }, 80); };
+  document.addEventListener('click', scheduleMain, true);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleMain); else scheduleMain();
+
+  window.TapwagenV932Info = function(){
+    return {version:'v932', basis:'schone Tapwagen app', scope:'Tapwagen only', v350OrdersRenderer:'uitgeschakeld', v356OrdersRenderer:'leidend', documents:'eigen toolbar + Systeemmelding', firebaseChanged:false, dataChanged:false, amsterdam:false, rental:false};
+  };
+  try{ console.info('[Tapwagen v932] schone basis: v350 orders-render uit, documenten/eigen Systeemmelding actief.'); }catch(e){}
 })();
