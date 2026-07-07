@@ -12033,7 +12033,7 @@ setTimeout(()=>{
         const c = catKey(this.dataset.cat || this.textContent);
         window.currentCat = c;
         try {
-          currentCat = c;
+          
         } catch(e) {
         }
         window.renderCats();
@@ -12180,7 +12180,7 @@ setTimeout(()=>{
   function setCat(cat){
     var c=cleanCat(cat);
     try{
-      currentCat=c;
+      
     } catch(e){
     }
     window.currentCat=c;
@@ -20603,6 +20603,10 @@ setTimeout(()=>{
       extra: val("orderExtra"),
       pricing: totals || (existing && existing.pricing) || null,
       confirmationText: E("confirmationText") ? E("confirmationText").value : ((existing && existing.confirmationText) || ""),
+      transportLines: (function(){
+        try{ if(Array.isArray(window.__bns521TransportLines) && window.__bns521TransportLines.length) return JSON.parse(JSON.stringify(window.__bns521TransportLines)); }catch(e){}
+        return (existing && Array.isArray(existing.transportLines)) ? existing.transportLines : [];
+      })(),
       updatedAt: new Date().toISOString()
     };
   }
@@ -21203,7 +21207,7 @@ setTimeout(()=>{
     if (!c) c = window.currentCat || ((function(){var s=appState();var a=(s.materials||[]).map(function(m){return m.cat||m.rubriek||m.category;}).filter(Boolean);return a[0]||'TW';})());
     c = catKey(c);
     try {
-      currentCat = c;
+      
     } catch(e) {
     }
     window.currentCat = c;
@@ -22091,10 +22095,10 @@ setTimeout(()=>{
   function setCurrentCat(c){
     c=catKey(c);
     window.currentCat=c;
-    try{
-      currentCat=c;
-    } catch(e){
-    }
+    /* v63-fix: "" overschreef hier de gelijknamige functie
+       currentCat() met een tekst-waarde, waarna currentCat() daarna
+       crashte met "currentCat is not a function". window.currentCat=c
+       hierboven deed het echte werk al correct. */
     return c;
   }
   function renderCatsV49(){
@@ -22589,10 +22593,6 @@ setTimeout(()=>{
   function setCurrentCat(c){
     c = catKey(c);
     window.currentCat = c;
-    try {
-      currentCat = c;
-    } catch(e){
-    }
     return c;
   }
   function renderCatsV50(){
@@ -23103,10 +23103,6 @@ setTimeout(()=>{
     c=cat(c);
     localStorage.setItem('bnsV56Cat',c);
     window.currentCat=c;
-    try{
-      currentCat=c;
-    } catch(e){
-    }
   }
   function selected(mid){
     try{
@@ -26173,7 +26169,7 @@ setTimeout(()=>{
     })() || "TW");
     window.currentCat=c;
     try{
-      currentCat=c;
+      
     } catch(e){
     }
     return c;
@@ -29370,7 +29366,12 @@ setTimeout(()=>{
         name:val('customerName')||(o.customer&&o.customer.name)||'',street:val('customerStreet')||(o.customer&&o.customer.street)||'',zip:val('customerZip')||(o.customer&&o.customer.zip)||'',city:val('customerCity')||(o.customer&&o.customer.city)||'',phone:val('customerPhone')||(o.customer&&o.customer.phone)||'',email:val('customerEmail')||(o.customer&&o.customer.email)||''
       }, location:{
         name:val('locationName')||(o.location&&o.location.name)||'',street:val('locationStreet')||(o.location&&o.location.street)||'',zip:val('locationZip')||(o.location&&o.location.zip)||'',city:val('locationCity')||(o.location&&o.location.city)||''
-      }, materials:chosenList().length?chosenList():(o.materials||[]), pricing:o.pricing||{
+      }, materials:chosenList().length?chosenList():(o.materials||[]),
+      transportLines:(function(){
+        try{ if(Array.isArray(window.__bns521TransportLines) && window.__bns521TransportLines.length) return JSON.parse(JSON.stringify(window.__bns521TransportLines)); }catch(e){}
+        return (o.transportLines||[]);
+      })(),
+      pricing:o.pricing||{
       }
     };
   }
@@ -29408,7 +29409,7 @@ setTimeout(()=>{
     var o=orderForDoc(), t=totals(), title=docTypeTitle(), inv=invoiceNumberForDoc();
     persistInvoiceMeta();
     var meta='<b>Opdracht '+H(o.number)+'</b><br>'+(inv?'Factuur nr: <b>'+H(inv)+'</b><br>':'')+'Betaling: '+H(val('bnsPaymentType')|| (title==='Contante betaling'?'Contant':'Op rekening'));
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title)+' '+H(o.number)+'</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;border-bottom:5px solid #2563eb;padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}</style></head><body><div class="actions"><button onclick="window.print()">Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false" style="background:#64748b">Terug</button></div><main class="page"><section class="top"><div class="doctype">'+H(title)+'</div><div class="meta">'+meta+'</div></section><div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+H(o.customer.name)+'</b><br>'+H(o.customer.street)+'<br>'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+H(o.customer.phone)+'<br>'+H(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+H(o.location.name)+'</b><br>'+H(o.location.street)+'<br>'+H([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div><section class="card"><div class="label">Opdracht</div><b>'+H(o.title)+'</b><br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand)+'</section><section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRowsDoc()+'</tbody></table></section><section class="card"><div class="label">Bijzonderheden</div><div class="free">'+H(o.extra||'')+'</div></section><section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+H(t.vatP||21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section></main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title)+' '+H(o.number)+'</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;border-bottom:5px solid #2563eb;padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}</style></head><body><div class="actions"><button onclick="window.print()">Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false" style="background:#64748b">Terug</button></div><main class="page"><section class="top"><div class="doctype">'+H(title)+'</div><div class="meta">'+meta+'</div></section><div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+H(o.customer.name)+'</b><br>'+H(o.customer.street)+'<br>'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+H(o.customer.phone)+'<br>'+H(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+H(o.location.name)+'</b><br>'+H(o.location.street)+'<br>'+H([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div><section class="card"><div class="label">Opdracht</div><b>'+H(o.title)+'</b><br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand)+'</section><section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRowsDoc()+'</tbody></table></section><section class="card"><div class="label">Bijzonderheden</div><div class="free">'+H(o.extra||'')+'</div>'+(function(){ var lines=(o.transportLines||[]); if(!lines.length) return ''; return '<table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Bedrag</th></tr></thead><tbody>'+lines.map(function(l){ var qty=Number(l.qty||1), price=Number(l.price||0); return '<tr><td>'+H(qty)+'</td><td>'+H(l.name+(l.note?' - '+l.note:''))+'</td><td>'+H((qty*price).toFixed(2).replace('.',','))+'</td></tr>'; }).join('')+'</tbody></table>'; })()+'</section><section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+H(t.vatP||21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section></main></body></html>';
   }
   function openDoc83(){
     var w=window.open('','_blank');
@@ -37318,7 +37319,7 @@ setTimeout(()=>{
     saveApp();
     try{
       window.currentCat=c;
-      currentCat=c;
+      
     } catch(e){
       window.currentCat=c;
     }
@@ -39851,7 +39852,7 @@ setTimeout(()=>{
     var c=txt(cat||window.currentCat||'TW').toUpperCase();
     var list=[].slice.call(new Set(mats().map(function(m){return txt(m.cat||'EXTRA').toUpperCase();}).filter(Boolean))).sort();
     if(list.indexOf(c)<0) c=list[0]||'TW';
-    try{ currentCat=c; }catch(e){} window.currentCat=c;
+    try{  }catch(e){} window.currentCat=c;
     return c;
   }
   var _lastCatsHtml='', _lastActiveCat='';
@@ -41245,7 +41246,7 @@ setTimeout(()=>{
     var c=txt(cat||window.currentCat||'TW').toUpperCase();
     var all=Array.from(new Set(materials().map(function(m){return txt(m.cat||'EXTRA').toUpperCase();}).filter(Boolean))).sort();
     if(all.indexOf(c)<0) c=all[0]||'TW';
-    try{ currentCat=c; }catch(e){} window.currentCat=c; return c;
+    try{  }catch(e){} window.currentCat=c; return c;
   }
   function editingId(){ try{ if(editing) return txt(editing); }catch(e){} return txt(window.editing||''); }
   function editingNr(){ var n=E('orderNumber'); return txt(n&&n.value); }
@@ -42344,7 +42345,7 @@ setTimeout(()=>{
       if(saved && cats.indexOf(saved)>=0) c=saved;
       else c=firstCat();
     }
-    window.currentCat=c; window.__BNS721_CAT=c; try{ currentCat=c; }catch(e){} return c;
+    window.currentCat=c; window.__BNS721_CAT=c; try{  }catch(e){} return c;
   }
   function getCatColor(cat){
     // Lees kleur uit localStorage (zelfde key als admin gebruikt)
@@ -49884,7 +49885,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       else if(window.__BNS_LAST_CAT__ && cats.indexOf(U(window.__BNS_LAST_CAT__))>=0) c=U(window.__BNS_LAST_CAT__);
       else c=firstCat();
     }
-    window.currentCat=c; window.__BNS_LAST_CAT__=c; try{ currentCat=c; }catch(e){} return c;
+    window.currentCat=c; window.__BNS_LAST_CAT__=c; try{  }catch(e){} return c;
   }
   function catColor(cat){ try{ var map=JSON.parse(localStorage.getItem('bnsCatColors')||'{}'); var k=U(cat).replace(/[^A-Z0-9]/g,'').slice(0,16); if(map[k]) return map[k]; }catch(e){} var def={TAPW:'#dc2626',BIERSLANG:'#16a34a',POMP:'#2563eb',SLANG:'#0ea5e9',BIERTANK:'#7c3aed',TANK:'#f97316'}; return def[U(cat)]||'#2563eb'; }
   function renderCats(){
@@ -50011,7 +50012,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     c=U(c); if(!c) return;
     window.__BNS613_LAST_CAT=c;
     window.currentCat=c;
-    try{ currentCat=c; }catch(e){}
+    try{  }catch(e){}
     try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
   }
   function getClickedCat(t){
@@ -50138,7 +50139,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     window.__BNS626_KEEP_CAT=c;
     window.__BNS613_LAST_CAT=c;
     window.currentCat=c;
-    try{ currentCat=c; }catch(e){}
+    try{  }catch(e){}
     try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
   }
   function rerenderCat(c){
@@ -50347,7 +50348,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     window.__BNS626_KEEP_CAT=c;
     window.__BNS613_LAST_CAT=c;
     window.currentCat=c;
-    try{ currentCat=c; }catch(e){}
+    try{  }catch(e){}
     try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
     return c;
   }
@@ -52920,4 +52921,259 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     mo.observe(document.documentElement,{childList:true,subtree:true});
   }catch(e){}
   try{ console.info('[BNS 821] v816 basis + overzicht fallback + bnsV597 onderbalk uit.'); }catch(e){}
+})();
+
+
+/* =========================================================
+   TAPWAGEN v935 - SCHONE BASIS + DOCUMENTEN GESCOOPT + UPDATE-SAFE
+   - Alleen Tapwagen.nl.
+   - Gebaseerd op schone Tapwagen app.js.
+   - Geen render/date/material/category/BNS608 fixes.
+   - Geen Firebase-config, sleutels of opslagpaden gewijzigd.
+   - Documentvensters: eigen Systeemmelding, oude Mail/Delen/Terug verbergen.
+   - Update-safe: lokale data/layout beschermen tegen lege of halve localStorage saves.
+   ========================================================= */
+(function TAPWAGEN_V935_CLEAN_DOCS_UPDATE_SAFE_SCOPED(){
+  'use strict';
+  if (window.__TAPWAGEN_V935_CLEAN_DOCS_UPDATE_SAFE_SCOPED__) return;
+  window.__TAPWAGEN_V935_CLEAN_DOCS_UPDATE_SAFE_SCOPED__ = true;
+
+  var STATE_KEYS = [
+    'event-planner-pro-v87','eventPlannerProV91','eventPlannerPro','eventPlannerState','plannerState',
+    'eventPlannerProState','bns_state','bns_app_state'
+  ];
+  var INVOICE_KEYS = ['bnsInvoiceSettingsV122','bnsInvoiceSettingsV123','bnsInvoiceSettings','tapwagenInvoiceSettings'];
+  var BACKUP_LATEST = 'tapwagen_v935_business_backup_latest';
+  var BACKUP_DAY_PREFIX = 'tapwagen_v935_business_backup_';
+  var bestState = null;
+
+  function clone(o){ try { return JSON.parse(JSON.stringify(o)); } catch(e){ return o; } }
+  function parse(raw){ try { return JSON.parse(raw || 'null'); } catch(e){ return null; } }
+  function arr(o,k){ return o && Array.isArray(o[k]) ? o[k] : []; }
+  function txt(v){ return String(v == null ? '' : v); }
+  function cleanTxt(v){ return txt(v).replace(/git\s*hub|github|gitup/ig,'Systeemmelding'); }
+  function isState(o){ return !!(o && typeof o === 'object' && (Array.isArray(o.orders) || Array.isArray(o.materials) || Array.isArray(o.customers) || Array.isArray(o.locations) || o.settings)); }
+  function invoiceOf(o){ return o && o.settings && o.settings.invoice ? o.settings.invoice : null; }
+  function invoiceScore(inv){
+    if(!inv || typeof inv !== 'object') return 0;
+    var s = 0;
+    ['companyName','title','accent','layout','intro','footer','logo','template','terms','kvk','btw','bank','iban','email','phone','address'].forEach(function(k){
+      var v = txt(inv[k]).trim();
+      if(v) s += (k === 'logo' || k === 'template') ? 8 : 1;
+      if(v && !/^(Event Planner PRO|Opdrachtbevestiging\s*\/\s*Offerte|classic|modern|#2563eb)$/i.test(v)) s += 1;
+    });
+    return s;
+  }
+  function stateScore(o){
+    if(!isState(o)) return 0;
+    return arr(o,'orders').length * 20 + arr(o,'materials').length * 8 + arr(o,'customers').length * 5 + arr(o,'locations').length * 5 + arr(o,'alerts').length + invoiceScore(invoiceOf(o)) * 25;
+  }
+  function liveState(){
+    try { if (typeof state !== 'undefined' && state) return state; } catch(e){}
+    try { if (window.state) return window.state; } catch(e){}
+    return null;
+  }
+  function readBestStored(){
+    var winner = null, score = -1;
+    STATE_KEYS.forEach(function(k){
+      try{
+        var o = parse(localStorage.getItem(k));
+        var sc = stateScore(o);
+        if(sc > score){ winner = o; score = sc; }
+      }catch(e){}
+    });
+    var invWinner = null, invScore = -1;
+    INVOICE_KEYS.forEach(function(k){
+      try{
+        var inv = parse(localStorage.getItem(k));
+        var sc = invoiceScore(inv);
+        if(sc > invScore){ invWinner = inv; invScore = sc; }
+      }catch(e){}
+    });
+    if(winner && invWinner && invoiceScore(invWinner) > invoiceScore(invoiceOf(winner))){
+      winner.settings = winner.settings || {};
+      winner.settings.invoice = Object.assign({}, winner.settings.invoice || {}, clone(invWinner));
+    }
+    return winner;
+  }
+  function setBest(s){
+    if(isState(s) && (!bestState || stateScore(s) >= stateScore(bestState))) bestState = clone(s);
+  }
+  function mergeSafer(next, previous){
+    if(!isState(next)) return next;
+    previous = isState(previous) ? previous : (isState(bestState) ? bestState : null);
+    if(!previous) return next;
+    var out = clone(next) || {};
+    ['orders','materials','customers','locations','alerts'].forEach(function(k){
+      var n = arr(out,k), p = arr(previous,k);
+      if(p.length > 0 && (n.length === 0 || n.length < Math.floor(p.length * 0.60))){
+        out[k] = clone(p);
+        out.__tapwagenV934Protected = out.__tapwagenV934Protected || {};
+        out.__tapwagenV934Protected[k] = {kept:p.length, blocked:n.length, at:new Date().toISOString()};
+      }
+    });
+    var nInv = invoiceOf(out), pInv = invoiceOf(previous);
+    if(pInv && invoiceScore(pInv) > invoiceScore(nInv)){
+      out.settings = out.settings || {};
+      out.settings.invoice = Object.assign({}, nInv || {}, clone(pInv));
+      out.__tapwagenV934Protected = out.__tapwagenV934Protected || {};
+      out.__tapwagenV934Protected.invoice = {at:new Date().toISOString()};
+    }
+    return out;
+  }
+  function backupNow(reason){
+    var s = liveState() || bestState || readBestStored();
+    if(!isState(s)) return null;
+    setBest(s);
+    var payload = {type:'tapwagen-v935-local-business-backup', reason:reason || 'manual', at:new Date().toISOString(), counts:{orders:arr(s,'orders').length, materials:arr(s,'materials').length, customers:arr(s,'customers').length, locations:arr(s,'locations').length, alerts:arr(s,'alerts').length}, invoiceScore:invoiceScore(invoiceOf(s)), state:clone(s)};
+    try{ localStorage.setItem(BACKUP_LATEST, JSON.stringify(payload)); }catch(e){}
+    try{ localStorage.setItem(BACKUP_DAY_PREFIX + new Date().toISOString().slice(0,10), JSON.stringify(payload)); }catch(e){}
+    return payload;
+  }
+
+  try{ bestState = readBestStored(); }catch(e){}
+  try{ setBest(liveState()); }catch(e){}
+
+  try{
+    var nativeSetItem = localStorage.setItem.bind(localStorage);
+    if(!localStorage.setItem.__tapwagenV934Safe){
+      var safeSetItem = function(key, value){
+        try{
+          key = String(key);
+          if(STATE_KEYS.indexOf(key) >= 0){
+            var prev = parse(localStorage.getItem(key)) || bestState;
+            var next = parse(value);
+            if(isState(next)){
+              var safe = mergeSafer(next, prev);
+              setBest(safe);
+              value = JSON.stringify(safe);
+            }
+          } else if(INVOICE_KEYS.indexOf(key) >= 0){
+            var oldInv = parse(localStorage.getItem(key));
+            var newInv = parse(value);
+            if(invoiceScore(oldInv) > invoiceScore(newInv)) value = JSON.stringify(oldInv);
+          }
+        }catch(e){}
+        return nativeSetItem(key, value);
+      };
+      safeSetItem.__tapwagenV934Safe = true;
+      localStorage.setItem = safeSetItem;
+    }
+  }catch(e){}
+  setTimeout(function(){ backupNow('startup'); }, 1200);
+  window.addEventListener('beforeunload', function(){ try{ backupNow('beforeunload'); }catch(e){} });
+
+  function systemStyle(doc){
+    if(!doc || !doc.head || doc.getElementById('tapV934SystemStyle')) return;
+    var st = doc.createElement('style');
+    st.id = 'tapV934SystemStyle';
+    st.textContent = ''+
+      '.tap-v935-toolbar{position:sticky;top:0;z-index:2147483646;background:#0f172a;color:#fff;padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-family:Arial,Helvetica,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.25)}'+
+      '.tap-v935-toolbar button{border:0;border-radius:9px;padding:10px 13px;font-weight:900;cursor:pointer;color:white;font-size:14px;background:#2563eb}.tap-v935-toolbar .green{background:#16a34a}.tap-v935-toolbar .grey{background:#64748b}.tap-v935-toolbar .red{background:#dc2626}.tap-v935-toolbar .hint{margin-left:auto;font-size:12px;opacity:.92}.tap-v935-note{font-size:11px;opacity:.85}'+
+      '.tap-v935-system-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:18px;font-family:Arial,Helvetica,sans-serif}'+
+      '.tap-v935-system-card{background:#fff;color:#172033;border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.32);max-width:560px;width:100%;padding:22px;border:1px solid #dbe3ef}.tap-v935-system-card h2{margin:0 0 10px;font-size:24px;color:#0f172a}.tap-v935-system-card p{margin:0 0 18px;font-size:16px;line-height:1.45;color:#334155;white-space:pre-wrap}.tap-v935-system-card button{float:right;border:0;border-radius:12px;background:#2563eb;color:#fff;font-weight:900;padding:10px 18px;cursor:pointer;font-size:15px}'+
+      'body>.actions:not(.tap-v935-toolbar),body>.document-actions:not(.tap-v935-toolbar),body>.doc-actions:not(.tap-v935-toolbar){display:none!important}'+
+      '@media print{.tap-v935-toolbar,.tap-v935-system-backdrop,body>.actions,body>.document-actions,body>.doc-actions{display:none!important}body{background:white!important}.page,main{box-shadow:none!important}}';
+    doc.head.appendChild(st);
+  }
+  function toolbarHtml(){
+    return '<div class="tap-v935-toolbar">'+
+      '<button type="button" class="green" data-act="pdf">PDF downloaden</button>'+ 
+      '<button type="button" data-act="print">Print / PDF</button>'+ 
+      '<button type="button" class="green" data-act="wa">WhatsApp</button>'+ 
+      '<button type="button" class="grey" data-act="eml">Download mailbestand</button>'+ 
+      '<button type="button" class="grey" data-act="copy">Kopieer tekst</button>'+ 
+      '<button type="button" class="red" data-act="close">Sluiten</button>'+ 
+      '<span class="hint">Powered by Tapwagen.nl <span class="tap-v935-note"></span></span>'+ 
+      '</div>';
+  }
+  function installDocHelpers(doc){
+    try{
+      if(!doc || !doc.body) return;
+      systemStyle(doc);
+      var win = doc.defaultView || window;
+      function note(t){ var n=doc.querySelector('.tap-v935-note'); if(n) n.textContent = t || ''; }
+      function show(msg){
+        var old = doc.getElementById('tapV934SystemMessage'); if(old) old.remove();
+        var box = doc.createElement('div'); box.id='tapV934SystemMessage'; box.className='tap-v935-system-backdrop';
+        box.innerHTML='<div class="tap-v935-system-card"><h2>Systeemmelding</h2><p></p><button type="button">OK</button></div>';
+        box.querySelector('p').textContent = cleanTxt(msg || 'Systeemmelding');
+        box.querySelector('button').onclick = function(){ box.remove(); };
+        box.addEventListener('click', function(ev){ if(ev.target === box) box.remove(); });
+        doc.body.appendChild(box);
+      }
+      function safeName(v){ return txt(v || 'document').replace(/[^a-z0-9\-_. ]/gi,'_').replace(/\s+/g,'_').slice(0,80) || 'document'; }
+      function cloneClean(){ var c=doc.documentElement.cloneNode(true); Array.prototype.slice.call(c.querySelectorAll('.tap-v935-toolbar,.tap-v935-system-backdrop,script#tapV934InlineScript,style#tapV934SystemStyle')).forEach(function(e){e.remove();}); return c; }
+      function textBody(){ var c=cloneClean(); return (c.querySelector('main,.page,.invoice-preview,.document,.doc,body')||c).innerText || doc.body.innerText || ''; }
+      function htmlBody(){ return '<!doctype html>\n' + cloneClean().outerHTML; }
+      function downloadBlob(name,type,content){ var blob=new Blob([content],{type:type}); var a=doc.createElement('a'); a.href=win.URL.createObjectURL(blob); a.download=name; doc.body.appendChild(a); a.click(); setTimeout(function(){ try{win.URL.revokeObjectURL(a.href);a.remove();}catch(e){} },1000); }
+      function loadPdf(cb){ if(win.html2pdf) return cb(true); var s=doc.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'; s.async=true; s.onload=function(){cb(!!win.html2pdf)}; s.onerror=function(){cb(false)}; doc.head.appendChild(s); }
+      function mainEl(){ return doc.querySelector('main,.page,.invoice-preview,.document,.doc,body') || doc.body; }
+      win.TapwagenSysteemmelding = show;
+      win.alert = show;
+      if(!doc.querySelector('.tap-v935-toolbar')) doc.body.insertAdjacentHTML('afterbegin', toolbarHtml());
+      Array.prototype.slice.call(doc.querySelectorAll('button,a,input[type="button"],input[type="submit"]')).forEach(function(el){
+        if(el.closest && el.closest('.tap-v935-toolbar')) return;
+        var t = txt(el.textContent || el.value || el.getAttribute('aria-label') || '').replace(/\s+/g,' ').trim();
+        if(/^(mail|e-mail|email|delen|share|terug)$/i.test(t)){ el.style.display='none'; el.setAttribute('data-tap-v935-hidden','legacy-document-action'); }
+      });
+      var bar = doc.querySelector('.tap-v935-toolbar');
+      if(bar && !bar.__tapV934Bound){
+        bar.__tapV934Bound = true;
+        bar.addEventListener('click', function(ev){
+          var b = ev.target && ev.target.closest && ev.target.closest('button[data-act]'); if(!b) return;
+          var act = b.getAttribute('data-act');
+          if(act==='close'){ try{ win.close(); }catch(e){} return; }
+          if(act==='print'){ show('Kies in het printervenster bij Bestemming/Printer: Opslaan als PDF.'); setTimeout(function(){ try{ win.print(); }catch(e){ show('Printvenster kon niet openen.'); } },120); return; }
+          if(act==='copy'){ var t=textBody(); if(win.navigator.clipboard && win.navigator.clipboard.writeText){ win.navigator.clipboard.writeText(t).then(function(){ show('Documenttekst gekopieerd.'); }).catch(function(){ win.prompt('Kopieer de tekst:',t); }); } else win.prompt('Kopieer de tekst:',t); return; }
+          if(act==='wa'){ var msg=(doc.title||'Document')+'\n\n'+textBody(); if(msg.length>4500){ if(win.navigator.clipboard&&win.navigator.clipboard.writeText) win.navigator.clipboard.writeText(msg); show('De tekst is te lang voor WhatsApp. De tekst is gekopieerd; plak hem zelf in WhatsApp.'); return; } win.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); return; }
+          if(act==='eml'){ var subj=doc.title||'Document'; var eml='To: \r\nSubject: '+subj+'\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n'+htmlBody(); downloadBlob(safeName(subj)+'.eml','message/rfc822;charset=utf-8',eml); show('Mailbestand gedownload. Open dit bestand om te mailen.'); return; }
+          if(act==='pdf'){ note('PDF wordt gemaakt...'); loadPdf(function(ok){ if(!ok || !win.html2pdf){ note('Gebruik Print / PDF.'); show('PDF downloaden lukt niet direct in deze browser. Gebruik Print / PDF en kies Opslaan als PDF.'); return; } try{ win.html2pdf().set({margin:[8,8,8,8],filename:safeName(doc.title||'document')+'.pdf',image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(mainEl()).save().then(function(){ note('PDF gedownload.'); }).catch(function(){ note('Gebruik Print / PDF.'); show('PDF maken mislukt. Gebruik Print / PDF en kies Opslaan als PDF.'); }); }catch(e){ note('Gebruik Print / PDF.'); show('PDF maken mislukt. Gebruik Print / PDF en kies Opslaan als PDF.'); } }); return; }
+        });
+      }
+      Array.prototype.slice.call(doc.body.childNodes).forEach(function(n){ if(n.nodeType===3 && /git\s*hub|github|gitup/i.test(n.nodeValue||'')) n.nodeValue = cleanTxt(n.nodeValue); });
+    }catch(e){}
+  }
+  function looksDocHtml(s){ return /<html|<body|<main|class=["']page|FACTUUR|OFFERTE|OPDRACHT|Offerte|Opdracht/i.test(String(s||'')); }
+  function injectHtml(html){
+    html = String(html == null ? '' : html);
+    if(!html || html.indexOf('tap-v935-toolbar') >= 0) return html;
+    var out = html;
+    var css = '<style id="tapV934PreStyle">body>.actions,body>.document-actions,body>.doc-actions{display:none!important}</style>';
+    if(/<\/head>/i.test(out)) out = out.replace(/<\/head>/i, css + '</head>'); else out = css + out;
+    if(/<body([^>]*)>/i.test(out)) out = out.replace(/<body([^>]*)>/i, '<body$1>' + toolbarHtml()); else out = toolbarHtml() + out;
+    return out;
+  }
+  function patchDocObject(doc){
+    if(!doc || doc.__tapV934DocPatched) return;
+    doc.__tapV934DocPatched = true;
+    try{ installDocHelpers(doc); }catch(e){}
+    var ow = doc.write, owl = doc.writeln;
+    doc.write = function(){
+      var args = Array.prototype.slice.call(arguments).map(function(a){ return looksDocHtml(a) ? injectHtml(a) : a; });
+      var r = ow.apply(doc,args); setTimeout(function(){ installDocHelpers(doc); },30); setTimeout(function(){ installDocHelpers(doc); },300); return r;
+    };
+    doc.writeln = function(){
+      var args = Array.prototype.slice.call(arguments).map(function(a){ return looksDocHtml(a) ? injectHtml(a) : a; });
+      var r = owl.apply(doc,args); setTimeout(function(){ installDocHelpers(doc); },30); setTimeout(function(){ installDocHelpers(doc); },300); return r;
+    };
+  }
+  try{
+    var oldOpen = window.open;
+    if(typeof oldOpen === 'function' && !oldOpen.__tapV934Wrapped){
+      var wrappedOpen = function(){
+        var w = oldOpen.apply(window, arguments);
+        try{ if(w && w.document){ patchDocObject(w.document); [50,250,800,1600].forEach(function(ms){ setTimeout(function(){ try{ if(!w.closed) installDocHelpers(w.document); }catch(e){} },ms); }); } }catch(e){}
+        return w;
+      };
+      wrappedOpen.__tapV934Wrapped = true;
+      window.open = wrappedOpen;
+    }
+  }catch(e){}
+  // v935: documentknoppen alleen in echte document-popups/tabs, niet op de hoofdapp/PIN-pagina.
+  // Daarom geen installDocHelpers(document) meer op elke klik in de hoofdapp.
+
+  window.TapwagenV935BackupNow = function(){ return backupNow('manual'); };
+  window.TapwagenV935Info = function(){ var s = liveState() || bestState || readBestStored() || {}; return {version:'v935', basis:'schone Tapwagen app', scope:'Tapwagen only', documents:'eigen Systeemmelding + documentknoppen alleen in documentvensters', updateSafe:'localStorage guard, geen render/date/material fixes', counts:{orders:arr(s,'orders').length, materials:arr(s,'materials').length, customers:arr(s,'customers').length, locations:arr(s,'locations').length, alerts:arr(s,'alerts').length}, firebaseChanged:false, renderChanged:false, dateChanged:false, materialRenderChanged:false}; };
+  try{ console.info('[Tapwagen v935] schone basis + documentknoppen alleen in documentvensters + update-safe actief. Geen render/date/material wijzigingen.'); }catch(e){}
 })();
