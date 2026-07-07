@@ -52924,7 +52924,7 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
 
 
 /* =========================================================
-   TAPWAGEN v934 - SCHONE BASIS + DOCUMENTEN + UPDATE-SAFE
+   TAPWAGEN v935 - SCHONE BASIS + DOCUMENTEN GESCOOPT + UPDATE-SAFE
    - Alleen Tapwagen.nl.
    - Gebaseerd op schone Tapwagen app.js.
    - Geen render/date/material/category/BNS608 fixes.
@@ -52932,18 +52932,18 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
    - Documentvensters: eigen Systeemmelding, oude Mail/Delen/Terug verbergen.
    - Update-safe: lokale data/layout beschermen tegen lege of halve localStorage saves.
    ========================================================= */
-(function TAPWAGEN_V934_CLEAN_DOCS_UPDATE_SAFE_ONLY(){
+(function TAPWAGEN_V935_CLEAN_DOCS_UPDATE_SAFE_SCOPED(){
   'use strict';
-  if (window.__TAPWAGEN_V934_CLEAN_DOCS_UPDATE_SAFE_ONLY__) return;
-  window.__TAPWAGEN_V934_CLEAN_DOCS_UPDATE_SAFE_ONLY__ = true;
+  if (window.__TAPWAGEN_V935_CLEAN_DOCS_UPDATE_SAFE_SCOPED__) return;
+  window.__TAPWAGEN_V935_CLEAN_DOCS_UPDATE_SAFE_SCOPED__ = true;
 
   var STATE_KEYS = [
     'event-planner-pro-v87','eventPlannerProV91','eventPlannerPro','eventPlannerState','plannerState',
     'eventPlannerProState','bns_state','bns_app_state'
   ];
   var INVOICE_KEYS = ['bnsInvoiceSettingsV122','bnsInvoiceSettingsV123','bnsInvoiceSettings','tapwagenInvoiceSettings'];
-  var BACKUP_LATEST = 'tapwagen_v934_business_backup_latest';
-  var BACKUP_DAY_PREFIX = 'tapwagen_v934_business_backup_';
+  var BACKUP_LATEST = 'tapwagen_v935_business_backup_latest';
+  var BACKUP_DAY_PREFIX = 'tapwagen_v935_business_backup_';
   var bestState = null;
 
   function clone(o){ try { return JSON.parse(JSON.stringify(o)); } catch(e){ return o; } }
@@ -53024,7 +53024,7 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     var s = liveState() || bestState || readBestStored();
     if(!isState(s)) return null;
     setBest(s);
-    var payload = {type:'tapwagen-v934-local-business-backup', reason:reason || 'manual', at:new Date().toISOString(), counts:{orders:arr(s,'orders').length, materials:arr(s,'materials').length, customers:arr(s,'customers').length, locations:arr(s,'locations').length, alerts:arr(s,'alerts').length}, invoiceScore:invoiceScore(invoiceOf(s)), state:clone(s)};
+    var payload = {type:'tapwagen-v935-local-business-backup', reason:reason || 'manual', at:new Date().toISOString(), counts:{orders:arr(s,'orders').length, materials:arr(s,'materials').length, customers:arr(s,'customers').length, locations:arr(s,'locations').length, alerts:arr(s,'alerts').length}, invoiceScore:invoiceScore(invoiceOf(s)), state:clone(s)};
     try{ localStorage.setItem(BACKUP_LATEST, JSON.stringify(payload)); }catch(e){}
     try{ localStorage.setItem(BACKUP_DAY_PREFIX + new Date().toISOString().slice(0,10), JSON.stringify(payload)); }catch(e){}
     return payload;
@@ -53067,23 +53067,23 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     var st = doc.createElement('style');
     st.id = 'tapV934SystemStyle';
     st.textContent = ''+
-      '.tap-v934-toolbar{position:sticky;top:0;z-index:2147483646;background:#0f172a;color:#fff;padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-family:Arial,Helvetica,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.25)}'+
-      '.tap-v934-toolbar button{border:0;border-radius:9px;padding:10px 13px;font-weight:900;cursor:pointer;color:white;font-size:14px;background:#2563eb}.tap-v934-toolbar .green{background:#16a34a}.tap-v934-toolbar .grey{background:#64748b}.tap-v934-toolbar .red{background:#dc2626}.tap-v934-toolbar .hint{margin-left:auto;font-size:12px;opacity:.92}.tap-v934-note{font-size:11px;opacity:.85}'+
-      '.tap-v934-system-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:18px;font-family:Arial,Helvetica,sans-serif}'+
-      '.tap-v934-system-card{background:#fff;color:#172033;border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.32);max-width:560px;width:100%;padding:22px;border:1px solid #dbe3ef}.tap-v934-system-card h2{margin:0 0 10px;font-size:24px;color:#0f172a}.tap-v934-system-card p{margin:0 0 18px;font-size:16px;line-height:1.45;color:#334155;white-space:pre-wrap}.tap-v934-system-card button{float:right;border:0;border-radius:12px;background:#2563eb;color:#fff;font-weight:900;padding:10px 18px;cursor:pointer;font-size:15px}'+
-      'body>.actions:not(.tap-v934-toolbar),body>.document-actions:not(.tap-v934-toolbar),body>.doc-actions:not(.tap-v934-toolbar){display:none!important}'+
-      '@media print{.tap-v934-toolbar,.tap-v934-system-backdrop,body>.actions,body>.document-actions,body>.doc-actions{display:none!important}body{background:white!important}.page,main{box-shadow:none!important}}';
+      '.tap-v935-toolbar{position:sticky;top:0;z-index:2147483646;background:#0f172a;color:#fff;padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-family:Arial,Helvetica,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.25)}'+
+      '.tap-v935-toolbar button{border:0;border-radius:9px;padding:10px 13px;font-weight:900;cursor:pointer;color:white;font-size:14px;background:#2563eb}.tap-v935-toolbar .green{background:#16a34a}.tap-v935-toolbar .grey{background:#64748b}.tap-v935-toolbar .red{background:#dc2626}.tap-v935-toolbar .hint{margin-left:auto;font-size:12px;opacity:.92}.tap-v935-note{font-size:11px;opacity:.85}'+
+      '.tap-v935-system-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:18px;font-family:Arial,Helvetica,sans-serif}'+
+      '.tap-v935-system-card{background:#fff;color:#172033;border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.32);max-width:560px;width:100%;padding:22px;border:1px solid #dbe3ef}.tap-v935-system-card h2{margin:0 0 10px;font-size:24px;color:#0f172a}.tap-v935-system-card p{margin:0 0 18px;font-size:16px;line-height:1.45;color:#334155;white-space:pre-wrap}.tap-v935-system-card button{float:right;border:0;border-radius:12px;background:#2563eb;color:#fff;font-weight:900;padding:10px 18px;cursor:pointer;font-size:15px}'+
+      'body>.actions:not(.tap-v935-toolbar),body>.document-actions:not(.tap-v935-toolbar),body>.doc-actions:not(.tap-v935-toolbar){display:none!important}'+
+      '@media print{.tap-v935-toolbar,.tap-v935-system-backdrop,body>.actions,body>.document-actions,body>.doc-actions{display:none!important}body{background:white!important}.page,main{box-shadow:none!important}}';
     doc.head.appendChild(st);
   }
   function toolbarHtml(){
-    return '<div class="tap-v934-toolbar">'+
+    return '<div class="tap-v935-toolbar">'+
       '<button type="button" class="green" data-act="pdf">PDF downloaden</button>'+ 
       '<button type="button" data-act="print">Print / PDF</button>'+ 
       '<button type="button" class="green" data-act="wa">WhatsApp</button>'+ 
       '<button type="button" class="grey" data-act="eml">Download mailbestand</button>'+ 
       '<button type="button" class="grey" data-act="copy">Kopieer tekst</button>'+ 
       '<button type="button" class="red" data-act="close">Sluiten</button>'+ 
-      '<span class="hint">Powered by Tapwagen.nl <span class="tap-v934-note"></span></span>'+ 
+      '<span class="hint">Powered by Tapwagen.nl <span class="tap-v935-note"></span></span>'+ 
       '</div>';
   }
   function installDocHelpers(doc){
@@ -53091,18 +53091,18 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       if(!doc || !doc.body) return;
       systemStyle(doc);
       var win = doc.defaultView || window;
-      function note(t){ var n=doc.querySelector('.tap-v934-note'); if(n) n.textContent = t || ''; }
+      function note(t){ var n=doc.querySelector('.tap-v935-note'); if(n) n.textContent = t || ''; }
       function show(msg){
         var old = doc.getElementById('tapV934SystemMessage'); if(old) old.remove();
-        var box = doc.createElement('div'); box.id='tapV934SystemMessage'; box.className='tap-v934-system-backdrop';
-        box.innerHTML='<div class="tap-v934-system-card"><h2>Systeemmelding</h2><p></p><button type="button">OK</button></div>';
+        var box = doc.createElement('div'); box.id='tapV934SystemMessage'; box.className='tap-v935-system-backdrop';
+        box.innerHTML='<div class="tap-v935-system-card"><h2>Systeemmelding</h2><p></p><button type="button">OK</button></div>';
         box.querySelector('p').textContent = cleanTxt(msg || 'Systeemmelding');
         box.querySelector('button').onclick = function(){ box.remove(); };
         box.addEventListener('click', function(ev){ if(ev.target === box) box.remove(); });
         doc.body.appendChild(box);
       }
       function safeName(v){ return txt(v || 'document').replace(/[^a-z0-9\-_. ]/gi,'_').replace(/\s+/g,'_').slice(0,80) || 'document'; }
-      function cloneClean(){ var c=doc.documentElement.cloneNode(true); Array.prototype.slice.call(c.querySelectorAll('.tap-v934-toolbar,.tap-v934-system-backdrop,script#tapV934InlineScript,style#tapV934SystemStyle')).forEach(function(e){e.remove();}); return c; }
+      function cloneClean(){ var c=doc.documentElement.cloneNode(true); Array.prototype.slice.call(c.querySelectorAll('.tap-v935-toolbar,.tap-v935-system-backdrop,script#tapV934InlineScript,style#tapV934SystemStyle')).forEach(function(e){e.remove();}); return c; }
       function textBody(){ var c=cloneClean(); return (c.querySelector('main,.page,.invoice-preview,.document,.doc,body')||c).innerText || doc.body.innerText || ''; }
       function htmlBody(){ return '<!doctype html>\n' + cloneClean().outerHTML; }
       function downloadBlob(name,type,content){ var blob=new Blob([content],{type:type}); var a=doc.createElement('a'); a.href=win.URL.createObjectURL(blob); a.download=name; doc.body.appendChild(a); a.click(); setTimeout(function(){ try{win.URL.revokeObjectURL(a.href);a.remove();}catch(e){} },1000); }
@@ -53110,13 +53110,13 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       function mainEl(){ return doc.querySelector('main,.page,.invoice-preview,.document,.doc,body') || doc.body; }
       win.TapwagenSysteemmelding = show;
       win.alert = show;
-      if(!doc.querySelector('.tap-v934-toolbar')) doc.body.insertAdjacentHTML('afterbegin', toolbarHtml());
+      if(!doc.querySelector('.tap-v935-toolbar')) doc.body.insertAdjacentHTML('afterbegin', toolbarHtml());
       Array.prototype.slice.call(doc.querySelectorAll('button,a,input[type="button"],input[type="submit"]')).forEach(function(el){
-        if(el.closest && el.closest('.tap-v934-toolbar')) return;
+        if(el.closest && el.closest('.tap-v935-toolbar')) return;
         var t = txt(el.textContent || el.value || el.getAttribute('aria-label') || '').replace(/\s+/g,' ').trim();
-        if(/^(mail|e-mail|email|delen|share|terug)$/i.test(t)){ el.style.display='none'; el.setAttribute('data-tap-v934-hidden','legacy-document-action'); }
+        if(/^(mail|e-mail|email|delen|share|terug)$/i.test(t)){ el.style.display='none'; el.setAttribute('data-tap-v935-hidden','legacy-document-action'); }
       });
-      var bar = doc.querySelector('.tap-v934-toolbar');
+      var bar = doc.querySelector('.tap-v935-toolbar');
       if(bar && !bar.__tapV934Bound){
         bar.__tapV934Bound = true;
         bar.addEventListener('click', function(ev){
@@ -53136,7 +53136,7 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   function looksDocHtml(s){ return /<html|<body|<main|class=["']page|FACTUUR|OFFERTE|OPDRACHT|Offerte|Opdracht/i.test(String(s||'')); }
   function injectHtml(html){
     html = String(html == null ? '' : html);
-    if(!html || html.indexOf('tap-v934-toolbar') >= 0) return html;
+    if(!html || html.indexOf('tap-v935-toolbar') >= 0) return html;
     var out = html;
     var css = '<style id="tapV934PreStyle">body>.actions,body>.document-actions,body>.doc-actions{display:none!important}</style>';
     if(/<\/head>/i.test(out)) out = out.replace(/<\/head>/i, css + '</head>'); else out = css + out;
@@ -53169,9 +53169,10 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       window.open = wrappedOpen;
     }
   }catch(e){}
-  document.addEventListener('click', function(){ setTimeout(function(){ try{ installDocHelpers(document); }catch(e){} },100); }, true);
+  // v935: documentknoppen alleen in echte document-popups/tabs, niet op de hoofdapp/PIN-pagina.
+  // Daarom geen installDocHelpers(document) meer op elke klik in de hoofdapp.
 
-  window.TapwagenV934BackupNow = function(){ return backupNow('manual'); };
-  window.TapwagenV934Info = function(){ var s = liveState() || bestState || readBestStored() || {}; return {version:'v934', basis:'schone Tapwagen app', scope:'Tapwagen only', documents:'eigen Systeemmelding + documentknoppen', updateSafe:'localStorage guard, geen render/date/material fixes', counts:{orders:arr(s,'orders').length, materials:arr(s,'materials').length, customers:arr(s,'customers').length, locations:arr(s,'locations').length, alerts:arr(s,'alerts').length}, firebaseChanged:false, renderChanged:false, dateChanged:false, materialRenderChanged:false}; };
-  try{ console.info('[Tapwagen v934] schone basis + documenten/eigen Systeemmelding + update-safe actief. Geen render/date/material wijzigingen.'); }catch(e){}
+  window.TapwagenV935BackupNow = function(){ return backupNow('manual'); };
+  window.TapwagenV935Info = function(){ var s = liveState() || bestState || readBestStored() || {}; return {version:'v935', basis:'schone Tapwagen app', scope:'Tapwagen only', documents:'eigen Systeemmelding + documentknoppen alleen in documentvensters', updateSafe:'localStorage guard, geen render/date/material fixes', counts:{orders:arr(s,'orders').length, materials:arr(s,'materials').length, customers:arr(s,'customers').length, locations:arr(s,'locations').length, alerts:arr(s,'alerts').length}, firebaseChanged:false, renderChanged:false, dateChanged:false, materialRenderChanged:false}; };
+  try{ console.info('[Tapwagen v935] schone basis + documentknoppen alleen in documentvensters + update-safe actief. Geen render/date/material wijzigingen.'); }catch(e){}
 })();
