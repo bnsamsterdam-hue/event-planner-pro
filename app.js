@@ -9270,7 +9270,7 @@ renderAll = function(){
 setTimeout(()=>{
   bindDateControlsV93();
   clampToday('dateStart');
-  if(!dateEnd.value || dateEnd.value<dateStart.value) setEndThreeDays();
+  if(!window.__bnsEditingOrder && (!dateEnd.value || dateEnd.value<dateStart.value)) setEndThreeDays(); // v67-fix: ontbrekende __bnsEditingOrder-bescherming hersteld
   const ts=document.getElementById('globalThemeSelect');
   const ls=document.getElementById('globalLayoutSelect');
   if(ls) ls.onchange=()=>{
@@ -15041,6 +15041,12 @@ setTimeout(()=>{
     }
     try {
       window.editing = null;
+    } catch(e) {
+    }
+    try {
+      window.__bnsEditingOrder = false; // v66-fix: ontbrak hier, waardoor de datum +/- knoppen
+      // en het automatisch invullen van de datum niet meer werkten na "Kopieer opdracht"
+      // (of na eender welke eerdere bewerking) - de vlag bleef op true staan.
     } catch(e) {
     }
     setVal("orderNumber", makeNumber());
