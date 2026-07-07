@@ -12033,7 +12033,7 @@ setTimeout(()=>{
         const c = catKey(this.dataset.cat || this.textContent);
         window.currentCat = c;
         try {
-          currentCat = c;
+          
         } catch(e) {
         }
         window.renderCats();
@@ -12180,7 +12180,7 @@ setTimeout(()=>{
   function setCat(cat){
     var c=cleanCat(cat);
     try{
-      currentCat=c;
+      
     } catch(e){
     }
     window.currentCat=c;
@@ -20603,6 +20603,10 @@ setTimeout(()=>{
       extra: val("orderExtra"),
       pricing: totals || (existing && existing.pricing) || null,
       confirmationText: E("confirmationText") ? E("confirmationText").value : ((existing && existing.confirmationText) || ""),
+      transportLines: (function(){
+        try{ if(Array.isArray(window.__bns521TransportLines) && window.__bns521TransportLines.length) return JSON.parse(JSON.stringify(window.__bns521TransportLines)); }catch(e){}
+        return (existing && Array.isArray(existing.transportLines)) ? existing.transportLines : [];
+      })(),
       updatedAt: new Date().toISOString()
     };
   }
@@ -21203,7 +21207,7 @@ setTimeout(()=>{
     if (!c) c = window.currentCat || ((function(){var s=appState();var a=(s.materials||[]).map(function(m){return m.cat||m.rubriek||m.category;}).filter(Boolean);return a[0]||'TW';})());
     c = catKey(c);
     try {
-      currentCat = c;
+      
     } catch(e) {
     }
     window.currentCat = c;
@@ -22091,10 +22095,10 @@ setTimeout(()=>{
   function setCurrentCat(c){
     c=catKey(c);
     window.currentCat=c;
-    try{
-      currentCat=c;
-    } catch(e){
-    }
+    /* v63-fix: "" overschreef hier de gelijknamige functie
+       currentCat() met een tekst-waarde, waarna currentCat() daarna
+       crashte met "currentCat is not a function". window.currentCat=c
+       hierboven deed het echte werk al correct. */
     return c;
   }
   function renderCatsV49(){
@@ -22589,10 +22593,6 @@ setTimeout(()=>{
   function setCurrentCat(c){
     c = catKey(c);
     window.currentCat = c;
-    try {
-      currentCat = c;
-    } catch(e){
-    }
     return c;
   }
   function renderCatsV50(){
@@ -23103,10 +23103,6 @@ setTimeout(()=>{
     c=cat(c);
     localStorage.setItem('bnsV56Cat',c);
     window.currentCat=c;
-    try{
-      currentCat=c;
-    } catch(e){
-    }
   }
   function selected(mid){
     try{
@@ -26173,7 +26169,7 @@ setTimeout(()=>{
     })() || "TW");
     window.currentCat=c;
     try{
-      currentCat=c;
+      
     } catch(e){
     }
     return c;
@@ -29370,7 +29366,12 @@ setTimeout(()=>{
         name:val('customerName')||(o.customer&&o.customer.name)||'',street:val('customerStreet')||(o.customer&&o.customer.street)||'',zip:val('customerZip')||(o.customer&&o.customer.zip)||'',city:val('customerCity')||(o.customer&&o.customer.city)||'',phone:val('customerPhone')||(o.customer&&o.customer.phone)||'',email:val('customerEmail')||(o.customer&&o.customer.email)||''
       }, location:{
         name:val('locationName')||(o.location&&o.location.name)||'',street:val('locationStreet')||(o.location&&o.location.street)||'',zip:val('locationZip')||(o.location&&o.location.zip)||'',city:val('locationCity')||(o.location&&o.location.city)||''
-      }, materials:chosenList().length?chosenList():(o.materials||[]), pricing:o.pricing||{
+      }, materials:chosenList().length?chosenList():(o.materials||[]),
+      transportLines:(function(){
+        try{ if(Array.isArray(window.__bns521TransportLines) && window.__bns521TransportLines.length) return JSON.parse(JSON.stringify(window.__bns521TransportLines)); }catch(e){}
+        return (o.transportLines||[]);
+      })(),
+      pricing:o.pricing||{
       }
     };
   }
@@ -29408,7 +29409,7 @@ setTimeout(()=>{
     var o=orderForDoc(), t=totals(), title=docTypeTitle(), inv=invoiceNumberForDoc();
     persistInvoiceMeta();
     var meta='<b>Opdracht '+H(o.number)+'</b><br>'+(inv?'Factuur nr: <b>'+H(inv)+'</b><br>':'')+'Betaling: '+H(val('bnsPaymentType')|| (title==='Contante betaling'?'Contant':'Op rekening'));
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title)+' '+H(o.number)+'</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;border-bottom:5px solid #2563eb;padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}</style></head><body><div class="actions"><button onclick="window.print()">Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false" style="background:#64748b">Terug</button></div><main class="page"><section class="top"><div class="doctype">'+H(title)+'</div><div class="meta">'+meta+'</div></section><div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+H(o.customer.name)+'</b><br>'+H(o.customer.street)+'<br>'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+H(o.customer.phone)+'<br>'+H(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+H(o.location.name)+'</b><br>'+H(o.location.street)+'<br>'+H([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div><section class="card"><div class="label">Opdracht</div><b>'+H(o.title)+'</b><br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand)+'</section><section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRowsDoc()+'</tbody></table></section><section class="card"><div class="label">Bijzonderheden</div><div class="free">'+H(o.extra||'')+'</div></section><section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+H(t.vatP||21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section></main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title)+' '+H(o.number)+'</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;border-bottom:5px solid #2563eb;padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}</style></head><body><div class="actions"><button onclick="window.print()">Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mailen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)">WhatsApp</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false" style="background:#64748b">Terug</button></div><main class="page"><section class="top"><div class="doctype">'+H(title)+'</div><div class="meta">'+meta+'</div></section><div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+H(o.customer.name)+'</b><br>'+H(o.customer.street)+'<br>'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+H(o.customer.phone)+'<br>'+H(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+H(o.location.name)+'</b><br>'+H(o.location.street)+'<br>'+H([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div><section class="card"><div class="label">Opdracht</div><b>'+H(o.title)+'</b><br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' t/m '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand)+'</section><section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRowsDoc()+'</tbody></table></section><section class="card"><div class="label">Bijzonderheden</div><div class="free">'+H(o.extra||'')+'</div>'+(function(){ var lines=(o.transportLines||[]); if(!lines.length) return ''; return '<table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Bedrag</th></tr></thead><tbody>'+lines.map(function(l){ var qty=Number(l.qty||1), price=Number(l.price||0); return '<tr><td>'+H(qty)+'</td><td>'+H(l.name+(l.note?' - '+l.note:''))+'</td><td>'+H((qty*price).toFixed(2).replace('.',','))+'</td></tr>'; }).join('')+'</tbody></table>'; })()+'</section><section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+H(t.vatP||21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section></main></body></html>';
   }
   function openDoc83(){
     var w=window.open('','_blank');
@@ -37318,7 +37319,7 @@ setTimeout(()=>{
     saveApp();
     try{
       window.currentCat=c;
-      currentCat=c;
+      
     } catch(e){
       window.currentCat=c;
     }
@@ -39851,7 +39852,7 @@ setTimeout(()=>{
     var c=txt(cat||window.currentCat||'TW').toUpperCase();
     var list=[].slice.call(new Set(mats().map(function(m){return txt(m.cat||'EXTRA').toUpperCase();}).filter(Boolean))).sort();
     if(list.indexOf(c)<0) c=list[0]||'TW';
-    try{ currentCat=c; }catch(e){} window.currentCat=c;
+    try{  }catch(e){} window.currentCat=c;
     return c;
   }
   var _lastCatsHtml='', _lastActiveCat='';
@@ -41245,7 +41246,7 @@ setTimeout(()=>{
     var c=txt(cat||window.currentCat||'TW').toUpperCase();
     var all=Array.from(new Set(materials().map(function(m){return txt(m.cat||'EXTRA').toUpperCase();}).filter(Boolean))).sort();
     if(all.indexOf(c)<0) c=all[0]||'TW';
-    try{ currentCat=c; }catch(e){} window.currentCat=c; return c;
+    try{  }catch(e){} window.currentCat=c; return c;
   }
   function editingId(){ try{ if(editing) return txt(editing); }catch(e){} return txt(window.editing||''); }
   function editingNr(){ var n=E('orderNumber'); return txt(n&&n.value); }
@@ -42344,7 +42345,7 @@ setTimeout(()=>{
       if(saved && cats.indexOf(saved)>=0) c=saved;
       else c=firstCat();
     }
-    window.currentCat=c; window.__BNS721_CAT=c; try{ currentCat=c; }catch(e){} return c;
+    window.currentCat=c; window.__BNS721_CAT=c; try{  }catch(e){} return c;
   }
   function getCatColor(cat){
     // Lees kleur uit localStorage (zelfde key als admin gebruikt)
@@ -49884,7 +49885,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       else if(window.__BNS_LAST_CAT__ && cats.indexOf(U(window.__BNS_LAST_CAT__))>=0) c=U(window.__BNS_LAST_CAT__);
       else c=firstCat();
     }
-    window.currentCat=c; window.__BNS_LAST_CAT__=c; try{ currentCat=c; }catch(e){} return c;
+    window.currentCat=c; window.__BNS_LAST_CAT__=c; try{  }catch(e){} return c;
   }
   function catColor(cat){ try{ var map=JSON.parse(localStorage.getItem('bnsCatColors')||'{}'); var k=U(cat).replace(/[^A-Z0-9]/g,'').slice(0,16); if(map[k]) return map[k]; }catch(e){} var def={TAPW:'#dc2626',BIERSLANG:'#16a34a',POMP:'#2563eb',SLANG:'#0ea5e9',BIERTANK:'#7c3aed',TANK:'#f97316'}; return def[U(cat)]||'#2563eb'; }
   function renderCats(){
@@ -50011,7 +50012,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     c=U(c); if(!c) return;
     window.__BNS613_LAST_CAT=c;
     window.currentCat=c;
-    try{ currentCat=c; }catch(e){}
+    try{  }catch(e){}
     try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
   }
   function getClickedCat(t){
@@ -50138,7 +50139,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     window.__BNS626_KEEP_CAT=c;
     window.__BNS613_LAST_CAT=c;
     window.currentCat=c;
-    try{ currentCat=c; }catch(e){}
+    try{  }catch(e){}
     try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
   }
   function rerenderCat(c){
@@ -50347,7 +50348,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     window.__BNS626_KEEP_CAT=c;
     window.__BNS613_LAST_CAT=c;
     window.currentCat=c;
-    try{ currentCat=c; }catch(e){}
+    try{  }catch(e){}
     try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
     return c;
   }
