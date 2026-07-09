@@ -52998,3 +52998,115 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   window.TapwagenV938Info = function(){ return {version:"v938", basis:"XXXevent-planner-pro-main.zip", scope:"alleen documentknoppen in document-HTML", pdf:"html2pdf in documentvenster", data:"geen render/datum/materialen/firebase/update-safe wijzigingen"}; };
   console.log("[Tapwagen v938] documentknoppen gericht vervangen vanaf exacte basis");
 })();
+
+/* =========================================================
+   Tapwagen v939 - mobiele knoppen Nieuwe opdracht / Wijzigen
+   Alleen Tapwagen.nl. Geen Amsterdam/Rental. Geen data/Firebase wijziging.
+   Voegt op mobiel een eigen bedieningsbalk toe op de pagina Nieuwe opdracht.
+   ========================================================= */
+(function(){
+  'use strict';
+  var VERSION='v939';
+  var BAR_ID='tap-v939-mobile-orderbar';
+  var CSS_ID='tap-v939-mobile-orderbar-css';
+  function E(id){ return document.getElementById(id); }
+  function isMobile(){ return (window.innerWidth||document.documentElement.clientWidth||9999) <= 900; }
+  function onNewOrder(){
+    var p=E('newOrder');
+    return !!(p && p.classList && p.classList.contains('active'));
+  }
+  function safeClick(id){
+    var el=E(id);
+    if(el && typeof el.click==='function'){ el.click(); return true; }
+    return false;
+  }
+  function goTop(){
+    try{ window.scrollTo({top:0,left:0,behavior:'smooth'}); }catch(e){ try{window.scrollTo(0,0);}catch(_){ } }
+    try{ var p=E('newOrder'); if(p) p.scrollTop=0; }catch(e){}
+  }
+  function goOrders(clear){
+    try{
+      if(clear){
+        if(typeof clearOrder==='function') clearOrder();
+        try{ editing=null; window.editing=null; window.__bnsEditingOrder=false; }catch(e){}
+      }
+      if(typeof showPage==='function') showPage('orders');
+      else location.hash='#orders';
+      setTimeout(goTop,50);
+    }catch(e){ console.warn('[Tapwagen v939] terug/annuleren fout',e); }
+  }
+  function doOverview(){
+    try{
+      if(safeClick('makeOverviewBottomBtn')) return;
+      if(safeClick('makeOverviewBtn')) return;
+      if(typeof openOverview==='function') { openOverview(); return; }
+      var box=E('confirmationBox');
+      if(box){ box.classList.remove('hidden'); box.scrollIntoView({behavior:'smooth',block:'start'}); }
+    }catch(e){ console.warn('[Tapwagen v939] overzicht fout',e); }
+  }
+  function doSave(){
+    try{
+      if(safeClick('saveOrder')) return;
+      if(typeof saveCurrentOrder==='function') saveCurrentOrder();
+    }catch(e){ console.warn('[Tapwagen v939] opslaan fout',e); }
+  }
+  function doPrint(){
+    try{
+      if(safeClick('printConfirm')) return;
+      if(safeClick('printOverviewBtn')) return;
+      window.print();
+    }catch(e){ console.warn('[Tapwagen v939] afdrukken fout',e); }
+  }
+  function ensureCss(){
+    if(E(CSS_ID)) return;
+    var s=document.createElement('style');
+    s.id=CSS_ID;
+    s.textContent='\n'
+      +'#'+BAR_ID+'{display:none}\n'
+      +'@media (max-width:900px){\n'
+      +' body.tap-v939-neworder{padding-bottom:96px!important;}\n'
+      +' #'+BAR_ID+'{position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483000;display:none;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center;background:rgba(15,23,42,.96);border-radius:16px;padding:8px;box-shadow:0 8px 26px rgba(0,0,0,.35);}\n'
+      +' body.tap-v939-neworder #'+BAR_ID+'{display:flex;}\n'
+      +' #'+BAR_ID+' button{border:0;border-radius:12px;padding:10px 12px;color:#fff;font-weight:900;font-size:13px;min-width:86px;box-shadow:inset 0 -2px 0 rgba(0,0,0,.18);}\n'
+      +' #'+BAR_ID+' .overview{background:#2563eb;}\n'
+      +' #'+BAR_ID+' .save{background:#16a34a;}\n'
+      +' #'+BAR_ID+' .cancel{background:#dc2626;}\n'
+      +' #'+BAR_ID+' .print{background:#7c3aed;}\n'
+      +' #'+BAR_ID+' .back{background:#334155;}\n'
+      +' #'+BAR_ID+' .top{background:#0ea5e9;}\n'
+      +'}\n';
+    document.head.appendChild(s);
+  }
+  function ensureBar(){
+    ensureCss();
+    var bar=E(BAR_ID);
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id=BAR_ID;
+      bar.innerHTML=''
+        +'<button type="button" class="overview">Overzicht</button>'
+        +'<button type="button" class="save">Opslaan</button>'
+        +'<button type="button" class="cancel">Annuleren</button>'
+        +'<button type="button" class="print">Afdrukken</button>'
+        +'<button type="button" class="back">Terug</button>'
+        +'<button type="button" class="top">Omhoog</button>';
+      document.body.appendChild(bar);
+      bar.querySelector('.overview').addEventListener('click', doOverview);
+      bar.querySelector('.save').addEventListener('click', doSave);
+      bar.querySelector('.cancel').addEventListener('click', function(){ goOrders(true); });
+      bar.querySelector('.print').addEventListener('click', doPrint);
+      bar.querySelector('.back').addEventListener('click', function(){ goOrders(false); });
+      bar.querySelector('.top').addEventListener('click', goTop);
+    }
+    document.body.classList.toggle('tap-v939-neworder', isMobile() && onNewOrder());
+  }
+  function tick(){ try{ ensureBar(); }catch(e){} }
+  document.addEventListener('DOMContentLoaded', tick);
+  document.addEventListener('click', function(){ setTimeout(tick,40); }, true);
+  window.addEventListener('resize', tick);
+  setInterval(tick,800);
+  window.TapwagenV939MobileOrderButtonsInfo=function(){
+    return {version:VERSION, basis:'Tapwagen v938 documentenbasis', scope:'alleen Tapwagen - mobiele Nieuwe opdracht/Wijzigen knoppen', amsterdam:false, rental:false, firebaseChanged:false, dataChanged:false, active:onNewOrder(), mobile:isMobile()};
+  };
+  console.log('[Tapwagen v939] mobiele knoppen Nieuwe opdracht/Wijzigen actief');
+})();
