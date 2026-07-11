@@ -44728,6 +44728,18 @@ console.log('[BNS v459] bezorger-vinkjes, Routenet uit, document-terug en telefo
     if(!o) return "";
     var id=T(o.id || o.docId || o.orderId);
     if(id.indexOf("old_") === 0) return "archief";
+    /* v72-fix: status is nu ALTIJD leidend, ook als er al eerder een
+       (mogelijk verouderde/foute) folder-waarde was opgeslagen. Eerder
+       werd zo'n oude waarde blindelings teruggegeven zonder de actuele
+       status te checken, waardoor opdrachten permanent in de verkeerde
+       map (bijv. Archief/Verwijderd) bleven staan nadat hun status was
+       gewijzigd. */
+    var s=statusText(o);
+    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
+    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
+    if(/optie|14/.test(s)) return "optie14";
+    if(/offerte/.test(s)) return "offerte";
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s)) return "lopend";
     var f=L(o.folder || o.map || o.orderFolder);
     if(f){
       if(f === "live") return "lopend";
@@ -44735,12 +44747,6 @@ console.log('[BNS v459] bezorger-vinkjes, Routenet uit, document-terug en telefo
       if(f === "old") return "archief";
       return f;
     }
-    var s=statusText(o);
-    if(/offerte/.test(s)) return "offerte";
-    if(/optie|14/.test(s)) return "optie14";
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
-    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
-    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s)) return "lopend";
     // Als er een bezorger is en geen speciale status → lopend
     var hasDriver = T(o.driver||o.driverName||o.bezorger||'') ||
       (Array.isArray(o.driverIds) && o.driverIds.length) ||
