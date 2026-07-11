@@ -99,7 +99,6 @@ function bnsIsOldImportOrder(o){
 }
 function bnsIsDeletedOrder(o){
   var s = String(o && o.status || '').toLowerCase();
-  if(/bevestigd|opdrachtbevestiging|actief|lopend|offerte|optie/.test(s)) return false; // v72-fix
   return !!(o && (o.deletedAt || o.deleted === true || /verwijderd|deleted|gewist|trash/.test(s)));
 }
 function bnsIsArchivedOnlyOrder(o){
@@ -38905,11 +38904,7 @@ setTimeout(()=>{
   function startOf(o){return T(o&&(o.start||o.dateStart||o.startDate||o.date||o.end||o.dateEnd||o.endDate));}
   function endOf(o){return T(o&&(o.end||o.dateEnd||o.endDate));} // BNS v762: geen startdatum als fallback
   function isCan(o){return /geannuleerd|annul/.test(st(o));}
-  function isDel(o){
-    var s=st(o);
-    if(/bevestigd|opdrachtbevestiging|actief|lopend|offerte|optie/.test(s)) return false; // v72-fix
-    return /verwijder/.test(s)||!!(o&&o.deletedAt);
-  }
+  function isDel(o){return /verwijder/.test(st(o))||!!(o&&o.deletedAt);}
   function isOpt(o){return /optie/.test(st(o))&&/14/.test(st(o));}
   function isQuote(o){return /offerte/.test(st(o));}
   function isDone(o){if(isCan(o)||isDel(o))return false;if(/uitgevoerd|afgerond|done/.test(st(o)))return true;var e=dateMs(endOf(o));return !isNaN(e)&&e<todayMs();}
@@ -40284,12 +40279,6 @@ setTimeout(()=>{
 // ============================================================
 (function BNS_V362() {
   'use strict';
-  /* v72-fix: dit oudere archiefsysteem (v362) vocht om dezelfde knop-ID's
-     (bns362ArchBtn/bns350ABtn/bns352ArchiveBtn) als het nieuwere, correcte
-     v364/v365-systeem, en kaapte die knop soms terug naar zijn eigen,
-     verouderde filterlogica - waardoor lopende opdrachten toch nog in
-     "Verwijderd" verschenen. v362 wordt daarom bewust uitgeschakeld. */
-  return;
   if (window.__BNS_V362__) return;
   window.__BNS_V362__ = true;
 
@@ -40558,11 +40547,6 @@ setTimeout(()=>{
 
   function isDeleted(o){
     var st = norm(o && o.status);
-    /* v72-fix: status is leidend. Als de status duidelijk een actieve/
-       lopende opdracht aangeeft, telt een verouderd deleted/removed/
-       deletedAt-veld niet meer mee - anders bleef een opdracht na
-       "Opnieuw inzetten" soms toch nog als "Verwijderd" getoond worden. */
-    if(/bevestigd|opdrachtbevestiging|actief|lopend|offerte|optie/.test(st)) return false;
     return !!(o && (o.deleted || o.removed || o.deletedAt || /verwijderd|deleted|gewist|trash|prullenbak/.test(st)));
   }
   function isCancelled(o){
@@ -40833,7 +40817,7 @@ setTimeout(()=>{
   function orderYear(o){ var d=orderDate(o); if(d) return String(d.getFullYear()); var m=String([o&&o.end,o&&o.start,o&&o.date,o&&o.number].filter(Boolean).join(' ')).match(/20\d{2}/); return m?m[0]:''; }
   function fmtDate(v){ var d=parseDate(v); return d ? (String(d.getDate())+'-'+String(d.getMonth()+1)+'-'+String(d.getFullYear())) : String(v||''); }
   function isPastEnd(o){ var d=orderDate(o); if(!d) return false; d.setHours(0,0,0,0); return d.getTime() < todayMs(); }
-  function isDeleted(o){ var st=norm(o&&o.status); if(/bevestigd|opdrachtbevestiging|actief|lopend|offerte|optie/.test(st)) return false; return !!(o&&(o.deleted||o.removed||o.deletedAt||/verwijderd|deleted|gewist|trash|prullenbak/.test(st))); }
+  function isDeleted(o){ var st=norm(o&&o.status); return !!(o&&(o.deleted||o.removed||o.deletedAt||/verwijderd|deleted|gewist|trash|prullenbak/.test(st))); }
   function isCancelled(o){ return /geannuleerd|annulering|cancelled|canceled/.test(norm(o&&o.status)); }
   function isOption(o){ return /optie|14\s*dagen|option/.test(norm(o&&o.status)); }
   function isDoneStatus(o){ return /uitgevoerd|afgerond|klaar|done|completed/.test(norm(o&&o.status)); }
@@ -43196,7 +43180,6 @@ setTimeout(()=>{
   }
   function isDeleted(o){
     var st = norm(o && o.status);
-    if(/bevestigd|opdrachtbevestiging|actief|lopend|offerte|optie/.test(st)) return false;
     return !!(o && (o.deletedAt || o.deleted === true || /verwijderd|deleted|gewist|trash/.test(st)));
   }
   function isArchivedOnly(o){
@@ -44745,18 +44728,6 @@ console.log('[BNS v459] bezorger-vinkjes, Routenet uit, document-terug en telefo
     if(!o) return "";
     var id=T(o.id || o.docId || o.orderId);
     if(id.indexOf("old_") === 0) return "archief";
-    /* v72-fix: status is nu ALTIJD leidend, ook als er al eerder een
-       (mogelijk verouderde/foute) folder-waarde was opgeslagen. Eerder
-       werd zo'n oude waarde blindelings teruggegeven zonder de actuele
-       status te checken, waardoor opdrachten permanent in de verkeerde
-       map (bijv. Archief/Verwijderd) bleven staan nadat hun status was
-       gewijzigd. */
-    var s=statusText(o);
-    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
-    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
-    if(/optie|14/.test(s)) return "optie14";
-    if(/offerte/.test(s)) return "offerte";
-    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s)) return "lopend";
     var f=L(o.folder || o.map || o.orderFolder);
     if(f){
       if(f === "live") return "lopend";
@@ -44764,6 +44735,12 @@ console.log('[BNS v459] bezorger-vinkjes, Routenet uit, document-terug en telefo
       if(f === "old") return "archief";
       return f;
     }
+    var s=statusText(o);
+    if(/offerte/.test(s)) return "offerte";
+    if(/optie|14/.test(s)) return "optie14";
+    if(/geann|annul|cancel|verwijderd|deleted|trash/.test(s)) return "geannuleerd";
+    if(/uitgevoerd|afgerond|done|klaar|afgemeld/.test(s)) return "uitgevoerd";
+    if(/bevestigd|opdrachtbevestiging|opdracht bevestigd|opdracht|actief|lopend/.test(s)) return "lopend";
     // Als er een bezorger is en geen speciale status → lopend
     var hasDriver = T(o.driver||o.driverName||o.bezorger||'') ||
       (Array.isArray(o.driverIds) && o.driverIds.length) ||
