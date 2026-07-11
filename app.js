@@ -8071,14 +8071,6 @@ function ensure(){
    aan (geen Amsterdam/Rental/Firebase-sleutels/paden).
    ========================================================= */
 function dataGuardV72(){
-  /* v72-perf-fix: dit draaide voorheen bij ELKE aanroep van ensure()
-     (37x door de app heen, dus ook bij elke render/klik), en deed
-     daarbij telkens een volledige JSON.parse + vergelijking van de
-     hele backup (honderden opdrachten/materialen). Dat veroorzaakte
-     merkbare traagheid en het tijdelijk leeg blijven van velden
-     tijdens het klikken. Nu draait dit nog maar één keer per sessie. */
-  if(window.__dataGuardV72Done) return;
-  window.__dataGuardV72Done = true;
   try{
     var backupRaw = localStorage.getItem('bns_auto_backup_latest_json_v1');
     if(!backupRaw) return;
@@ -9389,6 +9381,7 @@ setTimeout(()=>{
     s.settings.layout = s.settings.layout || 'normal';
   }
   function bindSimpleDateV10(){
+    // Tapwagen v940: terug naar snelle 146-datumknoppen; geen input/change-event cascade bij plus/min.
     ['endPlus3'].forEach(id=>{
       const el=byId(id);
       if(el) el.style.display='none';
@@ -9400,11 +9393,6 @@ setTimeout(()=>{
       b.title = days<0 ? '1 dag terug' : '1 dag vooruit';
       b.onclick = function(){
         i.value = addDays(i.value || isoToday(), days);
-        /* v69-fix: programmatische wijziging vuurde geen input/change-event af,
-           waardoor bnsV311AutoEnd op '1' bleef staan en de datum bij de
-           volgende aanroep van ensureDateDefaults() alsnog werd teruggezet. */
-        try{ i.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){}
-        try{ i.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
         const ds=byId('dateStart'), de=byId('dateEnd');
         if(ds && de){
           if(!ds.value) ds.value=isoToday();
@@ -9426,8 +9414,6 @@ setTimeout(()=>{
         const i=byId(b.dataset.target);
         if(!i) return;
         i.value=addDays(i.value || isoToday(), Number(b.dataset.days||0));
-        try{ i.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){}
-        try{ i.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
         const ds=byId('dateStart'), de=byId('dateEnd');
         if(ds&&de&&de.value<ds.value) de.value=ds.value;
       };
@@ -53008,15 +52994,17 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
 })();
 
 /* =========================================================
-   Tapwagen v939 - mobiele knoppen Nieuwe opdracht / Wijzigen
-   Alleen Tapwagen.nl. Geen Amsterdam/Rental. Geen data/Firebase wijziging.
-   Voegt op mobiel een eigen bedieningsbalk toe op de pagina Nieuwe opdracht.
+   Tapwagen v940 - mobiele knoppen Nieuwe opdracht / Wijzigen
+   Basis blijft Tapwagen 10-7. Geen Amsterdam/Rental. Geen data/Firebase wijziging.
+   Fix: v939 globale click-listener en setInterval verwijderd; geen vertraging op datum/status.
    ========================================================= */
 (function(){
   'use strict';
-  var VERSION='v939';
-  var BAR_ID='tap-v939-mobile-orderbar';
-  var CSS_ID='tap-v939-mobile-orderbar-css';
+  var VERSION='v940';
+  var BAR_ID='tap-v940-mobile-orderbar';
+  var OLD_BAR_ID='tap-v939-mobile-orderbar';
+  var CSS_ID='tap-v940-mobile-orderbar-css';
+  var scheduled=false;
   function E(id){ return document.getElementById(id); }
   function isMobile(){ return (window.innerWidth||document.documentElement.clientWidth||9999) <= 900; }
   function onNewOrder(){
@@ -53040,8 +53028,9 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       }
       if(typeof showPage==='function') showPage('orders');
       else location.hash='#orders';
+      schedule('goOrders');
       setTimeout(goTop,50);
-    }catch(e){ console.warn('[Tapwagen v939] terug/annuleren fout',e); }
+    }catch(e){ console.warn('[Tapwagen v940] terug/annuleren fout',e); }
   }
   function doOverview(){
     try{
@@ -53050,20 +53039,20 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       if(typeof openOverview==='function') { openOverview(); return; }
       var box=E('confirmationBox');
       if(box){ box.classList.remove('hidden'); box.scrollIntoView({behavior:'smooth',block:'start'}); }
-    }catch(e){ console.warn('[Tapwagen v939] overzicht fout',e); }
+    }catch(e){ console.warn('[Tapwagen v940] overzicht fout',e); }
   }
   function doSave(){
     try{
       if(safeClick('saveOrder')) return;
       if(typeof saveCurrentOrder==='function') saveCurrentOrder();
-    }catch(e){ console.warn('[Tapwagen v939] opslaan fout',e); }
+    }catch(e){ console.warn('[Tapwagen v940] opslaan fout',e); }
   }
   function doPrint(){
     try{
       if(safeClick('printConfirm')) return;
       if(safeClick('printOverviewBtn')) return;
       window.print();
-    }catch(e){ console.warn('[Tapwagen v939] afdrukken fout',e); }
+    }catch(e){ console.warn('[Tapwagen v940] afdrukken fout',e); }
   }
   function ensureCss(){
     if(E(CSS_ID)) return;
@@ -53072,9 +53061,9 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     s.textContent='\n'
       +'#'+BAR_ID+'{display:none}\n'
       +'@media (max-width:900px){\n'
-      +' body.tap-v939-neworder{padding-bottom:96px!important;}\n'
+      +' body.tap-v940-neworder{padding-bottom:96px!important;}\n'
       +' #'+BAR_ID+'{position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483000;display:none;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center;background:rgba(15,23,42,.96);border-radius:16px;padding:8px;box-shadow:0 8px 26px rgba(0,0,0,.35);}\n'
-      +' body.tap-v939-neworder #'+BAR_ID+'{display:flex;}\n'
+      +' body.tap-v940-neworder #'+BAR_ID+'{display:flex;}\n'
       +' #'+BAR_ID+' button{border:0;border-radius:12px;padding:10px 12px;color:#fff;font-weight:900;font-size:13px;min-width:86px;box-shadow:inset 0 -2px 0 rgba(0,0,0,.18);}\n'
       +' #'+BAR_ID+' .overview{background:#2563eb;}\n'
       +' #'+BAR_ID+' .save{background:#16a34a;}\n'
@@ -53085,8 +53074,13 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       +'}\n';
     document.head.appendChild(s);
   }
+  function removeOldV939(){
+    try{ var old=E(OLD_BAR_ID); if(old) old.remove(); }catch(e){}
+    try{ document.body.classList.remove('tap-v939-neworder'); }catch(e){}
+  }
   function ensureBar(){
     ensureCss();
+    removeOldV939();
     var bar=E(BAR_ID);
     if(!bar){
       bar=document.createElement('div');
@@ -53106,21 +53100,45 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       bar.querySelector('.back').addEventListener('click', function(){ goOrders(false); });
       bar.querySelector('.top').addEventListener('click', goTop);
     }
-    document.body.classList.toggle('tap-v939-neworder', isMobile() && onNewOrder());
+    document.body.classList.toggle('tap-v940-neworder', isMobile() && onNewOrder());
   }
   function tick(){ try{ ensureBar(); }catch(e){} }
-  document.addEventListener('DOMContentLoaded', tick);
+  function schedule(reason){
+    if(scheduled) return;
+    scheduled=true;
+    var run=function(){ scheduled=false; tick(); };
+    try{ requestAnimationFrame(run); }catch(e){ setTimeout(run,60); }
+  }
+  document.addEventListener('DOMContentLoaded', function(){ schedule('dom'); });
+  window.addEventListener('resize', function(){ schedule('resize'); });
+  window.addEventListener('hashchange', function(){ schedule('hash'); });
+  // Alleen op mobiel en alleen voor navigatieklikken; niet meer bij datum/status/inputvelden.
   document.addEventListener('click', function(ev){
-    /* v72-perf-fix: draaide voorheen bij ELKE klik in de hele app (ook
-       op de datumknoppen), wat onnodige vertraging gaf bij elke klik.
-       Nu alleen nog relevant binnen de pagina "Nieuwe opdracht" zelf. */
-    if(!onNewOrder()) return;
-    setTimeout(tick,40);
+    try{
+      if(!isMobile()) return;
+      var t=ev.target;
+      if(t && t.closest && t.closest('input,select,textarea,.date-step,#dateStart,#dateEnd,#status,#orderStatus')) return;
+      if(t && t.closest && t.closest('button,a,.tab,.nav,.menu')) setTimeout(function(){ schedule('nav-click'); },60);
+    }catch(e){}
   }, true);
-  window.addEventListener('resize', tick);
-  setInterval(function(){ if(onNewOrder()) tick(); },800);
-  window.TapwagenV939MobileOrderButtonsInfo=function(){
-    return {version:VERSION, basis:'Tapwagen v938 documentenbasis', scope:'alleen Tapwagen - mobiele Nieuwe opdracht/Wijzigen knoppen', amsterdam:false, rental:false, firebaseChanged:false, dataChanged:false, active:onNewOrder(), mobile:isMobile()};
+  // Als showPage bestaat, koppel alleen een lichte hercheck na echte paginawissel.
+  try{
+    if(typeof window.showPage==='function' && !window.showPage.__tapV940Wrapped){
+      var _showPage=window.showPage;
+      window.showPage=function(){
+        var r=_showPage.apply(this, arguments);
+        setTimeout(function(){ schedule('showPage'); },60);
+        return r;
+      };
+      window.showPage.__tapV940Wrapped=true;
+    }
+  }catch(e){}
+  setTimeout(function(){ schedule('startup'); },120);
+  window.TapwagenV940MobileOrderButtonsInfo=function(){
+    return {version:VERSION, basis:'Tapwagen 10-7', fix:'v939 globale click-listener en interval verwijderd', scope:'alleen Tapwagen - mobiele Nieuwe opdracht/Wijzigen knoppen', amsterdam:false, rental:false, firebaseChanged:false, dataChanged:false, active:onNewOrder(), mobile:isMobile()};
   };
-  console.log('[Tapwagen v939] mobiele knoppen Nieuwe opdracht/Wijzigen actief');
+  window.TapwagenV940DateFastInfo=function(){
+    return {version:VERSION, basis:'Tapwagen 10-7', fix:'datum plus/min terug naar 146-gedrag zonder input/change event cascade', firebaseChanged:false, dataChanged:false};
+  };
+  console.log('[Tapwagen v940] datumknoppen snel + v939 mobiele balk zonder globale loop');
 })();
