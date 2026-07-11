@@ -8071,6 +8071,14 @@ function ensure(){
    aan (geen Amsterdam/Rental/Firebase-sleutels/paden).
    ========================================================= */
 function dataGuardV72(){
+  /* v72-perf-fix: dit draaide voorheen bij ELKE aanroep van ensure()
+     (37x door de app heen, dus ook bij elke render/klik), en deed
+     daarbij telkens een volledige JSON.parse + vergelijking van de
+     hele backup (honderden opdrachten/materialen). Dat veroorzaakte
+     merkbare traagheid en het tijdelijk leeg blijven van velden
+     tijdens het klikken. Nu draait dit nog maar één keer per sessie. */
+  if(window.__dataGuardV72Done) return;
+  window.__dataGuardV72Done = true;
   try{
     var backupRaw = localStorage.getItem('bns_auto_backup_latest_json_v1');
     if(!backupRaw) return;
