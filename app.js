@@ -9381,7 +9381,6 @@ setTimeout(()=>{
     s.settings.layout = s.settings.layout || 'normal';
   }
   function bindSimpleDateV10(){
-    // Tapwagen v940: terug naar snelle 146-datumknoppen; geen input/change-event cascade bij plus/min.
     ['endPlus3'].forEach(id=>{
       const el=byId(id);
       if(el) el.style.display='none';
@@ -9393,6 +9392,11 @@ setTimeout(()=>{
       b.title = days<0 ? '1 dag terug' : '1 dag vooruit';
       b.onclick = function(){
         i.value = addDays(i.value || isoToday(), days);
+        /* v69-fix: programmatische wijziging vuurde geen input/change-event af,
+           waardoor bnsV311AutoEnd op '1' bleef staan en de datum bij de
+           volgende aanroep van ensureDateDefaults() alsnog werd teruggezet. */
+        try{ i.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){}
+        try{ i.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
         const ds=byId('dateStart'), de=byId('dateEnd');
         if(ds && de){
           if(!ds.value) ds.value=isoToday();
@@ -9414,6 +9418,8 @@ setTimeout(()=>{
         const i=byId(b.dataset.target);
         if(!i) return;
         i.value=addDays(i.value || isoToday(), Number(b.dataset.days||0));
+        try{ i.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){}
+        try{ i.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
         const ds=byId('dateStart'), de=byId('dateEnd');
         if(ds&&de&&de.value<ds.value) de.value=ds.value;
       };
@@ -53193,4 +53199,35 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     return info;
   };
   try{ console.info('[Tapwagen v942] Backup throttle info beschikbaar: TapwagenV942BackupThrottleInfo()'); }catch(e){}
+})();
+
+
+/* =========================================================
+   Tapwagen v943 - einddatum 10-7 herstel + v942 backup throttle blijft
+   Alleen Tapwagen. Geen Amsterdam/Rental. Geen data/Firebase-paden/documenten gewijzigd.
+   Herstelt de 10-7 v69-fix: plus/min op einddatum vuurt weer input/change af,
+   zodat bnsV311AutoEnd niet op auto blijft staan en de einddatum niet terugvalt.
+========================================================= */
+(function(){
+  'use strict';
+  window.TapwagenV943EndDateInfo = function(){
+    var ds=document.getElementById('dateStart');
+    var de=document.getElementById('dateEnd');
+    var info={
+      version:'v943-enddate-10-7-restore',
+      basis:'v942 met 10-7 einddatumgedrag hersteld',
+      fix:'bindSimpleDateV10 terug naar 10-7 v69-fix met input/change events bij plus/min',
+      backupThrottle:'v942 blijft aanwezig',
+      amsterdam:false,
+      rental:false,
+      firebasePathsChanged:false,
+      dataChanged:false,
+      dateStart: ds?ds.value:null,
+      dateEnd: de?de.value:null,
+      autoEndFlag: de?de.dataset.bnsV311AutoEnd:null
+    };
+    try{ console.table(info); console.log('[Tapwagen v943 EndDate]', info); }catch(e){}
+    return info;
+  };
+  try{ console.info('[Tapwagen v943] einddatum 10-7 herstel actief; v942 backup throttle blijft.'); }catch(e){}
 })();
