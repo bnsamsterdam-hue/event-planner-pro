@@ -53110,9 +53110,15 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   }
   function tick(){ try{ ensureBar(); }catch(e){} }
   document.addEventListener('DOMContentLoaded', tick);
-  document.addEventListener('click', function(){ setTimeout(tick,40); }, true);
+  document.addEventListener('click', function(ev){
+    /* v72-perf-fix: draaide voorheen bij ELKE klik in de hele app (ook
+       op de datumknoppen), wat onnodige vertraging gaf bij elke klik.
+       Nu alleen nog relevant binnen de pagina "Nieuwe opdracht" zelf. */
+    if(!onNewOrder()) return;
+    setTimeout(tick,40);
+  }, true);
   window.addEventListener('resize', tick);
-  setInterval(tick,800);
+  setInterval(function(){ if(onNewOrder()) tick(); },800);
   window.TapwagenV939MobileOrderButtonsInfo=function(){
     return {version:VERSION, basis:'Tapwagen v938 documentenbasis', scope:'alleen Tapwagen - mobiele Nieuwe opdracht/Wijzigen knoppen', amsterdam:false, rental:false, firebaseChanged:false, dataChanged:false, active:onNewOrder(), mobile:isMobile()};
   };
