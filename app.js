@@ -9392,21 +9392,25 @@ setTimeout(()=>{
       b.title = days<0 ? '1 dag terug' : '1 dag vooruit';
       b.onclick = function(){
         i.value = addDays(i.value || isoToday(), days);
-        /* v69-fix: programmatische wijziging vuurde geen input/change-event af,
-           waardoor bnsV311AutoEnd op '1' bleef staan en de datum bij de
-           volgende aanroep van ensureDateDefaults() alsnog werd teruggezet. */
-        try{ i.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){}
-        try{ i.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
+        /* Tapwagen v945: einddatumlogica van 10-7 blijft behouden, maar zonder
+           de zware globale input/change-eventketen die datum en status vertraagde. */
         const ds=byId('dateStart'), de=byId('dateEnd');
         if(ds && de){
           if(!ds.value) ds.value=isoToday();
-          if(!de.value) de.value=ds.value;
-          if(de.value < ds.value) de.value = ds.value;
+          if(inputId==='dateStart'){
+            if(!window.__bnsEditingOrder){
+              de.value=addDays(ds.value,3);
+              de.dataset.bnsV311AutoEnd='1';
+            } else if(!de.value || de.value < ds.value){
+              de.value=ds.value;
+            }
+          } else if(inputId==='dateEnd'){
+            de.dataset.bnsV311AutoEnd='0';
+            if(!de.value) de.value=ds.value;
+            if(de.value < ds.value) de.value=ds.value;
+          }
         }
-        try{
-          if(typeof summaryRender==='function') summaryRender();
-        } catch(e){
-        }
+        try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
       };
     }
     bindOne('startMinus','dateStart',-1);
@@ -9415,13 +9419,26 @@ setTimeout(()=>{
     bindOne('endPlus','dateEnd',1);
     document.querySelectorAll('.date-step[data-target]').forEach(b=>{
       b.onclick=function(){
-        const i=byId(b.dataset.target);
+        const target=String(b.dataset.target||'');
+        const i=byId(target);
         if(!i) return;
         i.value=addDays(i.value || isoToday(), Number(b.dataset.days||0));
-        try{ i.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){}
-        try{ i.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
         const ds=byId('dateStart'), de=byId('dateEnd');
-        if(ds&&de&&de.value<ds.value) de.value=ds.value;
+        if(ds&&de){
+          if(target==='dateStart'){
+            if(!window.__bnsEditingOrder){
+              de.value=addDays(ds.value||isoToday(),3);
+              de.dataset.bnsV311AutoEnd='1';
+            } else if(!de.value || de.value<ds.value){
+              de.value=ds.value;
+            }
+          } else if(target==='dateEnd'){
+            de.dataset.bnsV311AutoEnd='0';
+            if(!de.value) de.value=ds.value;
+            if(de.value<ds.value) de.value=ds.value;
+          }
+        }
+        try{ if(typeof summaryRender==='function') summaryRender(); }catch(e){}
       };
     });
   }
@@ -53178,56 +53195,35 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   console.log('[Tapwagen v940] datumknoppen snel + v939 mobiele balk zonder globale loop');
 })();
 
-
 /* =========================================================
-   Tapwagen v942 - Firestore backup throttle only
-   Alleen BNS767 dagbackup rustiger gemaakt. Geen datum/status/document/Firebase-pad wijziging.
+   Tapwagen v945 - exact 10-7 basis, gericht gecombineerd
+   - snelle datum/status zonder zware eventcascade
+   - einddatumgedrag 10-7 direct behouden
+   - BNS767 dagbackup rustig na 60 seconden
+   - mobiele opslaanbalk zonder globale interval/clickloop
+   Alleen Tapwagen.
 ========================================================= */
 (function(){
   'use strict';
-  window.TapwagenV942BackupThrottleInfo = function(){
-    var day = new Date().toISOString().slice(0,10);
-    var info = {
-      version: 'v942-firestore-backup-throttle-only',
-      scope: 'Tapwagen only',
-      backupDayDone: (function(){try{return localStorage.getItem('bns767_backup_day');}catch(e){return null;}})(),
-      backupAttemptDay: (function(){try{return localStorage.getItem('bns767_backup_attempt_day_v942');}catch(e){return null;}})(),
-      today: day,
-      notes: 'BNS767 backup start na 60 seconden en schrijft gespreid. Actuele Firebase-data blijft leidend.'
-    };
-    try{ console.table(info); console.log('[Tapwagen v942 BackupThrottle]', info); }catch(e){}
-    return info;
-  };
-  try{ console.info('[Tapwagen v942] Backup throttle info beschikbaar: TapwagenV942BackupThrottleInfo()'); }catch(e){}
-})();
-
-
-/* =========================================================
-   Tapwagen v943 - einddatum 10-7 herstel + v942 backup throttle blijft
-   Alleen Tapwagen. Geen Amsterdam/Rental. Geen data/Firebase-paden/documenten gewijzigd.
-   Herstelt de 10-7 v69-fix: plus/min op einddatum vuurt weer input/change af,
-   zodat bnsV311AutoEnd niet op auto blijft staan en de einddatum niet terugvalt.
-========================================================= */
-(function(){
-  'use strict';
-  window.TapwagenV943EndDateInfo = function(){
-    var ds=document.getElementById('dateStart');
-    var de=document.getElementById('dateEnd');
+  window.TapwagenV945Info=function(){
+    var today=new Date().toISOString().slice(0,10);
     var info={
-      version:'v943-enddate-10-7-restore',
-      basis:'v942 met 10-7 einddatumgedrag hersteld',
-      fix:'bindSimpleDateV10 terug naar 10-7 v69-fix met input/change events bij plus/min',
-      backupThrottle:'v942 blijft aanwezig',
+      version:'v945',
+      basis:'exact Tapwagen 10-7',
+      dateStatus:'snel; geen synthetische input/change-cascade bij plus/min',
+      endDate:'10-7 auto-einddatum en handmatige einddatum direct bewaakt',
+      mobileBar:'Overzicht, Opslaan, Annuleren, Afdrukken, Terug, Omhoog; geen setInterval',
+      backup:'BNS767 start na 60 seconden; een automatische poging per dag; writes gespreid',
+      backupDayDone:(function(){try{return localStorage.getItem('bns767_backup_day');}catch(e){return null;}})(),
+      backupAttemptDay:(function(){try{return localStorage.getItem('bns767_backup_attempt_day_v942');}catch(e){return null;}})(),
+      today:today,
       amsterdam:false,
       rental:false,
       firebasePathsChanged:false,
-      dataChanged:false,
-      dateStart: ds?ds.value:null,
-      dateEnd: de?de.value:null,
-      autoEndFlag: de?de.dataset.bnsV311AutoEnd:null
+      businessDataChanged:false
     };
-    try{ console.table(info); console.log('[Tapwagen v943 EndDate]', info); }catch(e){}
+    try{console.table(info);console.log('[Tapwagen v945]',info);}catch(e){}
     return info;
   };
-  try{ console.info('[Tapwagen v943] einddatum 10-7 herstel actief; v942 backup throttle blijft.'); }catch(e){}
+  try{console.info('[Tapwagen v945] actief: 10-7 basis + snelle datum/status + einddatumbehoud + rustige backup + mobiele opslaanbalk.');}catch(e){}
 })();
