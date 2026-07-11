@@ -52353,7 +52353,10 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   var DAY_MS = 86400000;
   var CHUNK  = 400000;
   var BK_KEY = 'bns767_backup_day';
-  var VER    = 'bns767';
+  var BK_ATTEMPT_KEY = 'bns767_backup_attempt_day_v942';
+  var VER    = 'bns767-v942-throttled';
+  var __bns767BackupBusy = false;
+  function bkSleep(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
 
   function bkLog(m){ try{ console.log('[BNS767 backup]', m); }catch(e){} }
 
@@ -52387,58 +52390,84 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     var json = JSON.stringify(payload);
     var cs = bkChunks(json);
     var now = new Date().toISOString();
+
+    // V942: backup-writes rustig spreiden. Actuele opdracht/klant/materiaal-sync blijft ongemoeid.
     await t.fs.setDoc(t.fs.doc(t.db,'backups',docId),
-      {type:payload.type||'backup', date:payload.date, updatedAt:now, chunkCount:cs.length, size:json.length, version:VER},
+      {type:payload.type||'backup', date:payload.date, updatedAt:now, chunkCount:cs.length, size:json.length, version:VER, throttle:'v942'},
       {merge:false});
+    await bkSleep(2500);
+
     for(var i=0; i<cs.length; i++){
       await t.fs.setDoc(
         t.fs.doc(t.db,'backups',docId,'chunks',String(i).padStart(4,'0')),
         {index:i, data:cs[i], updatedAt:now},
         {merge:false});
+      await bkSleep(2500);
     }
   }
 
   async function runBackup(force){
     var day = new Date().toISOString().slice(0,10);
     if(!force && localStorage.getItem(BK_KEY) === day) return;
+    if(__bns767BackupBusy){ bkLog('Backup overgeslagen: backup loopt al'); return; }
+    if(!force && localStorage.getItem(BK_ATTEMPT_KEY) === day){
+      bkLog('Backup vandaag al geprobeerd; geen herhaal-loop. Gebruik BNS.runBackup767() voor handmatig opnieuw.');
+      return;
+    }
     var t = await bkGetFb(); if(!t){ bkLog('Firebase niet beschikbaar'); return; }
+    __bns767BackupBusy = true;
     try{
+      if(!force) localStorage.setItem(BK_ATTEMPT_KEY, day);
+      bkLog('Backup gepland/rustig gestart: ' + day + ' (v942, writes gespreid)');
+      await bkSleep(1000);
+
       var orders    = await bkReadCol('orders');
+      await bkSleep(1500);
       var materials = await bkReadCol('materials');
+      await bkSleep(1500);
       var customers = await bkReadCol('customers');
+      await bkSleep(1500);
       var locations = await bkReadCol('locations');
+      await bkSleep(1500);
       var alerts    = await bkReadCol('alerts');
+      await bkSleep(1500);
       var settings  = {};
       try{
         var ss = await t.fs.getDoc(t.fs.doc(t.db,'settings','main'));
         if(ss.exists()) settings = ss.data();
       }catch(e){}
+      await bkSleep(1500);
 
       var slot    = bkSlot(day);
       var matSlot = 'materials_' + slot;
 
       var matPay = {type:'materials-backup', date:day, createdAt:new Date().toISOString(), materials:materials};
       await bkWrite('materials_latest', matPay);
+      await bkSleep(5000);
       await bkWrite(matSlot, matPay);
+      await bkSleep(5000);
 
       var fullPay = {type:'daily-backup', date:day, createdAt:new Date().toISOString(),
         state:{orders:orders, materials:materials, customers:customers,
                locations:locations, alerts:alerts, settings:settings}};
       await bkWrite('daily_latest', fullPay);
+      await bkSleep(5000);
       await bkWrite(slot, fullPay);
 
       localStorage.setItem(BK_KEY, day);
-      bkLog('Backup klaar: ' + slot + ', orders: ' + orders.length + ', materialen: ' + materials.length);
+      bkLog('Backup klaar: ' + slot + ', orders: ' + orders.length + ', materialen: ' + materials.length + ' (v942 rustig)');
     }catch(e){ bkLog('Backup fout: ' + e); }
+    finally{ __bns767BackupBusy = false; }
   }
 
   window.BNS = window.BNS || {};
   window.BNS.runBackup767 = function(){ return runBackup(true); };
 
-  setTimeout(function(){ runBackup(false); }, 6000);
+  setTimeout(function(){ runBackup(false); }, 60000);
   setInterval(function(){ runBackup(false); }, 30*60*1000);
 
   console.info('[BNS 767] Definitieve fix actief: state-sync, nummerbescherming, 14-dagen backup.');
+  console.info('[Tapwagen v942] BNS767 backup throttle actief: start na 60s, schrijft rustig gespreid, geen herhaal-loop.');
 })();
 
 
@@ -53144,130 +53173,24 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
 })();
 
 
-/* ===== Tapwagen v941 DIAGNOSE ONLY - Firebase write/network logging =====
-   Basis: Tapwagen v940 10-7 basis date/v939 fix. Alleen meten, niets wijzigen.
-   Geen Amsterdam, geen Rental. Geen data writes blokkeren of aanpassen.
-*/
+/* =========================================================
+   Tapwagen v942 - Firestore backup throttle only
+   Alleen BNS767 dagbackup rustiger gemaakt. Geen datum/status/document/Firebase-pad wijziging.
+========================================================= */
 (function(){
-  if(window.__TAPWAGEN_V941_DIAG__) return;
-  window.__TAPWAGEN_V941_DIAG__ = true;
-  var START = Date.now();
-  var stats = window.__TAPWAGEN_V941_STATS__ = {
-    version: 'v941-diagnose-only',
-    startedAt: new Date().toISOString(),
-    fsCalls: [],
-    network: [],
-    counters: {},
-    lastMinute: {}
-  };
-  function now(){ return ((Date.now()-START)/1000).toFixed(1)+'s'; }
-  function shortStack(){
-    try{
-      var st = (new Error()).stack || '';
-      return st.split('\n').slice(3,9).map(function(x){return x.trim();}).join(' | ');
-    }catch(e){ return ''; }
-  }
-  function inc(k){ stats.counters[k]=(stats.counters[k]||0)+1; return stats.counters[k]; }
-  function addMinute(k){
-    var m = Math.floor(Date.now()/60000);
-    var key = k+'@'+m;
-    stats.lastMinute[key]=(stats.lastMinute[key]||0)+1;
-    return stats.lastMinute[key];
-  }
-  function log(kind, detail, extra){
-    var entry = Object.assign({t:now(), kind:kind, detail:detail||''}, extra||{});
-    if(kind.indexOf('fs.')===0){ stats.fsCalls.push(entry); if(stats.fsCalls.length>200) stats.fsCalls.shift(); }
-    else { stats.network.push(entry); if(stats.network.length>200) stats.network.shift(); }
-    var perMin = addMinute(kind);
-    if(perMin===1 || perMin===5 || perMin===10 || perMin%25===0){
-      console.warn('[Tapwagen v941 DIAG]', kind, '#'+inc(kind), 'per minuut:'+perMin, detail||'', extra||'');
-    } else {
-      console.info('[Tapwagen v941 DIAG]', kind, detail||'', extra||'');
-    }
-  }
-
-  function patchBnsFs(){
-    try{
-      if(!window.BNS || !window.BNS.fs || window.BNS.fs.__tapV941Patched) return false;
-      var fs = window.BNS.fs;
-      ['setDoc','updateDoc','addDoc','deleteDoc'].forEach(function(name){
-        if(typeof fs[name] !== 'function' || fs[name].__tapV941Wrapped) return;
-        var orig = fs[name];
-        var wrapped = function(){
-          var ref = arguments[0];
-          var path = '';
-          try{ path = (ref && (ref.path || ref._key?.path?.canonicalString?.() || ref._path?.segments?.join('/'))) || ''; }catch(e){}
-          log('fs.'+name, path, {stack: shortStack()});
-          return orig.apply(this, arguments);
-        };
-        wrapped.__tapV941Wrapped = true;
-        fs[name] = wrapped;
-      });
-      fs.__tapV941Patched = true;
-      console.warn('[Tapwagen v941 DIAG] BNS Firestore functies gemeten: setDoc/updateDoc/addDoc/deleteDoc');
-      return true;
-    }catch(e){ console.warn('[Tapwagen v941 DIAG] patchBnsFs fout', e); return false; }
-  }
-
-  // Meet Firestore netwerkkanalen zonder iets te blokkeren.
-  try{
-    if(window.XMLHttpRequest && !window.XMLHttpRequest.__tapV941Patched){
-      var XHR = window.XMLHttpRequest;
-      var origOpen = XHR.prototype.open;
-      XHR.prototype.open = function(method, url){
-        try{
-          var u = String(url||'');
-          if(u.indexOf('firestore.googleapis.com')>=0){
-            var type = u.indexOf('/Write/')>=0 ? 'net.Write' : (u.indexOf('/Listen/')>=0 ? 'net.Listen' : 'net.Firestore');
-            log(type, method+' '+u.slice(0,120));
-          }
-        }catch(e){}
-        return origOpen.apply(this, arguments);
-      };
-      window.XMLHttpRequest.__tapV941Patched = true;
-      console.warn('[Tapwagen v941 DIAG] XHR Firestore netwerkmeting actief');
-    }
-  }catch(e){ console.warn('[Tapwagen v941 DIAG] XHR patch fout', e); }
-
-  try{
-    if(window.fetch && !window.fetch.__tapV941Patched){
-      var origFetch = window.fetch;
-      var wrappedFetch = function(input, init){
-        try{
-          var u = String(typeof input==='string' ? input : (input && input.url) || '');
-          if(u.indexOf('firestore.googleapis.com')>=0){
-            var type = u.indexOf('/Write/')>=0 ? 'fetch.Write' : (u.indexOf('/Listen/')>=0 ? 'fetch.Listen' : 'fetch.Firestore');
-            log(type, u.slice(0,120));
-          }
-        }catch(e){}
-        return origFetch.apply(this, arguments);
-      };
-      wrappedFetch.__tapV941Patched = true;
-      window.fetch = wrappedFetch;
-      console.warn('[Tapwagen v941 DIAG] fetch Firestore netwerkmeting actief');
-    }
-  }catch(e){ console.warn('[Tapwagen v941 DIAG] fetch patch fout', e); }
-
-  var tries=0;
-  var timer=setInterval(function(){
-    tries++;
-    if(patchBnsFs() || tries>60) clearInterval(timer);
-  },500);
-  setTimeout(patchBnsFs,50);
-  setTimeout(patchBnsFs,1500);
-  setTimeout(patchBnsFs,5000);
-
-  window.TapwagenV941DiagInfo = function(){
-    var summary = {
-      version: stats.version,
-      startedAt: stats.startedAt,
-      counters: stats.counters,
-      lastFsCalls: stats.fsCalls.slice(-20),
-      lastNetwork: stats.network.slice(-20)
+  'use strict';
+  window.TapwagenV942BackupThrottleInfo = function(){
+    var day = new Date().toISOString().slice(0,10);
+    var info = {
+      version: 'v942-firestore-backup-throttle-only',
+      scope: 'Tapwagen only',
+      backupDayDone: (function(){try{return localStorage.getItem('bns767_backup_day');}catch(e){return null;}})(),
+      backupAttemptDay: (function(){try{return localStorage.getItem('bns767_backup_attempt_day_v942');}catch(e){return null;}})(),
+      today: day,
+      notes: 'BNS767 backup start na 60 seconden en schrijft gespreid. Actuele Firebase-data blijft leidend.'
     };
-    console.table(stats.counters);
-    console.log('[Tapwagen v941 DIAG summary]', summary);
-    return summary;
+    try{ console.table(info); console.log('[Tapwagen v942 BackupThrottle]', info); }catch(e){}
+    return info;
   };
-  console.warn('[Tapwagen v941 DIAG] actief - diagnose only, geen datawijziging. Gebruik TapwagenV941DiagInfo()');
+  try{ console.info('[Tapwagen v942] Backup throttle info beschikbaar: TapwagenV942BackupThrottleInfo()'); }catch(e){}
 })();
