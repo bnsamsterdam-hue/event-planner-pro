@@ -39630,10 +39630,28 @@ setTimeout(()=>{
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
       '<label>Accentkleur<input id="v361_accent" type="color" value="#2563eb"></label>'+
       '<label>Layout<select id="v361_layout"><option value="classic">Klassiek</option><option value="modern">Modern</option><option value="compact">Compact</option><option value="letterhead">Briefpapier</option></select></label>'+
-      '<label>Normale tekst<select id="v361_bodyFontSize"><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option></select></label>'+
-      '<label>Kopteksten<select id="v361_headingFontSize"><option value="16">16 px</option><option value="18">18 px</option><option value="20">20 px</option><option value="22">22 px</option><option value="24">24 px</option></select></label>'+
-      '<label>Tabeltekst<select id="v361_tableFontSize"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px</option><option value="14">14 px</option><option value="15">15 px</option></select></label>'+
-      '<label>Totaalbedrag<select id="v361_totalFontSize"><option value="12">12 px</option><option value="13">13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="18">18 px</option></select></label>'+
+    '</div>'+
+    '<div style="margin-top:12px;border:1px solid #dbe3ef;border-radius:14px;padding:12px;background:#f8fafc">'+
+      '<label style="display:block;font-weight:900;margin-bottom:7px">Documentstijl'+
+        '<select id="v361_fontPreset" style="width:100%;margin-top:6px">'+
+          '<option value="compact">Compact</option>'+
+          '<option value="normal">Normaal (aanbevolen)</option>'+
+          '<option value="large">Groot</option>'+
+          '<option value="xlarge">Extra groot</option>'+
+          '<option value="custom">Aangepast</option>'+
+        '</select>'+
+      '</label>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+
+        '<button id="v361_toggleAdvancedFonts" type="button" class="grey" style="padding:8px 12px">⚙️ Geavanceerd</button>'+
+        '<button id="v361_resetFonts" type="button" class="grey" style="padding:8px 12px">Standaard herstellen</button>'+
+      '</div>'+
+      '<div id="v361_fontAdvanced" style="display:none;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
+        '<label>Normale tekst<select id="v361_bodyFontSize"><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option></select></label>'+
+        '<label>Kopteksten<select id="v361_headingFontSize"><option value="16">16 px</option><option value="18">18 px</option><option value="20">20 px</option><option value="22">22 px</option><option value="24">24 px</option></select></label>'+
+        '<label>Tabeltekst<select id="v361_tableFontSize"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px</option><option value="14">14 px</option><option value="15">15 px</option></select></label>'+
+        '<label>Totaalbedrag<select id="v361_totalFontSize"><option value="12">12 px</option><option value="13">13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="18">18 px</option><option value="20">20 px</option></select></label>'+
+      '</div>'+
+    '</div>'+
     '</div>'+
     '<h4 style="margin:16px 0 8px;color:#2563eb">Logo</h4>'+
     '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'+
@@ -39664,6 +39682,41 @@ setTimeout(()=>{
     '<div style="margin-top:18px"><button id="v361_save" type="button" style="background:#16a34a;color:#fff;border:0;border-radius:12px;padding:12px 28px;font-weight:900;font-size:15px;cursor:pointer">💾 Opslaan</button></div>';
   }
 
+  var FONT_PRESETS = {
+    compact:{bodyFontSize:'12',tableFontSize:'11',headingFontSize:'18',totalFontSize:'14'},
+    normal:{bodyFontSize:'13',tableFontSize:'12',headingFontSize:'20',totalFontSize:'16'},
+    large:{bodyFontSize:'14',tableFontSize:'13',headingFontSize:'22',totalFontSize:'18'},
+    xlarge:{bodyFontSize:'16',tableFontSize:'15',headingFontSize:'24',totalFontSize:'20'}
+  };
+  function setAdvancedFontsVisible(show){
+    var box=E('v361_fontAdvanced');
+    if(box) box.style.display=show?'grid':'none';
+    var btn=E('v361_toggleAdvancedFonts');
+    if(btn) btn.textContent=show?'⚙️ Geavanceerd verbergen':'⚙️ Geavanceerd';
+  }
+  function applyFontPreset(name){
+    var p=FONT_PRESETS[name]; if(!p) return;
+    var ids={bodyFontSize:'v361_bodyFontSize',tableFontSize:'v361_tableFontSize',headingFontSize:'v361_headingFontSize',totalFontSize:'v361_totalFontSize'};
+    Object.keys(p).forEach(function(key){ var el=E(ids[key]); if(el) el.value=p[key]; });
+    var sel=E('v361_fontPreset'); if(sel) sel.value=name;
+    setAdvancedFontsVisible(false);
+  }
+  function detectFontPreset(){
+    var ids={bodyFontSize:'v361_bodyFontSize',tableFontSize:'v361_tableFontSize',headingFontSize:'v361_headingFontSize',totalFontSize:'v361_totalFontSize'};
+    var names=Object.keys(FONT_PRESETS);
+    for(var i=0;i<names.length;i++){
+      var p=FONT_PRESETS[names[i]], ok=true;
+      Object.keys(p).forEach(function(k){ var el=E(ids[k]); if(!el || String(el.value)!==String(p[k])) ok=false; });
+      if(ok) return names[i];
+    }
+    return 'custom';
+  }
+  function syncFontPresetControl(){
+    var name=detectFontPreset();
+    var sel=E('v361_fontPreset'); if(sel) sel.value=name;
+    if(name==='custom') setAdvancedFontsVisible(true);
+  }
+
   function loadFields() {
     var d = inv();
     var map = {v361_companyName:'companyName',v361_phone:'phone',v361_email:'email',v361_website:'website',v361_address:'address',v361_kvk:'kvk',v361_btw:'btw',v361_iban:'iban',v361_accent:'accent',v361_layout:'layout',v361_bodyFontSize:'bodyFontSize',v361_headingFontSize:'headingFontSize',v361_tableFontSize:'tableFontSize',v361_totalFontSize:'totalFontSize',v361_textOffer:'textOffer',v361_textConfirm:'textConfirm',v361_textInvoice:'textInvoice',v361_footer:'footer'};
@@ -39671,8 +39724,9 @@ setTimeout(()=>{
     if(E('v361_accent')&&!d.accent) E('v361_accent').value='#2563eb';
     if(E('v361_bodyFontSize')&&!d.bodyFontSize) E('v361_bodyFontSize').value='13';
     if(E('v361_headingFontSize')&&!d.headingFontSize) E('v361_headingFontSize').value='20';
-    if(E('v361_tableFontSize')&&!d.tableFontSize) E('v361_tableFontSize').value='13';
-    if(E('v361_totalFontSize')&&!d.totalFontSize) E('v361_totalFontSize').value='13';
+    if(E('v361_tableFontSize')&&!d.tableFontSize) E('v361_tableFontSize').value='12';
+    if(E('v361_totalFontSize')&&!d.totalFontSize) E('v361_totalFontSize').value='16';
+    syncFontPresetControl();
     var lp=E('v361_logoPreview'); if(lp){lp.src=d.logo||'';lp.style.display=d.logo?'block':'none';}
     var fp=E('v361_bpFactuurPreview'); if(fp){fp.src=d.letterheadFactuur||'';fp.style.display=d.letterheadFactuur?'block':'none';}
     var op=E('v361_bpOpdrachtPreview'); if(op){op.src=d.letterheadOpdracht||'';op.style.display=d.letterheadOpdracht?'block':'none';}
@@ -39683,9 +39737,22 @@ setTimeout(()=>{
     var map = {companyName:'v361_companyName',phone:'v361_phone',email:'v361_email',website:'v361_website',address:'v361_address',kvk:'v361_kvk',btw:'v361_btw',iban:'v361_iban',accent:'v361_accent',layout:'v361_layout',bodyFontSize:'v361_bodyFontSize',headingFontSize:'v361_headingFontSize',tableFontSize:'v361_tableFontSize',totalFontSize:'v361_totalFontSize',textOffer:'v361_textOffer',textConfirm:'v361_textConfirm',textInvoice:'v361_textInvoice',footer:'v361_footer'};
     Object.keys(map).forEach(function(key){ var el=E(map[key]); if(el) d[key]=el.value; });
     // Extra keys voor compat
+    d.documentFontPreset=detectFontPreset();
     d.intro=d.textOffer; d.footerText=d.footer; d.companyName=d.companyName||'';
     saveInv(d);
     msg('Huisstijl opgeslagen ✓');
+  }
+
+  function bindFontPresetControls(){
+    var sel=E('v361_fontPreset');
+    if(sel&&!sel.__v947){ sel.__v947=true; sel.onchange=function(){ if(this.value==='custom') setAdvancedFontsVisible(true); else applyFontPreset(this.value); }; }
+    var tog=E('v361_toggleAdvancedFonts');
+    if(tog&&!tog.__v947){ tog.__v947=true; tog.onclick=function(){ var box=E('v361_fontAdvanced'); setAdvancedFontsVisible(!(box&&box.style.display==='grid')); }; }
+    var rst=E('v361_resetFonts');
+    if(rst&&!rst.__v947){ rst.__v947=true; rst.onclick=function(){ applyFontPreset('normal'); msg('Documentstijl teruggezet naar Normaal'); }; }
+    ['v361_bodyFontSize','v361_headingFontSize','v361_tableFontSize','v361_totalFontSize'].forEach(function(id){
+      var el=E(id); if(el&&!el.__v947){ el.__v947=true; el.addEventListener('change',function(){ var p=E('v361_fontPreset'); if(p) p.value=detectFontPreset(); }); }
+    });
   }
 
   function bindFields() {
@@ -39704,6 +39771,7 @@ setTimeout(()=>{
     if(bo&&!bo.__v361) { bo.__v361=true; bo.onchange=function(e){ var f=e.target.files&&e.target.files[0]; if(!f)return; toBase64(f,function(data){ var d=inv(); d.letterheadOpdracht=data; saveInv(d); var p=E('v361_bpOpdrachtPreview'); if(p){p.src=data;p.style.display='block';} msg('Briefpapier opgeslagen ✓'); }); }; }
     var bor=E('v361_bpOpdrachtRemove');
     if(bor&&!bor.__v361) { bor.__v361=true; bor.onclick=function(){ var d=inv(); d.letterheadOpdracht=''; saveInv(d); var p=E('v361_bpOpdrachtPreview'); if(p){p.src='';p.style.display='none';} msg('Briefpapier verwijderd'); }; }
+    bindFontPresetControls();
     // Opslaan
     var sv=E('v361_save');
     if(sv&&!sv.__v361) { sv.__v361=true; sv.onclick=saveFields; }
@@ -53239,6 +53307,6 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
 })();
 
 
-// Tapwagen v946 - document lettergrootte instellingen bovenop v945
-window.TapwagenV946Info=function(){return {basis:'Tapwagen v945',feature:'Document lettergroottes in Admin > Huisstijl & Documenten',storage:'bns_huisstijl_v361',documents:['factuur','opdrachtbevestiging','offerte']};};
-console.info('[Tapwagen v946] Document lettergrootte instellingen actief bovenop v945.');
+// Tapwagen v947 - gebruiksvriendelijke documentstijl bovenop v946/v945
+window.TapwagenV947Info=function(){return {basis:'Tapwagen v945 + v946 documentfonts',feature:'Documentstijl presets Compact/Normaal/Groot/Extra groot + Geavanceerd',storage:'bns_huisstijl_v361',defaultPreset:'Normaal',documents:['factuur','opdrachtbevestiging','offerte'],amsterdam:false,rental:false};};
+console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
