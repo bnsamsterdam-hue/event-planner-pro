@@ -34596,6 +34596,10 @@ setTimeout(()=>{
       end: val('dateEnd') || saved.end || '',
       brand: val('orderBrand') || saved.brand || '',
       extra: val('orderExtra') || saved.extra || saved.notes || '',
+      transportLines: (function(){
+        try{ if(Array.isArray(window.__bns521TransportLines) && window.__bns521TransportLines.length) return JSON.parse(JSON.stringify(window.__bns521TransportLines)); }catch(e){}
+        return (saved.transportLines || []);
+      })(),
       customer: objCustomer(saved),
       location: objLocation(saved),
       invoice: saved.invoice || {
@@ -34682,7 +34686,9 @@ setTimeout(()=>{
     '<div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+esc(o.customer.name)+'</b><br>'+esc(o.customer.street)+'<br>'+esc([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+esc(o.customer.phone)+'<br>'+esc(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+esc(o.location.name)+'</b><br>'+esc(o.location.street)+'<br>'+esc([o.location.zip,o.location.city].filter(Boolean).join(' '))+'<br>'+esc(o.location.contact)+'<br>'+esc(o.location.phone)+'</section></div>'+
     '<section class="card"><div class="label">Opdracht</div><b>'+esc(o.title)+'</b><br>Status: '+esc(o.status)+'<br>Datum: '+esc(o.start)+(o.end && o.end !== o.start ? ' t/m '+esc(o.end) : '')+'<br>Merk: '+esc(o.brand)+'</section>'+
     '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRows()+'</tbody></table></section>'+
-    '<section class="card"><div class="label">Bijzonderheden</div><div class="free">'+esc(o.extra || '')+'</div></section>'+
+    '<section class="card"><div class="label">Bijzonderheden</div><div class="free">'+esc(o.extra || '')+'</div>'+
+    (function(){ var lines=(o.transportLines||[]); if(!lines.length) return ''; return '<table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Bedrag</th></tr></thead><tbody>'+lines.map(function(l){ var qty=Number(l.qty||1), price=Number(l.price||0); return '<tr><td>'+esc(qty)+'</td><td>'+esc(l.name+(l.note?' - '+l.note:''))+'</td><td>'+esc((qty*price).toFixed(2).replace('.',','))+'</td></tr>'; }).join('')+'</tbody></table>'; })()+
+    '</section>'+
     '<section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+esc(t.vatP || 21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section>'+
     (inv.footer ? '<section class="footer free">'+esc(inv.footer)+'</section>' : '')+
     '<div class="powered">Powered by Tapwagen.nl</div></main></body></html>';
