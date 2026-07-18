@@ -51316,9 +51316,17 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   },true);
 
   document.addEventListener('input',function(ev){ if(ev.target && ev.target.closest && ev.target.closest('#bns521TransportBox')) setTimeout(storeCurrentLines,80); },true);
+  /* v72-fix: deze doorlopende timer (elke 1,8 seconde) probeerde continu de
+     itemized Bijzonderheden-regels te herladen vanuit de opgeslagen opdracht.
+     Bij een NIEUWE opdracht bestond er niets opgeslagens, dus deed dit niets -
+     bij het WIJZIGEN van een bestaande opdracht bestond er wel opgeslagen data,
+     waardoor dit een net-toegevoegde, nog-niet-opgeslagen regel kon overschrijven.
+     Dat verklaarde precies "nieuw werkt wel, wijzigen niet, terwijl het dezelfde
+     pagina is". Het eenmalig laden bij het openen van "Wijzigen" (elders in de
+     code) blijft gewoon intact en is voldoende.
   setInterval(function(){
     if(E('bns521TransportBox')) loadTransportForCurrent(false);
-  },1800);
+  },1800); */
   setTimeout(function(){ backupExistingOrders(); loadTransportForCurrent(false); },800);
 
   /* ---------- Overzicht bestelling duidelijker + documentkeuze ---------- */
