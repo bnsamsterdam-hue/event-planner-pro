@@ -27362,14 +27362,21 @@ setTimeout(()=>{
       };
     }
     b=E('bnsOpenInvoiceV73');
-    if(b&&!b.dataset.v73){
+    if(b&&!b.dataset.v73&&!b.dataset.twV182){
+      /* v72-fix: zelfde probleem als bij bnsOpenConfirmV73 - andere
+         beveiligingsvlag dan de latere, gefixte versie. */
       b.dataset.v73='1';
       b.onclick=function(){
         openDoc('Factuur');
       };
     }
     b=E('bnsOpenConfirmV73');
-    if(b&&!b.dataset.v73){
+    if(b&&!b.dataset.v73&&!b.dataset.twV182){
+      /* v72-fix: deze oudere binding gebruikte een andere beveiligingsvlag
+         (dataset.v73) dan de latere, gefixte versie (dataset.twV182),
+         waardoor ze elkaar niet blokkeerden en om de beurt konden winnen -
+         afhankelijk van welke toevallig als laatste bond. Nu wordt deze
+         oudere versie overgeslagen zodra de gefixte versie al actief is. */
       b.dataset.v73='1';
       b.onclick=function(){
         openDoc('Opdrachtbevestiging / Offerte');
