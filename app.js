@@ -51303,7 +51303,12 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     var btn=t.closest('button,a,input[type="button"],input[type="submit"]'); if(!btn) return;
     var label=L(btn.textContent || btn.value || btn.id || btn.getAttribute('data-tab') || '');
     if(/opslaan|save/.test(label)) storeCurrentLines();
-    if(/wijzig|bewerk|open|opdracht|transport|vehiclepanel/.test(label) || btn.getAttribute('data-tab')==='vehiclePanel'){
+    /* v72-fix: deze zoekterm was zo breed dat 'opdracht' ook matchte op de
+       Factuur/Opdrachtbevestiging-knoppen zelf, waardoor het klikken daarop
+       de itemized Bijzonderheden-regels terugzette naar de opgeslagen
+       versie - vlak voordat het document werd gemaakt. Nu uitgesloten. */
+    var isDocButton = /factuur|bevestiging|offerte|document|pdf|print|mail|whatsapp|delen|terug|sluiten/.test(label);
+    if(!isDocButton && (/wijzig|bewerk|open|opdracht|transport|vehiclepanel/.test(label) || btn.getAttribute('data-tab')==='vehiclePanel')){
       setTimeout(function(){ loadTransportForCurrent(false); },120);
       setTimeout(function(){ loadTransportForCurrent(false); },700);
       setTimeout(function(){ loadTransportForCurrent(false); },1500);
