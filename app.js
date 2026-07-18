@@ -20454,9 +20454,24 @@ setTimeout(()=>{
       const rows = await readOrdersFromFirebase();
       if(Array.isArray(rows) && rows.length){
         const byId = new Map((state.orders || []).map(o => [String(o.id), o]));
-        rows.forEach(o => byId.set(String(o.id), Object.assign({
-        }, byId.get(String(o.id)) || {
-        }, o)));
+        rows.forEach(o => {
+          var localO = byId.get(String(o.id));
+          /* v72-fix: voorheen won de Firebase-versie altijd, ook als die
+             ouder was dan een net-gemaakte lokale wijziging die nog niet
+             (volledig) was weggeschreven - bijvoorbeeld door een volle
+             schrijfwachtrij. Nu wint de versie met de meest recente
+             updatedAt-tijdstempel, zodat een verse lokale wijziging niet
+             stilletjes wordt teruggedraaid. */
+          if(localO && localO.updatedAt && o.updatedAt){
+            var localTime = Date.parse(localO.updatedAt) || 0;
+            var remoteTime = Date.parse(o.updatedAt) || 0;
+            if(localTime > remoteTime){
+              byId.set(String(o.id), Object.assign({}, o, localO));
+              return;
+            }
+          }
+          byId.set(String(o.id), Object.assign({}, localO || {}, o));
+        });
         state.orders = Array.from(byId.values());
         save();
         try{
