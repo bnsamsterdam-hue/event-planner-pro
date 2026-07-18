@@ -20454,24 +20454,9 @@ setTimeout(()=>{
       const rows = await readOrdersFromFirebase();
       if(Array.isArray(rows) && rows.length){
         const byId = new Map((state.orders || []).map(o => [String(o.id), o]));
-        rows.forEach(o => {
-          var localO = byId.get(String(o.id));
-          /* v72-fix: voorheen won de Firebase-versie altijd, ook als die
-             ouder was dan een net-gemaakte lokale wijziging die nog niet
-             (volledig) was weggeschreven - bijvoorbeeld door een volle
-             schrijfwachtrij. Nu wint de versie met de meest recente
-             updatedAt-tijdstempel, zodat een verse lokale wijziging niet
-             stilletjes wordt teruggedraaid. */
-          if(localO && localO.updatedAt && o.updatedAt){
-            var localTime = Date.parse(localO.updatedAt) || 0;
-            var remoteTime = Date.parse(o.updatedAt) || 0;
-            if(localTime > remoteTime){
-              byId.set(String(o.id), Object.assign({}, o, localO));
-              return;
-            }
-          }
-          byId.set(String(o.id), Object.assign({}, localO || {}, o));
-        });
+        rows.forEach(o => byId.set(String(o.id), Object.assign({
+        }, byId.get(String(o.id)) || {
+        }, o)));
         state.orders = Array.from(byId.values());
         save();
         try{
@@ -27362,21 +27347,14 @@ setTimeout(()=>{
       };
     }
     b=E('bnsOpenInvoiceV73');
-    if(b&&!b.dataset.v73&&!b.dataset.twV182){
-      /* v72-fix: zelfde probleem als bij bnsOpenConfirmV73 - andere
-         beveiligingsvlag dan de latere, gefixte versie. */
+    if(b&&!b.dataset.v73){
       b.dataset.v73='1';
       b.onclick=function(){
         openDoc('Factuur');
       };
     }
     b=E('bnsOpenConfirmV73');
-    if(b&&!b.dataset.v73&&!b.dataset.twV182){
-      /* v72-fix: deze oudere binding gebruikte een andere beveiligingsvlag
-         (dataset.v73) dan de latere, gefixte versie (dataset.twV182),
-         waardoor ze elkaar niet blokkeerden en om de beurt konden winnen -
-         afhankelijk van welke toevallig als laatste bond. Nu wordt deze
-         oudere versie overgeslagen zodra de gefixte versie al actief is. */
+    if(b&&!b.dataset.v73){
       b.dataset.v73='1';
       b.onclick=function(){
         openDoc('Opdrachtbevestiging / Offerte');
@@ -27496,7 +27474,7 @@ setTimeout(()=>{
       return;
     }
     w.document.open();
-    w.document.write(v72InjectLiveDoc(docHtml(type)));
+    w.document.write(docHtml(type));
     w.document.close();
   }
   function mailDoc(){
@@ -29518,7 +29496,7 @@ setTimeout(()=>{
       return;
     }
     w.document.open();
-    w.document.write(v72InjectLiveDoc(docHtml83()));
+    w.document.write(docHtml83());
     w.document.close();
   }
   function patchInvoiceButtons(){
@@ -34561,11 +34539,6 @@ setTimeout(()=>{
     return inv;
   }
   function savedOrder(){
-    /* v72-fix: als deze vlag aanstaat, doet deze functie alsof er niets is
-       opgeslagen - exact zoals bij een gloednieuwe opdracht. Dat zorgt dat
-       ALLE velden in het document gegarandeerd uit het live formulier komen,
-       precies zoals dat bij "Nieuwe opdracht" altijd al vanzelf gebeurde. */
-    if(window.__v72_forceNewMode) return null;
     var nr = val('orderNumber');
     var s = S();
     if (!nr || !s || !Array.isArray(s.orders)) return null;
@@ -34608,10 +34581,6 @@ setTimeout(()=>{
       end: val('dateEnd') || saved.end || '',
       brand: val('orderBrand') || saved.brand || '',
       extra: val('orderExtra') || saved.extra || saved.notes || '',
-      transportLines: (function(){
-        try{ if(Array.isArray(window.__bns521TransportLines) && window.__bns521TransportLines.length) return JSON.parse(JSON.stringify(window.__bns521TransportLines)); }catch(e){}
-        return (saved.transportLines || []);
-      })(),
       customer: objCustomer(saved),
       location: objLocation(saved),
       invoice: saved.invoice || {
@@ -34674,7 +34643,6 @@ setTimeout(()=>{
   function paymentType(){
     return val('bnsPaymentType') || (orderData().invoice && orderData().invoice.paymentType) || 'Op rekening';
   }
-  window.__v72_testOrderData = orderData; // TIJDELIJK, alleen voor diagnose
   function invoiceType(){
     return val('bnsInvoiceType') || (orderData().invoice && orderData().invoice.invoiceType) || 'Factuur';
   }
@@ -34699,29 +34667,19 @@ setTimeout(()=>{
     '<div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+esc(o.customer.name)+'</b><br>'+esc(o.customer.street)+'<br>'+esc([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+esc(o.customer.phone)+'<br>'+esc(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+esc(o.location.name)+'</b><br>'+esc(o.location.street)+'<br>'+esc([o.location.zip,o.location.city].filter(Boolean).join(' '))+'<br>'+esc(o.location.contact)+'<br>'+esc(o.location.phone)+'</section></div>'+
     '<section class="card"><div class="label">Opdracht</div><b>'+esc(o.title)+'</b><br>Status: '+esc(o.status)+'<br>Datum: '+esc(o.start)+(o.end && o.end !== o.start ? ' t/m '+esc(o.end) : '')+'<br>Merk: '+esc(o.brand)+'</section>'+
     '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRows()+'</tbody></table></section>'+
-    '<section class="card"><div class="label">Bijzonderheden</div><div class="free">'+esc(o.extra || '')+'</div>'+
-    (function(){ var lines=(o.transportLines||[]); if(!lines.length) return ''; return '<table><thead><tr><th>Aantal</th><th>Omschrijving</th><th>Bedrag</th></tr></thead><tbody>'+lines.map(function(l){ var qty=Number(l.qty||1), price=Number(l.price||0); return '<tr><td>'+esc(qty)+'</td><td>'+esc(l.name+(l.note?' - '+l.note:''))+'</td><td>'+esc((qty*price).toFixed(2).replace('.',','))+'</td></tr>'; }).join('')+'</tbody></table>'; })()+
-    '</section>'+
+    '<section class="card"><div class="label">Bijzonderheden</div><div class="free">'+esc(o.extra || '')+'</div></section>'+
     '<section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+esc(t.vatP || 21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section>'+
     (inv.footer ? '<section class="footer free">'+esc(inv.footer)+'</section>' : '')+
     '<div class="powered">Powered by Tapwagen.nl</div></main></body></html>';
   }
-  window.__v72_testDocHtml = docHtml; // TIJDELIJK, alleen voor diagnose
   function openDoc(type){
     var w = window.open('', '_blank');
     if (!w) {
       alert('Pop-up geblokkeerd. Sta pop-ups toe.');
       return false;
     }
-    window.__v72_forceNewMode = true;
-    var html;
-    try{
-      html = docHtml(type);
-    } finally {
-      window.__v72_forceNewMode = false;
-    }
     w.document.open();
-    w.document.write(v72InjectLiveDoc(html));
+    w.document.write(docHtml(type));
     w.document.close();
     return false;
   }
@@ -43276,7 +43234,7 @@ setTimeout(()=>{
     var title=confirm?'Opdrachtbevestiging':'Factuur'; var total=(o.pricing&&(o.pricing.grand||o.pricing.total||o.pricing.incl))||o.amount||0; var bgStyle=bg?'background-image:url('+bg+');background-size:cover;background-position:top center;background-repeat:no-repeat;':'';
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title)+' '+H(o.number||'')+'</title><style>@page{size:A4;margin:12mm}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:25mm 18mm;'+bgStyle+'}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;background:#2563eb;color:white;padding:9px 12px;font-weight:900}.card{background:rgba(255,255,255,.94);border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:12px 0}table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.96)}td,th{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}.free{white-space:pre-wrap}@media print{.actions{display:none}body{background:white}.page{margin:0}}</style></head><body><div class="actions"><button onclick="window.print()">Print</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)">Mail</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false">Terug</button></div><main class="page"><h1>'+H(title)+'</h1><div class="card"><b>Opdracht:</b> '+H(o.number||'')+'<br><b>Klant:</b> '+H(o.customer&&o.customer.name||'')+'<br><b>Titel:</b> '+H(o.title||'')+'<br><b>Datum:</b> '+H(o.start||'')+(o.end&&o.end!==o.start?' t/m '+H(o.end):'')+'</div><div class="card"><b>Locatie</b><br>'+H(o.location&&o.location.name||'')+'<br>'+H(o.location&&o.location.street||'')+'</div><div class="card"><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+rows(o.materials)+'</tbody></table></div><div class="card free">'+H(o.extra||'')+'</div><h2>Totaal '+H(money(total))+'</h2></main></body></html>';
   }
-  function openDocFixed(type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } w.document.open(); w.document.write(v72InjectLiveDoc(docHtmlFixed(type))); w.document.close(); return false; }
+  function openDocFixed(type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } w.document.open(); w.document.write(docHtmlFixed(type)); w.document.close(); return false; }
   window.BNS_V408_docHtml=docHtmlFixed;
   window.makeInvoice=function(){ return openDocFixed('Factuur'); };
   window.makeConfirmation=function(){ return openDocFixed('Opdrachtbevestiging'); };
@@ -44214,7 +44172,7 @@ setTimeout(()=>{
   function openDoc(type){
     var w=window.open('','_blank');
     if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; }
-    w.document.open(); w.document.write(v72InjectLiveDoc(htmlFor(type))); w.document.close(); return false;
+    w.document.open(); w.document.write(htmlFor(type)); w.document.close(); return false;
   }
 
   window.BNS_V421_openDocument=openDoc;
@@ -44447,7 +44405,7 @@ setTimeout(()=>{
   function openDoc(type){
     var w=window.open('','_blank');
     if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; }
-    w.document.open(); w.document.write(v72InjectLiveDoc(documentHtml(type))); w.document.close(); return false;
+    w.document.open(); w.document.write(documentHtml(type)); w.document.close(); return false;
   }
 
   window.BNS_V422_openDocument=openDoc;
@@ -44698,7 +44656,7 @@ setTimeout(()=>{
   function openDoc(type){
     var w=window.open('','_blank');
     if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; }
-    w.document.open(); w.document.write(v72InjectLiveDoc(documentHtml(type))); w.document.close(); return false;
+    w.document.open(); w.document.write(documentHtml(type)); w.document.close(); return false;
   }
 
   window.BNS_V423_openDocument=openDoc;
@@ -46822,7 +46780,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var sub=matSub+trSub, vat=sub*0.21, grand=sub+vat, pay=grand+dep;
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(o.number||''))+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;background:#e5e7eb;margin:0;color:#111}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:14mm}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px}.actions button{border:0;border-radius:8px;background:#2563eb;color:white;font-weight:900;padding:8px 12px}h1{text-align:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:12px;padding:10px;margin:10px 0}table{width:100%;border-collapse:collapse}th,td{padding:7px;border-bottom:1px solid #e5e7eb;text-align:left}.amount{text-align:right}.totals{width:85mm;margin-left:auto}.totals td:last-child{text-align:right;font-weight:900}@media print{.actions{display:none}body{background:white}.page{margin:0}}</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF downloaden</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).save().then(function(){p.textContent="PDF downloaden";}).catch(function(){p.textContent="PDF downloaden";systemMsg("PDF downloaden lukt niet direct in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><main class="page"><h1>'+H(title)+'</h1><div class="grid"><div class="card"><b>Tapwagen.nl</b><br>Molenlaan 30<br>1422 ZA Uithoorn<br>Info@tapwagen.nl</div><div class="card"><b>Opdracht:</b> '+H(o.number||'')+'<br><b>Status:</b> '+H(o.status||'')+'<br><b>Datum:</b> '+H(o.start||'')+(o.end&&o.end!==o.start?' t/m '+H(o.end):'')+'</div></div><div class="card"><b>Klant</b><br>'+H(o.customer.name)+'<br>'+H([o.customer.street,o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(o.location.name)+'<br>'+H([o.location.street,o.location.zip,o.location.city].filter(Boolean).join(' '))+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+matRows+'</tbody></table><h3>Bijzonderheden</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+trRows+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(matSub))+'</td></tr><tr><td>Subtotaal bijzonderheden</td><td>'+H(euro(trSub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(dep))+'</td></tr><tr><td><b>Eindtotaal</b></td><td><b>'+H(euro(pay))+'</b></td></tr></table></main></body></html>';
   }
-  function openDoc(type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } w.document.open(); w.document.write(v72InjectLiveDoc(docHtml(type))); w.document.close(); return false; }
+  function openDoc(type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } w.document.open(); w.document.write(docHtml(type)); w.document.close(); return false; }
   window.BNS_V521_openDocument=openDoc;
   window.makeInvoice=function(){ return openDoc('Factuur'); };
   window.makeConfirmation=function(){ return openDoc('Opdrachtbevestiging'); };
@@ -46957,7 +46915,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var css='@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:13px}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px;z-index:9}.actions button{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:8px 12px;font-weight:800}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:12mm 14mm}.bns525-logo{text-align:center;margin-bottom:4mm}.bns525-logo img{max-width:96mm;max-height:25mm;object-fit:contain}.brand{font-size:34px;font-weight:900;color:'+H(st.accent||'#0ea5e9')+'}.tag{font-weight:800;font-style:italic}.doc-title{text-align:center;font-size:'+headingFs+'px;font-weight:900;margin:2mm 0 5mm}.top{display:grid;grid-template-columns:1fr 60mm;gap:10mm}.card{border:1px solid #dbe3ef;border-radius:10px;padding:9px;margin:8px 0}.line{border-top:1.5px solid #333;margin:5mm 0}table{width:100%;border-collapse:collapse}th{border-bottom:1px solid #333;text-align:left}td,th{padding:1.5mm;vertical-align:top;font-size:'+tableFs+'px}.amount{text-align:right}.totals{width:82mm;margin-left:auto;margin-top:7mm;border-top:1.5px solid #333;font-size:'+totalFs+'px}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}@media print{body{background:#fff}.actions{display:none}.page{margin:0}}';
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF downloaden</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).save().then(function(){p.textContent="PDF downloaden";}).catch(function(){p.textContent="PDF downloaden";systemMsg("PDF downloaden lukt niet direct in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div><div class="line"></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Bijzonderheden</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal bijzonderheden</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table></main></body></html>';
   }
-  function openOrderDoc(o,type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } try{ w.document.open(); w.document.write(v72InjectLiveDoc(docHtml(o,type))); w.document.close(); }catch(e){ alert('Document kon niet worden geopend: '+e.message); } return false; }
+  function openOrderDoc(o,type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } try{ w.document.open(); w.document.write(docHtml(o,type)); w.document.close(); }catch(e){ alert('Document kon niet worden geopend: '+e.message); } return false; }
   function dedupeAccountingDocs(){
     var a=acc(), out=[], seen={};
     (a.documents||[]).forEach(function(d){
@@ -51324,12 +51282,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     var btn=t.closest('button,a,input[type="button"],input[type="submit"]'); if(!btn) return;
     var label=L(btn.textContent || btn.value || btn.id || btn.getAttribute('data-tab') || '');
     if(/opslaan|save/.test(label)) storeCurrentLines();
-    /* v72-fix: deze zoekterm was zo breed dat 'opdracht' ook matchte op de
-       Factuur/Opdrachtbevestiging-knoppen zelf, waardoor het klikken daarop
-       de itemized Bijzonderheden-regels terugzette naar de opgeslagen
-       versie - vlak voordat het document werd gemaakt. Nu uitgesloten. */
-    var isDocButton = /factuur|bevestiging|offerte|document|pdf|print|mail|whatsapp|delen|terug|sluiten/.test(label);
-    if(!isDocButton && (/wijzig|bewerk|open|opdracht|transport|vehiclepanel/.test(label) || btn.getAttribute('data-tab')==='vehiclePanel')){
+    if(/wijzig|bewerk|open|opdracht|transport|vehiclepanel/.test(label) || btn.getAttribute('data-tab')==='vehiclePanel'){
       setTimeout(function(){ loadTransportForCurrent(false); },120);
       setTimeout(function(){ loadTransportForCurrent(false); },700);
       setTimeout(function(){ loadTransportForCurrent(false); },1500);
@@ -51337,17 +51290,9 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   },true);
 
   document.addEventListener('input',function(ev){ if(ev.target && ev.target.closest && ev.target.closest('#bns521TransportBox')) setTimeout(storeCurrentLines,80); },true);
-  /* v72-fix: deze doorlopende timer (elke 1,8 seconde) probeerde continu de
-     itemized Bijzonderheden-regels te herladen vanuit de opgeslagen opdracht.
-     Bij een NIEUWE opdracht bestond er niets opgeslagens, dus deed dit niets -
-     bij het WIJZIGEN van een bestaande opdracht bestond er wel opgeslagen data,
-     waardoor dit een net-toegevoegde, nog-niet-opgeslagen regel kon overschrijven.
-     Dat verklaarde precies "nieuw werkt wel, wijzigen niet, terwijl het dezelfde
-     pagina is". Het eenmalig laden bij het openen van "Wijzigen" (elders in de
-     code) blijft gewoon intact en is voldoende.
   setInterval(function(){
     if(E('bns521TransportBox')) loadTransportForCurrent(false);
-  },1800); */
+  },1800);
   setTimeout(function(){ backupExistingOrders(); loadTransportForCurrent(false); },800);
 
   /* ---------- Overzicht bestelling duidelijker + documentkeuze ---------- */
@@ -51509,7 +51454,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!o) return false;
     var w=window.open('','_blank');
     if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; }
-    w.document.open(); w.document.write(v72InjectLiveDoc(docHtml(o,kind))); w.document.close();
+    w.document.open(); w.document.write(docHtml(o,kind)); w.document.close();
     return false;
   }
   function closeChoice(){ var m=E('bns653ChoiceModal'); if(m) m.remove(); }
@@ -53365,54 +53310,3 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
 // Tapwagen v947 - gebruiksvriendelijke documentstijl bovenop v946/v945
 window.TapwagenV947Info=function(){return {basis:'Tapwagen v945 + v946 documentfonts',feature:'Documentstijl presets Compact/Normaal/Groot/Extra groot + Geavanceerd',storage:'bns_huisstijl_v361',defaultPreset:'Normaal',documents:['factuur','opdrachtbevestiging','offerte'],amsterdam:false,rental:false};};
 console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
-
-/* =========================================================
-   v72 UNIVERSELE LIVE-INJECTIE - alleen voor Tapwagen.nl
-   Er bleken 10+ verschillende functies te zijn die een Factuur/
-   Opdrachtbevestiging-document kunnen genereren. In plaats van
-   te blijven zoeken naar "de juiste" functie, wordt hier de
-   HTML-string zelf gecorrigeerd - vlak voordat hij naar het
-   documentvenster wordt geschreven - ongeacht welke van de vele
-   functies hem heeft gemaakt. Dit werkt zowel voor nieuwe als
-   voor gewijzigde opdrachten, exact zoals bij een nieuwe opdracht
-   altijd al vanzelf gebeurde (daar bestond nog geen "opgeslagen"
-   versie om mee te concurreren).
-   ========================================================= */
-function v72InjectLiveDoc(html){
-  try{
-    html = String(html || '');
-    function E(id){ return document.getElementById(id); }
-    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-    function euro(n){ n = Number(n)||0; return n.toFixed(2).replace('.', ','); }
-
-    var extraEl = E('orderExtra');
-    var extra = extraEl ? String(extraEl.value || '').trim() : '';
-    var lines = [];
-    try{ if(Array.isArray(window.__bns521TransportLines)) lines = window.__bns521TransportLines.slice(); }catch(e){}
-
-    if(!extra && !lines.length) return html;
-
-    var missingExtra = extra && html.indexOf(esc(extra).slice(0,40)) < 0 && html.indexOf(extra.slice(0,40)) < 0;
-    var missingLines = lines.length && lines.some(function(l){ return l.name && html.indexOf(l.name) < 0; });
-    if(!missingExtra && !missingLines) return html;
-
-    var block = '<div id="v72LiveBijzonderheden" style="margin:16px 0;padding:12px 14px;border:1px solid #ddd;border-radius:8px;font-family:Arial,Helvetica,sans-serif;">';
-    block += '<b>Bijzonderheden</b>';
-    if(extra) block += '<div style="white-space:pre-wrap;margin-top:6px">'+esc(extra)+'</div>';
-    if(lines.length){
-      block += '<table style="width:100%;border-collapse:collapse;margin-top:8px" cellpadding="4">';
-      block += '<thead><tr><th style="text-align:left">Aantal</th><th style="text-align:left">Omschrijving</th><th style="text-align:right">Bedrag</th></tr></thead><tbody>';
-      lines.forEach(function(l){
-        var qty = Number(l.qty||1), price = Number(l.price||0);
-        block += '<tr><td>'+esc(qty)+'</td><td>'+esc((l.name||'')+(l.note?' - '+l.note:''))+'</td><td style="text-align:right">&euro; '+esc(euro(qty*price))+'</td></tr>';
-      });
-      block += '</tbody></table>';
-    }
-    block += '</div>';
-
-    if(html.indexOf('</body>') >= 0) return html.replace('</body>', block + '</body>');
-    return html + block;
-  }catch(e){
-    return html;
-  }
-}
