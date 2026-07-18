@@ -46957,18 +46957,53 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var b=ev.target && ev.target.closest && ev.target.closest('button,a,[data-bns423-doc],[data-bns422-doc],[data-bns421-doc],[data-doc]');
     var type=buttonDocType(b); if(!type) return;
     ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    // BNS 840: gebruik opgeslagen opdracht als beschikbaar, anders formulierdata
+    // BNS LIVE DOCUMENTEN: bij Wijzigen altijd een tijdelijke kopie maken
+    // van de opgeslagen opdracht en de actuele formulierwaarden daar overheen zetten.
+    // Dit verandert niets in state/Firebase; pas de normale knop Opslaan schrijft definitief weg.
     var key=currentEditingId() || val(['orderNumber','opdrachtNr','orderNo']);
     var saved=(key&&findOrderDirect(key)) || null;
     if(saved){
-      // Overschrijf status met huidige formulierwaarde
-      var formStatus=(function(){ var el=document.getElementById('orderStatus'); return el?(el.value||'').trim():''; })();
-      if(formStatus && formStatus !== saved.status){
-        var merged=JSON.parse(JSON.stringify(saved));
-        merged.status=formStatus;
-        return openOrderDoc(merged, type);
+      function liveValue(id,fallback){
+        var el=document.getElementById(id);
+        return el && 'value' in el ? String(el.value==null?'':el.value).trim() : String(fallback==null?'':fallback);
       }
-      return openOrderDoc(saved, type);
+      var merged=JSON.parse(JSON.stringify(saved));
+      merged.number=liveValue('orderNumber',orderNo(saved));
+      merged.title=liveValue('orderTitle',saved.title||'');
+      merged.status=liveValue('orderStatus',saved.status||'');
+      merged.start=liveValue('dateStart',saved.start||'');
+      merged.end=liveValue('dateEnd',saved.end||saved.start||'');
+      merged.brand=liveValue('orderBrand',saved.brand||'');
+      merged.extra=liveValue('orderExtra',saved.extra||saved.notes||'');
+      merged.driver=liveValue('orderDriver',saved.driver||'');
+      merged.vehicle=liveValue('orderVehicle',saved.vehicle||'');
+      merged.customer=Object.assign({},saved.customer||{}, {
+        name:liveValue('customerName',saved.customer&&saved.customer.name),
+        street:liveValue('customerStreet',saved.customer&&saved.customer.street),
+        zip:liveValue('customerZip',saved.customer&&saved.customer.zip),
+        city:liveValue('customerCity',saved.customer&&saved.customer.city),
+        phone:liveValue('customerPhone',saved.customer&&saved.customer.phone),
+        email:liveValue('customerEmail',saved.customer&&saved.customer.email)
+      });
+      merged.location=Object.assign({},saved.location||{}, {
+        name:liveValue('locationName',saved.location&&saved.location.name),
+        street:liveValue('locationStreet',saved.location&&saved.location.street),
+        zip:liveValue('locationZip',saved.location&&saved.location.zip),
+        city:liveValue('locationCity',saved.location&&saved.location.city),
+        contact:liveValue('locationContact',saved.location&&saved.location.contact),
+        phone:liveValue('locationPhone',saved.location&&saved.location.phone)
+      });
+      try{
+        var liveMaterials=[];
+        if(Array.isArray(window.chosen)) liveMaterials=window.chosen;
+        else if(typeof chosen!=='undefined' && Array.isArray(chosen)) liveMaterials=chosen;
+        merged.materials=JSON.parse(JSON.stringify(liveMaterials.length?liveMaterials:(saved.materials||[])));
+      }catch(e){ merged.materials=JSON.parse(JSON.stringify(saved.materials||[])); }
+      try{
+        var liveTransport=Array.isArray(window.__bns521TransportLines)?window.__bns521TransportLines:(saved.transportLines||[]);
+        merged.transportLines=JSON.parse(JSON.stringify(liveTransport));
+      }catch(e){ merged.transportLines=JSON.parse(JSON.stringify(saved.transportLines||[])); }
+      return openOrderDoc(merged, type);
     }
     // Geen opgeslagen opdracht - lees formulierdata
     var formOrder=(function(){
