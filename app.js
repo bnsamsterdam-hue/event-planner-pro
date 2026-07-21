@@ -13429,6 +13429,7 @@ setTimeout(()=>{
   function openCalendarForCurrentOrder(type){
     const number = fieldValue("orderNumber");
     const customer = fieldValue("customerName");
+    const orderTitle = fieldValue("orderTitle");
     const phone = fieldValue("customerPhone") || fieldValue("locationPhone");
     const brand = fieldValue("orderBrand");
     const deliveryDate = fieldValue("dateStart");
@@ -13446,7 +13447,7 @@ setTimeout(()=>{
 
     const isPickup = type === "pickup";
     const eventDate = isPickup ? pickupDate : deliveryDate;
-    const eventTitle = "Opdracht: " + (isPickup ? "ophalen " : "brengen ") + (number || "zonder nummer");
+    const eventTitle = (isPickup ? "Ophalen - " : "Brengen - ") + (orderTitle || number || "Zonder titel");
     const eventStart = calendarDateOnly(eventDate, 0);
     const eventEnd = calendarDateOnly(eventDate, 1);
     const details = [
