@@ -13428,40 +13428,35 @@ setTimeout(()=>{
   }
   function openCalendarForCurrentOrder(type){
     const number = fieldValue("orderNumber");
-    const title = fieldValue("orderTitle") || "Opdracht";
     const customer = fieldValue("customerName");
-    const materialCodes = currentMaterialCodes();
-    const materialCat = currentFirstMaterialCat();
-    const materialColor = rubriekColor(materialCat);
-    const start = fieldValue("dateStart");
-    const end = fieldValue("dateEnd") || start;
+    const phone = fieldValue("customerPhone") || fieldValue("locationPhone");
+    const deliveryDate = fieldValue("dateStart");
+    const pickupDate = fieldValue("dateEnd") || deliveryDate;
     const address = niceAddressFromForm();
-    let eventTitle;
-    let eventStart;
-    let eventEnd;
-    let details;
-    if (type === "pickup") {
-      // Ophalen: titel moet beginnen met TR en op de einddatum staan.
-      eventTitle = "TR " + title;
-      eventStart = calendarDateOnly(end, 0);
-      eventEnd = calendarDateOnly(end, 1);
-    } else {
-      // Opdracht: alleen de titel van de opdracht op begindatum.
-      eventTitle = title;
-      eventStart = calendarDateOnly(start, 0);
-      eventEnd = calendarDateOnly(start, 1);
+
+    if (!deliveryDate) {
+      alert("Vul eerst de begindatum in.");
+      return;
     }
-    details = [
-    "Tapwagen.nl planner",
-    "Opdracht: " + number,
-    "Titel: " + title,
-    "Klant: " + customer,
-    "Materialen: " + (materialCodes.join(", ") || "Nog geen materialen"),
-    type === "pickup" ? "Rubriek kleur: licht blauw / TR ophalen" : "Rubriek: " + (materialCat || "onbekend"),
-    type === "pickup" ? "Kleurcode: #60a5fa" : "Kleurcode rubriek: " + materialColor,
-    "Let op: Google Agenda laat kleur niet automatisch zetten via de normale agenda-link. Kies eventueel dezelfde kleur in Google Agenda.",
-    "Adres: " + address
-    ].filter(Boolean).join("\n");
+    if (type === "pickup" && !pickupDate) {
+      alert("Vul eerst de einddatum in.");
+      return;
+    }
+
+    const isPickup = type === "pickup";
+    const eventDate = isPickup ? pickupDate : deliveryDate;
+    const eventTitle = "Opdracht: " + (isPickup ? "ophalen " : "brengen ") + (number || "zonder nummer");
+    const eventStart = calendarDateOnly(eventDate, 0);
+    const eventEnd = calendarDateOnly(eventDate, 1);
+    const details = [
+      "Opdrachtnummer: " + (number || "Niet ingevuld"),
+      "Klant: " + (customer || "Niet ingevuld"),
+      "Telefoon: " + (phone || "Niet ingevuld"),
+      "Brengdatum: " + (deliveryDate || "Niet ingevuld"),
+      "Ophaaldatum: " + (pickupDate || "Niet ingevuld"),
+      "Adres: " + (address || "Niet ingevuld")
+    ].join("\n");
+
     const url = "https://calendar.google.com/calendar/render?action=TEMPLATE"
     + "&text=" + encodeURIComponent(eventTitle)
     + "&dates=" + encodeURIComponent(eventStart + "/" + eventEnd)
