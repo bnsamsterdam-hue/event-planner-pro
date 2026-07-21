@@ -13447,17 +13447,23 @@ setTimeout(()=>{
 
     const isPickup = type === "pickup";
     const eventDate = isPickup ? pickupDate : deliveryDate;
-    const eventTitle = (isPickup ? "Ophalen - " : "Brengen - ") + (orderTitle || number || "Zonder titel");
+    const cleanTitle = orderTitle || number || "Zonder titel";
+    const eventTitle = isPickup ? ("TR " + cleanTitle) : cleanTitle;
     const eventStart = calendarDateOnly(eventDate, 0);
     const eventEnd = calendarDateOnly(eventDate, 1);
+    function agendaDisplayDate(value){
+      const parts = String(value || "").split("-");
+      if (parts.length !== 3) return value || "Niet ingevuld";
+      return Number(parts[2]) + "-" + Number(parts[1]) + "-" + parts[0].slice(-2);
+    }
     const details = [
       "Opdrachtnummer: " + (number || "Niet ingevuld"),
       "Klant: " + (customer || "Niet ingevuld"),
       "Uitstraling / merk: " + (brand || "Niet ingevuld"),
+      "Adres: " + (address || "Niet ingevuld"),
       "Telefoon: " + (phone || "Niet ingevuld"),
-      "Brengdatum: " + (deliveryDate || "Niet ingevuld"),
-      "Ophaaldatum: " + (pickupDate || "Niet ingevuld"),
-      "Adres: " + (address || "Niet ingevuld")
+      "Brengdatum: " + agendaDisplayDate(deliveryDate),
+      "Ophaaldatum: " + agendaDisplayDate(pickupDate)
     ].join("\n");
 
     const url = "https://calendar.google.com/calendar/render?action=TEMPLATE"
