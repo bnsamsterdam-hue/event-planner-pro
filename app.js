@@ -13421,10 +13421,18 @@ setTimeout(()=>{
     return String(cat || '').toUpperCase() === 'TW' ? '#dc2626' : '#60a5fa';
   }
   function calendarDateOnly(value, addDays){
-    var safe = value || new Date().toISOString().slice(0, 10);
-    var d = new Date(safe + 'T00:00:00');
-    if (addDays) d.setDate(d.getDate() + addDays);
-    return d.toISOString().slice(0,10).replaceAll('-', '');
+    // Gebruik UTC-componenten zodat een lokale tijdzone de datum nooit een dag terugzet.
+    var safe = String(value || '').trim();
+    var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(safe);
+    if (!match) {
+      var now = new Date();
+      match = [null, String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')];
+    }
+    var d = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    if (addDays) d.setUTCDate(d.getUTCDate() + addDays);
+    return String(d.getUTCFullYear())
+      + String(d.getUTCMonth() + 1).padStart(2, '0')
+      + String(d.getUTCDate()).padStart(2, '0');
   }
   function openCalendarForCurrentOrder(type){
     const number = fieldValue("orderNumber");
