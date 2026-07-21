@@ -13430,6 +13430,7 @@ setTimeout(()=>{
     const number = fieldValue("orderNumber");
     const customer = fieldValue("customerName");
     const phone = fieldValue("customerPhone") || fieldValue("locationPhone");
+    const brand = fieldValue("orderBrand");
     const deliveryDate = fieldValue("dateStart");
     const pickupDate = fieldValue("dateEnd") || deliveryDate;
     const address = niceAddressFromForm();
@@ -13451,6 +13452,7 @@ setTimeout(()=>{
     const details = [
       "Opdrachtnummer: " + (number || "Niet ingevuld"),
       "Klant: " + (customer || "Niet ingevuld"),
+      "Uitstraling / merk: " + (brand || "Niet ingevuld"),
       "Telefoon: " + (phone || "Niet ingevuld"),
       "Brengdatum: " + (deliveryDate || "Niet ingevuld"),
       "Ophaaldatum: " + (pickupDate || "Niet ingevuld"),
