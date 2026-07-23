@@ -21720,7 +21720,7 @@ setTimeout(()=>{
     st.textContent = [
     "*,*:before,*:after{animation:none!important;transition:none!important}",
     "#materialCats button,#materialCats .worktab{animation:none!important}",
-    "#materialCats button.bns-hide-copy,#bnsCopyOrderTop{display:none!important}",
+    "#materialCats button.bns-hide-copy{display:none!important}",
     "#materialList .material-row,#materialList .bns-v45-row{animation:none!important;transition:none!important;transform:none!important}",
     ".mat-status-badge,.v111-pill,.v112-pill,.bns-v45-pill,.badge{animation:none!important;transition:none!important}",
     "#alertsBtn,#syncBtn,.toast,#toast{animation:none!important;transition:none!important;filter:none!important;transform:none!important}",
@@ -22146,7 +22146,7 @@ setTimeout(()=>{
     var st=document.createElement("style");
     st.id="bns-v49-style";
     st.textContent = [
-    "#bnsCopyOrderTop,#materialCats button.bns-hide-copy,#materialPanel button.bns-hide-copy{display:none!important}",
+    "#materialCats button.bns-hide-copy,#materialPanel button.bns-hide-copy{display:none!important}",
     "#materialCats{display:flex!important;flex-wrap:wrap!important;align-items:flex-start!important;gap:10px!important;margin:10px 0!important;min-height:54px!important}",
     "#materialCats button{position:relative!important;min-width:64px!important;height:54px!important;margin:0!important;animation:none!important;transition:none!important;transform:none!important}",
     "#materialCats button:after{content:'';position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--cat-color,#334155);border-radius:0 0 12px 12px}",
@@ -22644,7 +22644,7 @@ setTimeout(()=>{
     "#materialCats{display:flex!important;flex-wrap:wrap!important;gap:10px!important;align-items:flex-start!important;min-height:52px!important;overflow-anchor:none!important}",
     "#materialCats button{position:relative!important;min-width:64px!important;height:52px!important;margin:0!important;animation:none!important;transition:none!important;transform:none!important}",
     "#materialCats button:after{content:'';position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--cat-color,#334155);border-radius:0 0 12px 12px}",
-    "#materialCats button.bns-hide-copy,#materialPanel button.bns-hide-copy,#bnsCopyOrderTop{display:none!important}",
+    "#materialCats button.bns-hide-copy,#materialPanel button.bns-hide-copy{display:none!important}",
     "#materialList{min-height:260px!important;overflow-anchor:none!important}",
     "#materialList .bns-v50-row{display:grid!important;grid-template-columns:8px minmax(0,1fr) auto!important;gap:13px!important;align-items:center!important;margin:9px 0!important;padding:13px 14px!important;border:1px solid #dbe3ef!important;border-left:7px solid var(--cat-color,#334155)!important;border-radius:18px!important;background:var(--panel,#fff)!important;color:var(--text,#172033)!important;cursor:pointer!important;box-shadow:none!important;animation:none!important;transition:none!important;transform:none!important}",
     "#materialList .bns-v50-bar{width:7px;height:46px;border-radius:999px;background:var(--cat-color,#334155)!important}",
@@ -23289,7 +23289,7 @@ setTimeout(()=>{
     st.textContent = `
       html,body{overflow-anchor:none!important;}
       *{animation-duration:0s!important;}
-      #bnsCopyOrderTop,#materialCats button.bns-hide-copy,#materialPanel button.bns-hide-copy{display:none!important;}
+      #materialCats button.bns-hide-copy,#materialPanel button.bns-hide-copy{display:none!important;}
       #materialCats{display:flex!important;flex-wrap:wrap!important;gap:10px!important;align-items:flex-start!important;margin:10px 0 12px!important;min-height:0!important;overflow:visible!important;}
       #materialCats button{position:relative!important;min-width:64px!important;height:54px!important;margin:0!important;border-radius:14px!important;transition:none!important;transform:none!important;}
       #materialCats button::after{content:'';position:absolute;left:10px;right:10px;bottom:5px;height:5px;border-radius:999px;background:var(--cat-color,#0ea5e9)!important;}
