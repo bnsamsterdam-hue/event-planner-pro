@@ -8444,7 +8444,7 @@ function upsertLocation(l){
 }
 function clearOrder(){
   window.__bnsEditingOrder=false; // BNS 802 reset
-  ['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderDriver','orderVehicle','orderExtra'].forEach(i=>$(i).value='');
+  ['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderDriver','orderVehicle','orderExtra','bnsPostcodeInput','bnsHouseNumberInput'].forEach(function(i){ var el=$(i); if(el) el.value=''; });
   chosen=[];
   renderChosen();
   if($('priceExcl')) $('priceExcl').value='0.00';
@@ -13397,22 +13397,6 @@ setTimeout(()=>{
     }
     return [];
   }
-  function currentMaterialAgendaLines(){
-    try {
-      if (Array.isArray(chosen) && chosen.length) {
-        return chosen.map(function(item){
-          var qty = Number(item.qty || item.count || item.amount || 1);
-          var code = String(item.code || "").trim();
-          var name = String(item.name || item.title || "").trim();
-          var description = [code, name && name !== code ? name : ""].filter(Boolean).join(" - ");
-          if (!description) description = "Materiaal";
-          return "- " + (qty > 1 ? qty + "x " : "") + description;
-        }).filter(Boolean);
-      }
-    } catch(e){
-    }
-    return ["- Geen materialen gekozen"];
-  }
   function currentFirstMaterialCat(){
     try {
       if (Array.isArray(chosen) && chosen.length) {
@@ -13480,12 +13464,13 @@ setTimeout(()=>{
       if (parts.length !== 3) return value || "Niet ingevuld";
       return Number(parts[2]) + "-" + Number(parts[1]) + "-" + parts[0].slice(-2);
     }
+    const materialLines = currentMaterialCodes();
     const details = [
       "Opdrachtnummer: " + (number || "Niet ingevuld"),
       "Klant: " + (customer || "Niet ingevuld"),
       "",
       "Materialen:",
-      currentMaterialAgendaLines().join("\n"),
+      materialLines.length ? materialLines.map(function(code){ return "- " + code; }).join("\n") : "- Geen materialen gekozen",
       "",
       "Uitstraling / merk: " + (brand || "Niet ingevuld"),
       "",
@@ -14009,22 +13994,16 @@ setTimeout(()=>{
       btn.type="button";
       btn.textContent="Copy opdracht";
       btn.className="worktab bns-copy-top";
-      btn.onclick=e=>{
-        e.preventDefault();
-        e.stopPropagation();
-        if(typeof window.copyOrder === "function") window.copyOrder();
-        else copyTop();
-      }
     }
-    let candidates=A("button.worktab, button[data-tab]").filter(function(b){
-      return (b.textContent||"").trim().toLowerCase()==="bijzonderheden";
-    });
-    let anchor=candidates.length ? candidates[candidates.length-1] : A("button").find(function(b){
-      var t=(b.textContent||"").trim().toLowerCase();
-      return t==="bijzonderheden" || t==="extra";
-    });
-    if(anchor && btn.previousElementSibling!==anchor) anchor.insertAdjacentElement("afterend",btn);
-    else if(!btn.parentElement) (document.querySelector(".worktabs,.tabs")||E("newOrder")||document.body).appendChild(btn)
+    btn.onclick=function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if(typeof window.copyOrder === "function") window.copyOrder();
+      else copyTop();
+    };
+    let details=A('button[data-tab="extraPanel"],.worktab[data-tab="extraPanel"]')[0];
+    if(details && btn.previousElementSibling!==details) details.insertAdjacentElement("afterend",btn);
+    else if(!btn.parentElement) (document.querySelector("#newOrder .tabs")||document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn);
   }
   function patchRows(){
     A("#materialList .material-row").forEach(row=>{
@@ -15266,7 +15245,7 @@ setTimeout(()=>{
   function ensureDocumentsTab(){
     ensureCss();
     var extra = q('button[data-tab="extraPanel"]');
-    if (extra) extra.textContent = "Bijzonderheden";
+    if (extra) extra.textContent = "Bijzonderheden klant";
     var vehicle = q('button[data-tab="vehiclePanel"]');
     if (!vehicle) return;
     ensureDocumentsPanel();
@@ -15755,7 +15734,7 @@ setTimeout(()=>{
   }
   function ensureDocuments(){
     var extra = q('button[data-tab="extraPanel"]');
-    if (extra) extra.textContent = "Bijzonderheden";
+    if (extra) extra.textContent = "Bijzonderheden klant";
     var vehicle = q('button[data-tab="vehiclePanel"]');
     if (!vehicle) return;
     if (!$(DOC_TAB_ID)) {
@@ -46652,7 +46631,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var css=document.createElement('style'); css.id=STYLE_ID;
     css.textContent =
       'button[data-tab="vehiclePanel"]{font-size:0!important}' +
-      'button[data-tab="vehiclePanel"]:after{content:"Bijzonderheden";font-size:14px!important}' +
+      'button[data-tab="vehiclePanel"]:after{content:"Extra";font-size:14px!important}' +
       '#'+BOX_ID+'{margin:10px 0 14px;padding:14px;border:2px solid #dbe3ef;border-radius:16px;background:#f8fafc;color:#0f172a}' +
       '#'+BOX_ID+' h3{margin:0 0 10px;font-size:20px;color:#0f172a}' +
       '#'+BOX_ID+' .bns521-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}' +
@@ -46679,7 +46658,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(!E(BOX_ID)){
       var box=document.createElement('div'); box.id=BOX_ID;
       box.innerHTML =
-        '<h3>Bijzonderheden voor deze klant</h3>'+
+        '<h3>Extra</h3>'+
         '<div class="bns521-row">'+
           '<label>Keuze<select id="bns521TransportPreset"></select></label>'+
           '<label>Aantal<input id="bns521Qty" class="small" type="number" step="1" value="1"></label>'+
@@ -46705,8 +46684,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
           '<button type="button" class="green" id="bns521AddFee">Toeslag toevoegen</button>'+
         '</div>'+
         '<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Opmerking</th><th class="amount">Totaal</th><th></th></tr></thead><tbody id="bns521TransportRows"></tbody></table>'+
-        '<div class="bns521-total">Totaal bijzonderheden: <span id="bns521TransportTotal">€ 0,00</span></div>'+
-        '<small>Bijzonderheden zijn géén materialen. Ze blokkeren geen reservering en krijgen geen gereserveerd-status.</small>';
+        '<div class="bns521-total">Totaal extra: <span id="bns521TransportTotal">€ 0,00</span></div>'+
+        '<small>Extra regels zijn géén materialen. Ze blokkeren geen reservering en krijgen geen gereserveerd-status.</small>';
       field.parentNode.insertBefore(box, field);
       // Het oude voertuigveld blijft bestaan voor compatibiliteit, maar bijzonderhedenregels zijn leidend.
       field.style.marginTop='10px';
@@ -46754,8 +46733,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var tt=E('bns521TransportTotal'); if(tt) tt.textContent=euro(transportTotal());
   }
   function renameTab(){
-    A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(b){ if(T(b.textContent)!=='Bijzonderheden') b.textContent='Bijzonderheden'; });
-    var panel=E('vehiclePanel'); if(panel){ var h=panel.querySelector('h2,h3,.panel-title'); if(h && /voertuig|transport/i.test(h.textContent||'')) h.textContent='Bijzonderheden'; }
+    A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(b){ if(T(b.textContent)!=='Extra') b.textContent='Extra'; });
+    var panel=E('vehiclePanel'); if(panel){ var h=panel.querySelector('h2,h3,.panel-title'); if(h && /voertuig|transport/i.test(h.textContent||'')) h.textContent='Extra'; }
   }
   function loadTransportFromOrder(o){
     var lines=[];
@@ -51967,14 +51946,14 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     // Label van de gewone vrije tekst verduidelijken, geen prijsvelden meer bij bijzonderheden.
     A('label,b,h3,h2,legend,div').forEach(function(el){
       var txt=T(el.textContent||'');
-      if(txt==='Bijzonderheden:' || txt==='Bijzonderheden'){
+      if(txt==='Bijzonderheden:' || txt==='Bijzonderheden' || txt==='Bijzonderheden klant:' || txt==='Bijzonderheden klant'){
         // Alleen korte labels aanpassen, geen hele kaarten/tables.
-        if((el.children||[]).length<2) el.textContent='Bijzonderheden (alleen tekst)';
+        if((el.children||[]).length<2) el.textContent='Bijzonderheden klant (alleen tekst)';
       }
     });
     var extra=E('orderExtra') || E('extra') || E('bijzonderheden');
     if(extra && extra.tagName && extra.tagName.toLowerCase()==='textarea'){
-      extra.placeholder='Vrije tekst / opmerkingen. Bedragen zet je bij Bijzonderheden.';
+      extra.placeholder='Vrije tekst / opmerkingen voor deze klant. Bedragen zet je bij Extra.';
     }
   }
   // Bij opslaan servicekosten echt leegmaken. Bedragen horen nu alleen in Bijzonderheden/transportLines.
@@ -52018,20 +51997,20 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   function installStyle(){
     if(E('bns683BijkomendeTabStyle')) return;
     var st=document.createElement('style'); st.id='bns683BijkomendeTabStyle';
-    st.textContent = 'button[data-tab="vehiclePanel"]:after,.worktab[data-tab="vehiclePanel"]:after{content:"Bijzonderheden"!important;font-size:14px!important}';
+    st.textContent = 'button[data-tab="vehiclePanel"]:after,.worktab[data-tab="vehiclePanel"]:after{content:"Extra"!important;font-size:14px!important}';
     document.head.appendChild(st);
   }
   function rename(){
     installStyle();
     A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"],[data-tab="vehiclePanel"]').forEach(function(b){
-      if(/transport|voertuig/i.test(T(b.textContent)) || T(b.textContent)==='') b.textContent='Bijzonderheden';
-      b.setAttribute('aria-label','Bijzonderheden');
-      b.title='Bijzonderheden';
+      if(/transport|voertuig/i.test(T(b.textContent)) || T(b.textContent)==='') b.textContent='Extra';
+      b.setAttribute('aria-label','Extra');
+      b.title='Extra';
     });
     var panel=E('vehiclePanel');
     if(panel){
       A('h1,h2,h3,.panel-title,.tab-title',panel).forEach(function(h){
-        if(/transport|voertuig/i.test(T(h.textContent))) h.textContent='Bijzonderheden';
+        if(/transport|voertuig/i.test(T(h.textContent))) h.textContent='Extra';
       });
       A('button,label,small,div,span',panel).forEach(function(el){
         var txt=T(el.textContent);
@@ -52056,12 +52035,12 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   function txt(el,s){ if(el && String(el.textContent||'').trim()!==s) el.textContent=s; }
   function fixLabels(){
     try{
-      document.querySelectorAll('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(b){ txt(b,'Bijzonderheden'); });
+      document.querySelectorAll('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(b){ txt(b,'Extra'); });
       var panel=document.getElementById('vehiclePanel');
       if(panel){
         panel.querySelectorAll('h1,h2,h3,.panel-title').forEach(function(h){
           var v=String(h.textContent||'');
-          if(/transport|bijkomende zaken/i.test(v)) h.textContent=v.replace(/Transport\s*\/\s*extra kosten/ig,'Bijzonderheden').replace(/Bijkomende zaken/ig,'Bijzonderheden').replace(/Transport/ig,'Bijzonderheden');
+          if(/transport|bijkomende zaken/i.test(v)) h.textContent=v.replace(/Transport\s*\/\s*extra kosten/ig,'Extra').replace(/Bijkomende zaken/ig,'Extra').replace(/Transport/ig,'Extra');
         });
         panel.querySelectorAll('button').forEach(function(b){
           var v=String(b.textContent||'');
@@ -52086,12 +52065,12 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     Array.prototype.forEach.call(el.childNodes,function(n){
       if(n.nodeType===3){
         var v=n.nodeValue||'';
-        var nv=v.replace(/Bijkomende zaken/g,'Bijzonderheden')
-                .replace(/Subtotaal bijkomende zaken/g,'Subtotaal bijzonderheden')
-                .replace(/Transport\s*\/\s*extra kosten/g,'Bijzonderheden')
+        var nv=v.replace(/Bijkomende zaken/g,'Extra')
+                .replace(/Subtotaal bijkomende zaken/g,'Subtotaal extra')
+                .replace(/Transport\s*\/\s*extra kosten/g,'Extra')
                 .replace(/Transportregel toevoegen/g,'Regel toevoegen')
-                .replace(/Transportkosten/g,'Bijzonderheden')
-                .replace(/\bTransport\b/g,'Bijzonderheden');
+                .replace(/Transportkosten/g,'Extra')
+                .replace(/\bTransport\b/g,'Extra');
         if(nv!==v) n.nodeValue=nv;
       }
     });
@@ -52100,8 +52079,8 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     try{
       document.querySelectorAll('button,h1,h2,h3,h4,label,legend,summary,.tab,.label,.section-title,.card-title,.btn').forEach(function(el){
         fixTextNode(el);
-        if(el.placeholder) el.placeholder=String(el.placeholder).replace(/Transport/g,'Bijzonderheden').replace(/Bijkomende zaken/g,'Bijzonderheden');
-        if(el.value && typeof el.value==='string') el.value=el.value.replace(/Transport/g,'Bijzonderheden').replace(/Bijkomende zaken/g,'Bijzonderheden');
+        if(el.placeholder) el.placeholder=String(el.placeholder).replace(/Transport/g,'Bijzonderheden').replace(/Bijkomende zaken/g,'Extra');
+        if(el.value && typeof el.value==='string') el.value=el.value.replace(/Transport/g,'Bijzonderheden').replace(/Bijkomende zaken/g,'Extra');
       });
     }catch(e){}
   }
@@ -52110,6 +52089,18 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   try{ console.info('[BNS 685] Planner labels: transport zichtbaar als Bijzonderheden.'); }catch(e){}
 })();
 
+
+// ===== Tapwagen vaste tabnamen: geen hernoem-observer, geen flikkeren =====
+(function(){
+  function applyStableTabNames(){
+    var extraTab=document.querySelector('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]');
+    var customerNotesTab=document.querySelector('button[data-tab="extraPanel"],.worktab[data-tab="extraPanel"]');
+    if(extraTab){ extraTab.textContent='Extra'; extraTab.setAttribute('aria-label','Extra'); extraTab.title='Extra'; }
+    if(customerNotesTab){ customerNotesTab.textContent='Bijzonderheden klant'; customerNotesTab.setAttribute('aria-label','Bijzonderheden klant'); customerNotesTab.title='Bijzonderheden klant'; }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',applyStableTabNames,{once:true});
+  else applyStableTabNames();
+})();
 
 /* ===== BNS v690 bezorger blokkade + klant/locatie naamfocus vangnet ===== */
 (function(){
@@ -53393,138 +53384,3 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
 // Tapwagen v947 - gebruiksvriendelijke documentstijl bovenop v946/v945
 window.TapwagenV947Info=function(){return {basis:'Tapwagen v945 + v946 documentfonts',feature:'Documentstijl presets Compact/Normaal/Groot/Extra groot + Geavanceerd',storage:'bns_huisstijl_v361',defaultPreset:'Normaal',documents:['factuur','opdrachtbevestiging','offerte'],amsterdam:false,rental:false};};
 console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
-
-/* =========================================================
-   Tapwagen v942 - zichtbare Copy knop, duidelijke tabnamen,
-   postcodevelden leeg bij iedere nieuwe opdracht.
-   Alleen planner-interface; geen Firebase/data-structuur wijziging.
-   ========================================================= */
-(function(){
-  'use strict';
-  if(window.__TAPWAGEN_V942_UI_FIX__) return;
-  window.__TAPWAGEN_V942_UI_FIX__=true;
-
-  function E(id){ return document.getElementById(id); }
-  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-
-  function ensureStyle(){
-    if(E('tapwagenV942Style')) return;
-    var st=document.createElement('style');
-    st.id='tapwagenV942Style';
-    st.textContent='\n'
-      +'button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]{font-size:14px!important;}\n'
-      +'button[data-tab="vehiclePanel"]:after,.worktab[data-tab="vehiclePanel"]:after{content:none!important;display:none!important;}\n'
-      +'#tapwagenCopyOrderButton{display:inline-flex!important;align-items:center!important;justify-content:center!important;visibility:visible!important;opacity:1!important;background:#047857!important;color:#fff!important;border:0!important;border-radius:12px!important;padding:10px 15px!important;font-weight:800!important;cursor:pointer!important;}\n';
-    document.head.appendChild(st);
-  }
-
-  function renameTabs(){
-    A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(btn){
-      if((btn.textContent||'').trim()!=='Extra') btn.textContent='Extra';
-      btn.title='Extra';
-      btn.setAttribute('aria-label','Extra');
-    });
-    A('button[data-tab="extraPanel"],.worktab[data-tab="extraPanel"]').forEach(function(btn){
-      if((btn.textContent||'').trim()!=='Bijzonderheden klant') btn.textContent='Bijzonderheden klant';
-      btn.title='Bijzonderheden klant';
-      btn.setAttribute('aria-label','Bijzonderheden klant');
-    });
-  }
-
-  function copyCurrentOrder(ev){
-    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
-    try{
-      if(typeof window.copyOrder==='function'){
-        window.copyOrder();
-        return;
-      }
-      if(typeof copyTop==='function'){
-        copyTop();
-        return;
-      }
-    }catch(err){
-      console.error('[Tapwagen v942] Copy opdracht fout',err);
-    }
-    try{ if(typeof toastMsg==='function') toastMsg('Copy opdracht kon niet worden gestart.'); }catch(_){ }
-  }
-
-  function ensureCopyButton(){
-    var btn=E('tapwagenCopyOrderButton');
-    if(!btn){
-      btn=document.createElement('button');
-      btn.id='tapwagenCopyOrderButton';
-      btn.type='button';
-      btn.className='worktab tapwagen-copy-order';
-      btn.textContent='Copy opdracht';
-      btn.onclick=copyCurrentOrder;
-    }
-    var anchor=A('button[data-tab="extraPanel"],.worktab[data-tab="extraPanel"]').pop();
-    if(!anchor) anchor=A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').pop();
-    if(anchor){
-      if(btn.parentElement!==anchor.parentElement || btn.previousElementSibling!==anchor){
-        anchor.insertAdjacentElement('afterend',btn);
-      }
-    }else if(!btn.parentElement){
-      var row=document.querySelector('.worktabs,.tabs') || E('newOrder');
-      if(row) row.appendChild(btn);
-    }
-  }
-
-  function clearPostcodeHelpers(){
-    [
-      'bnsCustomerPostcodeInput','bnsCustomerHouseNumberInput',
-      'bnsLocationPostcodeInput','bnsLocationHouseNumberInput',
-      'bnsPostcodeInput','bnsHouseNumberInput'
-    ].forEach(function(id){ var el=E(id); if(el) el.value=''; });
-    ['bnsCustomerPostcodeStatus','bnsLocationPostcodeStatus','bnsPostcodeStatus'].forEach(function(id){
-      var el=E(id); if(el) el.textContent='';
-    });
-    A('input[placeholder*="Postcode" i],input[placeholder*="Huisnr" i],input[placeholder*="huisnummer" i]').forEach(function(el){
-      if(el.id==='customerZip' || el.id==='locationZip') return;
-      el.value='';
-    });
-  }
-
-  function wrapClearOrder(){
-    var original=window.clearOrder;
-    if(typeof original!=='function' || original.__tapwagenV942Wrapped) return;
-    var wrapped=function(){
-      var result=original.apply(this,arguments);
-      clearPostcodeHelpers();
-      setTimeout(clearPostcodeHelpers,0);
-      setTimeout(clearPostcodeHelpers,150);
-      return result;
-    };
-    wrapped.__tapwagenV942Wrapped=true;
-    window.clearOrder=wrapped;
-    try{ clearOrder=wrapped; }catch(_){ }
-  }
-
-  function install(){
-    ensureStyle();
-    renameTabs();
-    ensureCopyButton();
-    wrapClearOrder();
-  }
-
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,80); setTimeout(install,600); });
-  }else{
-    setTimeout(install,0); setTimeout(install,500);
-  }
-  document.addEventListener('click',function(ev){
-    var nav=ev.target&&ev.target.closest&&ev.target.closest('.nav[data-page="newOrder"]');
-    if(nav){ setTimeout(clearPostcodeHelpers,0); setTimeout(clearPostcodeHelpers,180); }
-    setTimeout(function(){ renameTabs(); ensureCopyButton(); },40);
-  },true);
-  try{
-    var queued=false;
-    var mo=new MutationObserver(function(){
-      if(queued) return;
-      queued=true;
-      setTimeout(function(){ queued=false; install(); },60);
-    });
-    mo.observe(document.documentElement,{childList:true,subtree:true});
-  }catch(_){ }
-  console.info('[Tapwagen v942] Copy zichtbaar; tabs Extra/Bijzonderheden klant; postcode leeg bij nieuwe opdracht.');
-})();
