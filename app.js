@@ -29461,6 +29461,20 @@ setTimeout(()=>{
         el.dataset.bnsV83='1';
         el.addEventListener('change',function(){
           if(docTypeTitle()==='Contante betaling') setVal('bnsInvoiceNumber','');
+          /* v72-fix: bij het wisselen tussen "Automatisch" en "Zelf invullen"
+             gebeurde er niets, omdat invoiceNumberForDoc() alleen keek of het
+             veld leeg was - niet naar de gekozen modus. Eenmaal gegenereerd,
+             bleef hetzelfde nummer altijd staan, ongeacht welke optie je koos.
+             Nu wordt het veld bewust leeggemaakt bij "Zelf invullen" (zodat
+             je zelf iets kan intypen), en bij "Automatisch" een vers nummer
+             gegenereerd als het leeg is. */
+          if(id==='bnsInvoiceNrMode'){
+            if(el.value==='manual'){
+              setVal('bnsInvoiceNumber','');
+            } else if(el.value==='auto'){
+              setVal('bnsInvoiceNumber', nextInvoiceNumber());
+            }
+          }
           persistInvoiceMeta();
         });
       }
