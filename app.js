@@ -53393,3 +53393,138 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
 // Tapwagen v947 - gebruiksvriendelijke documentstijl bovenop v946/v945
 window.TapwagenV947Info=function(){return {basis:'Tapwagen v945 + v946 documentfonts',feature:'Documentstijl presets Compact/Normaal/Groot/Extra groot + Geavanceerd',storage:'bns_huisstijl_v361',defaultPreset:'Normaal',documents:['factuur','opdrachtbevestiging','offerte'],amsterdam:false,rental:false};};
 console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
+
+/* =========================================================
+   Tapwagen v942 - zichtbare Copy knop, duidelijke tabnamen,
+   postcodevelden leeg bij iedere nieuwe opdracht.
+   Alleen planner-interface; geen Firebase/data-structuur wijziging.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__TAPWAGEN_V942_UI_FIX__) return;
+  window.__TAPWAGEN_V942_UI_FIX__=true;
+
+  function E(id){ return document.getElementById(id); }
+  function A(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+
+  function ensureStyle(){
+    if(E('tapwagenV942Style')) return;
+    var st=document.createElement('style');
+    st.id='tapwagenV942Style';
+    st.textContent='\n'
+      +'button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]{font-size:14px!important;}\n'
+      +'button[data-tab="vehiclePanel"]:after,.worktab[data-tab="vehiclePanel"]:after{content:none!important;display:none!important;}\n'
+      +'#tapwagenCopyOrderButton{display:inline-flex!important;align-items:center!important;justify-content:center!important;visibility:visible!important;opacity:1!important;background:#047857!important;color:#fff!important;border:0!important;border-radius:12px!important;padding:10px 15px!important;font-weight:800!important;cursor:pointer!important;}\n';
+    document.head.appendChild(st);
+  }
+
+  function renameTabs(){
+    A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').forEach(function(btn){
+      if((btn.textContent||'').trim()!=='Extra') btn.textContent='Extra';
+      btn.title='Extra';
+      btn.setAttribute('aria-label','Extra');
+    });
+    A('button[data-tab="extraPanel"],.worktab[data-tab="extraPanel"]').forEach(function(btn){
+      if((btn.textContent||'').trim()!=='Bijzonderheden klant') btn.textContent='Bijzonderheden klant';
+      btn.title='Bijzonderheden klant';
+      btn.setAttribute('aria-label','Bijzonderheden klant');
+    });
+  }
+
+  function copyCurrentOrder(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    try{
+      if(typeof window.copyOrder==='function'){
+        window.copyOrder();
+        return;
+      }
+      if(typeof copyTop==='function'){
+        copyTop();
+        return;
+      }
+    }catch(err){
+      console.error('[Tapwagen v942] Copy opdracht fout',err);
+    }
+    try{ if(typeof toastMsg==='function') toastMsg('Copy opdracht kon niet worden gestart.'); }catch(_){ }
+  }
+
+  function ensureCopyButton(){
+    var btn=E('tapwagenCopyOrderButton');
+    if(!btn){
+      btn=document.createElement('button');
+      btn.id='tapwagenCopyOrderButton';
+      btn.type='button';
+      btn.className='worktab tapwagen-copy-order';
+      btn.textContent='Copy opdracht';
+      btn.onclick=copyCurrentOrder;
+    }
+    var anchor=A('button[data-tab="extraPanel"],.worktab[data-tab="extraPanel"]').pop();
+    if(!anchor) anchor=A('button[data-tab="vehiclePanel"],.worktab[data-tab="vehiclePanel"]').pop();
+    if(anchor){
+      if(btn.parentElement!==anchor.parentElement || btn.previousElementSibling!==anchor){
+        anchor.insertAdjacentElement('afterend',btn);
+      }
+    }else if(!btn.parentElement){
+      var row=document.querySelector('.worktabs,.tabs') || E('newOrder');
+      if(row) row.appendChild(btn);
+    }
+  }
+
+  function clearPostcodeHelpers(){
+    [
+      'bnsCustomerPostcodeInput','bnsCustomerHouseNumberInput',
+      'bnsLocationPostcodeInput','bnsLocationHouseNumberInput',
+      'bnsPostcodeInput','bnsHouseNumberInput'
+    ].forEach(function(id){ var el=E(id); if(el) el.value=''; });
+    ['bnsCustomerPostcodeStatus','bnsLocationPostcodeStatus','bnsPostcodeStatus'].forEach(function(id){
+      var el=E(id); if(el) el.textContent='';
+    });
+    A('input[placeholder*="Postcode" i],input[placeholder*="Huisnr" i],input[placeholder*="huisnummer" i]').forEach(function(el){
+      if(el.id==='customerZip' || el.id==='locationZip') return;
+      el.value='';
+    });
+  }
+
+  function wrapClearOrder(){
+    var original=window.clearOrder;
+    if(typeof original!=='function' || original.__tapwagenV942Wrapped) return;
+    var wrapped=function(){
+      var result=original.apply(this,arguments);
+      clearPostcodeHelpers();
+      setTimeout(clearPostcodeHelpers,0);
+      setTimeout(clearPostcodeHelpers,150);
+      return result;
+    };
+    wrapped.__tapwagenV942Wrapped=true;
+    window.clearOrder=wrapped;
+    try{ clearOrder=wrapped; }catch(_){ }
+  }
+
+  function install(){
+    ensureStyle();
+    renameTabs();
+    ensureCopyButton();
+    wrapClearOrder();
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',function(){ setTimeout(install,80); setTimeout(install,600); });
+  }else{
+    setTimeout(install,0); setTimeout(install,500);
+  }
+  document.addEventListener('click',function(ev){
+    var nav=ev.target&&ev.target.closest&&ev.target.closest('.nav[data-page="newOrder"]');
+    if(nav){ setTimeout(clearPostcodeHelpers,0); setTimeout(clearPostcodeHelpers,180); }
+    setTimeout(function(){ renameTabs(); ensureCopyButton(); },40);
+  },true);
+  try{
+    var queued=false;
+    var mo=new MutationObserver(function(){
+      if(queued) return;
+      queued=true;
+      setTimeout(function(){ queued=false; install(); },60);
+    });
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+  }catch(_){ }
+  console.info('[Tapwagen v942] Copy zichtbaar; tabs Extra/Bijzonderheden klant; postcode leeg bij nieuwe opdracht.');
+})();
