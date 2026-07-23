@@ -13397,6 +13397,22 @@ setTimeout(()=>{
     }
     return [];
   }
+  function currentMaterialAgendaLines(){
+    try {
+      if (Array.isArray(chosen) && chosen.length) {
+        return chosen.map(function(item){
+          var qty = Number(item.qty || item.count || item.amount || 1);
+          var code = String(item.code || "").trim();
+          var name = String(item.name || item.title || "").trim();
+          var description = [code, name && name !== code ? name : ""].filter(Boolean).join(" - ");
+          if (!description) description = "Materiaal";
+          return "- " + (qty > 1 ? qty + "x " : "") + description;
+        }).filter(Boolean);
+      }
+    } catch(e){
+    }
+    return ["- Geen materialen gekozen"];
+  }
   function currentFirstMaterialCat(){
     try {
       if (Array.isArray(chosen) && chosen.length) {
@@ -13467,11 +13483,23 @@ setTimeout(()=>{
     const details = [
       "Opdrachtnummer: " + (number || "Niet ingevuld"),
       "Klant: " + (customer || "Niet ingevuld"),
+      "",
+      "Materialen:",
+      currentMaterialAgendaLines().join("\n"),
+      "",
       "Uitstraling / merk: " + (brand || "Niet ingevuld"),
-      "Adres: " + (address || "Niet ingevuld"),
-      "Telefoon: " + (phone || "Niet ingevuld"),
-      "Brengdatum: " + agendaDisplayDate(deliveryDate),
-      "Ophaaldatum: " + agendaDisplayDate(pickupDate)
+      "",
+      "Adres:",
+      address || "Niet ingevuld",
+      "",
+      "Telefoon:",
+      phone || "Niet ingevuld",
+      "",
+      "Brengdatum:",
+      agendaDisplayDate(deliveryDate),
+      "",
+      "Ophaaldatum:",
+      agendaDisplayDate(pickupDate)
     ].join("\n");
 
     const url = "https://calendar.google.com/calendar/render?action=TEMPLATE"
@@ -13983,12 +14011,20 @@ setTimeout(()=>{
       btn.className="worktab bns-copy-top";
       btn.onclick=e=>{
         e.preventDefault();
-        copyTop()
+        e.stopPropagation();
+        if(typeof window.copyOrder === "function") window.copyOrder();
+        else copyTop();
       }
     }
-    let extra=A("button").find(b=>(b.textContent||"").trim().toLowerCase()==="extra");
-    if(extra&&btn.previousElementSibling!==extra)extra.insertAdjacentElement("afterend",btn);
-    else if(!btn.parentElement)(document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn)
+    let candidates=A("button.worktab, button[data-tab]").filter(function(b){
+      return (b.textContent||"").trim().toLowerCase()==="bijzonderheden";
+    });
+    let anchor=candidates.length ? candidates[candidates.length-1] : A("button").find(function(b){
+      var t=(b.textContent||"").trim().toLowerCase();
+      return t==="bijzonderheden" || t==="extra";
+    });
+    if(anchor && btn.previousElementSibling!==anchor) anchor.insertAdjacentElement("afterend",btn);
+    else if(!btn.parentElement) (document.querySelector(".worktabs,.tabs")||E("newOrder")||document.body).appendChild(btn)
   }
   function patchRows(){
     A("#materialList .material-row").forEach(row=>{
