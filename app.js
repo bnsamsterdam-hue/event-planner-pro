@@ -8445,8 +8445,12 @@ function upsertLocation(l){
 function clearOrder(){
   window.__bnsEditingOrder=false; // BNS 802 reset
   ['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderDriver','orderVehicle','orderExtra'].forEach(i=>$(i).value='');
-  ['bnsPostcodeInput','bnsHouseNumberInput','bnsCustomerPostcodeInput','bnsCustomerHouseNumberInput','bnsLocationPostcodeInput','bnsLocationHouseNumberInput'].forEach(function(i){ var el=$(i); if(el) el.value=''; });
-  var postcodeStatus=$('bnsPostcodeStatus'); if(postcodeStatus) postcodeStatus.textContent='';
+  ['bnsPostcodeInput','bnsHouseNumberInput','bnsCustomerPostcodeInput','bnsCustomerHouseNumberInput','bnsLocationPostcodeInput','bnsLocationHouseNumberInput'].forEach(function(idv){
+    var el=$(idv); if(el) el.value='';
+  });
+  ['bnsPostcodeStatus','bnsCustomerPostcodeStatus','bnsLocationPostcodeStatus'].forEach(function(idv){
+    var el=$(idv); if(el) el.textContent='';
+  });
   chosen=[];
   renderChosen();
   if($('priceExcl')) $('priceExcl').value='0.00';
@@ -13466,25 +13470,13 @@ setTimeout(()=>{
       if (parts.length !== 3) return value || "Niet ingevuld";
       return Number(parts[2]) + "-" + Number(parts[1]) + "-" + parts[0].slice(-2);
     }
-    const agendaMaterials = (function(){
-      try {
-        const list = (typeof chosen !== "undefined" && Array.isArray(chosen)) ? chosen : [];
-        if (!list.length) return "- Geen materialen gekozen";
-        return list.map(function(m){
-          const qty = m.qty || m.count || 1;
-          const name = [m.code || "", m.name || m.description || ""].filter(Boolean).join(" - ");
-          return "- " + qty + " x " + (name || "Materiaal");
-        }).join("\n");
-      } catch(e) {
-        return "- Geen materialen gekozen";
-      }
-    })();
+    const materialLines = currentMaterialCodes();
     const details = [
       "Opdrachtnummer: " + (number || "Niet ingevuld"),
       "Klant: " + (customer || "Niet ingevuld"),
       "",
       "Materialen:",
-      agendaMaterials,
+      materialLines.length ? materialLines.map(function(code){ return "- " + code; }).join("\n") : "- Geen materialen gekozen",
       "",
       "Uitstraling / merk: " + (brand || "Niet ingevuld"),
       "",
@@ -14009,11 +14001,13 @@ setTimeout(()=>{
         copyTop()
       }
     }
-    let tabs=A("button");
-    let target=tabs.filter(b=>(b.textContent||"").trim().toLowerCase()==="bijzonderheden").pop();
-    if(!target) target=tabs.find(b=>(b.textContent||"").trim().toLowerCase()==="extra");
+    let target = E("extraPanel") ? document.querySelector('button[data-tab="extraPanel"]') : null;
+    if(!target){
+      const buttons=A("button.worktab");
+      target=buttons.filter(function(b){ return (b.textContent||"").trim().toLowerCase()==="bijzonderheden"; }).pop() || null;
+    }
     if(target&&btn.previousElementSibling!==target)target.insertAdjacentElement("afterend",btn);
-    else if(!btn.parentElement)(document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn)
+    else if(!btn.parentElement)(document.querySelector(".worktabs")||document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn)
   }
   function patchRows(){
     A("#materialList .material-row").forEach(row=>{
