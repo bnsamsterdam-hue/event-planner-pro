@@ -29404,8 +29404,8 @@ setTimeout(()=>{
   function nextInvoiceNumber(){
     var y=new Date().getFullYear(), max=0;
     orders().forEach(function(o){
-      var n=T(o&&o.invoice&&o.invoice.invoiceNumber);
-      var m=n.match(new RegExp('^F'+y+'-(\\d+)$'));
+      var n=T((o&&o.invoice&&o.invoice.invoiceNumber) || (o&&o.invoiceNumber) || (o&&o.factuurNr));
+      var m=n.match(new RegExp('^-?F'+y+'-(\d+)$'));
       if(m) max=Math.max(max,parseInt(m[1],10)||0);
     });
     return 'F'+y+'-'+String(max+1).padStart(4,'0');
@@ -29418,10 +29418,21 @@ setTimeout(()=>{
   }
   function invoiceNumberForDoc(){
     var title=docTypeTitle();
-    if(title==='Contante betaling') return '';
+    var mode=val('bnsInvoiceNrMode') || 'auto';
     var n=val('bnsInvoiceNumber');
-    var mode=val('bnsInvoiceNrMode');
-    if(!n && mode!=='manual') n=nextInvoiceNumber();
+    if(title==='Contante betaling'){
+      setVal('bnsInvoiceNumber','');
+      return '';
+    }
+    if(mode==='manual'){
+      if(title==='Credit factuur' && n && n.charAt(0)!=='-') n='-'+n;
+      if(title==='Factuur' && n.charAt(0)==='-') n=n.slice(1);
+      setVal('bnsInvoiceNumber',n);
+      return n;
+    }
+    if(!n) n=nextInvoiceNumber();
+    if(title==='Credit factuur' && n.charAt(0)!=='-') n='-'+n;
+    if(title==='Factuur' && n.charAt(0)==='-') n=n.slice(1);
     setVal('bnsInvoiceNumber',n);
     return n;
   }
@@ -29460,20 +29471,21 @@ setTimeout(()=>{
       if(el&&!el.dataset.bnsV83){
         el.dataset.bnsV83='1';
         el.addEventListener('change',function(){
-          if(docTypeTitle()==='Contante betaling') setVal('bnsInvoiceNumber','');
-          /* v72-fix: bij het wisselen tussen "Automatisch" en "Zelf invullen"
-             gebeurde er niets, omdat invoiceNumberForDoc() alleen keek of het
-             veld leeg was - niet naar de gekozen modus. Eenmaal gegenereerd,
-             bleef hetzelfde nummer altijd staan, ongeacht welke optie je koos.
-             Nu wordt het veld bewust leeggemaakt bij "Zelf invullen" (zodat
-             je zelf iets kan intypen), en bij "Automatisch" een vers nummer
-             gegenereerd als het leeg is. */
-          if(id==='bnsInvoiceNrMode'){
-            if(el.value==='manual'){
-              setVal('bnsInvoiceNumber','');
-            } else if(el.value==='auto'){
-              setVal('bnsInvoiceNumber', nextInvoiceNumber());
-            }
+          var title=docTypeTitle();
+          var mode=val('bnsInvoiceNrMode') || 'auto';
+          if(id==='bnsInvoiceNrMode' && el.value==='manual'){
+            setVal('bnsInvoiceNumber','');
+          } else if(title==='Contante betaling'){
+            setVal('bnsInvoiceNumber','');
+          } else if(mode==='auto'){
+            var n=nextInvoiceNumber();
+            if(title==='Credit factuur') n='-'+n;
+            setVal('bnsInvoiceNumber',n);
+          } else {
+            var n=val('bnsInvoiceNumber');
+            if(title==='Credit factuur' && n && n.charAt(0)!=='-') n='-'+n;
+            if(title==='Factuur' && n.charAt(0)==='-') n=n.slice(1);
+            setVal('bnsInvoiceNumber',n);
           }
           persistInvoiceMeta();
         });
@@ -29564,13 +29576,17 @@ setTimeout(()=>{
     if(make && make.dataset.bnsV83!=='1'){
       make.dataset.bnsV83='1';
       make.onclick=function(){
-        if(docTypeTitle()==='Contante betaling'){
+        var title=docTypeTitle();
+        var mode=val('bnsInvoiceNrMode') || 'auto';
+        if(title==='Contante betaling' || mode==='manual'){
           setVal('bnsInvoiceNumber','');
         } else {
-          setVal('bnsInvoiceNumber',nextInvoiceNumber());
+          var n=nextInvoiceNumber();
+          if(title==='Credit factuur') n='-'+n;
+          setVal('bnsInvoiceNumber',n);
         }
         persistInvoiceMeta();
-        toast('Factuurgegevens opgeslagen');
+        toast(title==='Contante betaling' ? 'Contante betaling zonder factuurnummer' : (mode==='manual' ? 'Vul zelf een factuurnummer in' : 'Factuurnummer aangemaakt'));
       };
     }
     window.makeInvoice=openDoc83;
