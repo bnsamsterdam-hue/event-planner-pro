@@ -8445,6 +8445,8 @@ function upsertLocation(l){
 function clearOrder(){
   window.__bnsEditingOrder=false; // BNS 802 reset
   ['orderTitle','dateStart','dateEnd','orderBrand','customerName','customerStreet','customerZip','customerCity','customerPhone','customerEmail','locationName','locationStreet','locationZip','locationCity','locationContact','locationPhone','orderDriver','orderVehicle','orderExtra'].forEach(i=>$(i).value='');
+  ['bnsPostcodeInput','bnsHouseNumberInput','bnsCustomerPostcodeInput','bnsCustomerHouseNumberInput','bnsLocationPostcodeInput','bnsLocationHouseNumberInput'].forEach(function(i){ var el=$(i); if(el) el.value=''; });
+  var postcodeStatus=$('bnsPostcodeStatus'); if(postcodeStatus) postcodeStatus.textContent='';
   chosen=[];
   renderChosen();
   if($('priceExcl')) $('priceExcl').value='0.00';
@@ -13464,13 +13466,34 @@ setTimeout(()=>{
       if (parts.length !== 3) return value || "Niet ingevuld";
       return Number(parts[2]) + "-" + Number(parts[1]) + "-" + parts[0].slice(-2);
     }
+    const agendaMaterials = (function(){
+      try {
+        const list = (typeof chosen !== "undefined" && Array.isArray(chosen)) ? chosen : [];
+        if (!list.length) return "- Geen materialen gekozen";
+        return list.map(function(m){
+          const qty = m.qty || m.count || 1;
+          const name = [m.code || "", m.name || m.description || ""].filter(Boolean).join(" - ");
+          return "- " + qty + " x " + (name || "Materiaal");
+        }).join("\n");
+      } catch(e) {
+        return "- Geen materialen gekozen";
+      }
+    })();
     const details = [
       "Opdrachtnummer: " + (number || "Niet ingevuld"),
       "Klant: " + (customer || "Niet ingevuld"),
+      "",
+      "Materialen:",
+      agendaMaterials,
+      "",
       "Uitstraling / merk: " + (brand || "Niet ingevuld"),
+      "",
       "Adres: " + (address || "Niet ingevuld"),
+      "",
       "Telefoon: " + (phone || "Niet ingevuld"),
+      "",
       "Brengdatum: " + agendaDisplayDate(deliveryDate),
+      "",
       "Ophaaldatum: " + agendaDisplayDate(pickupDate)
     ].join("\n");
 
@@ -13986,8 +14009,10 @@ setTimeout(()=>{
         copyTop()
       }
     }
-    let extra=A("button").find(b=>(b.textContent||"").trim().toLowerCase()==="extra");
-    if(extra&&btn.previousElementSibling!==extra)extra.insertAdjacentElement("afterend",btn);
+    let tabs=A("button");
+    let target=tabs.filter(b=>(b.textContent||"").trim().toLowerCase()==="bijzonderheden").pop();
+    if(!target) target=tabs.find(b=>(b.textContent||"").trim().toLowerCase()==="extra");
+    if(target&&btn.previousElementSibling!==target)target.insertAdjacentElement("afterend",btn);
     else if(!btn.parentElement)(document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn)
   }
   function patchRows(){
