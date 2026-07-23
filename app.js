@@ -14001,13 +14001,15 @@ setTimeout(()=>{
         copyTop()
       }
     }
-    let target = E("extraPanel") ? document.querySelector('button[data-tab="extraPanel"]') : null;
-    if(!target){
-      const buttons=A("button.worktab");
-      target=buttons.filter(function(b){ return (b.textContent||"").trim().toLowerCase()==="bijzonderheden"; }).pop() || null;
+    const tabs = document.querySelector("#newOrder .tabs");
+    const target = tabs ? tabs.querySelector('button[data-tab="extraPanel"]') : null;
+    if(target){
+      if(btn.parentElement!==tabs || btn.previousElementSibling!==target){
+        target.insertAdjacentElement("afterend",btn);
+      }
+    } else if(tabs && !btn.parentElement){
+      tabs.appendChild(btn);
     }
-    if(target&&btn.previousElementSibling!==target)target.insertAdjacentElement("afterend",btn);
-    else if(!btn.parentElement)(document.querySelector(".worktabs")||document.querySelector(".tabs")||E("newOrder")||document.body).appendChild(btn)
   }
   function patchRows(){
     A("#materialList .material-row").forEach(row=>{
@@ -15237,9 +15239,6 @@ setTimeout(()=>{
     panel.className = "workpanel hidden";
     panel.innerHTML = '<h2>Documenten</h2><div class="bns-doc-card"><b>Opdracht documenten</b><div class="bns-doc-grid"></div><small>Gebruik deze map voor Copy opdracht, Factuur en Opdracht bevestiging. Datum/filters/systeemmeldingen blijven uit A12 behouden.</small></div>';
     var grid = q(".bns-doc-grid", panel);
-    grid.appendChild(makeButton("Copy opdracht", "#047857", function(){
-      window.copyOrder();
-    }));
     // BNS 545: dubbele documentknoppen verwijderd. Gebruik de bovenste knoppen in Facturen / documenten.
     if (vehiclePanel && vehiclePanel.insertAdjacentElement) vehiclePanel.insertAdjacentElement("afterend", panel);
     else if (extraPanel && extraPanel.insertAdjacentElement) extraPanel.insertAdjacentElement("beforebegin", panel);
@@ -15768,7 +15767,7 @@ setTimeout(()=>{
       var panel = document.createElement("div");
       panel.id = DOC_PANEL_ID;
       panel.className = "workpanel hidden";
-      panel.innerHTML = '<h2>Documenten</h2><div class="bns-doc-grid"><button class="bns-doc-btn" style="background:#047857" onclick="copyOrder&&copyOrder()">Copy opdracht</button></div>';
+      panel.innerHTML = '<h2>Documenten</h2><div class="bns-doc-grid"></div>';
       if (vehiclePanel && vehiclePanel.insertAdjacentElement) vehiclePanel.insertAdjacentElement("afterend", panel);
       else parent.appendChild(panel);
     }
