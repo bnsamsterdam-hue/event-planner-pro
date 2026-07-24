@@ -29417,11 +29417,13 @@ setTimeout(()=>{
     }) || null;
   }
   function invoiceNumberForDoc(){
-    /* v72-clean: logica hieronder vervangen door één nieuw, schoon systeem
-       (zie BNS_V72_CLEAN_INVOICE verderop in dit bestand). Deze functie
-       roept dat nieuwe systeem nu simpelweg aan. */
-    if(window.BNS_V72_CLEAN_INVOICE) return window.BNS_V72_CLEAN_INVOICE.compute();
-    return val('bnsInvoiceNumber');
+    var title=docTypeTitle();
+    if(title==='Contante betaling') return '';
+    var n=val('bnsInvoiceNumber');
+    var mode=val('bnsInvoiceNrMode');
+    if(!n && mode!=='manual') n=nextInvoiceNumber();
+    setVal('bnsInvoiceNumber',n);
+    return n;
   }
   function persistInvoiceMeta(){
     var o=currentOrder();
@@ -29446,86 +29448,24 @@ setTimeout(()=>{
       }
     }
     var type=E('bnsInvoiceType');
-    if(type && type.options.length < 3){
-      var prevType = type.value;
+    if(type){
       type.innerHTML='<option>Factuur</option><option>Credit factuur</option><option>Contante betaling</option>';
-      if(prevType) type.value = prevType;
     }
     var pay=E('bnsPaymentType');
-    if(pay && pay.options.length < 3){
-      var prevPay = pay.value;
+    if(pay){
       pay.innerHTML='<option>Op rekening</option><option>Contant</option><option>Credit</option>';
-      if(prevPay) pay.value = prevPay;
     }
-    /* v72-clean: de oude, hier-gebonden change-listeners en debounce-logica
-       zijn verwijderd - dat werd onbetrouwbaar gebleken. Een volledig nieuw,
-       zelfstandig systeem (BNS_V72_CLEAN_INVOICE) regelt dit nu apart. */
-    if(window.BNS_V72_CLEAN_INVOICE) window.BNS_V72_CLEAN_INVOICE.bind();
+    ['bnsInvoiceType','bnsPaymentType','bnsInvoiceNrMode'].forEach(function(id){
+      var el=E(id);
+      if(el&&!el.dataset.bnsV83){
+        el.dataset.bnsV83='1';
+        el.addEventListener('change',function(){
+          if(docTypeTitle()==='Contante betaling') setVal('bnsInvoiceNumber','');
+          persistInvoiceMeta();
+        });
+      }
+    });
   }
-  /* ============================================================
-     BNS_V72_CLEAN_INVOICE - volledig nieuw, zelfstandig systeem
-     voor het factuurnummerveld. Vervangt alle eerdere, gelaagde
-     pogingen (die onbetrouwbaar bleken). Regels:
-     - Document type/Betaalwijze = Contant  -> altijd leeg
-     - Document type/Betaalwijze = Credit   -> minteken ervoor
-     - Factuur nr keuze = Zelf invullen     -> altijd leeg (typ zelf)
-     - Factuur nr keuze = Automatisch       -> volgend nummer
-     Zichtbaar/testbaar via window.BNS_V72_CLEAN_INVOICE.compute()
-     ============================================================ */
-  window.BNS_V72_CLEAN_INVOICE = (function(){
-    function readLower(id){
-      var el=document.getElementById(id);
-      return el ? String(el.value||'').toLowerCase() : '';
-    }
-    function compute(){
-      var typeVal = readLower('bnsInvoiceType');
-      var payVal = readLower('bnsPaymentType');
-      var isContant = typeVal.indexOf('contant')>=0 || payVal.indexOf('contant')>=0;
-      var isCredit = typeVal.indexOf('credit')>=0 || payVal.indexOf('credit')>=0;
-      var modeEl = document.getElementById('bnsInvoiceNrMode');
-      var mode = modeEl ? modeEl.value : 'auto';
-      var numEl = document.getElementById('bnsInvoiceNumber');
-      if(!numEl) return '';
-      if(isContant){
-        numEl.value = '';
-        return '';
-      }
-      if(mode === 'manual'){
-        return numEl.value;
-      }
-      var clean = String(numEl.value||'').replace(/^-/,'');
-      if(!clean && typeof nextInvoiceNumber === 'function') clean = nextInvoiceNumber();
-      var result = isCredit ? ('-'+clean) : clean;
-      numEl.value = result;
-      return result;
-    }
-    function onModeChange(){
-      var modeEl = document.getElementById('bnsInvoiceNrMode');
-      var numEl = document.getElementById('bnsInvoiceNumber');
-      if(modeEl && numEl && modeEl.value === 'manual') numEl.value = '';
-      compute();
-    }
-    function bind(){
-      var firstBind = false;
-      ['bnsInvoiceType','bnsPaymentType'].forEach(function(id){
-        var el = document.getElementById(id);
-        if(el && !el.dataset.bnsV72Clean){
-          el.dataset.bnsV72Clean = '1';
-          firstBind = true;
-          el.addEventListener('change', compute);
-        }
-      });
-      var modeEl = document.getElementById('bnsInvoiceNrMode');
-      if(modeEl && !modeEl.dataset.bnsV72Clean){
-        modeEl.dataset.bnsV72Clean = '1';
-        firstBind = true;
-        modeEl.addEventListener('change', onModeChange);
-      }
-      if(firstBind) compute();
-    }
-    setInterval(function(){ try{ bind(); }catch(e){} }, 2000);
-    return { compute: compute, bind: bind };
-  })();
   function orderForDoc(){
     var o=currentOrder()||{
     };
@@ -34741,7 +34681,7 @@ setTimeout(()=>{
     var o = orderData();
     var t = totals();
     var offer = isOfferLike(type);
-    var title = offer ? 'Opdrachtbevestiging / Offerte' : docTypeTitle();
+    var title = offer ? 'Opdrachtbevestiging / Offerte' : (type || invoiceType() || 'Factuur');
     var accent = inv.accent || '#2563eb';
     var templateStyle = inv.template ? 'background-image:url('+inv.template+');background-size:cover;background-position:top center;background-repeat:no-repeat;' : '';
     var meta = '<b>Opdracht '+esc(o.number || '-')+'</b>';
