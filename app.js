@@ -29456,12 +29456,21 @@ setTimeout(()=>{
       }
     }
     var type=E('bnsInvoiceType');
-    if(type){
+    if(type && type.options.length < 3){
+      /* v72-fix: deze dropdown werd elke 8 seconden ONVOORWAARDELIJK
+         herbouwd (via de achtergrondtimer), wat de gekozen optie steeds
+         terugzette naar de eerste ("Factuur") - vandaar het flikkeren en
+         "blijft hetzelfde"-gedrag. Nu alleen herbouwen als de opties er
+         nog niet correct staan, en de eerder gekozen waarde behouden. */
+      var prevType = type.value;
       type.innerHTML='<option>Factuur</option><option>Credit factuur</option><option>Contante betaling</option>';
+      if(prevType) type.value = prevType;
     }
     var pay=E('bnsPaymentType');
-    if(pay){
+    if(pay && pay.options.length < 3){
+      var prevPay = pay.value;
       pay.innerHTML='<option>Op rekening</option><option>Contant</option><option>Credit</option>';
+      if(prevPay) pay.value = prevPay;
     }
     ['bnsInvoiceType','bnsPaymentType','bnsInvoiceNrMode'].forEach(function(id){
       var el=E(id);
@@ -29472,7 +29481,13 @@ setTimeout(()=>{
             setVal('bnsInvoiceNumber','');
           }
           syncInvoiceNumberField();
-          persistInvoiceMeta();
+          /* v72-fix: persistInvoiceMeta() doet een volledige lokale opslag +
+             Firebase-sync. Bij elke wijziging van deze drie velden direct
+             vuren kon, in combinatie met bestaande Firebase-wachtrijdruk,
+             merkbare onrust/geflikker geven. Nu vertraagd (300ms) en pas
+             de laatste wijziging in een reeks wordt daadwerkelijk verwerkt. */
+          clearTimeout(window.__v72InvoiceMetaTimer);
+          window.__v72InvoiceMetaTimer = setTimeout(persistInvoiceMeta, 300);
         });
       }
     });
