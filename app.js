@@ -29417,21 +29417,11 @@ setTimeout(()=>{
     }) || null;
   }
   function invoiceNumberForDoc(){
-    var title=docTypeTitle();
-    if(title==='Contante betaling'){
-      setVal('bnsInvoiceNumber','');
-      return '';
-    }
-    var n=val('bnsInvoiceNumber');
-    var mode=val('bnsInvoiceNrMode');
-    if(!n && mode!=='manual') n=nextInvoiceNumber();
-    if(title==='Credit factuur'){
-      if(n && n.indexOf('-')!==0) n='-'+n;
-    } else if(n && n.indexOf('-')===0){
-      n=n.slice(1);
-    }
-    setVal('bnsInvoiceNumber',n);
-    return n;
+    /* v72-clean: logica hieronder vervangen door één nieuw, schoon systeem
+       (zie BNS_V72_CLEAN_INVOICE verderop in dit bestand). Deze functie
+       roept dat nieuwe systeem nu simpelweg aan. */
+    if(window.BNS_V72_CLEAN_INVOICE) return window.BNS_V72_CLEAN_INVOICE.compute();
+    return val('bnsInvoiceNumber');
   }
   function persistInvoiceMeta(){
     var o=currentOrder();
@@ -29448,16 +29438,6 @@ setTimeout(()=>{
   function patchInvoiceBox(){
     var box=E('bnsV73InvoiceBox');
     if(!box) return;
-    /* v72-fix: zelfherstellende controle, bovenop de change-listener.
-       Deze functie draait toch al elke 8 seconden op de achtergrond -
-       gebruik dat moment ook om te garanderen dat het factuurnummerveld
-       klopt met de huidige Document type/Betaalwijze/Zelf-Auto-keuze,
-       ongeacht of de change-gebeurtenis er ooit correct voor heeft
-       gezorgd. Draait alleen als er al eerder een keuze is gemaakt
-       (voorkomt onnodig ingrijpen bij het allereerste laden). */
-    if(E('bnsInvoiceNrMode') && typeof syncInvoiceNumberField==='function'){
-      try{ syncInvoiceNumberField(); }catch(e){}
-    }
     if(!E('bnsInvoiceNrMode')){
       var inp=E('bnsInvoiceNumber');
       if(inp){
@@ -29467,11 +29447,6 @@ setTimeout(()=>{
     }
     var type=E('bnsInvoiceType');
     if(type && type.options.length < 3){
-      /* v72-fix: deze dropdown werd elke 8 seconden ONVOORWAARDELIJK
-         herbouwd (via de achtergrondtimer), wat de gekozen optie steeds
-         terugzette naar de eerste ("Factuur") - vandaar het flikkeren en
-         "blijft hetzelfde"-gedrag. Nu alleen herbouwen als de opties er
-         nog niet correct staan, en de eerder gekozen waarde behouden. */
       var prevType = type.value;
       type.innerHTML='<option>Factuur</option><option>Credit factuur</option><option>Contante betaling</option>';
       if(prevType) type.value = prevType;
@@ -29482,51 +29457,75 @@ setTimeout(()=>{
       pay.innerHTML='<option>Op rekening</option><option>Contant</option><option>Credit</option>';
       if(prevPay) pay.value = prevPay;
     }
-    ['bnsInvoiceType','bnsPaymentType','bnsInvoiceNrMode'].forEach(function(id){
-      var el=E(id);
-      if(el&&!el.dataset.bnsV83){
-        el.dataset.bnsV83='1';
-        el.addEventListener('change',function(){
-          if(id==='bnsInvoiceNrMode' && el.value==='manual'){
-            setVal('bnsInvoiceNumber','');
-          }
-          syncInvoiceNumberField();
-          /* v72-fix: persistInvoiceMeta() doet een volledige lokale opslag +
-             Firebase-sync. Bij elke wijziging van deze drie velden direct
-             vuren kon, in combinatie met bestaande Firebase-wachtrijdruk,
-             merkbare onrust/geflikker geven. Nu vertraagd (300ms) en pas
-             de laatste wijziging in een reeks wordt daadwerkelijk verwerkt. */
-          clearTimeout(window.__v72InvoiceMetaTimer);
-          window.__v72InvoiceMetaTimer = setTimeout(persistInvoiceMeta, 300);
-        });
+    /* v72-clean: de oude, hier-gebonden change-listeners en debounce-logica
+       zijn verwijderd - dat werd onbetrouwbaar gebleken. Een volledig nieuw,
+       zelfstandig systeem (BNS_V72_CLEAN_INVOICE) regelt dit nu apart. */
+    if(window.BNS_V72_CLEAN_INVOICE) window.BNS_V72_CLEAN_INVOICE.bind();
+  }
+  /* ============================================================
+     BNS_V72_CLEAN_INVOICE - volledig nieuw, zelfstandig systeem
+     voor het factuurnummerveld. Vervangt alle eerdere, gelaagde
+     pogingen (die onbetrouwbaar bleken). Regels:
+     - Document type/Betaalwijze = Contant  -> altijd leeg
+     - Document type/Betaalwijze = Credit   -> minteken ervoor
+     - Factuur nr keuze = Zelf invullen     -> altijd leeg (typ zelf)
+     - Factuur nr keuze = Automatisch       -> volgend nummer
+     Zichtbaar/testbaar via window.BNS_V72_CLEAN_INVOICE.compute()
+     ============================================================ */
+  window.BNS_V72_CLEAN_INVOICE = (function(){
+    function readLower(id){
+      var el=document.getElementById(id);
+      return el ? String(el.value||'').toLowerCase() : '';
+    }
+    function compute(){
+      var typeVal = readLower('bnsInvoiceType');
+      var payVal = readLower('bnsPaymentType');
+      var isContant = typeVal.indexOf('contant')>=0 || payVal.indexOf('contant')>=0;
+      var isCredit = typeVal.indexOf('credit')>=0 || payVal.indexOf('credit')>=0;
+      var modeEl = document.getElementById('bnsInvoiceNrMode');
+      var mode = modeEl ? modeEl.value : 'auto';
+      var numEl = document.getElementById('bnsInvoiceNumber');
+      if(!numEl) return '';
+      if(isContant){
+        numEl.value = '';
+        return '';
       }
-    });
-  }
-  /* v72-fix: gecombineerde, correcte logica voor het factuurnummerveld.
-     Hield voorheen geen rekening met "Contant" (nummer bleef gewoon staan,
-     ook al hoort een contante betaling geen factuurnummer te tonen), en ook
-     niet met "Credit" (geen minteken, geen aparte titel-afhandeling). Werkt
-     nu voor zowel het Document type- als het Betaalwijze-veld, ongeacht
-     welke van de twee je gebruikt (ze overlappen inderdaad in opties). */
-  function syncInvoiceNumberField(){
-    var title = docTypeTitle();
-    if(title === 'Contante betaling'){
-      setVal('bnsInvoiceNumber','');
-      return;
+      if(mode === 'manual'){
+        return numEl.value;
+      }
+      var clean = String(numEl.value||'').replace(/^-/,'');
+      if(!clean && typeof nextInvoiceNumber === 'function') clean = nextInvoiceNumber();
+      var result = isCredit ? ('-'+clean) : clean;
+      numEl.value = result;
+      return result;
     }
-    var mode = val('bnsInvoiceNrMode');
-    if(mode === 'manual'){
-      return; // laat leeg / laat staan wat de gebruiker zelf intypt
+    function onModeChange(){
+      var modeEl = document.getElementById('bnsInvoiceNrMode');
+      var numEl = document.getElementById('bnsInvoiceNumber');
+      if(modeEl && numEl && modeEl.value === 'manual') numEl.value = '';
+      compute();
     }
-    var n = val('bnsInvoiceNumber');
-    if(!n) n = nextInvoiceNumber();
-    if(title === 'Credit factuur'){
-      if(n.indexOf('-') !== 0) n = '-' + n;
-    } else if(n.indexOf('-') === 0){
-      n = n.slice(1);
+    function bind(){
+      var firstBind = false;
+      ['bnsInvoiceType','bnsPaymentType'].forEach(function(id){
+        var el = document.getElementById(id);
+        if(el && !el.dataset.bnsV72Clean){
+          el.dataset.bnsV72Clean = '1';
+          firstBind = true;
+          el.addEventListener('change', compute);
+        }
+      });
+      var modeEl = document.getElementById('bnsInvoiceNrMode');
+      if(modeEl && !modeEl.dataset.bnsV72Clean){
+        modeEl.dataset.bnsV72Clean = '1';
+        firstBind = true;
+        modeEl.addEventListener('change', onModeChange);
+      }
+      if(firstBind) compute();
     }
-    setVal('bnsInvoiceNumber', n);
-  }
+    setInterval(function(){ try{ bind(); }catch(e){} }, 2000);
+    return { compute: compute, bind: bind };
+  })();
   function orderForDoc(){
     var o=currentOrder()||{
     };
