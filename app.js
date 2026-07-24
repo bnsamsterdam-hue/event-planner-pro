@@ -29418,10 +29418,18 @@ setTimeout(()=>{
   }
   function invoiceNumberForDoc(){
     var title=docTypeTitle();
-    if(title==='Contante betaling') return '';
+    if(title==='Contante betaling'){
+      setVal('bnsInvoiceNumber','');
+      return '';
+    }
     var n=val('bnsInvoiceNumber');
     var mode=val('bnsInvoiceNrMode');
     if(!n && mode!=='manual') n=nextInvoiceNumber();
+    if(title==='Credit factuur'){
+      if(n && n.indexOf('-')!==0) n='-'+n;
+    } else if(n && n.indexOf('-')===0){
+      n=n.slice(1);
+    }
     setVal('bnsInvoiceNumber',n);
     return n;
   }
@@ -29460,25 +29468,39 @@ setTimeout(()=>{
       if(el&&!el.dataset.bnsV83){
         el.dataset.bnsV83='1';
         el.addEventListener('change',function(){
-          if(docTypeTitle()==='Contante betaling') setVal('bnsInvoiceNumber','');
-          /* v72-fix: bij het wisselen tussen "Automatisch" en "Zelf invullen"
-             gebeurde er niets, omdat invoiceNumberForDoc() alleen keek of het
-             veld leeg was - niet naar de gekozen modus. Eenmaal gegenereerd,
-             bleef hetzelfde nummer altijd staan, ongeacht welke optie je koos.
-             Nu wordt het veld bewust leeggemaakt bij "Zelf invullen" (zodat
-             je zelf iets kan intypen), en bij "Automatisch" een vers nummer
-             gegenereerd als het leeg is. */
-          if(id==='bnsInvoiceNrMode'){
-            if(el.value==='manual'){
-              setVal('bnsInvoiceNumber','');
-            } else if(el.value==='auto'){
-              setVal('bnsInvoiceNumber', nextInvoiceNumber());
-            }
+          if(id==='bnsInvoiceNrMode' && el.value==='manual'){
+            setVal('bnsInvoiceNumber','');
           }
+          syncInvoiceNumberField();
           persistInvoiceMeta();
         });
       }
     });
+  }
+  /* v72-fix: gecombineerde, correcte logica voor het factuurnummerveld.
+     Hield voorheen geen rekening met "Contant" (nummer bleef gewoon staan,
+     ook al hoort een contante betaling geen factuurnummer te tonen), en ook
+     niet met "Credit" (geen minteken, geen aparte titel-afhandeling). Werkt
+     nu voor zowel het Document type- als het Betaalwijze-veld, ongeacht
+     welke van de twee je gebruikt (ze overlappen inderdaad in opties). */
+  function syncInvoiceNumberField(){
+    var title = docTypeTitle();
+    if(title === 'Contante betaling'){
+      setVal('bnsInvoiceNumber','');
+      return;
+    }
+    var mode = val('bnsInvoiceNrMode');
+    if(mode === 'manual'){
+      return; // laat leeg / laat staan wat de gebruiker zelf intypt
+    }
+    var n = val('bnsInvoiceNumber');
+    if(!n) n = nextInvoiceNumber();
+    if(title === 'Credit factuur'){
+      if(n.indexOf('-') !== 0) n = '-' + n;
+    } else if(n.indexOf('-') === 0){
+      n = n.slice(1);
+    }
+    setVal('bnsInvoiceNumber', n);
   }
   function orderForDoc(){
     var o=currentOrder()||{
@@ -34695,7 +34717,7 @@ setTimeout(()=>{
     var o = orderData();
     var t = totals();
     var offer = isOfferLike(type);
-    var title = offer ? 'Opdrachtbevestiging / Offerte' : (type || invoiceType() || 'Factuur');
+    var title = offer ? 'Opdrachtbevestiging / Offerte' : docTypeTitle();
     var accent = inv.accent || '#2563eb';
     var templateStyle = inv.template ? 'background-image:url('+inv.template+');background-size:cover;background-position:top center;background-repeat:no-repeat;' : '';
     var meta = '<b>Opdracht '+esc(o.number || '-')+'</b>';
