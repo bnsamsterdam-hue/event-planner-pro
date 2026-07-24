@@ -29448,6 +29448,16 @@ setTimeout(()=>{
   function patchInvoiceBox(){
     var box=E('bnsV73InvoiceBox');
     if(!box) return;
+    /* v72-fix: zelfherstellende controle, bovenop de change-listener.
+       Deze functie draait toch al elke 8 seconden op de achtergrond -
+       gebruik dat moment ook om te garanderen dat het factuurnummerveld
+       klopt met de huidige Document type/Betaalwijze/Zelf-Auto-keuze,
+       ongeacht of de change-gebeurtenis er ooit correct voor heeft
+       gezorgd. Draait alleen als er al eerder een keuze is gemaakt
+       (voorkomt onnodig ingrijpen bij het allereerste laden). */
+    if(E('bnsInvoiceNrMode') && typeof syncInvoiceNumberField==='function'){
+      try{ syncInvoiceNumberField(); }catch(e){}
+    }
     if(!E('bnsInvoiceNrMode')){
       var inp=E('bnsInvoiceNumber');
       if(inp){
