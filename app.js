@@ -38995,7 +38995,15 @@ setTimeout(()=>{
       bar.innerHTML='<button type="button" class="bns356-tab" data-mode="running">Lopende opdrachten</button><button type="button" class="bns356-tab" data-mode="options">14 dagen opties</button><button type="button" class="bns356-tab" data-mode="quotes">Offertes</button>';
       var search=E('ordersSearch');
       if(search&&search.parentNode)search.parentNode.insertBefore(bar,search.nextSibling);else orders.insertBefore(bar,orders.firstChild);
-      A('.bns356-tab',bar).forEach(function(b){b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();MODE=b.dataset.mode||'running';renderV356();return false;};});
+      A('.bns356-tab',bar).forEach(function(b){b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();MODE=b.dataset.mode||'running';
+        /* v1-fix: dit riep hier altijd rechtstreeks een kale renderV356()
+           aan, wat de volledige, ingepakte showPage/renderAll-keten
+           (inmiddels ~25 laagjes patches diep) volledig oversloeg. Het
+           zijmenu "Opdrachten" gaat wel via die volledige keten en werkte
+           daarom altijd correct. Nu gebruikt het tabblad dezelfde volledige
+           route, in plaats van rechtstreeks de kale functie. */
+        try{ if(typeof window.renderAll==='function'){ window.renderAll(); return false; } }catch(e){}
+        renderV356();return false;};});
     }
     A('.bns356-tab',bar).forEach(function(b){b.classList.toggle('active',(b.dataset.mode||'running')===MODE);});
   }
