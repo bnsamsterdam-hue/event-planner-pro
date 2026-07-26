@@ -49518,9 +49518,20 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     a.forEach(function(m){ var c=U(m.cat||m.rubriek||m.category); if(c) cats[c]=1; });
     return a.length>=20 && Object.keys(cats).length>=2;
   }
+  var lastSig609='';
+  function sigOf(mats){ return A(mats).length+':'+A(mats).map(idOf).sort().slice(0,60).join('|'); }
   function setEverywhere(mats){
     mats=normalize(mats);
     if(!good(mats)) return false;
+    /* v1-fix: dit paste tot nu toe ALTIJD alles opnieuw toe, bij elke
+       klik en bij elk 'bns:materials-force-render'-signaal (dat
+       overigens ook door deze zelfde functie mede in stand werd
+       gehouden via de wisselwerking met BNS 608) - ook als er niets
+       aan de materialen was veranderd. Nu alleen echt opnieuw
+       toepassen/renderen als de data daadwerkelijk anders is. */
+    var sig=sigOf(mats);
+    if(sig===lastSig609) return false;
+    lastSig609=sig;
     var s=stateObj();
     if(s){ s.materials=mats; try{ window.state=s; }catch(e){} }
     try{ if(typeof INITIAL_STATE!=='undefined' && INITIAL_STATE) INITIAL_STATE.materials=mats; }catch(e){}
