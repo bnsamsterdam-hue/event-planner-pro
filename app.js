@@ -49385,7 +49385,14 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(!good(mats)){ log('Firebase materialen niet veilig overgenomen ('+A(mats).length+')'); return false; }
     mats=clean(mats);
     var sig=mats.length+':'+mats.map(idOf).sort().slice(0,60).join('|')+':'+A(users).length;
-    if(sig===lastSig && reason!=='force') return true;
+    /* v1-fix: reason==='force' omzeilde hier de dubbelcheck, waardoor
+       elke renderMaterials()-aanroep (via wrapRender hieronder) altijd
+       opnieuw alles toepaste en herrenderde - ook als er niets was
+       veranderd. Dat rendert-na-render triggerde zichzelf oneindig via
+       het 'bns:materials-force-render'-signaal. De module blijft verder
+       precies hetzelfde werken (materiaal ophalen/toepassen/globals
+       vullen); alleen de zinloze herhaling bij ongewijzigde data is weg. */
+    if(sig===lastSig) return true;
     lastSig=sig;
 
     var s=stateObj();
