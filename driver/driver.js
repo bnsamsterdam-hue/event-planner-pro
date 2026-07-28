@@ -1,3 +1,4 @@
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-FIX-2026-07-28-R1';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -25,6 +26,7 @@ function niceDate(v){v=clean(v).slice(0,10);const p=v.split("-");return p.length
 function addressOf(o){const p=[];const add=v=>{v=clean(v);if(v&&!p.includes(v))p.push(v)};[o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,o.address,o.street,o.zip,o.city].forEach(add);if(o.location&&typeof o.location==="object")[o.location.name,o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add);return p.join(", ")}
 function customerName(o){return clean(o.customerName||(o.customer&&o.customer.name)||o.klant||"")}
 function customerPhone(o){return clean(o.customerPhone||o.phone||(o.customer&&o.customer.phone)||"")}
+function locationPhone(o){return clean(o.locationPhone||(o.location&&(o.location.phone||o.location.contactPhone))||"")}
 function driverName(o){return clean(o.driverName||o.driver||o.bezorger||"")}
 function matClean(v){return String(v==null?"":v).trim()}
 function matKey(v){return matClean(v).toUpperCase().replace(/\s+/g,"")}
@@ -359,7 +361,7 @@ function orderBadges(o){
 }
 
 function orderCard(o){
-  const a=addressOf(o),p=customerPhone(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  const a=addressOf(o),p=locationPhone(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
   const mats=materialList(o);
   return `<article class="order-card order" data-id="${esc(o.id)}" data-search="${esc(searchIndexText(o))}">
     <span class="order-number">${esc(o.number||"Opdracht")}</span>
@@ -463,7 +465,7 @@ function textBlockHtml(o){
   return safe ? esc(safe).replace(/\n/g,'<br>') : '<span class="muted">Geen extra tekst.</span>';
 }
 function fullOrderHtml(o, title){
-  const a=addressOf(o), p=customerPhone(o), s=orderStart(o), e=orderEnd(o);
+  const a=addressOf(o), p=locationPhone(o), s=orderStart(o), e=orderEnd(o);
   const dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
   return `<div class="tw-doc"><style>
     .tw-doc{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#0f172a;padding:12px;line-height:1.45}.tw-doc h2{margin:0 0 10px;font-size:22px}.tw-card{border:1px solid #dbe3ef;border-radius:18px;padding:12px;margin:10px 0;background:#fff}.tw-grid{display:grid;grid-template-columns:1fr;gap:8px}.tw-row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #eef2f7;padding:8px 0}.tw-row:last-child{border-bottom:0}.tw-price{font-weight:900;white-space:nowrap}.muted{color:#64748b}.tw-label{font-size:12px;text-transform:uppercase;color:#64748b;font-weight:900;letter-spacing:.04em}.tw-big{font-size:16px;font-weight:800}.tw-danger{background:#fee2e2;color:#991b1b;border-radius:12px;padding:8px 10px;font-weight:900}
@@ -485,7 +487,7 @@ function fullOrderHtml(o, title){
 }
 
 function detailHtml(o){
-  const a=addressOf(o),p=customerPhone(o),more=otherCustomerOrders(o);
+  const a=addressOf(o),p=locationPhone(o),more=otherCustomerOrders(o);
   return `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div>
   <article class="card detail-card">
     ${fullOrderHtml(o,'Open opdracht')}
