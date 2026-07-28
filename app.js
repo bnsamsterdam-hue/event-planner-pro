@@ -1,3 +1,4 @@
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-28-R1';
 
 
 // BNS localStorage quota fix - patch setItem globaal
