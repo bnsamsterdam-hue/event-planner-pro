@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-28-R3';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-28-R4';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -39716,7 +39716,8 @@ setTimeout(()=>{
       '<label>Tekst boven offerte<textarea id="v361_textOffer" style="height:70px" placeholder="Bijv: Geachte klant..."></textarea></label>'+
       '<label>Tekst boven opdrachtbevestiging<textarea id="v361_textConfirm" style="height:70px"></textarea></label>'+
       '<label>Tekst boven factuur<textarea id="v361_textInvoice" style="height:70px"></textarea></label>'+
-      '<label>Voorwaarden / onderaan<textarea id="v361_footer" style="height:70px"></textarea></label>'+
+      '<label>Voorwaarden / onderaan (bij opdrachtbevestiging)<textarea id="v361_footer" style="height:70px"></textarea></label>'+
+      '<label>Tekst onderaan factuur<textarea id="v361_invoiceFooter" style="height:70px" placeholder="Bijv. betaalgegevens"></textarea></label>'+
     '</div>'+
     '<div style="margin-top:18px"><button id="v361_save" type="button" style="background:#16a34a;color:#fff;border:0;border-radius:12px;padding:12px 28px;font-weight:900;font-size:15px;cursor:pointer">💾 Opslaan</button></div>';
   }
@@ -39758,8 +39759,9 @@ setTimeout(()=>{
 
   function loadFields() {
     var d = inv();
-    var map = {v361_companyName:'companyName',v361_phone:'phone',v361_email:'email',v361_website:'website',v361_address:'address',v361_kvk:'kvk',v361_btw:'btw',v361_iban:'iban',v361_accent:'accent',v361_layout:'layout',v361_bodyFontSize:'bodyFontSize',v361_headingFontSize:'headingFontSize',v361_tableFontSize:'tableFontSize',v361_totalFontSize:'totalFontSize',v361_textOffer:'textOffer',v361_textConfirm:'textConfirm',v361_textInvoice:'textInvoice',v361_footer:'footer'};
+    var map = {v361_companyName:'companyName',v361_phone:'phone',v361_email:'email',v361_website:'website',v361_address:'address',v361_kvk:'kvk',v361_btw:'btw',v361_iban:'iban',v361_accent:'accent',v361_layout:'layout',v361_bodyFontSize:'bodyFontSize',v361_headingFontSize:'headingFontSize',v361_tableFontSize:'tableFontSize',v361_totalFontSize:'totalFontSize',v361_textOffer:'textOffer',v361_textConfirm:'textConfirm',v361_textInvoice:'textInvoice',v361_footer:'footer',v361_invoiceFooter:'invoiceFooter'};
     Object.keys(map).forEach(function(id){ var el=E(id); if(el) el.value=d[map[id]]||''; });
+    if(E('v361_invoiceFooter') && !E('v361_invoiceFooter').value) E('v361_invoiceFooter').value='Wij ontvangen uw betaling graag uiterlijk 8 dagen vóór aanvang van uw evenement op rekeningnummer NL97 ABNA 0409 1266 75.';
     if(E('v361_accent')&&!d.accent) E('v361_accent').value='#2563eb';
     if(E('v361_bodyFontSize')&&!d.bodyFontSize) E('v361_bodyFontSize').value='13';
     if(E('v361_headingFontSize')&&!d.headingFontSize) E('v361_headingFontSize').value='20';
@@ -39773,7 +39775,7 @@ setTimeout(()=>{
 
   function saveFields() {
     var d = inv();
-    var map = {companyName:'v361_companyName',phone:'v361_phone',email:'v361_email',website:'v361_website',address:'v361_address',kvk:'v361_kvk',btw:'v361_btw',iban:'v361_iban',accent:'v361_accent',layout:'v361_layout',bodyFontSize:'v361_bodyFontSize',headingFontSize:'v361_headingFontSize',tableFontSize:'v361_tableFontSize',totalFontSize:'v361_totalFontSize',textOffer:'v361_textOffer',textConfirm:'v361_textConfirm',textInvoice:'v361_textInvoice',footer:'v361_footer'};
+    var map = {companyName:'v361_companyName',phone:'v361_phone',email:'v361_email',website:'v361_website',address:'v361_address',kvk:'v361_kvk',btw:'v361_btw',iban:'v361_iban',accent:'v361_accent',layout:'v361_layout',bodyFontSize:'v361_bodyFontSize',headingFontSize:'v361_headingFontSize',tableFontSize:'v361_tableFontSize',totalFontSize:'v361_totalFontSize',textOffer:'v361_textOffer',textConfirm:'v361_textConfirm',textInvoice:'v361_textInvoice',footer:'v361_footer',invoiceFooter:'v361_invoiceFooter'};
     Object.keys(map).forEach(function(key){ var el=E(map[key]); if(el) d[key]=el.value; });
     // Extra keys voor compat
     d.documentFontPreset=detectFontPreset();
@@ -44437,7 +44439,7 @@ setTimeout(()=>{
     var st=getStyle(), o=currentOrder(), t=totals(o), fact=/factuur/i.test(type), isOffer=String(o.status||'').toLowerCase().indexOf('offerte')>=0;
     var title=fact?'FACTUUR':(isOffer?'Offerte':'Opdracht-Informatie');
     var intro=fact?st.textInvoice:(isOffer?(st.textOffer||st.textConfirm):st.textConfirm);
-    var footer=fact?st.footer:(st.termsText||st.footer);
+    var footer=fact?(st.invoiceFooter||'Wij ontvangen uw betaling graag uiterlijk 8 dagen vóór aanvang van uw evenement op rekeningnummer NL97 ABNA 0409 1266 75.'):(st.termsText||st.footer);
     var c=o.customer||{}, l=o.location||{};
     var locVisible=o.showLocationOnDocs!==false;
     var locationBlock=locVisible?'<div class="line"></div><div class="loc"><table><tr><td class="label">Lokatie:</td><td>'+H(l.name||'')+'</td></tr><tr><td class="label center">Adres:</td><td>'+H(addr(l.street,l.houseNumber))+'<br>'+H([l.zip,l.city].filter(Boolean).join(' '))+'</td></tr><tr><td class="label">Bijzonderheden:</td><td>'+H(l.notes||l.bijzonderheden||'')+'</td></tr><tr><td class="label center">Contact:</td><td>'+H(l.contact||'')+' '+H(l.phone||'')+'</td></tr></table></div>':'';
@@ -44711,7 +44713,7 @@ setTimeout(()=>{
     var st=getStyle(), o=currentOrder(), tt=totals(o), fact=/factuur/i.test(type), title=fact?'FACTUUR':statusTitle(o.status);
     var c=o.customer||{}, l=o.location||{};
     var intro=fact?st.textInvoice:(title==='OFFERTE'?(st.textOffer||st.textConfirm):st.textConfirm);
-    var footer=fact?st.footer:(st.termsText||st.footer);
+    var footer=fact?(st.invoiceFooter||'Wij ontvangen uw betaling graag uiterlijk 8 dagen vóór aanvang van uw evenement op rekeningnummer NL97 ABNA 0409 1266 75.'):(st.termsText||st.footer);
     var locVisible=o.showLocationOnDocs!==false;
     var locBlock=locVisible?'<div class="line"></div><div class="loc"><table><tr><td class="label">Lokatie:</td><td>'+H(l.name||'')+'</td></tr><tr><td class="label center">Adres:</td><td>'+H(addr(l.street,l.houseNumber))+'<br>'+H(zipCity(l.zip,l.city))+'</td></tr><tr><td class="label">Bijzonderheden:</td><td>'+H(l.notes||l.bijzonderheden||'')+'</td></tr><tr><td class="label center">Contact:</td><td>'+H(l.contact||'')+' '+H(l.phone||'')+'</td></tr></table></div>':'';
     var doc='<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>'+H((fact?'Factuur':title)+' '+(o.number||''))+'</title><style>'+css()+'</style></head><body>'+
@@ -46999,7 +47001,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var st=styleData(), fact=/factuur/i.test(type), title=docTitle(o,type), tt=totals(o), c=o.customer||{}, l=o.location||{};
     var isOffer=/offerte/i.test(title);
     var intro=fact?st.textInvoice:(isOffer?(st.textOffer||st.textConfirm):st.textConfirm);
-    var footer=fact?(st.footer||''):(st.termsText||st.footer||'');
+    var footer=fact?(st.invoiceFooter||'Wij ontvangen uw betaling graag uiterlijk 8 dagen vóór aanvang van uw evenement op rekeningnummer NL97 ABNA 0409 1266 75.'):(st.termsText||st.footer||'');
     function fs(v,min,max,def){ var n=parseInt(v,10); if(!isFinite(n))n=def; return Math.max(min,Math.min(max,n)); }
     var bodyFs=fs(st.bodyFontSize,10,18,13), headingFs=fs(st.headingFontSize,16,30,20), tableFs=fs(st.tableFontSize,9,18,13), totalFs=fs(st.totalFontSize,11,22,13);
     var css='@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:13px}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px;z-index:9}.actions button{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:8px 12px;font-weight:800}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:12mm 14mm}.bns525-logo{text-align:center;margin-bottom:4mm}.bns525-logo img{max-width:96mm;max-height:25mm;object-fit:contain}.brand{font-size:34px;font-weight:900;color:'+H(st.accent||'#0ea5e9')+'}.tag{font-weight:800;font-style:italic}.doc-title{text-align:center;font-size:'+headingFs+'px;font-weight:900;margin:2mm 0 5mm}.top{display:grid;grid-template-columns:1fr 60mm;gap:10mm}.card{border:1px solid #dbe3ef;border-radius:10px;padding:9px;margin:8px 0}.line{border-top:1.5px solid #333;margin:5mm 0}table{width:100%;border-collapse:collapse}th{border-bottom:1px solid #333;text-align:left}td,th{padding:1.5mm;vertical-align:top;font-size:'+tableFs+'px}.amount{text-align:right}.totals{width:82mm;margin-left:auto;margin-top:7mm;border-top:1.5px solid #333;font-size:'+totalFs+'px}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}@media print{body{background:#fff}.actions{display:none}.page{margin:0}}';
@@ -51607,7 +51609,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     var confirm=/opdracht|bevestiging|offerte/i.test(kind);
     var type=confirm?'Opdrachtbevestiging / Offerte':'Factuur';
     var intro=confirm?(st.textConfirm||st.textOffer||''):(st.textInvoice||'');
-    var footer=confirm?(st.termsText||st.footer||''):(st.footer||'');
+    var footer=confirm?(st.termsText||st.footer||''):(st.invoiceFooter||'Wij ontvangen uw betaling graag uiterlijk 8 dagen vóór aanvang van uw evenement op rekeningnummer NL97 ABNA 0409 1266 75.');
     var logoBlock=st.logo?'<img src="'+H(st.logo)+'" style="max-height:70px;margin-bottom:8px" alt="logo">':'';
     var c=o.customer||{}, l=o.location||{}, tt=totals(o);
     var mats=(Array.isArray(o.materials)?o.materials:[]).map(function(m,i){ var q=matQty(m); return '<tr><td>'+H(i+1)+'</td><td>'+H(q)+'</td><td><b>'+H(m.code||m.productNr||'')+'</b></td><td>'+H(m.name||m.product||m.description||'')+'</td><td>'+H(m.cat||m.rubriek||'')+'</td><td>'+H(m.price||m.linePrice||'')+'</td></tr>'; }).join('') || '<tr><td colspan="6">Geen materialen gekoppeld.</td></tr>';
