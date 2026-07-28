@@ -44374,13 +44374,35 @@ setTimeout(()=>{
   function matQty(m){ return N(m.qty||m.amount||m.aantal||1)||1; }
   function matPrice(m){ return N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:(m.prijs!=null?m.prijs:0))); }
   function matDeposit(m){ return N(m.lineDeposit!=null?m.lineDeposit:(m.deposit!=null?m.deposit:(m.borg!=null?m.borg:0))); }
+  function twGetTransportLines(){ try{ return (window.__bns521TransportLines||[]).slice(); }catch(e){ return []; } }
+  function twTransportLineTotal(l){ return N(l&&l.qty||1)*N(l&&l.price||0); }
+  function twTransportTotal(){
+    var s=0; twGetTransportLines().forEach(function(l){ s+=twTransportLineTotal(l); }); return s;
+  }
+  function twTransportRows(){
+    var lines=twGetTransportLines();
+    if(!lines.length) return '';
+    var rows=lines.map(function(l){
+      return '<tr><td>'+H(N(l.qty||1)+(l.unit?' '+l.unit:'x'))+'</td><td></td><td>'+H((l.name||'')+(l.note?' - '+l.note:''))+'</td><td class="amount">'+H(money(twTransportLineTotal(l)))+'</td></tr>';
+    }).join('');
+    return '<div class="section-title">Bijzonderheden:</div><table class="items"><thead><tr><th>Aantal:</th><th></th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
   function totals(o){
+    /* v1-fix: dit telde tot nu toe alleen materialen mee. De aparte
+       bijzonderheden/transportregels (bijv. bezorgkosten, extra diensten)
+       werden hier nooit meegerekend, terwijl het andere, kortstondig
+       actieve documentsjabloon (dat verder de Admin-instellingen voor
+       logo/teksten/voorwaarden negeerde) dat wel deed. Nu tellen beide
+       mee, en blijven de Admin-instellingen ook gewoon werken. */
     var sub=0, dep=0;
     (o.materials||[]).forEach(function(m){ sub += matQty(m)*matPrice(m); dep += matQty(m)*matDeposit(m); });
     if(!sub && o.amount) sub=N(o.amount);
+    var trans=twTransportTotal();
+    sub += trans;
     var btw=sub*0.21;
-    return {sub:sub, dep:dep, btw:btw, total:sub+btw, pay:sub+btw+dep};
+    return {sub:sub, dep:dep, btw:btw, total:sub+btw, pay:sub+btw+dep, trans:trans};
   }
+
   function materialRows(o){
     var arr=o.materials||[];
     if(!arr.length) return '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
@@ -44431,6 +44453,7 @@ setTimeout(()=>{
       '<tr><td class="label">Bijzonderheden:</td><td>'+H(o.extra||'')+'</td></tr><tr><td class="label center">Contact:</td><td>'+H(c.contact||c.name||'')+' '+H(c.phone||'')+'</td></tr></table></div>'+
       locationBlock+
       '<div class="section-title">Omschrijving:</div><table class="items"><thead><tr><th>Aantal:</th><th>Item:</th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table>'+
+      twTransportRows()+
       '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(t.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;21%</td><td>'+H(money(t.btw))+'</td></tr><tr class="strong"><td>Totaal:</td><td>'+H(money(t.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(t.pay))+'</td></tr></table></div>';
     if(fact){
       html += '<div class="footer" style="margin-top:12mm">'+H(footer||TAPWAGEN_DEFAULTS.footer)+'</div><div class="page-num">Pagina 1 van 1</div></div>';
@@ -44626,15 +44649,33 @@ setTimeout(()=>{
   function matQty(m){ return N(m.qty||m.amount||m.aantal||1)||1; }
   function matPrice(m){ return N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:(m.prijs!=null?m.prijs:0))); }
   function matDeposit(m){ return N(m.lineDeposit!=null?m.lineDeposit:(m.deposit!=null?m.deposit:(m.borg!=null?m.borg:0))); }
+  function twGetTransportLines2(){ try{ return (window.__bns521TransportLines||[]).slice(); }catch(e){ return []; } }
+  function twTransportLineTotal2(l){ return N(l&&l.qty||1)*N(l&&l.price||0); }
+  function twTransportTotal2(){
+    var s=0; twGetTransportLines2().forEach(function(l){ s+=twTransportLineTotal2(l); }); return s;
+  }
+  function twTransportRows2(){
+    var lines=twGetTransportLines2();
+    if(!lines.length) return '';
+    var rows=lines.map(function(l){
+      return '<tr><td>'+H(N(l.qty||1)+(l.unit?' '+l.unit:'x'))+'</td><td></td><td>'+H((l.name||'')+(l.note?' - '+l.note:''))+'</td><td class="amount">'+H(money(twTransportLineTotal2(l)))+'</td></tr>';
+    }).join('');
+    return '<div class="section-title">Bijzonderheden:</div><table class="items"><thead><tr><th>Aantal:</th><th></th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
   function totals(o){
+    /* v1-fix: zelfde reden als in de andere documentmodule - bijzonderheden/
+       transportregels telden hier nooit mee, terwijl de tijdelijk winnende,
+       Admin-instellingen-negerende versie dat wel deed. */
     var sub=0, dep=0;
     (o.materials||[]).forEach(function(m){ sub += matQty(m)*matPrice(m); dep += matQty(m)*matDeposit(m); });
     if(!sub && o.pricing){ sub=N(o.pricing.materials||o.pricing.subtotal||o.pricing.sub||0); }
     if(!dep && o.pricing){ dep=N(o.pricing.deposit||o.pricing.borg||0); }
     if(!sub && o.amount) sub=N(o.amount);
+    var trans=twTransportTotal2();
+    sub += trans;
     var btw=N(o.pricing&&o.pricing.vat); if(!btw) btw=sub*0.21;
     var total=N(o.pricing&&(o.pricing.grand||o.pricing.total||o.pricing.incl)); if(!total) total=sub+btw;
-    return {sub:sub,dep:dep,btw:btw,total:total,pay:total+dep};
+    return {sub:sub,dep:dep,btw:btw,total:total,pay:total+dep,trans:trans};
   }
   function materialRows(o){
     var arr=o.materials||[];
@@ -44684,6 +44725,7 @@ setTimeout(()=>{
       (!fact?'<tr><td class="label">Referentie:</td><td>'+H(o.reference||'')+'</td></tr><tr><td class="label">Merk:</td><td>'+H(o.brand||'')+'</td></tr>':'')+
       '<tr><td class="label">Bijzonderheden:</td><td>'+H(o.extra||'')+'</td></tr><tr><td class="label center">Contact:</td><td>'+H(c.contact||c.name||'')+' '+H(c.phone||'')+'</td></tr></table></div>'+locBlock+
       '<div class="section-title">Omschrijving:</div><table class="items"><thead><tr><th>Aantal:</th><th>Item:</th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table>'+
+      twTransportRows2()+
       '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(tt.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;21%</td><td>'+H(money(tt.btw))+'</td></tr><tr class="strong"><td>Totaal:</td><td>'+H(money(tt.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div>';
     if(fact){ doc+='<div class="footer" style="margin-top:12mm">'+H(footer||DEFAULTS.footer)+'</div><div class="page-num">Pagina 1 van 1</div></div>'; }
     else { doc+='<div class="page-num">Pagina 1 van 2</div></div><div class="page"><div class="totals"><table><tr class="strong"><td>Totaal:</td><td>'+H(money(tt.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div><div class="terms">'+H(footer||DEFAULTS.termsText)+'</div><div class="page-num">Pagina 2 van 2</div></div>'; }
@@ -46820,8 +46862,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   }
   function openDoc(type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } w.document.open(); w.document.write(docHtml(type)); w.document.close(); return false; }
   window.BNS_V521_openDocument=openDoc;
-  window.makeInvoice=function(){ return openDoc('Factuur'); };
-  window.makeConfirmation=function(){ return openDoc('Opdrachtbevestiging'); };
+  /* v1-fix: dit overschreef hier tot nu toe window.makeInvoice/makeConfirmation
+     met een versie die de complete-bedrijfsgegevens/logo/teksten uit Admin
+     (Huisstijl & Documenten) negeerde en vaste Tapwagen.nl-gegevens toonde.
+     De eerder in het bestand gedefinieerde, wél Admin-bewuste versie
+     (die nu ook de bijzonderheden/transportregels correct meeneemt) blijft
+     nu de daadwerkelijk gebruikte versie. */
   window.addEventListener('click',function(ev){
     if(window.__BNS_V525_DOCS__) return;
     var b=ev.target && ev.target.closest && ev.target.closest('button,a'); if(!b) return;
