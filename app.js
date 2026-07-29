@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-29-R7';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-29-R8';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -12921,6 +12921,14 @@ setTimeout(()=>{
     s.users = s.users.filter(function (item) {
       return String(item.id) !== String(userId);
     });
+    /* v1-fix: dit verwijderde tot nu toe alleen lokaal. Het document in
+       Firebase's 'users'-collectie bleef bestaan, waardoor de gebruiker
+       na een her-inlaad/sync gewoon weer terugkwam. */
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.fs.deleteDoc && window.BNS.fs.doc && window.BNS.db && userId){
+        window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'users',String(userId))).catch(function(){});
+      }
+    }catch(e){}
     saveState();
     selectedUserId = null;
     renderUserList();
@@ -13257,6 +13265,13 @@ setTimeout(()=>{
     }
     if (!confirm("Gebruiker verwijderen?")) return;
     s.users = s.users.filter(u => String(u.id) !== String(userId));
+    /* v1-fix: zelfde als bij het andere gebruikers-verwijderpaneel -
+       nu ook echt uit Firebase verwijderen, niet alleen lokaal. */
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.fs.deleteDoc && window.BNS.fs.doc && window.BNS.db && userId){
+        window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'users',String(userId))).catch(function(){});
+      }
+    }catch(e){}
     if (selectedUserId === userId) selectedUserId = null;
     doSave();
     renderList();
@@ -27960,6 +27975,13 @@ setTimeout(()=>{
     s.users = s.users.filter(function(x){
       return String(x.id) !== String(id);
     });
+    /* v1-fix: zelfde als bij de andere twee gebruikers-verwijderpanelen -
+       nu ook echt uit Firebase verwijderen, niet alleen lokaal. */
+    try{
+      if(window.BNS && window.BNS.fs && window.BNS.fs.deleteDoc && window.BNS.fs.doc && window.BNS.db && id){
+        window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'users',String(id))).catch(function(){});
+      }
+    }catch(e){}
     if (String(selectedUserId) === String(id)) {
       setSelected("");
       setForm(null);
@@ -46053,9 +46075,24 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         o.customerSignedName="";
       }
       o.updatedAt=new Date().toISOString();
+      /* v1-fix: dit sloeg de bijgewerkte opdracht (zonder het gewiste item)
+         tot nu toe alleen lokaal op - de opdracht in Firebase zelf bleef
+         de oude verwijzing bevatten. */
+      try{ if(typeof syncOrder==='function') syncOrder(o); }catch(e){}
     }
     var s=stateObj();
     if(Array.isArray(s.alerts)) s.alerts=removeFromArray(s.alerts,a);
+    /* v1-fix: dit verwijderde tot nu toe alleen lokaal. Het document in
+       Firebase's 'alerts'-collectie bleef gewoon bestaan, waardoor de
+       live-verbinding het na een paar tellen (of na verversen) weer
+       terughaalde. Dit is de daadwerkelijk gebruikte "Wis"-functie
+       (BNS_V493_WIS), niet de eerder gefixte deleteMedia/V474-variant. */
+    try{
+      var delId=T(a && a.id);
+      if(delId && window.BNS && window.BNS.fs && window.BNS.fs.deleteDoc && window.BNS.fs.doc && window.BNS.db){
+        window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'alerts',delId)).catch(function(){});
+      }
+    }catch(e){}
     saveLocalNow();
     renderOverview(orderId);
   };
