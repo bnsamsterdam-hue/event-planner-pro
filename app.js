@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-28-R5';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-29-R6';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -45948,7 +45948,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     return s || "Melding";
   }
   function mediaText(a){ return T(a && (a.note || a.message || a.text || a.description || a.customerName || a.driverName || "")); }
-  function mediaTime(a){ return T(a && (a.createdAt || a.time || a.date || a.updatedAt || "")); }
+  function mediaTime(a){
+    var raw=T(a && (a.createdAt || a.time || a.date || a.updatedAt || ""));
+    var m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(raw);
+    if(m) return m[3]+"-"+m[2]+"-"+m[1]+" "+m[4]+":"+m[5];
+    return raw;
+  }
   function isMedia(a){
     if(!a) return false;
     if(mediaSrc(a)) return true;
@@ -46398,7 +46403,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     return s || "Melding";
   }
   function mediaText(a){ return T(a && (a.note || a.message || a.text || a.description || a.customerName || a.driverName || a.from || "")); }
-  function mediaTime(a){ return T(a && (a.createdAt || a.time || a.date || a.updatedAt || "")); }
+  function mediaTime(a){
+    var raw=T(a && (a.createdAt || a.time || a.date || a.updatedAt || ""));
+    var m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(raw);
+    if(m) return m[3]+"-"+m[2]+"-"+m[1]+" "+m[4]+":"+m[5];
+    return raw;
+  }
   function isMedia(a){
     if(!a) return false;
     if(mediaSrc(a)) return true;
@@ -48293,7 +48303,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     }
     return s || 'Melding';
   }
-  function mediaTime(a){ return T(a && (a.createdAt||a.time||a.date||a.updatedAt||'')); }
+  function mediaTime(a){
+    var raw=T(a && (a.createdAt||a.time||a.date||a.updatedAt||''));
+    var m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(raw);
+    if(m) return m[3]+'-'+m[2]+'-'+m[1]+' '+m[4]+':'+m[5];
+    return raw;
+  }
   function mediaText(a){ return T(a && (a.note||a.message||a.text||a.description||'')); }
   function mediaSrc(a){
     if(!a) return '';
