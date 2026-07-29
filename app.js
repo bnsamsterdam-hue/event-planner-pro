@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-29-R9';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-29-R11';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -46091,6 +46091,18 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       var delId=T(a && a.id);
       if(delId && window.BNS && window.BNS.fs && window.BNS.fs.deleteDoc && window.BNS.fs.doc && window.BNS.db){
         window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'alerts',delId)).then(function(){ console.info('BNS_V493_WIS: Firestore-document alerts/'+delId+' verwijderd.'); }).catch(function(err){ console.error('BNS_V493_WIS: verwijderen van alerts/'+delId+' MISLUKT:',err); });
+        /* v1-fix: bij een overbelaste Firestore-schrijfwachtrij kan een
+           oudere, vertraagde schrijfopdracht voor ditzelfde document soms
+           ná deze verwijdering alsnog afvuren, waardoor het lijkt alsof
+           het gewiste item terugkomt. Extra, vertraagde verwijderpoging
+           als vangnet daartegen. */
+        setTimeout(function(){
+          try{
+            if(window.BNS && window.BNS.fs && window.BNS.fs.deleteDoc && window.BNS.fs.doc && window.BNS.db){
+              window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'alerts',delId)).then(function(){ console.info('BNS_V493_WIS: vangnet-verwijdering alerts/'+delId+' uitgevoerd.'); }).catch(function(){});
+            }
+          }catch(e){}
+        },6000);
       } else {
         console.error('BNS_V493_WIS: kon niet verwijderen uit Firestore - delId='+delId+' BNS.fs='+(!!(window.BNS&&window.BNS.fs))+' BNS.db='+(!!(window.BNS&&window.BNS.db)));
       }
@@ -52673,10 +52685,42 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   var BK_KEY = 'bns767_backup_day';
   var BK_ATTEMPT_KEY = 'bns767_backup_attempt_day_v942';
   var VER    = 'bns767-v942-throttled';
+  var BK_HOUR = 17; // v1-fix: vaste tijd - pas na sluitingstijd back-uppen, niet meteen bij elke pagina-opening
   var __bns767BackupBusy = false;
   function bkSleep(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
 
   function bkLog(m){ try{ console.log('[BNS767 backup]', m); }catch(e){} }
+
+  /* v1-fix: dit systeem controleerde tot nu toe alleen lokaal (per apparaat/
+     browser) of er al een back-up was gedaan vandaag - elk apparaat dat de
+     app opent dacht daardoor apart "ik heb nog niet gebackupt", en voerde
+     onafhankelijk dezelfde zware, complete database-back-up uit. Dat gaf
+     onnodig veel gelijktijdige schrijfdruk op Firestore. Nu wordt eerst een
+     gedeelde vlag in Firebase zelf gecheckt, zodat het écht maar 1x per dag
+     gebeurt, ongeacht hoeveel apparaten open staan. */
+  async function bkClaimSharedLock(day){
+    var t = await bkGetFb(); if(!t) return false;
+    try{
+      var ref = t.fs.doc(t.db,'backups','_lock');
+      var snap = await t.fs.getDoc(ref);
+      var data = snap.exists() ? snap.data() : {};
+      if(data && data.day === day){
+        bkLog('Gedeelde back-up-vlag toont: vandaag al gedaan door een ander apparaat.');
+        return false;
+      }
+      // Kleine willekeurige pauze verkleint de kans dat twee apparaten
+      // exact tegelijk de vlag claimen.
+      await bkSleep(300 + Math.floor(Math.random()*1200));
+      var snap2 = await t.fs.getDoc(ref);
+      var data2 = snap2.exists() ? snap2.data() : {};
+      if(data2 && data2.day === day){
+        bkLog('Gedeelde back-up-vlag toont: vandaag al gedaan door een ander apparaat (na wachten).');
+        return false;
+      }
+      await t.fs.setDoc(ref, {day:day, claimedAt:new Date().toISOString()}, {merge:false});
+      return true;
+    }catch(e){ bkLog('Kon gedeelde back-up-vlag niet checken: '+e); return false; }
+  }
 
   function bkChunks(str){
     var out = [];
@@ -52733,6 +52777,10 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
       return;
     }
     var t = await bkGetFb(); if(!t){ bkLog('Firebase niet beschikbaar'); return; }
+    if(!force){
+      var claimed = await bkClaimSharedLock(day);
+      if(!claimed){ localStorage.setItem(BK_KEY, day); return; }
+    }
     __bns767BackupBusy = true;
     try{
       if(!force) localStorage.setItem(BK_ATTEMPT_KEY, day);
@@ -52781,8 +52829,16 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
   window.BNS = window.BNS || {};
   window.BNS.runBackup767 = function(){ return runBackup(true); };
 
-  setTimeout(function(){ runBackup(false); }, 60000);
-  setInterval(function(){ runBackup(false); }, 30*60*1000);
+  /* v1-fix: dit draaide tot nu toe 60 seconden na elke pagina-opening, en
+     daarna elke 30 minuten - dus midden op de dag, tijdens druk gebruik.
+     Nu pas vanaf 17:00 (na sluitingstijd), en gecontroleerd via de
+     gedeelde vlag hierboven zodat het maar 1x per dag echt gebeurt. */
+  function bkMaybeRunScheduled(){
+    var now = new Date();
+    if(now.getHours() >= BK_HOUR) runBackup(false);
+  }
+  setTimeout(bkMaybeRunScheduled, 30000);
+  setInterval(bkMaybeRunScheduled, 10*60*1000);
 
   console.info('[BNS 767] Definitieve fix actief: state-sync, nummerbescherming, 14-dagen backup.');
   console.info('[Tapwagen v942] BNS767 backup throttle actief: start na 60s, schrijft rustig gespreid, geen herhaal-loop.');
