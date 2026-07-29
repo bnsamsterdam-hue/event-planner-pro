@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-28-R4';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-28-R5';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -43640,7 +43640,7 @@ setTimeout(()=>{
   function alertMatch(a,o){ return String(a.orderId||a.linkedOrder||'')===String(o.id||'') || String(a.orderNumber||a.linkedOrderNumber||'')===String(o.number||''); }
   function mediaRowsForOrder(o){
     var rows=[], seen={};
-    function add(x){ if(!x) return; var id=String(x.id || x.createdAt || mediaSrc(x) || Math.random()); if(seen[id]) return; if(!mediaSrc(x) && !/foto|photo|handtekening|signature/i.test([x.type,x.title].join(' '))) return; seen[id]=1; rows.push(x); }
+    function add(x){ if(!x) return; var id=String(x.id || x.createdAt || mediaSrc(x) || Math.random()); if(seen[id]) return; if(!mediaSrc(x)){ if(x.hasMedia) return; if(!/foto|photo|handtekening|signature/i.test([x.type,x.title].join(' '))) return; } seen[id]=1; rows.push(x); }
     ['media','driverUploads','photos','signatures','handtekeningen'].forEach(function(k){ (Array.isArray(o&&o[k])?o[k]:[]).forEach(add); });
     var s=S(); (s&&Array.isArray(s.alerts)?s.alerts:[]).forEach(function(a){ if(alertMatch(a,o)) add(a); });
     rows.sort(function(a,b){ return String(b.createdAt||'').localeCompare(String(a.createdAt||'')); });
@@ -45973,7 +45973,10 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       "media","photos","fotos","images","signatures","handtekeningen",
       "customerSignatures","customerMessages","klantmeldingen"
     ].forEach(function(k){
-      if(Array.isArray(o && o[k])) o[k].forEach(function(x){ add(x,k); });
+      // v1-fix: lichte verwijzingen zonder echte data (hasMedia:true,
+      // geen data-veld) niet als eigen, lege melding meetellen - de
+      // echte inhoud komt al via de alerts-collectie hieronder.
+      if(Array.isArray(o && o[k])) o[k].forEach(function(x){ if(x && x.hasMedia && !mediaSrc(x)) return; add(x,k); });
     });
     // customerSignature NIET als aparte kaart - staat al in alerts
     // Meerdere handtekeningen per dag worden elk als aparte alert opgeslagen
@@ -46428,21 +46431,21 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     }
 
     // Canonieke dossierbronnen. Bewust GEEN driverUploads/bezorgerMeldingen/driverMessages/driverAlerts.
+    // v1-fix: order.media/photos/signatures bevatten bewust lichte
+    // verwijzingen zonder de echte foto/handtekening-data (hasMedia:true,
+    // maar geen data-veld) - de bezorger-app slaat de echte inhoud apart
+    // op in de 'alerts'-collectie. Deze verwijzingen werden hier voorheen
+    // ZELF als eigen, lege melding meegeteld naast de echte, wat de
+    // "handtekening/foto zonder handtekening/foto"-dubbeling gaf.
     ["media","photos","fotos","images","signatures","handtekeningen","customerMessages","klantmeldingen","customerSignatures","meldingen","attachments","defects","storingen"].forEach(function(k){
-      if(Array.isArray(o && o[k])) o[k].forEach(function(x){ add(x,k); });
+      if(Array.isArray(o && o[k])) o[k].forEach(function(x){ if(x && x.hasMedia && !mediaSrc(x)) return; add(x,k); });
     });
 
-    // customerSignature alleen als dezelfde data nog niet bestaat.
-    if(o && o.customerSignature){
-      add({
-        id:"custsig_"+T(o.id),
-        type:"Handtekening klant",
-        data:o.customerSignature,
-        signatureData:o.customerSignature,
-        createdAt:o.customerSignedAt||"",
-        note:"Handtekening toegevoegd"
-      },"order.customerSignature");
-    }
+    // v1-fix: dit voegde hier een eigen kaartje toe puur op basis van
+    // order.customerSignature, dat bij het opslaan alleen de tekst
+    // "signed" bevat - geen echte handtekening-afbeelding. Dit gaf een
+    // lege "Handtekening klant"-melding naast de echte (die via de
+    // alerts-collectie hieronder al correct binnenkomt). Verwijderd.
 
     // Alerts alleen als ze niet al als order.media/signature/foto bestaan.
     alerts().forEach(function(a){
