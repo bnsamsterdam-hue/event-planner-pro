@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-29-R8';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-29-R9';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -46090,9 +46090,11 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     try{
       var delId=T(a && a.id);
       if(delId && window.BNS && window.BNS.fs && window.BNS.fs.deleteDoc && window.BNS.fs.doc && window.BNS.db){
-        window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'alerts',delId)).catch(function(){});
+        window.BNS.fs.deleteDoc(window.BNS.fs.doc(window.BNS.db,'alerts',delId)).then(function(){ console.info('BNS_V493_WIS: Firestore-document alerts/'+delId+' verwijderd.'); }).catch(function(err){ console.error('BNS_V493_WIS: verwijderen van alerts/'+delId+' MISLUKT:',err); });
+      } else {
+        console.error('BNS_V493_WIS: kon niet verwijderen uit Firestore - delId='+delId+' BNS.fs='+(!!(window.BNS&&window.BNS.fs))+' BNS.db='+(!!(window.BNS&&window.BNS.db)));
       }
-    }catch(e){}
+    }catch(e){ console.error('BNS_V493_WIS: fout bij verwijderen uit Firestore:', e); }
     saveLocalNow();
     renderOverview(orderId);
   };
