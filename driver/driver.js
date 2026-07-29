@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-FIX-2026-07-29-R2';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-FIX-2026-07-28-R1';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -706,23 +706,12 @@ async function sendPhoto(order,type){
   // Sla foto MET base64 op in Firebase alerts
   item.orderId = order.id||order.number||'';
   item.orderNumber = order.number||'';
-  var savedOk=false;
-  for(var attempt=0; attempt<2 && !savedOk; attempt++){
-    try{
-      if(BNS.db){
-        const {doc,setDoc}=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
-        await setDoc(doc(BNS.db,"alerts",item.id),item);
-        savedOk=true;
-      }
-    }catch(e){
-      console.error("Photo alert sync fout (poging "+(attempt+1)+"):",e);
-      if(attempt===0) await new Promise(function(r){ setTimeout(r,2000); });
+  try{
+    if(BNS.db){
+      const {doc,setDoc}=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
+      await setDoc(doc(BNS.db,"alerts",item.id),item);
     }
-  }
-  if(!savedOk){
-    alert(type+" kon niet worden verzonden. Controleer je internetverbinding en probeer het opnieuw.");
-    return;
-  }
+  }catch(e){ console.error("Photo alert sync fout:",e); }
   // Order krijgt referentie ZONDER base64
   const photoRef={id:item.id,type:item.type,note:item.note,createdAt:item.createdAt,hasMedia:true,orderId:item.orderId};
   order.media=Array.isArray(order.media)?order.media:[];
@@ -759,23 +748,12 @@ function openSignatureModal(order){
       driverName:BNS.user.name||"",from:BNS.user.name||"",userId:BNS.user.id||""
     };
     // Sla alert MET base64 op in Firebase alerts (apart van order)
-    var savedOk=false;
-    for(var attempt=0; attempt<2 && !savedOk; attempt++){
-      try{
-        if(BNS.db){
-          const {doc,setDoc}=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
-          await setDoc(doc(BNS.db,"alerts",item.id),item);
-          savedOk=true;
-        }
-      }catch(e){
-        console.error("Alert sync fout (poging "+(attempt+1)+"):",e);
-        if(attempt===0) await new Promise(function(r){ setTimeout(r,2000); });
+    try{
+      if(BNS.db){
+        const {doc,setDoc}=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
+        await setDoc(doc(BNS.db,"alerts",item.id),item);
       }
-    }
-    if(!savedOk){
-      alert("Handtekening kon niet worden verzonden. Controleer je internetverbinding en probeer het opnieuw.");
-      return;
-    }
+    }catch(e){ console.error("Alert sync fout:",e); }
     // Order krijgt alleen een referentie ZONDER base64
     order.media=Array.isArray(order.media)?order.media:[];
     order.signatures=Array.isArray(order.signatures)?order.signatures:[];
