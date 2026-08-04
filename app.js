@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R17';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R18';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -50720,11 +50720,16 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!row) return '';
     var key=T(row.getAttribute('data-bns611-mid') || row.getAttribute('data-material-id') || row.getAttribute('data-id') || '');
     var m=findMat(key); var c=catOf(m); if(c) return cleanCat(c);
-    var txt=T(row.textContent||'');
-    var mm=txt.match(/\b(TAPW|TW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)\s*\d+/i);
-    if(mm) return cleanCat(mm[1]);
-    mm=txt.match(/\b(TAPW|TW|BIERSLANG|SLANG|POMP|TANK|TOURN|WC|MBAR|PLASKR|KW|TO)\b/i);
-    return mm ? cleanCat(mm[1]) : '';
+    /* v1-fix: dit viel hier voorheen terug op het doorzoeken van de hele
+       zichtbare tekst van de rij (naam + omschrijving) naar rubriek-
+       namen. Als de naam/omschrijving van een artikel toevallig een
+       ander rubriek-woord bevatte (bijv. een TAPW-onderdeel met
+       "bierslang" in de omschrijving), werd dat per ongeluk als
+       rubriek gebruikt in plaats van de echte rubriek van het artikel.
+       Nu wordt bij een mislukte opzoeking niets gegokt - de aanroepende
+       code valt dan terug op betrouwbaardere bronnen (actieve knop,
+       eerder onthouden rubriek). */
+    return '';
   }
   function activeButtonCat(){
     var sels=['#materialCats .active[data-bns611-cat]','#materialCats .active[data-cat]','#materialCats button.active','#materialCats [aria-selected="true"]','#materialCats .selected','#materialCats .is-active'];
