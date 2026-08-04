@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R28';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R33';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -42713,6 +42713,13 @@ setTimeout(()=>{
   function boot(){ schedule(window.currentCat||firstCat(),true); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,300);}); else setTimeout(boot,150);
   setInterval(function(){
+    /* v1-fix: dit forceerde hier elke 1,5 seconde zichzelf (V392) terug als
+       actieve renderer, ongeacht of V611 (nieuwer, vandaag uitgebreid
+       gestabiliseerd) het inmiddels correct had overgenomen. Samen met
+       material-fix.js's eigen periodieke herstel gaf dat een voortdurende,
+       onvoorspelbare afwisseling tussen meerdere systemen. V611 krijgt nu
+       voorrang zodra het aanwezig is. */
+    if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') return;
     expose();
     window.__bns393MaterialLock = true;
     var box=E('materialList');
@@ -42734,6 +42741,7 @@ setTimeout(()=>{
   var lastExpose = 0;
   function exposeOnce(){
     if(!window.BNS_V392) return;
+    if(window.BNS_V611 && typeof window.BNS_V611.renderMaterials==='function') return;
     var now = Date.now();
     if(now - lastExpose < 900) return;
     lastExpose = now;
@@ -53645,34 +53653,59 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function U(v){ return String(v==null?'':v).trim().toUpperCase(); }
 
   function injectCss(){
-    if(E('bns951Css')) return;
-    var s=document.createElement('style');
-    s.id='bns951Css';
-    s.textContent =
-      '#materialCats{display:flex!important;flex-wrap:wrap!important;gap:8px!important;align-items:stretch!important;' +
-        'padding:10px!important;margin:0 0 6px!important;background:#f1f5f9!important;border-radius:14px!important;' +
-        'min-height:0!important;overflow:visible!important;}\n' +
-      '#materialCats button,#materialCats .bns611-cat{' +
-        'position:static!important;flex:0 0 auto!important;min-width:78px!important;height:44px!important;' +
-        'margin:0!important;padding:0 16px!important;border:0!important;border-radius:10px!important;' +
-        'background:var(--cat-color,#2563eb)!important;color:#fff!important;font-weight:800!important;' +
-        'font-size:14px!important;letter-spacing:.2px!important;box-shadow:0 2px 5px rgba(15,23,42,.18)!important;' +
-        'transform:none!important;animation:none!important;}\n' +
-      '#materialCats button::after,#materialCats .bns611-cat::after{content:none!important;}\n' +
-      '#materialCats button.active,#materialCats .bns611-cat.active{' +
-        'outline:3px solid #0f172a!important;outline-offset:1px!important;filter:brightness(1.1)!important;}\n' +
-      '#bns951ColorBar{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important;' +
-        'padding:8px 10px!important;margin:0 0 10px!important;background:#f8fafc!important;border:1px dashed #cbd5e1!important;' +
-        'border-radius:12px!important;}\n' +
-      '#bns951ColorBar .bns951-label{font-size:12px!important;font-weight:800!important;color:#475569!important;' +
-        'text-transform:uppercase!important;letter-spacing:.4px!important;margin-right:4px!important;}\n' +
-      '#bns951ColorBar button{width:34px!important;height:34px!important;min-width:34px!important;padding:0!important;' +
-        'margin:0!important;border:2px solid #fff!important;border-radius:50%!important;background:var(--cat-color,#2563eb)!important;' +
-        'box-shadow:0 0 0 1px rgba(15,23,42,.18),0 2px 5px rgba(15,23,42,.15)!important;cursor:pointer!important;' +
-        'transform:none!important;animation:none!important;}\n' +
-      '#bns951ColorBar button.active{outline:3px solid #0f172a!important;outline-offset:2px!important;}\n';
-    document.head.appendChild(s);
+    var s=E('bns951Css');
+    if(!s){
+      s=document.createElement('style');
+      s.id='bns951Css';
+      s.textContent =
+        '#materialCats{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(110px,1fr))!important;' +
+          'gap:8px!important;align-items:stretch!important;' +
+          'padding:10px!important;margin:0 0 6px!important;background:#f1f5f9!important;border-radius:14px!important;' +
+          'min-height:0!important;overflow:visible!important;}\n' +
+        '#materialCats button{' +
+          'position:static!important;width:100%!important;min-width:0!important;height:44px!important;' +
+          'margin:0!important;padding:0 12px!important;border:0!important;border-radius:10px!important;' +
+          'background:var(--cat-color,#2563eb)!important;color:#fff!important;font-weight:800!important;' +
+          'font-size:13px!important;letter-spacing:.2px!important;box-shadow:0 2px 5px rgba(15,23,42,.18)!important;' +
+          'white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;' +
+          'transform:none!important;animation:none!important;}\n' +
+        '#materialCats button::after{content:none!important;border:none!important;}\n' +
+        '#materialCats button.active{' +
+          'outline:3px solid #0f172a!important;outline-offset:1px!important;filter:brightness(1.1)!important;}\n' +
+        '#bns951ColorBar{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important;' +
+          'padding:8px 10px!important;margin:0 0 10px!important;background:#f8fafc!important;border:1px dashed #cbd5e1!important;' +
+          'border-radius:12px!important;}\n' +
+        '#bns951ColorBar .bns951-label{font-size:12px!important;font-weight:800!important;color:#475569!important;' +
+          'text-transform:uppercase!important;letter-spacing:.4px!important;margin-right:4px!important;}\n' +
+        '#bns951ColorBar button{width:34px!important;height:34px!important;min-width:34px!important;padding:0!important;' +
+          'margin:0!important;border:2px solid #fff!important;border-radius:50%!important;background:var(--cat-color,#2563eb)!important;' +
+          'box-shadow:0 0 0 1px rgba(15,23,42,.18),0 2px 5px rgba(15,23,42,.15)!important;cursor:pointer!important;' +
+          'transform:none!important;animation:none!important;}\n' +
+        '#bns951ColorBar button.active{outline:3px solid #0f172a!important;outline-offset:2px!important;}\n';
+    }
+    /* v1-fix: dit plaatste de stijl-tag tot nu toe maar één keer, aan het
+       begin. Andere modules die daarna hun EIGEN stijl-tag toevoegen (met
+       even specifieke !important-regels) kunnen daardoor alsnog winnen,
+       simpelweg omdat ze later in de pagina staan. Door onze eigen tag
+       telkens weer helemaal achteraan te verplaatsen, wint deze altijd. */
+    if(document.head.lastElementChild!==s) document.head.appendChild(s);
   }
+
+  function ensureCatColorsOnButtons(){
+    /* Zet de --cat-color CSS-variabele ook zelf op elke knop, voor het
+       geval de eigen renderer (welke dat op dit moment ook is) dat
+       zelf niet consequent doet. Alleen echt aanpassen bij een
+       daadwerkelijk andere waarde, anders triggert dit zichzelf
+       onnodig opnieuw via de MutationObserver hieronder. */
+    var cats=E('materialCats'); if(!cats) return;
+    var attr=findCatAttr(cats); if(!attr) return;
+    cats.querySelectorAll('button['+attr+']').forEach(function(btn){
+      var k=btn.getAttribute(attr);
+      var want=catColor(k);
+      if(btn.style.getPropertyValue('--cat-color')!==want) btn.style.setProperty('--cat-color', want);
+    });
+  }
+
 
   function catColor(cat){
     try{
@@ -53684,7 +53717,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return def[U(cat)]||'#2563eb';
   }
 
-  var ATTR_CANDIDATES=['data-bns611-cat','data-cat'];
+  var ATTR_CANDIDATES=['data-bns611-cat','data-bns392-cat','data-bns386-cat','data-cat'];
   function findCatAttr(cats){
     for(var i=0;i<ATTR_CANDIDATES.length;i++){
       if(cats.querySelector('['+ATTR_CANDIDATES[i]+']')) return ATTR_CANDIDATES[i];
@@ -53737,27 +53770,51 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var attr=(bar&&bar.__bns951Attr)||'data-bns611-cat';
     var cats=E('materialCats');
     var twin=cats && cats.querySelector('['+attr+'="'+CSS.escape(b.getAttribute('data-bns951-target'))+'"]');
-    if(twin) twin.click();
+    if(twin){ twin.click(); scrollToResults(); }
   }, true);
 
-  /* v2-fix: het koppelen aan window.renderMaterials bleek onbetrouwbaar -
-     te veel verschillende bestanden/modules vechten om die ene naam, en
-     welke uiteindelijk "wint" is niet voorspelbaar. Nu wordt in plaats
-     daarvan rechtstreeks gekeken naar het knoppen-vak zelf (#materialCats):
-     zodra de INHOUD daarvan verandert - door welke functie dan ook - wordt
-     de kleurenbalk bijgewerkt. Dat werkt gegarandeerd, ongeacht welke
-     renderer op dat moment actief is. */
+  // Ook bij een klik op de echte rubriekknop zelf (niet alleen de
+  // kleurstalen) meteen naar de resultaten scrollen.
+  document.addEventListener('click', function(ev){
+    var t=ev.target; if(!t||!t.closest) return;
+    if(t.closest('#materialCats button')) scrollToResults();
+  }, true);
+
+  function scrollToResults(){
+    setTimeout(function(){
+      var list=E('materialList')||E('materialCats');
+      if(list && list.scrollIntoView){ list.scrollIntoView({behavior:'smooth', block:'start'}); }
+    }, 50);
+  }
+
+  /* v3-fix: dit controleerde tot nu toe periodiek (eerst om de 300ms,
+     later om de 60ms) of er iets veranderd was - met altijd een klein
+     gaatje waarin de "verkeerde" kleur toch nog even zichtbaar kon zijn
+     vóór de volgende controle. Een MutationObserver reageert in plaats
+     daarvan ONMIDDELLIJK op elke wijziging in #materialCats, zonder
+     enige wachttijd - dat sluit het geflikker volledig uit. */
   var lastCatsHtml='';
   function tick(){
     var cats=E('materialCats');
     if(!cats) return;
+    try{ injectCss(); ensureCatColorsOnButtons(); }catch(e){}
     var html=cats.innerHTML;
     if(html===lastCatsHtml) return;
     lastCatsHtml=html;
-    try{ injectCss(); buildColorBar(); }catch(e){}
+    try{ buildColorBar(); }catch(e){}
   }
-  setInterval(tick, 300);
+  var matCatsObserver=new MutationObserver(function(){ tick(); });
+  function attachObserver(){
+    var cats=E('materialCats');
+    if(cats && matCatsObserver.__target!==cats){
+      matCatsObserver.disconnect();
+      matCatsObserver.observe(cats,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
+      matCatsObserver.__target=cats;
+    }
+  }
+  setInterval(attachObserver, 250);
+  attachObserver();
   tick();
 
-  try{ console.info('[BNS 951] Opgeruimde rubriekknoppen + kleuren-zoekbalk actief (v2, DOM-observatie).'); }catch(e){}
+  try{ console.info('[BNS 951] Opgeruimde rubriekknoppen + kleuren-zoekbalk actief (v4, directe observatie + scroll).'); }catch(e){}
 })();
