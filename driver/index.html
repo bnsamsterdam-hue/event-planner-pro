@@ -43,9 +43,15 @@
   </main>
 
   <div id="toast" class="toast"></div>
-  <script src="../firebase-config.js"></script>
+  <script>
+    /* v1-fix: zelfde reden als bij de hoofd-app - altijd de nieuwste
+       versie ophalen in plaats van een vast versienummer dat handmatig
+       bijgewerkt moet worden, of geen cache-busting (firebase-config.js). */
+    var __v = Date.now();
+    document.write('<script src="../firebase-config.js?v=' + __v + '"><\/script>');
+    document.write('<script src="driver.js?v=' + __v + '"><\/script>');
+  </script>
   <!-- BNS 541: pushmeldingen op bezorger/telefoon voorlopig uitgeschakeld -->
-<script src="driver.js?v=723_drivernaam"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){try{r.unregister()}catch(e){}});});
