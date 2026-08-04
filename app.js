@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R21';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R23';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -50755,7 +50755,16 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     try{ localStorage.setItem('bns613LastMaterialCat',c); }catch(e){}
     return c;
   }
-  function guessCat(){ return cleanCat(activeButtonCat() || window.__BNS629_KEEP_CAT || window.__BNS626_KEEP_CAT || window.__BNS613_LAST_CAT || window.currentCat || localStorage.getItem('bns613LastMaterialCat') || visibleTopRowCat() || ''); }
+  function guessCat(){
+    /* v1-fix: dit gebruikte als allerlaatste redmiddel visibleTopRowCat()
+       - het scannen van de op dat moment zichtbare rijen in de lijst.
+       Op het exacte moment van een klik kan die lijst nog de VORIGE
+       rubriek tonen (de nieuwe weergave moet nog bijwerken), waardoor
+       dit per ongeluk de oude rubriek teruggaf. Verwijderd - zonder
+       betrouwbare bron blijft de rubriek liever ongewijzigd dan dat er
+       geraden wordt. */
+    return cleanCat(activeButtonCat() || window.__BNS629_KEEP_CAT || window.__BNS626_KEEP_CAT || window.__BNS613_LAST_CAT || window.currentCat || localStorage.getItem('bns613LastMaterialCat') || '');
+  }
   function materialPanelVisible(){ var ml=E('materialList'); return !!(ml && ml.offsetParent!==null); }
   function renderLockedLater(c){
     c=remember(c || guessCat()); if(!c) return;
@@ -50787,7 +50796,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       var id=T(t.id||'');
       if(/^(dateStart|dateEnd|orderStart|orderEnd|startDate|endDate|datumStart|datumEnd|orderStatus)$/.test(id)){
         if(!materialPanelVisible()) return;
-        var c=activeButtonCat() || visibleTopRowCat() || guessCat();
+        var c=activeButtonCat() || guessCat();
         if(c) remember(c,'date-'+type);
       }
     },true);
