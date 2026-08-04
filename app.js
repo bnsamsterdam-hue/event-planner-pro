@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R20';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R21';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -39607,7 +39607,13 @@ setTimeout(()=>{
       injectCss();
       var bd = document.createElement('div');
       bd.className = 'bns360-bd';
-      bd.innerHTML = '<div class="bns360-box"><h3>'+esc(title||'BNS Systeem')+'</h3><div class="bns360-msg">'+esc(String(msg||''))+'</div><div class="bns360-btns"><button class="bns360-btn bns360-ok">OK</button></div></div>';
+      /* v1-fix: dit voerde hier esc() uit op het bericht, ook wanneer
+         de aanroeper (bijv. materiaal-reserverings-info) al zelf keurig
+         opgemaakte HTML had gebouwd (met <b>/<br>). Die tags werden dan
+         nogmaals gecodeerd, waardoor ze letterlijk als tekst zichtbaar
+         werden in plaats van als opmaak. Het bericht wordt nu ongewijzigd
+         doorgegeven; aanroepers coderen hun eigen dynamische waarden al. */
+      bd.innerHTML = '<div class="bns360-box"><h3>'+esc(title||'BNS Systeem')+'</h3><div class="bns360-msg">'+String(msg||'')+'</div><div class="bns360-btns"><button class="bns360-btn bns360-ok">OK</button></div></div>';
       bd.querySelector('.bns360-ok').onclick = function() { bd.remove(); resolve(true); };
       document.body.appendChild(bd);
     });
@@ -41503,7 +41509,7 @@ setTimeout(()=>{
     if(st.reservation && st.reservation.order){
       var o=st.reservation.order, p=st.reservation.period;
       msg += '<br><b>Klant:</b> '+esc((o.customer&&o.customer.name)||o.customerName||'Onbekend');
-      msg += '<br><b>Opdracht:</b> '+esc(o.number||o.title||o.id||'');
+      msg += '<br><b>Opdracht:</b> '+esc(o.number||'')+(o.title?' - '+esc(o.title):'');
       if(p) msg += '<br><b>Datum reservering:</b> '+esc(nlDate(p.start))+' tot '+esc(nlDate(p.end));
       var wp=wantedPeriod(); if(wp) msg += '<br><b>Jouw datum:</b> '+esc(nlDate(wp.start))+' tot '+esc(nlDate(wp.end));
     }
@@ -42512,7 +42518,7 @@ setTimeout(()=>{
     if(st.reservation && st.reservation.order){
       var o=st.reservation.order, p=st.reservation.period;
       html += '<br><b>Klant:</b> '+H((o.customer&&o.customer.name)||o.customerName||'Onbekend');
-      html += '<br><b>Opdracht:</b> '+H(o.number||o.title||o.id||'');
+      html += '<br><b>Opdracht:</b> '+H(o.number||'')+(o.title?' - '+H(o.title):'');
       if(p) html += '<br><b>Datum reservering:</b> '+H(nlDate(p.start))+' tot '+H(nlDate(p.end));
       var wp=wantedPeriod(); if(wp) html += '<br><b>Jouw datum:</b> '+H(nlDate(wp.start))+' tot '+H(nlDate(wp.end));
     }
