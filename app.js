@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R23b';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R25';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -53625,3 +53625,121 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
 window.TapwagenV947Info=function(){return {basis:'Tapwagen v945 + v946 documentfonts',feature:'Documentstijl presets Compact/Normaal/Groot/Extra groot + Geavanceerd',storage:'bns_huisstijl_v361',defaultPreset:'Normaal',documents:['factuur','opdrachtbevestiging','offerte'],amsterdam:false,rental:false};};
 console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
+
+/* =========================================================
+   BNS 951 - Nette rubriekknoppen + kleuren-zoekbalk (voorzichtige versie)
+   Doel: zelfde als eerdere poging (BNS 950, teruggedraaid), maar nu
+   zonder doorlopende achtergrond-controle (MutationObserver/setInterval).
+   Deze versie haakt EENMALIG in op het bestaande renderMaterials-moment
+   zelf, en doet verder niets ongevraagd op de achtergrond - om elk risico
+   op interferentie met de rubriek-logica uit te sluiten.
+   Raakt niet aan: currentCat, setCat, remember, Firebase.
+   ========================================================= */
+(function(){
+  'use strict';
+  if(window.__BNS951_MATCAT_REDESIGN__) return;
+  window.__BNS951_MATCAT_REDESIGN__ = true;
+
+  function E(id){ return document.getElementById(id); }
+  function H(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function U(v){ return String(v==null?'':v).trim().toUpperCase(); }
+
+  function injectCss(){
+    if(E('bns951Css')) return;
+    var s=document.createElement('style');
+    s.id='bns951Css';
+    s.textContent =
+      '#materialCats{display:flex!important;flex-wrap:wrap!important;gap:8px!important;align-items:stretch!important;' +
+        'padding:10px!important;margin:0 0 6px!important;background:#f1f5f9!important;border-radius:14px!important;' +
+        'min-height:0!important;overflow:visible!important;}\n' +
+      '#materialCats button,#materialCats .bns611-cat{' +
+        'position:static!important;flex:0 0 auto!important;min-width:78px!important;height:44px!important;' +
+        'margin:0!important;padding:0 16px!important;border:0!important;border-radius:10px!important;' +
+        'background:var(--cat-color,#2563eb)!important;color:#fff!important;font-weight:800!important;' +
+        'font-size:14px!important;letter-spacing:.2px!important;box-shadow:0 2px 5px rgba(15,23,42,.18)!important;' +
+        'transform:none!important;animation:none!important;}\n' +
+      '#materialCats button::after,#materialCats .bns611-cat::after{content:none!important;}\n' +
+      '#materialCats button.active,#materialCats .bns611-cat.active{' +
+        'outline:3px solid #0f172a!important;outline-offset:1px!important;filter:brightness(1.1)!important;}\n' +
+      '#bns951ColorBar{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important;' +
+        'padding:8px 10px!important;margin:0 0 10px!important;background:#f8fafc!important;border:1px dashed #cbd5e1!important;' +
+        'border-radius:12px!important;}\n' +
+      '#bns951ColorBar .bns951-label{font-size:12px!important;font-weight:800!important;color:#475569!important;' +
+        'text-transform:uppercase!important;letter-spacing:.4px!important;margin-right:4px!important;}\n' +
+      '#bns951ColorBar button{width:34px!important;height:34px!important;min-width:34px!important;padding:0!important;' +
+        'margin:0!important;border:2px solid #fff!important;border-radius:50%!important;background:var(--cat-color,#2563eb)!important;' +
+        'box-shadow:0 0 0 1px rgba(15,23,42,.18),0 2px 5px rgba(15,23,42,.15)!important;cursor:pointer!important;' +
+        'transform:none!important;animation:none!important;}\n' +
+      '#bns951ColorBar button.active{outline:3px solid #0f172a!important;outline-offset:2px!important;}\n';
+    document.head.appendChild(s);
+  }
+
+  function catColor(cat){
+    try{
+      var map=JSON.parse(localStorage.getItem('bnsCatColors')||'{}');
+      var k=U(cat).replace(/[^A-Z0-9]/g,'').slice(0,16);
+      if(map[k]) return map[k];
+    }catch(e){}
+    var def={TAPW:'#dc2626',BIERSLANG:'#16a34a',POMP:'#2563eb',SLANG:'#0ea5e9',BIERTANK:'#7c3aed',TANK:'#f97316'};
+    return def[U(cat)]||'#2563eb';
+  }
+
+  function buildColorBar(){
+    var cats=E('materialCats');
+    if(!cats) return;
+    var list=[];
+    cats.querySelectorAll('[data-bns611-cat]').forEach(function(btn){
+      var c=U(btn.getAttribute('data-bns611-cat'));
+      if(c && list.indexOf(c)<0) list.push(c);
+    });
+    var bar=E('bns951ColorBar');
+    if(!list.length){ if(bar) bar.remove(); return; }
+    var activeCat=U((cats.querySelector('.active')&&cats.querySelector('.active').getAttribute('data-bns611-cat'))||'');
+    var html='<span class="bns951-label">Zoek op kleur:</span>'+list.map(function(k){
+      var col=catColor(k);
+      return '<button type="button" title="'+H(k)+'" data-bns611-cat="'+H(k)+'" class="'+(k===activeCat?'active':'')+
+        '" style="--cat-color:'+H(col)+'"></button>';
+    }).join('');
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id='bns951ColorBar';
+      cats.parentNode.insertBefore(bar, cats.nextSibling);
+    }
+    bar.innerHTML=html;
+  }
+
+  // Kleurstalen hergebruiken bewust hetzelfde data-bns611-cat attribuut als
+  // de bestaande rubriekknoppen, en simuleren een klik op de echte knop -
+  // geen nieuwe selectie-logica, geen aanraking van currentCat/setCat.
+  document.addEventListener('click', function(ev){
+    var t=ev.target; if(!t||!t.closest) return;
+    var b=t.closest('#bns951ColorBar [data-bns611-cat]');
+    if(!b) return;
+    var cats=E('materialCats');
+    var twin=cats && cats.querySelector('[data-bns611-cat="'+CSS.escape(b.getAttribute('data-bns611-cat'))+'"]');
+    if(twin) twin.click();
+  }, true);
+
+  // Eenmalige koppeling: ná elke keer dat de materiaallijst zichzelf
+  // opnieuw tekent, ook de kleurenbalk bijwerken. Geen polling, geen
+  // achtergrond-observer - alleen reageren op het bestaande rendermoment.
+  function hook(){
+    var orig = window.renderMaterials;
+    if(typeof orig !== 'function' || orig.__bns951Wrapped) return false;
+    var wrapped = function(){
+      var r = orig.apply(this, arguments);
+      try{ injectCss(); buildColorBar(); }catch(e){}
+      return r;
+    };
+    wrapped.__bns951Wrapped = true;
+    window.renderMaterials = wrapped;
+    return true;
+  }
+  var tries=0;
+  var iv=setInterval(function(){
+    tries++;
+    if(hook() || tries>40) clearInterval(iv);
+  }, 250);
+
+  try{ console.info('[BNS 951] Opgeruimde rubriekknoppen + kleuren-zoekbalk actief (voorzichtige versie).'); }catch(e){}
+})();
