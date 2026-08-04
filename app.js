@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-07-29-R13';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R15';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -45639,9 +45639,23 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   var oldRenderOrders=window.renderOrders || (typeof renderOrders==='function'?renderOrders:null);
   if(oldRenderOrders && !oldRenderOrders.__bns474){
     var wrappedRender=function(){ var r=oldRenderOrders.apply(this,arguments); setTimeout(function(){ensureStatusTabs(); filterStatusCards();},80); return r; };
-    wrappedRender.__bns474=true; window.renderOrders=wrappedRender; try{renderOrders=wrappedRender;}catch(e){}
+    /* v1-fix: dit overschreef hier window.renderOrders voor de HELE
+       pagina met een versie die na elke render ook filterStatusCards()
+       aanroept, gebaseerd op een eigen, aparte "welk tabblad is actief"
+       status (__bnsV474ActiveFolder) die nooit gesynchroniseerd was met
+       V356's eigen, correcte MODE-variabele. Omdat renderOrders() op
+       20+ plekken in het bestand wordt aangeroepen om simpelweg "ververs
+       het huidige scherm" te zeggen, kon dit een verouderde tabblad-
+       status laten "winnen" en de verkeerde inhoud tonen (bijv. 14 dagen
+       opties gevuld met lopende opdrachten). V356 rendert zelf al
+       correct op basis van MODE, dus deze extra laag is uitgeschakeld. */
+    wrappedRender.__bns474=true;
   }
-  setTimeout(ensureStatusTabs,800);
+  /* v1-fix: dit maakte een eigen, tweede setje tabbladen aan met
+     dezelfde namen als V356's eigen tabbladen, met een eigen, niet-
+     gesynchroniseerde "actief tabblad"-status. Uitgeschakeld om
+     verwarring en de bijbehorende weergavefout te voorkomen. */
+  // setTimeout(ensureStatusTabs,800);
 
   /* ---------- Overzicht bestelling media + knoppen ---------- */
   function orderById(id){return orders().find(function(o){return T(o.id)===T(id)||T(o.number)===T(id);});}
