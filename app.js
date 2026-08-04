@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R16';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R17';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -50264,6 +50264,15 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function firstCat(){ return categoryList()[0] || 'TAPW'; }
   function setCat(c){
     var cats=categoryList();
+    /* v1-fix: als deze functie wordt aangeroepen vóórdat Firebase de
+       materialen volledig heeft geladen (sneller lokaal gemerkt, trager
+       op de live site door netwerk-vertraging), was cats hier soms nog
+       leeg/onvolledig. De dan gekozen terugvalrubriek (vaak BIERSLANG,
+       toevallig alfabetisch eerst) werd blijvend "onthouden" via
+       window.__BNS_LAST_CAT__, ook nadat de echte, volledige lijst
+       alsnog binnenkwam. Nu wordt die herinnering alleen vastgezet
+       zodra er een aannemelijke hoeveelheid materialen geladen is. */
+    var dataLooksReady = materials().length >= 3;
     var prev=U(window.currentCat||window.__BNS_LAST_CAT__||'');
     c=U(c||prev||firstCat());
     if(cats.indexOf(c)<0){
@@ -50271,7 +50280,9 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       else if(window.__BNS_LAST_CAT__ && cats.indexOf(U(window.__BNS_LAST_CAT__))>=0) c=U(window.__BNS_LAST_CAT__);
       else c=firstCat();
     }
-    window.currentCat=c; window.__BNS_LAST_CAT__=c; try{  }catch(e){} return c;
+    window.currentCat=c;
+    if(dataLooksReady) window.__BNS_LAST_CAT__=c;
+    try{  }catch(e){} return c;
   }
   function catColor(cat){ try{ var map=JSON.parse(localStorage.getItem('bnsCatColors')||'{}'); var k=U(cat).replace(/[^A-Z0-9]/g,'').slice(0,16); if(map[k]) return map[k]; }catch(e){} var def={TAPW:'#dc2626',BIERSLANG:'#16a34a',POMP:'#2563eb',SLANG:'#0ea5e9',BIERTANK:'#7c3aed',TANK:'#f97316'}; return def[U(cat)]||'#2563eb'; }
   function renderCats(){
