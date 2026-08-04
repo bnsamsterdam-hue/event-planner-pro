@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R27';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R28';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -53684,20 +53684,36 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return def[U(cat)]||'#2563eb';
   }
 
+  var ATTR_CANDIDATES=['data-bns611-cat','data-cat'];
+  function findCatAttr(cats){
+    for(var i=0;i<ATTR_CANDIDATES.length;i++){
+      if(cats.querySelector('['+ATTR_CANDIDATES[i]+']')) return ATTR_CANDIDATES[i];
+    }
+    return null;
+  }
   function buildColorBar(){
     var cats=E('materialCats');
     if(!cats) return;
+    /* v1-fix: dit zocht hier alleen naar het data-bns611-cat kenmerk. Er
+       blijkt minstens nog één ander, apart systeem (material-fix.js) te
+       bestaan dat dezelfde knoppen bouwt met data-cat in plaats daarvan.
+       Welk systeem op een gegeven moment wint, wisselt kennelijk - vandaar
+       dat de kleurenbalk soms wel en soms niet verscheen. Nu wordt eerst
+       gekeken welk kenmerk er daadwerkelijk aanwezig is. */
+    var attr=findCatAttr(cats);
+    var bar=E('bns951ColorBar');
+    if(!attr){ if(bar) bar.remove(); return; }
     var list=[];
-    cats.querySelectorAll('[data-bns611-cat]').forEach(function(btn){
-      var c=U(btn.getAttribute('data-bns611-cat'));
+    cats.querySelectorAll('['+attr+']').forEach(function(btn){
+      var c=U(btn.getAttribute(attr));
       if(c && list.indexOf(c)<0) list.push(c);
     });
-    var bar=E('bns951ColorBar');
     if(!list.length){ if(bar) bar.remove(); return; }
-    var activeCat=U((cats.querySelector('.active')&&cats.querySelector('.active').getAttribute('data-bns611-cat'))||'');
+    var activeBtn=cats.querySelector('.active');
+    var activeCat=U((activeBtn&&activeBtn.getAttribute(attr))||'');
     var html='<span class="bns951-label">Zoek op kleur:</span>'+list.map(function(k){
       var col=catColor(k);
-      return '<button type="button" title="'+H(k)+'" data-bns611-cat="'+H(k)+'" class="'+(k===activeCat?'active':'')+
+      return '<button type="button" title="'+H(k)+'" data-bns951-target="'+H(k)+'" class="'+(k===activeCat?'active':'')+
         '" style="--cat-color:'+H(col)+'"></button>';
     }).join('');
     if(!bar){
@@ -53706,17 +53722,21 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       cats.parentNode.insertBefore(bar, cats.nextSibling);
     }
     bar.innerHTML=html;
+    bar.__bns951Attr=attr;
   }
 
-  // Kleurstalen hergebruiken bewust hetzelfde data-bns611-cat attribuut als
-  // de bestaande rubriekknoppen, en simuleren een klik op de echte knop -
+  // Kleurstalen simuleren een klik op de echte, bijbehorende rubriekknop -
   // geen nieuwe selectie-logica, geen aanraking van currentCat/setCat.
+  // Welk kenmerk (data-bns611-cat of data-cat) de echte knop gebruikt,
+  // wordt gevonden via bar.__bns951Attr, gezet door buildColorBar().
   document.addEventListener('click', function(ev){
     var t=ev.target; if(!t||!t.closest) return;
-    var b=t.closest('#bns951ColorBar [data-bns611-cat]');
+    var b=t.closest('#bns951ColorBar [data-bns951-target]');
     if(!b) return;
+    var bar=E('bns951ColorBar');
+    var attr=(bar&&bar.__bns951Attr)||'data-bns611-cat';
     var cats=E('materialCats');
-    var twin=cats && cats.querySelector('[data-bns611-cat="'+CSS.escape(b.getAttribute('data-bns611-cat'))+'"]');
+    var twin=cats && cats.querySelector('['+attr+'="'+CSS.escape(b.getAttribute('data-bns951-target'))+'"]');
     if(twin) twin.click();
   }, true);
 
