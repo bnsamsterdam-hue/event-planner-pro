@@ -164,6 +164,15 @@
   }
 
   function install(){
+    /* v1-fix: dit forceerde hier, met vertraging (300ms en nogmaals na
+       1000ms), window.renderMaterials altijd terug naar de oudere V392-
+       module, ongeacht wat er intussen al correct stond (V611, de module
+       die vandaag uitgebreid is gestabiliseerd). Dat verklaarde het
+       "eerst goed, dan plots weer fout"-patroon. V611 is nu leidend;
+       dit bestand grijpt niet meer in als die al aanwezig is. */
+    if (window.BNS_V611 && typeof window.BNS_V611.renderMaterials === "function") {
+      return;
+    }
     if (window.BNS_V392 && typeof window.BNS_V392.renderMaterials === "function") {
       window.renderMaterials = window.BNS_V392.renderMaterials;
       if (typeof window.BNS_V392.toggleMaterial === "function") window.addMat = window.BNS_V392.toggleMaterial;
