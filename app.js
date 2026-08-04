@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R25';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R26';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -53725,7 +53725,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   // achtergrond-observer - alleen reageren op het bestaande rendermoment.
   function hook(){
     var orig = window.renderMaterials;
-    if(typeof orig !== 'function' || orig.__bns951Wrapped) return false;
+    if(typeof orig !== 'function') return false;
+    if(orig.__bns951Wrapped) return true;
     var wrapped = function(){
       var r = orig.apply(this, arguments);
       try{ injectCss(); buildColorBar(); }catch(e){}
@@ -53733,13 +53734,18 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     };
     wrapped.__bns951Wrapped = true;
     window.renderMaterials = wrapped;
+    try{ if(typeof renderMaterials!=='undefined') renderMaterials=wrapped; }catch(e){}
     return true;
   }
-  var tries=0;
-  var iv=setInterval(function(){
-    tries++;
-    if(hook() || tries>40) clearInterval(iv);
-  }, 250);
+  /* v1-fix: dit haakte hier voorheen maar één keer aan window.renderMaterials.
+     Andere, later ladende bestanden (bijv. material-fix.js, dat pas ná
+     app.js laadt) kunnen window.renderMaterials daarna gewoon opnieuw
+     overschrijven, waardoor deze koppeling stilzwijgend verloren ging en
+     de kleurenbalk nooit meer bijwerkte. De controle blijft nu actief
+     (elke seconde, licht) en haakt zichzelf opnieuw vast zodra dat
+     gebeurt - in plaats van na de eerste keer te stoppen. */
+  hook();
+  setInterval(hook, 1000);
 
-  try{ console.info('[BNS 951] Opgeruimde rubriekknoppen + kleuren-zoekbalk actief (voorzichtige versie).'); }catch(e){}
+  try{ console.info('[BNS 951] Opgeruimde rubriekknoppen + kleuren-zoekbalk actief (zelfherstellend).'); }catch(e){}
 })();
