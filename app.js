@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R15';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R16';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -39018,15 +39018,13 @@ setTimeout(()=>{
       bar.innerHTML='<button type="button" class="bns356-tab" data-mode="running">Lopende opdrachten</button><button type="button" class="bns356-tab" data-mode="options">14 dagen opties</button><button type="button" class="bns356-tab" data-mode="quotes">Offertes</button>';
       var search=E('ordersSearch');
       if(search&&search.parentNode)search.parentNode.insertBefore(bar,search.nextSibling);else orders.insertBefore(bar,orders.firstChild);
-      A('.bns356-tab',bar).forEach(function(b){b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();MODE=b.dataset.mode||'running';
-        /* v1-fix: dit riep hier altijd rechtstreeks een kale renderV356()
-           aan, wat de volledige, ingepakte showPage/renderAll-keten
-           (inmiddels ~25 laagjes patches diep) volledig oversloeg. Het
-           zijmenu "Opdrachten" gaat wel via die volledige keten en werkte
-           daarom altijd correct. Nu gebruikt het tabblad dezelfde volledige
-           route, in plaats van rechtstreeks de kale functie. */
-        try{ if(typeof window.renderAll==='function'){ window.renderAll(); return false; } }catch(e){}
-        renderV356();return false;};});
+      /* v2-fix: teruggedraaid naar de oorspronkelijke, bevestigd werkende
+         versie. De eerdere "fix" hier (via de volledige renderAll-keten
+         laten lopen) bleek na vergelijking met de 23-7-back-up juist de
+         oorzaak van een nieuw probleem (mappen door elkaar/vult met
+         verkeerde inhoud). Dit is dus bewust teruggezet naar de kale,
+         directe aanroep die al die tijd al correct werkte. */
+      A('.bns356-tab',bar).forEach(function(b){b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();MODE=b.dataset.mode||'running';renderV356();return false;};});
     }
     A('.bns356-tab',bar).forEach(function(b){b.classList.toggle('active',(b.dataset.mode||'running')===MODE);});
   }
