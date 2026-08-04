@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R18';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R20';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -50264,15 +50264,6 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function firstCat(){ return categoryList()[0] || 'TAPW'; }
   function setCat(c){
     var cats=categoryList();
-    /* v1-fix: als deze functie wordt aangeroepen vóórdat Firebase de
-       materialen volledig heeft geladen (sneller lokaal gemerkt, trager
-       op de live site door netwerk-vertraging), was cats hier soms nog
-       leeg/onvolledig. De dan gekozen terugvalrubriek (vaak BIERSLANG,
-       toevallig alfabetisch eerst) werd blijvend "onthouden" via
-       window.__BNS_LAST_CAT__, ook nadat de echte, volledige lijst
-       alsnog binnenkwam. Nu wordt die herinnering alleen vastgezet
-       zodra er een aannemelijke hoeveelheid materialen geladen is. */
-    var dataLooksReady = materials().length >= 3;
     var prev=U(window.currentCat||window.__BNS_LAST_CAT__||'');
     c=U(c||prev||firstCat());
     if(cats.indexOf(c)<0){
@@ -50280,9 +50271,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       else if(window.__BNS_LAST_CAT__ && cats.indexOf(U(window.__BNS_LAST_CAT__))>=0) c=U(window.__BNS_LAST_CAT__);
       else c=firstCat();
     }
-    window.currentCat=c;
-    if(dataLooksReady) window.__BNS_LAST_CAT__=c;
-    try{  }catch(e){} return c;
+    window.currentCat=c; window.__BNS_LAST_CAT__=c; try{  }catch(e){} return c;
   }
   function catColor(cat){ try{ var map=JSON.parse(localStorage.getItem('bnsCatColors')||'{}'); var k=U(cat).replace(/[^A-Z0-9]/g,'').slice(0,16); if(map[k]) return map[k]; }catch(e){} var def={TAPW:'#dc2626',BIERSLANG:'#16a34a',POMP:'#2563eb',SLANG:'#0ea5e9',BIERTANK:'#7c3aed',TANK:'#f97316'}; return def[U(cat)]||'#2563eb'; }
   function renderCats(){
@@ -50552,7 +50541,13 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
   }
 
   // Rubriek onthouden bij rubriekknop en bij materiaalrij.
-  document.addEventListener('pointerdown',function(ev){
+  /* v1-fix: dit was een TWEEDE, apart systeem om de gekozen rubriek te
+     onthouden, naast een nieuwer, vollediger systeem verderop (remember()/
+     __BNS629_KEEP_CAT). Twee gelijktijdig actieve, onafhankelijke
+     "onthoud-de-rubriek"-systemen konden elkaar tegenwerken - precies het
+     patroon dat dit probleem eerder al veroorzaakte. Uitgeschakeld, het
+     nieuwere systeem blijft actief. */
+  if(false) document.addEventListener('pointerdown',function(ev){
     var t=ev.target; if(!t || !t.closest) return;
     var cb=t.closest('#materialCats [data-bns611-cat],#materialCats [data-cat],#materialCats button,[data-bns611-cat],[data-cat]');
     if(cb){ rememberCat(cb.getAttribute('data-bns611-cat') || cb.getAttribute('data-cat') || cb.dataset.cat || cb.textContent); return; }
@@ -50563,7 +50558,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
       rememberCat(catOf(m) || currentCatSafe());
     }
   },true);
-  document.addEventListener('click',function(ev){
+  if(false) document.addEventListener('click',function(ev){
     var t=ev.target; if(!t || !t.closest) return;
     var row=t.closest('#materialList [data-bns611-mid],#materialList [data-material-id]');
     if(row){
