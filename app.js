@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R33';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R35';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -42619,7 +42619,19 @@ setTimeout(()=>{
     var box=E('materialList'); if(!box) return;
     var c=setCat(cat);
     var q=L(E('materialSearch')&&E('materialSearch').value);
-    var list=(q ? mats() : mats().filter(function(m){ return catOf(m)===c; })).filter(function(m){ return !q || JSON.stringify(m).toLowerCase().indexOf(q)>=0; });
+    /* v1-fix: dit doorzocht bij een ingevulde zoekterm ALLE rubrieken
+       tegelijk (in plaats van alleen de huidige) en vergeleek bovendien
+       met de complete, ruwe JSON van elk materiaal - inclusief interne
+       ID's, datums enz. Daardoor kon een zoekterm veel te veel/verkeerde
+       resultaten tonen. Nu blijft de rubriek-afbakening altijd gelden,
+       en wordt alleen op relevante velden gezocht - zelfde gedrag als
+       de nieuwere V611-zoekfunctie. */
+    var list=mats().filter(function(m){
+      if(catOf(m)!==c) return false;
+      if(!q) return true;
+      var t=[catOf(m),codeOf(m),m&&m.productNr,m&&m.nr,m&&m.number,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.productName,nameOf(m)].map(T).join(' ').toLowerCase();
+      return t.indexOf(q)>=0;
+    });
     var sig=c+'|'+q+'|'+list.map(function(m){ var st=statusFor(m); return T(m.id)+':'+codeOf(m)+':'+nameOf(m)+':'+st.key; }).join(',')+'|chosen:'+chosenList().map(function(m){return codeOf(m)||T(m.id);}).join(',');
     renderCats();
     if(!force && sig===lastSig && box.querySelector('.bns392-row')) return;
@@ -53691,19 +53703,42 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(document.head.lastElementChild!==s) document.head.appendChild(s);
   }
 
-  function ensureCatColorsOnButtons(){
-    /* Zet de --cat-color CSS-variabele ook zelf op elke knop, voor het
-       geval de eigen renderer (welke dat op dit moment ook is) dat
-       zelf niet consequent doet. Alleen echt aanpassen bij een
-       daadwerkelijk andere waarde, anders triggert dit zichzelf
-       onnodig opnieuw via de MutationObserver hieronder. */
+  var lastColorRuleKey='';
+  function ensureCatColorRules(){
+    /* v4-fix (naar het voorbeeld van de oude, stabiele versie): in plaats
+       van de kleur telkens weer op individuele knoppen te zetten (die
+       constant opnieuw gebouwd worden door welk systeem er ook wint, en
+       dus telkens weer hun kleur verliezen), wordt hier één vaste
+       stijlregel PER RUBRIEK gemaakt, gekoppeld aan het rubriek-codewoord
+       zelf via een attribuutselector. Zo'n regel blijft altijd gelden,
+       ongeacht wie de knop bouwt of hoe vaak - er is niets meer dat
+       "opnieuw" kan worden overschreven. */
     var cats=E('materialCats'); if(!cats) return;
     var attr=findCatAttr(cats); if(!attr) return;
-    cats.querySelectorAll('button['+attr+']').forEach(function(btn){
-      var k=btn.getAttribute(attr);
-      var want=catColor(k);
-      if(btn.style.getPropertyValue('--cat-color')!==want) btn.style.setProperty('--cat-color', want);
+    var list=[];
+    cats.querySelectorAll('['+attr+']').forEach(function(btn){
+      var c=btn.getAttribute(attr);
+      if(c && list.indexOf(c)<0) list.push(c);
     });
+    if(!list.length) return;
+    var key=attr+'|'+list.join(',');
+    if(key===lastColorRuleKey) return;
+    lastColorRuleKey=key;
+    var sel=['data-bns611-cat','data-bns392-cat','data-bns386-cat','data-cat'];
+    var css=list.map(function(k){
+      var col=catColor(k);
+      var esc=H(k);
+      var selectors=sel.map(function(a){ return '#materialCats button['+a+'="'+esc+'"]'; }).join(',');
+      return selectors+'{background:'+col+'!important;--cat-color:'+col+'!important;}';
+    }).join('\n');
+    var s=E('bns951ColorRules');
+    if(!s){
+      s=document.createElement('style');
+      s.id='bns951ColorRules';
+      document.head.appendChild(s);
+    }
+    if(s.textContent!==css) s.textContent=css;
+    if(document.head.lastElementChild!==s) document.head.appendChild(s);
   }
 
 
@@ -53797,7 +53832,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function tick(){
     var cats=E('materialCats');
     if(!cats) return;
-    try{ injectCss(); ensureCatColorsOnButtons(); }catch(e){}
+    try{ injectCss(); ensureCatColorRules(); }catch(e){}
     var html=cats.innerHTML;
     if(html===lastCatsHtml) return;
     lastCatsHtml=html;
