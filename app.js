@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R36';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R37';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -51774,9 +51774,18 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     return false;
   }
   function installOverviewMenu(){
+    /* v1-fix: dit probeerde de "echte" overzicht-functie maar ÉÉN keer
+       vast te leggen - lukte dat op dat ene moment niet (bijvoorbeeld
+       omdat een andere module nog niet geladen was), dan gaf het
+       hierna voorgoed op, en deed de knop binnen het keuzemenu niets
+       meer voor de rest van de sessie. Nu wordt het bij elke controle
+       (elke 900ms) opnieuw geprobeerd, zolang er nog geen geldige,
+       echte functie is vastgelegd - en showChoice zelf wordt daarbij
+       expliciet uitgesloten, anders zou dit zichzelf per ongeluk als
+       "de echte" vastleggen. */
     if(!window.__BNS653_REAL_OVERVIEW__){
-      if(typeof window.BNS_V493_SHOW==='function') window.__BNS653_REAL_OVERVIEW__=window.BNS_V493_SHOW;
-      else if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW==='function') window.__BNS653_REAL_OVERVIEW__=window.BNS_V128_SHOW_ORDER_OVERVIEW;
+      if(typeof window.BNS_V493_SHOW==='function' && window.BNS_V493_SHOW!==showChoice) window.__BNS653_REAL_OVERVIEW__=window.BNS_V493_SHOW;
+      else if(typeof window.BNS_V128_SHOW_ORDER_OVERVIEW==='function' && window.BNS_V128_SHOW_ORDER_OVERVIEW!==showChoice) window.__BNS653_REAL_OVERVIEW__=window.BNS_V128_SHOW_ORDER_OVERVIEW;
     }
     window.BNS_V653_SHOW_OVERVIEW_CHOICE=showChoice;
     window.BNS_V128_SHOW_ORDER_OVERVIEW=showChoice;
