@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R35';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R36';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -42619,16 +42619,14 @@ setTimeout(()=>{
     var box=E('materialList'); if(!box) return;
     var c=setCat(cat);
     var q=L(E('materialSearch')&&E('materialSearch').value);
-    /* v1-fix: dit doorzocht bij een ingevulde zoekterm ALLE rubrieken
-       tegelijk (in plaats van alleen de huidige) en vergeleek bovendien
-       met de complete, ruwe JSON van elk materiaal - inclusief interne
-       ID's, datums enz. Daardoor kon een zoekterm veel te veel/verkeerde
-       resultaten tonen. Nu blijft de rubriek-afbakening altijd gelden,
-       en wordt alleen op relevante velden gezocht - zelfde gedrag als
-       de nieuwere V611-zoekfunctie. */
+    /* v2-fix: de vorige versie eiste altijd dat het materiaal bij de
+       actief-gekozen rubriek hoorde, ook tijdens het zoeken - waardoor
+       een zoekterm niets meer vond zodra je niet toevallig al op de
+       juiste rubriek stond. Bedoeling is: tijdens het zoeken mag het
+       best over alle rubrieken heen zoeken (zoals vroeger), maar dan
+       wel netjes op relevante velden - niet de complete, ruwe JSON. */
     var list=mats().filter(function(m){
-      if(catOf(m)!==c) return false;
-      if(!q) return true;
+      if(!q) return catOf(m)===c;
       var t=[catOf(m),codeOf(m),m&&m.productNr,m&&m.nr,m&&m.number,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.productName,nameOf(m)].map(T).join(' ').toLowerCase();
       return t.indexOf(q)>=0;
     });
@@ -50321,10 +50319,15 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var box=E('materialList'); if(!box) return;
     var c=setCat(cat);
     var q=L(E('materialSearch')&&E('materialSearch').value);
+    /* v2-fix: zoeken vereiste hier ook dat het materiaal al bij de
+       actief-gekozen rubriek hoorde, waardoor een zoekterm niets meer
+       vond zodra je niet toevallig al op de juiste rubriek stond. Bij
+       een ingevulde zoekterm mag het nu over alle rubrieken heen zoeken.
+       Ook nameOf(m) ontbrak hier in de doorzochte velden - zoeken op de
+       naam van een artikel werkte hierdoor nooit. */
     var list=materials().filter(function(m){
-      if(catOf(m)!==c) return false;
-      if(!q) return true;
-      var txt=[catOf(m),codeOf(m),m&&m.productNr,m&&m.nr,m&&m.number,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.productName].map(T).join(' ').toLowerCase();
+      if(!q) return catOf(m)===c;
+      var txt=[catOf(m),codeOf(m),m&&m.productNr,m&&m.nr,m&&m.number,m&&m.product,m&&m.searchName,m&&m.zoeknaam,m&&m.type,m&&m.productName,nameOf(m)].map(T).join(' ').toLowerCase();
       return txt.indexOf(q)>=0;
     });
     var sig=c+'|'+q+'|'+list.map(function(m){ var st=statusFor(m); return (matId(m)||codeOf(m))+':'+st.key; }).join(',')+'|chosen:'+chosenList().map(function(m){return matId(m)||codeOf(m);}).join(',');
