@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-04-R37';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-06-R38';
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -8540,6 +8540,14 @@ function cancel(oid){
   if(o){
     o.status='Geannuleerd';
     save();
+    /* v1-fix: dit sloeg de annulering tot nu toe alleen lokaal op. Zodra
+       de app op de achtergrond opnieuw met Firebase synchroniseerde, kon
+       de oude, nooit-bijgewerkte status daar gewoon weer terugkomen -
+       en daarmee ook de materiaal-reservering. Nu wordt de wijziging ook
+       echt naar Firebase geschreven. */
+    try{
+      if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o);
+    }catch(e){}
     renderOrders()
   }
 }
@@ -8548,6 +8556,7 @@ function restore(oid){
   if(o){
     o.status='Opdracht';
     save();
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
     renderOrders()
   }
 }
@@ -8556,6 +8565,7 @@ function markDone(oid){
   if(o){
     o.status='Uitgevoerd';
     save();
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
     renderOrders();
     renderDashboard();
   }
@@ -32673,6 +32683,14 @@ setTimeout(()=>{
       if(L(o.status)==='geannuleerd') o.status='Verwijderd';
       normalizeOrder(o, true);
       saveLocal();
+      /* v1-fix: deze omzetting (Geannuleerd -> Verwijderd) werd tot nu
+         toe alleen lokaal opgeslagen, nooit naar Firebase gesynchroniseerd.
+         Daardoor kon de materiaal-reservering (die de live Firebase-data
+         raadpleegt) de oude status nog zien en het materiaal ten onrechte
+         als "gereserveerd" blijven tonen. */
+      try{
+        if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o);
+      }catch(e){}
     }
     setTimeout(function(){
       try{
