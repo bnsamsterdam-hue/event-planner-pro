@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R41';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R42';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -24,60 +24,117 @@ window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R41';
    BEWUST NIET meegenomen: 'eventPlannerState'. Die wordt op drie plekken
    gelezen zonder terugvaloptie, dus die verdient een eigen test. Komt hierna.
 ========================================================== */
-(function bnsR41StorageKeyShim(){
+(function bnsR42StorageShim(){
   'use strict';
   try{
-    if(window.__BNS_R41_SHIM__) return;
-    window.__BNS_R41_SHIM__=true;
+    if(window.__BNS_R42_SHIM__) return;
+    window.__BNS_R42_SHIM__=true;
 
     var ECHTE_SLEUTEL='event-planner-pro-v87';
+
+    /* R42: nu ook eventPlannerStateV91 (die werd via een variabele weggeschreven,
+       `const LS='eventPlannerStateV91'`, en ontsnapte daarom aan de eerste ronde)
+       en eventPlannerState, de vijfde. Die laatste kan nu veilig mee: zijn drie
+       leesplekken hebben geen terugvaloptie, maar door de omleiding krijgen ze
+       voortaan de echte state in plaats van niets. */
     var GEPENSIONEERD={
-      'eventPlannerProV91':1,
-      'plannerState':1,
-      'eventPlannerProState':1,
-      'eventPlannerPro':1
+      'eventPlannerProV91':1, 'plannerState':1, 'eventPlannerProState':1,
+      'eventPlannerPro':1, 'eventPlannerStateV91':1, 'eventPlannerState':1
     };
-    var overgeslagen=0;
+    var OPRUIMEN=['bns_state','bns_app_state'];   // schrijfacties zijn al weg, waarden bleven staan
+    var FOTO_VELDEN=['data','photoData','photo','image','signatureData','signature','customerSignature'];
+    var overgeslagen=0, gestript=0;
 
-    var origSet=localStorage.setItem.bind(localStorage);
-    var origGet=localStorage.getItem.bind(localStorage);
+    /* KERN VAN R42: haken op Storage.prototype in plaats van op localStorage.
+       In app.js staan vijf plekken die localStorage.setItem overschrijven, en
+       een daarvan schrijft via `Storage.prototype.setItem.call(localStorage,...)`.
+       Die sprong over elke omleiding heen - vandaar dat plannerState telkens
+       terugkwam. Op prototype-niveau kan niets er meer omheen. */
+    var natSet=Storage.prototype.setItem;
+    var natGet=Storage.prototype.getItem;
+    var natRem=Storage.prototype.removeItem;
 
-    // Eenmalig de oude kopieen opruimen: dat is de ruimtewinst.
-    Object.keys(GEPENSIONEERD).forEach(function(k){
-      try{ if(origGet(k)!==null){ localStorage.removeItem(k); } }catch(e){}
+    function isStateSleutel(k){
+      k=String(k||'');
+      return k===ECHTE_SLEUTEL || GEPENSIONEERD[k] ||
+             k.indexOf('event-planner')>=0 || k.indexOf('eventPlanner')>=0 || k.indexOf('plannerState')>=0;
+    }
+
+    /* Foto's horen niet in de browseropslag. Ze blijven gewoon in het geheugen
+       en in Firebase staan; alleen de lokale kopie gaat zonder. Dat scheelt hier
+       ruim 12 MB, en zonder die overschrijding gaat de noodroute - die opdrachten
+       uitkleedde - simpelweg nooit meer af. */
+    function zonderFotos(tekst){
+      try{
+        var o=JSON.parse(tekst);
+        if(!o || typeof o!=='object') return tekst;
+        var raak=0;
+        function strip(x){
+          if(!x || typeof x!=='object') return;
+          FOTO_VELDEN.forEach(function(f){
+            if(typeof x[f]==='string' && x[f].length>1000){ delete x[f]; raak++; }
+          });
+        }
+        ['alerts','orders'].forEach(function(col){
+          (Array.isArray(o[col])?o[col]:[]).forEach(function(rij){
+            strip(rij);
+            ['media','photos','signatures','driverUploads','handtekeningen','klantmeldingen'].forEach(function(k){
+              (Array.isArray(rij&&rij[k])?rij[k]:[]).forEach(strip);
+            });
+          });
+        });
+        if(!raak) return tekst;
+        o.__bnsFotosNietLokaal=true;
+        gestript+=raak;
+        return JSON.stringify(o);
+      }catch(e){ return tekst; }
+    }
+
+    Storage.prototype.setItem=function(key,value){
+      try{
+        if(this===window.localStorage && !window.__BNS_R42_UIT__){
+          var k=String(key);
+          if(GEPENSIONEERD[k]){ overgeslagen++; return; }
+          if(isStateSleutel(k) && typeof value==='string' && value.length>200000){
+            value=zonderFotos(value);
+          }
+        }
+      }catch(e){}
+      return natSet.call(this,key,value);
+    };
+    Storage.prototype.getItem=function(key){
+      try{
+        if(this===window.localStorage && !window.__BNS_R42_UIT__ && GEPENSIONEERD[String(key)]){
+          return natGet.call(this,ECHTE_SLEUTEL);
+        }
+      }catch(e){}
+      return natGet.call(this,key);
+    };
+
+    // Eenmalig opruimen: dit is de directe ruimtewinst.
+    Object.keys(GEPENSIONEERD).concat(OPRUIMEN).forEach(function(k){
+      try{ if(natGet.call(localStorage,k)!==null) natRem.call(localStorage,k); }catch(e){}
     });
 
-    localStorage.setItem=function(key,value){
-      if(!window.__BNS_R41_UIT__ && GEPENSIONEERD[String(key)]){
-        overgeslagen++;
-        return;               // niet opslaan: staat al onder de echte sleutel
-      }
-      return origSet(key,value);
-    };
-    localStorage.getItem=function(key){
-      if(!window.__BNS_R41_UIT__ && GEPENSIONEERD[String(key)]){
-        return origGet(ECHTE_SLEUTEL);
-      }
-      return origGet(key);
-    };
-
-    window.BNS_R41={
+    window.BNS_R42={
       sleutels:function(){ return Object.keys(GEPENSIONEERD); },
       overgeslagen:function(){ return overgeslagen; },
+      fotosGestript:function(){ return gestript; },
       verbruik:function(){
         var t=0,uit={};
         for(var i=0;i<localStorage.length;i++){
-          var k=localStorage.key(i), v=origGet(k)||'';
+          var k=localStorage.key(i), v=natGet.call(localStorage,k)||'';
           uit[k]=Math.round(v.length/1024)+' KB'; t+=v.length;
         }
         uit.__totaal=(t/1024/1024).toFixed(2)+' MB van ~5 MB';
         return uit;
       },
-      uitzetten:function(){ window.__BNS_R41_UIT__=true; return 'shim uit tot herladen'; }
+      uitzetten:function(){ window.__BNS_R42_UIT__=true; return 'shim uit tot herladen'; }
     };
-    try{ console.info('[BNS R41] Vier dubbele opslagsleutels uitgeschakeld; lezen gaat door naar de echte state.'); }catch(e){}
+    window.BNS_R41=window.BNS_R42;   // oude naam blijft werken
+    try{ console.info('[BNS R42] Opslagslot actief op prototype-niveau; zes dubbele sleutels uit, foto\u0027s blijven buiten de browseropslag.'); }catch(e){}
   }catch(e){
-    try{ console.warn('[BNS R41] shim kon niet worden geinstalleerd, app draait gewoon door:',e); }catch(_){}
+    try{ console.warn('[BNS R42] shim kon niet worden geinstalleerd, app draait gewoon door:',e); }catch(_){}
   }
 })();
 
@@ -54323,4 +54380,86 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   installeer();
   var n=0, tm=setInterval(function(){ installeer(); if(++n>40) clearInterval(tm); },500);
   document.addEventListener('DOMContentLoaded',installeer);
+})();
+
+/* ==========================================================
+   BNS R42 — Dubbele foto's in meldingen opruimen
+   ----------------------------------------------------------
+   Gemeten op de live gegevens: 12,65 MB aan foto's in de meldingen, waarvan
+   5,95 MB pure dubbele - bij 26 meldingen staat exact dezelfde JPEG twee keer
+   in hetzelfde record, een keer in `data` en een keer in `photoData`.
+
+   Er wordt hier GEEN foto weggegooid. Bij een identiek paar blijft photoData
+   staan en wordt `data` vervangen door een doorgeefluik: code die a.data
+   uitleest krijgt gewoon de foto terug. Het verschil zit hem erin dat het
+   doorgeefluik onzichtbaar is voor JSON.stringify, en dus niet meer wordt
+   opgeslagen en niet meer wordt meegestuurd naar Firebase.
+
+   Bij paren die NIET identiek zijn blijft alles onaangeroerd - dat kunnen twee
+   verschillende foto's zijn en daar gokken we niet op.
+========================================================== */
+(function bnsR42MeldingFotos(){
+  'use strict';
+  if(window.__BNS_R42_FOTOS__) return;
+  window.__BNS_R42_FOTOS__=true;
+
+  var gedaan=0, bespaard=0;
+
+  function st(){ try{ if(typeof state!=='undefined'&&state) return state; }catch(e){} return window.state||null; }
+
+  function ontdubbel(){
+    var s=st();
+    if(!s || !Array.isArray(s.alerts)) return {meldingen:0,ontdubbeld:0};
+    var n=0, bytes=0;
+    s.alerts.forEach(function(a){
+      if(!a || typeof a!=='object') return;
+      if(a.__bnsR42Ontdubbeld) return;
+      var d=a.data, p=a.photoData;
+      if(typeof d!=='string' || typeof p!=='string') return;
+      if(d.length<1000 || d!==p) return;          // alleen exact identieke paren
+      try{
+        delete a.data;
+        Object.defineProperty(a,'data',{
+          get:function(){ return this.photoData; },
+          set:function(v){ this.photoData=v; },
+          enumerable:false,                        // hierdoor niet meer opgeslagen
+          configurable:true
+        });
+        a.__bnsR42Ontdubbeld=true;
+        n++; bytes+=d.length;
+      }catch(e){}
+    });
+    if(n){
+      gedaan+=n; bespaard+=bytes;
+      console.info('[BNS R42] '+n+' melding(en) ontdubbeld, '+(bytes/1048576).toFixed(2)+' MB minder - geen enkele foto verwijderd.');
+      try{ if(typeof window.save==='function') window.save(); }catch(e){}
+    }
+    return {meldingen:s.alerts.length, ontdubbeld:n};
+  }
+
+  setTimeout(ontdubbel, 6000);
+  setInterval(ontdubbel, 5*60*1000);
+
+  window.BNS_R42_FOTOS={
+    nuOpruimen:ontdubbel,
+    stand:function(){
+      var s=st(), a=(s&&s.alerts)||[], tot=0, dub=0, verschil=0;
+      a.forEach(function(x){
+        if(!x) return;
+        var d=String(x.data||''), p=String(x.photoData||'');
+        tot+=(x.__bnsR42Ontdubbeld?p.length:d.length+p.length);
+        if(d&&p&&d===p&&!x.__bnsR42Ontdubbeld) dub++;
+        else if(d&&p&&d!==p) verschil++;
+      });
+      return {
+        meldingen:a.length,
+        fotos_in_geheugen:(tot/1048576).toFixed(2)+' MB',
+        nog_dubbel:dub,
+        verschillende_paren:verschil,
+        al_ontdubbeld:gedaan,
+        bespaard:(bespaard/1048576).toFixed(2)+' MB'
+      };
+    }
+  };
+  try{ console.info('[BNS R42] Meldingfoto-opruiming actief.'); }catch(e){}
 })();
