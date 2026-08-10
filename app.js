@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R42';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R43';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -54462,4 +54462,142 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
   };
   try{ console.info('[BNS R42] Meldingfoto-opruiming actief.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R43 — Meldingfoto's op afroep uit Firebase
+   ----------------------------------------------------------
+   R42 haalt foto's uit de browseropslag; dat was nodig, want 12,65 MB aan
+   foto's paste nooit in de 5 MB die een browser toestaat. Maar daarmee
+   ontbrak de andere helft: er was niets dat een foto weer OPHAALDE als je
+   een melding opende. Je zag de tekst wel, het beeld niet.
+
+   Dit lost dat op zonder ook maar iets over het scherm te hoeven weten.
+   In plaats van te raden waar en wanneer een melding getekend wordt, wordt
+   `photoData` een luikje: leest de app hem uit, dan wordt de foto op dat
+   moment uit Firestore gehaald en verschijnt hij zodra hij binnen is. Dus
+   precies de foto's die je bekijkt, en verder niets.
+
+   Het luikje is onzichtbaar voor JSON.stringify. De foto komt daardoor nooit
+   in de browseropslag terecht, en wordt ook niet meegestuurd bij het opslaan -
+   wat veilig is, omdat meldingen met `merge:true` worden weggeschreven en een
+   niet-meegestuurd veld dus blijft staan.
+
+   Zet je een NIEUWE foto (bezorger maakt een schadefoto), dan wordt die apart
+   rechtstreeks naar Firestore geschreven, zodat er niets verloren gaat.
+========================================================== */
+(function bnsR43MeldingFotosOpAfroep(){
+  'use strict';
+  if(window.__BNS_R43__) return;
+  window.__BNS_R43__=true;
+
+  var VELDEN=['photoData','data'];
+  var opgehaald=0, mislukt=0, geupload=0;
+  var wachtrij={};
+  var stilVullen=false;   // tijdens haalAlles: wel invullen, niet terug-uploaden
+
+  function st(){ try{ if(typeof state!=='undefined'&&state) return state; }catch(e){} return window.state||null; }
+  function fbKlaar(){ return !!(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.doc && window.BNS.fs.getDoc); }
+
+  function hertekenen(){
+    try{ if(typeof window.renderAll==='function') window.renderAll(); }catch(e){}
+    try{ if(typeof window.renderAlerts==='function') window.renderAlerts(); }catch(e){}
+  }
+
+  async function haalUitFirestore(id){
+    if(!fbKlaar()) return '';
+    if(wachtrij[id]) return wachtrij[id];
+    var p=(async function(){
+      try{
+        var fs=window.BNS.fs;
+        var snap=await fs.getDoc(fs.doc(window.BNS.db,'alerts',String(id)));
+        var d=(snap && snap.exists && snap.exists()) ? (snap.data()||{}) : {};
+        var foto=d.photoData || d.data || '';
+        if(typeof foto==='string' && foto.length>1000){ opgehaald++; return foto; }
+        return '';
+      }catch(e){ mislukt++; console.warn('[BNS R43] foto ophalen mislukt voor melding '+id+':',e); return ''; }
+      finally{ delete wachtrij[id]; }
+    })();
+    wachtrij[id]=p;
+    return p;
+  }
+
+  async function uploadNieuweFoto(id,foto){
+    if(!fbKlaar() || !foto) return;
+    try{
+      var fs=window.BNS.fs;
+      await fs.setDoc(fs.doc(window.BNS.db,'alerts',String(id)),
+                      {photoData:foto, updatedAt:new Date().toISOString()}, {merge:true});
+      geupload++;
+      console.info('[BNS R43] Nieuwe foto van melding '+id+' naar Firebase geschreven.');
+    }catch(e){ console.warn('[BNS R43] nieuwe foto opslaan mislukt voor '+id+':',e); }
+  }
+
+  function zetLuikje(a,veld){
+    var kern={waarde:null, bezig:false, geprobeerd:false};
+    var bestaand=a[veld];
+    if(typeof bestaand==='string' && bestaand.length>1000){ kern.waarde=bestaand; kern.geprobeerd=true; }
+    try{ delete a[veld]; }catch(e){}
+    try{
+      Object.defineProperty(a,veld,{
+        enumerable:false, configurable:true,
+        get:function(){
+          if(kern.waarde!=null) return kern.waarde;
+          if(!kern.bezig && !kern.geprobeerd && a.id){
+            kern.bezig=true;
+            haalUitFirestore(a.id).then(function(v){
+              kern.bezig=false; kern.geprobeerd=true;
+              if(v){ kern.waarde=v; hertekenen(); }
+            });
+          }
+          return '';
+        },
+        set:function(v){
+          kern.waarde=v; kern.geprobeerd=true;
+          // Alleen een ECHT nieuwe foto uploaden - niet eentje die we net zelf ophaalden.
+          if(!stilVullen && typeof v==='string' && v.length>1000 && a.id) uploadNieuweFoto(a.id,v);
+        }
+      });
+    }catch(e){}
+  }
+
+  function verwerk(){
+    var s=st();
+    if(!s || !Array.isArray(s.alerts)) return 0;
+    var n=0;
+    s.alerts.forEach(function(a){
+      if(!a || typeof a!=='object' || a.__bnsR43) return;
+      VELDEN.forEach(function(v){ zetLuikje(a,v); });
+      try{ Object.defineProperty(a,'__bnsR43',{value:true,enumerable:false,configurable:true}); }catch(e){ a.__bnsR43=true; }
+      n++;
+    });
+    return n;
+  }
+
+  setTimeout(verwerk, 4000);
+  setInterval(verwerk, 4000);
+
+  window.BNS_R43={
+    stand:function(){
+      var s=st(), a=(s&&s.alerts)||[];
+      return {meldingen:a.length, voorbereid:a.filter(function(x){return x&&x.__bnsR43;}).length,
+              opgehaald:opgehaald, mislukt:mislukt, nieuw_geupload:geupload};
+    },
+    nuVoorbereiden:verwerk,
+    haalAlles:async function(){
+      var s=st(); if(!s||!Array.isArray(s.alerts)) return 'geen meldingen';
+      var n=0;
+      stilVullen=true;
+      try{
+        for(var i=0;i<s.alerts.length;i++){
+          var a=s.alerts[i]; if(!a||!a.id) continue;
+          var f=await haalUitFirestore(a.id);
+          if(f){ a.photoData=f; n++; }
+        }
+      } finally { stilVullen=false; }
+      hertekenen();
+      return n+' foto(s) opgehaald';
+    }
+  };
+  try{ console.info('[BNS R43] Meldingfoto\u0027s worden op afroep uit Firebase gehaald.'); }catch(e){}
 })();
