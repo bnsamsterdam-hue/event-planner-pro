@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R44';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R45';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -54656,15 +54656,30 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     });
   }
 
-  async function leesBackup(naam){
+  async function leesBackup(naam, aantalStukken){
     var fs=window.BNS.fs, db=window.BNS.db;
     var snap=await fs.getDocs(fs.collection(db,'backups',String(naam),'chunks'));
     var delen=snap.docs.map(function(d){ var x=d.data()||{}; return {i:Number(x.index!=null?x.index:d.id), data:String(x.data||'')}; });
     if(!delen.length) return null;
     delen.sort(function(a,b){ return a.i-b.i; });
+
+    /* R45-fix: het backupwerktuig schrijft N stukken maar ruimt stukken van een
+       EERDERE, langere backup niet op. Wie dan alles aan elkaar plakt, krijgt de
+       staart van de vorige backup er achteraan - vandaar "Unexpected non-whitespace
+       character after JSON". Met het aantal uit de backup-kaart knippen we die
+       staart eraf. Staat dat aantal er niet, dan zoeken we het einde zelf. */
+    if(aantalStukken>0 && delen.length>aantalStukken) delen=delen.slice(0,aantalStukken);
     var tekst=delen.map(function(d){ return d.data; }).join('');
     try{ return JSON.parse(tekst); }
-    catch(e){ console.warn('[BNS R44] backup '+naam+' kon niet gelezen worden:',e); return null; }
+    catch(e){
+      var eind=tekst.lastIndexOf('}');
+      while(eind>0){
+        try{ return JSON.parse(tekst.slice(0,eind+1)); }catch(_){ eind=tekst.lastIndexOf('}',eind-1); }
+        if(tekst.length-eind > 4000000) break;
+      }
+      console.warn('[BNS R44] backup '+naam+' kon niet gelezen worden:',e);
+      return null;
+    }
   }
 
   function ordersUit(backup){
@@ -54682,7 +54697,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var namen=await backupNamen();
     var bron={};   // orderId -> {order, uitBackup}
     for(var i=0;i<namen.length;i++){
-      var b=await leesBackup(namen[i].id);
+      var b=await leesBackup(namen[i].id, namen[i].stukken);
       var rijen=ordersUit(b);
       if(!rijen.length) continue;
       rijen.forEach(function(o){
@@ -54739,8 +54754,28 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return {hersteld:hersteld.length, opdrachten:hersteld};
   }
 
+  /* Diagnose per opdracht: wat staat er in ELKE backup over dit nummer?
+     Zo zie je meteen of een backup hem compleet had of al als stomp. */
+  async function zoek(nummerOfId){
+    var doel=T(nummerOfId);
+    var namen=await backupNamen(), uit=[];
+    for(var i=0;i<namen.length;i++){
+      var b=await leesBackup(namen[i].id, namen[i].stukken);
+      var rijen=ordersUit(b);
+      var hit=rijen.filter(function(o){ return o && (T(o.id)===doel || T(o.number)===doel); })[0];
+      uit.push({backup:namen[i].id, datum:namen[i].datum,
+                gevonden:!!hit,
+                titel:hit?T(hit.title):'', start:hit?T(hit.start):'',
+                klant:hit&&hit.customer?T(hit.customer.name||hit.customer):'',
+                velden:hit?Object.keys(hit).length:0,
+                compleet:hit?!!compleet(hit):false});
+    }
+    return uit;
+  }
+
   window.BNS_HERSTEL={
     kapot:function(){ return kapotteLijst().map(function(o){ return T(o.number)||T(o.id); }); },
+    zoek:zoek,
     backups:backupNamen,
     controleer:controleer,
     herstel:herstel
