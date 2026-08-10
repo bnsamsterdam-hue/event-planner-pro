@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R45';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R46';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -75,7 +75,11 @@ window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R45';
             if(typeof x[f]==='string' && x[f].length>1000){ delete x[f]; raak++; }
           });
         }
-        ['alerts','orders'].forEach(function(col){
+        /* R46-fix: alleen meldingen strippen. De foto's die AAN EEN OPDRACHT hangen
+           (media/photos/signatures/driverUploads) zijn samen maar zo'n 30 KB - die
+           wogen nooit mee - en er is voor die kant geen ophaalroute, dus wie ze
+           weghaalt maakt ze onzichtbaar zonder iets te winnen. */
+        ['alerts'].forEach(function(col){
           (Array.isArray(o[col])?o[col]:[]).forEach(function(rij){
             strip(rij);
             ['media','photos','signatures','driverUploads','handtekeningen','klantmeldingen'].forEach(function(k){
@@ -54422,7 +54426,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         Object.defineProperty(a,'data',{
           get:function(){ return this.photoData; },
           set:function(v){ this.photoData=v; },
-          enumerable:false,                        // hierdoor niet meer opgeslagen
+          enumerable:true,                         // R46-fix: was false; Object.assign sloeg het veld dan over
           configurable:true
         });
         a.__bnsR42Ontdubbeld=true;
@@ -54541,7 +54545,12 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{ delete a[veld]; }catch(e){}
     try{
       Object.defineProperty(a,veld,{
-        enumerable:false, configurable:true,
+        /* R46-fix: dit stond op enumerable:false, zodat JSON.stringify de foto
+           niet zag. Maar deze app kopieert meldingen met Object.assign({},x) naar
+           het fotopaneel, en Object.assign slaat niet-opsombare velden OOK over -
+           dus kwam de foto nooit in het paneel terecht. Nu weer gewoon zichtbaar;
+           uit de browseropslag houden doet de shim hierboven al bij het wegschrijven. */
+        enumerable:true, configurable:true,
         get:function(){
           if(kern.waarde!=null) return kern.waarde;
           if(!kern.bezig && !kern.geprobeerd && a.id){
