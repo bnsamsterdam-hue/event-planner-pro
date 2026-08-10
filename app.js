@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R43';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R44';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -54495,6 +54495,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   var opgehaald=0, mislukt=0, geupload=0;
   var wachtrij={};
   var stilVullen=false;   // tijdens haalAlles: wel invullen, niet terug-uploaden
+  var alleenEenKeer=false; // eerste keer dat een foto wordt opgevraagd: haal ze in een keer op
 
   function st(){ try{ if(typeof state!=='undefined'&&state) return state; }catch(e){} return window.state||null; }
   function fbKlaar(){ return !!(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.doc && window.BNS.fs.getDoc); }
@@ -54549,6 +54550,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
               kern.bezig=false; kern.geprobeerd=true;
               if(v){ kern.waarde=v; hertekenen(); }
             });
+            /* Zodra de app voor het eerst een foto opvraagt, is het meldingen-
+               scherm kennelijk in beeld. Dan halen we ze in een keer allemaal
+               op: dat is de route die handmatig aantoonbaar werkte, en het
+               voorkomt dat een scherm dat niet opnieuw tekent leeg blijft. */
+            if(!alleenEenKeer){
+              alleenEenKeer=true;
+              setTimeout(function(){ try{ window.BNS_R43.haalAlles(); }catch(e){} }, 300);
+            }
           }
           return '';
         },
@@ -54600,4 +54609,141 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
   };
   try{ console.info('[BNS R43] Meldingfoto\u0027s worden op afroep uit Firebase gehaald.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R44 — Herstel van uitgeklede opdrachten
+   ----------------------------------------------------------
+   De 27 opdrachten die hun titel, klant, datum en materialen kwijtraakten zijn
+   destijds in Firestore overschreven door een stomp uit de noodopslag. R40 t/m
+   R43 zorgen dat dat niet meer kan gebeuren; deze module haalt terug wat er
+   toen verloren ging.
+
+   Er wordt in TWEE soorten backups gekeken, allebei in Firestore:
+     backups/daily_latest                      (de automatische dagbackup)
+     backups/orders_cleanup_before_v755_...    (gemaakt door het opruimwerktuig)
+   Beide zijn opgeknipt in stukken die in een submap `chunks` staan; die worden
+   hier weer aan elkaar geplakt.
+
+   Bewust in twee stappen: `controleer()` laat alleen ZIEN wat er te herstellen
+   valt en verandert niets. Pas `herstel()` schrijft echt terug, en vraagt eerst
+   om bevestiging. Er wordt uitsluitend AANGEVULD - een veld dat nu gevuld is
+   wordt nooit door een oude waarde overschreven.
+========================================================== */
+(function bnsR44Herstel(){
+  'use strict';
+  if(window.__BNS_R44__) return;
+  window.__BNS_R44__=true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function st(){ try{ if(typeof state!=='undefined'&&state) return state; }catch(e){} return window.state||null; }
+  function fbKlaar(){ return !!(window.BNS && window.BNS.fs && window.BNS.db); }
+
+  function isKapot(o){
+    return !!o && !!o.id && (!T(o.title) || !T(o.start) || !(o.customer && T(o.customer.name||o.customer)));
+  }
+  function kapotteLijst(){
+    var s=st();
+    return ((s&&s.orders)||[]).filter(isKapot);
+  }
+
+  async function backupNamen(){
+    var fs=window.BNS.fs;
+    var snap=await fs.getDocs(fs.collection(window.BNS.db,'backups'));
+    return snap.docs.map(function(d){
+      var m=d.data()||{};
+      return {id:d.id, datum:m.date||m.createdAt||m.updatedAt||'?', stukken:m.chunkCount||m.chunks||0, omvang:m.size||0};
+    });
+  }
+
+  async function leesBackup(naam){
+    var fs=window.BNS.fs, db=window.BNS.db;
+    var snap=await fs.getDocs(fs.collection(db,'backups',String(naam),'chunks'));
+    var delen=snap.docs.map(function(d){ var x=d.data()||{}; return {i:Number(x.index!=null?x.index:d.id), data:String(x.data||'')}; });
+    if(!delen.length) return null;
+    delen.sort(function(a,b){ return a.i-b.i; });
+    var tekst=delen.map(function(d){ return d.data; }).join('');
+    try{ return JSON.parse(tekst); }
+    catch(e){ console.warn('[BNS R44] backup '+naam+' kon niet gelezen worden:',e); return null; }
+  }
+
+  function ordersUit(backup){
+    if(!backup) return [];
+    if(Array.isArray(backup.orders)) return backup.orders;
+    if(backup.state && Array.isArray(backup.state.orders)) return backup.state.orders;
+    return [];
+  }
+  function compleet(o){
+    return !!o && T(o.title) && T(o.start) && (o.customer && T(o.customer.name||o.customer));
+  }
+
+  async function verzamel(){
+    if(!fbKlaar()) throw new Error('Firebase nog niet verbonden - probeer over een halve minuut opnieuw.');
+    var namen=await backupNamen();
+    var bron={};   // orderId -> {order, uitBackup}
+    for(var i=0;i<namen.length;i++){
+      var b=await leesBackup(namen[i].id);
+      var rijen=ordersUit(b);
+      if(!rijen.length) continue;
+      rijen.forEach(function(o){
+        if(!o||!o.id||!compleet(o)) return;
+        var k=String(o.id);
+        if(!bron[k]) bron[k]={order:o, uitBackup:namen[i].id};
+      });
+      console.info('[BNS R44] backup '+namen[i].id+': '+rijen.length+' opdrachten gelezen.');
+    }
+    return bron;
+  }
+
+  async function controleer(){
+    var kapot=kapotteLijst();
+    if(!kapot.length) return {kapot:0, bericht:'Geen uitgeklede opdrachten gevonden.'};
+    var bron=await verzamel();
+    var kan=[], niet=[];
+    kapot.forEach(function(o){
+      var b=bron[String(o.id)];
+      if(b) kan.push({nummer:T(o.number)||T(o.id), titel:T(b.order.title), start:T(b.order.start), uit:b.uitBackup});
+      else niet.push(T(o.number)||T(o.id));
+    });
+    return {kapot:kapot.length, herstelbaar:kan.length, niet_gevonden:niet, details:kan,
+            let_op:'Dit was alleen kijken. Gebruik window.BNS_HERSTEL.herstel() om het echt te doen.'};
+  }
+
+  async function herstel(){
+    var kapot=kapotteLijst();
+    if(!kapot.length) return 'Niets te herstellen.';
+    var bron=await verzamel();
+    var doen=kapot.filter(function(o){ return !!bron[String(o.id)]; });
+    if(!doen.length) return 'Geen van de kapotte opdrachten staat in een backup.';
+    if(!window.confirm(doen.length+' opdracht(en) herstellen uit backup?\n\nBestaande gevulde velden blijven staan; alleen wat ontbreekt wordt aangevuld.')) return 'Afgebroken.';
+
+    var hersteld=[];
+    for(var i=0;i<doen.length;i++){
+      var o=doen[i], oud=bron[String(o.id)].order;
+      Object.keys(oud).forEach(function(k){
+        if(k==='id') return;
+        var nu=o[k];
+        var leeg = (nu==null) || (typeof nu==='string' && !nu.trim()) ||
+                   (Array.isArray(nu) && !nu.length) ||
+                   (nu && typeof nu==='object' && !Array.isArray(nu) && !Object.keys(nu).length);
+        if(leeg && oud[k]!=null) o[k]=oud[k];   // uitsluitend aanvullen
+      });
+      hersteld.push(T(o.number)||T(o.id));
+      try{ if(window.BNS && typeof window.BNS.syncOrder==='function') await window.BNS.syncOrder(o); }catch(e){
+        console.warn('[BNS R44] terugschrijven naar Firebase mislukt voor '+T(o.number)+':',e);
+      }
+    }
+    try{ if(typeof window.save==='function') window.save(); }catch(e){}
+    try{ if(typeof window.renderAll==='function') window.renderAll(); }catch(e){}
+    console.info('[BNS R44] Hersteld ('+hersteld.length+'): '+hersteld.join(', '));
+    return {hersteld:hersteld.length, opdrachten:hersteld};
+  }
+
+  window.BNS_HERSTEL={
+    kapot:function(){ return kapotteLijst().map(function(o){ return T(o.number)||T(o.id); }); },
+    backups:backupNamen,
+    controleer:controleer,
+    herstel:herstel
+  };
+  try{ console.info('[BNS R44] Herstelgereedschap klaar: window.BNS_HERSTEL.controleer()'); }catch(e){}
 })();
