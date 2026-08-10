@@ -1,4 +1,85 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-06-R38';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-10-R41';
+
+/* ==========================================================
+   BNS R41 — Vier dubbele opslagsleutels met pensioen
+   ----------------------------------------------------------
+   Deze app bewaarde de HELE state onder zeven verschillende namen naast
+   elkaar. Dat is historisch zo gegroeid: elke generatie kreeg een nieuwe
+   naam en de oude bleef meegeschreven zodat oudere modules bleven werken.
+   Gevolg: zeven keer 0,8 MB tegen een browsergrens van 5 MB - en zodra
+   die grens werd geraakt sloeg de noodroute toe die opdrachten uitkleedde.
+
+   R40 haalde de twee sleutels weg die nergens gelezen werden. Deze vier
+   worden wél gelezen, dus die kunnen niet zomaar verdwijnen. In plaats van
+   dertien leesplekken los aan te passen - foutgevoelig in een bestand van
+   2,7 MB - zetten we het hier om op één plek:
+
+     schrijven naar een gepensioneerde sleutel  -> stilletjes overslaan
+     lezen van een gepensioneerde sleutel       -> geef de echte state terug
+
+   Elke bestaande leesregel (die altijd de vorm `a || b || c || '{}'` heeft)
+   komt daardoor gewoon bij dezelfde gegevens uit. Terugdraaien kan met
+   window.BNS_R41.uitzetten() gevolgd door herladen.
+
+   BEWUST NIET meegenomen: 'eventPlannerState'. Die wordt op drie plekken
+   gelezen zonder terugvaloptie, dus die verdient een eigen test. Komt hierna.
+========================================================== */
+(function bnsR41StorageKeyShim(){
+  'use strict';
+  try{
+    if(window.__BNS_R41_SHIM__) return;
+    window.__BNS_R41_SHIM__=true;
+
+    var ECHTE_SLEUTEL='event-planner-pro-v87';
+    var GEPENSIONEERD={
+      'eventPlannerProV91':1,
+      'plannerState':1,
+      'eventPlannerProState':1,
+      'eventPlannerPro':1
+    };
+    var overgeslagen=0;
+
+    var origSet=localStorage.setItem.bind(localStorage);
+    var origGet=localStorage.getItem.bind(localStorage);
+
+    // Eenmalig de oude kopieen opruimen: dat is de ruimtewinst.
+    Object.keys(GEPENSIONEERD).forEach(function(k){
+      try{ if(origGet(k)!==null){ localStorage.removeItem(k); } }catch(e){}
+    });
+
+    localStorage.setItem=function(key,value){
+      if(!window.__BNS_R41_UIT__ && GEPENSIONEERD[String(key)]){
+        overgeslagen++;
+        return;               // niet opslaan: staat al onder de echte sleutel
+      }
+      return origSet(key,value);
+    };
+    localStorage.getItem=function(key){
+      if(!window.__BNS_R41_UIT__ && GEPENSIONEERD[String(key)]){
+        return origGet(ECHTE_SLEUTEL);
+      }
+      return origGet(key);
+    };
+
+    window.BNS_R41={
+      sleutels:function(){ return Object.keys(GEPENSIONEERD); },
+      overgeslagen:function(){ return overgeslagen; },
+      verbruik:function(){
+        var t=0,uit={};
+        for(var i=0;i<localStorage.length;i++){
+          var k=localStorage.key(i), v=origGet(k)||'';
+          uit[k]=Math.round(v.length/1024)+' KB'; t+=v.length;
+        }
+        uit.__totaal=(t/1024/1024).toFixed(2)+' MB van ~5 MB';
+        return uit;
+      },
+      uitzetten:function(){ window.__BNS_R41_UIT__=true; return 'shim uit tot herladen'; }
+    };
+    try{ console.info('[BNS R41] Vier dubbele opslagsleutels uitgeschakeld; lezen gaat door naar de echte state.'); }catch(e){}
+  }catch(e){
+    try{ console.warn('[BNS R41] shim kon niet worden geinstalleerd, app draait gewoon door:',e); }catch(_){}
+  }
+})();
 
 
 // BNS localStorage quota fix - patch setItem globaal
@@ -25444,8 +25525,9 @@ setTimeout(()=>{
     } catch(e){
     }
     try{
-      localStorage.setItem("bns_state", JSON.stringify(ensure()));
-      localStorage.setItem("bns_app_state", JSON.stringify(ensure()));
+    // R40-fix (2026-08-10): schreef hier de HELE state weg naar 'bns_state' en 'bns_app_state'. Die twee sleutels worden nergens in de app gelezen (0 leesacties) - het was puur dood gewicht dat de browseropslag liet vollopen.
+      // localStorage.setItem("bns_state", ...) - verwijderd, dode sleutel
+      // localStorage.setItem("bns_app_state", ...) - verwijderd, dode sleutel
     } catch(e){
     }
   }
@@ -33411,11 +33493,12 @@ setTimeout(()=>{
     } catch(e) {
     }
     try {
-      localStorage.setItem("bns_state", JSON.stringify(ensure()));
+    // R40-fix (2026-08-10): schreef hier de HELE state weg naar 'bns_state' en 'bns_app_state'. Die twee sleutels worden nergens in de app gelezen (0 leesacties) - het was puur dood gewicht dat de browseropslag liet vollopen.
+      // localStorage.setItem("bns_state", ...) - verwijderd, dode sleutel
     } catch(e) {
     }
     try {
-      localStorage.setItem("bns_app_state", JSON.stringify(ensure()));
+      // localStorage.setItem("bns_app_state", ...) - verwijderd, dode sleutel
     } catch(e) {
     }
   }
@@ -33721,8 +33804,9 @@ setTimeout(()=>{
     } catch(e){
     }
     try{
-      localStorage.setItem('bns_state', JSON.stringify(ensure()));
-      localStorage.setItem('bns_app_state', JSON.stringify(ensure()));
+    // R40-fix (2026-08-10): schreef hier de HELE state weg naar 'bns_state' en 'bns_app_state'. Die twee sleutels worden nergens in de app gelezen (0 leesacties) - het was puur dood gewicht dat de browseropslag liet vollopen.
+      // localStorage.setItem('bns_state', ...) - verwijderd, dode sleutel
+      // localStorage.setItem('bns_app_state', ...) - verwijderd, dode sleutel
     } catch(e){
     }
   }
@@ -43172,7 +43256,7 @@ setTimeout(()=>{
     try{ if(typeof save==='function') save(); }catch(e){}
     try{ if(typeof saveState==='function') saveState(); }catch(e){}
     try{ if(typeof saveBns==='function') saveBns(); }catch(e){}
-    try{ var s=S(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); localStorage.setItem('bns_state', JSON.stringify(s)); localStorage.setItem('bns_app_state', JSON.stringify(s)); } }catch(e){}
+    try{ var s=S(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); } }catch(e){} // R40-fix: bns_state + bns_app_state verwijderd, dode sleutels
   }
   function syncOrder(o){
     try{ if(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.setDoc && window.BNS.fs.doc && o && (o.id||o.number)){
@@ -43520,7 +43604,7 @@ setTimeout(()=>{
     try{ if(typeof save === 'function') save(); }catch(e){}
     try{ if(typeof saveState === 'function') saveState(); }catch(e){}
     try{ if(typeof saveBns === 'function') saveBns(); }catch(e){}
-    try{ var s=S(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); localStorage.setItem('bns_state', JSON.stringify(s)); localStorage.setItem('bns_app_state', JSON.stringify(s)); } }catch(e){}
+    try{ var s=S(); if(s){ localStorage.setItem('event-planner-pro-v87', JSON.stringify(s)); } }catch(e){} // R40-fix: bns_state + bns_app_state verwijderd, dode sleutels
   }
   function fbSet(coll,id,obj){
     try{
@@ -47910,12 +47994,19 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       var obj = JSON.parse(String(value));
       if(obj && typeof obj === 'object'){
         var min = {};
-        if(Array.isArray(obj.orders)) min.orders = obj.orders.map(function(o){
-          return o && typeof o === 'object' ? {
-            id:o.id, number:o.number||o.orderNumber||o.opdrachtNummer, status:o.status, folder:o.folder,
-            updatedAt:o.updatedAt||o.modifiedAt||o.createdAt
-          } : o;
-        });
+        /* R40-fix (2026-08-10): HIER lag de oorzaak van de 27 kapotte opdrachten.
+           Deze noodroute bracht elke opdracht terug tot {id, number, status,
+           folder, updatedAt} en schreef dat terug als je opdrachtenlijst. Bij de
+           volgende keer laden waren dat je "echte" opdrachten, en zodra er iets
+           aan zo'n opdracht werd gedaan, ging die stomp via een volledige
+           overschrijving naar Firebase - waarmee titel, klant, datum, materialen
+           en prijzen definitief weg waren, op alle apparaten.
+           Nu wordt de opdrachtenlijst helemaal NIET meer meegeschreven. Een
+           ontbrekende lijst is ongevaarlijk (er valt niets te synchroniseren en
+           hij wordt gewoon opnieuw uit Firebase geladen); een lijst vol stompen
+           is dat allerminst. */
+        min.orders = [];
+        min.__bnsOrdersWeggelatenBijQuota = true;
         if(Array.isArray(obj.materials)) min.materials = obj.materials.map(function(m){
           return m && typeof m === 'object' ? {id:m.id, code:m.code, name:m.name||m.title, updatedAt:m.updatedAt} : m;
         });
@@ -53882,4 +53973,354 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   tick();
 
   try{ console.info('[BNS 951] Opgeruimde rubriekknoppen + kleuren-zoekbalk actief (v4, directe observatie + scroll).'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R40 — Blokkade tegen uitgeklede opdrachten
+   ----------------------------------------------------------
+   Elke schrijfactie van een opdracht naar Firebase is in deze app een
+   VOLLEDIGE overschrijving zonder merge - op drie plekken los van elkaar.
+   Wat een aanroeper meegeeft, wordt dus het hele document. Zodra ergens een
+   half object voorbijkomt, is de rest van die opdracht definitief weg, ook op
+   alle andere apparaten.
+
+   Deze module zet een slot op dat ene punt waar al die schrijvers langskomen.
+   Ze houdt per opdracht een piepklein vingerafdrukje bij (had hij een titel?
+   een klant? een startdatum? hoeveel velden?) en weigert elke schrijfactie die
+   iets zou wegnemen wat er eerder wél was. Het vingerafdrukje bevat bewust
+   GEEN opdrachtinhoud - dat zou de opslag juist weer laten vollopen.
+
+   Bij een blokkade komt er een waarschuwing in de console met een stacktrace,
+   zodat de schuldige routine zichzelf verraadt.
+========================================================== */
+(function bnsR40OrderWriteGuard(){
+  'use strict';
+  if(window.__BNS_R40_ORDER_GUARD__) return;
+  window.__BNS_R40_ORDER_GUARD__=true;
+
+  var LEDGER='bns_r40_order_fingerprints';
+  var blocked=[];
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function readLedger(){
+    try{ var v=JSON.parse(localStorage.getItem(LEDGER)||'{}'); return (v&&typeof v==='object'&&!Array.isArray(v))?v:{}; }
+    catch(e){ return {}; }
+  }
+  function writeLedger(l){ try{ localStorage.setItem(LEDGER,JSON.stringify(l)); }catch(e){} }
+
+  function fingerprint(o){
+    if(!o||typeof o!=='object') return null;
+    return {
+      t: T(o.title)?1:0,
+      k: (o.customer && T(o.customer.name||o.customer))?1:0,
+      s: T(o.start)?1:0,
+      m: Array.isArray(o.materials)?o.materials.length:0,
+      n: Object.keys(o).length
+    };
+  }
+  function isReductie(oud,nieuw){
+    if(!oud||!nieuw) return false;
+    if(oud.t && !nieuw.t) return 'titel';
+    if(oud.k && !nieuw.k) return 'klant';
+    if(oud.s && !nieuw.s) return 'startdatum';
+    if(oud.m>0 && nieuw.m===0) return 'materialen';
+    // Ruime marge: alleen ingrijpen bij een duidelijke uitkleding, niet bij
+    // een opdracht waar iemand bewust een paar velden van heeft leeggemaakt.
+    if(oud.n>=25 && nieuw.n < Math.round(oud.n/2)) return 'meer dan de helft van de velden';
+    return false;
+  }
+
+  function minimalCacheActief(){
+    try{
+      var s = window.state;
+      return !!(s && (s.__bnsMinimalCache===true || s.__bnsOrdersWeggelatenBijQuota===true));
+    }catch(e){ return false; }
+  }
+
+  /* Kernvraag: mag deze opdracht geschreven worden? */
+  function mag(o,herkomst){
+    if(window.__BNS_R40_UIT__) return true;
+    if(!o || !o.id) return true;
+    var id=String(o.id);
+    var nieuw=fingerprint(o);
+    if(!nieuw) return true;
+
+    if(minimalCacheActief() && !(nieuw.t && nieuw.k)){
+      melden(id,'noodopslag actief en de opdracht is niet compleet',herkomst,null,nieuw);
+      return false;
+    }
+
+    var l=readLedger();
+    var oud=l[id];
+    var reden=isReductie(oud,nieuw);
+    if(reden){
+      melden(id,'zou '+reden+' wissen',herkomst,oud,nieuw);
+      return false;
+    }
+    // Alleen bijwerken als deze versie minstens even rijk is.
+    if(!oud || nieuw.n>=oud.n || nieuw.t || nieuw.k){ l[id]=nieuw; writeLedger(l); }
+    return true;
+  }
+
+  function melden(id,reden,herkomst,oud,nieuw){
+    var msg='[BNS R40] Schrijfactie GEBLOKKEERD voor opdracht '+id+' via '+(herkomst||'onbekend')+': '+reden+'.';
+    blocked.push({id:id,reden:reden,herkomst:herkomst,oud:oud,nieuw:nieuw,tijd:new Date().toISOString()});
+    try{ console.warn(msg,{was:oud,wordt:nieuw}); console.trace('[BNS R40] hierdoor veroorzaakt:'); }catch(e){}
+  }
+
+  /* De schrijvers omwikkelen. We doen dit herhaald, omdat modules zichzelf
+     later in het laadproces nog opnieuw registreren. */
+  function wrap(){
+    try{
+      if(window.BNS && typeof window.BNS.syncOrder==='function' && !window.BNS.syncOrder.__r40){
+        var so=window.BNS.syncOrder;
+        var nieuwSo=function(order){
+          if(!mag(order,'BNS.syncOrder')) return Promise.resolve(false);
+          return so.apply(this,arguments);
+        };
+        nieuwSo.__r40=true;
+        window.BNS.syncOrder=nieuwSo;
+      }
+    }catch(e){}
+    try{
+      if(window.BNS && typeof window.BNS.syncDoc==='function' && !window.BNS.syncDoc.__r40){
+        var sd=window.BNS.syncDoc;
+        var nieuwSd=function(col,row){
+          if(String(col)==='orders' && !mag(row,'BNS.syncDoc')) return Promise.resolve(false);
+          return sd.apply(this,arguments);
+        };
+        nieuwSd.__r40=true;
+        window.BNS.syncDoc=nieuwSd;
+        if(window.BNSFirebaseSync) window.BNSFirebaseSync.syncDoc=nieuwSd;
+      }
+    }catch(e){}
+  }
+  wrap();
+  var n=0, tm=setInterval(function(){ wrap(); if(++n>40) clearInterval(tm); },500);
+  document.addEventListener('DOMContentLoaded',wrap);
+
+  window.BNS_R40={
+    geblokkeerd:function(){ return blocked.slice(); },
+    vingerafdrukken:function(){ return readLedger(); },
+    uitzetten:function(){ window.__BNS_R40_UIT__=true; return 'blokkade uit tot herladen'; },
+    leegmaken:function(){ writeLedger({}); blocked=[]; return 'register leeg'; }
+  };
+  try{ console.info('[BNS R40] Blokkade tegen uitgeklede opdrachten actief.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R41 — Archief naar Firebase (ophalen + verhuizen)
+   ----------------------------------------------------------
+   In deze app bestaan TWEE dingen die allebei "archief" heten:
+
+   1. De archiefpagina die je gebruikt: die groepeert de opdrachten die AL in
+      het geheugen zitten per jaar. Werkt prima, maar verplaatst niets - die
+      opdrachten tellen gewoon mee voor de 5 MB browsergrens.
+   2. Het echte uitplaatsen: een opdracht met folder 'archief' wordt bij het
+      laden overgeslagen (bns460FilterRows in firebase-sync.js) en blijft
+      alleen in Firebase staan. Dat mechanisme zat er al, maar er stuurde
+      nooit iets een opdracht die kant op - en de weg terug, loadArchief(),
+      werd nergens aangeroepen.
+
+   Die twee bijten elkaar: zou je alleen het uitplaatsen aanzetten, dan zou
+   een gearchiveerde opdracht ook uit de archiefpagina verdwijnen, want die
+   toont enkel wat geladen is. Daarom zit hier allebei, in de juiste volgorde:
+   eerst ophalen, dan pas verhuizen.
+
+   Let op: op de huidige gegevens verhuist er vandaag NIETS. De oudste
+   opdrachten zijn van 2025 en de grens staat op drie jaar. Dit is leiding
+   voor later, geen opruiming voor nu.
+========================================================== */
+(function bnsR41Archief(){
+  'use strict';
+  if(window.__BNS_R41_ARCHIEF__) return;
+  window.__BNS_R41_ARCHIEF__=true;
+
+  var JAREN_GRENS=3;                       // ouder dan dit -> naar Firebase
+  var AAN_KEY='bns_r41_archief_aan';       // schakelaar, standaard UIT
+  var opgehaald={};                        // jaar -> opdrachten, alleen deze sessie
+  var bezig={};
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function st(){ try{ if(typeof state!=='undefined'&&state) return state; }catch(e){} return window.state||null; }
+  function aan(){ try{ return localStorage.getItem(AAN_KEY)==='1'; }catch(e){ return false; } }
+
+  function eindDatum(o){
+    return T(o && (o.end || o.start || o.datum || o.createdAt)).slice(0,10);
+  }
+  function jaarVan(o){
+    var d=eindDatum(o);
+    if(d && /^\d{4}/.test(d)) return d.slice(0,4);
+    var n=T(o && o.number); // opdrachtnummers beginnen met het jaar: 2025-2334
+    return /^\d{4}/.test(n) ? n.slice(0,4) : '';
+  }
+  function afgerond(o){
+    var s=T(o && o.status).toLowerCase();
+    return s==='uitgevoerd' || s==='geannuleerd';
+  }
+  function magVerhuizen(o){
+    if(!o || !o.id) return false;
+    if(!afgerond(o)) return false;                       // nooit iets wat loopt
+    var f=T(o.folder).toLowerCase();
+    if(f==='archief' || f==='old') return false;         // al gedaan
+    if(f==='offerte' || f==='optie14') return false;     // nooit offertes/opties
+    var j=Number(jaarVan(o));
+    if(!j) return false;                                 // geen jaar? met rust laten
+    return (new Date().getFullYear() - j) > JAREN_GRENS;
+  }
+
+  /* ---------- de weg terug: een jaar uit Firebase halen ---------- */
+  async function haalJaar(jaar){
+    jaar=String(jaar||'');
+    if(!jaar) return [];
+    if(opgehaald[jaar]) return opgehaald[jaar];
+    if(bezig[jaar]) return bezig[jaar];
+    var laden=(async function(){
+      try{
+        var fs=window.BNSFirebaseSync;
+        if(!fs || typeof fs.loadArchief!=='function'){
+          console.warn('[BNS R41] loadArchief niet beschikbaar; archiefpagina toont alleen wat al geladen is.');
+          return [];
+        }
+        var rijen=await fs.loadArchief(jaar);
+        rijen=Array.isArray(rijen)?rijen:[];
+        opgehaald[jaar]=rijen;
+        console.info('[BNS R41] Archiefjaar '+jaar+' opgehaald uit Firebase: '+rijen.length+' opdrachten.');
+        return rijen;
+      }catch(e){
+        console.warn('[BNS R41] Archiefjaar '+jaar+' ophalen mislukt:',e);
+        return [];
+      }finally{ delete bezig[jaar]; }
+    })();
+    bezig[jaar]=laden;
+    return laden;
+  }
+
+  /* De archiefpagina leest state.orders. We voegen opgehaalde jaren daar
+     tijdelijk aan toe, zodat de bestaande pagina ze vanzelf toont. Ze worden
+     gemarkeerd, zodat ze nooit in de gewone lijst of in de opslag belanden. */
+  function toonJaar(jaar){
+    return haalJaar(jaar).then(function(rijen){
+      var s=st(); if(!s || !Array.isArray(s.orders)) return 0;
+      var bestaand={};
+      s.orders.forEach(function(o){ if(o&&o.id) bestaand[String(o.id)]=1; });
+      var toegevoegd=0;
+      rijen.forEach(function(o){
+        if(!o||!o.id||bestaand[String(o.id)]) return;
+        o.__bnsAlleenArchiefWeergave=true;
+        s.orders.push(o); toegevoegd++;
+      });
+      if(toegevoegd){
+        try{ if(typeof window.BNS_V126_REFRESH_ARCHIVE==='function') window.BNS_V126_REFRESH_ARCHIVE(); }catch(e){}
+      }
+      return toegevoegd;
+    });
+  }
+
+  /* Opgehaalde archiefopdrachten mogen nooit meegeschreven worden naar de
+     browseropslag - anders zou het ophalen de opslag juist weer vullen. */
+  function schoonVoorOpslag(){
+    var s=st(); if(!s||!Array.isArray(s.orders)) return;
+    s.orders=s.orders.filter(function(o){ return !(o && o.__bnsAlleenArchiefWeergave); });
+  }
+  try{
+    var vorigeSave=window.save;
+    if(typeof vorigeSave==='function' && !vorigeSave.__r41){
+      var nieuw=function(){ try{ schoonVoorOpslag(); }catch(e){} return vorigeSave.apply(this,arguments); };
+      nieuw.__r41=true;
+      window.save=nieuw;
+      try{ save=nieuw; }catch(e){}
+    }
+  }catch(e){}
+
+  /* ---------- de verhuizing ---------- */
+  function verhuisRonde(){
+    if(!aan()) return {aan:false,verhuisd:0};
+    var s=st(); if(!s||!Array.isArray(s.orders)) return {aan:true,verhuisd:0};
+    var namen=[];
+    s.orders.forEach(function(o){
+      if(!magVerhuizen(o)) return;
+      o.folder='archief';
+      namen.push(T(o.number)||T(o.id));
+      try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+    });
+    if(namen.length){
+      try{ if(typeof window.save==='function') window.save(); }catch(e){}
+      console.info('[BNS R41] Naar archief in Firebase verplaatst ('+namen.length+'): '+namen.join(', '));
+    }
+    return {aan:true,verhuisd:namen.length,opdrachten:namen};
+  }
+
+  function terughalen(nummerOfId){
+    var s=st(); if(!s||!Array.isArray(s.orders)) return 'geen state';
+    var n=T(nummerOfId).toLowerCase(), raak=[];
+    s.orders.forEach(function(o){
+      if(!o) return;
+      if(T(o.number).toLowerCase()===n || T(o.id).toLowerCase()===n){
+        o.folder='uitgevoerd';
+        delete o.__bnsAlleenArchiefWeergave;
+        raak.push(T(o.number)||T(o.id));
+        try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+      }
+    });
+    if(raak.length){ try{ window.save(); }catch(e){} }
+    return raak.length ? 'teruggehaald: '+raak.join(', ') : 'niet gevonden';
+  }
+
+  // Rustig aan: pas na het laden, en daarna een keer per uur.
+  setTimeout(verhuisRonde, 20000);
+  setInterval(verhuisRonde, 60*60*1000);
+
+  window.BNS_R41_ARCHIEF={
+    aan:function(){ try{ localStorage.setItem(AAN_KEY,'1'); }catch(e){} return 'automatisch archiveren AAN (ouder dan '+JAREN_GRENS+' jaar, alleen uitgevoerd/geannuleerd)'; },
+    uit:function(){ try{ localStorage.removeItem(AAN_KEY); }catch(e){} return 'automatisch archiveren UIT'; },
+    status:function(){ return {automatisch:aan(), grensInJaren:JAREN_GRENS, opgehaaldeJaren:Object.keys(opgehaald)}; },
+    proefdraaien:function(){
+      var s=st(); var lijst=[];
+      (s&&s.orders||[]).forEach(function(o){ if(magVerhuizen(o)) lijst.push(T(o.number)||T(o.id)); });
+      return {zouVerhuizen:lijst.length, opdrachten:lijst};
+    },
+    nuVerhuizen:verhuisRonde,
+    toonJaar:toonJaar,
+    terughalen:terughalen
+  };
+  try{ console.info('[BNS R41] Archiefbrug actief. Automatisch verhuizen staat UIT; aanzetten met window.BNS_R41_ARCHIEF.aan()'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R41 — Bevestiging op "Wis map"
+   ----------------------------------------------------------
+   Die knop wist in een klik een heel jaar aan opdrachten, zonder vragen.
+   In een app die vandaag nog 27 opdrachten stilzwijgend is kwijtgeraakt is
+   dat te scherp. De knop blijft werken, maar vraagt eerst om bevestiging.
+========================================================== */
+(function bnsR41WisMapBevestiging(){
+  'use strict';
+  if(window.__BNS_R41_WISMAP__) return;
+  window.__BNS_R41_WISMAP__=true;
+  function installeer(){
+    try{
+      var orig=window.BNS_V126_DELETE_BUCKET;
+      if(typeof orig!=='function' || orig.__r41) return;
+      var veilig=function(map){
+        var s=null;
+        try{ s=(typeof state!=='undefined'&&state)||window.state; }catch(e){}
+        var aantal=0;
+        try{
+          (s&&s.orders||[]).forEach(function(o){
+            var d=String(o&&(o.end||o.start)||'').slice(0,4);
+            if(d===String(map)) aantal++;
+          });
+        }catch(e){}
+        var vraag='Map "'+map+'" wissen?\n\nDit verwijdert '+(aantal||'alle')+' opdracht(en) uit dat jaar.\nDit kan niet ongedaan worden gemaakt.\n\nWeet je het zeker?';
+        if(!window.confirm(vraag)) return false;
+        return orig.apply(this,arguments);
+      };
+      veilig.__r41=true;
+      window.BNS_V126_DELETE_BUCKET=veilig;
+    }catch(e){}
+  }
+  installeer();
+  var n=0, tm=setInterval(function(){ installeer(); if(++n>40) clearInterval(tm); },500);
+  document.addEventListener('DOMContentLoaded',installeer);
 })();
