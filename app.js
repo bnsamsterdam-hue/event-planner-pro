@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R51';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R52';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -46375,6 +46375,15 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       '<h3>Materialen / artikelen</h3><table class="bns-v493-table"><thead><tr><th>#</th><th>Code</th><th>Naam</th><th>Rubriek</th><th>Status</th><th>Prijs</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '<div class="bns-v493-total">Totaal: '+money(total)+' &nbsp; | &nbsp; Borg: '+money(deposit)+'</div>'+
       (o.extra?'<h3>Extra</h3><div class="bns-v493-box">'+H(o.extra)+'</div>':'')+
+      /* R52-fix (2026-08-12): de knop stond in R51 in het BNS 821-venster, maar dat
+         is niet het venster dat daadwerkelijk opengaat. De echte is deze (V493),
+         herkenbaar aan de klasse bns-v493-cardmain - dezelfde als bij Amsterdam.
+         Het vorige venster bleef onaangeroerd; die knop staat er nog en schaadt niet. */
+      '<div class="bns-v493-box" style="margin-top:10px">'+
+        '<button type="button" onclick="BNS_R51_MELDING(\''+H(String(o.id||o.number||''))+'\')" '+
+        'style="background:#dc2626;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer">'+
+        'Schade / melding maken</button>'+
+      '</div>'+
       mediaHtmlBlock(o)+'</div>';
   }
 
