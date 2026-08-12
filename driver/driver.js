@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-FIX-2026-07-28-R1';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-12-R3';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -131,10 +131,25 @@ async function loadPhoneData(){
     if(fresh) BNS.user=fresh;
   }
 }
-async function updateOrder(o){
+async function updateOrder(o, alleenVelden){
+  /* DRV-R3-fix (2026-08-12): hier stond een setDoc ZONDER merge. Daarmee werd het
+     hele opdrachtdocument in Firebase vervangen door wat deze telefoon toevallig
+     in het geheugen had. Had een toestel een onvolledige kopie van de opdracht,
+     dan wist het bij het maken van een foto in een klap de titel, de klant, de
+     datum, de materialen en de prijzen - op alle apparaten tegelijk. Precies het
+     patroon dat eerder 27 opdrachten heeft gekost, maar dan vanaf de telefoon.
+
+     Nu wordt er samengevoegd (merge) en, waar de aanroeper dat meegeeft, worden
+     alleen de daadwerkelijk gewijzigde velden verstuurd. Een veld dat niet wordt
+     meegestuurd blijft in Firebase gewoon staan. */
   if(!o||!o.id)return;
   o.updatedAt=new Date().toISOString();
-  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"orders",String(o.id)),o);
+  var data=o;
+  if(Array.isArray(alleenVelden)&&alleenVelden.length){
+    data={updatedAt:o.updatedAt};
+    alleenVelden.forEach(function(k){ if(o[k]!==undefined) data[k]=o[k]; });
+  }
+  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"orders",String(o.id)),data,{merge:true});
 }
 async function addAlert(a){
   const id=a.id||("a_"+Math.random().toString(36).slice(2,10));
@@ -721,7 +736,7 @@ async function sendPhoto(order,type){
   order.photos.push(photoRef);
   order.driverUploads.push(photoRef);
   order.updatedAt=new Date().toISOString();
-  await updateOrder(order);
+  await updateOrder(order,['media','photos','driverUploads']); // DRV-R3: alleen de fotolijsten
   toast(type+" opgeslagen bij opdracht");
 }
 function openSignatureModal(order){
@@ -764,7 +779,7 @@ function openSignatureModal(order){
     order.customerSignedAt=item.createdAt;
     order.customerSignedBy=BNS.user.name||"";
     order.updatedAt=new Date().toISOString();
-    await updateOrder(order);
+    await updateOrder(order,['media','signatures','customerSignature','customerSignedAt','customerSignedBy']); // DRV-R3
     wrap.remove();
     toast("Handtekening opgeslagen bij opdracht");
   };
@@ -800,7 +815,7 @@ function bindActions(){
   setTimeout(enhanceDriverButtons,0);
   qsa("[data-detail]").forEach(b=>{b.onclick=()=>showDetail(b.dataset.detail)});
   qsa("[data-back]").forEach(b=>{b.onclick=()=>showOrders()});
-  qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!canFinishOrderNow(o)){await askConfirm("Nog niet afmelden", finishBlockedText(o));return;}if(!await askConfirm("Opdracht afmelden", "Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o);toast("Opdracht afgemeld");await loadPhoneData();showOrders();render()}});
+  qsa("[data-done]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.done);if(!o)return;if(!canFinishOrderNow(o)){await askConfirm("Nog niet afmelden", finishBlockedText(o));return;}if(!await askConfirm("Opdracht afmelden", "Opdracht afmelden als uitgevoerd?"))return;o.status="Uitgevoerd";o.doneAt=new Date().toISOString();o.doneBy=BNS.user.name||"";await updateOrder(o,['status','doneAt','doneBy']);/* DRV-R3 */toast("Opdracht afgemeld");await loadPhoneData();showOrders();render()}});
   qsa("[data-quote]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.quote); if(o)openQuote(o)}});
   qsa("[data-report]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.report);if(!o)return;await sendReport(o,b.dataset.type||"Melding")}});
   qsa("[data-report-menu]").forEach(b=>{b.onclick=async()=>{const o=findOrder(b.dataset.reportMenu);if(!o)return;await openReportChoice(o)}});
@@ -1052,4 +1067,139 @@ boot();
 // ===== BNS v685: prijzenrechten hard afdwingen op bezorgertelefoon =====
 (function(){
   try{ console.info('[BNS 687] Driver offertebon + toetsenbordindeling + prijzenrechten actief.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS DRV-R2 — Bezorger-app werkt zichzelf bij
+   ----------------------------------------------------------
+   Waarom dit nodig is:
+   Op een telefoon houdt de browser bestanden vast om de app offline te laten
+   werken. Staat er een nieuwe versie op de server, dan blijft het toestel de
+   oude tonen - en dat is niet te zien zonder ontwikkelaarsscherm, dat je op een
+   telefoon nauwelijks kunt openen. Bij een bezorger die zo vastloopt lijkt het
+   alsof zijn foto's niet aankomen, terwijl hij simpelweg oude code draait.
+
+   Wat deze module doet:
+     1. zet het versienummer ZICHTBAAR in de app, zodat je het van het scherm
+        kunt aflezen zonder console;
+     2. haalt bij het opstarten (en daarna elk kwartier) de startpagina op
+        zonder cache en vergelijkt het versienummer;
+     3. is dat nieuwer, dan worden de opgeslagen kopieen gewist en laadt de app
+        zichzelf opnieuw met een verse adresregel.
+
+   Er zit een teller op het herladen: maximaal twee keer per sessie. Zo kan een
+   bezorger nooit in een eindeloze herstartlus terechtkomen als er iets niet
+   klopt aan de serverkant.
+========================================================== */
+(function bnsDriverZelfBijwerken(){
+  'use strict';
+  if(window.__BNS_DRV_UPDATER__) return;
+  window.__BNS_DRV_UPDATER__=true;
+
+  var HUIDIG = String(window.TAPWAGEN_DRIVER_BUILD_ID||'onbekend');
+  var TELLER = 'bns_drv_herlaad_teller';
+  var MAX_HERLAAD = 2;
+
+  function tel(){ try{ return Number(sessionStorage.getItem(TELLER)||0)||0; }catch(e){ return 0; } }
+  function telOp(){ try{ sessionStorage.setItem(TELLER,String(tel()+1)); }catch(e){} }
+
+  /* Versienummer zichtbaar maken - onderin, klein, altijd afleesbaar. */
+  function toonVersie(){
+    try{
+      var el=document.getElementById('bnsDrvVersie');
+      if(!el){
+        el=document.createElement('div');
+        el.id='bnsDrvVersie';
+        el.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:9998;'+
+          'background:rgba(15,23,42,.85);color:#fff;font:11px Arial,Helvetica,sans-serif;'+
+          'padding:4px 8px;text-align:center;letter-spacing:.2px';
+        el.title='Versie van deze bezorger-app';
+        document.body.appendChild(el);
+        el.addEventListener('click', function(){ nuBijwerken(true); });
+      }
+      el.textContent = 'versie ' + HUIDIG + '  (tik om bij te werken)';
+    }catch(e){}
+  }
+
+  async function wisOpslagKopieen(){
+    try{
+      if('serviceWorker' in navigator){
+        var regs=await navigator.serviceWorker.getRegistrations();
+        for(var i=0;i<regs.length;i++){ try{ await regs[i].unregister(); }catch(e){} }
+      }
+    }catch(e){}
+    try{
+      if(window.caches){
+        var keys=await caches.keys();
+        for(var j=0;j<keys.length;j++){ try{ await caches.delete(keys[j]); }catch(e){} }
+      }
+    }catch(e){}
+  }
+
+  function herlaadVers(){
+    try{
+      var basis=location.href.split('#')[0].split('?')[0];
+      location.replace(basis + '?vers=' + Date.now());
+    }catch(e){ try{ location.reload(); }catch(_){} }
+  }
+
+  /* Het versienummer op de SERVER opzoeken, zonder cache. */
+  async function serverVersie(){
+    try{
+      var res=await fetch('driver.js?vers='+Date.now(), {cache:'no-store'});
+      if(!res || !res.ok) return '';
+      var tekst=await res.text();
+      var m=tekst.match(/TAPWAGEN_DRIVER_BUILD_ID\s*=\s*['"]([^'"]+)['"]/);
+      return m ? m[1] : '';
+    }catch(e){ return ''; }
+  }
+
+  async function nuBijwerken(handmatig){
+    var opServer=await serverVersie();
+    if(!opServer){
+      if(handmatig) melding('Kon de serverversie niet ophalen. Controleer de internetverbinding.');
+      return false;
+    }
+    if(opServer===HUIDIG){
+      if(handmatig) melding('Je hebt al de nieuwste versie ('+HUIDIG+').');
+      return false;
+    }
+    if(!handmatig && tel()>=MAX_HERLAAD){
+      console.warn('[BNS DRV] Nieuwere versie ('+opServer+') gezien, maar al '+tel()+'x herladen. Gestopt om een lus te voorkomen.');
+      return false;
+    }
+    melding('Nieuwe versie gevonden ('+opServer+'). De app werkt zichzelf bij...');
+    telOp();
+    await wisOpslagKopieen();
+    setTimeout(herlaadVers, 600);
+    return true;
+  }
+
+  function melding(tekst){
+    try{
+      var s=document.getElementById('status');
+      if(s){ s.textContent=tekst; return; }
+      var t=document.getElementById('toast');
+      if(t){ t.textContent=tekst; t.className='toast show'; setTimeout(function(){ t.className='toast'; },3500); return; }
+    }catch(e){}
+    try{ console.info('[BNS DRV] '+tekst); }catch(e){}
+  }
+
+  function start(){
+    toonVersie();
+    setTimeout(function(){ nuBijwerken(false); }, 2500);
+    setInterval(function(){ nuBijwerken(false); }, 15*60*1000);
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState==='visible') setTimeout(function(){ nuBijwerken(false); }, 1200);
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+
+  window.BNS_DRV={
+    versie:HUIDIG,
+    bijwerken:function(){ return nuBijwerken(true); },
+    wissen:async function(){ await wisOpslagKopieen(); herlaadVers(); }
+  };
+  try{ console.info('[BNS DRV] Zelf-bijwerken actief. Versie: '+HUIDIG); }catch(e){}
 })();
