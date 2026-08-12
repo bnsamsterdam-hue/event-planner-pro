@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R50';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R51';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -53703,7 +53703,13 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     var c=o.customer||{}, l=o.location||{};
     var m=document.createElement('div');
     m.id='bns821OrderOverviewModal';
-    m.innerHTML='<div class="bns821-box"><div class="bns821-actions"><button type="button" class="grey" id="bns821Back">Terug</button><button type="button" id="bns821Print">Afdrukken</button><button type="button" id="bns821Share">Delen</button><button type="button" id="bns821WA">WhatsApp</button></div><h2>Overzicht bestelling</h2><div class="bns821-sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><div class="bns821-grid"><div class="bns821-card"><b>Klant</b><br>'+H(c.name||o.customerName||'')+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+H(c.phone||'')+'<br>'+H(c.email||'')+'</div><div class="bns821-card"><b>Locatie</b><br>'+H(l.name||o.locationName||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'<br>'+H(l.phone||'')+'</div></div><div class="bns821-card"><b>Opdracht</b><br>Datum: '+H(nice(o.start))+(o.end&&o.end!==o.start?' t/m '+H(nice(o.end)):'')+'<br>Status: '+H(o.status||'')+'<br>Merk: '+H(o.brand||'')+'</div><h3>Materialen</h3><table><thead><tr><th>#</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Aantal</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table><h3>Extra</h3><div class="bns821-card bns821-pre">'+H(transportText(o)||'Geen extra.')+'</div></div>';
+    m.innerHTML='<div class="bns821-box"><div class="bns821-actions"><button type="button" class="grey" id="bns821Back">Terug</button><button type="button" id="bns821Print">Afdrukken</button><button type="button" id="bns821Share">Delen</button><button type="button" id="bns821WA">WhatsApp</button></div><h2>Overzicht bestelling</h2><div class="bns821-sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><div class="bns821-grid"><div class="bns821-card"><b>Klant</b><br>'+H(c.name||o.customerName||'')+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'<br>'+H(c.phone||'')+'<br>'+H(c.email||'')+'</div><div class="bns821-card"><b>Locatie</b><br>'+H(l.name||o.locationName||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+'<br>'+H(l.phone||'')+'</div></div><div class="bns821-card"><b>Opdracht</b><br>Datum: '+H(nice(o.start))+(o.end&&o.end!==o.start?' t/m '+H(nice(o.end)):'')+'<br>Status: '+H(o.status||'')+'<br>Merk: '+H(o.brand||'')+'</div><h3>Materialen</h3><table><thead><tr><th>#</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Aantal</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table><h3>Extra</h3><div class="bns821-card bns821-pre">'+H(transportText(o)||'Geen extra.')+'</div>'+
+      /* R51 (2026-08-12): knop om als planner zelf een schademelding te maken,
+         zoals bij Amsterdam. Bewust HIER, binnen de gewone opbouw van dit
+         venster, zodat er niets achteraf ingeprikt hoeft te worden. */
+      '<div style="margin-top:12px"><button type="button" onclick="BNS_R51_MELDING(\''+H(String(o.id||o.number||''))+'\')" '+
+      'style="background:#dc2626;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer">Schade / melding maken</button></div>'+
+      '</div>';
     document.body.appendChild(m);
     E('bns821Back').onclick=closeOverview;
     m.addEventListener('click',function(ev){ if(ev.target===m) closeOverview(); });
@@ -54991,4 +54997,233 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     nuOphalen:haalOudeJaren
   };
   try{ console.info('[BNS R47] Laadgrens loopt mee ('+grens()+'); archief vult zichzelf aan uit Firebase.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R51 — Schade/melding door de planner + opruimvraag na 6 maanden
+   ----------------------------------------------------------
+   Dezelfde twee dingen die Amsterdam heeft gekregen, maar aangepast aan hoe
+   Tapwagen in elkaar zit. Dat verschil is wezenlijk en daarom niet overgenomen
+   met knip-en-plak:
+
+     - Bij Amsterdam zitten de foto's in de OPDRACHT (media/imageData).
+       Bij Tapwagen zitten ze in de MELDINGEN (alerts, als photoData/data).
+     - Meldingen reizen bij Tapwagen NIET mee met de gewone opslag: in
+       firebase-sync.js staat alerts niet in UPLOAD_COLLECTIONS. Ze moeten dus
+       apart worden weggeschreven met BNS.syncDoc, dat voor alles behalve
+       orders met merge werkt - een veld dat je niet meestuurt blijft staan.
+
+   Bij het opruimen wordt daarom alleen het BEELD leeggemaakt; de melding zelf
+   blijft altijd bestaan. Dat is je bewijsstuk en het weegt vrijwel niets - de
+   zwaarte zit volledig in de foto.
+
+   Er wordt nooit iets uit zichzelf gewist. Er komt alleen een vraag.
+========================================================== */
+(function bnsR51PlannerMeldingEnOpruimen(){
+  'use strict';
+  if(window.__BNS_R51__) return;
+  window.__BNS_R51__=true;
+
+  var MAANDEN=6;
+  var BESLIST='bns_r51_beslist';
+  var SOORTEN=[['schade','Schade'],['storing','Storing / defect'],['vermissing','Vermissing'],['algemeen','Algemene melding']];
+  var overgeslagen={};
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function H(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function st(){ try{ if(typeof state!=='undefined'&&state) return state; }catch(e){} return window.state||null; }
+  function beslist(){ try{ var v=JSON.parse(localStorage.getItem(BESLIST)||'{}'); return (v&&typeof v==='object')?v:{}; }catch(e){ return {}; } }
+  function onthoud(id,a){ var b=beslist(); b[String(id)]={antwoord:a,op:new Date().toISOString()}; try{ localStorage.setItem(BESLIST,JSON.stringify(b)); }catch(e){} }
+
+  function vindOpdracht(id){
+    var s=st(); if(!s||!Array.isArray(s.orders)) return null;
+    var n=T(id);
+    return s.orders.filter(function(o){ return o && (T(o.id)===n||T(o.number)===n); })[0]||null;
+  }
+  function meldingenVan(o){
+    var s=st(); if(!s||!Array.isArray(s.alerts)) return [];
+    var k=T(o.id||o.number), n=T(o.number);
+    return s.alerts.filter(function(a){
+      if(!a) return false;
+      var oid=T(a.orderId), onr=T(a.orderNumber);
+      return (k&&(oid===k||onr===k))||(n&&(oid===n||onr===n));
+    });
+  }
+  function heeftBeeld(a){
+    try{ return T(a&&(a.photoData||a.data)).length>1000; }catch(e){ return false; }
+  }
+  function schademeldingen(m){
+    return m.filter(function(a){
+      var t=(T(a.type)+' '+T(a.title)).toLowerCase();
+      return /schade|storing|defect|vermis/.test(t);
+    });
+  }
+
+  /* --- naar Firebase schrijven: alerts gaan NIET mee met save() --- */
+  function schrijfMelding(a){
+    try{
+      if(window.BNS && typeof window.BNS.syncDoc==='function') return window.BNS.syncDoc('alerts',a);
+    }catch(e){ console.warn('[BNS R51] melding naar Firebase mislukt:',e); }
+    return null;
+  }
+
+  function wieBenIk(){
+    try{
+      var s=st(); var u=window.currentUser||(s&&s.currentUser)||null;
+      return T(u&&(u.name||u.naam))||'Planner';
+    }catch(e){ return 'Planner'; }
+  }
+  function nieuwId(){
+    try{ if(typeof id==='function') return id(); }catch(e){}
+    return 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  }
+
+  function sluitR51(){ var m=document.getElementById('bnsR51Modal'); if(m) m.remove(); }
+
+  /* ---------------- melding maken ---------------- */
+  function toonMeldingScherm(id){
+    var o=vindOpdracht(id);
+    if(!o){ alert('Opdracht niet gevonden.'); return; }
+    sluitR51();
+    var w=document.createElement('div');
+    w.id='bnsR51Modal';
+    w.style.cssText='position:fixed;inset:0;z-index:2147483600;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+    w.innerHTML='<div style="background:#fff;border-radius:16px;max-width:520px;width:100%;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,.35);font-family:Arial,Helvetica,sans-serif">'+
+      '<h2 style="margin:0 0 4px">Melding maken</h2>'+
+      '<div style="color:#475569;margin-bottom:12px">'+H(o.number||'')+' - '+H(o.title||'')+'</div>'+
+      '<label style="display:block;font-weight:700;margin-bottom:4px">Soort</label>'+
+      '<select id="bnsR51Soort" style="width:100%;padding:10px;border:2px solid #cbd5e1;border-radius:10px;margin-bottom:12px">'+
+        SOORTEN.map(function(x){ return '<option value="'+x[0]+'">'+x[1]+'</option>'; }).join('')+'</select>'+
+      '<label style="display:block;font-weight:700;margin-bottom:4px">Omschrijving</label>'+
+      '<textarea id="bnsR51Tekst" rows="4" placeholder="Wat is er aan de hand?" style="width:100%;padding:10px;border:2px solid #cbd5e1;border-radius:10px;margin-bottom:14px"></textarea>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+        '<button type="button" id="bnsR51Annuleer" style="padding:12px;border:0;border-radius:10px;background:#475569;color:#fff;font-weight:700;cursor:pointer">Annuleren</button>'+
+        '<button type="button" id="bnsR51Opslaan" style="padding:12px;border:0;border-radius:10px;background:#16a34a;color:#fff;font-weight:700;cursor:pointer">Opslaan</button>'+
+      '</div></div>';
+    document.body.appendChild(w);
+    w.addEventListener('click',function(e){ if(e.target===w) sluitR51(); });
+    document.getElementById('bnsR51Annuleer').onclick=sluitR51;
+    document.getElementById('bnsR51Opslaan').onclick=function(){
+      var soort=document.getElementById('bnsR51Soort').value;
+      var tekst=document.getElementById('bnsR51Tekst').value;
+      if(!T(tekst)){ alert('Vul een korte omschrijving in.'); return; }
+      var naam=(SOORTEN.filter(function(x){return x[0]===soort;})[0]||['','Melding'])[1];
+      var a={
+        id:nieuwId(), type:soort, title:naam+' - '+T(o.number||o.id), message:T(tekst),
+        orderId:T(o.id||o.number), orderNumber:T(o.number||''),
+        createdAt:new Date().toISOString(), time:new Date().toLocaleString('nl-NL'),
+        from:wieBenIk(), driverName:'', source:'planner', resolved:false
+      };
+      var s=st();
+      if(s){ if(!Array.isArray(s.alerts)) s.alerts=[]; s.alerts.unshift(a); }
+      try{ if(typeof window.save==='function') window.save(); }catch(e){}
+      schrijfMelding(a);
+      sluitR51();
+      try{ alert('Melding opgeslagen bij opdracht '+T(o.number||o.id)+'.'); }catch(e){}
+      console.info('[BNS R51] Melding opgeslagen:',a.title);
+    };
+  }
+
+  /* ---------------- opruimvraag na 6 maanden ---------------- */
+  function isUitgevoerd(o){
+    var s=T(o&&o.status).toLowerCase(), f=T(o&&(o.folder||o.map)).toLowerCase();
+    return s==='uitgevoerd' || f==='uitgevoerd';
+  }
+  function langGenoegGeleden(o){
+    var d=T(o&&(o.end||o.dateEnd||o.endDate||o.start)).slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    var grens=new Date(); grens.setMonth(grens.getMonth()-MAANDEN);
+    return new Date(d) < grens;
+  }
+  function kandidaten(){
+    var s=st(); if(!s||!Array.isArray(s.orders)) return [];
+    var b=beslist();
+    return s.orders.filter(function(o){
+      if(!o||!o.id) return false;
+      var k=String(o.id);
+      if(b[k]&&b[k].antwoord==='nee') return false;
+      if(overgeslagen[k]) return false;
+      if(!isUitgevoerd(o)||!langGenoegGeleden(o)) return false;
+      return meldingenVan(o).some(heeftBeeld);
+    });
+  }
+
+  function wisBeeld(o){
+    var lijst=meldingenVan(o).filter(heeftBeeld);
+    var n=0;
+    lijst.forEach(function(a){
+      try{ a.photoData=''; }catch(e){}
+      try{ a.data=''; }catch(e){}
+      schrijfMelding({id:a.id, photoData:'', data:'', fotoGewistOp:new Date().toISOString()});
+      n++;
+    });
+    if(n){
+      try{ if(typeof window.save==='function') window.save(); }catch(e){}
+      console.info('[BNS R51] Beeld gewist bij '+n+' melding(en) van opdracht '+T(o.number||o.id)+'. De meldingen zelf zijn bewaard.');
+    }
+    return n;
+  }
+
+  function vraagOpruimen(o){
+    sluitR51();
+    var meld=meldingenVan(o);
+    var metBeeld=meld.filter(heeftBeeld).length;
+    var schade=schademeldingen(meld);
+    var kop, blok='';
+    if(schade.length){
+      kop='Let op: bij deze opdracht is een schademelding gemaakt.';
+      blok=schade.slice(0,3).map(function(a){
+        var wie=T(a.from||a.driverName||a.source||'onbekend');
+        var wanneer=T(a.time||a.createdAt).slice(0,16);
+        return '<div style="background:#fef2f2;border-left:4px solid #dc2626;padding:8px 10px;margin:6px 0;border-radius:6px">'+
+          '<b>'+H(a.title||a.type||'Melding')+'</b><br><small>van '+H(wie)+(wanneer?' - '+H(wanneer):'')+'</small>'+
+          (T(a.message)?'<br>'+H(a.message):'')+'</div>';
+      }).join('');
+    } else {
+      kop='Deze opdracht is meer dan '+MAANDEN+' maanden geleden uitgevoerd en er is geen schade gemeld.';
+    }
+    var w=document.createElement('div');
+    w.id='bnsR51Modal';
+    w.style.cssText='position:fixed;inset:0;z-index:2147483600;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+    w.innerHTML='<div style="background:#fff;border-radius:16px;max-width:560px;width:100%;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,.35);font-family:Arial,Helvetica,sans-serif;max-height:88vh;overflow:auto">'+
+      '<h2 style="margin:0 0 4px">Foto\u0027s opruimen?</h2>'+
+      '<div style="color:#475569;margin-bottom:10px">'+H(o.number||'')+' - '+H(o.title||'')+'</div>'+
+      '<p style="margin:0 0 8px">'+H(kop)+'</p>'+blok+
+      '<p style="margin:8px 0"><b>'+metBeeld+'</b> foto(\u0027s) bij deze opdracht. De melding zelf blijft altijd bewaard - alleen het beeld wordt gewist.</p>'+
+      '<p style="color:#b91c1c;margin:0 0 14px"><b>Wissen kan niet ongedaan worden gemaakt.</b></p>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+        '<button type="button" id="bnsR51Later" style="padding:12px;border:0;border-radius:10px;background:#475569;color:#fff;font-weight:700;cursor:pointer">Later</button>'+
+        '<button type="button" id="bnsR51Nee" style="padding:12px;border:0;border-radius:10px;background:#0ea5e9;color:#fff;font-weight:700;cursor:pointer">Nee, bewaren</button>'+
+        '<button type="button" id="bnsR51Ja" style="padding:12px;border:0;border-radius:10px;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">Ja, wissen</button>'+
+      '</div></div>';
+    document.body.appendChild(w);
+    document.getElementById('bnsR51Later').onclick=function(){ overgeslagen[String(o.id)]=1; sluitR51(); };
+    document.getElementById('bnsR51Nee').onclick=function(){ onthoud(o.id,'nee'); sluitR51(); };
+    document.getElementById('bnsR51Ja').onclick=function(){
+      this.disabled=true; this.textContent='Bezig...';
+      var n=wisBeeld(o);
+      onthoud(o.id,'gewist');
+      sluitR51();
+      try{ alert(n+' foto(s) gewist bij opdracht '+T(o.number||o.id)+'. De melding is bewaard.'); }catch(e){}
+    };
+  }
+
+  function ronde(){
+    try{
+      if(document.getElementById('bnsR51Modal')) return;
+      var l=kandidaten();
+      if(l.length) vraagOpruimen(l[0]);
+    }catch(e){ console.warn('[BNS R51] controle mislukt:',e); }
+  }
+  setTimeout(ronde, 30000);
+
+  window.BNS_R51_MELDING=toonMeldingScherm;
+  window.BNS_R51={
+    maanden:MAANDEN,
+    kandidaten:function(){ return kandidaten().map(function(o){ var m=meldingenVan(o); return {nr:T(o.number||o.id), einde:T(o.end||o.start), fotos:m.filter(heeftBeeld).length, meldingen:m.length, schade:schademeldingen(m).length}; }); },
+    nuVragen:ronde,
+    beslissingen:beslist,
+    beslissingenWissen:function(){ try{ localStorage.removeItem(BESLIST); }catch(e){} overgeslagen={}; return 'antwoorden gewist - hij vraagt opnieuw'; }
+  };
+  try{ console.info('[BNS R51] Planner-melding en opruimvraag actief (na '+MAANDEN+' maanden). Niets wordt uit zichzelf gewist.'); }catch(e){}
 })();
