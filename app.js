@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-11-R49';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R50';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -46196,7 +46196,20 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     return s || "Melding";
   }
   function mediaText(a){ return T(a && (a.note || a.message || a.text || a.description || a.customerName || a.driverName || "")); }
-  function mediaTime(a){ return T(a && (a.createdAt || a.time || a.date || a.updatedAt || "")); }
+  function bnsR50Tijd(v){
+    /* R50-fix (2026-08-12): hier werd de ruwe opslagvorm getoond, bijvoorbeeld
+       "2026-08-12T04:10:09.025Z". Die Z staat voor UTC; in Nederland is dat in
+       de zomer twee uur later. Nu wordt er omgerekend naar de plaatselijke tijd
+       en weergegeven als dd-mm-jj uu:mm. Lukt omrekenen niet, dan blijft de
+       oorspronkelijke tekst staan - liever ruw dan verkeerd. */
+    var raw=String(v==null?'':v).trim();
+    if(!raw) return '';
+    var d=new Date(raw);
+    if(isNaN(d.getTime())) return raw;
+    function tw(n){ return (n<10?'0':'')+n; }
+    return tw(d.getDate())+'-'+tw(d.getMonth()+1)+'-'+String(d.getFullYear()).slice(-2)+' '+tw(d.getHours())+':'+tw(d.getMinutes());
+  }
+  function mediaTime(a){ return bnsR50Tijd(T(a && (a.createdAt || a.time || a.date || a.updatedAt || ""))); }
   function isMedia(a){
     if(!a) return false;
     if(mediaSrc(a)) return true;
@@ -46675,7 +46688,20 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     return s || "Melding";
   }
   function mediaText(a){ return T(a && (a.note || a.message || a.text || a.description || a.customerName || a.driverName || a.from || "")); }
-  function mediaTime(a){ return T(a && (a.createdAt || a.time || a.date || a.updatedAt || "")); }
+  function bnsR50Tijd(v){
+    /* R50-fix (2026-08-12): hier werd de ruwe opslagvorm getoond, bijvoorbeeld
+       "2026-08-12T04:10:09.025Z". Die Z staat voor UTC; in Nederland is dat in
+       de zomer twee uur later. Nu wordt er omgerekend naar de plaatselijke tijd
+       en weergegeven als dd-mm-jj uu:mm. Lukt omrekenen niet, dan blijft de
+       oorspronkelijke tekst staan - liever ruw dan verkeerd. */
+    var raw=String(v==null?'':v).trim();
+    if(!raw) return '';
+    var d=new Date(raw);
+    if(isNaN(d.getTime())) return raw;
+    function tw(n){ return (n<10?'0':'')+n; }
+    return tw(d.getDate())+'-'+tw(d.getMonth()+1)+'-'+String(d.getFullYear()).slice(-2)+' '+tw(d.getHours())+':'+tw(d.getMinutes());
+  }
+  function mediaTime(a){ return bnsR50Tijd(T(a && (a.createdAt || a.time || a.date || a.updatedAt || ""))); }
   function isMedia(a){
     if(!a) return false;
     if(mediaSrc(a)) return true;
@@ -48607,7 +48633,20 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     }
     return s || 'Melding';
   }
-  function mediaTime(a){ return T(a && (a.createdAt||a.time||a.date||a.updatedAt||'')); }
+  function bnsR50Tijd(v){
+    /* R50-fix (2026-08-12): hier werd de ruwe opslagvorm getoond, bijvoorbeeld
+       "2026-08-12T04:10:09.025Z". Die Z staat voor UTC; in Nederland is dat in
+       de zomer twee uur later. Nu wordt er omgerekend naar de plaatselijke tijd
+       en weergegeven als dd-mm-jj uu:mm. Lukt omrekenen niet, dan blijft de
+       oorspronkelijke tekst staan - liever ruw dan verkeerd. */
+    var raw=String(v==null?'':v).trim();
+    if(!raw) return '';
+    var d=new Date(raw);
+    if(isNaN(d.getTime())) return raw;
+    function tw(n){ return (n<10?'0':'')+n; }
+    return tw(d.getDate())+'-'+tw(d.getMonth()+1)+'-'+String(d.getFullYear()).slice(-2)+' '+tw(d.getHours())+':'+tw(d.getMinutes());
+  }
+  function mediaTime(a){ return bnsR50Tijd(T(a && (a.createdAt||a.time||a.date||a.updatedAt||''))); }
   function mediaText(a){ return T(a && (a.note||a.message||a.text||a.description||'')); }
   function mediaSrc(a){
     if(!a) return '';
