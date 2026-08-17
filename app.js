@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R52';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R54';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -47350,7 +47350,13 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     function fs(v,min,max,def){ var n=parseInt(v,10); if(!isFinite(n))n=def; return Math.max(min,Math.min(max,n)); }
     var bodyFs=fs(st.bodyFontSize,10,18,13), headingFs=fs(st.headingFontSize,16,30,20), tableFs=fs(st.tableFontSize,9,18,13), totalFs=fs(st.totalFontSize,11,22,13);
     var css='@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:13px}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px;z-index:9}.actions button{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:8px 12px;font-weight:800}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:12mm 14mm}.bns525-logo{text-align:center;margin-bottom:4mm}.bns525-logo img{max-width:96mm;max-height:25mm;object-fit:contain}.brand{font-size:34px;font-weight:900;color:'+H(st.accent||'#0ea5e9')+'}.tag{font-weight:800;font-style:italic}.doc-title{text-align:center;font-size:'+headingFs+'px;font-weight:900;margin:2mm 0 5mm}.top{display:grid;grid-template-columns:1fr 60mm;gap:10mm}.card{border:1px solid #dbe3ef;border-radius:10px;padding:9px;margin:8px 0}.line{border-top:1.5px solid #333;margin:5mm 0}table{width:100%;border-collapse:collapse}th{border-bottom:1px solid #333;text-align:left}td,th{padding:1.5mm;vertical-align:top;font-size:'+tableFs+'px}.amount{text-align:right}.totals{width:82mm;margin-left:auto;margin-top:7mm;border-top:1.5px solid #333;font-size:'+totalFs+'px}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}@media print{body{background:#fff}.actions{display:none}.page{margin:0}}';
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF downloaden</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).save().then(function(){p.textContent="PDF downloaden";}).catch(function(){p.textContent="PDF downloaden";systemMsg("PDF downloaden lukt niet direct in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div>'+(intro?'<div class="card" style="border-left:4px solid #2563eb">'+H(intro)+'</div>':'')+'<div class="line"></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+(locContact49?'<br>Contact: '+H(locContact49):'')+(locTel49?'<br>Tel: '+H(locTel49):'')+'</div><div class="card"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Extra</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal extra</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table>'+(footer?'<div class="card" style="font-size:11px;color:#475569;margin-top:8mm">'+H(footer)+'</div>':'')+'</main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF downloaden</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).save().then(function(){p.textContent="PDF downloaden";}).catch(function(){p.textContent="PDF downloaden";systemMsg("PDF downloaden lukt niet direct in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?invoiceNo(o):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div>'+(intro?'<div class="card" style="border-left:4px solid #2563eb">'+H(intro)+'</div>':'')+'<div class="line"></div><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+(locContact49?'<br>Contact: '+H(locContact49):'')+(locTel49?'<br>Tel: '+H(locTel49):'')+'</div><div class="card"><b>Opdracht:</b> '+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' t/m '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Extra</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table>'+
+      /* R53-fix (2026-08-12): het veld Bijzonderheden werd wel ingevuld en opgeslagen
+         (o.extra / o.notes), maar nergens op het document afgedrukt - het blok "Extra"
+         toont uitsluitend de transportregels. Nu komt de tekst er onder te staan,
+         en bewust NIET op de factuur, zoals gevraagd. */
+      ((!fact && T(o.extra||o.notes)) ? '<h3>Bijzonderheden</h3><div class="box" style="white-space:pre-wrap">'+H(T(o.extra||o.notes))+'</div>' : '')+
+      '<table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal extra</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table>'+(footer?'<div class="card" style="font-size:11px;color:#475569;margin-top:8mm">'+H(footer)+'</div>':'')+'</main></body></html>';
   }
   function openOrderDoc(o,type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } try{ w.document.open(); w.document.write(docHtml(o,type)); w.document.close(); }catch(e){ alert('Document kon niet worden geopend: '+e.message); } return false; }
   function dedupeAccountingDocs(){
@@ -55235,4 +55241,176 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     beslissingenWissen:function(){ try{ localStorage.removeItem(BESLIST); }catch(e){} overgeslagen={}; return 'antwoorden gewist - hij vraagt opnieuw'; }
   };
   try{ console.info('[BNS R51] Planner-melding en opruimvraag actief (na '+MAANDEN+' maanden). Niets wordt uit zichzelf gewist.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R53 — Wie sluit mijn wijzigscherm?
+   ----------------------------------------------------------
+   Klacht: druk je op Wijzigen en daarna ergens op, dan springt de app terug
+   naar de opdrachtenmap en is je invoer weg.
+
+   In deze app tekenen tientallen modules het scherm opnieuw. Welke van die
+   modules het wijzigscherm dichtgooit is niet uit de code af te lezen - dat
+   hangt af van welke knop je indrukt. Deze module raadt daarom niets, maar
+   houdt de wacht: zodra het wijzigscherm verdwijnt zonder dat er op Opslaan of
+   Annuleren is geklikt, verschijnt in de console een waarschuwing met de laatst
+   ingedrukte knop erbij. Daarmee is de schuldige in een keer aan te wijzen.
+
+   Deze module verandert NIETS aan het gedrag van de app. Ze kijkt alleen mee.
+   Wel wordt de inhoud van het formulier bewaard, zodat je invoer niet verloren
+   gaat: springt het scherm terug, dan staat de tekst nog in window.BNS_R53.laatste()
+   en kun je hem terugzetten met window.BNS_R53.herstel().
+========================================================== */
+(function bnsR53WijzigWacht(){
+  'use strict';
+  if(window.__BNS_R53__) return;
+  window.__BNS_R53__=true;
+
+  var laatsteKnop='(nog niets)';
+  var laatsteTijd=0;
+  var bewaard=null;
+  var open=false;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function form(){ return document.getElementById('orderForm')||document.getElementById('editOrder')||document.getElementById('orderEdit'); }
+  function velden(){
+    var uit={};
+    try{
+      Array.prototype.slice.call(document.querySelectorAll('input[id],textarea[id],select[id]')).forEach(function(e){
+        if(e.type==='password') return;
+        if(!e.offsetParent && e.type!=='hidden') return;
+        uit[e.id]=e.value;
+      });
+    }catch(e){}
+    return uit;
+  }
+  function zichtbaar(){
+    var f=form();
+    if(f && f.offsetParent) return true;
+    // terugval: het veld met het opdrachtnummer staat alleen in het wijzigscherm
+    var n=document.getElementById('orderNumber');
+    return !!(n && n.offsetParent);
+  }
+
+  document.addEventListener('click',function(ev){
+    try{
+      var t=ev.target; if(!t||!t.closest) return;
+      var b=t.closest('button,a,[role=button],input[type=button],input[type=submit]');
+      if(!b) return;
+      laatsteKnop=(T(b.textContent)||T(b.value)||T(b.id)||b.tagName)+(b.id?' [#'+b.id+']':'');
+      laatsteTijd=Date.now();
+    }catch(e){}
+  },true);
+
+  setInterval(function(){
+    try{
+      var nu=zichtbaar();
+      if(nu && !open){
+        open=true;
+      } else if(!nu && open){
+        open=false;
+        var netGeklikt=(Date.now()-laatsteTijd)<3000 ? laatsteKnop : '(geen knop - iets deed het uit zichzelf)';
+        var bewustSluiten=/opslaan|bewaren|annuleer|sluit|terug|verwijder/i.test(netGeklikt);
+        if(!bewustSluiten){
+          console.warn('[BNS R53] Wijzigscherm ging dicht na: '+netGeklikt+
+            '. Je invoer is bewaard - haal hem terug met window.BNS_R53.herstel()');
+        }
+      }
+      if(nu) bewaard={op:new Date().toISOString(), knop:laatsteKnop, velden:velden()};
+    }catch(e){}
+  }, 800);
+
+  window.BNS_R53={
+    laatste:function(){ return bewaard; },
+    laatsteKnop:function(){ return laatsteKnop; },
+    herstel:function(){
+      if(!bewaard||!bewaard.velden) return 'niets bewaard';
+      var n=0;
+      Object.keys(bewaard.velden).forEach(function(k){
+        var e=document.getElementById(k);
+        if(e && T(bewaard.velden[k]) && !T(e.value)){ e.value=bewaard.velden[k]; n++; }
+      });
+      return n+' veld(en) teruggezet';
+    }
+  };
+  try{ console.info('[BNS R53] Wacht bij het wijzigscherm actief - meldt wie het dichtgooit.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R54 — "chosen" en "window.chosen" waren twee verschillende lijsten
+   ----------------------------------------------------------
+   Klacht: open je een nieuwe, lege opdracht en ga je meteen naar factuur of
+   opdrachtbevestiging, dan staat het materiaal van de VORIGE opdracht er nog
+   in. En sla je die nieuwe opdracht op, dan gaat dat materiaal mee.
+
+   Oorzaak, gevonden in de documentopbouw (app.js ~47441):
+
+       if(Array.isArray(window.chosen)) liveMaterials = window.chosen;
+       else if(typeof chosen !== 'undefined') liveMaterials = chosen;
+
+   Het document kijkt dus EERST naar window.chosen. Maar de lijst met gekozen
+   materialen staat bovenin het bestand als `let chosen = []`, en een `let`
+   komt niet op window te staan. `window.chosen` is daardoor een TWEEDE,
+   losstaande lijst die door een aantal nieuwere modules wordt gevuld.
+
+   Bij een nieuwe opdracht doet clearOrder() netjes `chosen = []`, maar
+   window.chosen blijft ongemoeid - met de materialen van de vorige opdracht er
+   nog in. Het document leest die, en bij het opslaan wordt hij ook nog eens
+   overgenomen. Vandaar dat het materiaal telkens meereisde naar de volgende.
+
+   Oplossing: window.chosen wordt hier geen aparte lijst meer, maar een
+   doorgeefluik naar de echte `chosen`. Lezen en schrijven komen daarmee altijd
+   bij dezelfde lijst uit, ongeacht welke module het doet. Daarmee verdwijnt
+   deze hele klasse fouten in plaats van alleen dit ene geval.
+========================================================== */
+(function bnsR54ChosenGelijktrekken(){
+  'use strict';
+  if(window.__BNS_R54__) return;
+  window.__BNS_R54__=true;
+
+  try{
+    if(typeof chosen==='undefined'){
+      console.warn('[BNS R54] variabele "chosen" niet in bereik - overgeslagen.');
+      return;
+    }
+
+    /* Wat er nu nog los in window.chosen zit is de restlijst van de vorige
+       opdracht. Die mag alleen meegenomen worden als de echte lijst leeg is EN
+       er daadwerkelijk een opdracht open staat; anders wordt hij weggegooid. */
+    var restant = Array.isArray(window.chosen) ? window.chosen : null;
+    try{ delete window.chosen; }catch(e){}
+
+    Object.defineProperty(window,'chosen',{
+      configurable:true,
+      enumerable:true,
+      get:function(){ return chosen; },
+      set:function(v){ chosen = Array.isArray(v) ? v : []; }
+    });
+
+    if(restant && restant.length && Array.isArray(chosen) && !chosen.length){
+      var bezig=false;
+      try{ bezig = !!window.__bnsEditingOrder; }catch(e){}
+      if(bezig) chosen = restant;   // er stond echt een opdracht open
+    }
+
+    console.info('[BNS R54] window.chosen wijst nu naar dezelfde materiaallijst als chosen.');
+  }catch(e){
+    /* Lukt het doorgeefluik niet, dan valt R54 terug op het strikt noodzakelijke:
+       bij het legen van het formulier ook window.chosen leegmaken. */
+    try{
+      var vorige=window.clearOrder;
+      if(typeof vorige==='function' && !vorige.__r54){
+        var nieuw=function(){
+          var uit=vorige.apply(this,arguments);
+          try{ window.chosen=[]; }catch(_){}
+          try{ if(typeof renderChosen==='function') renderChosen(); }catch(_){}
+          return uit;
+        };
+        nieuw.__r54=true;
+        window.clearOrder=nieuw;
+        console.info('[BNS R54] terugval actief: window.chosen wordt leeggemaakt bij een nieuwe opdracht.');
+      }
+    }catch(_){}
+    console.warn('[BNS R54] doorgeefluik mislukt:',e);
+  }
 })();
