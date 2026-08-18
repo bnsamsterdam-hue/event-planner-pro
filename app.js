@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R55';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R56';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -54697,9 +54697,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
 
   function zetLuikje(a,veld){
-    var kern={waarde:null, bezig:false, geprobeerd:false};
+    var kern={waarde:null, bezig:false, geprobeerd:false, geschreven:null, opgehaald:null};
     var bestaand=a[veld];
-    if(typeof bestaand==='string' && bestaand.length>1000){ kern.waarde=bestaand; kern.geprobeerd=true; }
+    if(typeof bestaand==='string' && bestaand.length>1000){ kern.waarde=bestaand; kern.geprobeerd=true; kern.opgehaald=bestaand; }
     try{ delete a[veld]; }catch(e){}
     try{
       Object.defineProperty(a,veld,{
@@ -54715,7 +54715,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
             kern.bezig=true;
             haalUitFirestore(a.id).then(function(v){
               kern.bezig=false; kern.geprobeerd=true;
-              if(v){ kern.waarde=v; hertekenen(); }
+              if(v){ kern.waarde=v; kern.opgehaald=v; hertekenen(); }   // R56: onthouden dat dit UIT Firebase kwam
             });
             /* Zodra de app voor het eerst een foto opvraagt, is het meldingen-
                scherm kennelijk in beeld. Dan halen we ze in een keer allemaal
@@ -54731,7 +54731,19 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         set:function(v){
           kern.waarde=v; kern.geprobeerd=true;
           // Alleen een ECHT nieuwe foto uploaden - niet eentje die we net zelf ophaalden.
-          if(!stilVullen && typeof v==='string' && v.length>1000 && a.id) uploadNieuweFoto(a.id,v);
+          /* R56-fix (2026-08-18): dit uploadde ELKE toewijzing terug naar Firebase.
+             Bij het laden worden de meldingen uit Firestore in het geheugen gezet,
+             en dat is ook een toewijzing - dus schreef de app bij iedere start
+             alle foto's weer terug. Dat is de bron van de "Write stream exhausted
+             maximum allowed queued writes"-fouten: honderden overbodige uploads.
+             Nu wordt er alleen nog geupload als het beeld echt NIEUW is: niet
+             tijdens een ophaalactie, en niet als het gelijk is aan wat we al
+             kennen of al eerder hebben weggeschreven. */
+          var zelfde = (v===kern.waarde) || (v===kern.geschreven) || (v===kern.opgehaald);
+          if(!stilVullen && !zelfde && typeof v==='string' && v.length>1000 && a.id){
+            kern.geschreven=v;
+            uploadNieuweFoto(a.id,v);
+          }
         }
       });
     }catch(e){}
