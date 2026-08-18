@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R58';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R59';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -54694,7 +54694,6 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   var opgehaald=0, mislukt=0, geupload=0;
   var wachtrij={};
   var stilVullen=false;   // tijdens haalAlles: wel invullen, niet terug-uploaden
-  var alleenEenKeer=false; // eerste keer dat een foto wordt opgevraagd: haal ze in een keer op
 
   function st(){ try{ if(typeof state!=='undefined'&&state) return state; }catch(e){} return window.state||null; }
   function fbKlaar(){ return !!(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.doc && window.BNS.fs.getDoc); }
@@ -54754,14 +54753,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
               kern.bezig=false; kern.geprobeerd=true;
               if(v){ kern.waarde=v; kern.opgehaald=v; hertekenen(); }   // R56: onthouden dat dit UIT Firebase kwam
             });
-            /* Zodra de app voor het eerst een foto opvraagt, is het meldingen-
-               scherm kennelijk in beeld. Dan halen we ze in een keer allemaal
-               op: dat is de route die handmatig aantoonbaar werkte, en het
-               voorkomt dat een scherm dat niet opnieuw tekent leeg blijft. */
-            if(!alleenEenKeer){
-              alleenEenKeer=true;
-              setTimeout(function(){ try{ window.BNS_R43.haalAlles(); }catch(e){} }, 300);
-            }
+            /* R59-fix (2026-08-18): hier stond een noodgreep uit R44 - zodra er EEN
+               foto werd opgevraagd, werden ze in een keer ALLEMAAL opgehaald. Dat
+               was een omweg omdat de foto's toen onzichtbaar bleven, maar de echte
+               oorzaak daarvan was iets anders (Object.assign sloeg de onzichtbare
+               velden over; opgelost in R46). De noodgreep was daarna dood gewicht
+               dat bij elk bezoek aan het meldingenscherm zo'n 12 MB extra
+               ophaalde - goed voor het grootste deel van het Firestore-verkeer.
+               Nu weer zoals oorspronkelijk bedoeld: alleen de foto die je bekijkt.
+               Alles in een keer ophalen kan nog met window.BNS_R43.haalAlles(). */
           }
           return '';
         },
