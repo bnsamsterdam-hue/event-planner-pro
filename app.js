@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R57';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R58';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -33380,6 +33380,43 @@ setTimeout(()=>{
     if(!firebaseReady()) return false;
     var fs = window.BNS.fs;
     var db = window.BNS.db;
+    /* R58-fix (2026-08-18): de backup naar Firebase bevatte ook alle foto's als
+       base64. Dat is zo'n 12 MB, wat in stukken van 650 kB tegelijk de deur uit
+       ging - ruim twintig documenten in een keer. Dat is de bron van de fout
+       "Write stream exhausted maximum allowed queued writes" die al dagen in de
+       console stond: de schrijfwachtrij liep telkens over.
+       De lokale backup deed dit al goed (zie saveLocalBackup hierboven, die
+       strippen we sinds de QuotaExceededError). Nu doet de Firebase-backup
+       hetzelfde. Er gaat niets verloren: de foto's staan al in de meldingen in
+       Firestore, dus ze elke dag nog eens meebakken was dubbelop. Opdrachten,
+       meldingen, klanten, materialen en instellingen blijven volledig bewaard. */
+    try{
+      var _fp = JSON.parse(json);
+      var _FOTO = ['photoData','photo','image','signatureData','signature','data','customerSignature'];
+      var _weg = 0;
+      function _stripFoto(o){
+        if(!o || typeof o !== 'object') return;
+        _FOTO.forEach(function(f){
+          if(o[f] && String(o[f]).length > 200){ delete o[f]; _weg++; }
+        });
+      }
+      if(Array.isArray(_fp.orders)) _fp.orders.forEach(function(o){
+        _stripFoto(o);
+        ['media','photos','signatures','driverUploads'].forEach(function(k){
+          if(Array.isArray(o && o[k])) o[k].forEach(_stripFoto);
+        });
+      });
+      if(Array.isArray(_fp.alerts)) _fp.alerts.forEach(_stripFoto);
+      if(_weg){
+        _fp.__bnsFotosNietInBackup = true;
+        var _voor = json.length;
+        json = JSON.stringify(_fp);
+        console.info('[BNS R58] Backup zonder beeldmateriaal: '+_weg+' foto(s) weggelaten, '+
+                     Math.round(_voor/1024)+' kB -> '+Math.round(json.length/1024)+' kB. De foto\u0027s zelf blijven in Firebase staan.');
+      }
+    }catch(e){
+      console.warn('[BNS R58] kon de foto\u0027s niet uit de backup halen; backup gaat volledig door:', e);
+    }
     var chunks = jsonChunks(json);
     var meta = {
       type: "eventplanner-daily-latest",
