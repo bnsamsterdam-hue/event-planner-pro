@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R54';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-12-R55';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -8503,13 +8503,38 @@ function newNo(){
 }
 function saveCurrentOrder(){
   const currentId = editing || '';
-  const currentNumber = orderNumber.value || '';
+  let currentNumber = orderNumber.value || '';
   let existingIndex = -1;
   if(currentId){
     existingIndex = state.orders.findIndex(x => String(x.id||'') === String(currentId));
   }
-  if(existingIndex < 0 && currentNumber){
+  /* R55-fix (2026-08-12): HIER werd een bestaande opdracht overschreven.
+     Deze regel zocht een bestaande opdracht op NUMMER, ook wanneer je bezig was
+     met een NIEUWE opdracht (editing is dan leeg). Kreeg die nieuwe opdracht een
+     nummer dat al bestond - wat gebeurt als newNo() draait voordat de opdrachten
+     uit Firebase binnen zijn, of als er op een ander apparaat is gewerkt - dan
+     werd de id van die oude opdracht overgenomen en ging de oude er compleet
+     onder. Vandaar dat een opdracht van thuis op de zaak plots een andere klant
+     had onder hetzelfde nummer.
+     Nu: alleen op nummer zoeken als je echt een bestaande opdracht aan het
+     bewerken bent. Ben je nieuw bezig en is het nummer al bezet, dan wordt er
+     automatisch een vrij nummer gepakt en wordt dat gemeld. */
+  if(existingIndex < 0 && currentNumber && currentId){
     existingIndex = state.orders.findIndex(x => String(x.number||'') === String(currentNumber));
+  }
+  if(!currentId && currentNumber){
+    var bnsBezet = state.orders.some(function(x){ return String(x.number||'') === String(currentNumber); });
+    if(bnsBezet){
+      var bnsJaar = String(currentNumber).slice(0,4);
+      var bnsNums = state.orders
+        .map(function(x){ var m=String(x.number||'').match(new RegExp('^'+bnsJaar+'-(\\d+)$')); return m?+m[1]:null; })
+        .filter(function(n){ return n!==null; });
+      var bnsVrij = bnsJaar+'-'+String((bnsNums.length?Math.max.apply(null,bnsNums):0)+1).padStart(4,'0');
+      console.warn('[BNS R55] Opdrachtnummer '+currentNumber+' was al in gebruik. Nieuw nummer: '+bnsVrij+'. De bestaande opdracht is NIET overschreven.');
+      try{ orderNumber.value = bnsVrij; }catch(e){}
+      currentNumber = bnsVrij;
+      try{ if(typeof toastMsg==='function') toastMsg('Nummer was bezet - deze opdracht krijgt '+bnsVrij); }catch(e){}
+    }
   }
   const existing = existingIndex >= 0 ? state.orders[existingIndex] : null;
   const driverValue = orderDriver.value || '';
@@ -55413,4 +55438,86 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }catch(_){}
     console.warn('[BNS R54] doorgeefluik mislukt:',e);
   }
+})();
+
+/* ==========================================================
+   BNS R55 — Opdrachtnummer pas uitgeven als de opdrachten binnen zijn
+   ----------------------------------------------------------
+   newNo() bepaalt het volgende opdrachtnummer door te kijken naar de
+   opdrachten die op DIT MOMENT in de browser staan:
+
+       let nums = state.orders.map(...); max(nums)+1
+
+   Open je de app en klik je meteen op "Nieuwe opdracht", dan zijn de opdrachten
+   uit Firebase vaak nog niet binnen. De lijst is dan kort of leeg, en het
+   nummer dat je krijgt is er een die al bestaat. Werk je op twee plekken - thuis
+   en op de zaak - dan is dat precies hoe twee opdrachten hetzelfde nummer
+   krijgen.
+
+   Deze module doet twee dingen:
+     1. is het nummerveld gevuld terwijl de opdrachten nog laden, dan wordt het
+        nummer opnieuw bepaald zodra ze binnen zijn;
+     2. bij het opslaan wordt gecontroleerd of het nummer inmiddels bezet is;
+        zo ja, dan gaat er een waarschuwing naar de console.
+
+   De echte bescherming zit in de aanpassing in saveCurrentOrder hierboven: een
+   nieuwe opdracht kan een bestaande nooit meer overnemen.
+========================================================== */
+(function bnsR55NummerNaLaden(){
+  'use strict';
+  if(window.__BNS_R55__) return;
+  window.__BNS_R55__=true;
+
+  var laatsteAantal=-1, stabiel=0, klaar=false;
+
+  function veld(){ return document.getElementById('orderNumber'); }
+  function bezig(){
+    try{ return !!(window.editing || window.__bnsEditingOrder); }catch(e){ return false; }
+  }
+  function aantal(){
+    try{ return (window.state && Array.isArray(state.orders)) ? state.orders.length : 0; }catch(e){ return 0; }
+  }
+  function nummerBezet(nr){
+    try{ return (state.orders||[]).some(function(o){ return String(o.number||'')===String(nr); }); }catch(e){ return false; }
+  }
+
+  setInterval(function(){
+    try{
+      var n=aantal();
+      if(n===laatsteAantal){ stabiel++; } else { stabiel=0; laatsteAantal=n; klaar=false; }
+      if(stabiel<3 || klaar) return;      // pas als de lijst een paar tellen niet meer groeit
+      klaar=true;
+
+      var el=veld();
+      if(!el || bezig()) return;
+      var nu=String(el.value||'');
+      if(!nu) return;
+      if(!nummerBezet(nu)) return;
+
+      /* Het nummer in het scherm blijkt al te bestaan - opnieuw laten bepalen. */
+      if(typeof newNo==='function'){
+        newNo();
+        console.warn('[BNS R55] Het getoonde opdrachtnummer ('+nu+') bestond al; opnieuw bepaald op '+String(el.value||'')+' nu de opdrachten binnen zijn.');
+      }
+    }catch(e){}
+  }, 1500);
+
+  window.BNS_R55={
+    controleer:function(){
+      var el=veld();
+      return {nummer_in_scherm:el?el.value:'(geen veld)', bezet:el?nummerBezet(el.value):false, opdrachten_geladen:aantal()};
+    },
+    dubbeleNummers:function(){
+      var telling={}, uit=[];
+      try{
+        (state.orders||[]).forEach(function(o){
+          var n=String(o.number||''); if(!n) return;
+          telling[n]=(telling[n]||0)+1;
+        });
+        Object.keys(telling).forEach(function(n){ if(telling[n]>1) uit.push({nummer:n, aantal:telling[n]}); });
+      }catch(e){}
+      return uit;
+    }
+  };
+  try{ console.info('[BNS R55] Nummercontrole actief.'); }catch(e){}
 })();
