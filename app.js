@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R56';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R57';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -55532,4 +55532,176 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
   };
   try{ console.info('[BNS R55] Nummercontrole actief.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R57 — Opdrachtnummers: wachten tot de lijst binnen is + laatste check
+   ----------------------------------------------------------
+   Twee gaten die samen de 55 dubbele opdrachtnummers hebben veroorzaakt:
+
+   1. TE VROEG. Het volgende nummer wordt afgeleid uit de opdrachten die op dat
+      moment in de browser staan. Open je de app en klik je meteen op Nieuwe
+      opdracht, dan zijn ze nog niet binnen, is de lijst kort, en krijg je een
+      nummer dat allang bestaat.
+   2. TWEE APPARATEN. Thuis en op de zaak zijn allebei volledig geladen en zien
+      allebei hetzelfde hoogste nummer. Wie tegelijk een opdracht aanmaakt komt
+      op hetzelfde nummer uit. Wachten helpt daar niet - dat gaat mis NA het
+      laden.
+
+   Daarom hier allebei:
+     - Nieuwe opdracht wordt pas vrijgegeven als de opdrachten binnen zijn. De
+      knop toont zolang "opdrachten laden...". De REST van de app blijft gewoon
+      werken; zit je zonder bereik, dan kun je nog steeds alles opzoeken.
+     - Vlak voor het opslaan wordt in Firebase gevraagd of dat nummer al bestaat.
+      Zo ja, dan schuift hij door naar het eerstvolgende vrije nummer.
+
+   Op die laatste vraag staat een tijdslimiet van 3 seconden. Antwoordt Firebase
+   niet op tijd - de schrijfleiding heeft het hier druk gehad - dan gaat het
+   gewoon door met het lokaal berekende nummer en komt er een waarschuwing in de
+   console. Je staat dus nooit stil door een traag antwoord.
+========================================================== */
+(function bnsR57Nummerbewaking(){
+  'use strict';
+  if(window.__BNS_R57__) return;
+  window.__BNS_R57__=true;
+
+  var WACHT_MS=3000;
+  var geladen=false, laatsteAantal=-1, stabiel=0;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function aantal(){
+    try{ return (window.state && Array.isArray(state.orders)) ? state.orders.length : 0; }catch(e){ return 0; }
+  }
+  function fbKlaar(){ return !!(window.BNS && window.BNS.fs && window.BNS.db && window.BNS.fs.getDocs); }
+
+  /* ---------- 1. Nieuwe opdracht pas vrijgeven als de lijst binnen is ---------- */
+  function knoppen(){
+    try{ return Array.prototype.slice.call(document.querySelectorAll('.nav[data-page="newOrder"]')); }
+    catch(e){ return []; }
+  }
+  function zetKnoppen(bezig){
+    knoppen().forEach(function(b){
+      try{
+        if(bezig){
+          if(!b.__r57tekst) b.__r57tekst=b.textContent;
+          b.setAttribute('disabled','disabled');
+          b.style.opacity='.55'; b.style.cursor='wait';
+          b.textContent='Opdrachten laden...';
+        } else if(b.__r57tekst){
+          b.removeAttribute('disabled');
+          b.style.opacity=''; b.style.cursor='';
+          b.textContent=b.__r57tekst;
+          b.__r57tekst=null;
+        }
+      }catch(e){}
+    });
+  }
+
+  setInterval(function(){
+    try{
+      if(geladen) return;
+      var n=aantal();
+      if(n>0 && n===laatsteAantal){ stabiel++; } else { stabiel=0; laatsteAantal=n; }
+      if(stabiel>=3){                       // ~3 tellen niet meer gegroeid
+        geladen=true;
+        zetKnoppen(false);
+        try{ if(typeof newNo==='function' && !window.editing) newNo(); }catch(e){}
+        console.info('[BNS R57] Opdrachten binnen ('+n+') - Nieuwe opdracht vrijgegeven.');
+      } else {
+        zetKnoppen(true);
+      }
+    }catch(e){}
+  }, 1000);
+
+  // Noodrem: na 20 seconden hoe dan ook vrijgeven, ook zonder internet.
+  setTimeout(function(){
+    if(!geladen){
+      geladen=true; zetKnoppen(false);
+      console.warn('[BNS R57] Opdrachten kwamen niet binnen; Nieuwe opdracht toch vrijgegeven. Let op dubbele nummers.');
+    }
+  }, 20000);
+
+  /* ---------- 2. Laatste controle in Firebase vlak voor het opslaan ---------- */
+  function metTijdslimiet(belofte, ms){
+    return Promise.race([
+      belofte,
+      new Promise(function(res){ setTimeout(function(){ res('__tijd_op__'); }, ms); })
+    ]);
+  }
+
+  async function bezetInFirebase(nummer){
+    if(!fbKlaar()) return null;                       // niet te bepalen
+    try{
+      var fs=window.BNS.fs;
+      var q=fs.query(fs.collection(window.BNS.db,'orders'), fs.where('number','==',String(nummer)));
+      var uit=await metTijdslimiet(fs.getDocs(q), WACHT_MS);
+      if(uit==='__tijd_op__'){
+        console.warn('[BNS R57] Firebase antwoordde niet binnen '+(WACHT_MS/1000)+' sec; doorgegaan met het lokale nummer '+nummer+'.');
+        return null;
+      }
+      return uit && uit.docs ? uit.docs.length>0 : null;
+    }catch(e){
+      console.warn('[BNS R57] nummercontrole mislukt, doorgegaan met '+nummer+':',e);
+      return null;
+    }
+  }
+
+  function volgendVrij(nummer){
+    var jaar=String(nummer).slice(0,4);
+    var nums=[];
+    try{
+      (state.orders||[]).forEach(function(o){
+        var m=String(o.number||'').match(new RegExp('^'+jaar+'-(\\d+)$'));
+        if(m) nums.push(+m[1]);
+      });
+    }catch(e){}
+    var huidig=parseInt(String(nummer).slice(5),10)||0;
+    var hoogste=nums.length?Math.max.apply(null,nums):0;
+    return jaar+'-'+String(Math.max(hoogste,huidig)+1).padStart(4,'0');
+  }
+
+  async function controleerEnCorrigeer(){
+    var el=document.getElementById('orderNumber');
+    if(!el) return;
+    if(window.editing) return;                        // bestaande opdracht: nummer blijft
+    var nu=T(el.value);
+    if(!nu) return;
+    for(var poging=0; poging<5; poging++){
+      var bezet=await bezetInFirebase(nu);
+      if(bezet!==true) break;                         // vrij, of niet te bepalen
+      var vrij=volgendVrij(nu);
+      console.warn('[BNS R57] Nummer '+nu+' bestaat al in Firebase. Doorgeschoven naar '+vrij+'.');
+      nu=vrij; el.value=vrij;
+      try{ if(typeof toastMsg==='function') toastMsg('Nummer was bezet - deze opdracht krijgt '+vrij); }catch(e){}
+    }
+  }
+
+  /* De opslaanknop onderscheppen: eerst controleren, dan pas opslaan. */
+  document.addEventListener('click', function(ev){
+    try{
+      var t=ev.target; if(!t||!t.closest) return;
+      var b=t.closest('#saveOrder,[data-save-order]');
+      if(!b || b.__r57bezig) return;
+      if(window.editing) return;                      // alleen bij nieuwe opdrachten
+      ev.preventDefault(); ev.stopPropagation();
+      b.__r57bezig=true;
+      var oudeTekst=b.textContent;
+      b.textContent='Nummer controleren...';
+      controleerEnCorrigeer().then(function(){
+        b.textContent=oudeTekst;
+        b.__r57bezig=false;
+        b.click();                                    // nu echt opslaan
+      }).catch(function(){
+        b.textContent=oudeTekst; b.__r57bezig=false; b.click();
+      });
+    }catch(e){}
+  }, true);
+
+  window.BNS_R57={
+    geladen:function(){ return geladen; },
+    controleer:controleerEnCorrigeer,
+    bezet:bezetInFirebase,
+    vrijgeven:function(){ geladen=true; zetKnoppen(false); return 'Nieuwe opdracht vrijgegeven'; }
+  };
+  try{ console.info('[BNS R57] Nummerbewaking actief.'); }catch(e){}
 })();
