@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-12-R3';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-18-R4';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -342,6 +342,7 @@ function searchIndexText(o){
   }
   add(o&&o.number); add(o&&o.title); add(o&&o.status);
   add(customerName(o)); add(customerPhone(o)); add(addressOf(o)); add(driverName(o));
+  add(orderBrand(o));   // DRV-R4: zo kan de bezorger ook op merk zoeken
   if(o&&o.customer) add(o.customer);
   if(o&&o.client) add(o.client);
   if(o&&o.location) add(o.location);
@@ -375,6 +376,14 @@ function orderBadges(o){
   return badges.join("");
 }
 
+/* DRV-R4 (2026-08-18): het veld "Uitstraling / merk" werd in de bezorger-app
+   nergens getoond, terwijl het in de hoofdapp wel wordt ingevuld en als o.brand
+   op de opdracht wordt bewaard. Hier wordt het opgehaald - met de gebruikelijke
+   alternatieve veldnamen erbij, want deze codebase gebruikt door elkaar heen
+   Nederlandse en Engelse namen. */
+function orderBrand(o){
+  return clean(o && (o.brand || o.merk || o.uitstraling || o.orderBrand || o.brandName || ''));
+}
 function orderCard(o){
   const a=addressOf(o),p=locationPhone(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
   const mats=materialList(o);
@@ -384,6 +393,7 @@ function orderCard(o){
     <div class="badges">${orderBadges(o)}</div>
     <div class="meta">
       <div class="meta-row"><span>📅</span><div><strong>${esc(dl||"Geen datum")}</strong></div></div>
+      ${orderBrand(o)?`<div class="meta-row"><span>🍺</span><div>${esc(orderBrand(o))}</div></div>`:""}
       <div class="meta-row"><span>👤</span><div>${esc(customerName(o)||"Klant onbekend")}</div></div>
       <div class="meta-row"><span>📍</span><div>${esc(a||"Adres onbekend")}</div></div>
       <div class="meta-row"><span>📦</span><div>${esc(mats.length?`${mats.length} artikelsoorten - ${materialText(o)}`:"Geen materialen")}</div></div>
