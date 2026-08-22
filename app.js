@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R59';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R60';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -55741,4 +55741,136 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     vrijgeven:function(){ geladen=true; zetKnoppen(false); return 'Nieuwe opdracht vrijgegeven'; }
   };
   try{ console.info('[BNS R57] Nummerbewaking actief.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R60 — Terugkeerwacht: het wijzigscherm blijft open
+   ----------------------------------------------------------
+   Klacht: je drukt op Wijzigen, de opdracht opent, je drukt op Agenda (die
+   opent een nieuw tabblad), en zodra je terugkomt staat de app op de
+   opdrachtenlijst in plaats van op je formulier. Je wijziging is dan weg.
+
+   De agendaknop zelf doet niets verkeerd - die opent alleen een tabblad. Het
+   gaat mis bij het TERUGKOMEN: er zijn meerdere modules die dan iets doen
+   (achtergrondbackup, bannercontrole, periodieke hertekening), en samen
+   zetten ze het scherm terug op de opdrachtenlijst.
+
+   In plaats van te raden welke dat is, herstelt deze module het gevolg: was
+   het wijzigscherm open toen je wegging, en is het er na terugkomst niet meer,
+   dan wordt diezelfde opdracht opnieuw geopend en worden je ingevulde velden
+   teruggezet. Je kunt gewoon verder en opslaan.
+
+   Het werkt dus ongeacht de oorzaak. Ging je zelf bewust naar een ander
+   scherm, dan gebeurt er niets: er wordt alleen hersteld binnen 12 seconden
+   na terugkomst uit een ander tabblad.
+========================================================== */
+(function bnsR60Terugkeerwacht(){
+  'use strict';
+  if(window.__BNS_R60__) return;
+  window.__BNS_R60__=true;
+
+  var wasOpen=false, opdrachtId='', velden=null, wegTijd=0, bezig=false;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function veldenNu(){
+    var uit={};
+    try{
+      Array.prototype.slice.call(document.querySelectorAll('input[id],textarea[id],select[id]')).forEach(function(e){
+        if(e.type==='password'||e.type==='file') return;
+        if(!e.offsetParent) return;
+        uit[e.id]=e.value;
+      });
+    }catch(e){}
+    return uit;
+  }
+  function formulierZichtbaar(){
+    try{
+      var n=document.getElementById('orderNumber');
+      return !!(n && n.offsetParent);
+    }catch(e){ return false; }
+  }
+  function huidigeOpdracht(){
+    try{
+      if(window.editing) return String(window.editing);
+      var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
+      var nr=T((document.getElementById('orderNumber')||{}).value);
+      var hit=s.filter(function(o){ return o && T(o.number)===nr; })[0];
+      return hit ? String(hit.id) : '';
+    }catch(e){ return ''; }
+  }
+
+  /* Doorlopend onthouden wat er open staat, zodat we het kunnen terugzetten. */
+  setInterval(function(){
+    try{
+      if(document.hidden) return;
+      if(formulierZichtbaar()){
+        wasOpen=true;
+        opdrachtId=huidigeOpdracht()||opdrachtId;
+        velden=veldenNu();
+      }
+    }catch(e){}
+  }, 700);
+
+  document.addEventListener('visibilitychange', function(){
+    try{
+      if(document.hidden){
+        // Vertrek: vastleggen wat er op dat moment open stond.
+        if(formulierZichtbaar()){
+          wasOpen=true;
+          opdrachtId=huidigeOpdracht()||opdrachtId;
+          velden=veldenNu();
+        }
+        wegTijd=Date.now();
+        return;
+      }
+      if(!wasOpen || bezig) return;
+      bezig=true;
+      var probeer=0;
+      var tikker=setInterval(function(){
+        probeer++;
+        try{
+          if(formulierZichtbaar()){        // alles goed, niets te doen
+            clearInterval(tikker); bezig=false; return;
+          }
+          if(Date.now()-wegTijd > 12000 || probeer>12){
+            clearInterval(tikker); bezig=false; return;
+          }
+          if(!opdrachtId) return;
+          if(typeof window.editOrder!=='function' && typeof editOrder!=='function') return;
+
+          try{ (window.editOrder||editOrder)(opdrachtId); }catch(e){ return; }
+
+          setTimeout(function(){
+            var n=0;
+            try{
+              Object.keys(velden||{}).forEach(function(k){
+                var e=document.getElementById(k);
+                if(e && T(velden[k]) && T(e.value)!==T(velden[k])){ e.value=velden[k]; n++; }
+              });
+            }catch(e){}
+            console.info('[BNS R60] Wijzigscherm was gesloten na terugkomst; opdracht opnieuw geopend'+(n?' en '+n+' veld(en) teruggezet':'')+'.');
+            try{ if(typeof toastMsg==='function') toastMsg('Je wijziging staat er nog - je kunt opslaan'); }catch(e){}
+          }, 400);
+
+          clearInterval(tikker); bezig=false;
+        }catch(e){ clearInterval(tikker); bezig=false; }
+      }, 600);
+    }catch(e){ bezig=false; }
+  });
+
+  window.BNS_R60={
+    stand:function(){ return {wijzigschermOpen:formulierZichtbaar(), onthoudenOpdracht:opdrachtId, aantalVelden:Object.keys(velden||{}).length}; },
+    nuHerstellen:function(){
+      if(!opdrachtId) return 'geen opdracht onthouden';
+      try{ (window.editOrder||editOrder)(opdrachtId); }catch(e){ return 'openen mislukt'; }
+      setTimeout(function(){
+        Object.keys(velden||{}).forEach(function(k){
+          var e=document.getElementById(k);
+          if(e && T(velden[k])) e.value=velden[k];
+        });
+      }, 400);
+      return 'opdracht '+opdrachtId+' opnieuw geopend';
+    }
+  };
+  try{ console.info('[BNS R60] Terugkeerwacht actief - het wijzigscherm blijft open na een uitstapje.'); }catch(e){}
 })();
