@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R62';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R63';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -55855,7 +55855,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           if(formulierZichtbaar()){        // alles goed, niets te doen
             clearInterval(tikker); bezig=false; return;
           }
-          if(Date.now()-wegTijd > 12000 || probeer>12){
+          /* R63-fix (2026-08-27): hier stond 12 seconden. Dat is genoeg als je even
+             een document bekijkt, maar niet als je er een PDF van maakt en via
+             "opslaan als" een map uitkiest - dat duurt zo een halve minuut. Kwam
+             je daarna terug, dan was de wacht al afgelopen en werd je formulier
+             niet meer teruggezet. Nu tien minuten; hij grijpt nog steeds alleen
+             in op het moment dat je terugkomt, dus later bewust wegklikken blijft
+             gewoon werken. */
+          if(Date.now()-wegTijd > 600000 || probeer>20){
             clearInterval(tikker); bezig=false; return;
           }
           if(!opdrachtId) return;
