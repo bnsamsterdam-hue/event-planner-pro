@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-18-R60';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R61';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -55811,18 +55811,41 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }catch(e){}
   }, 700);
 
+  /* R61-uitbreiding (2026-08-27): R60 luisterde alleen naar 'visibilitychange'.
+     Dat werkt bij de AGENDA, want die opent een nieuw TABBLAD en dan meldt de
+     browser dat deze pagina verborgen is. Maar de factuur en de opdracht-
+     bevestiging openen een nieuw VENSTER: je pagina blijft dan volgens de
+     browser gewoon zichtbaar, hij staat alleen achter iets anders. Die melding
+     kwam dus nooit en de wacht sloeg niet aan.
+     Daarom hangt dezelfde routine er nu ook aan het verliezen en terugkrijgen
+     van de focus. Beide aanleidingen komen uit op dezelfde twee functies. */
+  function bijVertrek(){
+    try{
+      if(formulierZichtbaar()){
+        wasOpen=true;
+        opdrachtId=huidigeOpdracht()||opdrachtId;
+        velden=veldenNu();
+      }
+      wegTijd=Date.now();
+    }catch(e){}
+  }
+
   document.addEventListener('visibilitychange', function(){
     try{
       if(document.hidden){
-        // Vertrek: vastleggen wat er op dat moment open stond.
-        if(formulierZichtbaar()){
-          wasOpen=true;
-          opdrachtId=huidigeOpdracht()||opdrachtId;
-          velden=veldenNu();
-        }
-        wegTijd=Date.now();
+        bijVertrek();
         return;
       }
+      bijTerugkeer();
+    }catch(e){ bezig=false; }
+  });
+
+  window.addEventListener('blur', bijVertrek);
+  window.addEventListener('focus', function(){ setTimeout(bijTerugkeer, 200); });
+  window.addEventListener('pageshow', function(){ setTimeout(bijTerugkeer, 200); });
+
+  function bijTerugkeer(){
+    try{
       if(!wasOpen || bezig) return;
       bezig=true;
       var probeer=0;
@@ -55856,7 +55879,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         }catch(e){ clearInterval(tikker); bezig=false; }
       }, 600);
     }catch(e){ bezig=false; }
-  });
+  }
 
   window.BNS_R60={
     stand:function(){ return {wijzigschermOpen:formulierZichtbaar(), onthoudenOpdracht:opdrachtId, aantalVelden:Object.keys(velden||{}).length}; },
