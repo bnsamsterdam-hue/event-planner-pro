@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-18-R4';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-27-R5';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -385,7 +385,7 @@ function orderBrand(o){
   return clean(o && (o.brand || o.merk || o.uitstraling || o.orderBrand || o.brandName || ''));
 }
 function orderCard(o){
-  const a=addressOf(o),p=locationPhone(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  const a=addressOf(o),p=locationPhone(o),s=orderStart(o),e=orderEnd(o),dl=s&&e&&s!==e?`${niceDate(s)} tot ${niceDate(e)}`:niceDate(s||e);
   const mats=materialList(o);
   return `<article class="order-card order" data-id="${esc(o.id)}" data-search="${esc(searchIndexText(o))}">
     <span class="order-number">${esc(o.number||"Opdracht")}</span>
@@ -491,7 +491,7 @@ function textBlockHtml(o){
 }
 function fullOrderHtml(o, title){
   const a=addressOf(o), p=locationPhone(o), s=orderStart(o), e=orderEnd(o);
-  const dl=s&&e&&s!==e?`${niceDate(s)} t/m ${niceDate(e)}`:niceDate(s||e);
+  const dl=s&&e&&s!==e?`${niceDate(s)} tot ${niceDate(e)}`:niceDate(s||e);
   return `<div class="tw-doc"><style>
     .tw-doc{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#0f172a;padding:12px;line-height:1.45}.tw-doc h2{margin:0 0 10px;font-size:22px}.tw-card{border:1px solid #dbe3ef;border-radius:18px;padding:12px;margin:10px 0;background:#fff}.tw-grid{display:grid;grid-template-columns:1fr;gap:8px}.tw-row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #eef2f7;padding:8px 0}.tw-row:last-child{border-bottom:0}.tw-price{font-weight:900;white-space:nowrap}.muted{color:#64748b}.tw-label{font-size:12px;text-transform:uppercase;color:#64748b;font-weight:900;letter-spacing:.04em}.tw-big{font-size:16px;font-weight:800}.tw-danger{background:#fee2e2;color:#991b1b;border-radius:12px;padding:8px 10px;font-weight:900}
   </style>
