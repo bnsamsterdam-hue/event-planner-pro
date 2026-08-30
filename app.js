@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R66';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R69';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -41254,8 +41254,29 @@ setTimeout(()=>{
       return (oid && (ai===oid || an===oid)) || (onr && (ai===onr || an===onr));
     });
   }
+  /* R67 (2026-08-27): foto's en handtekeningen worden ook als "melding"
+     bewaard, en die kwamen mee in dit overzicht. Hier blijven alleen de echte
+     meldingen over: schade, storing, vermissing, sleutels en losse meldingen.
+     Alles met beeld eraan, of met een foto-/handtekening-achtige soort, valt af. */
+  function isEchteMelding(a){
+    if(!a) return false;
+    var soort=(String(a.type||'')+' '+String(a.title||'')+' '+String(a.kind||'')).toLowerCase();
+    /* R68-fix (2026-08-27): in R67 viel een melding af zodra er beeld aan hing.
+       Daardoor verdween juist een SCHADEMELDING MET FOTO uit het overzicht - en
+       dat is nu net het bewijs dat je wilt zien. Nu wordt eerst op soort gekeken:
+       is het schade, storing, vermissing, sleutels of een melding, dan hoort hij
+       er altijd bij, foto of niet. Pas daarna vallen de losse foto's en
+       handtekeningen af, die alleen als bijlage zijn opgeslagen. */
+    var echteSoort=/schade|storing|defect|vermis|sleutel|melding/.test(soort);
+    if(echteSoort) return true;
+    if(/foto|photo|handtekening|signature|media|upload|afbeelding/.test(soort)) return false;
+    if(String(a.id||'').indexOf('sig_')===0) return false;
+    if(a.hasMedia===true) return false;
+    if(String(a.photoData||a.data||a.imageData||'').length>200) return false;
+    return !!String(a.message||a.note||'').trim();
+  }
   function alertsGefilterd(o){
-    var l=alertsFor(o);
+    var l=alertsFor(o).filter(isEchteMelding);
     if(meldStat==='lopend')   return l.filter(function(a){ return !a.resolved; });
     if(meldStat==='opgelost') return l.filter(function(a){ return !!a.resolved; });
     return l;
@@ -41323,7 +41344,17 @@ setTimeout(()=>{
             return '<div style="background:'+(a.resolved?'#f0fdf4':'#fef2f2')+';border-left:4px solid '+(a.resolved?'#16a34a':'#dc2626')+';padding:8px 10px;border-radius:8px;margin-bottom:6px">'+
               '<div style="font-weight:900;font-size:13px">'+esc(meldSoort(a))+'</div>'+
               (tk?'<div style="font-size:13px;margin-top:2px">'+esc(tk)+'</div>':'')+
+              /* R69: heeft de bezorger hem opgelost met een toelichting, dan tonen
+                 we die hier - bijvoorbeeld "sleutel is terug". */
+              (function(){
+                var opl=String(a.resolvedNote||a.oplossing||'').trim();
+                if(!opl) return '';
+                var wie2=String(a.resolvedBy||'').trim();
+                return '<div style="margin-top:5px;font-size:13px;color:#166534"><b>Opgelost:</b> '+esc(opl)+(wie2?' <span style="color:#64748b">('+esc(wie2)+')</span>':'')+'</div>';
+              })()+
               '<div style="font-size:12px;color:#64748b;margin-top:3px">'+esc(String(a.time||a.createdAt||'').slice(0,16))+(wie?' \u00b7 '+esc(wie):'')+'</div>'+
+              /* R68: hangt er beeld aan de melding, dan tonen we het hier ook. */
+              (function(){ var f=String(a.photoData||a.data||a.imageData||''); return (f.indexOf('data:image')===0||/^https?:/.test(f)) ? '<img src="'+esc(f)+'" alt="bewijsfoto" style="max-width:220px;width:100%;border-radius:8px;margin-top:7px;display:block">' : ''; })()+
               '<label style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:13px;font-weight:800;cursor:pointer">'+
                 '<input type="checkbox" '+(a.resolved?'checked':'')+' onchange="BNS_A364_MELD_OPGELOST(\''+esc(String(a.id))+'\', this.checked)"> Opgelost'+
               '</label>'+
