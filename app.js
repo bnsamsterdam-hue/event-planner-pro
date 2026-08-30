@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R64';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R66';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -41237,10 +41237,51 @@ setTimeout(()=>{
     return 'running';
   }
   function orders(){ var s=S(); return s && Array.isArray(s.orders) ? s.orders : []; }
+  /* R66 (2026-08-27): meldingen doorzoekbaar maken vanuit het archief.
+     Je kiest eerst een rubriek (Lopend / Optie 14 dagen / Uitgevoerd /
+     Geannuleerd / Verwijderd) en zet dan de knop "Meldingen" aan. De lijst
+     toont dan alleen nog opdrachten waar een melding bij hoort, met de
+     meldingen onder de kaart en een vinkje om er een op opgelost te zetten.
+     Zo is in een oogopslag te zien bij welke klant nog iets openstaat -
+     schade, storing, of sleutels die niet retour zijn. */
+  var meldAan=false, meldStat='lopend';
+  function alertsFor(o){
+    var s=S(); if(!s || !Array.isArray(s.alerts) || !o) return [];
+    var oid=String(o.id||''), onr=String(o.number||'');
+    return s.alerts.filter(function(a){
+      if(!a) return false;
+      var ai=String(a.orderId||''), an=String(a.orderNumber||'');
+      return (oid && (ai===oid || an===oid)) || (onr && (ai===onr || an===onr));
+    });
+  }
+  function alertsGefilterd(o){
+    var l=alertsFor(o);
+    if(meldStat==='lopend')   return l.filter(function(a){ return !a.resolved; });
+    if(meldStat==='opgelost') return l.filter(function(a){ return !!a.resolved; });
+    return l;
+  }
+  function meldTekst(a){ return String(a.message||a.note||a.text||'').trim(); }
+  function meldSoort(a){ return String(a.title||a.type||'Melding').trim(); }
+  function meldWie(a){ return String(a.from||a.driverName||a.source||'').trim(); }
+  function meldTeller(t){
+    return orders().filter(function(o){ return bucket(o)===t && alertsGefilterd(o).length>0; }).length;
+  }
+  window.BNS_A364_MELD_OPGELOST=function(alertId, aan){
+    var s=S(); if(!s||!Array.isArray(s.alerts)) return;
+    var a=s.alerts.filter(function(x){ return String(x.id)===String(alertId); })[0];
+    if(!a) return;
+    a.resolved=!!aan;
+    a.resolvedAt=aan?new Date().toISOString():'';
+    saveAndRefresh();
+    /* Meldingen reizen niet mee met de gewone opslag - apart wegschrijven. */
+    try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('alerts', a); }catch(e){}
+    try{ showArchief(); }catch(e){}
+  };
   function count(t){ return orders().filter(function(o){ return bucket(o)===t; }).length; }
   function yearsFor(t){ var y={}; orders().forEach(function(o){ if(bucket(o)!==t) return; var yr=orderYear(o); if(yr) y[yr]=true; }); return Object.keys(y).sort().reverse(); }
   function listFor(){
     var list=orders().filter(function(o){ return bucket(o)===tab; });
+    if(meldAan) list=list.filter(function(o){ return alertsGefilterd(o).length>0; });   // R66
     if(year) list=list.filter(function(o){ return orderYear(o)===year; });
     if(q){ var qq=q.toLowerCase(); list=list.filter(function(o){ return JSON.stringify(o).toLowerCase().indexOf(qq)>=0; }); }
     list.sort(function(a,b){ var da=orderDate(a), db=orderDate(b); var ta=da?da.getTime():0, tb=db?db.getTime():0; return (tab==='running'||tab==='options') ? ta-tb : tb-ta; });
@@ -41263,8 +41304,34 @@ setTimeout(()=>{
       '<div style="margin-top:9px;display:flex;flex-wrap:wrap;gap:7px">'+
         '<button class="a364open" style="background:#2563eb;color:#fff;border:0;border-radius:9px;padding:7px 13px;font-weight:900;cursor:pointer;font-size:13px">Openen</button>'+
         '<button class="a364restore" style="background:#16a34a;color:#fff;border:0;border-radius:9px;padding:7px 13px;font-weight:900;cursor:pointer;font-size:13px">Opnieuw inzetten</button>'+
+        /* R65 (2026-08-27): DIT is het archief dat daadwerkelijk gebruikt wordt
+           (module a364, herkenbaar aan de knoppen "Openen" en "Opnieuw inzetten").
+           R64 zette de knop in een ander archiefsjabloon dat niet in beeld komt.
+           Foto's en meldingen zitten in het venster "Overzicht bestelling"; die
+           was vanuit het archief nergens te bereiken. De knop heet exact zo,
+           omdat de bestaande module op die tekst reageert en zelf het
+           opdrachtnummer van de kaart afleest. */
+        '<button type="button" style="background:#c2410c;color:#fff;border:0;border-radius:9px;padding:7px 13px;font-weight:900;cursor:pointer;font-size:13px">Overzicht bestelling</button>'+
         '<button class="a364del" style="background:#fee2e2;color:#991b1b;border:0;border-radius:9px;padding:7px 13px;font-weight:900;cursor:pointer;font-size:13px">Definitief wissen</button>'+
-      '</div></div>';
+      '</div>'+
+      (meldAan ? (function(){                      // R66: meldingen onder de kaart
+        var l=alertsGefilterd(o);
+        if(!l.length) return '';
+        return '<div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:9px">'+
+          l.map(function(a){
+            var wie=meldWie(a), tk=meldTekst(a);
+            return '<div style="background:'+(a.resolved?'#f0fdf4':'#fef2f2')+';border-left:4px solid '+(a.resolved?'#16a34a':'#dc2626')+';padding:8px 10px;border-radius:8px;margin-bottom:6px">'+
+              '<div style="font-weight:900;font-size:13px">'+esc(meldSoort(a))+'</div>'+
+              (tk?'<div style="font-size:13px;margin-top:2px">'+esc(tk)+'</div>':'')+
+              '<div style="font-size:12px;color:#64748b;margin-top:3px">'+esc(String(a.time||a.createdAt||'').slice(0,16))+(wie?' \u00b7 '+esc(wie):'')+'</div>'+
+              '<label style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:13px;font-weight:800;cursor:pointer">'+
+                '<input type="checkbox" '+(a.resolved?'checked':'')+' onchange="BNS_A364_MELD_OPGELOST(\''+esc(String(a.id))+'\', this.checked)"> Opgelost'+
+              '</label>'+
+            '</div>';
+          }).join('')+
+        '</div>';
+      })() : '')+
+      '</div>';
   }
   function renderList(){
     var box=E('a364list'); if(!box) return;
@@ -41281,13 +41348,26 @@ setTimeout(()=>{
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+tabs.map(function(t){ var act=tab===t.id; return '<button data-a364-tab="'+t.id+'" style="border:0;border-radius:13px;padding:10px 16px;font-weight:900;cursor:pointer;background:'+(act?'#0f172a':'#e2e8f0')+';color:'+(act?'#fff':'#0f172a')+'">'+esc(t.label)+' ('+count(t.id)+')</button>'; }).join('')+'</div>'+
       '<div id="a364years" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+
         '<button data-a364-yr="" style="border:0;border-radius:10px;padding:7px 13px;font-weight:900;cursor:pointer;background:'+(!year?'#2563eb':'#e2e8f0')+';color:'+(!year?'#fff':'#0f172a')+'">Alle jaren</button>'+yrs.map(function(y){ return '<button data-a364-yr="'+esc(y)+'" style="border:0;border-radius:10px;padding:7px 13px;font-weight:900;cursor:pointer;background:'+(year===y?'#2563eb':'#e2e8f0')+';color:'+(year===y?'#fff':'#0f172a')+'">'+esc(y)+'</button>'; }).join('')+
-      '</div><div id="a364list"></div>';
+      '</div>'+
+      /* R66: schakelaar Meldingen + status. Werkt bovenop de gekozen rubriek,
+         dus eerst bv. Uitgevoerd aanklikken en dan hier op Meldingen. */
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'+
+        '<button data-a364-meld="1" style="border:0;border-radius:13px;padding:10px 16px;font-weight:900;cursor:pointer;background:'+(meldAan?'#c2410c':'#e2e8f0')+';color:'+(meldAan?'#fff':'#0f172a')+'">Meldingen ('+meldTeller(tab)+')</button>'+
+        (meldAan ? ['lopend','opgelost','alle'].map(function(st){
+          var act=meldStat===st;
+          var lbl=st==='lopend'?'Lopend':st==='opgelost'?'Opgelost':'Alles';
+          return '<button data-a364-meldstat="'+st+'" style="border:0;border-radius:10px;padding:8px 13px;font-weight:900;cursor:pointer;background:'+(act?'#0f172a':'#e2e8f0')+';color:'+(act?'#fff':'#0f172a')+'">'+lbl+'</button>';
+        }).join('') : '')+
+      '</div>'+
+      '<div id="a364list"></div>';
     var qi=E('a364q');
     if(qi){
       qi.oninput=function(){ q=qi.value||''; renderList(); };
     }
     A('[data-a364-tab]',pg).forEach(function(b){ b.onclick=function(){ tab=b.getAttribute('data-a364-tab'); year=null; q=''; renderTabs(pg); }; });
     A('[data-a364-yr]',pg).forEach(function(b){ b.onclick=function(){ year=b.getAttribute('data-a364-yr')||null; renderTabs(pg); }; });
+    A('[data-a364-meld]',pg).forEach(function(b){ b.onclick=function(){ meldAan=!meldAan; renderTabs(pg); }; });                       // R66
+    A('[data-a364-meldstat]',pg).forEach(function(b){ b.onclick=function(){ meldStat=b.getAttribute('data-a364-meldstat'); renderTabs(pg); }; }); // R66
     renderList();
   }
   function saveAndRefresh(){ try{ if(typeof save==='function') save(); else if(typeof saveState==='function') saveState(); }catch(e){} try{ if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase==='function') window.BNSFirebaseSync.uploadLocalToFirebase('archief-v364'); }catch(e){} }
