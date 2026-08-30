@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R71';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-30-R72';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -8502,9 +8502,13 @@ function removeMat(mid){
    wel bij de systeemmeldingen te staan, met zijn eigen tekst. */
 window.bnsTeltAlsSysteemmelding=function(a){
   if(!a || a.resolved) return false;
-  var t=(String(a.type||'')+' '+String(a.title||'')+' '+String(a.kind||'')).toLowerCase();
-  if(/vermis/.test(t)) return true;              // ook "Vermissing sleutel"
-  if(/sleutel/.test(t)) return false;            // gewone sleutelafgifte: niet melden
+  /* R72: ook hier telt de tekst mee. "Geen sleutel" of "sleutel mist" hoort bij
+     de systeemmeldingen; een sleutel die netjes is afgegeven niet. */
+  var t=(String(a.type||'')+' '+String(a.title||'')+' '+String(a.kind||'')+' '+
+         String(a.message||a.note||a.text||'')).toLowerCase();
+  var weg=/vermis|mist|kwijt|geen sleutel|niet terug|niet retour|zoek/.test(t);
+  if(weg) return true;
+  if(/sleutel/.test(t)) return false;
   return true;
 };
 function newNo(){
@@ -41296,9 +41300,15 @@ setTimeout(()=>{
      archief op Sleutels kunt drukken en meteen ziet waar een sleutel weg is,
      of op Schade en alle schademeldingen krijgt. */
   function meldRubriek(a){
-    var t=(String(a&&a.type||'')+' '+String(a&&a.title||'')+' '+String(a&&a.kind||'')).toLowerCase();
-    if(/vermis/.test(t) && /sleutel/.test(t)) return 'sleutelweg';
-    if(/sleutel/.test(t))                      return 'sleutel';
+    /* R72 (2026-08-30): de rubriek werd alleen uit de SOORT afgeleid. Een
+       bezorger die een algemene melding maakt met de tekst "Geen sleutel" kwam
+       daardoor in Overig terecht, terwijl het overduidelijk over een sleutel
+       gaat. Nu telt de tekst van de melding mee. */
+    var t=(String(a&&a.type||'')+' '+String(a&&a.title||'')+' '+String(a&&a.kind||'')+' '+
+           String(a&&(a.message||a.note||a.text)||'')).toLowerCase();
+    var weg=/vermis|mist|kwijt|geen sleutel|niet terug|niet retour|zoek/.test(t);
+    if(/sleutel/.test(t) && weg) return 'sleutelweg';
+    if(/sleutel/.test(t))        return 'sleutel';
     if(/schade/.test(t))                       return 'schade';
     if(/storing|defect/.test(t))               return 'storing';
     if(/vermis/.test(t))                       return 'vermissing';
@@ -56075,4 +56085,64 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
   };
   try{ console.info('[BNS R60] Terugkeerwacht actief - het wijzigscherm blijft open na een uitstapje.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R72 — Teller Systeemmeldingen blijft bijgewerkt
+   ----------------------------------------------------------
+   De knop "Systeemmeldingen (n)" wordt maar op een paar momenten opnieuw
+   berekend: bij het opstarten en na een volledige hertekening. Komen er
+   meldingen van een bezorgerstelefoon binnen nadat het scherm al is opgebouwd -
+   en dat is de normale gang van zaken, want die komen via Firebase binnen -
+   dan blijft de teller op het oude getal staan. Vandaar dat er (0) stond
+   terwijl er wel degelijk meldingen waren.
+
+   Deze module rekent de teller elke paar seconden opnieuw uit. Ze verandert
+   niets aan de meldingen zelf en tekent het scherm niet opnieuw; ze zet alleen
+   de tekst van die ene knop goed.
+========================================================== */
+(function bnsR72Meldingteller(){
+  'use strict';
+  if(window.__BNS_R72__) return;
+  window.__BNS_R72__=true;
+
+  var laatste=-1;
+
+  function telling(){
+    try{
+      var s=(typeof state!=='undefined'&&state)||window.state;
+      if(!s || !Array.isArray(s.alerts)) return -1;
+      if(typeof window.bnsTeltAlsSysteemmelding!=='function') return -1;
+      return s.alerts.filter(window.bnsTeltAlsSysteemmelding).length;
+    }catch(e){ return -1; }
+  }
+
+  function bij(){
+    try{
+      var n=telling();
+      if(n<0 || n===laatste) return;
+      var btn=document.getElementById('alertsBtn');
+      if(!btn) return;
+      btn.textContent = n ? '🚨 Systeemmeldingen ('+n+')' : 'Systeemmeldingen (0)';
+      try{ btn.classList.toggle('alarm-red', n>0); }catch(e){}
+      laatste=n;
+    }catch(e){}
+  }
+
+  setInterval(bij, 3000);
+  setTimeout(bij, 1500);
+  document.addEventListener('bns:firebase-updated', bij);
+
+  window.BNS_R72={
+    telling:telling,
+    nuBijwerken:function(){ laatste=-1; bij(); return telling(); },
+    openstaand:function(){
+      try{
+        var s=(typeof state!=='undefined'&&state)||window.state;
+        return (s.alerts||[]).filter(window.bnsTeltAlsSysteemmelding)
+          .map(function(a){ return (a.type||'')+' | '+(a.orderNumber||'')+' | '+String(a.message||a.note||'').slice(0,40); });
+      }catch(e){ return []; }
+    }
+  };
+  try{ console.info('[BNS R72] Teller systeemmeldingen wordt bijgehouden.'); }catch(e){}
 })();
