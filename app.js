@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R69';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R70';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -41275,8 +41275,31 @@ setTimeout(()=>{
     if(String(a.photoData||a.data||a.imageData||'').length>200) return false;
     return !!String(a.message||a.note||'').trim();
   }
+  /* R70 (2026-08-27): elke melding in een duidelijke rubriek, zodat je in het
+     archief op Sleutels kunt drukken en meteen ziet waar een sleutel weg is,
+     of op Schade en alle schademeldingen krijgt. */
+  function meldRubriek(a){
+    var t=(String(a&&a.type||'')+' '+String(a&&a.title||'')+' '+String(a&&a.kind||'')).toLowerCase();
+    if(/vermis/.test(t) && /sleutel/.test(t)) return 'sleutelweg';
+    if(/sleutel/.test(t))                      return 'sleutel';
+    if(/schade/.test(t))                       return 'schade';
+    if(/storing|defect/.test(t))               return 'storing';
+    if(/vermis/.test(t))                       return 'vermissing';
+    return 'overig';
+  }
+  var RUBRIEKEN=[
+    ['alle','Alles','#0f172a'],
+    ['sleutelweg','Sleutel weg','#b91c1c'],
+    ['sleutel','Sleutels','#c2410c'],
+    ['schade','Schade','#dc2626'],
+    ['storing','Storing','#7c3aed'],
+    ['vermissing','Vermissing','#0369a1'],
+    ['overig','Overig','#475569']
+  ];
+  var meldRub='alle';
   function alertsGefilterd(o){
     var l=alertsFor(o).filter(isEchteMelding);
+    if(meldRub!=='alle') l=l.filter(function(a){ return meldRubriek(a)===meldRub; });
     if(meldStat==='lopend')   return l.filter(function(a){ return !a.resolved; });
     if(meldStat==='opgelost') return l.filter(function(a){ return !!a.resolved; });
     return l;
@@ -41342,6 +41365,8 @@ setTimeout(()=>{
           l.map(function(a){
             var wie=meldWie(a), tk=meldTekst(a);
             return '<div style="background:'+(a.resolved?'#f0fdf4':'#fef2f2')+';border-left:4px solid '+(a.resolved?'#16a34a':'#dc2626')+';padding:8px 10px;border-radius:8px;margin-bottom:6px">'+
+              (function(){ var r=meldRubriek(a); var d=RUBRIEKEN.filter(function(x){return x[0]===r;})[0]||RUBRIEKEN[6];
+                return '<span style="display:inline-block;background:'+d[2]+';color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:900;margin-bottom:4px">'+d[1]+'</span><br>'; })()+
               '<div style="font-weight:900;font-size:13px">'+esc(meldSoort(a))+'</div>'+
               (tk?'<div style="font-size:13px;margin-top:2px">'+esc(tk)+'</div>':'')+
               /* R69: heeft de bezorger hem opgelost met een toelichting, dan tonen
@@ -41384,6 +41409,17 @@ setTimeout(()=>{
          dus eerst bv. Uitgevoerd aanklikken en dan hier op Meldingen. */
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'+
         '<button data-a364-meld="1" style="border:0;border-radius:13px;padding:10px 16px;font-weight:900;cursor:pointer;background:'+(meldAan?'#c2410c':'#e2e8f0')+';color:'+(meldAan?'#fff':'#0f172a')+'">Meldingen ('+meldTeller(tab)+')</button>'+
+        (meldAan ? RUBRIEKEN.map(function(r){          // R70: soort-rubrieken
+          var act=meldRub===r[0];
+          var n=orders().filter(function(o){ return bucket(o)===tab; })
+                        .reduce(function(t,o){ return t + alertsFor(o).filter(isEchteMelding).filter(function(a){
+                          if(r[0]!=='alle' && meldRubriek(a)!==r[0]) return false;
+                          if(meldStat==='lopend') return !a.resolved;
+                          if(meldStat==='opgelost') return !!a.resolved;
+                          return true; }).length; },0);
+          if(r[0]!=='alle' && !n) return '';
+          return '<button data-a364-meldrub="'+r[0]+'" style="border:0;border-radius:10px;padding:8px 13px;font-weight:900;cursor:pointer;background:'+(act?r[2]:'#e2e8f0')+';color:'+(act?'#fff':'#0f172a')+'">'+r[1]+' ('+n+')</button>';
+        }).join('') : '')+
         (meldAan ? ['lopend','opgelost','alle'].map(function(st){
           var act=meldStat===st;
           var lbl=st==='lopend'?'Lopend':st==='opgelost'?'Opgelost':'Alles';
@@ -41399,6 +41435,7 @@ setTimeout(()=>{
     A('[data-a364-yr]',pg).forEach(function(b){ b.onclick=function(){ year=b.getAttribute('data-a364-yr')||null; renderTabs(pg); }; });
     A('[data-a364-meld]',pg).forEach(function(b){ b.onclick=function(){ meldAan=!meldAan; renderTabs(pg); }; });                       // R66
     A('[data-a364-meldstat]',pg).forEach(function(b){ b.onclick=function(){ meldStat=b.getAttribute('data-a364-meldstat'); renderTabs(pg); }; }); // R66
+    A('[data-a364-meldrub]',pg).forEach(function(b){ b.onclick=function(){ meldRub=b.getAttribute('data-a364-meldrub'); renderTabs(pg); }; });     // R70
     renderList();
   }
   function saveAndRefresh(){ try{ if(typeof save==='function') save(); else if(typeof saveState==='function') saveState(); }catch(e){} try{ if(window.BNSFirebaseSync && typeof window.BNSFirebaseSync.uploadLocalToFirebase==='function') window.BNSFirebaseSync.uploadLocalToFirebase('archief-v364'); }catch(e){} }
