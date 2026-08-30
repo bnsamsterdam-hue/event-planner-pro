@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-27-R8';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-30-R9';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -154,7 +154,33 @@ async function updateOrder(o, alleenVelden){
 async function addAlert(a){
   const id=a.id||("a_"+Math.random().toString(36).slice(2,10));
   a.id=id;
-  await BNS.firebase.setDoc(BNS.firebase.doc(BNS.db,"alerts",id),a,{merge:true});
+  /* DRV-R9 (2026-08-30): een melding kon "verstuurd" melden terwijl hij nooit
+     bij Firebase aankwam. Dat kan als de schrijfwachtrij vol zit of het bereik
+     wegvalt: de opdracht wordt dan lokaal aangenomen en verdwijnt daarna stil.
+     Nu wordt de melding na het wegschrijven TERUGGELEZEN. Lukt dat niet, dan
+     volgt een tweede poging, en pas als ook die mislukt krijgt de bezorger een
+     duidelijke foutmelding in plaats van een groen vinkje. Zo weet hij dat hij
+     het opnieuw moet doen zodra hij weer bereik heeft. */
+  const ref=BNS.firebase.doc(BNS.db,"alerts",id);
+  async function schrijfEnControleer(){
+    await BNS.firebase.setDoc(ref,a,{merge:true});
+    if(typeof BNS.firebase.getDoc==="function"){
+      const snap=await BNS.firebase.getDoc(ref);
+      if(!snap || !(snap.exists && snap.exists())) throw new Error("melding niet teruggevonden in Firebase");
+    }
+  }
+  try{
+    await schrijfEnControleer();
+  }catch(e1){
+    try{
+      await new Promise(r=>setTimeout(r,1200));
+      await schrijfEnControleer();
+    }catch(e2){
+      toast("LET OP: melding NIET verstuurd. Probeer opnieuw met internet.");
+      try{ console.warn("[BNS DRV R9] melding niet opgeslagen:", e2 && e2.message); }catch(_){}
+      throw e2;
+    }
+  }
   BNS.state.alerts = Array.isArray(BNS.state.alerts) ? BNS.state.alerts : [];
   const ix = BNS.state.alerts.findIndex(x => String(x.id) === String(id));
   if(ix >= 0) BNS.state.alerts[ix] = a; else BNS.state.alerts.unshift(a);
