@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R70';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R71';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -8496,6 +8496,17 @@ function removeMat(mid){
   renderMaterials(currentCat);
   summaryRender();
 }
+/* R71 (2026-08-27): een sleutel die netjes is afgegeven is geen systeemmelding -
+   dat is gewoon een aantekening bij de opdracht. Pas als de bezorger bij het
+   ophalen op "Sleutel mist" drukt, wordt het een Vermissing sleutel en hoort hij
+   wel bij de systeemmeldingen te staan, met zijn eigen tekst. */
+window.bnsTeltAlsSysteemmelding=function(a){
+  if(!a || a.resolved) return false;
+  var t=(String(a.type||'')+' '+String(a.title||'')+' '+String(a.kind||'')).toLowerCase();
+  if(/vermis/.test(t)) return true;              // ook "Vermissing sleutel"
+  if(/sleutel/.test(t)) return false;            // gewone sleutelafgifte: niet melden
+  return true;
+};
 function newNo(){
   let y=new Date().getFullYear();
   let nums=state.orders.map(o=>String(o.number||'').match(new RegExp('^'+y+'-(\\d+)$'))).filter(Boolean).map(m=>+m[1]);
@@ -8764,7 +8775,7 @@ function renderAll(){
   }catch(e){ try{renderOrders();}catch(e2){} }
   renderDriver();
   orderDriver.innerHTML='<option value="">Geen</option>'+state.users.filter(u=>u.role==='Bezorger').map(u=>`<option>${u.name}</option>`).join('');
-  alertsBtn.textContent='Systeemmeldingen ('+state.alerts.filter(a=>!a.resolved).length+')';
+  alertsBtn.textContent='Systeemmeldingen ('+state.alerts.filter(window.bnsTeltAlsSysteemmelding).length+')';   // R71
   summaryRender()
 }
 function bindAdmin(){
@@ -9002,7 +9013,7 @@ function saveDashboardOrderV91(){
   save();
 }
 function renderAlarmV91(){
-  const open=(state.alerts||[]).filter(a=>!a.resolved);
+  const open=(state.alerts||[]).filter(window.bnsTeltAlsSysteemmelding);   // R71
   const btn=document.getElementById('alertsBtn');
   if(!btn) return;
   btn.textContent = open.length ? `🚨 Systeemmeldingen (${open.length})` : 'Systeemmeldingen (0)';
@@ -14848,6 +14859,12 @@ setTimeout(()=>{
   }
   function isDamageAlert(alertItem){
     var type = alertType(alertItem);
+    /* R71: "Vermissing sleutel" viel hier buiten omdat er op een exacte naam
+       werd vergeleken. Nu telt elke vermissing mee, ook die van een sleutel.
+       Een gewone sleutelafgifte blijft er bewust buiten. */
+    var t = String(type||'').toLowerCase();
+    if(/vermis/.test(t)) return true;
+    if(/sleutel/.test(t)) return false;
     return type === "Storing" || type === "Schade" || type === "Vermissing";
   }
   function getMode(){
