@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R63';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-27-R64';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -17780,7 +17780,14 @@ setTimeout(()=>{
     '<small>Materialen: '+esc((o.materials||[]).map(function(m){
       return m.code||m.name||'';
     }).join(', '))+'</small></div>'+
-    '<div class="bns-v126-card-actions"><button class="edit" type="button" onclick="editOrder(\''+esc(o.id)+'\')">Open</button><button class="delete" type="button" onclick="BNS_V126_DELETE_ORDER(\''+esc(o.id)+'\')">Wis opdracht</button></div>'+
+    /* R64 (2026-08-27): in het archief kon je alleen "Open" (het wijzigformulier)
+       en "Wis". Foto's en meldingen zitten in het venster "Overzicht bestelling",
+       en dat was vanuit het archief nergens meer te bereiken - een schademelding
+       bij een uitgevoerde opdracht was dus niet meer terug te vinden.
+       Deze knop heet bewust exact "Overzicht bestelling": de bestaande module
+       herkent die tekst en opent er hetzelfde venster mee als elders in de app.
+       Het opdrachtnummer staat al in de kaart, dus hij vindt de juiste opdracht. */
+    '<div class="bns-v126-card-actions"><button class="edit" type="button" onclick="editOrder(\''+esc(o.id)+'\')">Open</button><button type="button" class="bns-v126-overzicht">Overzicht bestelling</button><button class="delete" type="button" onclick="BNS_V126_DELETE_ORDER(\''+esc(o.id)+'\')">Wis opdracht</button></div>'+
     '</div>';
   }
   function archiveBuckets(){
