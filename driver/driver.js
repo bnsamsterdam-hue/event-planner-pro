@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-27-R7';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-27-R8';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -179,17 +179,39 @@ function loginWithFilter(f,key,after){
   BNS.user=found;
   sessionStorage.setItem(key,found.id);
   try{localStorage.setItem(LOCKED_USER_KEY, found.id);}catch(e){}
+  /* DRV-R8 (2026-08-27): de aanmelding stond alleen in sessionStorage, en die
+     wordt door de telefoon gewist zodra de app even naar de achtergrond gaat of
+     wordt afgesloten. Vandaar dat de bezorger telkens opnieuw zijn PIN moest
+     intoetsen. Nu wordt de aanmelding ook met een tijdstempel bewaard, zodat
+     hij een werkdag lang meegaat en de PIN nog maar een keer per dag nodig is. */
+  try{ localStorage.setItem(DAG_SESSIE_KEY, JSON.stringify({id:found.id, ts:Date.now()})); }catch(e){}
   $("loginPin").value="";
   after();
 }
+function dagSessieGeldig(){
+  try{
+    var raw=localStorage.getItem(DAG_SESSIE_KEY);
+    if(!raw) return "";
+    var d=JSON.parse(raw);
+    if(!d || !d.id || !d.ts) return "";
+    if(Date.now()-Number(d.ts) > DAG_SESSIE_UREN*3600*1000) return "";   // verlopen
+    return String(d.id);
+  }catch(e){ return ""; }
+}
 function restoreSession(f,key,after){
-  const id=sessionStorage.getItem(key);
+  var id=sessionStorage.getItem(key) || dagSessieGeldig();
   if(!id)return;
   const found=(BNS.state.users||[]).find(u=>String(u.id)===String(id));
-  if(found&&f(found)){BNS.user=found;after()}
+  if(found&&f(found)){
+    BNS.user=found;
+    try{ sessionStorage.setItem(key,found.id); }catch(e){}   // ook deze sessie weer vullen
+    after();
+  }
 }
 
 const SESSION_KEY="tapwagen_driver_user_id_v143";
+const DAG_SESSIE_KEY="tapwagen_driver_dagsessie_v1";   // DRV-R8
+const DAG_SESSIE_UREN=18;                              // een werkdag; daarna weer PIN
 const LOCKED_USER_KEY="tapwagen_driver_locked_user_id";
 let CURRENT_DETAIL_ID="";
 
@@ -1069,7 +1091,7 @@ async function boot(){
     populateUsers(userAllowed);
     $("loginBtn").onclick=()=>loginWithFilter(userAllowed,SESSION_KEY,showApp);
     $("loginPin").addEventListener("keydown",e=>{if(e.key==="Enter")loginWithFilter(userAllowed,SESSION_KEY,showApp)});
-    $("logoutBtn").onclick=()=>{sessionStorage.removeItem(SESSION_KEY);location.reload()};
+    $("logoutBtn").onclick=()=>{sessionStorage.removeItem(SESSION_KEY);try{localStorage.removeItem(DAG_SESSIE_KEY);}catch(e){}location.reload()};   // DRV-R8: uitloggen wist ook de dagsessie
    $("refreshBtn").onclick=async()=>{
   await loadPhoneData();
 
@@ -1214,7 +1236,7 @@ boot();
         try{ loadUsersOnly().then(function(){
           if(BNS.user){
             var fresh=(BNS.state.users||[]).find(function(u){return String(u.id)===String(BNS.user.id);});
-            if(!fresh || fresh.active===false || fresh.deleted===true || fresh.disabled===true){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} location.reload(); return; }
+            if(!fresh || fresh.active===false || fresh.deleted===true || fresh.disabled===true){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} try{ localStorage.removeItem(DAG_SESSIE_KEY); }catch(e){} location.reload(); return; }
             BNS.user=fresh;
           }
           try{ render(); }catch(e){}
