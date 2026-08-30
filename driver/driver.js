@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-27-R5';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-27-R6';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -578,8 +578,105 @@ async function openReportChoice(order){
   const opts=[];
   if(canReport()) opts.push({value:"Melding",label:"Algemene melding",cls:"btn-orange"});
   if(canDamage()) opts.push({value:"Schade",label:"Schade",cls:"btn-red"},{value:"Storing",label:"Storing",cls:"btn-purple"});
+  /* DRV-R6 (2026-08-27): sleutels apart, want dat is het probleem dat het vaakst
+     terugkomt - sleutels die niet retour zijn. En een knop om een melding weer
+     op te lossen, zodat de planner ziet dat het geregeld is. */
+  opts.push({value:"Sleutels",label:"Sleutels afgeven",cls:"btn-dark"});
+  if(openMeldingenVoor(order).length) opts.push({value:"Opgelost",label:"Melding oplossen",cls:"btn-green"});
   const type=await askChoice("Melding maken",opts);
+  if(type==="Sleutels") return sendSleutels(order);
+  if(type==="Opgelost") return losMeldingOp(order);
   if(type) await sendReport(order,type);
+}
+
+/* De openstaande meldingen van deze opdracht - de bezorger mag die van zijn
+   eigen klanten inzien en oplossen. */
+function openMeldingenVoor(order){
+  const list=(BNS.state && Array.isArray(BNS.state.alerts)) ? BNS.state.alerts : [];
+  const oid=String(order&&order.id||""), onr=String(order&&order.number||"");
+  return list.filter(a=>{
+    if(!a || a.resolved) return false;
+    const ai=String(a.orderId||""), an=String(a.orderNumber||"");
+    return (oid&&(ai===oid||an===oid)) || (onr&&(ai===onr||an===onr));
+  });
+}
+
+/* Sleutelformulier: aantal + waar ze gebleven zijn + eigen tekst. */
+function askSleutels(){
+  return new Promise(resolve=>{
+    const wrap=document.createElement("div");
+    wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:14px";
+    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35);max-height:88vh;overflow:auto">
+      <h2 style="margin:0 0 10px;font-size:19px">Sleutels afgeven</h2>
+      <label style="display:block;font-weight:800;margin-bottom:4px">Aantal sleutels</label>
+      <input id="twSlAantal" type="number" min="0" step="1" value="1" style="width:100%;padding:12px;border:2px solid #cbd5e1;border-radius:12px;font-size:17px;margin-bottom:12px">
+      <label style="display:block;font-weight:800;margin-bottom:6px">Waar zijn ze gebleven?</label>
+      <label style="display:flex;gap:9px;align-items:center;padding:9px;border:2px solid #e2e8f0;border-radius:12px;margin-bottom:7px;font-size:15px"><input type="radio" name="twSlWaar" value="Aan klant afgegeven" checked> Aan klant afgegeven</label>
+      <label style="display:flex;gap:9px;align-items:center;padding:9px;border:2px solid #e2e8f0;border-radius:12px;margin-bottom:7px;font-size:15px"><input type="radio" name="twSlWaar" value="In brievenbus gestopt"> In brievenbus gestopt</label>
+      <label style="display:flex;gap:9px;align-items:center;padding:9px;border:2px solid #e2e8f0;border-radius:12px;margin-bottom:7px;font-size:15px"><input type="radio" name="twSlWaar" value="In spoelbak gelegd"> In spoelbak gelegd</label>
+      <label style="display:flex;gap:9px;align-items:center;padding:9px;border:2px solid #e2e8f0;border-radius:12px;margin-bottom:10px;font-size:15px"><input type="radio" name="twSlWaar" value="Anders"> Anders / eigen tekst</label>
+      <label style="display:block;font-weight:800;margin-bottom:4px">Toelichting</label>
+      <textarea id="twSlTekst" rows="3" placeholder="Bijvoorbeeld: bij de buurman afgegeven" style="width:100%;padding:12px;border:2px solid #cbd5e1;border-radius:12px;font-size:16px;margin-bottom:14px"></textarea>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button type="button" id="twSlAnnuleer" style="padding:14px;border:0;border-radius:12px;background:#475569;color:#fff;font-weight:900;font-size:16px">Annuleren</button>
+        <button type="button" id="twSlOk" style="padding:14px;border:0;border-radius:12px;background:#16a34a;color:#fff;font-weight:900;font-size:16px">Versturen</button>
+      </div></div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelector("#twSlAnnuleer").onclick=()=>{wrap.remove();resolve(null);};
+    wrap.querySelector("#twSlOk").onclick=()=>{
+      const aantal=String(wrap.querySelector("#twSlAantal").value||"0");
+      const waarEl=wrap.querySelector('input[name="twSlWaar"]:checked');
+      const waar=waarEl?waarEl.value:"";
+      const tekst=clean(wrap.querySelector("#twSlTekst").value||"");
+      wrap.remove();
+      resolve({aantal:aantal, waar:waar, tekst:tekst});
+    };
+  });
+}
+
+async function sendSleutels(order){
+  const r=await askSleutels();
+  if(!r) return;
+  if(r.waar==="Anders" && !r.tekst){ toast("Vul een toelichting in."); return; }
+  const omschrijving = r.aantal+" sleutel(s) - "+(r.waar==="Anders"?r.tekst:r.waar)+(r.waar!=="Anders"&&r.tekst?" ("+r.tekst+")":"");
+  const label="Sleutels";
+  const aid="alert_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
+  await addAlert({
+    id:aid, source:"driver", portal:"driver", fromDriver:true, fromPhone:true,
+    orderId:order.id||"", orderNumber:order.number||"",
+    linkedOrder:order.id||"", linkedOrderNumber:order.number||"",
+    orderTitle:order.title||"", customerName:customerName(order)||"",
+    driverName:BNS.user.name||"",
+    title:label+(order.number?" - "+order.number:""),
+    type:label, kind:label, category:label, reportType:label, alertType:label,
+    sleutelAantal:r.aantal, sleutelWaar:r.waar,
+    text:omschrijving, note:omschrijving, message:omschrijving, description:omschrijving,
+    resolved:false, done:false, hidden:false, admin:true, visibleInPlanner:true,
+    createdAt:new Date().toISOString(), time:new Date().toLocaleString("nl-NL"),
+    from:BNS.user.name||"", userId:BNS.user.id||""
+  });
+  toast("Sleutelmelding verstuurd voor opdracht "+(order.number||""));
+}
+
+/* Melding oplossen: kies er een, geef een eigen tekst, en de planner ziet hem
+   als opgelost met die toelichting erbij. */
+async function losMeldingOp(order){
+  const open=openMeldingenVoor(order);
+  if(!open.length){ toast("Geen openstaande meldingen."); return; }
+  const opts=open.map(a=>({value:String(a.id),label:clean(a.title||a.type||"Melding")+(a.message?" - "+clean(String(a.message)).slice(0,40):""),cls:"btn-dark"}));
+  const keuze=await askChoice("Welke melding is opgelost?",opts);
+  if(!keuze) return;
+  const a=open.filter(x=>String(x.id)===String(keuze))[0];
+  if(!a) return;
+  const tekst=await askText("Melding oplossen","Wat is er gebeurd? (bijvoorbeeld: sleutel is terug)");
+  if(!tekst) return;
+  a.resolved=true;
+  a.resolvedAt=new Date().toISOString();
+  a.resolvedBy=BNS.user.name||"";
+  a.resolvedNote=tekst;
+  a.oplossing=tekst;
+  await addAlert(a);
+  toast("Melding gemeld als opgelost");
 }
 async function openPhotoChoice(order){
   const opts=[];
