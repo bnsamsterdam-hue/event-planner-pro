@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-27-R6';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-27-R7';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -563,12 +563,12 @@ function askConfirm(title, text){
 }
 function canQuote(){return canPrices() && (hasAnyRight(["invoice","factuur","offerte","quote","offer","orders"])||lower(BNS.user.role)==="admin")}
 function money(v){const n=Number(String(v||0).replace(',','.'));return Number.isFinite(n)&&n?('€ '+n.toFixed(2).replace('.',',')):clean(v||'')}
-function askChoice(title, options){
+function askChoice(title, options, subtitel){   // DRV-R7: subtitel toont wat er eerder is gemeld
   return new Promise(resolve=>{
     const wrap=document.createElement("div");
     wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:16px";
     const rows=(options||[]).map(opt=>`<button type="button" class="${esc(opt.cls||'btn-dark')}" data-choice="${esc(opt.value)}" style="width:100%;margin:6px 0">${esc(opt.label||opt.value)}</button>`).join("");
-    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35)"><h2 style="margin-top:0">${esc(title)}</h2>${rows}<button type="button" id="twChoiceCancel" class="btn-dark" style="width:100%;margin-top:10px">Annuleren</button></div>`;
+    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35)"><h2 style="margin-top:0">${esc(title)}</h2>${subtitel?`<div style="background:#f1f5f9;border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:14px;white-space:pre-line">${esc(subtitel)}</div>`:""}${rows}<button type="button" id="twChoiceCancel" class="btn-dark" style="width:100%;margin-top:10px">Annuleren</button></div>`;
     document.body.appendChild(wrap);
     qsa("[data-choice]",wrap).forEach(b=>b.onclick=()=>{const v=b.dataset.choice;wrap.remove();resolve(v)});
     wrap.querySelector("#twChoiceCancel").onclick=()=>{wrap.remove();resolve("")};
@@ -634,7 +634,68 @@ function askSleutels(){
   });
 }
 
+/* De laatste openstaande sleutelmelding van deze opdracht - zo weet de app bij
+   het ophalen nog wat er bij het brengen is ingevuld. */
+function laatsteSleutelmelding(order){
+  return openMeldingenVoor(order).filter(a=>{
+    const t=(String(a.type||"")+" "+String(a.title||"")).toLowerCase();
+    return t.indexOf("sleutel")>=0;
+  }).sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")))[0]||null;
+}
+
+/* DRV-R7 (2026-08-27): bij het OPHALEN moet de bezorger kunnen zeggen of de
+   sleutel er weer is. Staat er al een sleutelmelding open, dan tonen we eerst
+   wat hij bij het brengen heeft ingevuld, met drie keuzes:
+     - Sleutel is terug  -> melding gaat op opgelost
+     - Sleutel mist      -> melding wordt Vermissing sleutel voor de planner
+     - Nieuwe sleutelmelding -> het gewone formulier
+   Is de sleutel er gewoon, dan hoeft hij niets te doen. */
 async function sendSleutels(order){
+  const oud=laatsteSleutelmelding(order);
+  if(oud){
+    const wat=clean(String(oud.message||oud.text||""));
+    const wanneer=String(oud.time||oud.createdAt||"").slice(0,16);
+    const keuze=await askChoice(
+      "Sleutels - eerder gemeld",
+      [
+        {value:"terug", label:"Sleutel is terug", cls:"btn-green"},
+        {value:"mist",  label:"Sleutel mist",     cls:"btn-red"},
+        {value:"nieuw", label:"Nieuwe sleutelmelding", cls:"btn-dark"}
+      ],
+      (wat?wat:"Sleutelmelding")+(wanneer?"\n"+wanneer:"")
+    );
+    if(!keuze) return;
+    if(keuze==="terug"){
+      const tekst=await askText("Sleutel is terug","Toelichting (mag leeg blijven)");
+      oud.resolved=true;
+      oud.resolvedAt=new Date().toISOString();
+      oud.resolvedBy=BNS.user.name||"";
+      oud.resolvedNote=clean(tekst)||"Sleutel terug ontvangen";
+      oud.oplossing=oud.resolvedNote;
+      await addAlert(oud);
+      toast("Sleutel gemeld als terug");
+      return;
+    }
+    if(keuze==="mist"){
+      const tekst=await askText("Sleutel mist","Wat is er aan de hand?");
+      if(!tekst) return;
+      const eerder=clean(String(oud.message||oud.text||""));
+      const nieuwTekst="SLEUTEL MIST bij ophalen. "+clean(tekst)+(eerder?" (bij brengen: "+eerder+")":"");
+      oud.type="Vermissing sleutel";
+      oud.kind="Vermissing sleutel";
+      oud.category="Vermissing sleutel";
+      oud.reportType="Vermissing sleutel";
+      oud.alertType="Vermissing sleutel";
+      oud.title="Vermissing sleutel"+(order.number?" - "+order.number:"");
+      oud.text=nieuwTekst; oud.note=nieuwTekst; oud.message=nieuwTekst; oud.description=nieuwTekst;
+      oud.resolved=false;
+      oud.sleutelMistSinds=new Date().toISOString();
+      oud.gemeldDoor=BNS.user.name||"";
+      await addAlert(oud);
+      toast("Vermissing sleutel doorgegeven aan de planning");
+      return;
+    }
+  }
   const r=await askSleutels();
   if(!r) return;
   if(r.waar==="Anders" && !r.tekst){ toast("Vul een toelichting in."); return; }
