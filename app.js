@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-02-R78';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-02-R79';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -52352,7 +52352,13 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!o){ alert('Opdracht niet gevonden'); return false; }
     closeChoice();
     var m=document.createElement('div'); m.id='bns653ChoiceModal';
-    m.innerHTML='<div class="p"><h2>Wat wil je openen?</h2><div class="sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><button class="blue" id="bns653OpenOverview">Overzicht bestelling</button><button class="orange" id="bns653OpenConfirm">Opdracht document</button><button class="green" id="bns653OpenInvoice">Factuur bekijken</button><button class="grey" id="bns653Cancel">Terug</button></div>';
+    /* R79 (2026-09-02): de betaalknop hoort hier, in het keuzemenu zelf -
+   dan hoef je het overzicht niet eerst te openen om een factuur af te
+   vinken. Hij draagt dezelfde gegevens als de knop op de kaart, dus de
+   afhandeling van R75 pikt hem op en alles loopt nog steeds via de
+   boekhoudfunctie. */
+    var bnsBetaald = !!(o.paid || o.betaald || (o.invoice && o.invoice.paid) || String(o.paymentStatus||'')==='paid');
+    m.innerHTML='<div class="p"><h2>Wat wil je openen?</h2><div class="sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><button class="blue" id="bns653OpenOverview">Overzicht bestelling</button><button class="orange" id="bns653OpenConfirm">Opdracht document</button><button class="green" id="bns653OpenInvoice">Factuur bekijken</button>'+'<button style="background:'+(bnsBetaald?'#475569':'#16a34a')+';color:#fff" data-tw-betaal="'+H(String(o.id||o.number||''))+'" data-tw-naar="'+(bnsBetaald?'open':'paid')+'">'+(bnsBetaald?'Betaald - terugzetten op openstaand':'Zet op betaald')+'</button>'+'<button class="grey" id="bns653Cancel">Terug</button></div>';
     document.body.appendChild(m);
     m.addEventListener('click',function(ev){ if(ev.target===m) closeChoice(); });
     E('bns653Cancel').onclick=closeChoice;
@@ -52509,7 +52515,13 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!o){ alert('Opdracht niet gevonden voor overzicht/document.'); return false; }
     closeChoice();
     var m=document.createElement('div'); m.id='bns654ChoiceModal';
-    m.innerHTML='<div class="p"><h2>Wat wil je openen?</h2><div class="sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><button class="blue" id="bns654OpenOverview">Overzicht bestelling</button><button class="orange" id="bns654OpenConfirm">Opdracht document</button><button class="green" id="bns654OpenInvoice">Factuur bekijken</button><button class="grey" id="bns654Cancel">Terug</button></div>';
+    /* R79 (2026-09-02): de betaalknop hoort hier, in het keuzemenu zelf -
+   dan hoef je het overzicht niet eerst te openen om een factuur af te
+   vinken. Hij draagt dezelfde gegevens als de knop op de kaart, dus de
+   afhandeling van R75 pikt hem op en alles loopt nog steeds via de
+   boekhoudfunctie. */
+    var bnsBetaald = !!(o.paid || o.betaald || (o.invoice && o.invoice.paid) || String(o.paymentStatus||'')==='paid');
+    m.innerHTML='<div class="p"><h2>Wat wil je openen?</h2><div class="sub"><b>'+H(orderNo(o))+'</b> - '+H(titleOf(o))+'</div><button class="blue" id="bns654OpenOverview">Overzicht bestelling</button><button class="orange" id="bns654OpenConfirm">Opdracht document</button><button class="green" id="bns654OpenInvoice">Factuur bekijken</button>'+'<button style="background:'+(bnsBetaald?'#475569':'#16a34a')+';color:#fff" data-tw-betaal="'+H(String(o.id||o.number||''))+'" data-tw-naar="'+(bnsBetaald?'open':'paid')+'">'+(bnsBetaald?'Betaald - terugzetten op openstaand':'Zet op betaald')+'</button>'+'<button class="grey" id="bns654Cancel">Terug</button></div>';
     document.body.appendChild(m);
     m.addEventListener('click',function(ev){ if(ev.target===m) closeChoice(); });
     E('bns654Cancel').onclick=closeChoice;
