@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-08-30-R73';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-02-R75';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -46628,6 +46628,21 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       '<div class="bns-v493-box"><b>Datum</b><br>'+H(niceDate(o.start))+(o.end&&o.end!==o.start?' tot '+H(niceDate(o.end)):'')+' '+H(o.startTime||'')+' '+H(o.endTime||'')+(d?'<br><b>Bezorger</b><br>'+H(d):'')+'</div>'+
       '<h3>Materialen / artikelen</h3><table class="bns-v493-table"><thead><tr><th>#</th><th>Code</th><th>Naam</th><th>Rubriek</th><th>Status</th><th>Prijs</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '<div class="bns-v493-total">Totaal: '+money(total)+' &nbsp; | &nbsp; Borg: '+money(deposit)+'</div>'+
+      /* R75 (2026-09-02): betaald zetten kon alleen via Boekhouding, terwijl je
+         hier al naar de bedragen kijkt. Deze knop roept exact dezelfde functie
+         aan als de boekhouding (TW300_AU_setPaid), zodat er nooit twee
+         waarheden ontstaan: de factuurregel, de betaalregel en de opdracht
+         worden in een keer bijgewerkt en meteen naar Firebase gestuurd. */
+      (function(){
+        var betaald = !!(o.paid || o.betaald || (o.invoice && o.invoice.paid) || String(o.paymentStatus||'')==='paid');
+        var oid = H(String(o.id||o.number||''));
+        return '<div class="bns-v493-box" style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+          '<span style="font-weight:900">Factuur: '+(betaald?'<span style="color:#166534">Betaald</span>':'<span style="color:#b91c1c">Openstaand</span>')+'</span>'+
+          '<button type="button" data-tw-betaal="'+oid+'" data-tw-naar="'+(betaald?'open':'paid')+'" '+
+          'style="border:0;border-radius:10px;padding:9px 15px;font-weight:900;cursor:pointer;background:'+(betaald?'#475569':'#16a34a')+';color:#fff">'+
+          (betaald?'Terugzetten op openstaand':'Zet op betaald')+'</button>'+
+        '</div>';
+      })()+
       (o.extra?'<h3>Extra</h3><div class="bns-v493-box">'+H(o.extra)+'</div>':'')+
       /* R52-fix (2026-08-12): de knop stond in R51 in het BNS 821-venster, maar dat
          is niet het venster dat daadwerkelijk opengaat. De echte is deze (V493),
@@ -56155,4 +56170,78 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
   };
   try{ console.info('[BNS R72] Teller systeemmeldingen wordt bijgehouden.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R75 — Betaald zetten vanuit Overzicht bestelling
+   ----------------------------------------------------------
+   Tot nu toe kon een factuur alleen in Boekhouding op betaald worden gezet,
+   terwijl je in Overzicht bestelling al naar de bedragen kijkt. De knop staat
+   er nu ook daar.
+
+   Belangrijk: die knop doet het werk NIET zelf. Hij roept exact dezelfde
+   functie aan als de boekhouding (window.TW300_AU_setPaid). Die zet de opdracht
+   op betaald, werkt de factuurregel in de boekhouding bij, legt een betaalregel
+   vast en stuurt het naar Firebase. Zou deze knop zijn eigen versie daarvan
+   maken, dan krijg je vroeg of laat twee waarheden: hier betaald, in de
+   boekhouding niet. Daarom bewust doorgeven in plaats van nabouwen.
+
+   Na afloop wordt alleen het knopje zelf bijgewerkt - het venster wordt niet
+   opnieuw opgebouwd, zodat er niets kan gaan flikkeren.
+========================================================== */
+(function bnsR75BetaaldInOverzicht(){
+  'use strict';
+  if(window.__BNS_R75__) return;
+  window.__BNS_R75__=true;
+
+  document.addEventListener('click', function(ev){
+    var knop;
+    try{
+      var t=ev.target;
+      knop = t && t.closest ? t.closest('[data-tw-betaal]') : null;
+    }catch(e){ return; }
+    if(!knop) return;
+
+    ev.preventDefault();
+    ev.stopPropagation();
+
+    var id  = knop.getAttribute('data-tw-betaal');
+    var naar= knop.getAttribute('data-tw-naar')==='paid';
+    if(!id) return;
+
+    if(typeof window.TW300_AU_setPaid!=='function'){
+      try{ alert('De boekhouding is nog niet geladen. Probeer het over een paar tellen opnieuw.'); }catch(e){}
+      return;
+    }
+
+    if(!naar && !window.confirm('Deze factuur weer op OPENSTAAND zetten?')) return;
+
+    var oudeTekst=knop.textContent;
+    knop.disabled=true;
+    knop.textContent='Bezig...';
+    try{
+      window.TW300_AU_setPaid(id, naar);
+    }catch(e){
+      knop.disabled=false; knop.textContent=oudeTekst;
+      try{ alert('Het is niet gelukt om de betaalstatus te wijzigen.'); }catch(_){}
+      console.warn('[BNS R75] betaald zetten mislukt:', e);
+      return;
+    }
+
+    /* Alleen dit knopje bijwerken - niet het hele venster opnieuw opbouwen. */
+    setTimeout(function(){
+      knop.disabled=false;
+      knop.setAttribute('data-tw-naar', naar?'open':'paid');
+      knop.textContent = naar ? 'Terugzetten op openstaand' : 'Zet op betaald';
+      knop.style.background = naar ? '#475569' : '#16a34a';
+      try{
+        var blok=knop.parentElement;
+        var label=blok && blok.querySelector('span');
+        if(label) label.innerHTML='Factuur: '+(naar?'<span style="color:#166534">Betaald</span>':'<span style="color:#b91c1c">Openstaand</span>');
+      }catch(e){}
+      console.info('[BNS R75] Opdracht '+id+' staat nu op '+(naar?'betaald':'openstaand')+'.');
+    }, 350);
+  }, true);
+
+  try{ console.info('[BNS R75] Betaald zetten kan nu ook vanuit Overzicht bestelling.'); }catch(e){}
 })();
