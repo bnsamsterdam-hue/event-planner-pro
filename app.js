@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-02-R77';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-02-R78';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56273,4 +56273,84 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }, true);
 
   try{ console.info('[BNS R75] Betaald zetten kan nu ook vanuit Overzicht bestelling.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R78 — Lege restopdrachten uit het zicht
+   ----------------------------------------------------------
+   Er staan 23 opdrachten in de lijst zonder titel, klant, datum en materialen.
+   Het zijn de restanten van de storing van juni: destijds liep de browseropslag
+   vol en werden opdrachten teruggebracht tot een kaal omhulsel. De inhoud is
+   toen verloren gegaan en staat in geen enkele backup meer - ze zijn dus niet
+   te herstellen.
+
+   Omdat ze geen startdatum hebben, sorteren ze bovenaan en duwen ze je echte
+   opdrachten naar beneden. Deze module haalt ze uit het zicht.
+
+   Bewust GEEN verwijdering: er wordt alleen verborgen. De gegevens blijven in
+   Firebase staan, dus mocht er ooit iets van blijken te kloppen, dan is er
+   niets weg. Wil je ze echt opruimen, dan kan dat met de hand:
+
+       window.BNS_R78.lijst()                 - laat zien welke het zijn
+       window.BNS_R78.verwijderDefinitief()   - wist ze, met bevestiging
+
+   Een opdracht telt alleen als leeg wanneer titel, klant, datum EN materialen
+   allemaal ontbreken. Eentje met alleen een titel blijft dus gewoon staan.
+========================================================== */
+(function bnsR78LegeRestopdrachten(){
+  'use strict';
+  if(window.__BNS_R78__) return;
+  window.__BNS_R78__=true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function st(){ try{ if(typeof state!=='undefined'&&state) return state; }catch(e){} return window.state||null; }
+
+  function isLeeg(o){
+    if(!o) return false;
+    if(T(o.title)) return false;
+    if(T(o.customer && (o.customer.name||o.customer))) return false;
+    if(T(o.start)||T(o.end)) return false;
+    if(Array.isArray(o.materials) && o.materials.length) return false;
+    return true;
+  }
+  function lege(){
+    var s=st();
+    return (s && Array.isArray(s.orders) ? s.orders : []).filter(isLeeg);
+  }
+
+  function verbergen(){
+    try{
+      var nrs={};
+      lege().forEach(function(o){ if(T(o.number)) nrs[T(o.number)]=1; });
+      if(!Object.keys(nrs).length) return;
+      Array.prototype.slice.call(document.querySelectorAll('.order-card')).forEach(function(c){
+        if(c.__r78) return;
+        var m=(c.innerText||'').match(/20\d\d-\d{4}/);
+        if(m && nrs[m[0]]){ c.style.display='none'; c.__r78=true; }
+      });
+    }catch(e){}
+  }
+
+  setInterval(verbergen, 1200);
+  setTimeout(verbergen, 800);
+
+  window.BNS_R78={
+    aantal:function(){ return lege().length; },
+    lijst:function(){ return lege().map(function(o){ return o.number+' | '+String(o.updatedAt||o.createdAt||'?').slice(0,10); }); },
+    verwijderDefinitief:function(){
+      var l=lege();
+      if(!l.length) return 'niets te verwijderen';
+      if(!window.confirm('Definitief '+l.length+' lege opdracht(en) verwijderen?\n\nHet gaat om opdrachten zonder titel, klant, datum en materialen.\nDit kan niet ongedaan worden gemaakt.')) return 'afgebroken';
+      var s=st(); if(!s) return 'geen gegevens';
+      var ids=l.map(function(o){ return String(o.id); });
+      s.orders=s.orders.filter(function(o){ return ids.indexOf(String(o.id))<0; });
+      ids.forEach(function(id){
+        try{ if(window.BNS && typeof window.BNS.deleteDoc==='function') window.BNS.deleteDoc('orders', id); }catch(e){}
+      });
+      try{ if(typeof save==='function') save(); }catch(e){}
+      try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+      return l.length+' lege opdracht(en) verwijderd';
+    }
+  };
+  try{ console.info('[BNS R78] '+lege().length+' lege restopdracht(en) uit juni worden verborgen. window.BNS_R78.lijst() toont ze.'); }catch(e){}
 })();
