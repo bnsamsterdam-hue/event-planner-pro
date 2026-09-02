@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-02-R75';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-02-R77';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -35527,6 +35527,13 @@ setTimeout(()=>{
       card.querySelectorAll('.tw-au-order-paid').forEach(function(x){
         x.remove();
       });
+      /* R76 (2026-09-02): op de kaart stond "Openstaande factuur" TWEE keer. Er
+         zijn namelijk twee modules die dat label plaatsen: deze, en paidFix van
+         BNS 356 (met de klasse bns356-paid). Die laatste ruimt zijn eigen
+         dubbelen wel op, maar kent dit label niet, dus samen leverden ze er twee.
+         Staat er al een label van die andere module, dan hoeft deze niets meer
+         te doen - het toont immers precies hetzelfde. */
+      if(card.querySelector('.bns356-paid,.bns355-paid,.bns353-paid')) return;
       var text=card.textContent||'';
       var o=orders().find(function(x){
         var no=orderNo(x);
@@ -39323,6 +39330,28 @@ setTimeout(()=>{
     if(!el){var title=cardEl.querySelector('.order-title')||cardEl.querySelector('b')||cardEl.firstElementChild;if(!title||!title.parentNode)return;el=document.createElement('span');title.parentNode.insertBefore(el,title.nextSibling);} 
     el.className='bns356-paid '+(paid(o)?'paid':'');
     el.textContent=paid(o)?'☑ Betaald':'Openstaande factuur';
+    /* R77 (2026-09-02): de betaalknop stond alleen in het venster Overzicht
+       bestelling, waardoor je die eerst moest openen. Hier komt hij ook direct
+       op de kaart te staan, naast het label. Hij roept dezelfde functie aan als
+       de boekhouding (via de afhandeling van R75), dus er blijft een plek waar
+       het echt gebeurt. */
+    try{
+      if(typeof window.TW300_AU_setPaid==='function'){
+        var b=cardEl.querySelector('.bns356-paidbtn');
+        if(!b){
+          b=document.createElement('button');
+          b.type='button';
+          b.className='bns356-paidbtn';
+          b.style.cssText='border:0;border-radius:8px;padding:4px 10px;margin-left:8px;font-weight:900;font-size:12px;cursor:pointer';
+          if(el.parentNode) el.parentNode.insertBefore(b, el.nextSibling);
+        }
+        b.setAttribute('data-tw-betaal', String(o.id||o.number||''));
+        b.setAttribute('data-tw-naar', paid(o)?'open':'paid');
+        b.textContent = paid(o)?'Zet op openstaand':'Zet op betaald';
+        b.style.background = paid(o)?'#475569':'#16a34a';
+        b.style.color='#fff';
+      }
+    }catch(e){}
   }
   function overviewFix(cardEl,o){
     var all=A('.bns356-overview,.bns355-overview,.bns353-overview,.bns-order-overview-btn',cardEl);
