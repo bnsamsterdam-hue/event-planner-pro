@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R84';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R85';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -13874,10 +13874,19 @@ setTimeout(()=>{
       const button = document.createElement("button");
       button.type = "button";
       button.className = "bns-route-button bns-tool-green";
-      button.textContent = "Waze";
+      /* R85 (2026-09-04): dit is de knop die na het laden overblijft. Hij heette
+         nog Waze en gaf bovendien geen adres mee wanneer het adres niet uit de
+         kaart te lezen was. Nu heet hij Routenet en wordt er niets geopend als
+         er geen adres is - dan volgt een korte melding, in plaats van een lege
+         routeplanner. */
+      button.textContent = "Routenet";
       button.onclick = function(event){
         event.stopPropagation();
         const address = addressFromOrderCard(card) || niceAddressFromForm();
+        if(!String(address||'').trim()){
+          try{ alert('Bij deze opdracht staat geen adres, dus er valt geen route te plannen.'); }catch(e){}
+          return;
+        }
         openWaze(address);
       };
       card.appendChild(button);
