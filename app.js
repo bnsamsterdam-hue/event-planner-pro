@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R88';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R90';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56653,7 +56653,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   window.__BNS_R87__=true;
 
   var KEY='bns_voertuigen';
+  /* R89-fix (2026-09-04): de eerste opvraging gaf wel merk, model en soort, maar
+     geen brandstof en geen emissieklasse - die staan namelijk NIET in het
+     basisbestand van de RDW. Ze zitten in een tweede bestand, dat over de
+     brandstof gaat. Er worden nu dus twee opvragingen gedaan en samengevoegd.
+       m9d7-ebf2 = voertuigen  (merk, handelsbenaming, voertuigsoort)
+       8ys7-d773 = brandstof   (brandstof_omschrijving, emissiecode_omschrijving) */
   var RDW='https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken=';
+  var RDW_BRANDSTOF='https://opendata.rdw.nl/resource/8ys7-d773.json?kenteken=';
 
   function T(v){ return String(v==null?'':v).trim(); }
   /* De RDW kent alleen kentekens zonder streepjes, in hoofdletters. */
@@ -56693,26 +56700,32 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      het later opnieuw proberen. */
   function ophalen(kenteken){
     var k=sleutel(kenteken);
-    return fetch(RDW+encodeURIComponent(k))
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        var rij=(Array.isArray(d)&&d[0])||null;
-        var l=lees(), gevonden=false;
-        l.forEach(function(v){
-          if(sleutel(v.kenteken)!==k) return;
-          gevonden=true;
-          if(rij){
-            v.soort=T(rij.voertuigsoort);
-            v.brandstof=T(rij.brandstof_omschrijving||'');
-            v.euronorm=T(rij.emissieklasse||rij.uitstoot_deeltjes_licht||'');
-            v.merk=T(rij.merk); v.model=T(rij.handelsbenaming);
-            v.opgehaald=new Date().toISOString().slice(0,10);
-          }
-        });
-        if(gevonden) schrijf(l);
-        return rij ? (T(rij.merk)+' '+T(rij.handelsbenaming)+' - '+T(rij.voertuigsoort)) : 'kenteken niet gevonden bij de RDW';
-      })
-      .catch(function(e){ return 'ophalen mislukt: '+(e&&e.message||e); });
+    return Promise.all([
+      fetch(RDW+encodeURIComponent(k)).then(function(r){ return r.json(); }).catch(function(){ return []; }),
+      fetch(RDW_BRANDSTOF+encodeURIComponent(k)).then(function(r){ return r.json(); }).catch(function(){ return []; })
+    ]).then(function(res){
+      var rij=(Array.isArray(res[0])&&res[0][0])||null;
+      var br =(Array.isArray(res[1])&&res[1][0])||null;
+      var l=lees(), gevonden=false;
+      l.forEach(function(v){
+        if(sleutel(v.kenteken)!==k) return;
+        gevonden=true;
+        if(rij){
+          v.soort=T(rij.voertuigsoort);
+          v.merk=T(rij.merk); v.model=T(rij.handelsbenaming);
+          v.massa=T(rij.toegestane_maximum_massa_voertuig||'');
+        }
+        if(br){
+          v.brandstof=T(br.brandstof_omschrijving||'');
+          v.euronorm=T(br.emissiecode_omschrijving||br.uitstoot_deeltjes_licht||'');
+        }
+        if(rij||br) v.opgehaald=new Date().toISOString().slice(0,10);
+      });
+      if(gevonden) schrijf(l);
+      if(!rij && !br) return 'kenteken niet gevonden bij de RDW';
+      return T(rij&&rij.merk)+' '+T(rij&&rij.handelsbenaming)+' - '+T(rij&&rij.voertuigsoort)+
+             ' - '+T(br&&br.brandstof_omschrijving)+' - euro '+T(br&&br.emissiecode_omschrijving);
+    }).catch(function(e){ return 'ophalen mislukt: '+(e&&e.message||e); });
   }
 
   function allesOphalen(){
@@ -56794,6 +56807,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         admin.appendChild(vak);
       }
       var l=window.BNS_R87.ruw();
+      /* R90-fix (2026-09-04): dit blok werd elke 1,2 seconde opnieuw opgebouwd.
+         Daardoor werden de invulvelden telkens vervangen terwijl je aan het
+         typen was - je kon dus geen naam of kenteken invoeren. Nu wordt er
+         alleen opnieuw getekend als er echt iets veranderd is aan de lijst. */
+      var vinger=JSON.stringify(l);
+      if(vak.__vinger===vinger && vak.querySelector('#bnsR88Naam')) return;
+      vak.__vinger=vinger;
       vak.innerHTML =
         '<h3 style="margin:0 0 4px">Voertuigen</h3>'+
         '<div style="font-size:13px;color:#64748b;margin-bottom:10px">Naam en kenteken vul je zelf in. Soort, brandstof en emissieklasse worden bij de RDW opgehaald.</div>'+
@@ -56814,7 +56834,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
                         (v.merk?' &middot; '+esc(v.merk)+' '+esc(v.model||''):''))+
               '</div>'+
             '</div>'+
-            '<button type="button" data-r88-del="'+esc(v.kenteken)+'" title="Verwijderen" style="border:0;border-radius:9px;padding:7px 12px;background:#fee2e2;color:#991b1b;font-weight:900;cursor:pointer">Wis</button>'+
+            '<button type="button" data-r88-check="'+esc(v.kenteken)+'" title="Gegevens bij de RDW ophalen" style="border:0;border-radius:9px;padding:7px 12px;background:#0369a1;color:#fff;font-weight:900;cursor:pointer;margin-right:6px">Check</button>'+
+            '<button type="button" data-r88-del="'+esc(v.kenteken)+'" title="Verwijderen" style="border:0;border-radius:9px;padding:7px 12px;background:#fee2e2;color:#991b1b;font-weight:900;cursor:pointer">&#10005;</button>'+
           '</div>';
         }).join('') : '<div style="color:#64748b">Nog geen voertuigen.</div>');
 
@@ -56825,21 +56846,32 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         var uit=window.BNS_R87.toevoegen(n,k);
         document.getElementById('bnsR88Naam').value='';
         document.getElementById('bnsR88Kent').value='';
-        setTimeout(function(){ vak.remove(); bouw(); }, 1200);   // even wachten op de RDW
+        setTimeout(function(){ vak.__vinger=''; vak.remove(); bouw(); }, 1200);   // even wachten op de RDW
         try{ if(typeof toastMsg==='function') toastMsg(uit); }catch(e){}
       };
       document.getElementById('bnsR88Vernieuw').onclick=function(){
         var b=this; b.disabled=true; b.textContent='Bezig...';
         Promise.resolve(window.BNS_R87.allesOphalen()).then(function(){
-          vak.remove(); bouw();
+          vak.__vinger=''; vak.remove(); bouw();
         });
       };
+      Array.prototype.slice.call(vak.querySelectorAll('[data-r88-check]')).forEach(function(b){
+        b.onclick=function(){
+          var k=b.getAttribute('data-r88-check');
+          b.disabled=true; b.textContent='...';
+          Promise.resolve(window.BNS_R87.ophalen(k)).then(function(uit){
+            try{ if(typeof toastMsg==='function') toastMsg(String(uit)); }catch(e){}
+            vak.__vinger=''; vak.remove(); bouw();
+          });
+        };
+      });
       Array.prototype.slice.call(vak.querySelectorAll('[data-r88-del]')).forEach(function(b){
         b.onclick=function(){
           var k=b.getAttribute('data-r88-del');
-          if(!window.confirm('Voertuig '+k+' verwijderen?')) return;
+          var v=(window.BNS_R87.ruw()||[]).filter(function(x){ return T(x.kenteken)===T(k); })[0];
+          if(!window.confirm('Weet je zeker dat je '+(v?v.naam+' ('+k+')':k)+' wilt verwijderen?\n\nDit kan niet ongedaan worden gemaakt.')) return;
           window.BNS_R87.verwijderen(k);
-          vak.remove(); bouw();
+          vak.__vinger=''; vak.remove(); bouw();
         };
       });
     }catch(e){}
