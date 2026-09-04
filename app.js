@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R80';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R82';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56428,6 +56428,39 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return uit.join(' ');
   }
 
+  /* Routenet neemt geen los adres in het webadres aan. Het bewaart de hele route
+     als een gecodeerd pakketje achter ?q=. Uit een bestaande Routenet-link is af
+     te lezen hoe dat pakketje eruitziet:
+
+       {"q":["<vanaf>","<naar>"],"c":["NL","NL"],
+        "o":{"optimization":"optimal","vehicle":"car","fueltype":"euro95",
+             "fuelconsumption":"14","kenteken":""},
+        "action":"route","version":"20231013"}
+
+     Dat bouwen we hier zelf op. Het vertrekadres staat standaard op het eigen
+     bedrijfsadres en is aan te passen met
+     window.BNS_R81_ROUTE.vertrek('...nieuw adres...') - dat wordt onthouden. */
+  var VERTREK_KEY='bns_r81_vertrek';
+  function vertrekAdres(){
+    try{ var v=T(localStorage.getItem(VERTREK_KEY)); if(v) return v; }catch(e){}
+    return 'Molenlaan 30, 1422ZA Uithoorn';
+  }
+  function routenetLink(naar){
+    try{
+      var pakket={
+        q:[encodeURIComponent(vertrekAdres()), encodeURIComponent(naar)],
+        c:['NL','NL'],
+        o:{optimization:'optimal', vehicle:'car', fueltype:'euro95', fuelconsumption:'14', kenteken:''},
+        action:'route',
+        version:'20231013'
+      };
+      var code=btoa(unescape(encodeURIComponent(JSON.stringify(pakket))));
+      return 'https://routenet.nl/route?q='+encodeURIComponent(code)+'&culture=nl';
+    }catch(e){
+      return 'https://routenet.nl/';
+    }
+  }
+
   function opdrachtVanKaart(kaart){
     try{
       var nr=((kaart.textContent||'').match(/20\d\d-\d{4}/)||[''])[0];
@@ -56465,7 +56498,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       b.title='Route naar '+adres;
       b.onclick=function(ev){
         ev.preventDefault(); ev.stopPropagation();
-        window.open('https://www.routenet.nl/routeplanner?locatie='+encodeURIComponent(adres),'_blank');
+        window.open(routenetLink(adres),'_blank');
         return false;
       };
       kaart.appendChild(b);
@@ -56481,12 +56514,43 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }catch(e){}
   }
 
+  /* R81b (2026-09-04): verbergen met een STIJLREGEL in plaats van met een lus.
+     De lus liep elke 900 milliseconden; in die tussentijd stond een zojuist
+     opnieuw geplaatste Waze-knop gewoon in beeld - dat is het geflikker. Een
+     stijlregel geldt op het moment dat het element ontstaat, dus er is geen
+     tussenmoment meer. De lus blijft alleen bestaan om onze eigen knop te
+     plaatsen. */
+  (function stijl(){
+    try{
+      if(document.getElementById('bnsR81Stijl')) return;
+      var st=document.createElement('style');
+      st.id='bnsR81Stijl';
+      st.textContent =
+        '.order-card .bns-waze-btn,'+
+        '.order-card .bns-route-button,'+
+        '.order-card .bns-waze,'+
+        '.order-card .bns356-route,'+
+        '.order-card .routenet-btn,'+
+        '.order-card .bns-routenet-btn,'+
+        '.order-card a[href*="waze.com"],'+
+        '.order-card a[href*="routenet.nl"]'+
+        '{display:none!important}';
+      (document.head||document.documentElement).appendChild(st);
+    }catch(e){}
+  })();
+
   setInterval(ronde, 900);
   setTimeout(ronde, 600);
   document.addEventListener('bns:firebase-updated', ronde);
 
   window.BNS_R81_ROUTE={
     nu:ronde,
+    vertrek:function(adres){
+      if(adres===undefined) return vertrekAdres();
+      try{ localStorage.setItem(VERTREK_KEY, T(adres)); }catch(e){}
+      return 'vertrekadres staat nu op: '+vertrekAdres();
+    },
+    link:function(naar){ return routenetLink(naar); },
     adresVan:function(nr){
       var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
       var o=s.filter(function(x){ return x && T(x.number)===T(nr); })[0];
