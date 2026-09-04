@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R85';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R86';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -12789,7 +12789,7 @@ setTimeout(()=>{
   const RIGHTS = [
   ["prices", "Prijzen zien"],
   ["agenda", "Google agenda"],
-  ["gps", "Waze / route openen"],
+  ["gps", "Route openen"],
   ["resolve", "Meldingen / storingen afmelden"],
   ["materials", "Materialen beheren"],
   ["customers", "Klanten beheren"],
@@ -13189,7 +13189,7 @@ setTimeout(()=>{
   const RIGHTS = [
   ["prices", "Prijzen zien"],
   ["agenda", "Google agenda"],
-  ["gps", "Waze / route openen"],
+  ["gps", "Route openen"],
   ["resolve", "Meldingen / storingen afmelden"],
   ["materials", "Materialen beheren"],
   ["customers", "Klanten beheren"],
@@ -13585,7 +13585,18 @@ setTimeout(()=>{
       alert("Geen adres gevonden. Vul eerst klant- of locatieadres in.");
       return;
     }
-    window.open("https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes", "_blank");
+    /* R86 (2026-09-04): ook deze route - die van de knop in het formulier - gaat
+       naar Routenet in plaats van naar Waze. De link wordt gebouwd door de
+       routemodule onderaan dit bestand; is die er onverhoopt niet, dan opent
+       Routenet gewoon leeg met het adres op het klembord. */
+    try{
+      if(window.BNS_R81_ROUTE && typeof window.BNS_R81_ROUTE.link==='function'){
+        try{ window.BNS_R81_ROUTE.kopieer(q); }catch(e){}
+        window.open(window.BNS_R81_ROUTE.link(q), "_blank");
+        return;
+      }
+    }catch(e){}
+    window.open("https://routenet.nl/", "_blank");
   }
   function openGoogleMaps(address){
     const q = String(address || "").trim();
@@ -13768,7 +13779,7 @@ setTimeout(()=>{
     box.id = PLANNER_TOOLS_ID;
     box.innerHTML = `
       <b>Planner snelknoppen</b>
-      <button type="button" id="bnsWazePlannerBtn" class="bns-tool-green">Waze route naar opdracht</button>
+      <button type="button" id="bnsWazePlannerBtn" class="bns-tool-green">Route naar opdracht</button>
       <button type="button" id="bnsMapsPlannerBtn" class="bns-tool-dark">Google Maps route</button>
       <button type="button" id="bnsAgendaOrderBtn">Agenda opdracht maken</button>
       <button type="button" id="bnsAgendaPickupBtn" class="bns-tool-orange">Agenda ophalen</button>
@@ -27861,7 +27872,7 @@ setTimeout(()=>{
   var RIGHTS = [
   ["prices", "Prijzen zien"],
   ["agenda", "Google agenda"],
-  ["gps", "Waze / route openen"],
+  ["gps", "Route openen"],
   ["resolve", "Meldingen / storingen afmelden"],
   ["phoneCall", "Telefoon: klant bellen"],
   ["phoneDone", "Telefoon: afmelden / uitgevoerd"],
@@ -56572,14 +56583,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       var st=document.createElement('style');
       st.id='bnsR81Stijl';
       st.textContent =
-        '.order-card .bns-waze-btn,'+
-        '.order-card .bns-route-button,'+
-        '.order-card .bns-waze,'+
-        '.order-card .bns356-route,'+
-        '.order-card .routenet-btn,'+
-        '.order-card .bns-routenet-btn,'+
-        '.order-card a[href*="waze.com"],'+
-        '.order-card a[href*="routenet.nl"]'+
+        /* R86: geldt nu overal, niet alleen op opdrachtkaarten - in het
+           formulier van een nieuwe opdracht stonden ook nog Waze-knoppen. */
+        '.bns-waze-btn,'+
+        '.bns-route-button,'+
+        '.bns-waze,'+
+        '.bns356-route,'+
+        '.routenet-btn,'+
+        '.bns-routenet-btn,'+
+        'a[href*="waze.com"]'+
         '{display:none!important}';
       (document.head||document.documentElement).appendChild(st);
     }catch(e){}
