@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R88';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R80';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -13585,7 +13585,7 @@ setTimeout(()=>{
       alert("Geen adres gevonden. Vul eerst klant- of locatieadres in.");
       return;
     }
-    window.open("https://routenet.nl/?q=" + encodeURIComponent(q), "_blank");
+    window.open("https://waze.com/ul?q=" + encodeURIComponent(q) + "&navigate=yes", "_blank");
   }
   function openGoogleMaps(address){
     const q = String(address || "").trim();
@@ -13860,33 +13860,9 @@ setTimeout(()=>{
     }
   }
   function addressFromOrderCard(card){
-    /* R88-fix (2026-09-04): het adres kwam er leeg of onbruikbaar uit. De oude
-       regel las alles achter "Locatie:" tot het eerste liggende streepje - en dat
-       streepje staat pas bij "Totaal: ... | Borg", dus er kwam een halve kaart
-       mee, inclusief materialen en bedragen. Een routeplanner kan daar niets mee.
-       Nu wordt eerst de OPDRACHT zelf opgezocht aan de hand van het
-       opdrachtnummer op de kaart; dat is de betrouwbare bron. Lukt dat niet, dan
-       wordt de tekst gelezen tot aan het volgende kopje. */
-    try{
-      var nr=((card.textContent||'').match(/20\d\d-\d{4}/)||[''])[0];
-      if(nr){
-        var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
-        var o=s.filter(function(x){ return x && String(x.number||'').trim()===nr; })[0];
-        if(o){
-          var l=o.location||{};
-          var uit=[l.name,l.street,l.zip,l.city]
-            .map(function(v){ return String(v==null?'':v).trim(); })
-            .filter(Boolean).join(' ');
-          if(uit) return uit;
-          var c=o.customer||{};
-          uit=[c.street,c.zip,c.city].map(function(v){ return String(v==null?'':v).trim(); }).filter(Boolean).join(' ');
-          if(uit) return uit;
-        }
-      }
-    }catch(e){}
-    var text=(card.textContent||'').replace(/\s+/g,' ');
-    var m=text.match(/(?:Locatie|Adres)\s*:\s*(.+?)(?=\s*(?:Materialen|Totaal|Klant|Datum|Borg)\s*:|\s*\||$)/i);
-    return m ? String(m[1]||'').trim() : '';
+    const text = (card.textContent || "").replace(/\s+/g, " ");
+    const match = text.match(/Locatie:\s*([^|]+)|Adres:\s*([^|]+)/i);
+    return match ? (match[1] || match[2] || "").trim() : "";
   }
   function ensureDriverWazeButtons(){
     if (!roleAllowed()) return;
@@ -13898,19 +13874,10 @@ setTimeout(()=>{
       const button = document.createElement("button");
       button.type = "button";
       button.className = "bns-route-button bns-tool-green";
-      /* R85 (2026-09-04): dit is de knop die na het laden overblijft. Hij heette
-         nog Waze en gaf bovendien geen adres mee wanneer het adres niet uit de
-         kaart te lezen was. Nu heet hij Routenet en wordt er niets geopend als
-         er geen adres is - dan volgt een korte melding, in plaats van een lege
-         routeplanner. */
-      button.textContent = "Route"   /* R87: bewust NIET "Routenet" - zie toelichting onderaan */;
+      button.textContent = "Waze";
       button.onclick = function(event){
         event.stopPropagation();
         const address = addressFromOrderCard(card) || niceAddressFromForm();
-        if(!String(address||'').trim()){
-          try{ alert('Bij deze opdracht staat geen adres, dus er valt geen route te plannen.'); }catch(e){}
-          return;
-        }
         openWaze(address);
       };
       card.appendChild(button);
@@ -14504,7 +14471,7 @@ setTimeout(()=>{
     '<div>Locatie: ' + esc(addr) + '</div>' +
     '<div>Materialen: ' + matChips(order.materials || []) + '</div>' +
     '<div>Totaal: ' + money2(total) + ' | Borg: ' + money2(deposit) + '</div>' +
-    '<button type="button" class="bns-waze-btn" onclick="window.open(\'https://routenet.nl/?q=' + encodeURIComponent(addr) + '\',\'_blank\')">Route</button>' +
+    '<button type="button" class="bns-waze-btn" onclick="window.open(\'https://waze.com/ul?q=' + encodeURIComponent(addr) + '&navigate=yes\',\'_blank\')">Waze</button>' +
     '</div>' +
     '<div class="actions">' +
     '<button type="button" onclick="editOrder(\'' + esc(order.id) + '\')">Wijzigen</button>' +
@@ -17809,7 +17776,7 @@ setTimeout(()=>{
       var b=document.createElement('button');
       b.type='button';
       b.className='bns-routenet-btn';
-      b.textContent='Route'   /* R87 */;
+      b.textContent='Routenet';
       b.onclick=function(e){
         if(e){
           e.preventDefault();
@@ -20110,7 +20077,7 @@ setTimeout(()=>{
   function routeUrl(type, address) {
     var q = encodeURIComponent(address || "");
     if (type === "waze") {
-      return "https://routenet.nl/?q=" + q;
+      return "https://waze.com/ul?q=" + q + "&navigate=yes";
     }
     return "https://www.google.com/maps/search/?api=1&query=" + q;
   }
@@ -20489,7 +20456,7 @@ setTimeout(()=>{
     var number = esc(order.number || "");
     var actions = [];
     if (hasRight('gps', true)) {
-      actions.push('<a class="bns-waze" href="'+esc(routeUrl("waze", address))+'" target="_blank" rel="noopener">Route</a>');
+      actions.push('<a class="bns-waze" href="'+esc(routeUrl("waze", address))+'" target="_blank" rel="noopener">Waze</a>');
       actions.push('<a class="bns-maps" href="'+esc(routeUrl("maps", address))+'" target="_blank" rel="noopener">Maps</a>');
     }
     if (hasRight('phoneCall', true)) actions.push(phone ? '<a class="bns-call" href="tel:'+esc(phone)+'">Bel klant</a>' : '<button class="bns-call" type="button">Geen tel.</button>');
@@ -25470,7 +25437,7 @@ setTimeout(()=>{
     var ad=phoneAddress(o),ph=T((o.customer&&o.customer.phone)||o.phone||''),enc=encodeURIComponent(ad),id=H(o.id||'');
     var priceInfo=canPrices(u)?'<div><b>Totaal:</b> '+H(o.total||o.totaal||o.amount||o.bedrag||'')+' <b>Borg:</b> '+H(o.deposit||o.borg||'')+'</div>':'';
     var acts='';
-    if(canRoute(u))acts+='<a class="green" target="_blank" href="https://routenet.nl/?q='+enc+'">Route</a><a target="_blank" href="https://www.google.com/maps/search/?api=1&query='+enc+'">Maps</a>';
+    if(canRoute(u))acts+='<a class="green" target="_blank" href="https://waze.com/ul?q='+enc+'&navigate=yes">Waze</a><a target="_blank" href="https://www.google.com/maps/search/?api=1&query='+enc+'">Maps</a>';
     if(canCall(u))acts+=(ph?'<a href="tel:'+H(ph)+'">Bel klant</a>':'<button type="button">Geen tel.</button>');
     if(canReport(u))acts+='<button class="dark" data-v95-report="'+id+'" data-type="Bezorger melding">Melding</button>';
     if(canStoring(u))acts+='<button class="dark" data-v95-report="'+id+'" data-type="Storing">Storing</button>';
@@ -29607,7 +29574,7 @@ setTimeout(()=>{
   }
   function routeUrl(kind,addr){
     var q=encodeURIComponent(addr||'');
-    return kind==='waze'?'https://routenet.nl/?q='+q:'https://www.google.com/maps/search/?api=1&query='+q;
+    return kind==='waze'?'https://waze.com/ul?q='+q+'&navigate=yes':'https://www.google.com/maps/search/?api=1&query='+q;
   }
   function renderPhone83(){
     if(!isPhone()) return;
@@ -29632,7 +29599,7 @@ setTimeout(()=>{
     });
     app.innerHTML='<div class="bns-v83-phone-head"><h1>Bezorger Tapwagen.nl</h1><small>'+H(u.name||'Bezorger')+'</small></div><div class="bns-v83-phone-tools"><input id="bnsV83PhoneSearch" placeholder="Zoek opdracht / klant / adres"><button type="button" id="bnsV83PhoneRefresh">Verversen</button><button type="button" id="bnsV83PhoneLogout">Afmelden</button></div><div class="bns-v83-phone-list">'+(rows.length?rows.map(function(o){
       var addr=orderAddress(o), phone=orderPhone(o), dr=niceDate(o.start)+(o.end&&o.end!==o.start?' tot '+niceDate(o.end):'');
-      return '<div class="bns-v83-phone-card"><div class="bns-v83-phone-title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="bns-v83-phone-meta"><div>Datum: '+H(dr)+'</div><div>Klant: '+H(orderCustomer(o)||'')+'</div><div>Adres: '+H(addr||'')+'</div><div>Materiaal: '+H(orderMats(o)||'Geen materialen')+'</div></div><div class="bns-v83-phone-actions"><a class="green" target="_blank" href="'+H(routeUrl('waze',addr))+'">Route</a><a class="dark" target="_blank" href="'+H(routeUrl('maps',addr))+'">Maps</a>'+(phone?'<a href="tel:'+H(phone)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button type="button" data-v83-phone-done="'+H(o.id||'')+'">Uitgevoerd</button></div></div>';
+      return '<div class="bns-v83-phone-card"><div class="bns-v83-phone-title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="bns-v83-phone-meta"><div>Datum: '+H(dr)+'</div><div>Klant: '+H(orderCustomer(o)||'')+'</div><div>Adres: '+H(addr||'')+'</div><div>Materiaal: '+H(orderMats(o)||'Geen materialen')+'</div></div><div class="bns-v83-phone-actions"><a class="green" target="_blank" href="'+H(routeUrl('waze',addr))+'">Waze</a><a class="dark" target="_blank" href="'+H(routeUrl('maps',addr))+'">Maps</a>'+(phone?'<a href="tel:'+H(phone)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button type="button" data-v83-phone-done="'+H(o.id||'')+'">Uitgevoerd</button></div></div>';
     }).join(''):'<div class="bns-v83-empty">Geen opdrachten voor deze bezorger.</div>')+'</div>';
     var q=E('bnsV83PhoneSearch');
     if(q) q.oninput=function(){
@@ -35807,7 +35774,7 @@ setTimeout(()=>{
       var r=document.createElement('button');
       r.type='button';
       r.id='tapV301BRoutenet';
-      r.textContent='Route'   /* R87 */;
+      r.textContent='Routenet';
       r.onclick=function(e){
         e.preventDefault();
         openRoute('routenet');
@@ -39342,7 +39309,7 @@ setTimeout(()=>{
     var seenOverview=false;
     A('button,a',cardEl).forEach(function(b){
       var x=T(b.textContent);
-      if(/^routenet$/i.test(x)){ return; }   /* R86: NIET meer weghalen - dit is nu onze eigen knop */
+      if(/^routenet$/i.test(x)){b.remove();return;}
       if(/overzicht\s*bestelling/i.test(x)){
         if(seenOverview){b.remove();return;}
         seenOverview=true;
@@ -39396,28 +39363,14 @@ setTimeout(()=>{
     actions.insertBefore(b,actions.firstChild||null);
   }
   function routeFix(cardEl,o){
-    /* R84 (2026-09-04): terug naar de basis. Deze module plaatste een TWEEDE,
-       kleine routeknop naast de grote. Samen met de opruimer hieronder leverde
-       dat een spel op waarin knoppen elkaar plaatsten en weer weghaalden -
-       zichtbaar als geflikker terwijl Firebase bijwerkt, en uiteindelijk geen
-       knop meer. Er is er maar een nodig: de grote, die er altijd al stond en
-       die het adres meestuurt. Deze module doet dus niets meer. */
-    return;
     // Verwijder bestaande routenet knoppen
-    /* R86: hier werden alle knoppen met het opschrift "routenet" gewist. Dat was
-       bedoeld om oude restanten op te ruimen toen Waze nog de standaard was.
-       Nu heet onze eigen knop zo, dus dit mag niet meer. */
+    A('button,a',cardEl).forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||''))b.remove();});
     // Optie 14 dagen en offertes krijgen GEEN routenet knop — niet actieve levering
     if(isOpt(o)||isQuote(o))return;
-    /* R82-fix (2026-09-04): deze module zoekt de knop waar hij zijn eigen
-       Routenet-knop achter plakt, en herkende alleen het opschrift "Waze".
-       Sinds die knop Routenet heet vond hij hem niet meer, waardoor zijn eigen
-       knop - de enige die het adres correct meestuurt - niet meer werd
-       geplaatst. Nu herkent hij allebei de opschriften. */
-    var w=A('button,a',cardEl).find(function(b){return /^\s*(waze|routenet)\s*$/i.test(b.textContent||'');});
+    var w=A('button,a',cardEl).find(function(b){return /^\s*waze\s*$/i.test(b.textContent||'');});
     if(!w||cardEl.querySelector('.bns356-route'))return;
     var a=addr(o); if(!a)return;
-    var b=document.createElement('button');b.type='button';b.className='bns356-route';b.textContent='Route'   /* R87 */;
+    var b=document.createElement('button');b.type='button';b.className='bns356-route';b.textContent='Routenet';
     b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();window.open('https://www.routenet.nl/routeplanner?locatie='+encodeURIComponent(a),'_blank');return false;};
     w.insertAdjacentElement('afterend',b);
   }
@@ -39499,11 +39452,7 @@ setTimeout(()=>{
   function install(){css();ensureTabs();hideArchiveBad();if(window.renderOrders!==renderV356){window.renderOrders=renderV356;try{renderOrders=renderV356;}catch(e){}}var search=E('ordersSearch');if(search&&!search.__bns356){search.__bns356=true;search.addEventListener('input',function(){renderV356();});}var orders=E('orders');if(orders&&orders.classList.contains('active'))renderV356();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,100);setTimeout(install,1000);});else setTimeout(install,100);
   var n=0,tm=setInterval(function(){install();if(++n>24)clearInterval(tm);},500);
-  try{var mo=new MutationObserver(function(){hideArchiveBad();var orders=E('orders');if(orders&&orders.classList.contains('active')){/* R84: de opruimer die routeknoppen weghaalde is uitgezet. Hij ging op het
-         OPSCHRIFT af en verwijderde daardoor juist de goede knop zodra die
-         Routenet ging heten. Nu er nog maar een knop is, valt er ook niets
-         meer op te ruimen. */
-}});mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+  try{var mo=new MutationObserver(function(){hideArchiveBad();var orders=E('orders');if(orders&&orders.classList.contains('active')){A('#orders button,#orders a').forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||'')&&!b.classList.contains('bns356-route'))b.remove();});}});mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
   console.info('[BNS v356] Opdrachten tabs schoon actief.');
 })();
 
@@ -40688,7 +40637,7 @@ setTimeout(()=>{
         if(tx==='actief' || tx==='actieve opdrachten' || tx==='uitgevoerde opdrachten' || tx==='geannuleerde opdrachten'){
           if(!b.classList.contains('bns356-tab')) b.style.display='none';
         }
-        /* R86: idem - onze eigen Routenet-knop mag blijven staan. */
+        if(/^routenet$/i.test(T(b.textContent)) && !b.classList.contains('bns356-route')) b.remove();
       });
     }catch(e){}
   }
@@ -47653,14 +47602,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function rowsTransport(o){ var rows=(o.transportLines||[]).map(function(l){ var qty=N(l.qty||1), unit=T(l.unit); return '<tr><td>'+H(qty+(unit?' '+unit:'x'))+'</td><td></td><td>'+H(T(l.name)+(T(l.note)?' - '+T(l.note):''))+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join(''); return rows||'<tr><td colspan="4">Geen extra</td></tr>'; }
   function docTitle(o,type){
     if(/factuur/i.test(type)) return 'FACTUUR';
-    /* R80-fix (2026-09-04): hier werd de status uit het FORMULIER als leidend
-       genomen. Dat klopt zolang je het document opent terwijl je die opdracht aan
-       het bewerken bent. Maar open je het vanuit de lijst - via Overzicht
-       bestelling of het keuzemenu - dan staat er een leeg of achtergebleven
-       formulier klaar, meestal met "Offerte" erin. Elk document werd daardoor
-       een offerte, ook bij een opdracht die op Optie 14 dagen of Bevestigd
-       stond. Het formulier telt nu alleen nog mee als het ZICHTBAAR is EN over
-       dezelfde opdracht gaat; anders is de status van de opdracht leidend. */
+    /* R80 (2026-09-04): de status uit het FORMULIER was leidend. Dat klopt
+       terwijl je die opdracht bewerkt, maar open je het document vanuit de
+       lijst, dan staat er een leeg of achtergebleven formulier klaar - meestal
+       met "Offerte" erin. Elk document werd daardoor een offerte, ook bij een
+       opdracht op Optie 14 dagen of Bevestigd. Het formulier telt nu alleen mee
+       als het ZICHTBAAR is EN over dezelfde opdracht gaat. */
     var formSt=(function(){
       try{
         var e=document.getElementById('orderStatus');
@@ -47668,7 +47615,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
         var nrEl=document.getElementById('orderNumber');
         var nr=nrEl?String(nrEl.value||'').trim():'';
         var eigen=String((o&&o.number)||'').trim();
-        if(eigen && nr && nr!==eigen) return '';   // formulier hoort bij een andere opdracht
+        if(eigen && nr && nr!==eigen) return '';
         return (e.value||'').trim();
       }catch(err){ return ''; }
     })();
@@ -56436,24 +56383,115 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 })();
 
 /* ==========================================================
-   BNS R87 — Waarom de routeknop "Route" heet en niet "Routenet"
+   BNS R81 — Eén routeknop: "Route", naar Routenet
    ----------------------------------------------------------
-   In dit bestand staan vier routines die elke knop met het opschrift
-   "routenet" weghalen. Ze zijn ooit geschreven om restanten van de vorige
-   Routenet-periode op te ruimen, toen Waze de standaard werd:
+   Uitgangspunt: op de planner werkt Waze slecht, want dat leunt op de
+   telefoon-app. Op de bezorgerstelefoon blijft Waze wel staan - dat bestand
+   wordt hier niet aangeraakt.
 
-       if(/^routenet$/i.test(x)){ b.remove(); return; }
+   Waarom dit als een aparte module gebeurt en niet door de bestaande knoppen
+   te hernoemen:
 
-   Zodra de knop weer Routenet ging heten, viel hij binnen die opdracht en werd
-   hij bij elke hertekening gewist. Zichtbaar tijdens het laden, weg zodra
-   Firebase klaar was.
+   1. Er zijn VIER routines in dit bestand die elke knop met het opschrift
+      "routenet" verwijderen (rond regel 39321, 39383, 39568 en 40665). Die zijn
+      ooit geschreven om restanten van de vorige Routenet-periode op te ruimen.
+      Noem je een knop weer Routenet, dan wist hij zichzelf bij de eerstvolgende
+      hertekening - zichtbaar tijdens het laden, weg zodra Firebase klaar is.
+      Vandaar het opschrift "Route": dat herkent geen van hen.
 
-   In plaats van te blijven vechten met die opruimers heet de knop nu gewoon
-   "Route". Die naam herkent geen van hen, dus er valt niets meer weg te halen.
-   De knop opent nog steeds routenet.nl met het adres van de opdracht.
+   2. Er zijn meerdere modules die elk hun eigen routeknop op een kaart plakken.
+      Laat je die naast elkaar bestaan, dan plaatsen en verwijderen ze elkaars
+      knoppen om beurten. Daarom wordt hier ALLES wat naar Waze of Routenet
+      wijst verborgen, en zet deze module er precies EEN knop voor terug.
 
-   Voor later: wil je hem toch weer "Routenet" noemen, dan moeten die vier
-   routines eerst weg - op regel 39321, 39383, 39568 en 40665 in de versie van
-   4 september 2026. Ze staan nu uitgeschakeld, maar de naam is de veiligere
-   oplossing: er kan altijd nog een vijfde opruimer opduiken.
+   Het adres komt uit de opdracht zelf, via dezelfde velden die addressOf()
+   elders in dit bestand gebruikt: locationName, locationStreet, locationZip,
+   locationCity, en anders address/street/zip/city of het klantadres. Dat is de
+   bron die in de rest van de app altijd goed is geweest.
 ========================================================== */
+(function bnsR81RouteKnop(){
+  'use strict';
+  if(window.__BNS_R81_ROUTE__) return;
+  window.__BNS_R81_ROUTE__=true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+
+  function adresVan(o){
+    if(!o) return '';
+    var l=o.location||{}, c=o.customer||{};
+    var delen=[o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,
+               l.name,l.street,l.zip,l.city,
+               o.address,o.street,o.zip,o.city,
+               c.street,c.zip,c.city];
+    var uit=[];
+    delen.forEach(function(v){ v=T(v); if(v && uit.indexOf(v)<0) uit.push(v); });
+    return uit.join(' ');
+  }
+
+  function opdrachtVanKaart(kaart){
+    try{
+      var nr=((kaart.textContent||'').match(/20\d\d-\d{4}/)||[''])[0];
+      if(!nr) return null;
+      var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
+      return s.filter(function(x){ return x && T(x.number)===nr; })[0]||null;
+    }catch(e){ return null; }
+  }
+
+  /* Alles wat naar een routedienst wijst uit het zicht - behalve onze eigen knop. */
+  function oudeKnoppenVerbergen(kaart){
+    try{
+      Array.prototype.slice.call(kaart.querySelectorAll('button,a')).forEach(function(b){
+        if(b.classList.contains('bns-r81-route')) return;
+        var tekst=T(b.textContent).toLowerCase();
+        var link=T(b.getAttribute('href'))+' '+T(b.getAttribute('onclick'));
+        if(/^(waze|routenet|route)$/.test(tekst) || /waze\.com|routenet\.nl/i.test(link)){
+          b.style.display='none';
+        }
+      });
+    }catch(e){}
+  }
+
+  function knopPlaatsen(kaart){
+    try{
+      if(kaart.querySelector('.bns-r81-route')) return;
+      var o=opdrachtVanKaart(kaart);
+      var adres=adresVan(o);
+      if(!adres) return;                       // geen adres: geen knop, dan valt er niets te plannen
+      var b=document.createElement('button');
+      b.type='button';
+      b.className='bns-r81-route bns-tool-green';
+      b.textContent='Route';
+      b.style.cssText='background:#16a34a;color:#fff;border:0;border-radius:9px;padding:7px 14px;font-weight:900;cursor:pointer;margin-top:6px';
+      b.title='Route naar '+adres;
+      b.onclick=function(ev){
+        ev.preventDefault(); ev.stopPropagation();
+        window.open('https://www.routenet.nl/routeplanner?locatie='+encodeURIComponent(adres),'_blank');
+        return false;
+      };
+      kaart.appendChild(b);
+    }catch(e){}
+  }
+
+  function ronde(){
+    try{
+      Array.prototype.slice.call(document.querySelectorAll('.order-card')).forEach(function(kaart){
+        oudeKnoppenVerbergen(kaart);
+        knopPlaatsen(kaart);
+      });
+    }catch(e){}
+  }
+
+  setInterval(ronde, 900);
+  setTimeout(ronde, 600);
+  document.addEventListener('bns:firebase-updated', ronde);
+
+  window.BNS_R81_ROUTE={
+    nu:ronde,
+    adresVan:function(nr){
+      var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
+      var o=s.filter(function(x){ return x && T(x.number)===T(nr); })[0];
+      return o?adresVan(o):'opdracht niet gevonden';
+    }
+  };
+  try{ console.info('[BNS R81] Eén routeknop actief ("Route" -> Routenet).'); }catch(e){}
+})();
