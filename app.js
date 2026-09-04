@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R92';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R94';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -57128,4 +57128,145 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     zonesOpPunt:function(lat,lon){ return laden().then(function(){ return zonesOpPunt(lat,lon).map(function(z){ return z.naam; }); }); }
   };
   try{ console.info('[BNS R92] Milieuzone-controle actief - window.BNS_R92.check(kenteken, adres)'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R93 — Milieuzone zichtbaar bij de planner
+   ----------------------------------------------------------
+   Twee plekken:
+     1. In het wijzigscherm, onder het Extra-blok: zodra er een adres staat
+        verschijnt er een regel of dat adres in een milieu- of zero-emissiezone
+        ligt. Zo kies je meteen de juiste wagen in plaats van dat je bezorger er
+        's ochtends achter komt.
+     2. Op de opdrachtkaarten: een groen of rood labeltje.
+
+   Bewust GEEN oordeel per voertuig hier - bij het inplannen ligt vaak nog niet
+   vast welke wagen gaat. De planner ziet alleen OF er een zone ligt en welke;
+   de afweging welke wagen daar mag komt op de telefoon.
+
+   Het opzoeken kost een moment (adres omzetten, zones nalopen), dus de uitkomst
+   wordt per opdracht onthouden. Verandert het adres, dan wordt hij opnieuw
+   bepaald.
+========================================================== */
+(function bnsR93ZoneBijPlanner(){
+  'use strict';
+  if(window.__BNS_R93__) return;
+  window.__BNS_R93__=true;
+
+  var CACHE='bns_zonecache';
+  var bezig={};
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function cache(){ try{ return JSON.parse(localStorage.getItem(CACHE)||'{}')||{}; }catch(e){ return {}; } }
+  function bewaar(sleutel, waarde){
+    try{ var c=cache(); c[sleutel]=waarde; localStorage.setItem(CACHE, JSON.stringify(c)); }catch(e){}
+  }
+
+  /* Kijkt of een adres in een zone ligt. Zonder voertuig - alleen of en welke. */
+  function zoneVoorAdres(adres){
+    var a=T(adres);
+    if(!a) return Promise.resolve(null);
+    var c=cache();
+    if(c[a]) return Promise.resolve(c[a]);
+    if(bezig[a]) return bezig[a];
+    if(!window.BNS_R91 || !window.BNS_R92) return Promise.resolve(null);
+
+    bezig[a]=Promise.all([window.BNS_R91.zoek(a), window.BNS_R92.zones()])
+      .then(function(res){
+        var plek=res[0];
+        if(!plek || !plek.ok) return null;
+        return window.BNS_R92.zonesOpPunt(plek.lat, plek.lon).then(function(namen){
+          var uit={ zone:namen.length>0, namen:namen, plaats:plek.plaats };
+          bewaar(a, uit);
+          return uit;
+        });
+      })
+      .catch(function(){ return null; })
+      .then(function(r){ delete bezig[a]; return r; });
+    return bezig[a];
+  }
+
+  function labelHtml(res){
+    if(!res) return '';
+    if(!res.zone) return '<span class="bns-r93-label" style="display:inline-block;background:#16a34a;color:#fff;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:900;margin-left:6px">Milieu: groen</span>';
+    return '<span class="bns-r93-label" style="display:inline-block;background:#b91c1c;color:#fff;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:900;margin-left:6px" title="'+esc(res.namen.join(', '))+'">Milieu: '+esc(res.namen[0])+'</span>';
+  }
+
+  /* ---- 1. de regel in het wijzigscherm ---- */
+  var laatsteAdres='';
+  function bijForm(){
+    try{
+      /* R94 (2026-09-04): de regel hoort bij het Extra-blok waar ook
+         Rekeningrijden staat - dat is het paneel van bns521, herkenbaar aan de
+         knop bns521AddLine. Staat dat er niet, dan valt hij terug op het
+         Bijzonderheden-veld. */
+      var anker=document.getElementById('bns521AddLine');
+      var extra=(anker && anker.offsetParent) ? anker.closest('div') : document.getElementById('orderExtra');
+      if(!extra || !extra.offsetParent) return;
+      var o={};
+      ['locationAddress','locationStreet','locationZip','locationCity','customerStreet','customerZip','customerCity'].forEach(function(id){
+        var e=document.getElementById(id); if(e) o[id]=e.value;
+      });
+      var adres=[o.locationAddress,o.locationStreet,o.locationZip,o.locationCity]
+        .map(T).filter(Boolean).join(' ')
+        || [o.customerStreet,o.customerZip,o.customerCity].map(T).filter(Boolean).join(' ');
+      if(!adres) return;
+
+      var vak=document.getElementById('bnsR93FormRegel');
+      if(!vak){
+        vak=document.createElement('div');
+        vak.id='bnsR93FormRegel';
+        vak.style.cssText='margin-top:8px;padding:9px 12px;border-radius:10px;font-weight:800;font-size:14px';
+        extra.parentNode.insertBefore(vak, extra.nextSibling);
+      }
+      if(adres===laatsteAdres) return;
+      laatsteAdres=adres;
+      vak.style.background='#f1f5f9'; vak.style.color='#475569';
+      vak.textContent='Milieuzone wordt opgezocht...';
+      zoneVoorAdres(adres).then(function(r){
+        if(!r){ vak.style.background='#f1f5f9'; vak.style.color='#475569'; vak.textContent='Milieuzone: adres nog niet te bepalen.'; return; }
+        if(r.zone){
+          vak.style.background='#fee2e2'; vak.style.color='#991b1b';
+          vak.textContent='LET OP - dit adres ligt in: '+r.namen.join(', ')+'. Kies hier de juiste wagen op.';
+        } else {
+          vak.style.background='#dcfce7'; vak.style.color='#166534';
+          vak.textContent='Geen milieuzone op dit adres.';
+        }
+      });
+    }catch(e){}
+  }
+
+  /* ---- 2. het labeltje op de opdrachtkaarten ---- */
+  function bijKaarten(){
+    try{
+      Array.prototype.slice.call(document.querySelectorAll('.order-card')).forEach(function(kaart){
+        if(kaart.querySelector('.bns-r93-label')) return;
+        var nr=((kaart.textContent||'').match(/20\d\d-\d{4}/)||[''])[0];
+        if(!nr) return;
+        var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
+        var o=s.filter(function(x){ return x && T(x.number)===nr; })[0];
+        if(!o || !window.BNS_R91) return;
+        var adres=window.BNS_R91.adresVanOpdracht(o);
+        if(!adres) return;
+        var c=cache();
+        if(!c[adres]){ zoneVoorAdres(adres); return; }   // volgende ronde tonen
+        var kop=kaart.querySelector('b,strong,.order-title')||kaart.firstElementChild;
+        if(!kop || kop.querySelector('.bns-r93-label')) return;
+        kop.insertAdjacentHTML('beforeend', labelHtml(c[adres]));
+      });
+    }catch(e){}
+  }
+
+  setInterval(function(){ bijForm(); bijKaarten(); }, 1500);
+  setTimeout(function(){ bijForm(); bijKaarten(); }, 1200);
+
+  window.BNS_R93={
+    voorAdres:zoneVoorAdres,
+    cache:cache,
+    cacheLegen:function(){ try{ localStorage.removeItem(CACHE); }catch(e){} laatsteAdres=''; return 'zonegeheugen gewist'; }
+  };
+  try{ console.info('[BNS R93] Milieuzone zichtbaar bij de planner (formulier + kaarten).'); }catch(e){}
 })();
