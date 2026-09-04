@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R87';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R88';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -13860,9 +13860,33 @@ setTimeout(()=>{
     }
   }
   function addressFromOrderCard(card){
-    const text = (card.textContent || "").replace(/\s+/g, " ");
-    const match = text.match(/Locatie:\s*([^|]+)|Adres:\s*([^|]+)/i);
-    return match ? (match[1] || match[2] || "").trim() : "";
+    /* R88-fix (2026-09-04): het adres kwam er leeg of onbruikbaar uit. De oude
+       regel las alles achter "Locatie:" tot het eerste liggende streepje - en dat
+       streepje staat pas bij "Totaal: ... | Borg", dus er kwam een halve kaart
+       mee, inclusief materialen en bedragen. Een routeplanner kan daar niets mee.
+       Nu wordt eerst de OPDRACHT zelf opgezocht aan de hand van het
+       opdrachtnummer op de kaart; dat is de betrouwbare bron. Lukt dat niet, dan
+       wordt de tekst gelezen tot aan het volgende kopje. */
+    try{
+      var nr=((card.textContent||'').match(/20\d\d-\d{4}/)||[''])[0];
+      if(nr){
+        var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
+        var o=s.filter(function(x){ return x && String(x.number||'').trim()===nr; })[0];
+        if(o){
+          var l=o.location||{};
+          var uit=[l.name,l.street,l.zip,l.city]
+            .map(function(v){ return String(v==null?'':v).trim(); })
+            .filter(Boolean).join(' ');
+          if(uit) return uit;
+          var c=o.customer||{};
+          uit=[c.street,c.zip,c.city].map(function(v){ return String(v==null?'':v).trim(); }).filter(Boolean).join(' ');
+          if(uit) return uit;
+        }
+      }
+    }catch(e){}
+    var text=(card.textContent||'').replace(/\s+/g,' ');
+    var m=text.match(/(?:Locatie|Adres)\s*:\s*(.+?)(?=\s*(?:Materialen|Totaal|Klant|Datum|Borg)\s*:|\s*\||$)/i);
+    return m ? String(m[1]||'').trim() : '';
   }
   function ensureDriverWazeButtons(){
     if (!roleAllowed()) return;
