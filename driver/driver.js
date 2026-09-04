@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R11';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R12';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -117,9 +117,13 @@ function routenetLink(adres){
 async function navMenu(adres){
   if(!String(adres||'').trim()){ toast('Bij deze opdracht staat geen adres.'); return; }
   const keuze=await askChoice('Navigatie',[
+    /* DRV-R12 (2026-09-04): alle drie een eigen kleur. Eerder was alleen Waze
+       groen en waren de andere twee donkergrijs, waardoor het leek alsof die
+       niet actief waren. Nu is in een oogopslag te zien welke knop je pakt -
+       handig met een telefoon in je hand. */
     {value:'waze',  label:'Waze',              cls:'btn-green'},
-    {value:'route', label:'Route (Routenet)',  cls:'btn-dark'},
-    {value:'maps',  label:'Locatie bekijken',  cls:'btn-dark'}
+    {value:'route', label:'Route (Routenet)',  cls:'btn-orange'},
+    {value:'maps',  label:'Locatie bekijken',  cls:'btn-purple'}
   ], adres);
   if(keuze==='waze')  location.href=routeUrl('waze',adres);
   else if(keuze==='route') window.open(routenetLink(adres),'_blank');
