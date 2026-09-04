@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R83';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R84';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -39363,6 +39363,13 @@ setTimeout(()=>{
     actions.insertBefore(b,actions.firstChild||null);
   }
   function routeFix(cardEl,o){
+    /* R84 (2026-09-04): terug naar de basis. Deze module plaatste een TWEEDE,
+       kleine routeknop naast de grote. Samen met de opruimer hieronder leverde
+       dat een spel op waarin knoppen elkaar plaatsten en weer weghaalden -
+       zichtbaar als geflikker terwijl Firebase bijwerkt, en uiteindelijk geen
+       knop meer. Er is er maar een nodig: de grote, die er altijd al stond en
+       die het adres meestuurt. Deze module doet dus niets meer. */
+    return;
     // Verwijder bestaande routenet knoppen
     A('button,a',cardEl).forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||''))b.remove();});
     // Optie 14 dagen en offertes krijgen GEEN routenet knop — niet actieve levering
@@ -39457,24 +39464,11 @@ setTimeout(()=>{
   function install(){css();ensureTabs();hideArchiveBad();if(window.renderOrders!==renderV356){window.renderOrders=renderV356;try{renderOrders=renderV356;}catch(e){}}var search=E('ordersSearch');if(search&&!search.__bns356){search.__bns356=true;search.addEventListener('input',function(){renderV356();});}var orders=E('orders');if(orders&&orders.classList.contains('active'))renderV356();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,100);setTimeout(install,1000);});else setTimeout(install,100);
   var n=0,tm=setInterval(function(){install();if(++n>24)clearInterval(tm);},500);
-  try{var mo=new MutationObserver(function(){hideArchiveBad();var orders=E('orders');if(orders&&orders.classList.contains('active')){A('#orders .order-card').forEach(function(card){
-        /* R83-fix (2026-09-04): deze opruimer haalde ELKE knop met het opschrift
-           "routenet" weg behalve zijn eigen. Sinds de grote knop zo heet, werd
-           juist die weggehaald - terwijl dat de knop is die er altijd stond en
-           die het adres wel meestuurt. Wat er overbleef was een knopje zonder
-           adres.
-           Nu wordt er gekeken naar de INHOUD in plaats van naar het opschrift:
-           een routeknop mag alleen weg als hij geen adres bij zich draagt. De
-           grote knop en de kleine van deze module hebben allebei een adres en
-           blijven dus staan; alleen het loze knopje verdwijnt. */
-        A('button,a',card).forEach(function(b){
-          if(b.classList.contains('bns356-route')) return;               // eigen knop: laten staan
-          if(!/^\s*(routenet|waze)\s*$/i.test(b.textContent||'')) return;
-          var link=String(b.getAttribute('href')||'')+' '+String(b.getAttribute('onclick')||'')+' '+String(b.onclick||'');
-          if(/[?&](q|locatie)=[^'"&\s)]+/.test(link)) return;             // heeft een adres: laten staan
-          b.remove();
-        });
-      });}});mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+  try{var mo=new MutationObserver(function(){hideArchiveBad();var orders=E('orders');if(orders&&orders.classList.contains('active')){/* R84: de opruimer die routeknoppen weghaalde is uitgezet. Hij ging op het
+         OPSCHRIFT af en verwijderde daardoor juist de goede knop zodra die
+         Routenet ging heten. Nu er nog maar een knop is, valt er ook niets
+         meer op te ruimen. */
+}});mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
   console.info('[BNS v356] Opdrachten tabs schoon actief.');
 })();
 
