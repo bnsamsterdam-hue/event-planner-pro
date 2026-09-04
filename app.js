@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-02-R79';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R80';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -47602,8 +47602,25 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function rowsTransport(o){ var rows=(o.transportLines||[]).map(function(l){ var qty=N(l.qty||1), unit=T(l.unit); return '<tr><td>'+H(qty+(unit?' '+unit:'x'))+'</td><td></td><td>'+H(T(l.name)+(T(l.note)?' - '+T(l.note):''))+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join(''); return rows||'<tr><td colspan="4">Geen extra</td></tr>'; }
   function docTitle(o,type){
     if(/factuur/i.test(type)) return 'FACTUUR';
-    // BNS 840: formulierstatus is leidend
-    var formSt=(function(){ var e=document.getElementById('orderStatus'); return e?(e.value||'').trim():''; })();
+    /* R80-fix (2026-09-04): hier werd de status uit het FORMULIER als leidend
+       genomen. Dat klopt zolang je het document opent terwijl je die opdracht aan
+       het bewerken bent. Maar open je het vanuit de lijst - via Overzicht
+       bestelling of het keuzemenu - dan staat er een leeg of achtergebleven
+       formulier klaar, meestal met "Offerte" erin. Elk document werd daardoor
+       een offerte, ook bij een opdracht die op Optie 14 dagen of Bevestigd
+       stond. Het formulier telt nu alleen nog mee als het ZICHTBAAR is EN over
+       dezelfde opdracht gaat; anders is de status van de opdracht leidend. */
+    var formSt=(function(){
+      try{
+        var e=document.getElementById('orderStatus');
+        if(!e || !e.offsetParent) return '';
+        var nrEl=document.getElementById('orderNumber');
+        var nr=nrEl?String(nrEl.value||'').trim():'';
+        var eigen=String((o&&o.number)||'').trim();
+        if(eigen && nr && nr!==eigen) return '';   // formulier hoort bij een andere opdracht
+        return (e.value||'').trim();
+      }catch(err){ return ''; }
+    })();
     var s=L(formSt||(o&&o.status)||'');
     if(s.indexOf('offerte')>=0) return 'OFFERTE';
     if(s.indexOf('optie')>=0) return 'OPTIE 14 DAGEN';
