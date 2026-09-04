@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R85';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R86';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -39318,7 +39318,7 @@ setTimeout(()=>{
     var seenOverview=false;
     A('button,a',cardEl).forEach(function(b){
       var x=T(b.textContent);
-      if(/^routenet$/i.test(x)){b.remove();return;}
+      if(/^routenet$/i.test(x)){ return; }   /* R86: NIET meer weghalen - dit is nu onze eigen knop */
       if(/overzicht\s*bestelling/i.test(x)){
         if(seenOverview){b.remove();return;}
         seenOverview=true;
@@ -39380,7 +39380,9 @@ setTimeout(()=>{
        die het adres meestuurt. Deze module doet dus niets meer. */
     return;
     // Verwijder bestaande routenet knoppen
-    A('button,a',cardEl).forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||''))b.remove();});
+    /* R86: hier werden alle knoppen met het opschrift "routenet" gewist. Dat was
+       bedoeld om oude restanten op te ruimen toen Waze nog de standaard was.
+       Nu heet onze eigen knop zo, dus dit mag niet meer. */
     // Optie 14 dagen en offertes krijgen GEEN routenet knop — niet actieve levering
     if(isOpt(o)||isQuote(o))return;
     /* R82-fix (2026-09-04): deze module zoekt de knop waar hij zijn eigen
@@ -40662,7 +40664,7 @@ setTimeout(()=>{
         if(tx==='actief' || tx==='actieve opdrachten' || tx==='uitgevoerde opdrachten' || tx==='geannuleerde opdrachten'){
           if(!b.classList.contains('bns356-tab')) b.style.display='none';
         }
-        if(/^routenet$/i.test(T(b.textContent)) && !b.classList.contains('bns356-route')) b.remove();
+        /* R86: idem - onze eigen Routenet-knop mag blijven staan. */
       });
     }catch(e){}
   }
