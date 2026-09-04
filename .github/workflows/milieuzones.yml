@@ -1,18 +1,16 @@
-# Haalt elke maandagnacht de emissiezones bij het NDW op en zet ze om naar
-# milieuzones.json in deze repository. Daarna pakt de app ze vanzelf op.
+# Haalt de emissiezones bij het NDW op en zet ze om naar milieuzones.json.
 #
-# Waarom via GitHub en niet rechtstreeks vanuit de app: de NDW-server staat het
-# niet toe dat een browser dat bestand namens een andere website ophaalt. Een
-# server mag dat wel, en GitHub draait deze taak op een server.
-#
-# Handmatig starten kan ook: tabblad Actions -> Milieuzones bijwerken -> Run workflow.
+# Let op de aanhalingstekens bij "on". In dit bestandsformaat wordt het woord
+# on zonder aanhalingstekens soms gelezen als "ja" in plaats van als het
+# kopje waar de startmomenten onder horen. Dan meldt GitHub: No event triggers
+# defined in 'on'. Met aanhalingstekens kan dat niet gebeuren.
 
 name: Milieuzones bijwerken
 
-on:
+"on":
+  workflow_dispatch: {}
   schedule:
-    - cron: '0 3 * * 1'      # elke maandag om 03:00 UTC
-  workflow_dispatch:          # en met de hand, wanneer je maar wilt
+    - cron: "0 3 * * 1"
 
 permissions:
   contents: write
@@ -21,7 +19,8 @@ jobs:
   bijwerken:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Repository ophalen
+        uses: actions/checkout@v4
 
       - name: Zonebestand ophalen bij het NDW
         run: |
@@ -36,7 +35,7 @@ jobs:
 
       - name: Vastleggen als er iets veranderd is
         run: |
-          if git diff --quiet milieuzones.json; then
+          if git diff --quiet -- milieuzones.json; then
             echo "Geen wijzigingen in de zones."
             exit 0
           fi
