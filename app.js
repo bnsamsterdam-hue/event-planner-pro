@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R94';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R95';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56672,7 +56672,18 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
   function schrijf(l){
     try{ localStorage.setItem(KEY, JSON.stringify(l)); }catch(e){}
-    try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('settings',{id:'voertuigen', lijst:l}); }catch(e){}
+    /* R95 (2026-09-04): de bezorgerstelefoon heeft deze lijst ook nodig, en die
+       leest de instellingen uit Firebase. Daarom onder settings/main wegzetten -
+       daar kijkt de telefoon. */
+    try{
+      if(window.BNS && typeof window.BNS.syncDoc==='function'){
+        window.BNS.syncDoc('settings',{id:'voertuigen', lijst:l});
+        try{
+          var st=(window.state&&state.settings)||null;
+          if(st){ st.voertuigen=l; window.BNS.syncDoc('settings', Object.assign({id:'main'}, st)); }
+        }catch(e){}
+      }
+    }catch(e){}
     return l;
   }
 
