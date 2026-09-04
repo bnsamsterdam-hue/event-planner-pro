@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R81';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R82';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -39367,7 +39367,12 @@ setTimeout(()=>{
     A('button,a',cardEl).forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||''))b.remove();});
     // Optie 14 dagen en offertes krijgen GEEN routenet knop — niet actieve levering
     if(isOpt(o)||isQuote(o))return;
-    var w=A('button,a',cardEl).find(function(b){return /^\s*waze\s*$/i.test(b.textContent||'');});
+    /* R82-fix (2026-09-04): deze module zoekt de knop waar hij zijn eigen
+       Routenet-knop achter plakt, en herkende alleen het opschrift "Waze".
+       Sinds die knop Routenet heet vond hij hem niet meer, waardoor zijn eigen
+       knop - de enige die het adres correct meestuurt - niet meer werd
+       geplaatst. Nu herkent hij allebei de opschriften. */
+    var w=A('button,a',cardEl).find(function(b){return /^\s*(waze|routenet)\s*$/i.test(b.textContent||'');});
     if(!w||cardEl.querySelector('.bns356-route'))return;
     var a=addr(o); if(!a)return;
     var b=document.createElement('button');b.type='button';b.className='bns356-route';b.textContent='Routenet';
@@ -39452,7 +39457,11 @@ setTimeout(()=>{
   function install(){css();ensureTabs();hideArchiveBad();if(window.renderOrders!==renderV356){window.renderOrders=renderV356;try{renderOrders=renderV356;}catch(e){}}var search=E('ordersSearch');if(search&&!search.__bns356){search.__bns356=true;search.addEventListener('input',function(){renderV356();});}var orders=E('orders');if(orders&&orders.classList.contains('active'))renderV356();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,100);setTimeout(install,1000);});else setTimeout(install,100);
   var n=0,tm=setInterval(function(){install();if(++n>24)clearInterval(tm);},500);
-  try{var mo=new MutationObserver(function(){hideArchiveBad();var orders=E('orders');if(orders&&orders.classList.contains('active')){A('#orders button,#orders a').forEach(function(b){if(/^\s*routenet\s*$/i.test(b.textContent||'')&&!b.classList.contains('bns356-route'))b.remove();});}});mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+  try{var mo=new MutationObserver(function(){hideArchiveBad();var orders=E('orders');if(orders&&orders.classList.contains('active')){A('#orders .order-card').forEach(function(card){
+        var eigen=card.querySelector('.bns356-route');
+        if(!eigen) return;   // R82: alleen opruimen als de goede knop er al staat
+        A('button,a',card).forEach(function(b){ if(b!==eigen && /^\s*routenet\s*$/i.test(b.textContent||'')) b.remove(); });
+      });}});mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
   console.info('[BNS v356] Opdrachten tabs schoon actief.');
 })();
 
