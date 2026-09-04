@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R91';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R92';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56992,4 +56992,140 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     cacheLegen:function(){ try{ localStorage.removeItem(CACHE); }catch(e){} return 'onthouden adressen gewist'; }
   };
   try{ console.info('[BNS R91] Adres-naar-kaartpunt actief - window.BNS_R91.zoek(\'Kerkplein Heemskerk\')'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R92 — Stap 3: de milieuzone-controle zelf
+   ----------------------------------------------------------
+   Hier komen de drie eerdere stappen samen:
+     - de voertuigen met hun emissieklasse   (R87)
+     - het adres van een opdracht als punt   (R91)
+     - de zones uit milieuzones.json          (GitHub-taak)
+
+   De vraag die beantwoord wordt: mag DIT voertuig op DIT adres komen?
+
+   Hoe het rekenen werkt: van elke zone kennen we de omtrek als een reeks
+   punten. Om te bepalen of het adres erbinnen ligt, trekken we vanaf dat punt
+   een denkbeeldige lijn naar rechts en tellen hoe vaak die de omtrek kruist.
+   Oneven aantal = binnen, even = buiten. Een beproefde methode die geen
+   kaartdienst nodig heeft.
+
+   Wat de regels betekenen:
+     MILIEUZONE      - weert oudere diesels. De emissieklasse van het voertuig
+                       moet minstens gelijk zijn aan wat de zone eist.
+     ZERO-EMISSIEZONE- geldt voor bestel- en vrachtauto's en laat alleen
+                       uitstootvrije voertuigen toe. Rijdt de wagen op diesel of
+                       benzine, dan mag hij er niet in.
+
+   Zones die nog niet gelden (bijvoorbeeld vanaf 2027) worden apart gemeld als
+   waarschuwing vooraf, niet als verbod.
+
+   Testen:
+     window.BNS_R92.check('VS-546-K','Kerkplein Heemskerk')
+     window.BNS_R92.checkOpdracht('VS-546-K','2026-2608')
+========================================================== */
+(function bnsR92Zonecontrole(){
+  'use strict';
+  if(window.__BNS_R92__) return;
+  window.__BNS_R92__=true;
+
+  var BESTAND='milieuzones.json';
+  var zones=null;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+
+  function laden(){
+    if(zones) return Promise.resolve(zones);
+    return fetch(BESTAND).then(function(r){ return r.json(); }).then(function(d){
+      zones=(d&&d.zones)||[];
+      zones.__opgehaald=(d&&d.opgehaald)||'';
+      return zones;
+    }).catch(function(){ zones=[]; return zones; });
+  }
+
+  /* Ligt het punt binnen deze omtrek? De punten staan als [breedte, lengte]. */
+  function binnen(lat, lon, ring){
+    var raak=false;
+    for(var i=0, j=ring.length-1; i<ring.length; j=i++){
+      var bi=ring[i][0], li=ring[i][1];
+      var bj=ring[j][0], lj=ring[j][1];
+      if(((bi>lat)!==(bj>lat)) && (lon < (lj-li)*(lat-bi)/(bj-bi)+li)) raak=!raak;
+    }
+    return raak;
+  }
+
+  function zonesOpPunt(lat, lon){
+    return (zones||[]).filter(function(z){
+      return (z.vlakken||[]).some(function(v){ return binnen(lat, lon, v); });
+    });
+  }
+
+  function voertuig(kenteken){
+    var l=(window.BNS_R87 && window.BNS_R87.ruw()) || [];
+    var k=T(kenteken).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    return l.filter(function(v){ return T(v.kenteken).toUpperCase().replace(/[^A-Z0-9]/g,'')===k; })[0]||null;
+  }
+
+  function uitstootvrij(v){
+    var b=T(v&&v.brandstof).toLowerCase();
+    return /elektri|waterstof/.test(b);
+  }
+
+  function beoordeel(v, z){
+    var vandaag=new Date().toISOString().slice(0,10);
+    var nogNiet = z.vanaf && z.vanaf > vandaag;
+
+    if(z.soort==='zero'){
+      if(uitstootvrij(v)) return {mag:true, tekst:'uitstootvrij, dus toegestaan'};
+      return {mag:false, nogNiet:nogNiet,
+              tekst:'zero-emissiezone: alleen elektrisch of waterstof'+(nogNiet?' (geldt vanaf '+z.vanaf+')':'')};
+    }
+    var nodig=z.euro||0;
+    var heeft=parseInt(T(v&&v.euronorm).replace(/\D/g,''),10);
+    if(!nodig) return {mag:null, tekst:'milieuzone, eis onbekend - controleer zelf'};
+    if(!heeft)  return {mag:null, tekst:'emissieklasse van dit voertuig onbekend - draai eerst Check in Admin'};
+    if(heeft>=nodig) return {mag:true, tekst:'euro '+heeft+' voldoet aan de eis (euro '+nodig+')'};
+    return {mag:false, nogNiet:nogNiet,
+            tekst:'euro '+heeft+' is te laag, deze zone eist euro '+nodig+(nogNiet?' (geldt vanaf '+z.vanaf+')':'')};
+  }
+
+  function check(kenteken, adres){
+    var v=voertuig(kenteken);
+    if(!v) return Promise.resolve({ok:false, reden:'voertuig niet gevonden in de lijst'});
+    return Promise.all([laden(), window.BNS_R91.zoek(adres)]).then(function(res){
+      var plek=res[1];
+      if(!plek || !plek.ok) return {ok:false, reden:(plek&&plek.reden)||'adres niet gevonden'};
+      var gevonden=zonesOpPunt(plek.lat, plek.lon);
+      if(!gevonden.length){
+        return {ok:true, inZone:false, voertuig:v.naam, adres:plek.gevonden,
+                melding:'Geen milieuzone op dit adres. Goede reis!'};
+      }
+      var oordelen=gevonden.map(function(z){
+        var b=beoordeel(v,z);
+        return {zone:z.naam, stad:z.stad, soort:z.soort, vanaf:z.vanaf, mag:b.mag, nogNiet:b.nogNiet, uitleg:b.tekst, url:z.url};
+      });
+      var verbod=oordelen.filter(function(o){ return o.mag===false && !o.nogNiet; });
+      var straks=oordelen.filter(function(o){ return o.mag===false && o.nogNiet; });
+      var melding;
+      if(verbod.length)      melding='LET OP: '+v.naam+' mag hier NIET komen. '+verbod[0].zone+' - '+verbod[0].uitleg+'. Overleg met de planner.';
+      else if(straks.length) melding='Nu toegestaan, maar '+straks[0].zone+' gaat gelden vanaf '+straks[0].vanaf+'.';
+      else                   melding=v.naam+' mag hier komen. Goede reis!';
+      return {ok:true, inZone:true, voertuig:v.naam, adres:plek.gevonden, zones:oordelen, melding:melding};
+    });
+  }
+
+  function checkOpdracht(kenteken, nummer){
+    var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
+    var o=s.filter(function(x){ return x && T(x.number)===T(nummer); })[0];
+    if(!o) return Promise.resolve({ok:false, reden:'opdracht niet gevonden'});
+    return check(kenteken, window.BNS_R91.adresVanOpdracht(o));
+  }
+
+  window.BNS_R92={
+    check:check,
+    checkOpdracht:checkOpdracht,
+    zones:function(){ return laden(); },
+    zonesOpPunt:function(lat,lon){ return laden().then(function(){ return zonesOpPunt(lat,lon).map(function(z){ return z.naam; }); }); }
+  };
+  try{ console.info('[BNS R92] Milieuzone-controle actief - window.BNS_R92.check(kenteken, adres)'); }catch(e){}
 })();
