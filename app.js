@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R86';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R87';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56617,4 +56617,144 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
   };
   try{ console.info('[BNS R81] Eén routeknop actief ("Route" -> Routenet).'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R87 — Voertuigen beheren (fundament voor de milieuzone-controle)
+   ----------------------------------------------------------
+   Eerste stap van de milieuzone-controle: een lijst met de eigen wagens. Je
+   voegt een wagen toe met een herkenbare naam en het kenteken; de rest wordt
+   bij de RDW opgehaald - voertuigsoort, brandstof en emissieklasse. Die
+   gegevens zijn open data, gratis en zonder aanmelding, en ze zijn altijd
+   actueel. Zo hoef je zelf geen euronormen bij te houden en klopt het ook als
+   er een wagen bijkomt.
+
+   Waarom dit apart staat van de zonecontrole: zonder voertuigen valt er niets
+   te controleren, en dit deel is op zichzelf al bruikbaar - je ziet in een
+   oogopslag welke wagen welke emissieklasse heeft.
+
+   Let op het verschil dat straks meespeelt:
+     - een MILIEUZONE weert oudere diesels (personen-, bestel- en vrachtauto's)
+     - een ZERO-EMISSIEZONE geldt alleen voor bestel- en vrachtauto's en laat
+       op termijn alleen nog uitstootvrije voertuigen toe
+   De RDW vertelt ons per kenteken om welke voertuigsoort het gaat, dus de
+   juiste regel wordt vanzelf gekozen.
+
+   Bediening (voorlopig via de console; een scherm in Admin volgt):
+     window.BNS_R87.lijst()                    - toont alle wagens
+     window.BNS_R87.toevoegen('Naam','KENTEKEN')
+     window.BNS_R87.verwijderen('KENTEKEN')
+     window.BNS_R87.ophalen('KENTEKEN')        - vraagt de RDW-gegevens op
+     window.BNS_R87.allesOphalen()             - vult de hele lijst aan
+========================================================== */
+(function bnsR87Voertuigen(){
+  'use strict';
+  if(window.__BNS_R87__) return;
+  window.__BNS_R87__=true;
+
+  var KEY='bns_voertuigen';
+  var RDW='https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken=';
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  /* De RDW kent alleen kentekens zonder streepjes, in hoofdletters. */
+  function sleutel(k){ return T(k).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function net(k){ return T(k).toUpperCase(); }
+
+  function lees(){
+    try{ var l=JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
+  }
+  function schrijf(l){
+    try{ localStorage.setItem(KEY, JSON.stringify(l)); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('settings',{id:'voertuigen', lijst:l}); }catch(e){}
+    return l;
+  }
+
+  function toevoegen(naam, kenteken){
+    naam=T(naam); kenteken=net(kenteken);
+    if(!naam || !kenteken) return 'geef een naam en een kenteken op';
+    var l=lees();
+    if(l.some(function(v){ return sleutel(v.kenteken)===sleutel(kenteken); })) return 'dit kenteken staat er al in';
+    l.push({naam:naam, kenteken:kenteken, soort:'', brandstof:'', euronorm:'', opgehaald:''});
+    schrijf(l);
+    ophalen(kenteken);                       // meteen proberen aan te vullen
+    return naam+' ('+kenteken+') toegevoegd';
+  }
+
+  function verwijderen(kenteken){
+    var k=sleutel(kenteken), l=lees();
+    var over=l.filter(function(v){ return sleutel(v.kenteken)!==k; });
+    if(over.length===l.length) return 'kenteken niet gevonden';
+    schrijf(over);
+    return kenteken+' verwijderd';
+  }
+
+  /* Bij de RDW opvragen wat voor voertuig dit is. Lukt het niet - geen bereik,
+     onbekend kenteken - dan blijft de wagen gewoon in de lijst staan; je kunt
+     het later opnieuw proberen. */
+  function ophalen(kenteken){
+    var k=sleutel(kenteken);
+    return fetch(RDW+encodeURIComponent(k))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var rij=(Array.isArray(d)&&d[0])||null;
+        var l=lees(), gevonden=false;
+        l.forEach(function(v){
+          if(sleutel(v.kenteken)!==k) return;
+          gevonden=true;
+          if(rij){
+            v.soort=T(rij.voertuigsoort);
+            v.brandstof=T(rij.brandstof_omschrijving||'');
+            v.euronorm=T(rij.emissieklasse||rij.uitstoot_deeltjes_licht||'');
+            v.merk=T(rij.merk); v.model=T(rij.handelsbenaming);
+            v.opgehaald=new Date().toISOString().slice(0,10);
+          }
+        });
+        if(gevonden) schrijf(l);
+        return rij ? (T(rij.merk)+' '+T(rij.handelsbenaming)+' - '+T(rij.voertuigsoort)) : 'kenteken niet gevonden bij de RDW';
+      })
+      .catch(function(e){ return 'ophalen mislukt: '+(e&&e.message||e); });
+  }
+
+  function allesOphalen(){
+    var l=lees();
+    return Promise.all(l.map(function(v){ return ophalen(v.kenteken); }))
+      .then(function(){ return lijst(); });
+  }
+
+  function lijst(){
+    return lees().map(function(v){
+      return v.naam+' | '+v.kenteken+' | '+(v.soort||'?')+' | '+(v.brandstof||'?')+' | euro '+(v.euronorm||'?');
+    });
+  }
+
+  /* Eenmalig de acht bekende wagens klaarzetten, maar alleen als de lijst nog
+     leeg is - anders zou hij je eigen wijzigingen overschrijven. */
+  (function eersteKeer(){
+    if(lees().length) return;
+    [['BE-trekker','VS-546-K'],
+     ['Bakwagen zwart','VB-322-D'],
+     ['Kraanwagen','BS-DD-83'],
+     ['Containerauto','BZGF-08'],
+     ['Pickup Avalanche','31-VZP-7'],
+     ['Bakwagen wit','V-92-KBH'],
+     ['Bus Bob','VSN-68-R'],
+     ['Pickup Ram','VBX-01-D']
+    ].forEach(function(p){
+      lees(); // no-op, houdt de vorm gelijk
+      var l=lees();
+      l.push({naam:p[0], kenteken:p[1], soort:'', brandstof:'', euronorm:'', opgehaald:''});
+      schrijf(l);
+    });
+    try{ console.info('[BNS R87] Acht voertuigen klaargezet. Draai window.BNS_R87.allesOphalen() om de RDW-gegevens op te halen.'); }catch(e){}
+  })();
+
+  window.BNS_R87={
+    lijst:lijst,
+    ruw:lees,
+    toevoegen:toevoegen,
+    verwijderen:verwijderen,
+    ophalen:ophalen,
+    allesOphalen:allesOphalen
+  };
+  try{ console.info('[BNS R87] Voertuigenlijst actief - window.BNS_R87.lijst()'); }catch(e){}
 })();
