@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R95';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R96';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -13708,11 +13708,29 @@ setTimeout(()=>{
       "Ophaaldatum: " + agendaDisplayDate(pickupDate)
     ].join("\n");
 
+    /* R96 (2026-09-04): als het adres in een milieu- of zero-emissiezone ligt,
+       komt dat vooraan de titel van de agenda-afspraak te staan en ook in de
+       omschrijving. De opdrachten staan vaak weken in de agenda voordat iemand
+       in de app kijkt, dus dit is de plek waar het gezien wordt.
+       Wat er bekend is komt uit het geheugen dat de planner al heeft opgebouwd;
+       er wordt hier niets opgezocht, want dan zou de agenda moeten wachten. */
+    var zoneVoor='', zoneRegel='';
+    try{
+      if(window.BNS_R93 && typeof window.BNS_R93.cache==='function'){
+        var c=window.BNS_R93.cache()[String(address||'').trim()];
+        if(c && c.zone && c.namen && c.namen.length){
+          zoneVoor='LET OP MILIEUZONE - ';
+          zoneRegel='\n\nLET OP: dit adres ligt in ' + c.namen.join(', ') +
+                    '.\nControleer met welke wagen hier gereden mag worden.';
+        }
+      }
+    }catch(e){}
+
     const url = "https://calendar.google.com/calendar/render?action=TEMPLATE"
-    + "&text=" + encodeURIComponent(eventTitle)
+    + "&text=" + encodeURIComponent(zoneVoor + eventTitle)
     + "&dates=" + encodeURIComponent(eventStart + "/" + eventEnd)
     + "&location=" + encodeURIComponent(address)
-    + "&details=" + encodeURIComponent(details)
+    + "&details=" + encodeURIComponent(details + zoneRegel)
     + "&ctz=" + encodeURIComponent("Europe/Amsterdam");
     window.open(url, "_blank");
   }
@@ -57264,6 +57282,18 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         if(!adres) return;
         var c=cache();
         if(!c[adres]){ zoneVoorAdres(adres); return; }   // volgende ronde tonen
+        /* R96: het antwoord ook OP de opdracht zetten. De bezorgerstelefoon
+           leest dat dan gewoon mee en hoeft zelf niets op te zoeken - dat werkt
+           ook zonder bereik. */
+        try{
+          var w=c[adres];
+          var nieuw = w.zone ? w.namen.join(', ') : '';
+          if(T(o.milieuzone||'')!==nieuw){
+            o.milieuzone=nieuw;
+            o.milieuzoneOp=new Date().toISOString().slice(0,10);
+            if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o);
+          }
+        }catch(e){}
         var kop=kaart.querySelector('b,strong,.order-title')||kaart.firstElementChild;
         if(!kop || kop.querySelector('.bns-r93-label')) return;
         kop.insertAdjacentHTML('beforeend', labelHtml(c[adres]));
