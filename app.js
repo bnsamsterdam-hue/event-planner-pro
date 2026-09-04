@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R86';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R87';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -13879,7 +13879,7 @@ setTimeout(()=>{
          kaart te lezen was. Nu heet hij Routenet en wordt er niets geopend als
          er geen adres is - dan volgt een korte melding, in plaats van een lege
          routeplanner. */
-      button.textContent = "Routenet";
+      button.textContent = "Route"   /* R87: bewust NIET "Routenet" - zie toelichting onderaan */;
       button.onclick = function(event){
         event.stopPropagation();
         const address = addressFromOrderCard(card) || niceAddressFromForm();
@@ -14480,7 +14480,7 @@ setTimeout(()=>{
     '<div>Locatie: ' + esc(addr) + '</div>' +
     '<div>Materialen: ' + matChips(order.materials || []) + '</div>' +
     '<div>Totaal: ' + money2(total) + ' | Borg: ' + money2(deposit) + '</div>' +
-    '<button type="button" class="bns-waze-btn" onclick="window.open(\'https://routenet.nl/?q=' + encodeURIComponent(addr) + '\',\'_blank\')">Routenet</button>' +
+    '<button type="button" class="bns-waze-btn" onclick="window.open(\'https://routenet.nl/?q=' + encodeURIComponent(addr) + '\',\'_blank\')">Route</button>' +
     '</div>' +
     '<div class="actions">' +
     '<button type="button" onclick="editOrder(\'' + esc(order.id) + '\')">Wijzigen</button>' +
@@ -17785,7 +17785,7 @@ setTimeout(()=>{
       var b=document.createElement('button');
       b.type='button';
       b.className='bns-routenet-btn';
-      b.textContent='Routenet';
+      b.textContent='Route'   /* R87 */;
       b.onclick=function(e){
         if(e){
           e.preventDefault();
@@ -20465,7 +20465,7 @@ setTimeout(()=>{
     var number = esc(order.number || "");
     var actions = [];
     if (hasRight('gps', true)) {
-      actions.push('<a class="bns-waze" href="'+esc(routeUrl("waze", address))+'" target="_blank" rel="noopener">Routenet</a>');
+      actions.push('<a class="bns-waze" href="'+esc(routeUrl("waze", address))+'" target="_blank" rel="noopener">Route</a>');
       actions.push('<a class="bns-maps" href="'+esc(routeUrl("maps", address))+'" target="_blank" rel="noopener">Maps</a>');
     }
     if (hasRight('phoneCall', true)) actions.push(phone ? '<a class="bns-call" href="tel:'+esc(phone)+'">Bel klant</a>' : '<button class="bns-call" type="button">Geen tel.</button>');
@@ -25446,7 +25446,7 @@ setTimeout(()=>{
     var ad=phoneAddress(o),ph=T((o.customer&&o.customer.phone)||o.phone||''),enc=encodeURIComponent(ad),id=H(o.id||'');
     var priceInfo=canPrices(u)?'<div><b>Totaal:</b> '+H(o.total||o.totaal||o.amount||o.bedrag||'')+' <b>Borg:</b> '+H(o.deposit||o.borg||'')+'</div>':'';
     var acts='';
-    if(canRoute(u))acts+='<a class="green" target="_blank" href="https://routenet.nl/?q='+enc+'">Routenet</a><a target="_blank" href="https://www.google.com/maps/search/?api=1&query='+enc+'">Maps</a>';
+    if(canRoute(u))acts+='<a class="green" target="_blank" href="https://routenet.nl/?q='+enc+'">Route</a><a target="_blank" href="https://www.google.com/maps/search/?api=1&query='+enc+'">Maps</a>';
     if(canCall(u))acts+=(ph?'<a href="tel:'+H(ph)+'">Bel klant</a>':'<button type="button">Geen tel.</button>');
     if(canReport(u))acts+='<button class="dark" data-v95-report="'+id+'" data-type="Bezorger melding">Melding</button>';
     if(canStoring(u))acts+='<button class="dark" data-v95-report="'+id+'" data-type="Storing">Storing</button>';
@@ -29608,7 +29608,7 @@ setTimeout(()=>{
     });
     app.innerHTML='<div class="bns-v83-phone-head"><h1>Bezorger Tapwagen.nl</h1><small>'+H(u.name||'Bezorger')+'</small></div><div class="bns-v83-phone-tools"><input id="bnsV83PhoneSearch" placeholder="Zoek opdracht / klant / adres"><button type="button" id="bnsV83PhoneRefresh">Verversen</button><button type="button" id="bnsV83PhoneLogout">Afmelden</button></div><div class="bns-v83-phone-list">'+(rows.length?rows.map(function(o){
       var addr=orderAddress(o), phone=orderPhone(o), dr=niceDate(o.start)+(o.end&&o.end!==o.start?' tot '+niceDate(o.end):'');
-      return '<div class="bns-v83-phone-card"><div class="bns-v83-phone-title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="bns-v83-phone-meta"><div>Datum: '+H(dr)+'</div><div>Klant: '+H(orderCustomer(o)||'')+'</div><div>Adres: '+H(addr||'')+'</div><div>Materiaal: '+H(orderMats(o)||'Geen materialen')+'</div></div><div class="bns-v83-phone-actions"><a class="green" target="_blank" href="'+H(routeUrl('waze',addr))+'">Routenet</a><a class="dark" target="_blank" href="'+H(routeUrl('maps',addr))+'">Maps</a>'+(phone?'<a href="tel:'+H(phone)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button type="button" data-v83-phone-done="'+H(o.id||'')+'">Uitgevoerd</button></div></div>';
+      return '<div class="bns-v83-phone-card"><div class="bns-v83-phone-title">'+H(o.number||'')+' - '+H(o.title||'Zonder titel')+'</div><div class="bns-v83-phone-meta"><div>Datum: '+H(dr)+'</div><div>Klant: '+H(orderCustomer(o)||'')+'</div><div>Adres: '+H(addr||'')+'</div><div>Materiaal: '+H(orderMats(o)||'Geen materialen')+'</div></div><div class="bns-v83-phone-actions"><a class="green" target="_blank" href="'+H(routeUrl('waze',addr))+'">Route</a><a class="dark" target="_blank" href="'+H(routeUrl('maps',addr))+'">Maps</a>'+(phone?'<a href="tel:'+H(phone)+'">Bel klant</a>':'<button type="button">Geen tel.</button>')+'<button type="button" data-v83-phone-done="'+H(o.id||'')+'">Uitgevoerd</button></div></div>';
     }).join(''):'<div class="bns-v83-empty">Geen opdrachten voor deze bezorger.</div>')+'</div>';
     var q=E('bnsV83PhoneSearch');
     if(q) q.oninput=function(){
@@ -35783,7 +35783,7 @@ setTimeout(()=>{
       var r=document.createElement('button');
       r.type='button';
       r.id='tapV301BRoutenet';
-      r.textContent='Routenet';
+      r.textContent='Route'   /* R87 */;
       r.onclick=function(e){
         e.preventDefault();
         openRoute('routenet');
@@ -39393,7 +39393,7 @@ setTimeout(()=>{
     var w=A('button,a',cardEl).find(function(b){return /^\s*(waze|routenet)\s*$/i.test(b.textContent||'');});
     if(!w||cardEl.querySelector('.bns356-route'))return;
     var a=addr(o); if(!a)return;
-    var b=document.createElement('button');b.type='button';b.className='bns356-route';b.textContent='Routenet';
+    var b=document.createElement('button');b.type='button';b.className='bns356-route';b.textContent='Route'   /* R87 */;
     b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();window.open('https://www.routenet.nl/routeplanner?locatie='+encodeURIComponent(a),'_blank');return false;};
     w.insertAdjacentElement('afterend',b);
   }
@@ -56410,3 +56410,26 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   };
   try{ console.info('[BNS R78] '+lege().length+' lege restopdracht(en) uit juni worden verborgen. window.BNS_R78.lijst() toont ze.'); }catch(e){}
 })();
+
+/* ==========================================================
+   BNS R87 — Waarom de routeknop "Route" heet en niet "Routenet"
+   ----------------------------------------------------------
+   In dit bestand staan vier routines die elke knop met het opschrift
+   "routenet" weghalen. Ze zijn ooit geschreven om restanten van de vorige
+   Routenet-periode op te ruimen, toen Waze de standaard werd:
+
+       if(/^routenet$/i.test(x)){ b.remove(); return; }
+
+   Zodra de knop weer Routenet ging heten, viel hij binnen die opdracht en werd
+   hij bij elke hertekening gewist. Zichtbaar tijdens het laden, weg zodra
+   Firebase klaar was.
+
+   In plaats van te blijven vechten met die opruimers heet de knop nu gewoon
+   "Route". Die naam herkent geen van hen, dus er valt niets meer weg te halen.
+   De knop opent nog steeds routenet.nl met het adres van de opdracht.
+
+   Voor later: wil je hem toch weer "Routenet" noemen, dan moeten die vier
+   routines eerst weg - op regel 39321, 39383, 39568 en 40665 in de versie van
+   4 september 2026. Ze staan nu uitgeschakeld, maar de naam is de veiligere
+   oplossing: er kan altijd nog een vijfde opruimer opduiken.
+========================================================== */
