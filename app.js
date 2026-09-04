@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R90';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R91';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56882,4 +56882,114 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
   window.BNS_R88={ tonen:bouw };
   try{ console.info('[BNS R88] Beheerscherm voertuigen actief - te vinden onderin Admin.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R91 — Stap 2: van adres naar een punt op de kaart
+   ----------------------------------------------------------
+   Voor de milieuzone-controle moeten we weten WAAR een opdracht ligt, niet
+   alleen hoe het adres heet. Daarvoor wordt hier de officiele adressenzoeker
+   van de overheid gebruikt: de PDOK Locatieserver. Die is gratis, vereist geen
+   aanmelding of sleutel, en put uit de Basisregistratie Adressen en Gebouwen -
+   dezelfde bron waar gemeenten zelf mee werken.
+
+   Waarom niet een kaartdienst van een bedrijf: die vragen een sleutel, houden
+   bij hoe vaak je ze gebruikt en kunnen morgen geld gaan vragen. Deze bron is
+   openbaar en blijft dat.
+
+   Dit is met opzet een LOSSE stap. Je kunt hem nakijken zonder dat er al iets
+   van een zonecontrole overheen ligt:
+
+       window.BNS_R91.zoek('Kerkplein Heemskerk')
+       window.BNS_R91.vanOpdracht('2026-2608')
+
+   Er komt terug wat de zoeker ervan maakt, met de gevonden coordinaten en hoe
+   zeker hij is. Klopt dat, dan kan de zonecontrole erop gebouwd worden.
+========================================================== */
+(function bnsR91Locatie(){
+  'use strict';
+  if(window.__BNS_R91__) return;
+  window.__BNS_R91__=true;
+
+  var PDOK='https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?rows=1&fq=type:adres&q=';
+  var CACHE='bns_locaties';
+
+  function T(v){ return String(v==null?'':v).trim(); }
+
+  /* Eenmaal gevonden adressen onthouden. Scheelt wachten, en het werkt daarna
+     ook zonder bereik - handig voor een bezorger onderweg. */
+  function cacheLees(){
+    try{ return JSON.parse(localStorage.getItem(CACHE)||'{}')||{}; }catch(e){ return {}; }
+  }
+  function cacheZet(sleutel, waarde){
+    try{
+      var c=cacheLees();
+      c[sleutel]=waarde;
+      localStorage.setItem(CACHE, JSON.stringify(c));
+    }catch(e){}
+  }
+
+  function zoek(adres){
+    var a=T(adres);
+    if(!a) return Promise.resolve({ok:false, reden:'geen adres opgegeven'});
+    var c=cacheLees();
+    if(c[a]) return Promise.resolve(Object.assign({uitCache:true}, c[a]));
+
+    return fetch(PDOK+encodeURIComponent(a))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var doc=(d && d.response && Array.isArray(d.response.docs) && d.response.docs[0]) || null;
+        if(!doc) return {ok:false, reden:'adres niet gevonden', gezocht:a};
+        /* centroide_ll ziet eruit als: POINT(4.6607 52.5085) - eerst lengte, dan breedte */
+        var m=String(doc.centroide_ll||'').match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);
+        if(!m) return {ok:false, reden:'geen coordinaten in het antwoord', gezocht:a};
+        var uit={
+          ok:true,
+          gezocht:a,
+          gevonden:T(doc.weergavenaam),
+          plaats:T(doc.woonplaatsnaam),
+          gemeente:T(doc.gemeentenaam),
+          postcode:T(doc.postcode),
+          lon:parseFloat(m[1]),
+          lat:parseFloat(m[2]),
+          zekerheid:Math.round((doc.score||0)*10)/10
+        };
+        cacheZet(a, uit);
+        return uit;
+      })
+      .catch(function(e){ return {ok:false, reden:'opzoeken mislukt: '+(e&&e.message||e), gezocht:a}; });
+  }
+
+  /* Hetzelfde, maar dan met het adres van een opdracht. Gebruikt dezelfde
+     opbouw als de routeknop: zonder de naam van de locatie, want die kent een
+     adressenzoeker net zo min als een routeplanner. */
+  function adresVanOpdracht(o){
+    if(!o) return '';
+    var l=o.location||{}, c=o.customer||{};
+    var delen=[o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,
+               l.street,l.zip,l.city,
+               o.address,o.street,o.zip,o.city,
+               c.street,c.zip,c.city];
+    var uit=[];
+    delen.forEach(function(v){ v=T(v); if(v && uit.indexOf(v)<0) uit.push(v); });
+    return uit.join(' ');
+  }
+
+  function vanOpdracht(nummer){
+    var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
+    var o=s.filter(function(x){ return x && T(x.number)===T(nummer); })[0];
+    if(!o) return Promise.resolve({ok:false, reden:'opdracht niet gevonden'});
+    var a=adresVanOpdracht(o);
+    if(!a) return Promise.resolve({ok:false, reden:'bij deze opdracht staat geen adres'});
+    return zoek(a);
+  }
+
+  window.BNS_R91={
+    zoek:zoek,
+    vanOpdracht:vanOpdracht,
+    adresVanOpdracht:adresVanOpdracht,
+    cache:cacheLees,
+    cacheLegen:function(){ try{ localStorage.removeItem(CACHE); }catch(e){} return 'onthouden adressen gewist'; }
+  };
+  try{ console.info('[BNS R91] Adres-naar-kaartpunt actief - window.BNS_R91.zoek(\'Kerkplein Heemskerk\')'); }catch(e){}
 })();
