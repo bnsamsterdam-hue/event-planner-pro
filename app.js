@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R82';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R83';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -39458,9 +39458,22 @@ setTimeout(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,100);setTimeout(install,1000);});else setTimeout(install,100);
   var n=0,tm=setInterval(function(){install();if(++n>24)clearInterval(tm);},500);
   try{var mo=new MutationObserver(function(){hideArchiveBad();var orders=E('orders');if(orders&&orders.classList.contains('active')){A('#orders .order-card').forEach(function(card){
-        var eigen=card.querySelector('.bns356-route');
-        if(!eigen) return;   // R82: alleen opruimen als de goede knop er al staat
-        A('button,a',card).forEach(function(b){ if(b!==eigen && /^\s*routenet\s*$/i.test(b.textContent||'')) b.remove(); });
+        /* R83-fix (2026-09-04): deze opruimer haalde ELKE knop met het opschrift
+           "routenet" weg behalve zijn eigen. Sinds de grote knop zo heet, werd
+           juist die weggehaald - terwijl dat de knop is die er altijd stond en
+           die het adres wel meestuurt. Wat er overbleef was een knopje zonder
+           adres.
+           Nu wordt er gekeken naar de INHOUD in plaats van naar het opschrift:
+           een routeknop mag alleen weg als hij geen adres bij zich draagt. De
+           grote knop en de kleine van deze module hebben allebei een adres en
+           blijven dus staan; alleen het loze knopje verdwijnt. */
+        A('button,a',card).forEach(function(b){
+          if(b.classList.contains('bns356-route')) return;               // eigen knop: laten staan
+          if(!/^\s*(routenet|waze)\s*$/i.test(b.textContent||'')) return;
+          var link=String(b.getAttribute('href')||'')+' '+String(b.getAttribute('onclick')||'')+' '+String(b.onclick||'');
+          if(/[?&](q|locatie)=[^'"&\s)]+/.test(link)) return;             // heeft een adres: laten staan
+          b.remove();
+        });
       });}});mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
   console.info('[BNS v356] Opdrachten tabs schoon actief.');
 })();
