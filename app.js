@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R82';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R84';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56445,20 +56445,61 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{ var v=T(localStorage.getItem(VERTREK_KEY)); if(v) return v; }catch(e){}
     return 'Molenlaan 30, 1422ZA Uithoorn';
   }
+  /* R83 (2026-09-04): het zelf opbouwen van zo'n Routenet-pakketje werkt niet.
+     Routenet antwoordt met "List must have at least 1 item(s) but was empty":
+     naast de adressen wil hij ook een lijst met al OPGEZOCHTE adressen, compleet
+     met coordinaten, postcode en provincie. Die kunnen wij niet maken - daar is
+     hun eigen adressenzoeker voor nodig.
+
+     Daarom doet de knop nu het eerstvolgende beste: hij opent Routenet en zet
+     het adres tegelijk op het klembord. Eén keer plakken in het veld "Naar" en
+     je route staat er. Dat is één handeling, en het werkt altijd - in
+     tegenstelling tot alle pogingen om hun webadres na te maken.
+
+     Dit is een beperking van Routenet zelf, niet van deze app. */
+  /* R84 (2026-09-04): uit een ECHTE Routenet-link bleek hoe het wel kan. Twee
+     dingen die ik eerder fout had:
+       - het pad is /address (niet /route) en action is "address";
+       - de lijst met opgezochte adressen mag LEGE tekst bevatten. Hij moet
+         alleen evenveel items hebben als er adressen zijn. Routenet zoekt het
+         adres dan zelf op. Vandaar eerder de melding dat de lijst leeg was.
+     Verder staan de adressen er gewoon leesbaar in - niet nog eens gecodeerd -
+     en is de vololgorde: eerst de BESTEMMING, dan het vertrekpunt. */
   function routenetLink(naar){
     try{
       var pakket={
-        q:[encodeURIComponent(vertrekAdres()), encodeURIComponent(naar)],
+        q:[String(naar||''), vertrekAdres()],
         c:['NL','NL'],
-        o:{optimization:'optimal', vehicle:'car', fueltype:'euro95', fuelconsumption:'14', kenteken:''},
-        action:'route',
-        version:'20231013'
+        a:['',''],
+        d:[],
+        o:{optimization:'optimal', vehicle:'car', fueltype:'euro95',
+           fuelconsumption:'14', emissionclass:'6', kenteken:''},
+        action:'address',
+        version:'20251105'
       };
       var code=btoa(unescape(encodeURIComponent(JSON.stringify(pakket))));
-      return 'https://routenet.nl/route?q='+encodeURIComponent(code)+'&culture=nl';
+      return 'https://routenet.nl/address?q='+code;
     }catch(e){
       return 'https://routenet.nl/';
     }
+  }
+
+  function naarKlembord(tekst){
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(tekst);
+        return true;
+      }
+    }catch(e){}
+    try{
+      var h=document.createElement('textarea');
+      h.value=tekst;
+      h.style.cssText='position:fixed;left:-9999px;top:0';
+      document.body.appendChild(h); h.select();
+      document.execCommand('copy');
+      h.remove();
+      return true;
+    }catch(e){ return false; }
   }
 
   function opdrachtVanKaart(kaart){
@@ -56498,6 +56539,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       b.title='Route naar '+adres;
       b.onclick=function(ev){
         ev.preventDefault(); ev.stopPropagation();
+        naarKlembord(adres);                 // voor de zekerheid ook op het klembord
         window.open(routenetLink(adres),'_blank');
         return false;
       };
@@ -56551,6 +56593,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       return 'vertrekadres staat nu op: '+vertrekAdres();
     },
     link:function(naar){ return routenetLink(naar); },
+    kopieer:function(naar){ return naarKlembord(naar) ? 'gekopieerd: '+naar : 'kopieren mislukt'; },
     adresVan:function(nr){
       var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
       var o=s.filter(function(x){ return x && T(x.number)===T(nr); })[0];
