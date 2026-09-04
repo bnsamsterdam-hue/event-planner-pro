@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R10';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R11';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -83,6 +83,21 @@ function routeUrl(type,a){const q=encodeURIComponent(a||"");return type==="waze"
    Alle drie krijgen het adres van de opdracht mee. De Routenet-link heeft een
    eigen vorm: pad /address, de lijst "a" mag lege tekst bevatten zolang hij
    evenveel items heeft als er adressen zijn, en de BESTEMMING staat voorop. */
+/* DRV-R11 (2026-09-04): voor NAVIGATIE mag de naam van de locatie er niet in.
+   addressOf() zet die er bewust wel voor - handig om op de kaart te lezen - maar
+   Routenet en Waze kennen lang niet elke zaaknaam, en dan mislukt de hele
+   zoekopdracht terwijl straat en plaats gewoon kloppen. Deze versie laat de
+   naam weg en houdt alleen straat, postcode en plaats over. */
+function routeAddress(o){
+  const p=[];
+  const add=v=>{ v=clean(v); if(v && !p.includes(v)) p.push(v); };
+  [o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,
+   o.address,o.street,o.zip,o.city].forEach(add);
+  if(o.location && typeof o.location==="object")
+    [o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add);
+  return p.join(", ");
+}
+
 function routenetLink(adres){
   try{
     const pakket={
@@ -497,7 +512,7 @@ function orderCard(o){
     </div>
     <div class="action-grid">
       <button type="button" class="more-btn wide" data-detail="${esc(o.id)}">Open opdracht</button>
-      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(a)}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
+      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(routeAddress(o))}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
@@ -615,7 +630,7 @@ function detailHtml(o){
     ${more.length?`<div class="section-title">Meer artikelen / opdrachten voor deze klant</div><div class="info-box">${more.map(x=>`• ${esc(x.number||"")} ${esc(x.title||"")} - ${esc(niceDate(orderStart(x)))}`).join("<br>")}</div>`:""}
     <div class="section-title">Acties</div>
     <div class="report-grid">
-      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(a)}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
+      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(routeAddress(o))}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red wide" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
