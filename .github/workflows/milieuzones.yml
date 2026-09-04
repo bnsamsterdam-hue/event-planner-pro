@@ -5,7 +5,7 @@
 # kopje waar de startmomenten onder horen. Dan meldt GitHub: No event triggers
 # defined in 'on'. Met aanhalingstekens kan dat niet gebeuren.
 
-name: Milieuzones bijwerken
+name: Milieuzones bijwerken 
 
 "on":
   workflow_dispatch: {}
