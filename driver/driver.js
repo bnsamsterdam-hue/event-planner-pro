@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-08-30-R9';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R10';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -70,6 +70,55 @@ function materialList(o){
 }
 function materialText(o){const m=materialList(o);return m.length?m.map(x=>`${x.qty?x.qty+"x ":""}${x.name}`).join(", "):""}
 function routeUrl(type,a){const q=encodeURIComponent(a||"");return type==="waze"?`https://waze.com/ul?q=${q}&navigate=yes`:`https://www.google.com/maps/search/?api=1&query=${q}`}
+
+/* DRV-R10 (2026-09-04): de losse knoppen Waze en Maps zijn vervangen door een
+   knop Navigatie met daarin drie keuzes. Een handeling extra, maar wel meteen
+   duidelijk wat je krijgt - en er is nu ook ruimte voor Routenet.
+
+     Waze             - navigeert meteen, de gewone keuze onderweg
+     Route (Routenet) - de routeplanner waar het voertuig ingesteld kan worden
+     Locatie bekijken - Google Maps op het adres, om te zien waar het is en
+                        waar je kunt staan
+
+   Alle drie krijgen het adres van de opdracht mee. De Routenet-link heeft een
+   eigen vorm: pad /address, de lijst "a" mag lege tekst bevatten zolang hij
+   evenveel items heeft als er adressen zijn, en de BESTEMMING staat voorop. */
+function routenetLink(adres){
+  try{
+    const pakket={
+      q:[String(adres||''), 'Molenlaan 30, 1422ZA Uithoorn'],
+      c:['NL','NL'],
+      a:['',''],
+      d:[],
+      o:{optimization:'optimal', vehicle:'car', fueltype:'euro95',
+         fuelconsumption:'14', emissionclass:'6', kenteken:''},
+      action:'address',
+      version:'20251105'
+    };
+    return 'https://routenet.nl/address?q='+btoa(unescape(encodeURIComponent(JSON.stringify(pakket))));
+  }catch(e){ return 'https://routenet.nl/'; }
+}
+
+async function navMenu(adres){
+  if(!String(adres||'').trim()){ toast('Bij deze opdracht staat geen adres.'); return; }
+  const keuze=await askChoice('Navigatie',[
+    {value:'waze',  label:'Waze',              cls:'btn-green'},
+    {value:'route', label:'Route (Routenet)',  cls:'btn-dark'},
+    {value:'maps',  label:'Locatie bekijken',  cls:'btn-dark'}
+  ], adres);
+  if(keuze==='waze')  location.href=routeUrl('waze',adres);
+  else if(keuze==='route') window.open(routenetLink(adres),'_blank');
+  else if(keuze==='maps')  window.open(routeUrl('maps',adres),'_blank');
+}
+
+document.addEventListener('click',function(ev){
+  try{
+    const b=ev.target && ev.target.closest ? ev.target.closest('[data-nav]') : null;
+    if(!b) return;
+    ev.preventDefault(); ev.stopPropagation();
+    navMenu(b.getAttribute('data-nav'));
+  }catch(e){}
+}, true);
 
 async function initFirebase(){
   if(!window.BNS_FIREBASE_CONFIG||window.BNS_FIREBASE_CONFIG.apiKey==="VUL_HIER_IN"){
@@ -448,8 +497,7 @@ function orderCard(o){
     </div>
     <div class="action-grid">
       <button type="button" class="more-btn wide" data-detail="${esc(o.id)}">Open opdracht</button>
-      ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
-      ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Maps</a>`:""}
+      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(a)}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
@@ -567,8 +615,7 @@ function detailHtml(o){
     ${more.length?`<div class="section-title">Meer artikelen / opdrachten voor deze klant</div><div class="info-box">${more.map(x=>`• ${esc(x.number||"")} ${esc(x.title||"")} - ${esc(niceDate(orderStart(x)))}`).join("<br>")}</div>`:""}
     <div class="section-title">Acties</div>
     <div class="report-grid">
-      ${canRoute()?`<a class="btn btn-green" href="${esc(routeUrl("waze",a))}" target="_blank" rel="noopener">Waze</a>`:""}
-      ${canRoute()?`<a class="btn btn-dark" href="${esc(routeUrl("maps",a))}" target="_blank" rel="noopener">Google Maps</a>`:""}
+      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(a)}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red wide" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
