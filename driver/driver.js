@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R15';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R16';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -667,7 +667,7 @@ function askText(title, label){
   return new Promise(resolve=>{
     const wrap=document.createElement("div");
     wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:16px";
-    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35)"><h2 style="margin-top:0">${esc(title)}</h2><label style="font-weight:900">${esc(label||"Tekst")}</label><textarea id="twAskText" rows="5" style="margin-top:8px;width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px"></textarea><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><button id="twAskCancel" type="button" class="btn-dark">Annuleren</button><button id="twAskSave" type="button" class="btn-green">Versturen</button></div></div>`;
+    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35);max-height:86vh;overflow-y:auto;-webkit-overflow-scrolling:touch"><h2 style="margin-top:0;position:sticky;top:0;background:#fff;padding:2px 0 8px">${esc(title)}</h2><label style="font-weight:900">${esc(label||"Tekst")}</label><textarea id="twAskText" rows="5" style="margin-top:8px;width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px"></textarea><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><button id="twAskCancel" type="button" class="btn-dark">Annuleren</button><button id="twAskSave" type="button" class="btn-green">Versturen</button></div></div>`;
     document.body.appendChild(wrap);
     const ta=wrap.querySelector("#twAskText");
     wrap.querySelector("#twAskCancel").onclick=()=>{wrap.remove();resolve("")};
@@ -692,7 +692,7 @@ function askChoice(title, options, subtitel){   // DRV-R7: subtitel toont wat er
     const wrap=document.createElement("div");
     wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:16px";
     const rows=(options||[]).map(opt=>`<button type="button" class="${esc(opt.cls||'btn-dark')}" data-choice="${esc(opt.value)}" style="width:100%;margin:6px 0">${esc(opt.label||opt.value)}</button>`).join("");
-    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35)"><h2 style="margin-top:0">${esc(title)}</h2>${subtitel?`<div style="background:#f1f5f9;border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:14px;white-space:pre-line">${esc(subtitel)}</div>`:""}${rows}<button type="button" id="twChoiceCancel" class="btn-dark" style="width:100%;margin-top:10px">Annuleren</button></div>`;
+    wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(560px,100%);box-shadow:0 24px 80px rgba(0,0,0,.35);max-height:86vh;overflow-y:auto;-webkit-overflow-scrolling:touch"><h2 style="margin-top:0;position:sticky;top:0;background:#fff;padding:2px 0 8px">${esc(title)}</h2>${subtitel?`<div style="background:#f1f5f9;border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:14px;white-space:pre-line">${esc(subtitel)}</div>`:""}${rows}<button type="button" id="twChoiceCancel" class="btn-dark" style="width:100%;margin-top:10px">Annuleren</button></div>`;
     document.body.appendChild(wrap);
     qsa("[data-choice]",wrap).forEach(b=>b.onclick=()=>{const v=b.dataset.choice;wrap.remove();resolve(v)});
     wrap.querySelector("#twChoiceCancel").onclick=()=>{wrap.remove();resolve("")};
