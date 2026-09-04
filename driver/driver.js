@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R14';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R15';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -1536,19 +1536,56 @@ boot();
   /* De voertuigen worden door de planner beheerd en meegestuurd in de
      instellingen. Lukt dat niet, dan blijft de lijst leeg en slaan we de vraag
      over in plaats van de bezorger op te houden. */
+  /* DRV-R15-fix (2026-09-04): hier ging het mis. De lijst werd uit het geheugen
+     van de telefoon gehaald, maar die staat alleen op het apparaat waar OOK de
+     planner draait - op de laptop dus. Op een telefoon was hij leeg, en erger:
+     die lege uitkomst werd onthouden, zodat de vraag daarna nooit meer kwam.
+
+     Nu wordt de lijst rechtstreeks bij Firebase opgehaald, waar de planner hem
+     neerzet. En een leeg antwoord wordt NIET onthouden: de volgende keer wordt
+     er gewoon opnieuw gekeken. */
   function laadVoertuigen(){
-    if(voertuigen) return Promise.resolve(voertuigen);
-    try{
-      var s=BNS.state && BNS.state.settings;
-      var l=(s && (s.voertuigen || (s.main && s.main.voertuigen))) || null;
-      if(Array.isArray(l) && l.length){ voertuigen=l; return Promise.resolve(voertuigen); }
-    }catch(e){}
-    try{
-      var lok=JSON.parse(localStorage.getItem('bns_voertuigen')||'[]');
-      if(Array.isArray(lok) && lok.length){ voertuigen=lok; return Promise.resolve(voertuigen); }
-    }catch(e){}
-    voertuigen=[];
-    return Promise.resolve(voertuigen);
+    if(voertuigen && voertuigen.length) return Promise.resolve(voertuigen);
+
+    function uitState(){
+      try{
+        var s=BNS.state && BNS.state.settings;
+        var l=(s && (s.voertuigen || (s.main && s.main.voertuigen))) || null;
+        if(Array.isArray(l) && l.length) return l;
+      }catch(e){}
+      return null;
+    }
+    function uitOpslag(){
+      try{
+        var lok=JSON.parse(localStorage.getItem('bns_voertuigen')||'[]');
+        if(Array.isArray(lok) && lok.length) return lok;
+      }catch(e){}
+      return null;
+    }
+
+    var direct = uitState() || uitOpslag();
+    if(direct){ voertuigen=direct; return Promise.resolve(voertuigen); }
+
+    /* Niets lokaal - dan bij Firebase kijken, in de instellingen. */
+    return (async function(){
+      try{
+        if(!BNS.db) await initFirebase();
+        const fs=BNS.firebase;
+        const snap=await fs.getDocs(fs.collection(BNS.db,'settings'));
+        let gevonden=null;
+        snap.docs.forEach(function(d){
+          const data=d.data()||{};
+          if(Array.isArray(data.lijst) && data.lijst.length && d.id==='voertuigen') gevonden=data.lijst;
+          if(!gevonden && Array.isArray(data.voertuigen) && data.voertuigen.length) gevonden=data.voertuigen;
+        });
+        if(gevonden && gevonden.length){
+          voertuigen=gevonden;
+          try{ localStorage.setItem('bns_voertuigen', JSON.stringify(gevonden)); }catch(e){}
+          return voertuigen;
+        }
+      }catch(e){}
+      return [];                      // bewust NIET onthouden
+    })();
   }
 
   function zoekAdres(adres){
