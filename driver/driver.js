@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R12';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R13';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -116,6 +116,14 @@ function routenetLink(adres){
 
 async function navMenu(adres){
   if(!String(adres||'').trim()){ toast('Bij deze opdracht staat geen adres.'); return; }
+  /* DRV-R13: eerst de milieuzone-controle. Ligt er geen zone, dan komt hij
+     hier meteen doorheen en merkt de bezorger er niets van. */
+  try{
+    if(window.BNS_DRV_MILIEUZONE){
+      const door = await window.BNS_DRV_MILIEUZONE.controleer(adres);
+      if(door===false) return;
+    }
+  }catch(e){}
   const keuze=await askChoice('Navigatie',[
     /* DRV-R12 (2026-09-04): alle drie een eigen kleur. Eerder was alleen Waze
        groen en waren de andere twee donkergrijs, waardoor het leek alsof die
@@ -1484,4 +1492,160 @@ boot();
     wissen:async function(){ await wisOpslagKopieen(); herlaadVers(); }
   };
   try{ console.info('[BNS DRV] Zelf-bijwerken actief. Versie: '+HUIDIG); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS DRV-R13 — Milieuzone-controle op de telefoon
+   ----------------------------------------------------------
+   Bij het openen van Navigatie kijkt de app eerst of het adres in een milieu-
+   of zero-emissiezone ligt. Ligt er niets - verreweg de meeste ritten - dan
+   verschijnt gewoon het navigatiemenu en merkt de bezorger er niets van.
+
+   Ligt er wel een zone, dan komt eerst de vraag met welke wagen hij rijdt. Die
+   vraag komt elke rit opnieuw: er wordt vaak van auto gewisseld, en juist bij
+   een zone mag daar geen aanname in sluipen. Daarna volgt het oordeel, dat hij
+   moet bevestigen voordat hij verder kan. Doorrijden blijft mogelijk - soms moet
+   je er heen om te overleggen of buiten de zone te laden - maar niet zonder dat
+   hij het gelezen heeft.
+
+   Dit bestand staat helemaal los van de plannerapp, dus alles wat daar al werkt
+   is hier opnieuw opgebouwd: de zones inlezen, het adres omzetten via de
+   adressenzoeker van de overheid, de voertuigenlijst, en het rekenen.
+========================================================== */
+(function bnsDrvMilieuzone(){
+  'use strict';
+  if(window.__BNS_DRV_MZ__) return;
+  window.__BNS_DRV_MZ__=true;
+
+  var ZONES='milieuzones.json';                 // in de hoofdmap; de telefoon zit in /driver
+  var PDOK='https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?rows=1&fq=type:adres&q=';
+  var zones=null, voertuigen=null;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+
+  function laadZones(){
+    if(zones) return Promise.resolve(zones);
+    return fetch('../'+ZONES).then(function(r){ return r.json(); })
+      .catch(function(){ return fetch(ZONES).then(function(r){ return r.json(); }); })
+      .then(function(d){ zones=(d&&d.zones)||[]; return zones; })
+      .catch(function(){ zones=[]; return zones; });
+  }
+
+  /* De voertuigen worden door de planner beheerd en meegestuurd in de
+     instellingen. Lukt dat niet, dan blijft de lijst leeg en slaan we de vraag
+     over in plaats van de bezorger op te houden. */
+  function laadVoertuigen(){
+    if(voertuigen) return Promise.resolve(voertuigen);
+    try{
+      var s=BNS.state && BNS.state.settings;
+      var l=(s && (s.voertuigen || (s.main && s.main.voertuigen))) || null;
+      if(Array.isArray(l) && l.length){ voertuigen=l; return Promise.resolve(voertuigen); }
+    }catch(e){}
+    try{
+      var lok=JSON.parse(localStorage.getItem('bns_voertuigen')||'[]');
+      if(Array.isArray(lok) && lok.length){ voertuigen=lok; return Promise.resolve(voertuigen); }
+    }catch(e){}
+    voertuigen=[];
+    return Promise.resolve(voertuigen);
+  }
+
+  function zoekAdres(adres){
+    return fetch(PDOK+encodeURIComponent(T(adres)))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var doc=(d&&d.response&&d.response.docs&&d.response.docs[0])||null;
+        if(!doc) return null;
+        var m=String(doc.centroide_ll||'').match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);
+        if(!m) return null;
+        return {lon:parseFloat(m[1]), lat:parseFloat(m[2]), naam:T(doc.weergavenaam)};
+      }).catch(function(){ return null; });
+  }
+
+  function binnen(lat, lon, ring){
+    var raak=false;
+    for(var i=0, j=ring.length-1; i<ring.length; j=i++){
+      var bi=ring[i][0], li=ring[i][1], bj=ring[j][0], lj=ring[j][1];
+      if(((bi>lat)!==(bj>lat)) && (lon < (lj-li)*(lat-bi)/(bj-bi)+li)) raak=!raak;
+    }
+    return raak;
+  }
+  function zonesOpPunt(lat, lon){
+    return (zones||[]).filter(function(z){
+      return (z.vlakken||[]).some(function(v){ return binnen(lat, lon, v); });
+    });
+  }
+
+  function uitstootvrij(v){ return /elektri|waterstof/.test(T(v&&v.brandstof).toLowerCase()); }
+
+  function oordeel(v, z){
+    var vandaag=new Date().toISOString().slice(0,10);
+    var nogNiet=z.vanaf && z.vanaf>vandaag;
+    if(z.soort==='zero'){
+      if(uitstootvrij(v)) return {mag:true, tekst:'uitstootvrij, dus toegestaan'};
+      return {mag:false, nogNiet:nogNiet, tekst:'zero-emissiezone: alleen elektrisch of waterstof'};
+    }
+    var nodig=z.euro||0;
+    var heeft=parseInt(T(v&&v.euronorm).replace(/\D/g,''),10);
+    if(!nodig || !heeft) return {mag:null, tekst:'eis of emissieklasse onbekend - controleer zelf'};
+    if(heeft>=nodig) return {mag:true, tekst:'euro '+heeft+' voldoet (eis: euro '+nodig+')'};
+    return {mag:false, nogNiet:nogNiet, tekst:'euro '+heeft+' is te laag, deze zone eist euro '+nodig};
+  }
+
+  function kiesVoertuig(){
+    return laadVoertuigen().then(function(l){
+      if(!l.length) return null;
+      var opts=l.map(function(v){
+        return {value:T(v.kenteken),
+                label:T(v.naam)+' - '+T(v.kenteken)+(v.euronorm?' (euro '+v.euronorm+')':''),
+                cls:'btn-dark'};
+      });
+      return askChoice('Met welke wagen rijd je?', opts, 'Dit adres ligt in een milieuzone.')
+        .then(function(k){ return l.filter(function(v){ return T(v.kenteken)===T(k); })[0]||null; });
+    });
+  }
+
+  /* Geeft true terug als er doorgereden mag worden naar het navigatiemenu. */
+  function controleer(adres){
+    return laadZones().then(function(){
+      if(!zones.length) return true;                 // geen gegevens: niet in de weg lopen
+      return zoekAdres(adres).then(function(plek){
+        if(!plek) return true;                       // adres onbekend: doorlaten
+        var raak=zonesOpPunt(plek.lat, plek.lon);
+        if(!raak.length) return true;                // geen zone: gewoon door
+        return kiesVoertuig().then(function(v){
+          if(!v){
+            return askChoice('Milieuzone',
+              [{value:'ok', label:'Begrepen, ga verder', cls:'btn-orange'}],
+              'Dit adres ligt in: '+raak.map(function(z){return z.naam;}).join(', ')+
+              '\nControleer zelf of je wagen hier mag komen.').then(function(){ return true; });
+          }
+          var slecht=raak.map(function(z){ return {z:z, o:oordeel(v,z)}; })
+                         .filter(function(x){ return x.o.mag===false && !x.o.nogNiet; });
+          var onzeker=raak.map(function(z){ return {z:z, o:oordeel(v,z)}; })
+                          .filter(function(x){ return x.o.mag===null; });
+          var tekst, knop;
+          if(slecht.length){
+            tekst='LET OP\n\n'+T(v.naam)+' mag hier NIET komen.\n'+
+                  slecht[0].z.naam+' - '+slecht[0].o.tekst+'\n\nOverleg met de planner voordat je rijdt.';
+            knop=[{value:'ok', label:'Ik heb dit gelezen, ga verder', cls:'btn-red'}];
+          } else if(onzeker.length){
+            tekst='Dit adres ligt in: '+raak.map(function(z){return z.naam;}).join(', ')+
+                  '\n\n'+onzeker[0].o.tekst;
+            knop=[{value:'ok', label:'Begrepen, ga verder', cls:'btn-orange'}];
+          } else {
+            tekst=T(v.naam)+' mag hier komen.\n'+raak[0].naam;
+            knop=[{value:'ok', label:'Goede reis, ga verder', cls:'btn-green'}];
+          }
+          return askChoice('Milieuzone', knop, tekst).then(function(){ return true; });
+        });
+      });
+    }).catch(function(){ return true; });
+  }
+
+  window.BNS_DRV_MILIEUZONE={
+    controleer:controleer,
+    zones:laadZones,
+    voertuigen:laadVoertuigen
+  };
+  try{ console.info('[BNS DRV R13] Milieuzone-controle actief bij Navigatie.'); }catch(e){}
 })();
