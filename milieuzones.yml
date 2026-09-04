@@ -1,0 +1,47 @@
+# Haalt elke maandagnacht de emissiezones bij het NDW op en zet ze om naar
+# milieuzones.json in deze repository. Daarna pakt de app ze vanzelf op.
+#
+# Waarom via GitHub en niet rechtstreeks vanuit de app: de NDW-server staat het
+# niet toe dat een browser dat bestand namens een andere website ophaalt. Een
+# server mag dat wel, en GitHub draait deze taak op een server.
+#
+# Handmatig starten kan ook: tabblad Actions -> Milieuzones bijwerken -> Run workflow.
+
+name: Milieuzones bijwerken
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'      # elke maandag om 03:00 UTC
+  workflow_dispatch:          # en met de hand, wanneer je maar wilt
+
+permissions:
+  contents: write
+
+jobs:
+  bijwerken:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zonebestand ophalen bij het NDW
+        run: |
+          curl -fsSL https://opendata.ndw.nu/emissiezones.xml.gz -o zones.xml.gz
+          gunzip -f zones.xml.gz
+
+      - name: Omzetten naar milieuzones.json
+        run: python3 .github/workflows/omzetten.py zones.xml milieuzones.json
+
+      - name: Opruimen
+        run: rm -f zones.xml
+
+      - name: Vastleggen als er iets veranderd is
+        run: |
+          if git diff --quiet milieuzones.json; then
+            echo "Geen wijzigingen in de zones."
+            exit 0
+          fi
+          git config user.name  "milieuzone-robot"
+          git config user.email "actions@github.com"
+          git add milieuzones.json
+          git commit -m "Milieuzones bijgewerkt vanaf NDW"
+          git push
