@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R84';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R85';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56418,9 +56418,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
   function adresVan(o){
     if(!o) return '';
+    /* R85 (2026-09-04): de NAAM van de locatie gaat er niet meer in. Bij een
+       bekende zaak vindt Routenet die soms wel, maar lang niet altijd - en dan
+       mislukt de hele zoekopdracht terwijl straat en plaats gewoon kloppen.
+       Alleen straat, postcode en plaats dus; dat vindt hij altijd. */
     var l=o.location||{}, c=o.customer||{};
-    var delen=[o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,
-               l.name,l.street,l.zip,l.city,
+    var delen=[o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,
+               l.street,l.zip,l.city,
                o.address,o.street,o.zip,o.city,
                c.street,c.zip,c.city];
     var uit=[];
