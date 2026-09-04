@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R87';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R88';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56757,4 +56757,97 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     allesOphalen:allesOphalen
   };
   try{ console.info('[BNS R87] Voertuigenlijst actief - window.BNS_R87.lijst()'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R88 — Beheerscherm voor de voertuigen
+   ----------------------------------------------------------
+   De lijst uit R87 kon alleen via de console worden bijgehouden. Hier komt een
+   gewoon scherm bij, onderin Admin: je ziet je wagens staan met wat de RDW
+   erover weet, je voegt er een toe met een naam en een kenteken, en je haalt er
+   een weg met het kruisje.
+
+   Het scherm hangt zichzelf onder het Admin-gedeelte zodra dat in beeld komt.
+   Zo hoeft er niets aan de bestaande opbouw van dat scherm te worden veranderd -
+   er zijn in dit bestand meerdere modules die aan Admin tekenen, en daar wil je
+   niet tussen gaan zitten.
+========================================================== */
+(function bnsR88VoertuigScherm(){
+  'use strict';
+  if(window.__BNS_R88__) return;
+  window.__BNS_R88__=true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function bouw(){
+    try{
+      if(typeof window.BNS_R87!=='object') return;
+      var admin=document.getElementById('adminArea');
+      if(!admin || !admin.offsetParent) return;          // Admin niet in beeld
+      var vak=document.getElementById('bnsR88Vak');
+      if(!vak){
+        vak=document.createElement('div');
+        vak.id='bnsR88Vak';
+        vak.style.cssText='margin-top:18px;padding:14px;border:2px solid #e2e8f0;border-radius:14px;background:#fff';
+        admin.appendChild(vak);
+      }
+      var l=window.BNS_R87.ruw();
+      vak.innerHTML =
+        '<h3 style="margin:0 0 4px">Voertuigen</h3>'+
+        '<div style="font-size:13px;color:#64748b;margin-bottom:10px">Naam en kenteken vul je zelf in. Soort, brandstof en emissieklasse worden bij de RDW opgehaald.</div>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+
+          '<input id="bnsR88Naam" placeholder="Naam, bijvoorbeeld Bakwagen wit" style="flex:1;min-width:180px;padding:10px;border:2px solid #cbd5e1;border-radius:10px">'+
+          '<input id="bnsR88Kent" placeholder="Kenteken" style="width:150px;padding:10px;border:2px solid #cbd5e1;border-radius:10px;text-transform:uppercase">'+
+          '<button type="button" id="bnsR88Add" style="border:0;border-radius:10px;padding:10px 16px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer">Toevoegen</button>'+
+          '<button type="button" id="bnsR88Vernieuw" style="border:0;border-radius:10px;padding:10px 16px;background:#0369a1;color:#fff;font-weight:900;cursor:pointer">Gegevens ophalen</button>'+
+        '</div>'+
+        (l.length ? l.map(function(v){
+          var mist = !T(v.soort);
+          return '<div style="display:flex;gap:10px;align-items:center;padding:9px 10px;border-radius:10px;margin-bottom:6px;background:'+(mist?'#fff7ed':'#f8fafc')+'">'+
+            '<div style="flex:1">'+
+              '<div style="font-weight:900">'+esc(v.naam)+' <span style="color:#64748b;font-weight:700">'+esc(v.kenteken)+'</span></div>'+
+              '<div style="font-size:13px;color:#475569">'+
+                (mist ? 'nog niet opgehaald bij de RDW'
+                      : esc(v.soort)+' &middot; '+esc(v.brandstof||'onbekende brandstof')+' &middot; emissieklasse '+esc(v.euronorm||'onbekend')+
+                        (v.merk?' &middot; '+esc(v.merk)+' '+esc(v.model||''):''))+
+              '</div>'+
+            '</div>'+
+            '<button type="button" data-r88-del="'+esc(v.kenteken)+'" title="Verwijderen" style="border:0;border-radius:9px;padding:7px 12px;background:#fee2e2;color:#991b1b;font-weight:900;cursor:pointer">Wis</button>'+
+          '</div>';
+        }).join('') : '<div style="color:#64748b">Nog geen voertuigen.</div>');
+
+      document.getElementById('bnsR88Add').onclick=function(){
+        var n=T(document.getElementById('bnsR88Naam').value);
+        var k=T(document.getElementById('bnsR88Kent').value);
+        if(!n||!k){ alert('Vul een naam en een kenteken in.'); return; }
+        var uit=window.BNS_R87.toevoegen(n,k);
+        document.getElementById('bnsR88Naam').value='';
+        document.getElementById('bnsR88Kent').value='';
+        setTimeout(function(){ vak.remove(); bouw(); }, 1200);   // even wachten op de RDW
+        try{ if(typeof toastMsg==='function') toastMsg(uit); }catch(e){}
+      };
+      document.getElementById('bnsR88Vernieuw').onclick=function(){
+        var b=this; b.disabled=true; b.textContent='Bezig...';
+        Promise.resolve(window.BNS_R87.allesOphalen()).then(function(){
+          vak.remove(); bouw();
+        });
+      };
+      Array.prototype.slice.call(vak.querySelectorAll('[data-r88-del]')).forEach(function(b){
+        b.onclick=function(){
+          var k=b.getAttribute('data-r88-del');
+          if(!window.confirm('Voertuig '+k+' verwijderen?')) return;
+          window.BNS_R87.verwijderen(k);
+          vak.remove(); bouw();
+        };
+      });
+    }catch(e){}
+  }
+
+  setInterval(bouw, 1200);
+  setTimeout(bouw, 900);
+
+  window.BNS_R88={ tonen:bouw };
+  try{ console.info('[BNS R88] Beheerscherm voertuigen actief - te vinden onderin Admin.'); }catch(e){}
 })();
