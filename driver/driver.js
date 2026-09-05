@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-04-R16';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R17';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -114,7 +114,20 @@ function routenetLink(adres){
   }catch(e){ return 'https://routenet.nl/'; }
 }
 
-async function navMenu(adres){
+/* DRV-R17 (2026-09-05): een blok voor alles wat vooraf bekend moet zijn.
+   De milieuzoneregel blijft precies zoals hij was; daaronder komt, alleen als
+   het op de opdracht staat, wat de planner vond over autovrije zones,
+   venstertijden en hoogte. De telefoon zoekt zelf nooit iets op - alles staat
+   al op de opdracht, dus dit werkt ook zonder bereik. */
+function waarschuwBlok(o){
+  const delen=[];
+  if(o && o.milieuzone) delen.push(`\u26A0\uFE0F Milieuzone: ${esc(o.milieuzone)}<div style="font-weight:600;font-size:13px;margin-top:3px">Controleer of je wagen hier mag komen.</div>`);
+  if(o && o.borden)     delen.push(`\u{1F6A7} ${esc(o.borden)}<div style="font-weight:600;font-size:13px;margin-top:3px">Ter informatie, niet volledig - kijk ter plaatse.</div>`);
+  if(!delen.length) return "";
+  return `<div style="background:#fee2e2;color:#991b1b;border-left:5px solid #b91c1c;border-radius:10px;padding:9px 12px;margin:8px 0;font-weight:900">${delen.join('<div style="height:8px"></div>')}</div>`;
+}
+
+async function navMenu(adres, info){
   if(!String(adres||'').trim()){ toast('Bij deze opdracht staat geen adres.'); return; }
   /* DRV-R13: eerst de milieuzone-controle. Ligt er geen zone, dan komt hij
      hier meteen doorheen en merkt de bezorger er niets van. */
@@ -122,6 +135,17 @@ async function navMenu(adres){
     if(window.BNS_DRV_MILIEUZONE){
       const door = await window.BNS_DRV_MILIEUZONE.controleer(adres);
       if(door===false) return;
+    }
+  }catch(e){}
+  /* DRV-R17: autovrije zone, venstertijd of hoogte. Met opzet GEEN vraag welke
+     wagen je rijdt - een paaltje of een voetgangersgebied geldt voor iedereen.
+     En met opzet geen oordeel: we tonen wat er staat, nooit "u mag hier niet
+     in". Staat er niets op de opdracht, dan komt dit scherm niet. */
+  try{
+    if(String(info||'').trim()){
+      await askChoice('Let op bij dit adres',
+        [{value:'ok', label:'Begrepen, ga verder', cls:'btn-orange'}],
+        String(info)+'\n\nUit OpenStreetMap, ter informatie - niet volledig. Kijk ter plaatse.');
     }
   }catch(e){}
   const keuze=await askChoice('Navigatie',[
@@ -143,7 +167,7 @@ document.addEventListener('click',function(ev){
     const b=ev.target && ev.target.closest ? ev.target.closest('[data-nav]') : null;
     if(!b) return;
     ev.preventDefault(); ev.stopPropagation();
-    navMenu(b.getAttribute('data-nav'));
+    navMenu(b.getAttribute('data-nav'), b.getAttribute('data-nav-info'));
   }catch(e){}
 }, true);
 
@@ -524,8 +548,8 @@ function orderCard(o){
     </div>
     <div class="action-grid">
       <button type="button" class="more-btn wide" data-detail="${esc(o.id)}">Open opdracht</button>
-      ${o.milieuzone?`<div style="background:#fee2e2;color:#991b1b;border-left:5px solid #b91c1c;border-radius:10px;padding:9px 12px;margin:8px 0;font-weight:900">\u26A0\uFE0F Milieuzone: ${esc(o.milieuzone)}<div style="font-weight:600;font-size:13px;margin-top:3px">Controleer of je wagen hier mag komen.</div></div>`:""}
-      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(routeAddress(o))}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
+      ${waarschuwBlok(o)}
+      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(routeAddress(o))}" data-nav-info="${esc(o.borden||"")}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
@@ -643,8 +667,8 @@ function detailHtml(o){
     ${more.length?`<div class="section-title">Meer artikelen / opdrachten voor deze klant</div><div class="info-box">${more.map(x=>`• ${esc(x.number||"")} ${esc(x.title||"")} - ${esc(niceDate(orderStart(x)))}`).join("<br>")}</div>`:""}
     <div class="section-title">Acties</div>
     <div class="report-grid">
-      ${o.milieuzone?`<div style="background:#fee2e2;color:#991b1b;border-left:5px solid #b91c1c;border-radius:10px;padding:9px 12px;margin:8px 0;font-weight:900">\u26A0\uFE0F Milieuzone: ${esc(o.milieuzone)}<div style="font-weight:600;font-size:13px;margin-top:3px">Controleer of je wagen hier mag komen.</div></div>`:""}
-      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(routeAddress(o))}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
+      ${waarschuwBlok(o)}
+      ${canRoute()?`<button type="button" class="btn btn-green" data-nav="${esc(routeAddress(o))}" data-nav-info="${esc(o.borden||"")}">\u{1F6E3}\uFE0F Navigatie</button>`:""}
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red wide" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
