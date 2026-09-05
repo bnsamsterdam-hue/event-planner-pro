@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R105';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R106';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -57897,6 +57897,42 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return Math.ceil((eind-new Date())/86400000);
   }
 
+  /* --------------- wat betekent dit voor elke wagen? ---------------
+     R106 (2026-09-05): dezelfde rekenregel als op de telefoon, zodat de
+     planner hier ziet welke wagen wanneer verloopt. Let op: die regel staat
+     dus op TWEE plekken - hier en in driver.js. Verandert de regel zelf (niet
+     de datums, die staan hierboven), pas dan allebei aan.
+  ----------------------------------------------------------------- */
+  function detNaarIso(v){
+    var s=T(v&&v.det).replace(/\D/g,'');
+    return s.length===8 ? (s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8)) : '';
+  }
+  function toegangVoor(v, d){
+    if(/elektri|waterstof/i.test(T(v&&v.brandstof))) return {kleur:'#16a34a', tekst:'uitstootvrij, altijd toegang'};
+    /* Zero-emissiezones gelden voor bestel- en vrachtauto's. Een personenauto
+       valt er buiten, dus daar hoort geen beperking bij te staan. */
+    if(/personenauto/i.test(T(v&&v.soort)))
+      return {kleur:'#64748b', tekst:'personenauto - zero-emissiezones gelden hier niet voor'};
+    var euro=parseInt(T(v&&v.euronorm).replace(/\D/g,''),10);
+    var det=detNaarIso(v);
+    if(!euro || !det) return {kleur:'#92400e', tekst:'gegevens niet volledig'+(!euro?', emissieklasse onbekend':'')+(!det?', toelatingsdatum onbekend':'')};
+    if(det>='2025-01-01') return {kleur:'#991b1b', tekst:'op kenteken in '+det.slice(0,4)+' - moet uitstootvrij zijn'};
+    var massa=parseInt(T(v&&v.massa).replace(/\D/g,''),10);
+    var vracht=!!(massa && massa>3500);
+    var trekker=/trekker/i.test(T(v&&v.inrichting));
+    var tot='';
+    if(!vracht){
+      if(euro>=6) tot=d.euro6best; else if(euro===5) tot=d.euro5best;
+    } else if(euro>=6 && det>='2017-01-01'){
+      tot = trekker ? d.euro6laat : (det<='2019-12-31' ? d.euro6bak0 : d.euro6laat);
+    }
+    if(!tot) return {kleur:'#991b1b', tekst:'euro '+euro+' uit '+det.slice(0,4)+' - valt niet onder de overgangsregeling'};
+    var vandaag=new Date().toISOString().slice(0,10);
+    if(tot<=vandaag) return {kleur:'#991b1b', tekst:'toegang liep af op '+nlDatum(tot)};
+    var n=dagenTot(tot);
+    return {kleur:'#166534', tekst:'toegang tot '+nlDatum(tot)+(n!=null?' (nog '+(n>60?Math.round(n/30)+' maanden':n+' dagen')+')':'')};
+  }
+
   /* ---------------------------- het scherm ---------------------------- */
   function bouw(){
     try{
@@ -57910,9 +57946,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         admin.appendChild(vak);
       }
       var d=lees();
+      var wagens=[];
+      try{ wagens=(window.BNS_R87 && window.BNS_R87.ruw()) || []; }catch(e){}
       /* Alleen opnieuw tekenen als er echt iets veranderd is, anders worden de
          invulvelden tijdens het typen telkens vervangen. */
-      var vinger=JSON.stringify(d);
+      var vinger=JSON.stringify(d)+'|'+JSON.stringify(wagens.map(function(v){
+        return [v.kenteken,v.euronorm,v.det,v.soort,v.massa,v.inrichting].join(',');
+      }));
       if(vak.__vinger===vinger && vak.querySelector('#bnsR105_euro6best')) return;
       vak.__vinger=vinger;
 
@@ -57946,7 +57986,28 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           'Voor het laatst gecontroleerd op '+esc(nlDatum(d.gecontroleerd))+'.</div>'+
         '<button type="button" id="bnsR105Opslaan" style="border:0;border-radius:10px;padding:10px 16px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer">Datums opslaan</button>'+
         '<button type="button" id="bnsR105Herstel" style="border:0;border-radius:10px;padding:10px 16px;background:#e2e8f0;color:#334155;font-weight:900;cursor:pointer;margin-left:8px">Terug naar de beginwaarden</button>'+
-        '<div id="bnsR105Melding" style="margin-top:10px;font-weight:800"></div>';
+        '<div id="bnsR105Melding" style="margin-top:10px;font-weight:800"></div>'+
+        /* R106: wat betekent dit voor de wagens die je hebt? Hier zie je in een
+           oogopslag welke er wanneer uit loopt - en of de gegevens compleet
+           zijn, want zonder toelatingsdatum kan er niets berekend worden. */
+        (wagens.length
+          ? '<div style="margin-top:16px;border-top:2px solid #e2e8f0;padding-top:12px">'+
+            '<div style="font-weight:900;margin-bottom:8px">Wat dit betekent voor je wagens</div>'+
+            wagens.map(function(v){
+              var u=toegangVoor(v,d);
+              var det=detNaarIso(v);
+              return '<div style="display:flex;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;margin-bottom:5px;background:#f8fafc;flex-wrap:wrap">'+
+                '<div style="flex:1;min-width:200px"><b>'+esc(v.naam)+'</b> <span style="color:#64748b">'+esc(v.kenteken)+'</span>'+
+                '<div style="font-size:12px;color:#64748b">'+esc(v.soort||'soort onbekend')+
+                  ' &middot; euro '+esc(v.euronorm||'?')+
+                  ' &middot; op kenteken '+esc(det?nlDatum(det):'onbekend')+
+                  ' &middot; '+esc(v.inrichting||'inrichting onbekend')+'</div></div>'+
+                '<div style="font-weight:800;color:'+u.kleur+'">'+esc(u.tekst)+'</div>'+
+              '</div>';
+            }).join('')+
+            '<div style="font-size:12px;color:#64748b;margin-top:6px">Staat er dat gegevens ontbreken, druk dan hierboven bij Voertuigen op Gegevens ophalen.</div>'+
+            '</div>'
+          : '');
 
       document.getElementById('bnsR105Opslaan').onclick=function(){
         var nieuw={}, fout=[];
