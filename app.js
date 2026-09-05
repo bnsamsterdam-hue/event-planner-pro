@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R101';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R102';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -57570,8 +57570,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      "Busbaan" of "Bussluis", want dan weet hij meteen waar hij naar kijkt.
      Het getal is het gewicht: hoe lager, hoe belangrijker om te zien. */
   function soortWeg(t){
+    /* Een straat die dicht is MET een uitzondering voor bussen is in de
+       praktijk een busbaan of een eenrichtingsstraat met busstrook. [gebruiker
+       2026-09-05] dat zijn gewone verkeersregels, geen melding waard - het gaf
+       op bedrijventerreinen te veel loze regels. Terug te zetten door deze
+       regel weg te halen; je verliest er dan wel de busbaanboete mee. */
     if(T(t.psv)==='yes' || T(t.bus)==='yes' || T(t.busway) || T(t['lanes:psv']))
-      return [2,'Busbaan'];
+      return null;
     if(t.railway || t.embedded_rail || T(t.tram)==='yes') return [2,'Trambaan'];
     var vt=(T(t.foot)==='yes'||T(t.foot)==='designated');
     var fs=(T(t.bicycle)==='yes'||T(t.bicycle)==='designated');
@@ -57625,7 +57630,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
       if(T(t.motor_vehicle)==='no' || T(t.vehicle)==='no' || T(t.access)==='no'){
         var s=soortWeg(t);
-        autovrij.push([s[0], s[1]+waar]);
+        if(s) autovrij.push([s[0], s[1]+waar]);
       }
 
       if(t.barrier){
