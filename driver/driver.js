@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R18';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R21';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -1640,12 +1640,144 @@ boot();
 
   function uitstootvrij(v){ return /elektri|waterstof/.test(T(v&&v.brandstof).toLowerCase()); }
 
+  /* ----------------------------------------------------------
+     DRV-R19 (2026-09-05): de OVERGANGSREGELING voor zero-emissiezones.
+
+     Hiervoor stond hier een regel die zei: is het een zero-emissiezone en is
+     de wagen niet elektrisch, dan "mag hier NIET komen". Dat is onjuist en het
+     kwam ook echt fout uit in Leiden - een euro 6 mag daar nog jaren in. Er
+     loopt een landelijke overgangsregeling en die hangt op de emissieklasse,
+     de Datum Eerste Toelating en het soort voertuig.
+
+     De regels (stand 2026-09-05, bron: opwegnaarzes.nl / Ondernemersplein):
+       bestelauto (t/m 3500 kg)   euro 4 of lager  geen toegang
+                                  euro 5           tot 1-1-2027
+                                  euro 6           tot 1-1-2028
+       vrachtauto  bakwagen       euro 6, DET 2017 t/m 2019   tot 1-1-2028
+                                  euro 6, DET 2020 t/m 2024   tot 1-1-2030
+                   oplegtrekker   euro 6, DET 2017 t/m 2024   tot 1-1-2030
+       alles met een DET vanaf 1-1-2025 moet uitstootvrij zijn.
+
+     Het kabinet heeft besloten de termijn voor euro 6 bestelauto's met een
+     jaar te verlengen naar 1-1-2029, maar dat geldt pas als het RVV daarop is
+     aangepast. Daarom rekenen we met 2028 en NOEMEN we 2029 - niet andersom.
+
+     Wat we NIET kunnen zien: vrijstellingen op carrosseriecode, voertuigen van
+     veertig jaar en ouder, en ontheffingen die bij de RDW zijn aangevraagd.
+     Daarom noemen we een datum en geven we nooit een garantie.
+  ---------------------------------------------------------- */
+  /* DRV-R21 (2026-09-05): deze datums staan NIET meer vast. De planner kan ze
+     in Admin aanpassen als een termijn verschuift, en de telefoon leest ze mee
+     uit de instellingen - dezelfde weg als de voertuigenlijst. Lukt dat niet,
+     dan gelden de waarden hieronder, de stand van 5 september 2026. */
+  var ZE_EIND={ euro5best:'2027-01-01', euro6best:'2028-01-01',
+                euro6bak0:'2028-01-01', euro6laat:'2030-01-01' };
+
+  function laadZeDatums(){
+    function neem(o){
+      if(!o) return false;
+      var raak=false;
+      Object.keys(ZE_EIND).forEach(function(k){
+        if(/^\d{4}-\d{2}-\d{2}$/.test(T(o[k]))){ ZE_EIND[k]=T(o[k]); raak=true; }
+      });
+      return raak;
+    }
+    try{ if(neem(BNS.state && BNS.state.settings && BNS.state.settings.zeDatums)) return Promise.resolve(ZE_EIND); }catch(e){}
+    try{ if(neem(JSON.parse(localStorage.getItem('bns_ze_datums')||'null'))) return Promise.resolve(ZE_EIND); }catch(e){}
+    return (async function(){
+      try{
+        if(!BNS.db) await initFirebase();
+        const fs=BNS.firebase;
+        const snap=await fs.getDocs(fs.collection(BNS.db,'settings'));
+        let gevonden=null;
+        snap.docs.forEach(function(d){
+          const data=d.data()||{};
+          if(d.id==='zedatums') gevonden=data;
+          if(!gevonden && data.zeDatums) gevonden=data.zeDatums;
+        });
+        if(neem(gevonden)){
+          try{ localStorage.setItem('bns_ze_datums', JSON.stringify(ZE_EIND)); }catch(e){}
+        }
+      }catch(e){}
+      return ZE_EIND;                 // mislukt het, dan de ingebouwde waarden
+    })();
+  }
+
+  function detDatum(v){
+    var s=T(v&&v.det).replace(/\D/g,'');
+    if(s.length!==8) return null;
+    return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);
+  }
+  function isVracht(v){
+    var m=parseInt(T(v&&v.massa).replace(/\D/g,''),10);
+    return !!(m && m>3500);
+  }
+  function isTrekker(v){ return /trekker/i.test(T(v&&v.inrichting)); }
+
+  function resterend(tot){
+    var nu=new Date(), eind=new Date(tot+'T00:00:00');
+    /* Dichtbij de datum in DAGEN tellen. In hele maanden zou hij op 31
+       december nog "ongeveer een maand" zeggen, en juist dan moet het scherp
+       zijn. Vanaf zes weken mag het weer grof. */
+    var dagen=Math.ceil((eind-nu)/86400000);
+    if(dagen<=0)  return '';
+    if(dagen===1) return 'nog vandaag, morgen niet meer';
+    if(dagen<=45) return 'nog '+dagen+' dagen';
+    var mnd=(eind.getFullYear()-nu.getFullYear())*12 + (eind.getMonth()-nu.getMonth());
+    if(mnd<12) return 'nog ongeveer '+mnd+' maanden';
+    var jr=Math.floor(mnd/12), rest=mnd%12;
+    if(rest<3)  return 'nog ruim '+jr+' jaar';
+    if(rest>=9) return 'nog bijna '+(jr+1)+' jaar';
+    return 'nog ruim '+jr+' jaar en '+rest+' maanden';
+  }
+  function nlDatum(d){
+    var mnd=['januari','februari','maart','april','mei','juni','juli','augustus',
+             'september','oktober','november','december'];
+    var p=d.split('-');
+    return parseInt(p[2],10)+' '+mnd[parseInt(p[1],10)-1]+' '+p[0];
+  }
+
+  /* Geeft terug tot wanneer deze wagen de zero-emissiezones nog in mag. */
+  function zeToegang(v){
+    var euro=parseInt(T(v&&v.euronorm).replace(/\D/g,''),10);
+    var det=detDatum(v);
+    var wat=isVracht(v) ? (isTrekker(v)?'oplegtrekker':'bakwagen') : 'bestelauto';
+    if(!euro || !det) return {tot:null, wat:wat,
+      tekst:'de gegevens van deze wagen zijn niet volledig'+
+            (!euro?' (emissieklasse onbekend)':'')+(!det?' (toelatingsdatum onbekend)':'')+
+            ' - controleer zelf of hij hier mag komen'};
+    if(det>='2025-01-01') return {tot:'', wat:wat,
+      tekst:'op kenteken gezet in '+det.slice(0,4)+'; voertuigen van 2025 en later moeten uitstootvrij zijn'};
+    var tot=null;
+    if(!isVracht(v)){
+      if(euro>=6) tot=ZE_EIND.euro6best;
+      else if(euro===5) tot=ZE_EIND.euro5best;
+    } else if(euro>=6 && det>='2017-01-01'){
+      tot = isTrekker(v) ? ZE_EIND.euro6laat
+          : (det<='2019-12-31' ? ZE_EIND.euro6bak0 : ZE_EIND.euro6laat);
+    }
+    if(!tot) return {tot:'', wat:wat,
+      tekst:'euro '+euro+' '+wat+' uit '+det.slice(0,4)+': valt niet onder de overgangsregeling'};
+    var vandaag=new Date().toISOString().slice(0,10);
+    var basis='euro '+euro+' '+wat+' uit '+det.slice(0,4);
+    if(tot<=vandaag) return {tot:tot, verlopen:true, wat:wat,
+      tekst:basis+': de overgangsregeling liep af op '+nlDatum(tot)};
+    var staart=(!isVracht(v) && euro>=6)
+      ? '\nHet kabinet wil dit verlengen tot 1 januari 2029.' : '';
+    return {tot:tot, wat:wat,
+      tekst:basis+': toegang tot '+nlDatum(tot)+', '+resterend(tot)+'.'+staart};
+  }
+
   function oordeel(v, z){
     var vandaag=new Date().toISOString().slice(0,10);
     var nogNiet=z.vanaf && z.vanaf>vandaag;
     if(z.soort==='zero'){
-      if(uitstootvrij(v)) return {mag:true, tekst:'uitstootvrij, dus toegestaan'};
-      return {mag:false, nogNiet:nogNiet, tekst:'zero-emissiezone: alleen elektrisch of waterstof'};
+      if(uitstootvrij(v)) return {mag:true, tekst:'uitstootvrij, dus altijd toegestaan'};
+      var t=zeToegang(v);
+      var slot='\n\nVrijstellingen en ontheffingen kunnen wij niet zien; twijfel je, overleg met de planner.';
+      if(t.tot===null) return {mag:null, tekst:t.tekst};
+      if(t.tot==='' || t.verlopen) return {mag:false, nogNiet:nogNiet, tekst:t.tekst+slot};
+      return {mag:true, tekst:t.tekst+slot};
     }
     var nodig=z.euro||0;
     var heeft=parseInt(T(v&&v.euronorm).replace(/\D/g,''),10);
@@ -1669,7 +1801,8 @@ boot();
 
   /* Geeft true terug als er doorgereden mag worden naar het navigatiemenu. */
   function controleer(adres){
-    return laadZones().then(function(){
+    /* DRV-R21: de toegangsdatums ophalen voordat er een oordeel valt. */
+    return Promise.resolve(laadZeDatums()).then(laadZones).then(function(){
       if(!zones.length) return true;                 // geen gegevens: niet in de weg lopen
       return zoekAdres(adres).then(function(plek){
         if(!plek) return true;                       // adres onbekend: doorlaten
@@ -1696,7 +1829,12 @@ boot();
                   '\n\n'+onzeker[0].o.tekst;
             knop=[{value:'ok', label:'Begrepen, ga verder', cls:'btn-orange'}];
           } else {
-            tekst=T(v.naam)+' mag hier komen.\n'+raak[0].naam;
+            /* DRV-R19: de reden erbij. Bij een zero-emissiezone staat daar de
+               datum tot wanneer deze wagen er nog in mag - juist dat wil de
+               bezorger weten, en het is de kern van de reparatie. */
+            var reden=(raak.map(function(z){ return oordeel(v,z); })
+                          .filter(function(o){ return T(o.tekst); })[0]||{}).tekst||'';
+            tekst=T(v.naam)+' mag hier komen.\n'+raak[0].naam+(reden?'\n\n'+reden:'');
             knop=[{value:'ok', label:'Goede reis, ga verder', cls:'btn-green'}];
           }
           return askChoice('Milieuzone', knop, tekst).then(function(){ return true; });
