@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R99';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R101';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -57461,11 +57461,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       w+'["motor_vehicle:conditional"];'+
       w+'["vehicle:conditional"];'+
       w+'["access:conditional"];'+
-      /* hoogte */
-      w+'["maxheight"];'+
-      w+'["maxheight:physical"];'+
+      /* hoogte: bewust op ALLE wegen en ook op losse punten, niet alleen op
+         rijwegen - de hoogtebalk bij een parkeerdek staat op een inrit, en dat
+         is in de gegevens een dienstweg. Een hoogtetag is zeldzaam, dus dit
+         levert geen ruis op. */
+      'way'+p+'["maxheight"];'+
+      'way'+p+'["maxheight:physical"];'+
+      'node'+p+'["maxheight"];'+
       /* wat je fysiek tegenhoudt, en de borden zelf */
-      'node'+p+'["barrier"~"^(bollard|gate|lift_gate)$"];'+
+      'node'+p+'["barrier"~"^(bollard|rising_bollard|gate|lift_gate|swing_gate|bus_trap|sump_buster|height_restrictor|block|jersey_barrier|chain|yes)$"];'+
       'node'+p+'["traffic_sign"];'+
       ');out tags center 300;';
   }
@@ -57525,14 +57529,65 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var m=stuk.match(/\(([^)]*)\)/);
     return vertaal(T(m?m[1]:stuk));
   }
+  /* De RVV-borden die er voor een bestelbus of vrachtwagen toe doen. Ken ik
+     een code niet, dan gooi ik hem NIET weg maar toon ik hem met nummer - dan
+     zie je zelf wat er staat en kan het er alsnog bij. C22a (milieuzone) staat
+     er met opzet niet in: die heeft zijn eigen controle met betere gegevens,
+     en twee meldingen over hetzelfde spreken elkaar alleen maar tegen. */
+  var BORDEN={
+    C1:'geslotenverklaring in beide richtingen (C1)',
+    C2:'verboden in te rijden (C2)',
+    C6:'gesloten voor motorvoertuigen (C6)',
+    C7:"gesloten voor vrachtauto's (C7)",
+    C7A:'gesloten voor autobussen (C7a)',
+    C7B:"gesloten voor vrachtauto's en bussen (C7b)",
+    C10:'gesloten voor voertuig met aanhanger (C10)',
+    C12:'gesloten voor alle motorvoertuigen (C12)',
+    C17:'lengtebeperking (C17)',
+    C18:'breedtebeperking (C18)',
+    C19:'hoogtebeperking (C19)',
+    C20:'aslastbeperking (C20)',
+    C21:'gewichtsbeperking (C21)',
+    C22:'gesloten voor gevaarlijke stoffen (C22)',
+    G5:'erf (G5)',
+    G7:'voetgangersgebied (G7)'
+  };
   function bordSoort(v){
-    var s=T(v).toUpperCase();
-    if(/(^|[^A-Z])C0?1([^0-9]|$)/.test(s)) return 'geslotenverklaring (C1)';
-    if(/(^|[^A-Z])G0?7([^0-9]|$)/.test(s)) return 'voetgangersgebied (G7)';
-    if(/(^|[^A-Z])C1[27]([^0-9]|$)/.test(s)) return 'gesloten voor vrachtverkeer';
-    if(/(^|[^A-Z])C2[12]([^0-9]|$)/.test(s)) return 'gewichts- of maatbeperking';
-    return '';
+    var uit=[];
+    String(v==null?'':v).toUpperCase().split(/[;,]/).forEach(function(deel){
+      var m=T(deel).replace(/^NL:/,'').match(/^([CG])0*(\d+)([A-Z]?)$/);
+      if(!m) return;
+      var code=m[1]+m[2]+m[3];
+      if(code==='C22A') return;                       // milieuzone: eigen controle
+      if(BORDEN[code]) uit.push(BORDEN[code]);
+      else if(m[1]==='C') uit.push('verbodsbord '+m[1]+m[2].replace(/^0+/,'')+m[3].toLowerCase());
+    });
+    return uit.length?uit[0]:'';
   }
+
+  /* Zeg WAT er staat, niet wat er in de gegevens staat. "Gesloten voor
+     verkeer" is de term uit OpenStreetMap; een bezorger heeft meer aan
+     "Busbaan" of "Bussluis", want dan weet hij meteen waar hij naar kijkt.
+     Het getal is het gewicht: hoe lager, hoe belangrijker om te zien. */
+  function soortWeg(t){
+    if(T(t.psv)==='yes' || T(t.bus)==='yes' || T(t.busway) || T(t['lanes:psv']))
+      return [2,'Busbaan'];
+    if(t.railway || t.embedded_rail || T(t.tram)==='yes') return [2,'Trambaan'];
+    var vt=(T(t.foot)==='yes'||T(t.foot)==='designated');
+    var fs=(T(t.bicycle)==='yes'||T(t.bicycle)==='designated');
+    if(vt&&fs) return [3,'Alleen fiets en voetganger'];
+    if(fs)     return [3,'Alleen fietsers'];
+    if(vt)     return [3,'Alleen voetgangers'];
+    return [3,'Afgesloten straat'];
+  }
+  var HINDERNIS={
+    bollard:[5,'Paaltje'], rising_bollard:[3,'Verzinkbaar paaltje'],
+    gate:[5,'Poort'], lift_gate:[5,'Slagboom'],
+    bus_trap:[2,'Bussluis'], sump_buster:[2,'Bussluis met bodemplaat'],
+    height_restrictor:[2,'Hoogtebegrenzer'], swing_gate:[5,'Draaihek'],
+    block:[5,'Betonblok'], jersey_barrier:[5,'Betonnen afzetting'],
+    chain:[5,'Ketting'], yes:[5,'Afsluiting']
+  };
 
   function uniek(lijst){
     var zien={}, uit=[];
@@ -57568,15 +57623,19 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
          op bedrijventerreinen bij vrijwel elk adres een loze melding. */
       if(t.highway==='pedestrian') autovrij.push([1,'Voetgangersgebied'+waar]);
 
-      ['motor_vehicle','vehicle','access'].forEach(function(k){
-        if(T(t[k])==='no') autovrij.push([3,'Gesloten voor verkeer'+waar]);
-      });
+      if(T(t.motor_vehicle)==='no' || T(t.vehicle)==='no' || T(t.access)==='no'){
+        var s=soortWeg(t);
+        autovrij.push([s[0], s[1]+waar]);
+      }
 
-      if(t.barrier) autovrij.push([5,(t.barrier==='bollard'?'Paaltje':'Poort of afsluiting')+waar]);
+      if(t.barrier){
+        var h=HINDERNIS[T(t.barrier)] || [5,'Afsluiting'];
+        autovrij.push([h[0], h[1]+waar]);
+      }
 
       if(t.traffic_sign){
-        var s=bordSoort(t.traffic_sign);
-        if(s) autovrij.push([2,'Bord: '+s+waar]);
+        var b=bordSoort(t.traffic_sign);
+        if(b) autovrij.push([2,'Bord: '+b+waar]);
       }
 
       Object.keys(t).forEach(function(k){
@@ -57585,6 +57644,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         if(tijd) venster.push(tijd+waar);
       });
 
+      /* een lage doorgang over een voetpad of fietspad raakt jou niet */
+      if(/^(footway|cycleway|path|steps|track|bridleway|corridor)$/.test(T(t.highway))) return;
       var h=meter(t['maxheight:physical']!=null?t['maxheight:physical']:t.maxheight);
       if(h!=null) hoogte.push([h, String(h).replace('.', ',')+' m'+waar]);
     });
