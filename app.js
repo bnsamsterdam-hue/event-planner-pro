@@ -58005,7 +58005,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
                 '<div style="font-weight:800;color:'+u.kleur+'">'+esc(u.tekst)+'</div>'+
               '</div>';
             }).join('')+
-            '<div style="font-size:12px;color:#64748b;margin-top:6px">Staat er dat gegevens ontbreken, druk dan hierboven bij Voertuigen op Gegevens ophalen.</div>'+
+            '<div style="font-size:12px;color:#64748b;margin-top:6px">Staat er dat gegevens ontbreken, druk dan onder bij Voertuigen op Gegevens ophalen.</div>'+
             '</div>'
           : '');
 
