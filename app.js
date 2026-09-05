@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R102';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R103';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -57385,7 +57385,20 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   window.BNS_R93={
     voorAdres:zoneVoorAdres,
     cache:cache,
-    cacheLegen:function(){ try{ localStorage.removeItem(CACHE); }catch(e){} laatsteAdres=''; return 'zonegeheugen gewist'; }
+    cacheLegen:function(){ try{ localStorage.removeItem(CACHE); }catch(e){} laatsteAdres=''; return 'zonegeheugen gewist'; },
+    /* R103: laat de regel in Extra opnieuw tekenen zonder het geheugen te
+       wissen - gebruikt nadat de borden opnieuw zijn opgezocht. */
+    hertekenForm:function(){ laatsteAdres=''; },
+    formAdres:function(){
+      var o={};
+      ['locationAddress','locationStreet','locationZip','locationCity',
+       'customerStreet','customerZip','customerCity'].forEach(function(id){
+        var e=document.getElementById(id); if(e) o[id]=e.value;
+      });
+      return [o.locationAddress,o.locationStreet,o.locationZip,o.locationCity]
+        .map(T).filter(Boolean).join(' ')
+        || [o.customerStreet,o.customerZip,o.customerCity].map(T).filter(Boolean).join(' ');
+    }
   };
   try{ console.info('[BNS R93] Milieuzone zichtbaar bij de planner (formulier + kaarten).'); }catch(e){}
 })();
@@ -57722,8 +57735,56 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return bezig[a];
   }
 
+  /* ----------------------------------------------------------
+     R103: opnieuw kijken bij opslaan.
+     Normaal wordt een adres maar EEN keer opgezocht - dat spaart Overpass en
+     werkt zonder signaal. Maar als de planner een opdracht opent en opnieuw
+     opslaat, zegt hij daarmee "kijk hier nog eens naar": misschien is het
+     adres bijgewerkt, misschien draait er nieuwe code. Dan gooien we het
+     bewaarde antwoord voor DAT ENE adres weg en halen we het vers op.
+     Dit gebeurt alleen bij een handeling van een mens, dus het kan de bron
+     niet bestoken.
+  ---------------------------------------------------------- */
+  function opnieuw(adres){
+    var a=T(adres);
+    if(!a) return Promise.resolve(null);
+    try{ var c=cache(); delete c[a]; localStorage.setItem(CACHE, JSON.stringify(c)); }catch(e){}
+    delete bezig[a];
+    if(gedaan>0) gedaan--;              // een handmatige controle telt niet mee voor de noodrem
+    return voorAdres(a).then(function(r){
+      try{ if(window.BNS_R93 && window.BNS_R93.hertekenForm) window.BNS_R93.hertekenForm(); }catch(e){}
+      return r;
+    });
+  }
+
+  /* Aanhaken op het opslaan, met dezelfde voorzichtige aanpak die de rest van
+     deze app gebruikt: de bestaande functie blijft gewoon draaien, wij hangen
+     er iets achter. De vlag voorkomt dat we er twee keer omheen gaan als een
+     andere module later opnieuw inpakt. */
+  function haakAanOpslaan(){
+    if(typeof window.saveCurrentOrder!=='function') return false;
+    if(window.saveCurrentOrder.__bnsR97) return true;
+    var oud=window.saveCurrentOrder;
+    var nieuw=function(){
+      var uit=oud.apply(this, arguments);
+      try{
+        var a=(window.BNS_R93 && window.BNS_R93.formAdres) ? window.BNS_R93.formAdres() : '';
+        if(a) setTimeout(function(){ opnieuw(a); }, 400);
+      }catch(e){}
+      return uit;
+    };
+    nieuw.__bnsR97=true;
+    try{ Object.keys(oud).forEach(function(k){ nieuw[k]=oud[k]; }); }catch(e){}
+    window.saveCurrentOrder=nieuw;
+    return true;
+  }
+  if(!haakAanOpslaan()){
+    [1000,3000,8000].forEach(function(ms){ setTimeout(haakAanOpslaan, ms); });
+  }
+
   window.BNS_R97={
     voorAdres:voorAdres,
+    opnieuw:opnieuw,
     tekst:korteTekst,
     cache:cache,
     cacheLegen:function(){ try{ localStorage.removeItem(CACHE); }catch(e){} return 'bordengeheugen gewist'; },
