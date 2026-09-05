@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R103';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R105';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56759,6 +56759,12 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           v.soort=T(rij.voertuigsoort);
           v.merk=T(rij.merk); v.model=T(rij.handelsbenaming);
           v.massa=T(rij.toegestane_maximum_massa_voertuig||'');
+          /* R104 (2026-09-05): de overgangsregeling voor zero-emissiezones
+             hangt op de Datum Eerste Toelating en op het verschil tussen een
+             bakwagen en een oplegtrekker. Allebei zaten ze al in dit antwoord;
+             we gooiden ze alleen weg. Geen nieuwe bevraging dus. */
+          v.det=T(rij.datum_eerste_toelating||'');          // JJJJMMDD
+          v.inrichting=T(rij.inrichting||'');
         }
         if(br){
           v.brandstof=T(br.brandstof_omschrijving||'');
@@ -57791,4 +57797,190 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     stand:function(){ return {opgezocht:gedaan, inDeRij:rij.length}; }
   };
   try{ console.info('[BNS R97] Autovrije zones, venstertijden en hoogte actief - window.BNS_R97.voorAdres(adres)'); }catch(e){}
+})();
+
+
+/* ==========================================================
+   BNS R105 - Toegangsdatums zero-emissiezones, zelf aan te passen
+   ----------------------------------------------------------
+   De overgangsregeling zegt tot wanneer een niet-uitstootvrije wagen de
+   zero-emissiezones nog in mag. Die termijnen zijn een paar keer verschoven en
+   dat gaat weer gebeuren: het kabinet wil de termijn voor euro 6 bestelauto's
+   verlengen naar 1 januari 2029, maar dat geldt pas als het RVV is aangepast.
+
+   Stonden die datums vast in de code, dan zou de telefoon op 1 januari 2028
+   rood springen terwijl er nog een jaar bij is gekomen - dezelfde fout als
+   die we bij Leiden vonden, alleen andersom en op een moment dat niemand er
+   meer aan denkt. Daarom staan ze hier, in Admin, en niet in de code.
+
+   Een datum aanpassen is genoeg; er hoeft geen nieuwe versie voor te komen.
+   De telefoon leest ze mee uit de instellingen, net als de voertuigenlijst.
+
+   Console: window.BNS_R105.lees()  /  window.BNS_R105.herstel()
+========================================================== */
+(function bnsR105Toegangsdatums(){
+  'use strict';
+  if(window.__BNS_R105__) return;
+  window.__BNS_R105__=true;
+
+  var SLEUTEL='bns_ze_datums';
+
+  /* Stand van zaken op 5 september 2026. Dit zijn de waarden waarmee het
+     scherm begint; wat de planner invult gaat voor. */
+  var BEGIN={
+    euro5best:'2027-01-01',   // bestelauto euro 5
+    euro6best:'2028-01-01',   // bestelauto euro 6
+    euro6bak0:'2028-01-01',   // vrachtauto euro 6, bakwagen uit 2017 t/m 2019
+    euro6laat:'2030-01-01',   // vrachtauto euro 6, bakwagen vanaf 2020 en alle trekkers
+    gecontroleerd:'2026-09-05'
+  };
+
+  var VELDEN=[
+    ['euro5best','Bestelauto euro 5'],
+    ['euro6best','Bestelauto euro 6'],
+    ['euro6bak0','Vrachtauto euro 6, bakwagen uit 2017 tot en met 2019'],
+    ['euro6laat','Vrachtauto euro 6, bakwagen vanaf 2020 en alle trekkers']
+  ];
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function lees(){
+    var uit={};
+    Object.keys(BEGIN).forEach(function(k){ uit[k]=BEGIN[k]; });
+    try{
+      var o=JSON.parse(localStorage.getItem(SLEUTEL)||'{}')||{};
+      Object.keys(uit).forEach(function(k){ if(T(o[k])) uit[k]=T(o[k]); });
+    }catch(e){}
+    return uit;
+  }
+
+  function bewaar(d){
+    try{ localStorage.setItem(SLEUTEL, JSON.stringify(d)); }catch(e){}
+    /* Ook naar de instellingen, want daar kijkt de telefoon. Dezelfde weg als
+       de voertuigenlijst: een eigen document en het hoofddocument. */
+    try{
+      if(window.BNS && typeof window.BNS.syncDoc==='function'){
+        window.BNS.syncDoc('settings', Object.assign({id:'zedatums'}, d));
+        try{
+          var st=(window.state&&state.settings)||null;
+          if(st){ st.zeDatums=d; window.BNS.syncDoc('settings', Object.assign({id:'main'}, st)); }
+        }catch(e){}
+      }
+    }catch(e){}
+    return d;
+  }
+
+  /* ------- datums heen en weer tussen 01-01-2028 en 2028-01-01 ------- */
+  function naarScherm(iso){
+    var p=T(iso).split('-');
+    return p.length===3 ? (p[2]+'-'+p[1]+'-'+p[0]) : '';
+  }
+  function naarOpslag(tekst){
+    var m=T(tekst).match(/^(\d{1,2})[-\/ .](\d{1,2})[-\/ .](\d{4})$/);
+    if(!m) return '';
+    var d=('0'+m[1]).slice(-2), mn=('0'+m[2]).slice(-2);
+    if(+mn<1 || +mn>12 || +d<1 || +d>31) return '';
+    return m[3]+'-'+mn+'-'+d;
+  }
+  function nlDatum(iso){
+    var mnd=['januari','februari','maart','april','mei','juni','juli','augustus',
+             'september','oktober','november','december'];
+    var p=T(iso).split('-');
+    if(p.length!==3) return T(iso);
+    return parseInt(p[2],10)+' '+mnd[parseInt(p[1],10)-1]+' '+p[0];
+  }
+  function dagenTot(iso){
+    var eind=new Date(iso+'T00:00:00');
+    if(isNaN(eind)) return null;
+    return Math.ceil((eind-new Date())/86400000);
+  }
+
+  /* ---------------------------- het scherm ---------------------------- */
+  function bouw(){
+    try{
+      var admin=document.getElementById('adminArea');
+      if(!admin || !admin.offsetParent) return;
+      var vak=document.getElementById('bnsR105Vak');
+      if(!vak){
+        vak=document.createElement('div');
+        vak.id='bnsR105Vak';
+        vak.style.cssText='margin-top:18px;padding:14px;border:2px solid #e2e8f0;border-radius:14px;background:#fff';
+        admin.appendChild(vak);
+      }
+      var d=lees();
+      /* Alleen opnieuw tekenen als er echt iets veranderd is, anders worden de
+         invulvelden tijdens het typen telkens vervangen. */
+      var vinger=JSON.stringify(d);
+      if(vak.__vinger===vinger && vak.querySelector('#bnsR105_euro6best')) return;
+      vak.__vinger=vinger;
+
+      /* Komt de eerste datum in zicht, dan vanzelf een herinnering. */
+      var eerst=null;
+      VELDEN.forEach(function(v){
+        var n=dagenTot(d[v[0]]);
+        if(n!=null && n>0 && (eerst===null || n<eerst)) eerst=n;
+      });
+      var herinnering = (eerst!=null && eerst<=183)
+        ? '<div style="background:#fef3c7;color:#92400e;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-weight:800">'+
+          'De eerstvolgende datum is over '+eerst+' dagen. Controleer of deze termijnen nog kloppen.</div>'
+        : '';
+
+      vak.innerHTML =
+        '<h3 style="margin:0 0 4px">Toegangsdatums zero-emissiezones</h3>'+
+        '<div style="font-size:13px;color:#64748b;margin-bottom:10px">'+
+          'Tot wanneer een wagen die niet uitstootvrij is de zero-emissiezones nog in mag. '+
+          'De bezorgerstelefoon rekent hiermee. Verandert er een termijn, pas hem hier aan; '+
+          'er hoeft dan niets aan de app te gebeuren.</div>'+
+        herinnering+
+        VELDEN.map(function(v){
+          return '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'+
+            '<div style="flex:1;min-width:220px;font-weight:700">'+esc(v[1])+'</div>'+
+            '<input id="bnsR105_'+v[0]+'" value="'+esc(naarScherm(d[v[0]]))+'" placeholder="voorbeeld: 01-01-2028" '+
+              'style="width:170px;padding:9px;border:2px solid #cbd5e1;border-radius:10px;font-weight:800">'+
+          '</div>';
+        }).join('')+
+        '<div style="font-size:13px;color:#64748b;margin:10px 0 12px">'+
+          'Schrijf de datum als dag-maand-jaar, dus bijvoorbeeld 01-01-2028. '+
+          'Voor het laatst gecontroleerd op '+esc(nlDatum(d.gecontroleerd))+'.</div>'+
+        '<button type="button" id="bnsR105Opslaan" style="border:0;border-radius:10px;padding:10px 16px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer">Datums opslaan</button>'+
+        '<button type="button" id="bnsR105Herstel" style="border:0;border-radius:10px;padding:10px 16px;background:#e2e8f0;color:#334155;font-weight:900;cursor:pointer;margin-left:8px">Terug naar de beginwaarden</button>'+
+        '<div id="bnsR105Melding" style="margin-top:10px;font-weight:800"></div>';
+
+      document.getElementById('bnsR105Opslaan').onclick=function(){
+        var nieuw={}, fout=[];
+        VELDEN.forEach(function(v){
+          var el=document.getElementById('bnsR105_'+v[0]);
+          var iso=naarOpslag(el.value);
+          if(!iso){ fout.push(v[1]); el.style.borderColor='#dc2626'; }
+          else { nieuw[v[0]]=iso; el.style.borderColor='#cbd5e1'; }
+        });
+        var m=document.getElementById('bnsR105Melding');
+        if(fout.length){
+          m.style.color='#991b1b';
+          m.textContent='Deze datum begrijp ik niet: '+fout.join(', ')+'. Schrijf hem als 01-01-2028.';
+          return;
+        }
+        nieuw.gecontroleerd=new Date().toISOString().slice(0,10);
+        bewaar(nieuw);
+        vak.__vinger='';
+        m.style.color='#166534';
+        m.textContent='Opgeslagen. De telefoon leest de nieuwe datums bij de volgende controle.';
+      };
+      document.getElementById('bnsR105Herstel').onclick=function(){
+        bewaar(JSON.parse(JSON.stringify(BEGIN)));
+        vak.__vinger=''; vak.remove(); bouw();
+      };
+    }catch(e){}
+  }
+
+  setInterval(bouw, 1500);
+  setTimeout(bouw, 1200);
+
+  window.BNS_R105={
+    lees:lees,
+    herstel:function(){ bewaar(JSON.parse(JSON.stringify(BEGIN))); return 'terug naar de beginwaarden'; }
+  };
+  try{ console.info('[BNS R105] Toegangsdatums zero-emissiezones aanpasbaar in Admin.'); }catch(e){}
 })();
