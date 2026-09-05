@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-04-R96';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R98';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -13716,12 +13716,28 @@ setTimeout(()=>{
        er wordt hier niets opgezocht, want dan zou de agenda moeten wachten. */
     var zoneVoor='', zoneRegel='';
     try{
+      var zoneSleutel=String(address||'').trim();
       if(window.BNS_R93 && typeof window.BNS_R93.cache==='function'){
-        var c=window.BNS_R93.cache()[String(address||'').trim()];
+        var c=window.BNS_R93.cache()[zoneSleutel];
         if(c && c.zone && c.namen && c.namen.length){
           zoneVoor='LET OP MILIEUZONE - ';
           zoneRegel='\n\nLET OP: dit adres ligt in ' + c.namen.join(', ') +
                     '.\nControleer met welke wagen hier gereden mag worden.';
+        }
+      }
+      /* R97 (2026-09-05): autovrije zone, venstertijd of hoogtebeperking gaan
+         op dezelfde manier mee. ALLEEN bij een echte melding - is er niets
+         gevonden, dan blijft de agenda precies zoals hij altijd was. */
+      if(window.BNS_R97 && typeof window.BNS_R97.cache==='function'){
+        var b=window.BNS_R97.cache()[zoneSleutel];
+        if(b && b.iets){
+          if(!zoneVoor) zoneVoor='LET OP - ';
+          var extra=[];
+          if(b.autovrij.length) extra.push('Autovrij of afgesloten: '+b.autovrij.join(' | '));
+          if(b.venster.length)  extra.push('Venstertijden: '+b.venster.join(' | '));
+          if(b.hoogte.length)   extra.push('Hoogtebeperking: '+b.hoogte.join(' | '));
+          zoneRegel += '\n\nIn de buurt van dit adres:\n' + extra.join('\n') +
+                       '\n(Uit OpenStreetMap, ter informatie - niet volledig.)';
         }
       }
     }catch(e){}
@@ -57218,10 +57234,29 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return bezig[a];
   }
 
-  function labelHtml(res){
+  function pil(kleur, tekst, titel){
+    return '<span style="display:inline-block;background:'+kleur+';color:#fff;border-radius:999px;'+
+           'padding:2px 10px;font-size:11px;font-weight:900;margin-left:6px"'+
+           (titel?(' title="'+esc(titel)+'"'):'')+'>'+esc(tekst)+'</span>';
+  }
+  /* R97: het labeltje GROEIT MEE. Is er niets extra's gevonden, dan staat er
+     precies wat er altijd stond - een groene of rode milieupil, meer niet.
+     Komt er wel iets uit OpenStreetMap (voetgangersgebied, venstertijd,
+     hoogte), dan komen daar rode blokjes achter, in dezelfde regel. */
+  function labelHtml(res, extra){
     if(!res) return '';
-    if(!res.zone) return '<span class="bns-r93-label" style="display:inline-block;background:#16a34a;color:#fff;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:900;margin-left:6px">Milieu: groen</span>';
-    return '<span class="bns-r93-label" style="display:inline-block;background:#b91c1c;color:#fff;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:900;margin-left:6px" title="'+esc(res.namen.join(', '))+'">Milieu: '+esc(res.namen[0])+'</span>';
+    var uit='<span class="bns-r93-label" style="display:inline-flex;flex-wrap:wrap;align-items:center;vertical-align:middle">';
+    uit += res.zone ? pil('#b91c1c', 'Milieu: '+res.namen[0], res.namen.join(', '))
+                    : pil('#16a34a', 'Milieu: groen');
+    if(extra && extra.iets){
+      if(extra.autovrij.length) uit += pil('#b91c1c', 'Voetganger/afsluiting', extra.autovrij.join(' | '));
+      if(extra.venster.length)  uit += pil('#b91c1c', 'Venstertijd', extra.venster.join(' | '));
+      if(extra.hoogte.length)   uit += pil('#b91c1c', 'Hoogte '+String(extra.hoogte[0]).split(' - ')[0], extra.hoogte.join(' | '));
+    }
+    return uit+'</span>';
+  }
+  function bordenCache(){
+    try{ return (window.BNS_R97 && window.BNS_R97.cache()) || {}; }catch(e){ return {}; }
   }
 
   /* ---- 1. de regel in het wijzigscherm ---- */
@@ -57255,15 +57290,38 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       laatsteAdres=adres;
       vak.style.background='#f1f5f9'; vak.style.color='#475569';
       vak.textContent='Milieuzone wordt opgezocht...';
-      zoneVoorAdres(adres).then(function(r){
-        if(!r){ vak.style.background='#f1f5f9'; vak.style.color='#475569'; vak.textContent='Milieuzone: adres nog niet te bepalen.'; return; }
-        if(r.zone){
-          vak.style.background='#fee2e2'; vak.style.color='#991b1b';
-          vak.textContent='LET OP - dit adres ligt in: '+r.namen.join(', ')+'. Kies hier de juiste wagen op.';
+      /* R97: de milieuzone en de borden in EEN blok. De milieuzoneregel blijft
+         staan zoals hij was - ook de groene, want die is het enige bewijs dat
+         de controle daadwerkelijk gelopen heeft. Wat OpenStreetMap oplevert
+         komt eronder, en alleen als er echt iets gevonden is. */
+      Promise.all([
+        zoneVoorAdres(adres),
+        (window.BNS_R97 ? window.BNS_R97.voorAdres(adres) : Promise.resolve(null))
+      ]).then(function(res){
+        var r=res[0], b=res[1];
+        var regels=[], alarm=false;
+        if(!r){
+          regels.push('Milieuzone: adres nog niet te bepalen.');
+        } else if(r.zone){
+          alarm=true;
+          regels.push('LET OP - dit adres ligt in: '+r.namen.join(', ')+'. Kies hier de juiste wagen op.');
         } else {
-          vak.style.background='#dcfce7'; vak.style.color='#166534';
-          vak.textContent='Geen milieuzone op dit adres.';
+          regels.push('Geen milieuzone op dit adres.');
         }
+        if(b && b.iets){
+          alarm=true;
+          if(b.autovrij.length) regels.push('Autovrij of afgesloten: '+b.autovrij.join(' | '));
+          if(b.venster.length)  regels.push('Venstertijden: '+b.venster.join(' | '));
+          if(b.hoogte.length)   regels.push('Hoogtebeperking: '+b.hoogte.join(' | '));
+          regels.push('Uit OpenStreetMap, ter informatie - niet volledig, kijk ter plaatse.');
+        }
+        if(!r && !(b && b.iets)){
+          vak.style.background='#f1f5f9'; vak.style.color='#475569';
+        } else {
+          vak.style.background = alarm ? '#fee2e2' : '#dcfce7';
+          vak.style.color      = alarm ? '#991b1b' : '#166534';
+        }
+        vak.innerHTML = regels.map(function(x){ return '<div>'+esc(x)+'</div>'; }).join('');
       });
     }catch(e){}
   }
@@ -57271,8 +57329,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   /* ---- 2. het labeltje op de opdrachtkaarten ---- */
   function bijKaarten(){
     try{
+      var bc=bordenCache();
       Array.prototype.slice.call(document.querySelectorAll('.order-card')).forEach(function(kaart){
-        if(kaart.querySelector('.bns-r93-label')) return;
         var nr=((kaart.textContent||'').match(/20\d\d-\d{4}/)||[''])[0];
         if(!nr) return;
         var s=(window.state&&Array.isArray(state.orders))?state.orders:[];
@@ -57285,18 +57343,38 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         /* R96: het antwoord ook OP de opdracht zetten. De bezorgerstelefoon
            leest dat dan gewoon mee en hoeft zelf niets op te zoeken - dat werkt
            ook zonder bereik. */
+        /* R97: de borden erbij in de wachtrij zetten. Overpass wordt bewust
+           traag bevraagd (een adres per vier seconden), dus dit loopt op de
+           achtergrond door zonder iets op te houden. */
+        var b=bc[adres];
+        if(!b && window.BNS_R97) window.BNS_R97.voorAdres(adres);
         try{
           var w=c[adres];
           var nieuw = w.zone ? w.namen.join(', ') : '';
-          if(T(o.milieuzone||'')!==nieuw){
+          var nieuwB = b ? (b.iets ? window.BNS_R97.tekst(b) : '') : null;
+          var wijzig = (T(o.milieuzone||'')!==nieuw) ||
+                       (nieuwB!==null && T(o.borden||'')!==nieuwB);
+          if(wijzig){
             o.milieuzone=nieuw;
             o.milieuzoneOp=new Date().toISOString().slice(0,10);
+            if(nieuwB!==null){
+              o.borden=nieuwB;
+              o.bordenOp=new Date().toISOString().slice(0,10);
+            }
             if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o);
           }
         }catch(e){}
         var kop=kaart.querySelector('b,strong,.order-title')||kaart.firstElementChild;
-        if(!kop || kop.querySelector('.bns-r93-label')) return;
-        kop.insertAdjacentHTML('beforeend', labelHtml(c[adres]));
+        if(!kop) return;
+        /* Alleen hertekenen als er echt iets verandert - een lus die elke
+           anderhalve seconde de DOM herschrijft is hier eerder fout gebleken. */
+        var html=labelHtml(c[adres], b);
+        var staat=kop.querySelector('.bns-r93-label');
+        if(staat && staat.__vinger===html) return;
+        if(staat && staat.parentNode) staat.parentNode.removeChild(staat);
+        kop.insertAdjacentHTML('beforeend', html);
+        var vers=kop.querySelector('.bns-r93-label');
+        if(vers) vers.__vinger=html;
       });
     }catch(e){}
   }
@@ -57310,4 +57388,264 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     cacheLegen:function(){ try{ localStorage.removeItem(CACHE); }catch(e){} laatsteAdres=''; return 'zonegeheugen gewist'; }
   };
   try{ console.info('[BNS R93] Milieuzone zichtbaar bij de planner (formulier + kaarten).'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS R97 — Autovrije zones, venstertijden en hoogte
+   ----------------------------------------------------------
+   Aanvulling op de milieuzone-controle. Die kijkt in vlakken (polygonen);
+   dit kijkt naar BORDEN en WEGEN in de buurt van het adres, want autovrije
+   gebieden, venstertijden en hoogtebeperkingen zitten NIET in de
+   milieuzone-gegevens (daar staan alleen de 48 zones in).
+
+   Bron: OpenStreetMap via Overpass. Gekozen omdat je daar precies de juiste
+   vraag kunt stellen - "wat ligt er binnen 150 meter van dit punt" - en omdat
+   hoogtes en venstertijden er in dezelfde opzoeking meekomen. Rechtstreeks
+   vanuit de app te bevragen (getest: status 200), dus geen omweg via GitHub
+   nodig zoals bij het NDW-bestand.
+
+   BELANGRIJKE BEPERKING, met opzet zo gebouwd:
+   borden en wegen zijn PUNTEN en LIJNEN, geen vlakken. Er is geen enkele
+   garantie dat elk bord in de gegevens staat. Daarom vertelt deze module
+   alleen WAT er in de buurt staat en spreekt hij nooit een oordeel uit in de
+   trant van "u mag hier niet in". Een half antwoord over hoogte of tijden is
+   gevaarlijker dan geen antwoord.
+
+   Zuinig met de bron: Overpass is gratis en draait op donaties. Er loopt
+   nooit meer dan een opzoeking tegelijk, met minstens vier seconden ertussen,
+   en elk adres wordt maar een keer opgezocht (bns_bordencache).
+
+   Console: window.BNS_R97.voorAdres('Dam 1 Amsterdam')
+            window.BNS_R97.cache()  /  window.BNS_R97.cacheLegen()
+========================================================== */
+(function bnsR97Borden(){
+  'use strict';
+  if(window.__BNS_R97__) return;
+  window.__BNS_R97__=true;
+
+  var CACHE='bns_bordencache';
+  var BRON='https://overpass-api.de/api/interpreter';
+  var STRAAL=150;          // meter rond het adres
+  var PAUZE=4000;          // minstens zoveel milliseconden tussen twee opzoekingen
+  var MAX_PER_SESSIE=60;   // noodrem, zodat een volle lijst de bron niet bestookt
+
+  var rij=[], loopt=false, laatsteKeer=0, gedaan=0, bezig={};
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function cache(){ try{ return JSON.parse(localStorage.getItem(CACHE)||'{}')||{}; }catch(e){ return {}; } }
+  function bewaar(sleutel, waarde){
+    try{ var c=cache(); c[sleutel]=waarde; localStorage.setItem(CACHE, JSON.stringify(c)); }catch(e){}
+  }
+
+  /* ---------- de vraag aan Overpass ---------- */
+  function vraag(lat, lon){
+    var p='(around:'+STRAAL+','+lat+','+lon+')';
+    return '[out:json][timeout:25];('+
+      'way'+p+'["highway"="pedestrian"];'+
+      'way'+p+'["highway"="living_street"];'+
+      'way'+p+'["motor_vehicle"~"^(no|destination|delivery|private|permit)$"];'+
+      'way'+p+'["vehicle"~"^(no|destination|private)$"];'+
+      'way'+p+'["access"~"^(no|destination|private|permit)$"];'+
+      'way'+p+'["hgv"~"^(no|destination)$"];'+
+      'way'+p+'["motor_vehicle:conditional"];'+
+      'way'+p+'["vehicle:conditional"];'+
+      'way'+p+'["access:conditional"];'+
+      'way'+p+'["hgv:conditional"];'+
+      'way'+p+'["maxheight"];'+
+      'way'+p+'["maxheight:physical"];'+
+      'node'+p+'["barrier"~"^(bollard|gate|lift_gate|block|swing_gate|cycle_barrier)$"];'+
+      'node'+p+'["maxheight"];'+
+      'node'+p+'["traffic_sign"];'+
+      ');out tags center 300;';
+  }
+
+  function haal(lat, lon){
+    return fetch(BRON, {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'data='+encodeURIComponent(vraag(lat, lon))
+    }).then(function(r){
+      if(!r.ok) throw new Error('overpass '+r.status);
+      return r.json();
+    });
+  }
+
+  /* ---------- de antwoorden uitpakken ---------- */
+  function naam(t){
+    return T(t.name) || T(t.ref) || T(t['addr:street']) || '';
+  }
+  function meter(v){
+    var s=T(v).toLowerCase().replace(',', '.');
+    if(!s || s==='none' || s==='default' || s==='below_default' || s==='unsigned') return null;
+    var m=s.match(/^(\d+(\.\d+)?)/);
+    if(!m) return null;
+    var n=parseFloat(m[1]);
+    if(!(n>0) || n>10) return null;         // 10 m of hoger is geen beperking die ons raakt
+    if(/'|ft|feet/.test(s)) n=n*0.3048;     // een enkele keer in voet
+    return Math.round(n*100)/100;
+  }
+  /* OpenStreetMap schrijft tijdvensters in een eigen notatie die helemaal in
+     het Engels staat: dagen, maanden, en woorden als sunset en off. Alles wat
+     in beeld kan komen wordt hier vertaald, zodat er in de app nooit Engels
+     op het scherm verschijnt. */
+  var TAAL={
+    Mo:'ma', Tu:'di', We:'wo', Th:'do', Fr:'vr', Sa:'za', Su:'zo',
+    Jan:'jan', Feb:'feb', Mar:'mrt', Apr:'apr', May:'mei', Jun:'jun',
+    Jul:'jul', Aug:'aug', Sep:'sep', Oct:'okt', Nov:'nov', Dec:'dec',
+    PH:'feestdagen', SH:'schoolvakantie',
+    sunrise:'zonsopgang', sunset:'zonsondergang',
+    dawn:'ochtendschemering', dusk:'avondschemering',
+    off:'gesloten', closed:'gesloten', open:'open',
+    day:'dag', days:'dagen', week:'week', weeks:'weken',
+    easter:'Pasen', 'public holiday':'feestdagen'
+  };
+  var TAALZOEK=new RegExp('\\b('+Object.keys(TAAL).sort(function(a,b){ return b.length-a.length; })
+                          .join('|').replace(/ /g,'\\s')+')\\b','g');
+  function vertaal(s){
+    return String(s==null?'':s)
+      .replace(TAALZOEK, function(w){ return TAAL[w]||TAAL[w.toLowerCase()]||w; })
+      .replace(/\b24\/7\b/g, 'dag en nacht');
+  }
+  function tijdUit(waarde){
+    /* "no @ (Mo-Sa 07:00-11:00)" -> "ma-za 07:00-11:00" */
+    var s=T(waarde);
+    if(s.indexOf('@')<0) return '';
+    var stuk=s.split('@').slice(1).join('@');
+    var m=stuk.match(/\(([^)]*)\)/);
+    return vertaal(T(m?m[1]:stuk));
+  }
+  function bordSoort(v){
+    var s=T(v).toUpperCase();
+    if(/(^|[^A-Z])C0?1([^0-9]|$)/.test(s)) return 'geslotenverklaring (C1)';
+    if(/(^|[^A-Z])G0?7([^0-9]|$)/.test(s)) return 'voetgangersgebied (G7)';
+    if(/(^|[^A-Z])C1[27]([^0-9]|$)/.test(s)) return 'gesloten voor vrachtverkeer';
+    if(/(^|[^A-Z])C2[12]([^0-9]|$)/.test(s)) return 'gewichts- of maatbeperking';
+    return '';
+  }
+
+  function uniek(lijst){
+    var zien={}, uit=[];
+    lijst.forEach(function(x){
+      var s=T(x).toLowerCase();
+      if(!s || zien[s]) return;
+      zien[s]=1; uit.push(x);
+    });
+    return uit;
+  }
+
+  function pakUit(json){
+    var autovrij=[], venster=[], hoogte=[];
+    (json && json.elements ? json.elements : []).forEach(function(el){
+      var t=el.tags||{}, n=naam(t);
+      var waar=n?(' - '+n):'';
+
+      /* Het getal ervoor is het gewicht: hoe lager, hoe belangrijker om te
+         zien. Een voetgangersgebied of een verbodsbord telt zwaarder dan een
+         woonerf, want daar mag je nog gewoon rijden. */
+      if(t.highway==='pedestrian') autovrij.push([1,'Voetgangersgebied'+waar]);
+      else if(t.highway==='living_street') autovrij.push([6,'Woonerf'+waar]);
+
+      ['motor_vehicle','vehicle','access','hgv'].forEach(function(k){
+        var v=T(t[k]);
+        if(v==='no')          autovrij.push([2,'Gesloten voor verkeer'+waar]);
+        else if(v==='destination') autovrij.push([4,'Alleen bestemmingsverkeer'+waar]);
+        else if(v==='private' || v==='permit') autovrij.push([4,'Alleen met ontheffing'+waar]);
+        else if(v==='delivery')    autovrij.push([4,'Alleen laden en lossen'+waar]);
+      });
+
+      if(t.barrier) autovrij.push([5,(t.barrier==='bollard'?'Paaltje':'Afsluiting')+waar]);
+
+      if(t.traffic_sign){
+        var s=bordSoort(t.traffic_sign);
+        if(s) autovrij.push([2,'Bord: '+s+waar]);
+      }
+
+      Object.keys(t).forEach(function(k){
+        if(k.slice(-12)!==':conditional') return;
+        var tijd=tijdUit(t[k]);
+        if(tijd) venster.push(tijd+waar);
+      });
+
+      var h=meter(t['maxheight:physical']!=null?t['maxheight:physical']:t.maxheight);
+      if(h!=null) hoogte.push([h, String(h).replace('.', ',')+' m'+waar]);
+    });
+
+    /* Belangrijkste eerst, en bij hoogte de LAAGSTE eerst - dat is de doorrit
+       waar je op stukloopt. */
+    autovrij.sort(function(a,b){ return a[0]-b[0]; });
+    hoogte.sort(function(a,b){ return a[0]-b[0]; });
+
+    autovrij=uniek(autovrij.map(function(x){ return x[1]; })).slice(0,4);
+    venster=uniek(venster).slice(0,4);
+    hoogte=uniek(hoogte.map(function(x){ return x[1]; })).slice(0,4);
+
+    return {
+      iets: !!(autovrij.length||venster.length||hoogte.length),
+      autovrij:autovrij, venster:venster, hoogte:hoogte,
+      op:new Date().toISOString().slice(0,10)
+    };
+  }
+
+  /* Korte regel voor op de opdracht, de kaart en de agenda. */
+  function korteTekst(r){
+    if(!r || !r.iets) return '';
+    var d=[];
+    if(r.autovrij.length) d.push(r.autovrij[0]);
+    if(r.venster.length)  d.push('venstertijd '+r.venster[0]);
+    if(r.hoogte.length)   d.push('hoogte '+r.hoogte[0]);
+    return d.join(' | ');
+  }
+
+  /* ---------- de wachtrij ---------- */
+  function werkAf(){
+    if(loopt || !rij.length) return;
+    var wacht=Math.max(0, PAUZE-(Date.now()-laatsteKeer));
+    loopt=true;
+    setTimeout(function(){
+      var klus=rij.shift();
+      if(!klus){ loopt=false; return; }
+      laatsteKeer=Date.now(); gedaan++;
+      haal(klus.lat, klus.lon)
+        .then(function(j){ return pakUit(j); })
+        .catch(function(){ return null; })
+        .then(function(r){
+          if(r) bewaar(klus.adres, r);
+          klus.klaar(r);
+          loopt=false;
+          werkAf();
+        });
+    }, wacht);
+  }
+
+  function voorAdres(adres){
+    var a=T(adres);
+    if(!a) return Promise.resolve(null);
+    var c=cache();
+    if(c[a]) return Promise.resolve(c[a]);
+    if(bezig[a]) return bezig[a];
+    if(gedaan>=MAX_PER_SESSIE) return Promise.resolve(null);
+    if(!window.BNS_R91) return Promise.resolve(null);
+
+    bezig[a]=window.BNS_R91.zoek(a).then(function(plek){
+      if(!plek || !plek.ok) return null;
+      return new Promise(function(klaar){
+        rij.push({adres:a, lat:plek.lat, lon:plek.lon, klaar:klaar});
+        werkAf();
+      });
+    }).catch(function(){ return null; })
+      .then(function(r){ delete bezig[a]; return r; });
+    return bezig[a];
+  }
+
+  window.BNS_R97={
+    voorAdres:voorAdres,
+    tekst:korteTekst,
+    cache:cache,
+    cacheLegen:function(){ try{ localStorage.removeItem(CACHE); }catch(e){} return 'bordengeheugen gewist'; },
+    stand:function(){ return {opgezocht:gedaan, inDeRij:rij.length}; }
+  };
+  try{ console.info('[BNS R97] Autovrije zones, venstertijden en hoogte actief - window.BNS_R97.voorAdres(adres)'); }catch(e){}
 })();
