@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R21';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R23';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -1739,6 +1739,13 @@ boot();
 
   /* Geeft terug tot wanneer deze wagen de zero-emissiezones nog in mag. */
   function zeToegang(v){
+    /* DRV-R22 (2026-09-05): zero-emissiezones gelden voor bestel- en
+       vrachtauto's. Een personenauto - een pick-up staat soms zo op kenteken -
+       valt er buiten. Zonder deze regel zou daar een onterechte beperking op
+       komen te staan. */
+    if(/personenauto/i.test(T(v&&v.soort)))
+      return {tot:'-', wat:'personenauto',
+              tekst:'dit is een personenauto; de zero-emissiezone geldt voor bestel- en vrachtauto\'s'};
     var euro=parseInt(T(v&&v.euronorm).replace(/\D/g,''),10);
     var det=detDatum(v);
     var wat=isVracht(v) ? (isTrekker(v)?'oplegtrekker':'bakwagen') : 'bestelauto';
@@ -1768,17 +1775,76 @@ boot();
       tekst:basis+': toegang tot '+nlDatum(tot)+', '+resterend(tot)+'.'+staart};
   }
 
+  /* ----------------------------------------------------------
+     DRV-R23 (2026-09-05): kijk naar wat de ZONE ZELF zegt.
+
+     Bij elke zone staat in het bestand op welke brandstoffen hij slaat en voor
+     welke voertuigcategorieen hij geldt. Dat gebruikten we niet, en dat ging
+     twee kanten op mis:
+
+       te veel waarschuwen - zeventien van de twintig gewone milieuzones gelden
+       alleen voor diesel, dus een benzine- of lpg-bus kreeg daar een rode
+       melding die nergens op sloeg. LEZ Haarlem geldt zelfs alleen voor
+       personenauto's en bussen, niet voor een bestelwagen.
+
+       te weinig waarschuwen, en dat is het gevaarlijkst - drie zones staan als
+       gewone milieuzone in het bestand maar laten alleen accu en waterstof
+       toe. Dat zijn in de praktijk zero-emissiezones. Daar zei de app "euro 6
+       voldoet, goede reis" terwijl er alleen elektrisch in mag.
+
+     Daarom bepalen we het soort zone voortaan aan de brandstoffen die hij
+     toelaat, en niet alleen aan het label dat erbij staat.
+  ---------------------------------------------------------- */
+  function brandstofVan(v){
+    var b=T(v&&v.brandstof).toLowerCase();
+    if(/elektri/.test(b))    return 'elektrisch';
+    if(/waterstof/.test(b))  return 'waterstof';
+    if(/diesel/.test(b))     return 'diesel';
+    if(/lpg|gas|cng|lng/.test(b)) return 'gas';
+    if(/benzine/.test(b))    return 'benzine';
+    return '';
+  }
+  function categorieVan(v){
+    var s=T(v&&v.soort).toLowerCase();
+    if(/personenauto/.test(s)) return 'm';
+    if(/bedrijfsauto|vrachtauto|bestelauto|aanhang|oplegger/.test(s)) return 'n';
+    return '';
+  }
+  function zoneBrandstoffen(z){
+    return ((z && z.brandstoffen)||[]).map(function(x){ return String(x).toLowerCase(); });
+  }
+  function isZeroZone(z){
+    if(z && z.soort==='zero') return true;
+    var br=zoneBrandstoffen(z);
+    return br.length>0 && br.every(function(x){ return /battery|hydrogen|elektr|waterstof/.test(x); });
+  }
+  /* Geldt deze zone uberhaupt voor dit soort voertuig? */
+  function raaktVoertuig(v, z){
+    var cats=((z && z.categorieen)||[]).map(function(x){ return String(x).toLowerCase(); });
+    var c=categorieVan(v);
+    if(!c || !cats.length) return true;                 // onbekend: niet wegredeneren
+    return cats.some(function(x){ return x.charAt(0)===c; });
+  }
+
   function oordeel(v, z){
     var vandaag=new Date().toISOString().slice(0,10);
     var nogNiet=z.vanaf && z.vanaf>vandaag;
-    if(z.soort==='zero'){
+    if(!raaktVoertuig(v, z))
+      return {mag:true, tekst:'deze zone geldt niet voor dit soort voertuig'};
+    if(isZeroZone(z)){
       if(uitstootvrij(v)) return {mag:true, tekst:'uitstootvrij, dus altijd toegestaan'};
       var t=zeToegang(v);
       var slot='\n\nVrijstellingen en ontheffingen kunnen wij niet zien; twijfel je, overleg met de planner.';
       if(t.tot===null) return {mag:null, tekst:t.tekst};
+      if(t.tot==='-')  return {mag:true, tekst:t.tekst};
       if(t.tot==='' || t.verlopen) return {mag:false, nogNiet:nogNiet, tekst:t.tekst+slot};
       return {mag:true, tekst:t.tekst+slot};
     }
+    /* Een gewone milieuzone die alleen op diesel slaat, raakt een benzine-,
+       lpg- of elektrische wagen niet. */
+    var br=zoneBrandstoffen(z);
+    if(br.length && br.indexOf('diesel')>=0 && brandstofVan(v) && brandstofVan(v)!=='diesel')
+      return {mag:true, tekst:'deze milieuzone geldt alleen voor diesel'};
     var nodig=z.euro||0;
     var heeft=parseInt(T(v&&v.euronorm).replace(/\D/g,''),10);
     if(!nodig || !heeft) return {mag:null, tekst:'eis of emissieklasse onbekend - controleer zelf'};
