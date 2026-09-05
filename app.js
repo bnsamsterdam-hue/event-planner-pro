@@ -58032,7 +58032,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       document.getElementById('bnsR105Herstel').onclick=function(){
         bewaar(JSON.parse(JSON.stringify(BEGIN)));
         vak.__vinger=''; vak.remove(); bouw();
-      };F
+      };
     }catch(e){}
   }
 
