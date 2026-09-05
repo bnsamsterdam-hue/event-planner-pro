@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R23';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R24';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -1587,8 +1587,18 @@ boot();
       return null;
     }
 
+    /* DRV-R24 (2026-09-05): een lijst die van voor vandaag is, mist de
+       toelatingsdatum. Daarmee zou de telefoon bij elke wagen zeggen dat de
+       gegevens niet volledig zijn, terwijl ze in Admin allang ingevuld staan.
+       Ontbreekt die datum overal, dan negeren we het bewaarde lijstje en halen
+       we hem opnieuw op. Zo lost elke telefoon dit zelf op; niemand hoeft
+       langs de toestellen. */
+    function compleet(l){
+      return Array.isArray(l) && l.some(function(v){ return v && T(v.det); });
+    }
     var direct = uitState() || uitOpslag();
-    if(direct){ voertuigen=direct; return Promise.resolve(voertuigen); }
+    if(direct && compleet(direct)){ voertuigen=direct; return Promise.resolve(voertuigen); }
+    var oudLijstje = direct;                  // achter de hand als Firebase niet lukt
 
     /* Niets lokaal - dan bij Firebase kijken, in de instellingen. */
     return (async function(){
@@ -1608,6 +1618,9 @@ boot();
           return voertuigen;
         }
       }catch(e){}
+      /* Firebase onbereikbaar: dan liever het oude lijstje dan helemaal niets.
+         Er staat dan "gegevens niet volledig", en dat is eerlijk. */
+      if(oudLijstje && oudLijstje.length){ voertuigen=oudLijstje; return voertuigen; }
       return [];                      // bewust NIET onthouden
     })();
   }
