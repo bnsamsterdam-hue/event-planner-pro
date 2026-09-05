@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R98';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R99';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -57425,9 +57425,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
   var CACHE='bns_bordencache';
   var BRON='https://overpass-api.de/api/interpreter';
-  var STRAAL=150;          // meter rond het adres
+  var STRAAL=50;           // meter rond het adres
   var PAUZE=4000;          // minstens zoveel milliseconden tussen twee opzoekingen
   var MAX_PER_SESSIE=60;   // noodrem, zodat een volle lijst de bron niet bestookt
+
+  /* Alleen echte rijwegen. Zonder deze filter komen fietspaden, voetpaden en
+     bedrijfsopritten mee, en die zijn per definitie gesloten voor auto's - op
+     een bedrijventerrein gaf dat bij vrijwel elk adres een loze melding. */
+  var RIJWEG='["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|road)$"]';
 
   var rij=[], loopt=false, laatsteKeer=0, gedaan=0, bezig={};
 
@@ -57443,21 +57448,24 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   /* ---------- de vraag aan Overpass ---------- */
   function vraag(lat, lon){
     var p='(around:'+STRAAL+','+lat+','+lon+')';
+    var w='way'+p+RIJWEG;
     return '[out:json][timeout:25];('+
+      /* het voetgangersgebied zelf */
       'way'+p+'["highway"="pedestrian"];'+
-      'way'+p+'["highway"="living_street"];'+
-      'way'+p+'["motor_vehicle"~"^(no|destination|delivery|private|permit)$"];'+
-      'way'+p+'["vehicle"~"^(no|destination|private)$"];'+
-      'way'+p+'["access"~"^(no|destination|private|permit)$"];'+
-      'way'+p+'["hgv"~"^(no|destination)$"];'+
-      'way'+p+'["motor_vehicle:conditional"];'+
-      'way'+p+'["vehicle:conditional"];'+
-      'way'+p+'["access:conditional"];'+
-      'way'+p+'["hgv:conditional"];'+
-      'way'+p+'["maxheight"];'+
-      'way'+p+'["maxheight:physical"];'+
-      'node'+p+'["barrier"~"^(bollard|gate|lift_gate|block|swing_gate|cycle_barrier)$"];'+
-      'node'+p+'["maxheight"];'+
+      /* een echte rijweg die dicht is - geen bestemmingsverkeer, geen
+         ontheffing, geen eigen terrein: dat is allemaal geen waarschuwing */
+      w+'["access"="no"];'+
+      w+'["motor_vehicle"="no"];'+
+      w+'["vehicle"="no"];'+
+      /* venstertijden */
+      w+'["motor_vehicle:conditional"];'+
+      w+'["vehicle:conditional"];'+
+      w+'["access:conditional"];'+
+      /* hoogte */
+      w+'["maxheight"];'+
+      w+'["maxheight:physical"];'+
+      /* wat je fysiek tegenhoudt, en de borden zelf */
+      'node'+p+'["barrier"~"^(bollard|gate|lift_gate)$"];'+
       'node'+p+'["traffic_sign"];'+
       ');out tags center 300;';
   }
@@ -57536,27 +57544,35 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return uit;
   }
 
-  function pakUit(json){
+  function pakUit(json, lat, lon){
     var autovrij=[], venster=[], hoogte=[];
+
+    function afstand(el){
+      var c=el.center||el;
+      if(typeof c.lat!=='number' || typeof c.lon!=='number') return null;
+      var r=Math.PI/180;
+      return Math.round(6371000*Math.sqrt(
+        Math.pow((c.lon-lon)*r*Math.cos((lat+c.lat)/2*r),2) +
+        Math.pow((c.lat-lat)*r,2)));
+    }
+
     (json && json.elements ? json.elements : []).forEach(function(el){
       var t=el.tags||{}, n=naam(t);
-      var waar=n?(' - '+n):'';
+      var m=afstand(el);
+      var waar=(n?(' - '+n):'') + (m!=null?(' ('+m+' m)'):'');
 
       /* Het getal ervoor is het gewicht: hoe lager, hoe belangrijker om te
-         zien. Een voetgangersgebied of een verbodsbord telt zwaarder dan een
-         woonerf, want daar mag je nog gewoon rijden. */
+         zien. Bewust NIET meer gemeld: bestemmingsverkeer (dat ben je zelf),
+         ontheffing en eigen terrein (daar hoor je niet te rijden), laden en
+         lossen (dat kom je doen) en woonerf (daar mag je rijden). Die gaven
+         op bedrijventerreinen bij vrijwel elk adres een loze melding. */
       if(t.highway==='pedestrian') autovrij.push([1,'Voetgangersgebied'+waar]);
-      else if(t.highway==='living_street') autovrij.push([6,'Woonerf'+waar]);
 
-      ['motor_vehicle','vehicle','access','hgv'].forEach(function(k){
-        var v=T(t[k]);
-        if(v==='no')          autovrij.push([2,'Gesloten voor verkeer'+waar]);
-        else if(v==='destination') autovrij.push([4,'Alleen bestemmingsverkeer'+waar]);
-        else if(v==='private' || v==='permit') autovrij.push([4,'Alleen met ontheffing'+waar]);
-        else if(v==='delivery')    autovrij.push([4,'Alleen laden en lossen'+waar]);
+      ['motor_vehicle','vehicle','access'].forEach(function(k){
+        if(T(t[k])==='no') autovrij.push([3,'Gesloten voor verkeer'+waar]);
       });
 
-      if(t.barrier) autovrij.push([5,(t.barrier==='bollard'?'Paaltje':'Afsluiting')+waar]);
+      if(t.barrier) autovrij.push([5,(t.barrier==='bollard'?'Paaltje':'Poort of afsluiting')+waar]);
 
       if(t.traffic_sign){
         var s=bordSoort(t.traffic_sign);
@@ -57609,7 +57625,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       if(!klus){ loopt=false; return; }
       laatsteKeer=Date.now(); gedaan++;
       haal(klus.lat, klus.lon)
-        .then(function(j){ return pakUit(j); })
+        .then(function(j){ return pakUit(j, klus.lat, klus.lon); })
         .catch(function(){ return null; })
         .then(function(r){
           if(r) bewaar(klus.adres, r);
