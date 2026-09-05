@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R17';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R18';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -145,7 +145,7 @@ async function navMenu(adres, info){
     if(String(info||'').trim()){
       await askChoice('Let op bij dit adres',
         [{value:'ok', label:'Begrepen, ga verder', cls:'btn-orange'}],
-        String(info)+'\n\nUit OpenStreetMap, ter informatie - niet volledig. Kijk ter plaatse.');
+        String(info)+'\n\nTer info - druk op Locatie bekijken.');
     }
   }catch(e){}
   const keuze=await askChoice('Navigatie',[
