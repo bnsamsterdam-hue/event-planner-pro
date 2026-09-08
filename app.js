@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-08-R108';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-08-R109';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -58078,4 +58078,75 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     herstel:function(){ bewaar(JSON.parse(JSON.stringify(BEGIN))); return 'terug naar de beginwaarden'; }
   };
   try{ console.info('[BNS R105] Toegangsdatums zero-emissiezones aanpasbaar in Admin.'); }catch(e){}
+})();
+
+
+/* ==========================================================
+   BNS R109 - Voertuigen en toegangsdatums krijgen een eigen tabblad
+   ----------------------------------------------------------
+   De twee panelen die ik eerder maakte hingen rechtstreeks onder #adminArea,
+   zonder de klasse `adminPane`. In deze app hoort elk tabblad in Admin die
+   klasse te hebben; de knoppen erboven verbergen alle panelen en tonen er een.
+   Een paneel zonder die klasse wordt dus nooit verborgen en stond onder
+   Materialen, Klanten, Locaties, Personeel en Data tegelijk.
+
+   Er komt nu een knop "Voertuigen" bij de andere tabbladen, met een eigen
+   paneel waar allebei de blokken in worden gezet. Verder verandert er niets
+   aan wat die blokken doen.
+========================================================== */
+(function bnsR109VoertuigTab(){
+  'use strict';
+  if(window.__BNS_R109__) return;
+  window.__BNS_R109__=true;
+
+  var PANE='adminVoertuigen';
+
+  function E(id){ return document.getElementById(id); }
+
+  function maakTab(){
+    var area=E('adminArea');
+    if(!area) return null;
+
+    /* het paneel zelf */
+    var pane=E(PANE);
+    if(!pane){
+      pane=document.createElement('div');
+      pane.id=PANE;
+      pane.className='adminPane panel hidden';
+      area.appendChild(pane);
+    }
+
+    /* de knop ernaast, naast Materialen/Klanten/Locaties/Personeel/Data */
+    var eersteTab=document.querySelector('.adminTab');
+    if(eersteTab && !document.querySelector('.adminTab[data-admin="'+PANE+'"]')){
+      var knop=document.createElement('button');
+      knop.type='button';
+      knop.className=eersteTab.className.replace('active','').trim();
+      knop.setAttribute('data-admin', PANE);
+      knop.textContent='Voertuigen';
+      /* Dezelfde afhandeling als de bestaande knoppen: alles verbergen, deze tonen. */
+      knop.addEventListener('click', function(){
+        document.querySelectorAll('.adminTab').forEach(function(x){ x.classList.remove('active'); });
+        document.querySelectorAll('.adminPane').forEach(function(x){ x.classList.add('hidden'); });
+        knop.classList.add('active');
+        var p=E(PANE); if(p) p.classList.remove('hidden');
+      });
+      eersteTab.parentNode.appendChild(knop);
+    }
+    return pane;
+  }
+
+  /* De twee bestaande blokken naar binnen halen zodra ze getekend zijn. */
+  function verhuis(){
+    var pane=maakTab();
+    if(!pane) return;
+    ['bnsR88Vak','bnsR105Vak'].forEach(function(id){
+      var vak=E(id);
+      if(vak && vak.parentNode!==pane) pane.appendChild(vak);
+    });
+  }
+
+  setInterval(verhuis, 1500);
+  setTimeout(verhuis, 1400);
+  try{ console.info('[BNS R109] Voertuigen en toegangsdatums staan nu op een eigen tabblad in Admin.'); }catch(e){}
 })();
