@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-08-R107';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-08-R108';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -33579,8 +33579,21 @@ setTimeout(()=>{
       running = false;
     }
   }
+  /* R108 (2026-09-08): EEN wekker tegelijk.
+     Deze functie hangt aan save(), en bij het opstarten slaat de app tientallen
+     keren op - het bijwerken van een knop, het opschonen van meldingen,
+     patchAlerts. Gemeten: ruim vijftig aanroepen bij een keer opstarten, dus
+     vijftig wekkers die vijf seconden later allemaal tegelijk afgingen. De
+     `running`-vlag in runDailyBackup ving dat niet op, want die gaat pas aan
+     als het wachten voorbij is.
+     Nu wordt een lopende wekker teruggezet in plaats van dat er een tweede bij
+     komt. Het gedrag blijft hetzelfde - na opslaan volgt de dagbackup - maar
+     dan een keer in plaats van vijftig keer. */
+  var __bnsBackupWekker = null;
   function scheduleDailyBackup(delay){
-    setTimeout(function(){
+    if(__bnsBackupWekker) clearTimeout(__bnsBackupWekker);
+    __bnsBackupWekker = setTimeout(function(){
+      __bnsBackupWekker = null;
       runDailyBackup({
         force:false
       });
