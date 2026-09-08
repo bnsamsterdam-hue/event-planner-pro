@@ -1,3 +1,4 @@
+window.BNS_TW_SYNC_BUILD='TW-SYNC-2026-09-08-A1';
 
 // ── Globale localStorage base64 interceptor ────────────────
 // Onderschept ALLE localStorage writes en verwijdert base64 data
@@ -228,6 +229,25 @@ async function fb(){
   const appMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
   const fsMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
   const app=appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+  /* TW-AUTH (2026-09-08): anoniem inloggen VOORDAT er gegevens worden
+     opgehaald. Zonder dit stuurt de app geen enkel bewijs mee, en dan moet de
+     regel in Firestore wel op "iedereen mag lezen en schrijven" staan - anders
+     werkt er niets. Alles hier loopt via deze ene functie, dus wie hier
+     doorheen komt is ingelogd.
+     Het pincodescherm blijft precies zoals het was; dit gebeurt op de
+     achtergrond en niemand ziet het.
+     Mislukt het inloggen, dan gaat de app gewoon door zoals hiervoor. Zolang
+     de regels nog openstaan werkt alles dan nog steeds. */
+  try{
+    const authMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
+    const auth=authMod.getAuth(app);
+    if(!auth.currentUser) await authMod.signInAnonymously(auth);
+    window.BNS_TW_INGELOGD = !!auth.currentUser;
+    try{ console.info('[TW-AUTH] Ingelogd bij Firebase:', auth.currentUser ? auth.currentUser.uid : 'niet gelukt'); }catch(e){}
+  }catch(e){
+    window.BNS_TW_INGELOGD=false;
+    try{ console.warn('[TW-AUTH] Inloggen mislukt, app werkt door zoals voorheen:', e && e.message); }catch(x){}
+  }
   const db=fsMod.getFirestore(app);
   tools={fsMod,db};
   return tools;
