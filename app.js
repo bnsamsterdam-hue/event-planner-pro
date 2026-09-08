@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-05-R106';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-08-R107';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -33450,6 +33450,27 @@ setTimeout(()=>{
     return !!(window.BNS && window.BNS.firebaseReady && window.BNS.fs && window.BNS.db);
   }
   async function saveFirebaseBackup(json, day){
+    /* R107 (2026-09-08): DEZE OUDE BACK-UP IS UITGEZET.
+       Er draaiden er twee naast elkaar en ze schreven allebei naar
+       backups/daily_latest, zonder van elkaar te weten - eigen datumvlaggen
+       (bns_auto_backup_firebase_date_v1 tegenover bns767_backup_day). Gemeten
+       op 8 september: allebei dezelfde dag gedraaid, dus de back-up ging elke
+       dag dubbel de deur uit.
+       Deze oude schrijft bijna 20 MB in 31 stukken van 650 kB ACHTER ELKAAR
+       ZONDER PAUZE. Dat is de bron van "Write stream exhausted maximum allowed
+       queued writes" in de console - en bij die fout kunnen schrijfopdrachten
+       verloren gaan. In augustus is geprobeerd dat op te lossen door de foto's
+       eruit te halen; dat was niet genoeg.
+       De nieuwe (BNS767) doet precies hetzelfde werk maar rustig: kleinere
+       stukken, 2,5 tot 5 seconden ertussen, een aparte materialenback-up, en
+       veertien dagplekken daily_00 t/m daily_13 waarbij die van veertien dagen
+       geleden vanzelf wordt overschreven. Dat is wat hier gewenst is: elke dag
+       een back-up, de oudste na veertien dagen weg.
+       TERUGZETTEN: haal de twee regels hieronder weg, dan draait de oude weer.
+       Handmatig een back-up maken kan met window.BNS.runBackup767(). */
+    console.info('[BNS R107] Oude Firebase-backup overgeslagen; BNS767 doet de dagbackup.');
+    return false;
+
     if(!firebaseReady()) return false;
     var fs = window.BNS.fs;
     var db = window.BNS.db;
