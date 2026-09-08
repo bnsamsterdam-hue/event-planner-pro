@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-05-R24';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-08-R25';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -181,6 +181,25 @@ async function initFirebase(){
   const fsMod=await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
   BNS.firebase=fsMod;
   BNS.app=appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(window.BNS_FIREBASE_CONFIG);
+  /* TW-AUTH (2026-09-08): anoniem inloggen VOORDAT er gegevens worden
+     opgehaald. Zonder dit stuurt de app geen enkel bewijs mee, en dan moet de
+     regel in Firestore wel op "iedereen mag lezen en schrijven" staan - anders
+     werkt er niets. Alles hier loopt via deze ene functie, dus wie hier
+     doorheen komt is ingelogd.
+     Het pincodescherm blijft precies zoals het was; dit gebeurt op de
+     achtergrond en niemand ziet het.
+     Mislukt het inloggen, dan gaat de app gewoon door zoals hiervoor. Zolang
+     de regels nog openstaan werkt alles dan nog steeds. */
+  try{
+    const authMod=await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
+    const auth=authMod.getAuth(BNS.app);
+    if(!auth.currentUser) await authMod.signInAnonymously(auth);
+    window.BNS_TW_INGELOGD = !!auth.currentUser;
+    try{ console.info('[TW-AUTH] Ingelogd bij Firebase:', auth.currentUser ? auth.currentUser.uid : 'niet gelukt'); }catch(e){}
+  }catch(e){
+    window.BNS_TW_INGELOGD=false;
+    try{ console.warn('[TW-AUTH] Inloggen mislukt, app werkt door zoals voorheen:', e && e.message); }catch(x){}
+  }
   BNS.db=fsMod.getFirestore(BNS.app);
   setStatus("Firebase verbonden");
 }
