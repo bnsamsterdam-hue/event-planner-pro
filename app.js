@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-08-R112';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-08-R113';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -47620,7 +47620,14 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function stateOrders(){ var s=S(); if(!s) return []; if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
   function acc(){ var s=S(); if(!s) return {documents:[],payments:[],removedKeys:[]}; if(!s.accounting || typeof s.accounting!=='object') s.accounting={documents:[],payments:[],removedKeys:[]}; if(!Array.isArray(s.accounting.documents)) s.accounting.documents=[]; if(!Array.isArray(s.accounting.payments)) s.accounting.payments=[]; if(!Array.isArray(s.accounting.removedKeys)) s.accounting.removedKeys=[]; return s.accounting; }
   function orderNo(o){ return T(o && (o.number||o.nr||o.orderNumber||o.opdrachtNr||o.id)); }
-  function invoiceNo(o){ return T(o && o.invoice && (o.invoice.invoiceNumber||o.invoice.number)) || T(o && (o.invoiceNumber||o.factuurNr||o.factuur)) || (o?('F-'+orderNo(o)):''); }
+  /* R113: deze functie deelde 'F-' plus het OPDRACHTnummer uit als er nog geen
+     factuurnummer stond - dat is geen factuurnummer maar een noodoplossing, en
+     zo kwam F-2026-2623 op de factuur terecht. Hij LEEST nu alleen nog wat er
+     staat. Het echte nummer wordt toegekend op het moment dat je de factuur
+     opent, door voorOpdracht(); dat gebeurt bewust niet hier, want invoiceNo
+     wordt ook gebruikt in lijsten en bij betalingen - daar zou elke opdracht
+     die in beeld komt een factuurnummer krijgen. */
+  function invoiceNo(o){ return T(o && o.invoice && (o.invoice.invoiceNumber||o.invoice.number)) || T(o && (o.invoiceNumber||o.factuurNr||o.factuur)); }
   function customerName(o){ return T(o&&o.customer&&o.customer.name) || T(o&&(o.customerName||o.klant)); }
   function titleOf(o){ return T(o&&(o.title||o.name||o.naam)); }
   function paid(o){ return !!(o && (o.paid===true || o.betaald===true || o.paymentStatus==='paid' || (o.invoice && (o.invoice.paid===true || o.invoice.paymentStatus==='paid')))); }
