@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-08-R114';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-11-R116';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -45259,7 +45259,12 @@ setTimeout(()=>{
     var sub=0, dep=0;
     (o.materials||[]).forEach(function(m){ sub += matQty(m)*matPrice(m); dep += matQty(m)*matDeposit(m); });
     if(!sub && o.pricing){ sub=N(o.pricing.materials||o.pricing.subtotal||o.pricing.sub||0); }
-    if(!dep && o.pricing){ dep=N(o.pricing.deposit||o.pricing.borg||0); }
+    /* R116 (2026-09-11): GEEN terugval meer op o.pricing.
+       Hier stond dat een borg van nul uit o.pricing werd teruggehaald. Voor die
+       regel is "leeg" hetzelfde als "nul", dus haalde je de borg weg bij het
+       opnieuw aanmaken van een opdracht, dan kwam de oude waarde terug en stond
+       hij toch op de factuur. Wat in het overzicht staat is nu de waarheid:
+       niets invullen betekent nul. */
     if(!sub && o.amount) sub=N(o.amount);
     var trans=twTransportTotal2();
     sub += trans;
@@ -47672,7 +47677,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     (o.transportLines||[]).forEach(function(l){ trans+=lineTotal(l); });
     if(!trans && o.transportTotal) trans=N(o.transportTotal);
     if(!mat && o.pricing){ mat=N(o.pricing.materialSubtotal||o.pricing.materials||o.pricing.subtotal||0); }
-    if(!dep && o.pricing){ dep=N(o.pricing.deposit||o.pricing.borg||0); }
+    /* R116 (2026-09-11): GEEN terugval meer op o.pricing.
+       Hier stond dat een borg van nul uit o.pricing werd teruggehaald. Voor die
+       regel is "leeg" hetzelfde als "nul", dus haalde je de borg weg bij het
+       opnieuw aanmaken van een opdracht, dan kwam de oude waarde terug en stond
+       hij toch op de factuur. Wat in het overzicht staat is nu de waarheid:
+       niets invullen betekent nul. */
     var sub=mat+trans, vat=sub*0.21, grand=sub+vat, pay=grand+dep;
     return {mat:mat,dep:dep,trans:trans,sub:sub,vat:vat,grand:grand,pay:pay};
   }
@@ -52256,7 +52266,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     (Array.isArray(o.materials)?o.materials:[]).forEach(function(m){ var q=matQty(m); mat += q*matPrice(m); dep += q*matDeposit(m); });
     trans=totalTransport(linesForOrder(o));
     if(!mat && o.pricing) mat=N(o.pricing.materialSubtotal || o.pricing.materials || o.pricing.subtotal || 0);
-    if(!dep && o.pricing) dep=N(o.pricing.deposit || o.pricing.borg || 0);
+    /* R116: geen terugval meer op o.pricing - zie de toelichting hierboven. */
     if(!trans && o.pricing) trans=N(o.pricing.transport || 0);
     var sub=mat+trans, vat=sub*0.21, pay=sub+vat+dep;
     return {mat:mat,trans:trans,sub:sub,vat:vat,dep:dep,pay:pay};
@@ -52367,7 +52377,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     (Array.isArray(o&&o.materials)?o.materials:[]).forEach(function(m){ var q=matQty(m); mat += q*matPrice(m); dep += q*matDeposit(m); });
     transportLines(o).forEach(function(l){ trans += lineTotal(l); });
     serv = 0;
-    if(o&&o.pricing){ if(!mat) mat=N(o.pricing.materialSubtotal||o.pricing.materials||o.pricing.subtotal||0); if(!trans) trans=N(o.pricing.transport||0); dep=N(o.pricing.deposit||o.pricing.borg||dep); }
+    if(o&&o.pricing){ if(!mat) mat=N(o.pricing.materialSubtotal||o.pricing.materials||o.pricing.subtotal||0); if(!trans) trans=N(o.pricing.transport||0); /* R116: dep NIET meer overschrijven vanuit o.pricing - dat deed hij zelfs als je wel een borg had ingevuld. */ }
     var sub=mat+trans+serv;
     var vat=(o&&o.pricing&&N(o.pricing.vat)) || sub*0.21;
     var grand=(sub+vat+dep) || N(o&&o.amount);
@@ -57536,14 +57546,47 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       ');out tags center 300;';
   }
 
+  /* ----------------------------------------------------------
+     Tijdslimiet en noodrem (2026-09-10).
+     De bron is gratis en draait op donaties; hij is regelmatig overbelast en
+     antwoordt dan met 429, 504 of helemaal niet. Er stond geen tijdslimiet op
+     een aanvraag, dus een adres kon tientallen seconden blijven hangen - en bij
+     twintig opdrachten gebeurde dat twintig keer achter elkaar. Dat was de
+     reden dat de app traag aanvoelde.
+     Nu: een aanvraag wordt na acht seconden afgebroken, en na drie
+     mislukkingen achter elkaar stopt hij voor de rest van deze sessie. Geen
+     borden dan, maar ook geen wachttijd. Bij de volgende keer openen probeert
+     hij het gewoon opnieuw. Wat al opgezocht is blijft gewoon in het geheugen
+     staan en blijft dus zichtbaar.
+     Console: kijk met .stand() of hij gestopt is.
+  ---------------------------------------------------------- */
+  var TIJDSLIMIET=8000, MAX_FOUTEN=3;
+  var fouten=0, gestopt=false;
+
   function haal(lat, lon){
-    return fetch(BRON, {
+    if(gestopt) return Promise.reject(new Error('bron tijdelijk niet bereikbaar'));
+    var stop = (typeof AbortController!=='undefined') ? new AbortController() : null;
+    var wekker = setTimeout(function(){ try{ stop && stop.abort(); }catch(e){} }, TIJDSLIMIET);
+    var opties = {
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'data='+encodeURIComponent(vraag(lat, lon))
-    }).then(function(r){
+    };
+    if(stop) opties.signal = stop.signal;
+    return fetch(BRON, opties).then(function(r){
+      clearTimeout(wekker);
       if(!r.ok) throw new Error('overpass '+r.status);
+      fouten=0;
       return r.json();
+    }).catch(function(e){
+      clearTimeout(wekker);
+      fouten++;
+      if(fouten>=MAX_FOUTEN && !gestopt){
+        gestopt=true;
+        rij.length=0;                 // wachtrij leegmaken, niemand hoeft meer te wachten
+        try{ console.info('[borden] De bron antwoordt niet; gestopt voor deze sessie. Bij de volgende keer openen wordt het opnieuw geprobeerd.'); }catch(x){}
+      }
+      throw e;
     });
   }
 
