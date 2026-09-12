@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R121';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R122';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -58545,4 +58545,93 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }, true);
 
   try{ console.info('[BNS TW R120] Eigen kleurkiezer actief; de waaier van Windows zit onder "Andere kleur".'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS TW R122 - De kleur van een materiaalrij klopt altijd
+   ----------------------------------------------------------
+   GEMETEN PROBLEEM: binnen dezelfde rubriek hadden sommige rijen een andere
+   kleur. POMP85 t/m 88 stonden op geel terwijl POMP8, 89, 90, 22 en 17 het
+   ingestelde donkerblauw hadden - allemaal met rubriek POMP en zonder eigen
+   kleurveld. Het waren geen rijen van een andere rubriek: de TEKST klopte,
+   alleen de kleur niet.
+
+   Oorzaak: de rijen worden hergebruikt bij het opnieuw tekenen. De inhoud
+   wordt bijgewerkt, maar de kleur blijft staan zoals hij was toen die rij
+   werd gemaakt. Wijzig je daarna een rubriekkleur, dan houden de oude rijen
+   de oude kleur. [stated] daardoor won geel bij rubrieken met weinig
+   materialen, en zag je twee kleuren bij rubrieken met veel materialen.
+
+   Hieronder wordt na elke tekenronde de kleur van elke rij opnieuw gezet,
+   uit de rubriek van dat materiaal. Er wordt niets anders aangeraakt.
+   Console: window.BNS_TW_KLEURVERS.nu()
+========================================================== */
+(function bnsTwKleurVerversen(){
+  'use strict';
+  if(window.__BNS_TW_R122__) return;
+  window.__BNS_TW_R122__=true;
+
+  function U(v){ return String(v==null?'':v).trim().toUpperCase(); }
+
+  function kleuren(){
+    var uit={};
+    try{
+      var o=JSON.parse(localStorage.getItem('bnsCatColors')||'{}');
+      if(o&&typeof o==='object') Object.keys(o).forEach(function(k){ uit[U(k)]=o[k]; });
+    }catch(e){}
+    try{
+      var o2=JSON.parse(localStorage.getItem('bns_rubriek_kleuren_v12_pro')||'{}');
+      if(o2&&typeof o2==='object') Object.keys(o2).forEach(function(k){ uit[U(k)]=o2[k]; });
+    }catch(e){}
+    try{
+      var st=(typeof state!=='undefined'&&state)||window.state;
+      var c=st&&st.settings&&st.settings.categoryColors;
+      if(c&&typeof c==='object') Object.keys(c).forEach(function(k){ if(c[k]) uit[U(k)]=c[k]; });
+    }catch(e){}
+    return uit;
+  }
+
+  function materiaal(id){
+    try{
+      var st=(typeof state!=='undefined'&&state)||window.state;
+      var l=(st&&st.materials)||[];
+      for(var i=0;i<l.length;i++){
+        var m=l[i];
+        if(m && (m.id===id || m.materialId===id || m.docId===id)) return m;
+      }
+    }catch(e){}
+    return null;
+  }
+
+  function ronde(){
+    var lijst=document.getElementById('materialList');
+    if(!lijst) return 0;
+    var kl=kleuren(), n=0;
+    var rijen=lijst.querySelectorAll('[data-mid]');
+    Array.prototype.forEach.call(rijen, function(rij){
+      var id=rij.getAttribute('data-mid');
+      var m=materiaal(id);
+      if(!m) return;
+      /* een eigen kleur op het materiaal gaat voor, net als elders in de app */
+      var eigen = m.color && String(m.color).trim();
+      var cat = U(m.cat || m.rubriek || m.category);
+      var moet = eigen || kl[cat];
+      if(!moet) return;
+      var nu = (rij.style.getPropertyValue('--cat-color')||'').trim();
+      if(nu.toLowerCase()===String(moet).toLowerCase()) return;
+      rij.style.setProperty('--cat-color', moet);
+      /* de gekleurde balkjes binnen de rij hebben hun kleur soms rechtstreeks */
+      Array.prototype.forEach.call(rij.querySelectorAll('[class*="strip"],[class*="left"],[class*="catbar"]'), function(el){
+        if(el.style && el.style.background) el.style.background = moet;
+      });
+      n++;
+    });
+    return n;
+  }
+
+  setInterval(ronde, 700);
+  setTimeout(ronde, 700);
+
+  window.BNS_TW_KLEURVERS={ nu:function(){ return ronde()+' rijen bijgewerkt'; } };
+  try{ console.info('[BNS TW R122] Rijkleuren worden na elke tekenronde ververst.'); }catch(e){}
 })();
