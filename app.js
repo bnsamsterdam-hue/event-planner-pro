@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R119';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R120';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -58434,88 +58434,111 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   try{ console.info('[BNS R110] Factuurnummers actief - eerstvolgende: '+volgende()); }catch(e){}
 })();
 
+
+
 /* ==========================================================
-   BNS TW R118 - Duidelijk kleurenraster, dubbele kleurenrij weg
+   BNS TW R120 - Eigen kleurkiezer in plaats van die van Windows
    ----------------------------------------------------------
-   [stated] De kleurwaaier van Windows werkt niet prettig: je moet met de muis
-   in een verloop slepen waar alle kleuren op elkaar lijken. En onderaan de
-   pagina stond nog een rij kleurbolletjes die overbodig is - die wordt door
-   TWEE blokken gebouwd (bnsCatDotsV108 en bnsCatColorChooserV109).
+   [stated] De kleurwaaier van Windows werkt niet prettig: alle kleuren lijken
+   op elkaar en de muis beweegt nauwelijks omdat je in een verloop moet slepen.
+   In R118 zette ik een raster ERNAAST; dat maakte het scherm alleen drukker en
+   het venster van Windows ging nog steeds open. Die is er weer uit.
 
-   Hieronder:
-   - een raster van 24 duidelijk verschillende kleuren, direct naast "Rubriek
-     kleur"; een klik en de kleur staat erop, geen slepen.
-   - de twee overbodige rijen onderaan worden verborgen.
+   Nu wordt de klik op het kleurvakje opgevangen: er opent een eigen
+   keuzescherm met grote, duidelijk verschillende kleuren. Geen slepen, geen
+   verloop. Onderin staat een knop om alsnog het venster van Windows te openen
+   voor een kleur die er niet bij zit.
 
-   BLIJFT STAAN: de rij favorieten onder "Rubriek kleur TW", en de knoppen
-   Favoriet opslaan en Favoriet wissen. [stated] die wil hij houden.
-   De Windows-kiezer blijft ook bereikbaar voor een kleur die niet in het
-   raster zit.
+   Aan de kleuren zelf, aan de favorieten en aan het opslaan verandert niets.
 ========================================================== */
-(function bnsTwKleurRaster(){
+(function bnsTwEigenKleurkiezer(){
   'use strict';
-  if(window.__BNS_TW_R118__) return;
-  window.__BNS_TW_R118__=true;
-
-  var ID='twKleurRaster';
+  if(window.__BNS_TW_R120__) return;
+  window.__BNS_TW_R120__=true;
 
   var KLEUREN=[
-    '#dc2626','#ea580c','#eab308','#16a34a','#0ea5e9','#7c3aed',
-    '#991b1b','#9a3412','#a16207','#15803d','#0369a1','#5b21b6',
-    '#f87171','#fb923c','#fde047','#4ade80','#38bdf8','#a78bfa',
-    '#111827','#374151','#6b7280','#9ca3af','#d1d5db','#ffffff'
+    ['Rood','#dc2626'],['Donkerrood','#991b1b'],['Oranje','#ea580c'],['Donkeroranje','#9a3412'],
+    ['Geel','#eab308'],['Okergeel','#a16207'],['Groen','#16a34a'],['Donkergroen','#15803d'],
+    ['Limoen','#65a30d'],['Mint','#14b8a6'],['Turkoois','#06b6d4'],['Lichtblauw','#0ea5e9'],
+    ['Blauw','#2563eb'],['Donkerblauw','#1e3a8a'],['Paars','#7c3aed'],['Violet','#a855f7'],
+    ['Roze','#db2777'],['Bordeaux','#831843'],['Bruin','#78350f'],['Zand','#d6b48c'],
+    ['Grijs','#64748b'],['Donkergrijs','#334155'],['Zwart','#111827'],['Wit','#ffffff']
   ];
 
-  function E(id){ return document.getElementById(id); }
+  function paneel(invoer){
+    var oud=document.getElementById('twKleurPaneel');
+    if(oud) oud.remove();
 
-  /* R119: TERUGGEDRAAID. In R118 verborg ik de twee kleurenrijen onderaan
-     (bnsCatDotsV108 en bnsCatColorChooserV109) omdat ze dubbel leken.
-     [stated] ze storen hem niet - dus ze blijven gewoon staan. Er is niets
-     verwijderd geweest, alleen onzichtbaar gemaakt; dat is nu ongedaan. */
-  function verbergDubbele(){
-    ['bnsCatDotsV108','bnsCatColorChooserV109'].forEach(function(id){
-      var el=E(id);
-      if(el && el.style.display==='none') el.style.removeProperty('display');
-    });
-  }
+    var vak=document.createElement('div');
+    vak.id='twKleurPaneel';
+    vak.style.cssText='position:fixed;z-index:2147483600;background:#fff;border:2px solid #cbd5e1;'+
+      'border-radius:14px;padding:14px;box-shadow:0 12px 34px rgba(0,0,0,.25);max-width:460px';
 
-  function zet(){
-    verbergDubbele();
-
-    var invoer=document.querySelector('#bnsV57ColorInput, input[type="color"][title*="kleur"], input[type="color"]');
-    if(!invoer) return;
-    if(E(ID)) return;
+    var kop=document.createElement('div');
+    kop.textContent='Kies een kleur';
+    kop.style.cssText='font-weight:900;margin-bottom:10px;color:#0f172a';
+    vak.appendChild(kop);
 
     var raster=document.createElement('div');
-    raster.id=ID;
-    raster.style.cssText='display:grid;grid-template-columns:repeat(12,28px);gap:6px;'+
-      'padding:10px;margin:10px 0;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px';
-
-    KLEUREN.forEach(function(kleur){
+    raster.style.cssText='display:grid;grid-template-columns:repeat(6,66px);gap:8px';
+    KLEUREN.forEach(function(paar){
+      var naam=paar[0], kleur=paar[1];
       var b=document.createElement('button');
       b.type='button';
-      b.title=kleur;
-      b.style.cssText='width:28px;height:28px;border-radius:8px;cursor:pointer;'+
-        'border:'+(kleur==='#ffffff'?'2px solid #cbd5e1':'2px solid rgba(0,0,0,.15)')+';'+
-        'background:'+kleur;
+      b.title=naam;
+      b.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;'+
+        'border:0;background:transparent;cursor:pointer;padding:0';
+      b.innerHTML='<span style="width:52px;height:40px;border-radius:9px;background:'+kleur+';'+
+        'border:'+(kleur==='#ffffff'?'2px solid #cbd5e1':'2px solid rgba(0,0,0,.18)')+';display:block"></span>'+
+        '<span style="font-size:10px;font-weight:800;color:#334155">'+naam+'</span>';
       b.onclick=function(ev){
         ev.preventDefault(); ev.stopPropagation();
-        /* dezelfde weg als een kleur kiezen in het Windows-venster, zodat alles
-           wat daaraan hangt gewoon meeloopt */
         invoer.value=kleur;
         try{ invoer.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){}
         try{ invoer.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
+        vak.remove();
       };
       raster.appendChild(b);
     });
+    vak.appendChild(raster);
 
-    var plek = invoer.closest('div') || invoer.parentNode;
-    if(plek && plek.parentNode) plek.parentNode.insertBefore(raster, plek.nextSibling);
-    else invoer.parentNode.appendChild(raster);
+    var onder=document.createElement('div');
+    onder.style.cssText='display:flex;gap:8px;margin-top:12px';
+    var eigen=document.createElement('button');
+    eigen.type='button';
+    eigen.textContent='Andere kleur (Windows)';
+    eigen.style.cssText='border:0;border-radius:9px;padding:8px 12px;background:#334155;color:#fff;font-weight:800;cursor:pointer';
+    eigen.onclick=function(){ vak.remove(); invoer.__twDoorlaten=true; invoer.click(); };
+    var sluit=document.createElement('button');
+    sluit.type='button';
+    sluit.textContent='Sluiten';
+    sluit.style.cssText='border:0;border-radius:9px;padding:8px 12px;background:#e2e8f0;color:#0f172a;font-weight:800;cursor:pointer';
+    sluit.onclick=function(){ vak.remove(); };
+    onder.appendChild(eigen); onder.appendChild(sluit);
+    vak.appendChild(onder);
 
-    try{ console.info('[BNS TW R118] Kleurenraster staat klaar; dubbele kleurenrij onderaan verborgen.'); }catch(e){}
+    document.body.appendChild(vak);
+    var r=invoer.getBoundingClientRect();
+    var top=Math.min(r.bottom+8, window.innerHeight-vak.offsetHeight-12);
+    var links=Math.min(r.left, window.innerWidth-vak.offsetWidth-12);
+    vak.style.top=Math.max(12,top)+'px';
+    vak.style.left=Math.max(12,links)+'px';
+
+    setTimeout(function(){
+      document.addEventListener('mousedown', function dicht(ev){
+        if(!vak.contains(ev.target)){ vak.remove(); document.removeEventListener('mousedown', dicht, true); }
+      }, true);
+    }, 0);
   }
 
-  setInterval(zet, 1200);
-  setTimeout(zet, 1200);
+  /* De klik op het kleurvakje opvangen voordat Windows zijn venster opent. */
+  document.addEventListener('click', function(ev){
+    var el=ev.target;
+    if(!el || el.tagName!=='INPUT' || el.type!=='color') return;
+    if(el.__twDoorlaten){ el.__twDoorlaten=false; return; }   // bewust naar Windows
+    ev.preventDefault(); ev.stopPropagation();
+    paneel(el);
+  }, true);
+
+  try{ console.info('[BNS TW R120] Eigen kleurkiezer actief; de waaier van Windows zit onder "Andere kleur".'); }catch(e){}
 })();
