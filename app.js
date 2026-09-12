@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R117';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R119';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -54548,8 +54548,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var activeCat=U((activeBtn&&activeBtn.getAttribute(attr))||'');
     var html='<span class="bns951-label">Zoek op kleur:</span>'+list.map(function(k){
       var col=catColor(k);
-      return '<button type="button" title="'+H(k)+'" data-bns951-target="'+H(k)+'" class="'+(k===activeCat?'active':'')+
-        '" style="--cat-color:'+H(col)+'"></button>';
+      /* R119: de rubrieknaam ONDER het bolletje. Hij stond alleen in de title,
+         dus je zag pas welke rubriek een kleur was als je er met de muis op
+         ging staan. Nu lees je het meteen. De title blijft staan voor de
+         langere namen die niet helemaal passen. */
+      return '<span class="bns951-kleurvak" style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin:0 4px 4px">'+
+        '<button type="button" title="'+H(k)+'" data-bns951-target="'+H(k)+'" class="'+(k===activeCat?'active':'')+
+        '" style="--cat-color:'+H(col)+'"></button>'+
+        '<span style="font-size:10px;font-weight:800;color:#334155;letter-spacing:.02em;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+H(k)+'</span>'+
+        '</span>';
     }).join('');
     if(!bar){
       bar=document.createElement('div');
@@ -58425,4 +58432,90 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
   window.BNS_TW_FACTUURNR={ volgende:volgende, gebruikt:gebruikt, voorOpdracht:voorOpdracht, instelling:lees };
   try{ console.info('[BNS R110] Factuurnummers actief - eerstvolgende: '+volgende()); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS TW R118 - Duidelijk kleurenraster, dubbele kleurenrij weg
+   ----------------------------------------------------------
+   [stated] De kleurwaaier van Windows werkt niet prettig: je moet met de muis
+   in een verloop slepen waar alle kleuren op elkaar lijken. En onderaan de
+   pagina stond nog een rij kleurbolletjes die overbodig is - die wordt door
+   TWEE blokken gebouwd (bnsCatDotsV108 en bnsCatColorChooserV109).
+
+   Hieronder:
+   - een raster van 24 duidelijk verschillende kleuren, direct naast "Rubriek
+     kleur"; een klik en de kleur staat erop, geen slepen.
+   - de twee overbodige rijen onderaan worden verborgen.
+
+   BLIJFT STAAN: de rij favorieten onder "Rubriek kleur TW", en de knoppen
+   Favoriet opslaan en Favoriet wissen. [stated] die wil hij houden.
+   De Windows-kiezer blijft ook bereikbaar voor een kleur die niet in het
+   raster zit.
+========================================================== */
+(function bnsTwKleurRaster(){
+  'use strict';
+  if(window.__BNS_TW_R118__) return;
+  window.__BNS_TW_R118__=true;
+
+  var ID='twKleurRaster';
+
+  var KLEUREN=[
+    '#dc2626','#ea580c','#eab308','#16a34a','#0ea5e9','#7c3aed',
+    '#991b1b','#9a3412','#a16207','#15803d','#0369a1','#5b21b6',
+    '#f87171','#fb923c','#fde047','#4ade80','#38bdf8','#a78bfa',
+    '#111827','#374151','#6b7280','#9ca3af','#d1d5db','#ffffff'
+  ];
+
+  function E(id){ return document.getElementById(id); }
+
+  /* R119: TERUGGEDRAAID. In R118 verborg ik de twee kleurenrijen onderaan
+     (bnsCatDotsV108 en bnsCatColorChooserV109) omdat ze dubbel leken.
+     [stated] ze storen hem niet - dus ze blijven gewoon staan. Er is niets
+     verwijderd geweest, alleen onzichtbaar gemaakt; dat is nu ongedaan. */
+  function verbergDubbele(){
+    ['bnsCatDotsV108','bnsCatColorChooserV109'].forEach(function(id){
+      var el=E(id);
+      if(el && el.style.display==='none') el.style.removeProperty('display');
+    });
+  }
+
+  function zet(){
+    verbergDubbele();
+
+    var invoer=document.querySelector('#bnsV57ColorInput, input[type="color"][title*="kleur"], input[type="color"]');
+    if(!invoer) return;
+    if(E(ID)) return;
+
+    var raster=document.createElement('div');
+    raster.id=ID;
+    raster.style.cssText='display:grid;grid-template-columns:repeat(12,28px);gap:6px;'+
+      'padding:10px;margin:10px 0;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px';
+
+    KLEUREN.forEach(function(kleur){
+      var b=document.createElement('button');
+      b.type='button';
+      b.title=kleur;
+      b.style.cssText='width:28px;height:28px;border-radius:8px;cursor:pointer;'+
+        'border:'+(kleur==='#ffffff'?'2px solid #cbd5e1':'2px solid rgba(0,0,0,.15)')+';'+
+        'background:'+kleur;
+      b.onclick=function(ev){
+        ev.preventDefault(); ev.stopPropagation();
+        /* dezelfde weg als een kleur kiezen in het Windows-venster, zodat alles
+           wat daaraan hangt gewoon meeloopt */
+        invoer.value=kleur;
+        try{ invoer.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){}
+        try{ invoer.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
+      };
+      raster.appendChild(b);
+    });
+
+    var plek = invoer.closest('div') || invoer.parentNode;
+    if(plek && plek.parentNode) plek.parentNode.insertBefore(raster, plek.nextSibling);
+    else invoer.parentNode.appendChild(raster);
+
+    try{ console.info('[BNS TW R118] Kleurenraster staat klaar; dubbele kleurenrij onderaan verborgen.'); }catch(e){}
+  }
+
+  setInterval(zet, 1200);
+  setTimeout(zet, 1200);
 })();
