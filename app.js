@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R120';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R121';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -54552,7 +54552,11 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
          dus je zag pas welke rubriek een kleur was als je er met de muis op
          ging staan. Nu lees je het meteen. De title blijft staan voor de
          langere namen die niet helemaal passen. */
-      return '<span class="bns951-kleurvak" style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin:0 4px 4px">'+
+      /* R121: het kenmerk OOK op het omhulsel. De afhandeling van de klik
+         zoekt vanaf het aangeklikte element omhoog naar data-bns951-target;
+         dat stond alleen op het bolletje. Klikken op de NAAM eronder kwam dus
+         bij dit omhulsel uit, vond niets, en deed niets. */
+      return '<span class="bns951-kleurvak" data-bns951-target="'+H(k)+'" style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin:0 4px 4px;cursor:pointer">'+
         '<button type="button" title="'+H(k)+'" data-bns951-target="'+H(k)+'" class="'+(k===activeCat?'active':'')+
         '" style="--cat-color:'+H(col)+'"></button>'+
         '<span style="font-size:10px;font-weight:800;color:#334155;letter-spacing:.02em;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+H(k)+'</span>'+
