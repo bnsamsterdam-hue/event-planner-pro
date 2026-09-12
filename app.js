@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-11-R116';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R117';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -23986,15 +23986,20 @@ setTimeout(()=>{
     if(/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
     return '#0ea5e9';
   }
+  /* R117: bnsCatColors is bij hem leeg; de echte kleuren staan in
+     settings.categoryColors. Die gaat voor, de oude sleutel blijft terugval. */
   function colorMap(){
+    var uit={};
     try{
       var o=JSON.parse(localStorage.getItem('bnsCatColors')||'{}');
-      return o&&typeof o==='object'?o:{
-      };
-    } catch(e){
-      return{
-      };
-    }
+      if(o&&typeof o==='object') Object.keys(o).forEach(function(k){ uit[k]=o[k]; });
+    } catch(e){}
+    try{
+      var st=(typeof state!=='undefined'&&state)||window.state;
+      var c=st&&st.settings&&st.settings.categoryColors;
+      if(c&&typeof c==='object') Object.keys(c).forEach(function(k){ if(c[k]) uit[k]=c[k]; });
+    } catch(e){}
+    return uit;
   }
   function setCatColor(c,h){
     var o=colorMap();
@@ -24586,6 +24591,12 @@ setTimeout(()=>{
     Object.keys(DEFAULTS).forEach(function(k){
       out[k]=DEFAULTS[k];
     });
+    /* R117: settings.categoryColors erbij - daar staan de echte kleuren. */
+    try{
+      var st0=(typeof state!=='undefined'&&state)||window.state;
+      var c0=st0&&st0.settings&&st0.settings.categoryColors;
+      if(c0&&typeof c0==='object') Object.keys(c0).forEach(function(k){ if(c0[k]) out[k]=c0[k]; });
+    } catch(e){}
     try{
       var ls=JSON.parse(localStorage.getItem('bnsCatColors')||'{}');
       if(ls&&typeof ls==='object') Object.keys(ls).forEach(function(k){
@@ -42780,7 +42791,25 @@ setTimeout(()=>{
   function getState(){try{ if(typeof state!=='undefined'&&state&&Array.isArray(state.materials)) return state;}catch(e){} try{ if(window.state&&Array.isArray(window.state.materials)) return window.state;}catch(e){} return null;}
   function readJSON(k,def){try{var v=JSON.parse(localStorage.getItem(k)||''); return v&&typeof v==='object'?v:def;}catch(e){return def;}}
   function writeJSON(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
-  function colorMap(){var a=readJSON(COLOR_KEY,{}), b=readJSON(COLOR_KEY2,{}); return Object.assign({},b,a);}
+  /* R117 (2026-09-12): ook kijken waar de kleuren ECHT staan.
+     Gemeten: bns_rubriek_kleuren_v12_pro en bnsCatColors zijn allebei LEEG,
+     terwijl settings.categoryColors zesendertig rubrieken met kleuren bevat -
+     dat is de plek waar Admin in schrijft. De kleuren-zoekbalk vond dus nooit
+     iets en viel terug op de standaardkleur #0ea5e9. Vandaar dat alles blauw
+     werd.
+     Volgorde: settings.categoryColors is leidend, de twee oude sleutels
+     blijven als terugval staan. Er wordt niets overschreven en Admin werkt
+     zoals het werkte. (Amsterdam had exact dezelfde fout - daar R80.) */
+  function colorMap(){
+    var a=readJSON(COLOR_KEY,{}), b=readJSON(COLOR_KEY2,{});
+    var uit=Object.assign({},b,a);
+    try{
+      var st=(typeof state!=='undefined'&&state)||window.state;
+      var c=st&&st.settings&&st.settings.categoryColors;
+      if(c&&typeof c==='object') Object.keys(c).forEach(function(k){ if(c[k]) uit[k]=c[k]; });
+    }catch(e){}
+    return uit;
+  }
   function setCatColor(c,col){c=cat(c); col=hex(col)||'#0ea5e9'; var m=colorMap(); m[c]=col; writeJSON(COLOR_KEY,m); writeJSON(COLOR_KEY2,m); try{window.bnsCatColors=m;}catch(e){} }
   function removeCatColor(c){c=cat(c); var m=colorMap(); delete m[c]; delete m[c.toLowerCase()]; writeJSON(COLOR_KEY,m); writeJSON(COLOR_KEY2,m); try{if(window.state&&window.state.settings){if(window.state.settings.catColors){delete window.state.settings.catColors[c];delete window.state.settings.catColors[c.toLowerCase()];}if(window.state.settings.categoryColors){delete window.state.settings.categoryColors[c];delete window.state.settings.categoryColors[c.toLowerCase()];}}}catch(e){} try{window.bnsCatColors=m;}catch(e){} }
   function getCatColor(c){c=cat(c); var m=colorMap(); return hex(m[c]||m[c.toLowerCase()]||'#0ea5e9');}
