@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-14-R125';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-14-R127';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -58640,4 +58640,141 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
   window.BNS_TW_KLEURVERS={ nu:function(){ return ronde()+' rijen bijgewerkt'; } };
   try{ console.info('[BNS TW R122] Rijkleuren worden na elke tekenronde ververst.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS TW R126 - Klanten, locaties en de mastercode ook naar Firebase
+   ----------------------------------------------------------
+   [stated] alles uit Admin moet mee, zodat een wijziging overal zichtbaar is.
+   Nagekeken wat deze app werkelijk wegschrijft: `orders`, `materials`,
+   `alerts`, `users` en `settings` (met de documenten main, voertuigen en
+   zedatums). De KLANTENLIJST met adressen, de LOCATIES en de MASTERCODE gingen
+   nergens heen - die stonden alleen op de computer waar ze waren ingevoerd.
+
+   Het mooie is dat de mappen `customers` en `locations` al BESTAAN in dit
+   project en bij het opstarten al worden GELEZEN (zie COLLECTIONS in
+   firebase-sync.js). Ze werden alleen nooit geschreven: de bulk-upload is
+   bewust geblokkeerd (BNS749) en een losse opslag was er niet. Hieronder wordt
+   dus alleen het schrijven toegevoegd, in de mappen die er al zijn - geen
+   nieuwe structuur, geen omweg.
+
+   De mastercode gaat mee in `settings/main`, waar de andere instellingen ook
+   staan.
+
+   MOMENTEN: bij het OPSLAAN van de app, en na een klik op Opslaan of Toevoegen
+   in Admin. Geen ronde die steeds staat te kijken.
+   VEILIG: er wordt nooit iets gewist - elke klant en locatie wordt als eigen
+   document weggeschreven, dus wat op de ene computer bestaat blijft bestaan.
+
+   Console: window.BNS_TW_ADMIN.stand() / .nuVersturen()
+========================================================== */
+(function bnsTwAdminNaarFirebase(){
+  'use strict';
+  if(window.__BNS_TW_R126__) return;
+  window.__BNS_TW_R126__=true;
+
+  var laatste='';
+  var bezig=false;
+
+  function st(){ try{ return (typeof state!=='undefined'&&state)||window.state||null; }catch(e){ return null; } }
+  function T(v){ return String(v==null?'':v).trim(); }
+
+  function schrijf(map, voorwerp){
+    try{
+      if(window.BNS && typeof window.BNS.syncDoc==='function'){
+        window.BNS.syncDoc(map, voorwerp);
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }
+
+  function vingerafdruk(s){
+    try{
+      return JSON.stringify([
+        (s.customers||[]).length, JSON.stringify(s.customers||[]).length,
+        (s.locations||[]).length, JSON.stringify(s.locations||[]).length,
+        T(s.adminPin),
+        JSON.stringify(s.documentStyle||'')
+      ]);
+    }catch(e){ return String(Math.random()); }
+  }
+
+  function versturen(reden){
+    if(bezig) return;
+    var s=st();
+    if(!s) return;
+    var vt=vingerafdruk(s);
+    if(vt===laatste) return;
+    bezig=true;
+    var aantalK=0, aantalL=0;
+    try{
+      (s.customers||[]).forEach(function(c){
+        if(!c) return;
+        if(!c.id){ try{ c.id='klant_'+Date.now()+'_'+Math.floor(Math.random()*1000); }catch(e){} }
+        if(schrijf('customers', c)) aantalK++;
+      });
+      (s.locations||[]).forEach(function(l){
+        if(!l) return;
+        if(!l.id){ try{ l.id='loc_'+Date.now()+'_'+Math.floor(Math.random()*1000); }catch(e){} }
+        if(schrijf('locations', l)) aantalL++;
+      });
+      /* R127: de mastercode EN de huisstijl van de documenten bij de overige
+         instellingen. `documentStyle` bleek als enige lijst in de toestand nog
+         nergens heen te gaan - dat is de opmaak van je facturen en
+         opdrachtbevestigingen, en die hoort op elke computer gelijk te zijn. */
+      if(s.settings && (T(s.adminPin) || s.documentStyle)){
+        try{
+          if(T(s.adminPin)) s.settings.adminPin=T(s.adminPin);
+          if(s.documentStyle) s.settings.documentStyle=s.documentStyle;
+          schrijf('settings', Object.assign({id:'main'}, s.settings));
+        }catch(e){}
+      }
+      laatste=vt;
+      try{ console.info('[BNS TW R126] Naar Firebase ('+(reden||'wijziging')+'): '+aantalK+' klanten, '+aantalL+' locaties.'); }catch(e){}
+    }catch(e){}
+    bezig=false;
+  }
+
+  /* bij het opslaan van de app */
+  try{
+    if(typeof window.save==='function' && !window.save.__bnsTwR126){
+      var oudeSave=window.save;
+      var nieuweSave=function(){
+        var r=oudeSave.apply(this, arguments);
+        setTimeout(function(){ versturen('na opslaan'); }, 400);
+        return r;
+      };
+      nieuweSave.__bnsTwR126=true;
+      window.save=nieuweSave;
+    }
+  }catch(e){}
+
+  /* en na een klik op Opslaan of Toevoegen in Admin */
+  document.addEventListener('click', function(ev){
+    try{
+      var t=ev.target;
+      if(!t || !t.closest) return;
+      var knop=t.closest('button, .btn, [role="button"]');
+      if(!knop) return;
+      var tekst=(knop.textContent||'').toLowerCase();
+      if(tekst.indexOf('opslaan')<0 && tekst.indexOf('toevoegen')<0 && tekst.indexOf('bewaren')<0) return;
+      setTimeout(function(){ versturen('na knop'); }, 600);
+      setTimeout(function(){ versturen('na knop'); }, 2000);
+    }catch(e){}
+  }, true);
+
+  window.BNS_TW_ADMIN={
+    nuVersturen:function(){ laatste=''; versturen('handmatig'); return 'wordt verstuurd'; },
+    stand:function(){
+      var s=st()||{};
+      return {
+        klanten:(s.customers||[]).length,
+        locaties:(s.locations||[]).length,
+        gebruikers:(s.users||[]).length,
+        mastercode: T(s.adminPin)?'ingesteld':'geen',
+        huisstijl: s.documentStyle?'ingesteld':'geen'
+      };
+    }
+  };
 })();
