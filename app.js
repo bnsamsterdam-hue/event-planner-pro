@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-12-R122';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-14-R123';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -16896,11 +16896,17 @@ setTimeout(()=>{
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title>'+
     '<style>'+
     '@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}'+
-    '.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:24mm 18mm;'+templateStyle+'}'+
-    '.top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:5px solid '+accent+';padding-bottom:18px;margin-bottom:24px}'+
+    /* R123 (14-9-2026): de factuur paste net niet op een bladzijde - Borg en
+       Eindtotaal liepen over naar een tweede. Er stond 24 mm wit boven het
+       logo BOVENOP de paginamarge van 14 mm. Die ruimte is teruggebracht en
+       ook de witruimte onder de kop en tussen de kaders is iets krapper.
+       Samen scheelt dat ruim drie centimeter, genoeg voor die laatste regels.
+       Wil je het ruimer, zet padding terug op 24mm 18mm. */
+    '.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:12mm 16mm 14mm;'+templateStyle+'}'+
+    '.top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:5px solid '+accent+';padding-bottom:10px;margin-bottom:14px}'+
     '.logo{max-width:190px;max-height:90px;object-fit:contain}.company{font-size:15px;font-weight:800;color:'+accent+'}.doctype{font-size:30px;font-weight:900;text-transform:uppercase;letter-spacing:.4px}'+
-    '.card{border:1px solid #dbe3ef;border-radius:16px;padding:14px;margin:12px 0;background:rgba(255,255,255,.94)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.label{font-size:11px;color:#64748b;text-transform:uppercase;font-weight:800}.value{font-size:14px;white-space:pre-wrap}'+
-    'table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.96)}th{background:'+accent+';color:white;text-align:left}th,td{padding:10px;border-bottom:1px solid #e5e7eb;font-size:13px}.muted{color:#64748b}.free{white-space:pre-wrap;line-height:1.45}.totals{display:flex;justify-content:flex-end}.totals table{width:260px}.footer{margin-top:28px;border-top:2px solid #e5e7eb;padding-top:12px;font-size:12px;color:#334155}'+
+    '.card{border:1px solid #dbe3ef;border-radius:16px;padding:10px 12px;margin:7px 0;background:rgba(255,255,255,.94)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.label{font-size:11px;color:#64748b;text-transform:uppercase;font-weight:800}.value{font-size:14px;white-space:pre-wrap}'+
+    'table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.96)}th{background:'+accent+';color:white;text-align:left}th,td{padding:7px 10px;border-bottom:1px solid #e5e7eb;font-size:13px}.muted{color:#64748b}.free{white-space:pre-wrap;line-height:1.45}.totals{display:flex;justify-content:flex-end}.totals table{width:260px}.footer{margin-top:16px;border-top:2px solid #e5e7eb;padding-top:10px;font-size:12px;color:#334155}'+
     '.print{position:fixed;top:12px;left:12px;background:'+accent+';color:white;border:0;border-radius:10px;padding:11px 16px;font-weight:800;cursor:pointer}@media print{body{background:white}.page{margin:0;box-shadow:none}.print{display:none}}'+
     '</style></head><body><button class="print" onclick="window.print()">Afdrukken</button><main class="page">'+
     '<section class="top"><div>'+(inv.logo?'<img class="logo" src="'+inv.logo+'">':'<div class="company">'+esc(inv.companyName)+'</div>')+'</div><div style="text-align:right"><div class="doctype">'+esc(title)+'</div><div class="company">'+esc(inv.companyName)+'</div><div>Opdracht '+esc(o.number)+'</div></div></section>'+
