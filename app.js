@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-14-R127';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-14-R128';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -55797,7 +55797,27 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
             '. Je invoer is bewaard - haal hem terug met window.BNS_R53.herstel()');
         }
       }
-      if(nu) bewaard={op:new Date().toISOString(), knop:laatsteKnop, velden:velden()};
+      /* ==========================================================
+         R128 (14-9-2026) - de gekozen MATERIALEN worden nu ook bewaard.
+         ----------------------------------------------------------
+         [stated] valt het wijzigscherm weg en komt het vanzelf terug, dan
+         staan de Extra's er nog wel maar een net toegevoegd materiaal niet.
+         Oorzaak: `velden()` hierboven bewaart alleen INVOERVELDEN. Extra's
+         zijn invoervelden, dus die overleven. De gekozen materialen staan in
+         een lijst in het geheugen (`chosen`) en die werd niet meegenomen.
+         Hieronder gaat die lijst mee in dezelfde momentopname. */
+      if(nu) bewaard={
+        op:new Date().toISOString(),
+        knop:laatsteKnop,
+        velden:velden(),
+        materialen:(function(){
+          try{
+            var l=(Array.isArray(window.chosen)&&window.chosen.length)?window.chosen
+                 :((typeof chosen!=='undefined'&&Array.isArray(chosen))?chosen:[]);
+            return JSON.parse(JSON.stringify(l));
+          }catch(e){ return []; }
+        })()
+      };
     }catch(e){}
   }, 800);
 
@@ -55811,8 +55831,27 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         var e=document.getElementById(k);
         if(e && T(bewaard.velden[k]) && !T(e.value)){ e.value=bewaard.velden[k]; n++; }
       });
-      return n+' veld(en) teruggezet';
-    }
+      /* R128: ook de gekozen materialen terugzetten. Alleen als de lijst nu
+         LEEG is - staat er al iets, dan blijft dat met rust. Beide lijsten
+         worden gevuld, want de app gebruikt er twee naast elkaar (zie R54). */
+      var m=0;
+      try{
+        if(Array.isArray(bewaard.materialen) && bewaard.materialen.length){
+          var leegNu = (!Array.isArray(window.chosen)||!window.chosen.length) &&
+                       (typeof chosen==='undefined' || !Array.isArray(chosen) || !chosen.length);
+          if(leegNu){
+            var kopie=JSON.parse(JSON.stringify(bewaard.materialen));
+            try{ window.chosen=kopie; }catch(e){}
+            try{ if(typeof chosen!=='undefined') chosen=kopie; }catch(e){}
+            m=kopie.length;
+            try{ if(typeof renderChosen==='function') renderChosen(); }catch(e){}
+            try{ if(typeof recalc==='function') recalc(); }catch(e){}
+          }
+        }
+      }catch(e){}
+      return n+' veld(en) en '+m+' materia(a)l(en) teruggezet';
+    },
+    materialen:function(){ return (bewaard&&bewaard.materialen)||[]; }
   };
   try{ console.info('[BNS R53] Wacht bij het wijzigscherm actief - meldt wie het dichtgooit.'); }catch(e){}
 })();
