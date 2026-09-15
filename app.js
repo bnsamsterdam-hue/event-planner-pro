@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-14-R128';
+window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-14-R129';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -55798,14 +55798,17 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         }
       }
       /* ==========================================================
-         R128 (14-9-2026) - de gekozen MATERIALEN worden nu ook bewaard.
+         R129 (14-9-2026) - de gekozen MATERIALEN worden nu ook bewaard.
          ----------------------------------------------------------
          [stated] valt het wijzigscherm weg en komt het vanzelf terug, dan
          staan de Extra's er nog wel maar een net toegevoegd materiaal niet.
          Oorzaak: `velden()` hierboven bewaart alleen INVOERVELDEN. Extra's
          zijn invoervelden, dus die overleven. De gekozen materialen staan in
-         een lijst in het geheugen (`chosen`) en die werd niet meegenomen.
-         Hieronder gaat die lijst mee in dezelfde momentopname. */
+         de lijst `chosen` in het geheugen en die werd niet meegenomen.
+         Hieronder gaat die lijst mee in dezelfde momentopname.
+         (Dit was eerder R128; bij het terugzetten naar de bevestigde basis is
+         hij even weggeweest en op zijn verzoek opnieuw toegevoegd.)
+      ========================================================== */
       if(nu) bewaard={
         op:new Date().toISOString(),
         knop:laatsteKnop,
@@ -55831,9 +55834,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         var e=document.getElementById(k);
         if(e && T(bewaard.velden[k]) && !T(e.value)){ e.value=bewaard.velden[k]; n++; }
       });
-      /* R128: ook de gekozen materialen terugzetten. Alleen als de lijst nu
-         LEEG is - staat er al iets, dan blijft dat met rust. Beide lijsten
-         worden gevuld, want de app gebruikt er twee naast elkaar (zie R54). */
+      /* R129: ook de gekozen materialen terugzetten. Alleen als de lijst nu
+         LEEG is - staat er al iets, dan blijft dat met rust, anders zou je
+         materialen dubbel krijgen. Beide lijsten worden gevuld, want de app
+         gebruikt `chosen` en `window.chosen` naast elkaar (zie BNS R54). */
       var m=0;
       try{
         if(Array.isArray(bewaard.materialen) && bewaard.materialen.length){
@@ -55850,8 +55854,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         }
       }catch(e){}
       return n+' veld(en) en '+m+' materia(a)l(en) teruggezet';
-    },
-    materialen:function(){ return (bewaard&&bewaard.materialen)||[]; }
+    }
   };
   try{ console.info('[BNS R53] Wacht bij het wijzigscherm actief - meldt wie het dichtgooit.'); }catch(e){}
 })();
@@ -58681,139 +58684,4 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   try{ console.info('[BNS TW R122] Rijkleuren worden na elke tekenronde ververst.'); }catch(e){}
 })();
 
-/* ==========================================================
-   BNS TW R126 - Klanten, locaties en de mastercode ook naar Firebase
-   ----------------------------------------------------------
-   [stated] alles uit Admin moet mee, zodat een wijziging overal zichtbaar is.
-   Nagekeken wat deze app werkelijk wegschrijft: `orders`, `materials`,
-   `alerts`, `users` en `settings` (met de documenten main, voertuigen en
-   zedatums). De KLANTENLIJST met adressen, de LOCATIES en de MASTERCODE gingen
-   nergens heen - die stonden alleen op de computer waar ze waren ingevoerd.
 
-   Het mooie is dat de mappen `customers` en `locations` al BESTAAN in dit
-   project en bij het opstarten al worden GELEZEN (zie COLLECTIONS in
-   firebase-sync.js). Ze werden alleen nooit geschreven: de bulk-upload is
-   bewust geblokkeerd (BNS749) en een losse opslag was er niet. Hieronder wordt
-   dus alleen het schrijven toegevoegd, in de mappen die er al zijn - geen
-   nieuwe structuur, geen omweg.
-
-   De mastercode gaat mee in `settings/main`, waar de andere instellingen ook
-   staan.
-
-   MOMENTEN: bij het OPSLAAN van de app, en na een klik op Opslaan of Toevoegen
-   in Admin. Geen ronde die steeds staat te kijken.
-   VEILIG: er wordt nooit iets gewist - elke klant en locatie wordt als eigen
-   document weggeschreven, dus wat op de ene computer bestaat blijft bestaan.
-
-   Console: window.BNS_TW_ADMIN.stand() / .nuVersturen()
-========================================================== */
-(function bnsTwAdminNaarFirebase(){
-  'use strict';
-  if(window.__BNS_TW_R126__) return;
-  window.__BNS_TW_R126__=true;
-
-  var laatste='';
-  var bezig=false;
-
-  function st(){ try{ return (typeof state!=='undefined'&&state)||window.state||null; }catch(e){ return null; } }
-  function T(v){ return String(v==null?'':v).trim(); }
-
-  function schrijf(map, voorwerp){
-    try{
-      if(window.BNS && typeof window.BNS.syncDoc==='function'){
-        window.BNS.syncDoc(map, voorwerp);
-        return true;
-      }
-    }catch(e){}
-    return false;
-  }
-
-  function vingerafdruk(s){
-    try{
-      return JSON.stringify([
-        (s.customers||[]).length, JSON.stringify(s.customers||[]).length,
-        (s.locations||[]).length, JSON.stringify(s.locations||[]).length,
-        T(s.adminPin),
-        JSON.stringify(s.documentStyle||'')
-      ]);
-    }catch(e){ return String(Math.random()); }
-  }
-
-  function versturen(reden){
-    if(bezig) return;
-    var s=st();
-    if(!s) return;
-    var vt=vingerafdruk(s);
-    if(vt===laatste) return;
-    bezig=true;
-    var aantalK=0, aantalL=0;
-    try{
-      (s.customers||[]).forEach(function(c){
-        if(!c) return;
-        if(!c.id){ try{ c.id='klant_'+Date.now()+'_'+Math.floor(Math.random()*1000); }catch(e){} }
-        if(schrijf('customers', c)) aantalK++;
-      });
-      (s.locations||[]).forEach(function(l){
-        if(!l) return;
-        if(!l.id){ try{ l.id='loc_'+Date.now()+'_'+Math.floor(Math.random()*1000); }catch(e){} }
-        if(schrijf('locations', l)) aantalL++;
-      });
-      /* R127: de mastercode EN de huisstijl van de documenten bij de overige
-         instellingen. `documentStyle` bleek als enige lijst in de toestand nog
-         nergens heen te gaan - dat is de opmaak van je facturen en
-         opdrachtbevestigingen, en die hoort op elke computer gelijk te zijn. */
-      if(s.settings && (T(s.adminPin) || s.documentStyle)){
-        try{
-          if(T(s.adminPin)) s.settings.adminPin=T(s.adminPin);
-          if(s.documentStyle) s.settings.documentStyle=s.documentStyle;
-          schrijf('settings', Object.assign({id:'main'}, s.settings));
-        }catch(e){}
-      }
-      laatste=vt;
-      try{ console.info('[BNS TW R126] Naar Firebase ('+(reden||'wijziging')+'): '+aantalK+' klanten, '+aantalL+' locaties.'); }catch(e){}
-    }catch(e){}
-    bezig=false;
-  }
-
-  /* bij het opslaan van de app */
-  try{
-    if(typeof window.save==='function' && !window.save.__bnsTwR126){
-      var oudeSave=window.save;
-      var nieuweSave=function(){
-        var r=oudeSave.apply(this, arguments);
-        setTimeout(function(){ versturen('na opslaan'); }, 400);
-        return r;
-      };
-      nieuweSave.__bnsTwR126=true;
-      window.save=nieuweSave;
-    }
-  }catch(e){}
-
-  /* en na een klik op Opslaan of Toevoegen in Admin */
-  document.addEventListener('click', function(ev){
-    try{
-      var t=ev.target;
-      if(!t || !t.closest) return;
-      var knop=t.closest('button, .btn, [role="button"]');
-      if(!knop) return;
-      var tekst=(knop.textContent||'').toLowerCase();
-      if(tekst.indexOf('opslaan')<0 && tekst.indexOf('toevoegen')<0 && tekst.indexOf('bewaren')<0) return;
-      setTimeout(function(){ versturen('na knop'); }, 600);
-      setTimeout(function(){ versturen('na knop'); }, 2000);
-    }catch(e){}
-  }, true);
-
-  window.BNS_TW_ADMIN={
-    nuVersturen:function(){ laatste=''; versturen('handmatig'); return 'wordt verstuurd'; },
-    stand:function(){
-      var s=st()||{};
-      return {
-        klanten:(s.customers||[]).length,
-        locaties:(s.locations||[]).length,
-        gebruikers:(s.users||[]).length,
-        mastercode: T(s.adminPin)?'ingesteld':'geen',
-        huisstijl: s.documentStyle?'ingesteld':'geen'
-      };
-    }
-  };
-})();
