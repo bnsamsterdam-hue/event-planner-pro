@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BEZORG3-2026-09-17';
+window.TAPWAGEN_BUILD_ID = 'TW-BEZORG4-2026-09-17';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56864,7 +56864,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
        behandeld, zoals hij vroeg ("ik vink ze wel uit"). Zo verandert er voor
        de bezorgers niets tot hij zelf iets uitvinkt.
     ========================================================== */
-    var voorBezorgers=l.filter(function(v){ return v && v.bezorger!==false; });
+    /* 17-9-2026: welke wagens NIET naar de bezorgers gaan staat in een eigen
+       lijst (`bns_tw_bezorg_uit`), niet in de wagen zelf. Dat moest, omdat de
+       voertuigenlijst op meerdere plekken opnieuw wordt weggeschreven en een
+       veldje in de wagen daarbij verdween - [stated] "kan ze niet uitvinken en
+       ze flikkeren aan en uit". */
+    var uitLijst={};
+    try{ uitLijst=JSON.parse(localStorage.getItem('bns_tw_bezorg_uit')||'{}')||{}; }catch(e){}
+    var merkVan=function(v){ return String((v&&v.naam)||'').trim()+'||'+String((v&&v.kenteken)||'').trim(); };
+    var voorBezorgers=l.filter(function(v){ return !uitLijst[merkVan(v)]; });
     try{
       if(window.BNS && typeof window.BNS.syncDoc==='function'){
         window.BNS.syncDoc('settings',{id:'voertuigen', lijst:voorBezorgers});
@@ -59043,60 +59051,55 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   window.__BNS_TW_VINK__=true;
 
   /* ==========================================================
-     17-9-2026 - OPNIEUW OPGEZET.
+     17-9-2026 - HET VINKJE STAAT NU IN EEN EIGEN LIJST.
      ----------------------------------------------------------
-     [stated] "nu gooit hij alles door elkaar, en als je op 1 drukt gaan ze
-     allemaal op blauw en kan je hem niet meer uitvinken."
-     In zijn foto stonden ALLE hokjes blauw terwijl er bij twee wagens "niet
-     zichtbaar" stond. Hokje en tekst spraken elkaar dus tegen: de browser vinkt
-     het hokje aan bij een klik, maar het omzetten kwam niet aan - en bij het
-     opnieuw tekenen bleef het hokje aan staan.
-     Twee dingen anders:
-     1. Na het tekenen wordt elk hokje met de hand op de WERKELIJKE stand gezet
-        (via de eigenschap, niet via de opmaak). Hokje en tekst kunnen dan niet
-        meer uit elkaar lopen.
-     2. De wagen wordt aangewezen met naam EN kenteken samen. Ook als een
-        kenteken ontbreekt of dubbel voorkomt, wijst dat naar precies een regel.
-     Aangevinkt = zichtbaar voor de bezorgers, uitgevinkt = niet zichtbaar,
-     zoals hij het wil.
+     [stated] "nog steeds hetzelfde, kan ze niet uitvinken en ze flikkeren aan
+     en uit, en geeft nog steeds niet zichtbaar bij 2 terwijl ze aangevinkt
+     zijn."
+     De oorzaak: ik bewaarde het vinkje IN de wagen zelf (`bezorger:false`). De
+     voertuigenlijst wordt in deze app op meerdere plekken opnieuw
+     weggeschreven, en daarbij verdween dat veldje weer - dus sprong de stand
+     terug en liepen hokje en tekst uit elkaar.
+     Nu staat de lijst met uitgevinkte wagens apart, in `bns_tw_bezorg_uit`.
+     Daar komt niets anders aan, dus een uitgevinkte wagen blijft uitgevinkt.
+     Aangevinkt = zichtbaar in de bezorgerstelefoon, uitgevinkt = niet.
   ========================================================== */
 
   var KEY='bns_voertuigen';
+  var UIT='bns_tw_bezorg_uit';
 
   function T(v){ return String(v==null?'':v).trim(); }
   function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function lees(){
     try{ var l=JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
   }
-  function zichtbaar(v){ return !(v && v.bezorger===false); }
   function merk(v){ return T(v&&v.naam)+'||'+T(v&&v.kenteken); }
+  function uitLijst(){
+    try{ var v=JSON.parse(localStorage.getItem(UIT)||'{}'); return (v&&typeof v==='object')?v:{}; }catch(e){ return {}; }
+  }
+  function uitOpslaan(o){ try{ localStorage.setItem(UIT, JSON.stringify(o)); }catch(e){} }
+  function zichtbaar(v){ return !uitLijst()[merk(v)]; }
 
-  function wegschrijven(l){
+  function doorgeven(){
+    var l=lees();
+    var uit=uitLijst();
+    var voor=l.filter(function(v){ return !uit[merk(v)]; });
     try{
-      if(window.BNS_TW_VOERTUIGEN && typeof window.BNS_TW_VOERTUIGEN.schrijf==='function'){
-        window.BNS_TW_VOERTUIGEN.schrijf(l);
-        return;
-      }
-    }catch(e){}
-    try{ localStorage.setItem(KEY, JSON.stringify(l)); }catch(e){}
-    try{
-      var voorBezorgers=l.filter(zichtbaar);
       if(window.BNS && typeof window.BNS.syncDoc==='function'){
-        window.BNS.syncDoc('settings',{id:'voertuigen', lijst:voorBezorgers});
+        window.BNS.syncDoc('settings',{id:'voertuigen', lijst:voor});
         var st=(window.state&&state.settings)||null;
-        if(st){ st.voertuigen=voorBezorgers; window.BNS.syncDoc('settings', Object.assign({id:'main'}, st)); }
+        if(st){ st.voertuigen=voor; window.BNS.syncDoc('settings', Object.assign({id:'main'}, st)); }
       }
       if(typeof save==='function') save();
     }catch(e){}
   }
 
   function omzetten(kenmerk){
-    var l=lees();
-    var raak=-1;
-    for(var i=0;i<l.length;i++){ if(merk(l[i])===kenmerk){ raak=i; break; } }
-    if(raak<0) return false;
-    l[raak].bezorger = !zichtbaar(l[raak]);
-    wegschrijven(l);
+    var uit=uitLijst();
+    if(uit[kenmerk]) delete uit[kenmerk];
+    else uit[kenmerk]=new Date().toISOString();
+    uitOpslaan(uit);
+    doorgeven();
     return true;
   }
 
@@ -59114,12 +59117,12 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       }
 
       var l=lees();
-      var vinger=JSON.stringify(l.map(function(v){ return [merk(v), zichtbaar(v)]; }));
+      var uit=uitLijst();
+      var vinger=JSON.stringify(l.map(function(v){ return merk(v); }));
       if(vak.__vinger!==vinger){
         vak.__vinger=vinger;
-        var aantal=l.filter(zichtbaar).length;
         var html='<h3 style="margin:0 0 4px">Zichtbaar voor de bezorgers</h3>'+
-          '<div style="font-size:13px;color:#64748b;margin-bottom:10px">Aangevinkt betekent zichtbaar in de bezorgerstelefoon. Uitgevinkte wagens blijven wel in het APK-overzicht staan. Nu aangevinkt: '+aantal+' van '+l.length+'.</div>';
+          '<div id="bnsTwVinkTeller" style="font-size:13px;color:#64748b;margin-bottom:10px"></div>';
         if(!l.length){
           html+='<div style="color:#64748b">Er staan nog geen wagens in de lijst.</div>';
         } else {
@@ -59137,21 +59140,28 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         Array.prototype.slice.call(vak.querySelectorAll('[data-bns-vink]')).forEach(function(el){
           el.onchange=function(){
             omzetten(el.getAttribute('data-bns-vink'));
-            vak.__vinger='';
-            tekenen();
+            standZetten();
             try{ if(typeof toast==='function') toast(el.checked?'Wagen is zichtbaar voor de bezorgers':'Wagen is niet meer zichtbaar voor de bezorgers'); }catch(e){}
           };
         });
       }
+      standZetten();
+    }catch(e){}
+  }
 
-      /* ALTIJD de werkelijke stand zetten - hokje en tekst kunnen zo niet
-         uit elkaar lopen, ook niet als een klik niet is aangekomen. */
+  /* de stand los van het tekenen - zo hoeft het vak niet opnieuw gebouwd te
+     worden bij een klik, en kan er dus ook niets flikkeren */
+  function standZetten(){
+    try{
+      var vak=document.getElementById('bnsTwVinkVak');
+      if(!vak) return;
+      var l=lees(), uit=uitLijst(), aantal=0;
       l.forEach(function(v){
-        var aan=zichtbaar(v);
-        var kn=merk(v);
-        var el=vak.querySelector('[data-bns-vink="'+kn.replace(/"/g,'&quot;')+'"]');
-        if(el) el.checked=aan;
-        var regel=vak.querySelector('[data-bns-regel="'+kn.replace(/"/g,'&quot;')+'"]');
+        var kn=merk(v), aan=!uit[kn], veilig=kn.replace(/"/g,'&quot;');
+        if(aan) aantal++;
+        var el=vak.querySelector('[data-bns-vink="'+veilig+'"]');
+        if(el && el.checked!==aan) el.checked=aan;
+        var regel=vak.querySelector('[data-bns-regel="'+veilig+'"]');
         if(regel){
           regel.style.background = aan ? '#dcfce7' : '#f1f5f9';
           var t=regel.querySelector('[data-bns-tekst]');
@@ -59161,20 +59171,23 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           }
         }
       });
+      var teller=document.getElementById('bnsTwVinkTeller');
+      if(teller) teller.textContent='Aangevinkt betekent zichtbaar in de bezorgerstelefoon. Uitgevinkte wagens blijven wel in het APK-overzicht staan. Nu aangevinkt: '+aantal+' van '+l.length+'.';
     }catch(e){}
   }
 
-  setInterval(tekenen, 1500);
+  setInterval(tekenen, 2000);
 
   window.BNS_TW_BEZORGWAGENS={
     stand:function(){
-      var l=lees();
+      var l=lees(), uit=uitLijst();
       return {
         totaal:l.length,
-        zichtbaar:l.filter(zichtbaar).map(function(v){ return T(v.naam)+' '+T(v.kenteken); }),
-        nietZichtbaar:l.filter(function(v){ return !zichtbaar(v); }).map(function(v){ return T(v.naam)+' '+T(v.kenteken); })
+        zichtbaar:l.filter(function(v){ return !uit[merk(v)]; }).map(function(v){ return T(v.naam)+' '+T(v.kenteken); }),
+        nietZichtbaar:l.filter(function(v){ return !!uit[merk(v)]; }).map(function(v){ return T(v.naam)+' '+T(v.kenteken); })
       };
     },
-    omzetten:omzetten
+    omzetten:omzetten,
+    allesAan:function(){ uitOpslaan({}); doorgeven(); standZetten(); return 'alle wagens weer zichtbaar'; }
   };
 })();
