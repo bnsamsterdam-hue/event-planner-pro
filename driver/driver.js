@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-17-R26';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-17-R27';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -1647,13 +1647,26 @@ boot();
         if(!BNS.db) await initFirebase();
         const fs=BNS.firebase;
         const snap=await fs.getDocs(fs.collection(BNS.db,'settings'));
+        /* ==========================================================
+           R27 (17-9-2026) - EEN LEGE LIJST IS OOK EEN ANTWOORD.
+           ----------------------------------------------------------
+           Tot nu toe telde een lijst alleen mee als er wagens in stonden
+           (`data.lijst.length`). Zette de planner ALLE wagens op rood, dan
+           kwam hier een lege lijst binnen, werd die genegeerd, en viel de
+           telefoon terug op het oude lijstje met alles erin. [stated] "het
+           moet zo zijn: geen kentekens geen melding, dus is hij leeg ziet de
+           bezorger geen kentekens."
+           Nu telt de aanwezigheid van de lijst, niet de lengte: staat er in
+           `settings/voertuigen` een lege lijst, dan is dat het antwoord en
+           toont de telefoon geen wagens.
+        ========================================================== */
         let gevonden=null;
         snap.docs.forEach(function(d){
           const data=d.data()||{};
-          if(Array.isArray(data.lijst) && data.lijst.length && d.id==='voertuigen') gevonden=data.lijst;
-          if(!gevonden && Array.isArray(data.voertuigen) && data.voertuigen.length) gevonden=data.voertuigen;
+          if(d.id==='voertuigen' && Array.isArray(data.lijst)) gevonden=data.lijst;
+          if(gevonden===null && Array.isArray(data.voertuigen)) gevonden=data.voertuigen;
         });
-        if(gevonden && gevonden.length){
+        if(Array.isArray(gevonden)){
           voertuigen=gevonden;
           try{ localStorage.setItem('bns_voertuigen', JSON.stringify(gevonden)); }catch(e){}
           return voertuigen;
