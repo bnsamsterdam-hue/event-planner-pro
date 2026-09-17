@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BEZORG5-2026-09-17';
+window.TAPWAGEN_BUILD_ID = 'TW-BEZORG6-2026-09-17';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56873,14 +56873,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{ uitLijst=JSON.parse(localStorage.getItem('bns_tw_bezorg_uit')||'{}')||{}; }catch(e){}
     var merkVan=function(v){ return String((v&&v.naam)||'').trim()+'||'+String((v&&v.kenteken)||'').trim(); };
     var voorBezorgers=l.filter(function(v){ return !uitLijst[merkVan(v)]; });
-    /* 17-9-2026: nooit een LEGE lijst versturen. [stated] "in de bezorgtelefoon
-       zie ik gewoon alle voertuigen terwijl de foto zegt niet zichtbaar." Dat
-       klopt: de telefoon behandelt een leeg antwoord als "geen gegevens" en
-       toont dan alles (zie `laadVoertuigen` in driver.js, waar een leeg antwoord
-       met opzet niet wordt onthouden). Zijn alle wagens uitgevinkt, dan sturen
-       we de volledige lijst - anders zou uitvinken juist het tegenovergestelde
-       bereiken. */
-    if(!voorBezorgers.length) voorBezorgers=l;
+    /* 17-9-2026: een LEGE lijst mag gewoon verstuurd worden. Eerst stuurde ik
+       dan de volledige lijst, omdat de telefoon een leeg antwoord opvatte als
+       "geen gegevens". Gevolg: alles op rood gaf hetzelfde beeld als alles op
+       groen - hij zag alle zeven wagens staan.
+       [stated] "het moet zo zijn: geen kentekens geen melding, dus is hij leeg
+       ziet de bezorger geen kentekens." Daarom die klep eruit; de telefoon
+       behandelt een lege lijst nu als een geldig antwoord (driver.js R27). */
     try{
       if(window.BNS && typeof window.BNS.syncDoc==='function'){
         window.BNS.syncDoc('settings',{id:'voertuigen', lijst:voorBezorgers});
@@ -59092,7 +59091,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function doorgeven(){
     var l=lees(), uit=uitLijst();
     var voor=l.filter(function(v){ return !uit[merk(v)]; });
-    if(!voor.length) voor=l;          /* nooit leeg - zie de uitleg in schrijf() */
+    /* leeg mag - zie de uitleg in schrijf() */
     try{
       if(window.BNS && typeof window.BNS.syncDoc==='function'){
         window.BNS.syncDoc('settings',{id:'voertuigen', lijst:voor});
