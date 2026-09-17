@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FIX-2026-09-14-R129';
+window.TAPWAGEN_BUILD_ID = 'TW-APK-2026-09-17';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -58685,3 +58685,322 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 })();
 
 
+
+/* ==========================================================
+   BNS TW APK - Keuringsoverzicht met aftellen en herinneringen (17-9-2026)
+   ----------------------------------------------------------
+   Gevraagd voor deze app nadat het in de andere app werkte. Opnieuw gebouwd op
+   Tapwagens eigen manier: eigen opslagsleutel (`bns_voertuigen`), eigen
+   instellingen, geen enkel onderdeel van de andere app overgenomen.
+
+   WAT HET DOET.
+   - De vervaldatum van de APK komt uit dezelfde RDW-bron die hier al gebruikt
+     wordt (`vervaldatum_apk` in m9d7-ebf2); die werd nog niet uitgelezen.
+   - Bij elke keer laden wordt opnieuw bij de RDW gekeken. Is de wagen
+     inmiddels gekeurd, dan staat daar een nieuwe datum en verdwijnt de
+     waarschuwing vanzelf - er hoeft niets handmatig afgevinkt te worden.
+   - Een overzicht van alle wagens op volgorde van urgentie, met aftelling en
+     kleur: rood verlopen, oranje binnenkort, groen in orde.
+   - Hoeveel dagen vooraf er gewaarschuwd wordt, stel je zelf in.
+   - Een venster in de pagina met twee keuzes: "Gezien, ik regel het" en
+     "Herinner me later" met een eigen aantal dagen. Het blijft staan tot er
+     geklikt is - geen systeemmelding, want die kan door de app zelf worden
+     weggedrukt.
+   - Het venster verschijnt pas als er iemand is ingelogd, en er wordt bewaard
+     wie het heeft bevestigd.
+
+   Console: window.BNS_TW_APK.lijst() / .nuControleren() / .dagen(60)
+========================================================== */
+(function bnsTwApk(){
+  'use strict';
+  if(window.__BNS_TW_APK__) return;
+  window.__BNS_TW_APK__=true;
+
+  var KEY='bns_voertuigen';
+  var INSTEL='bns_tw_apk_dagen';
+  var UITGESTELD='bns_tw_apk_uitgesteld';
+  var BEVESTIGD='bns_tw_apk_bevestigd';
+  var bezig=false;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function sleutel(k){ return T(k).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+  function lees(){
+    try{ var l=JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
+  }
+  function bewaar(l){
+    try{ localStorage.setItem(KEY, JSON.stringify(l)); }catch(e){}
+    /* net als de voertuigmodule hier: de lijst hoort ook bij de instellingen,
+       zodat de telefoon hem meekrijgt (zie R95 in deze app) */
+    try{
+      if(window.BNS && typeof window.BNS.syncDoc==='function'){
+        window.BNS.syncDoc('settings',{id:'voertuigen', lijst:l});
+      }
+    }catch(e){}
+    try{
+      var st=(window.state&&state.settings)||null;
+      if(st){ st.voertuigen=l; }
+      if(typeof save==='function') save();
+    }catch(e){}
+  }
+
+  function dagenInstelling(){
+    var n=parseInt(T(localStorage.getItem(INSTEL)),10);
+    return (!isNaN(n)&&n>0&&n<400)?n:45;
+  }
+  function dagenZetten(n){
+    n=parseInt(n,10);
+    if(isNaN(n)||n<1||n>400) return dagenInstelling();
+    try{ localStorage.setItem(INSTEL,String(n)); }catch(e){}
+    return n;
+  }
+
+  function alsDatum(rdw){
+    var t=T(rdw).replace(/\D/g,'');
+    if(t.length<8) return null;
+    var d=new Date(t.slice(0,4)+'-'+t.slice(4,6)+'-'+t.slice(6,8)+'T12:00:00');
+    return isNaN(d.getTime())?null:d;
+  }
+  function dagenTot(d){ return d ? Math.round((d.getTime()-Date.now())/86400000) : null; }
+
+  function apkBijRdw(kenteken){
+    var k=sleutel(kenteken);
+    if(!k) return Promise.resolve(null);
+    return fetch('https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken='+encodeURIComponent(k))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ return (d&&d.length) ? (d[0].vervaldatum_apk||null) : null; })
+      .catch(function(){ return null; });
+  }
+
+  function uitgesteldLijst(){
+    try{ var v=JSON.parse(localStorage.getItem(UITGESTELD)||'{}'); return (v&&typeof v==='object')?v:{}; }catch(e){ return {}; }
+  }
+  function uitgesteldOpslaan(v){ try{ localStorage.setItem(UITGESTELD, JSON.stringify(v)); }catch(e){} }
+  function bevestigdLijst(){
+    try{ var v=JSON.parse(localStorage.getItem(BEVESTIGD)||'{}'); return (v&&typeof v==='object')?v:{}; }catch(e){ return {}; }
+  }
+  function bevestigdOpslaan(v){ try{ localStorage.setItem(BEVESTIGD, JSON.stringify(v)); }catch(e){} }
+
+  function wieIsHet(){
+    try{ if(typeof user!=='undefined' && user) return T(user.name||user.naam||user.id)||'onbekend'; }catch(e){}
+    try{
+      var u=window.currentUser && window.currentUser();
+      if(u) return T(u.name||u.naam||u.id)||'onbekend';
+    }catch(e){}
+    return '';
+  }
+  function isIngelogd(){ return !!wieIsHet(); }
+
+  function bevestigen(kenteken, soort, extra){
+    var b=bevestigdLijst();
+    b[sleutel(kenteken)]={op:new Date().toISOString(), soort:soort||'gezien', extra:extra||'', door:wieIsHet()};
+    bevestigdOpslaan(b);
+  }
+
+  /* ALTIJD opnieuw bij de RDW - zo wordt een verse keuring vanzelf opgepikt */
+  function vernieuwen(){
+    if(bezig) return Promise.resolve(lees());
+    bezig=true;
+    var l=lees();
+    if(!l.length){ bezig=false; return Promise.resolve(l); }
+    return Promise.all(l.map(function(v){
+      return apkBijRdw(v&&v.kenteken).then(function(datum){
+        if(datum && v && T(v.apk)!==T(datum)){
+          v.apk=datum;
+          try{ var u=uitgesteldLijst(); delete u[sleutel(v.kenteken)]; uitgesteldOpslaan(u); }catch(e){}
+        }
+        return v;
+      });
+    })).then(function(){
+      bewaar(l); bezig=false; tekenen(); return l;
+    }).catch(function(){ bezig=false; return l; });
+  }
+
+  function overzicht(){
+    var grens=dagenInstelling();
+    return lees().map(function(v){
+      var d=alsDatum(v&&v.apk), n=dagenTot(d);
+      return {
+        naam:T(v&&v.naam), kenteken:T(v&&v.kenteken),
+        datum:d, apkTekst: d ? d.toLocaleDateString('nl-NL') : 'onbekend',
+        dagen:n,
+        staat:(n===null)?'onbekend':(n<0?'verlopen':(n<=grens?'binnenkort':'goed'))
+      };
+    }).sort(function(a,b){
+      if(a.dagen===null) return 1;
+      if(b.dagen===null) return -1;
+      return a.dagen-b.dagen;
+    });
+  }
+
+  function tekenen(){
+    try{
+      var admin=document.getElementById('adminArea');
+      if(!admin || !admin.offsetParent) return;
+      var vak=document.getElementById('bnsTwApkVak');
+      if(!vak){
+        vak=document.createElement('div');
+        vak.id='bnsTwApkVak';
+        vak.style.cssText='margin-top:18px;padding:14px;border:2px solid #e2e8f0;border-radius:14px;background:#fff';
+        admin.appendChild(vak);
+      }
+      var rijen=overzicht();
+      var vinger=JSON.stringify(rijen.map(function(r){ return [r.kenteken,r.apkTekst,r.dagen]; }))+'|'+dagenInstelling()+'|'+JSON.stringify(bevestigdLijst());
+      if(vak.__vinger===vinger) return;
+      vak.__vinger=vinger;
+
+      var kleur={verlopen:'#b91c1c', binnenkort:'#c2410c', goed:'#15803d', onbekend:'#64748b'};
+      var achter={verlopen:'#fee2e2', binnenkort:'#fed7aa', goed:'#dcfce7', onbekend:'#f1f5f9'};
+
+      var html='<h3 style="margin:0 0 4px">APK-keuringen</h3>'+
+        '<div style="font-size:13px;color:#64748b;margin-bottom:10px">De datums komen van de RDW en worden bij elke keer laden opnieuw opgehaald. Is een wagen gekeurd, dan verdwijnt de waarschuwing vanzelf.</div>'+
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+
+          '<label style="font-weight:700">Waarschuw</label>'+
+          '<input id="bnsTwApkDagen" type="number" min="1" max="400" value="'+dagenInstelling()+'" style="width:90px;padding:8px;border:1px solid #cbd5e1;border-radius:8px">'+
+          '<span>dagen van tevoren</span>'+
+          '<button type="button" id="bnsTwApkBewaar" style="border:0;border-radius:10px;padding:8px 14px;background:#16a34a;color:#fff;font-weight:800;cursor:pointer">Opslaan</button>'+
+          '<button type="button" id="bnsTwApkVernieuw" style="border:0;border-radius:10px;padding:8px 14px;background:#0ea5e9;color:#fff;font-weight:800;cursor:pointer">Bij de RDW ophalen</button>'+
+        '</div>';
+
+      if(!rijen.length){
+        html+='<div style="color:#64748b">Er staan nog geen wagens in de lijst.</div>';
+      } else {
+        var bevAlle=bevestigdLijst();
+        html+=rijen.map(function(r){
+          var wanneer=(r.dagen===null)?'niet bekend bij de RDW'
+            :(r.dagen<0?'verlopen sinds '+Math.abs(r.dagen)+' dagen'
+            :(r.dagen===0?'verloopt vandaag':'nog '+r.dagen+' dagen'));
+          var bev=bevAlle[sleutel(r.kenteken)], bevTekst='';
+          if(bev && bev.op){
+            var bd=new Date(bev.op);
+            bevTekst='<div style="font-size:12px;color:#334155;margin-top:2px">'+
+              (bev.soort==='later'?'Herinnering uitgesteld':'Melding bevestigd')+
+              ' op '+bd.toLocaleDateString('nl-NL')+' om '+bd.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})+
+              (bev.door?' door '+esc(bev.door):'')+(bev.extra?' - '+esc(bev.extra):'')+'</div>';
+          }
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;border-radius:10px;background:'+achter[r.staat]+'">'+
+            '<div><b>'+esc(r.naam)+'</b> <span style="opacity:.75">'+esc(r.kenteken)+'</span>'+bevTekst+'</div>'+
+            '<div style="text-align:right;font-weight:800;color:'+kleur[r.staat]+'">'+esc(r.apkTekst)+
+              '<div style="font-weight:600;font-size:12px">'+esc(wanneer)+'</div></div>'+
+          '</div>';
+        }).join('');
+      }
+      vak.innerHTML=html;
+
+      var inv=document.getElementById('bnsTwApkDagen');
+      var kn=document.getElementById('bnsTwApkBewaar');
+      if(kn) kn.onclick=function(){
+        var n=dagenZetten(inv&&inv.value);
+        vak.__vinger=''; tekenen();
+        try{ if(typeof toast==='function') toast('Waarschuwing staat op '+n+' dagen'); }catch(e){}
+      };
+      var vn=document.getElementById('bnsTwApkVernieuw');
+      if(vn) vn.onclick=function(){
+        vn.disabled=true; vn.textContent='Bezig...';
+        vernieuwen().then(function(){ vn.disabled=false; vn.textContent='Bij de RDW ophalen'; vak.__vinger=''; tekenen(); });
+      };
+    }catch(e){}
+  }
+
+  function vensterTonen(raak){
+    try{
+      if(document.getElementById('bnsTwApkVenster')) return;
+      var regels=raak.map(function(r){
+        var wanneer=r.dagen<0?'VERLOPEN sinds '+Math.abs(r.dagen)+' dagen'
+          :(r.dagen===0?'verloopt VANDAAG':'nog '+r.dagen+' dagen');
+        var kl=r.dagen<0?'#b91c1c':'#c2410c';
+        return '<div style="padding:10px 12px;margin-bottom:6px;border-radius:10px;background:#fff7ed">'+
+          '<b>'+esc(r.naam)+'</b> <span style="opacity:.75">'+esc(r.kenteken)+'</span>'+
+          '<div style="font-weight:800;color:'+kl+'">APK '+esc(r.apkTekst)+' - '+esc(wanneer)+'</div></div>';
+      }).join('');
+
+      var laag=document.createElement('div');
+      laag.id='bnsTwApkVenster';
+      laag.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:16px';
+      laag.innerHTML='<div style="background:#fff;border-radius:16px;max-width:520px;width:100%;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.35)">'+
+        '<h2 style="margin:0 0 6px;font-size:20px">APK-keuring in zicht</h2>'+
+        '<div style="font-size:13px;color:#64748b;margin-bottom:12px">Bevestig dat je dit hebt gezien, of laat je later herinneren.</div>'+
+        regels+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">'+
+          '<button type="button" id="bnsTwApkGezien" style="flex:1;min-width:180px;border:0;border-radius:12px;padding:14px;background:#16a34a;color:#fff;font-weight:800;font-size:15px;cursor:pointer">Gezien, ik regel het</button>'+
+          '<button type="button" id="bnsTwApkLater" style="flex:1;min-width:180px;border:0;border-radius:12px;padding:14px;background:#0ea5e9;color:#fff;font-weight:800;font-size:15px;cursor:pointer">Herinner me later</button>'+
+        '</div>'+
+        '<div id="bnsTwApkLaterVak" style="display:none;margin-top:12px;align-items:center;gap:8px">'+
+          '<label style="font-weight:700">Over</label> '+
+          '<input id="bnsTwApkLaterDagen" type="number" min="1" max="365" value="7" style="width:90px;padding:8px;border:1px solid #cbd5e1;border-radius:8px"> '+
+          '<span>dagen</span> '+
+          '<button type="button" id="bnsTwApkLaterOk" style="border:0;border-radius:10px;padding:10px 16px;background:#0ea5e9;color:#fff;font-weight:800;cursor:pointer">Instellen</button>'+
+        '</div></div>';
+      document.body.appendChild(laag);
+
+      var sluit=function(){ try{ laag.remove(); }catch(e){} };
+      document.getElementById('bnsTwApkGezien').onclick=function(){
+        raak.forEach(function(r){
+          bevestigen(r.kenteken,'gezien');
+          var u=uitgesteldLijst(); u[sleutel(r.kenteken)]=Date.now()+14*86400000; uitgesteldOpslaan(u);
+        });
+        sluit();
+        try{ var v=document.getElementById('bnsTwApkVak'); if(v) v.__vinger=''; }catch(e){}
+        tekenen();
+      };
+      document.getElementById('bnsTwApkLater').onclick=function(){
+        var vk=document.getElementById('bnsTwApkLaterVak'); if(vk) vk.style.display='flex';
+      };
+      document.getElementById('bnsTwApkLaterOk').onclick=function(){
+        var iv=document.getElementById('bnsTwApkLaterDagen');
+        var n=parseInt(iv&&iv.value,10);
+        if(isNaN(n)||n<1) n=7;
+        raak.forEach(function(r){
+          bevestigen(r.kenteken,'later','opnieuw over '+n+' dagen');
+          var u=uitgesteldLijst(); u[sleutel(r.kenteken)]=Date.now()+n*86400000; uitgesteldOpslaan(u);
+        });
+        sluit();
+        try{ var v2=document.getElementById('bnsTwApkVak'); if(v2) v2.__vinger=''; }catch(e){}
+        tekenen();
+      };
+    }catch(e){}
+  }
+
+  function melden(){
+    try{
+      var grens=dagenInstelling(), uit=uitgesteldLijst(), nu=Date.now();
+      var raak=overzicht().filter(function(r){
+        if(r.dagen===null) return false;
+        if(r.dagen>grens) return false;
+        var tot=uit[sleutel(r.kenteken)];
+        if(tot && nu<tot) return false;
+        return true;
+      });
+      if(!raak.length) return;
+      if(!isIngelogd()) return;
+      vensterTonen(raak);
+      try{ console.info('[BNS TW APK] '+raak.length+' wagen(s) gemeld.'); }catch(e){}
+    }catch(e){}
+  }
+
+  setTimeout(function(){
+    vernieuwen().then(function(){
+      var pogingen=0;
+      var wachten=setInterval(function(){
+        pogingen++;
+        if(isIngelogd()){ clearInterval(wachten); melden(); return; }
+        if(pogingen>120) clearInterval(wachten);
+      }, 5000);
+    });
+  }, 6000);
+
+  setInterval(tekenen, 1500);
+  setInterval(function(){ try{ melden(); }catch(e){} }, 30*60*1000);
+
+  window.BNS_TW_APK={
+    lijst:function(){
+      return overzicht().map(function(r){
+        return {naam:r.naam, kenteken:r.kenteken, apk:r.apkTekst, dagen:r.dagen, staat:r.staat};
+      });
+    },
+    nuControleren:function(){ vernieuwen().then(melden); return 'wordt opgehaald en gecontroleerd'; },
+    dagen:function(n){ return n===undefined?dagenInstelling():dagenZetten(n); },
+    herinneringenWissen:function(){ uitgesteldOpslaan({}); return 'alle herinneringen gewist'; }
+  };
+})();
