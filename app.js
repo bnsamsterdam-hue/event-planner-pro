@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-APK-2026-09-17';
+window.TAPWAGEN_BUILD_ID = 'TW-BEZORG-2026-09-17';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56850,12 +56850,27 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     /* R95 (2026-09-04): de bezorgerstelefoon heeft deze lijst ook nodig, en die
        leest de instellingen uit Firebase. Daarom onder settings/main wegzetten -
        daar kijkt de telefoon. */
+    /* ==========================================================
+       17-9-2026 - ALLEEN DE AANGEVINKTE WAGENS NAAR DE BEZORGERS.
+       ----------------------------------------------------------
+       [stated] "kunnen we de voertuigen een vinkje geven of ze zichtbaar moeten
+       zijn in de bezorgtelefoon - dit APK kan ik voor alle voertuigen maken
+       maar die worden niet allemaal gebruikt voor transport."
+       Precies dat: de VOLLEDIGE lijst blijft hier staan, zodat het
+       APK-overzicht alle wagens houdt. Maar naar `settings.voertuigen` - de
+       plek waar de bezorgerstelefoon kijkt (zie R95 hieronder en
+       `laadVoertuigen` in driver.js) - gaan alleen de wagens met een vinkje.
+       Bestaande wagens hebben nog geen vinkje; die worden als ZICHTBAAR
+       behandeld, zoals hij vroeg ("ik vink ze wel uit"). Zo verandert er voor
+       de bezorgers niets tot hij zelf iets uitvinkt.
+    ========================================================== */
+    var voorBezorgers=l.filter(function(v){ return v && v.bezorger!==false; });
     try{
       if(window.BNS && typeof window.BNS.syncDoc==='function'){
-        window.BNS.syncDoc('settings',{id:'voertuigen', lijst:l});
+        window.BNS.syncDoc('settings',{id:'voertuigen', lijst:voorBezorgers});
         try{
           var st=(window.state&&state.settings)||null;
-          if(st){ st.voertuigen=l; window.BNS.syncDoc('settings', Object.assign({id:'main'}, st)); }
+          if(st){ st.voertuigen=voorBezorgers; window.BNS.syncDoc('settings', Object.assign({id:'main'}, st)); }
         }catch(e){}
       }
     }catch(e){}
@@ -56867,7 +56882,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(!naam || !kenteken) return 'geef een naam en een kenteken op';
     var l=lees();
     if(l.some(function(v){ return sleutel(v.kenteken)===sleutel(kenteken); })) return 'dit kenteken staat er al in';
-    l.push({naam:naam, kenteken:kenteken, soort:'', brandstof:'', euronorm:'', opgehaald:''});
+    /* 17-9-2026: een nieuwe wagen staat standaard AAN voor de bezorgers, zodat
+       je nooit vergeet een transportwagen aan te zetten. Uitvinken doe je in het
+       overzicht. */
+    l.push({bezorger:true, naam:naam, kenteken:kenteken, soort:'', brandstof:'', euronorm:'', opgehaald:''});
     schrijf(l);
     ophalen(kenteken);                       // meteen proberen aan te vullen
     return naam+' ('+kenteken+') toegevoegd';
@@ -59002,5 +59020,127 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     nuControleren:function(){ vernieuwen().then(melden); return 'wordt opgehaald en gecontroleerd'; },
     dagen:function(n){ return n===undefined?dagenInstelling():dagenZetten(n); },
     herinneringenWissen:function(){ uitgesteldOpslaan({}); return 'alle herinneringen gewist'; }
+  };
+})();
+
+/* ==========================================================
+   BNS TW - Vinkje: zichtbaar voor de bezorgers (17-9-2026)
+   ----------------------------------------------------------
+   Hoort bij de aanpassing in `schrijf()` hierboven: daar gaan alleen de wagens
+   met een vinkje naar `settings.voertuigen`, waar de bezorgerstelefoon kijkt.
+   Hieronder komt het vinkje zelf in beeld, bij elke wagen in het
+   voertuigenoverzicht.
+
+   Bestaande wagens hebben nog geen vinkje en gelden als zichtbaar - [stated]
+   "ik vink ze wel uit". Voor de bezorgers verandert er dus niets tot hij zelf
+   iets uitzet.
+
+   Console: window.BNS_TW_BEZORGWAGENS.stand()
+========================================================== */
+(function bnsTwBezorgVinkje(){
+  'use strict';
+  if(window.__BNS_TW_VINK__) return;
+  window.__BNS_TW_VINK__=true;
+
+  var KEY='bns_voertuigen';
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function sleutel(k){ return T(k).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+  function lees(){
+    try{ var l=JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
+  }
+  function zichtbaar(v){ return !(v && v.bezorger===false); }
+
+  function omzetten(kenteken){
+    var l=lees(), raak=false;
+    l.forEach(function(v){
+      if(sleutel(v&&v.kenteken)===sleutel(kenteken)){
+        v.bezorger = !zichtbaar(v);
+        raak=true;
+      }
+    });
+    if(!raak) return false;
+    /* via de eigen schrijffunctie van de voertuigmodule, zodat de bezorgerslijst
+       meteen wordt bijgewerkt */
+    try{
+      if(window.BNS_TW_VOERTUIGEN && typeof window.BNS_TW_VOERTUIGEN.schrijf==='function'){
+        window.BNS_TW_VOERTUIGEN.schrijf(l);
+      } else {
+        localStorage.setItem(KEY, JSON.stringify(l));
+        var voorBezorgers=l.filter(zichtbaar);
+        if(window.BNS && typeof window.BNS.syncDoc==='function'){
+          window.BNS.syncDoc('settings',{id:'voertuigen', lijst:voorBezorgers});
+          var st=(window.state&&state.settings)||null;
+          if(st){ st.voertuigen=voorBezorgers; window.BNS.syncDoc('settings', Object.assign({id:'main'}, st)); }
+        }
+        if(typeof save==='function') save();
+      }
+    }catch(e){}
+    return true;
+  }
+
+  function tekenen(){
+    try{
+      var admin=document.getElementById('adminArea');
+      if(!admin || !admin.offsetParent) return;
+
+      var vak=document.getElementById('bnsTwVinkVak');
+      if(!vak){
+        vak=document.createElement('div');
+        vak.id='bnsTwVinkVak';
+        vak.style.cssText='margin-top:18px;padding:14px;border:2px solid #e2e8f0;border-radius:14px;background:#fff';
+        admin.appendChild(vak);
+      }
+
+      var l=lees();
+      var vinger=JSON.stringify(l.map(function(v){ return [v.kenteken, zichtbaar(v)]; }));
+      if(vak.__vinger===vinger) return;
+      vak.__vinger=vinger;
+
+      var aantal=l.filter(zichtbaar).length;
+      var html='<h3 style="margin:0 0 4px">Zichtbaar voor de bezorgers</h3>'+
+        '<div style="font-size:13px;color:#64748b;margin-bottom:10px">Alleen aangevinkte wagens komen in de bezorgerstelefoon. De rest blijft wel in het APK-overzicht staan. Nu aangevinkt: '+aantal+' van '+l.length+'.</div>';
+
+      if(!l.length){
+        html+='<div style="color:#64748b">Er staan nog geen wagens in de lijst.</div>';
+      } else {
+        html+=l.map(function(v){
+          var aan=zichtbaar(v);
+          return '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;'+
+            'border-radius:10px;background:'+(aan?'#dcfce7':'#f1f5f9')+';cursor:pointer">'+
+            '<input type="checkbox" data-bns-vink="'+esc(v.kenteken)+'"'+(aan?' checked':'')+
+              ' style="width:20px;height:20px;cursor:pointer">'+
+            '<span><b>'+esc(v.naam)+'</b> <span style="opacity:.75">'+esc(v.kenteken)+'</span></span>'+
+            '<span style="margin-left:auto;font-weight:700;color:'+(aan?'#15803d':'#64748b')+'">'+
+              (aan?'in de telefoon':'niet zichtbaar')+'</span>'+
+          '</label>';
+        }).join('');
+      }
+      vak.innerHTML=html;
+
+      Array.prototype.slice.call(vak.querySelectorAll('[data-bns-vink]')).forEach(function(el){
+        el.onchange=function(){
+          omzetten(el.getAttribute('data-bns-vink'));
+          vak.__vinger='';
+          tekenen();
+          try{ if(typeof toast==='function') toast(el.checked?'Wagen staat in de bezorgerstelefoon':'Wagen is niet meer zichtbaar voor de bezorgers'); }catch(e){}
+        };
+      });
+    }catch(e){}
+  }
+
+  setInterval(tekenen, 1500);
+
+  window.BNS_TW_BEZORGWAGENS={
+    stand:function(){
+      var l=lees();
+      return {
+        totaal:l.length,
+        inDeTelefoon:l.filter(zichtbaar).map(function(v){ return T(v.naam)+' '+T(v.kenteken); }),
+        nietZichtbaar:l.filter(function(v){ return !zichtbaar(v); }).map(function(v){ return T(v.naam)+' '+T(v.kenteken); })
+      };
+    },
+    omzetten:omzetten
   };
 })();
