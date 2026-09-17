@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BEZORG-2026-09-17';
+window.TAPWAGEN_BUILD_ID = 'TW-BEZORG2-2026-09-17';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59052,15 +59052,22 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
   function zichtbaar(v){ return !(v && v.bezorger===false); }
 
-  function omzetten(kenteken){
-    var l=lees(), raak=false;
-    l.forEach(function(v){
-      if(sleutel(v&&v.kenteken)===sleutel(kenteken)){
-        v.bezorger = !zichtbaar(v);
-        raak=true;
-      }
-    });
-    if(!raak) return false;
+  /* ==========================================================
+     17-9-2026 - HET VINKJE WIJST DE WAGEN OP ZIJN PLAATS AAN.
+     ----------------------------------------------------------
+     [stated] "ik druk 1 vinkje in en ze gaan allemaal, en ze gaan niet meer
+     uit." Dat kwam door de vergelijking op kenteken: is dat veld bij een wagen
+     leeg of anders genoemd, dan is het vergelijkingsresultaat voor ALLE wagens
+     gelijk en schakelden ze allemaal om. En omdat ze daarna allemaal dezelfde
+     stand hadden, zette de volgende klik ze ook allemaal weer terug.
+     Nu wordt de wagen aangewezen op zijn PLAATS in de lijst. Dat is altijd
+     eenduidig, ook als een kenteken ontbreekt of dubbel is.
+  ========================================================== */
+  function omzetten(plaats){
+    var l=lees();
+    var i=parseInt(plaats,10);
+    if(isNaN(i) || i<0 || i>=l.length) return false;
+    l[i].bezorger = !zichtbaar(l[i]);
     /* via de eigen schrijffunctie van de voertuigmodule, zodat de bezorgerslijst
        meteen wordt bijgewerkt */
     try{
@@ -59105,11 +59112,11 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       if(!l.length){
         html+='<div style="color:#64748b">Er staan nog geen wagens in de lijst.</div>';
       } else {
-        html+=l.map(function(v){
+        html+=l.map(function(v,i){
           var aan=zichtbaar(v);
           return '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;'+
             'border-radius:10px;background:'+(aan?'#dcfce7':'#f1f5f9')+';cursor:pointer">'+
-            '<input type="checkbox" data-bns-vink="'+esc(v.kenteken)+'"'+(aan?' checked':'')+
+            '<input type="checkbox" data-bns-vink="'+i+'"'+(aan?' checked':'')+
               ' style="width:20px;height:20px;cursor:pointer">'+
             '<span><b>'+esc(v.naam)+'</b> <span style="opacity:.75">'+esc(v.kenteken)+'</span></span>'+
             '<span style="margin-left:auto;font-weight:700;color:'+(aan?'#15803d':'#64748b')+'">'+
