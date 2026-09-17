@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-08-R25';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-17-R26';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -1587,8 +1587,11 @@ boot();
      Nu wordt de lijst rechtstreeks bij Firebase opgehaald, waar de planner hem
      neerzet. En een leeg antwoord wordt NIET onthouden: de volgende keer wordt
      er gewoon opnieuw gekeken. */
-  function laadVoertuigen(){
-    if(voertuigen && voertuigen.length) return Promise.resolve(voertuigen);
+  function laadVoertuigen(opnieuw){
+    /* R26: `opnieuw` vraagt om verse gegevens. Zonder dat blijft de lijst in
+       het geheugen staan zolang de pagina open is, en dat is prima binnen een
+       sessie - bij het opstarten wordt hij hoe dan ook opgehaald. */
+    if(!opnieuw && voertuigen && voertuigen.length) return Promise.resolve(voertuigen);
 
     function uitState(){
       try{
@@ -1615,11 +1618,30 @@ boot();
     function compleet(l){
       return Array.isArray(l) && l.some(function(v){ return v && T(v.det); });
     }
-    var direct = uitState() || uitOpslag();
-    if(direct && compleet(direct)){ voertuigen=direct; return Promise.resolve(voertuigen); }
-    var oudLijstje = direct;                  // achter de hand als Firebase niet lukt
+    /* ==========================================================
+       R26 (17-9-2026) - ALTIJD EERST BIJ FIREBASE KIJKEN.
+       ----------------------------------------------------------
+       WAT ER MIS WAS. Deze telefoon gebruikte zijn BEWAARDE lijst zodra die er
+       was, en keek dan niet verder. Gevolg: wat de planner wijzigt komt hier
+       nooit aan. [stated] hij zette wagens op rood ("niet zichtbaar voor de
+       bezorgers") en zag ze op de telefoon gewoon staan. Hetzelfde gold voor
+       een VERKOCHTE wagen: die haal je bij Voertuigen weg en hij bleef hier
+       staan - [stated] "als ik hem wis in voertuigen zou hij normaal weg moeten
+       gaan uit de lijst en telefoon".
+       Die bewaarde lijst was bedoeld voor onderweg zonder bereik. Maar [stated]
+       zijn tegenwerping snijdt hout: "als een bezorger geen bereik heeft is er
+       ook geen navigatie en werkt de voertuiglijst ook niet". Die kopie helpt
+       dus nauwelijks, en hij zat wel altijd in de weg.
+       Nu andersom: er wordt ALTIJD eerst bij Firebase gekeken, en de bewaarde
+       kopie is nog slechts een laatste redmiddel als dat echt mislukt. Hij
+       wordt daarbij ook steeds bijgewerkt, zodat die terugval nooit ouder is
+       dan de laatste keer met bereik.
+       De bezorgers moeten hun telefoon na het plaatsen een keer verversen;
+       daarna gaat het vanzelf.
+    ========================================================== */
+    var oudLijstje = uitState() || uitOpslag();   // alleen achter de hand
 
-    /* Niets lokaal - dan bij Firebase kijken, in de instellingen. */
+    /* Altijd bij Firebase kijken, in de instellingen. */
     return (async function(){
       try{
         if(!BNS.db) await initFirebase();
