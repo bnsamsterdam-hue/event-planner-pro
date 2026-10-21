@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BEZORG6-2026-09-17';
+window.TAPWAGEN_BUILD_ID = 'TW-EENBALK-2026-10-21';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -51133,6 +51133,27 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function clearMaterialSearch(){ clearField('materialSearch'); }
   function clearOrderSearches(){
     ['ordersSearch','globalSearch','bns528Search','bnsDriverSearch','bnsV83PhoneSearch'].forEach(clearField);
+    /* ==========================================================
+       21-10-2026 - OOK HET KLANTEN- EN LOCATIEZOEKVELD LEEGMAKEN.
+       ----------------------------------------------------------
+       [stated] "na elke nieuwe klant moet het klantenbestand weer leeg zijn en
+       die blijft nu vaak gevuld."
+       Dat was de oorzaak van een echt probleem. Bij opdracht 2026-2631 stond in
+       het overzicht een klant uit Amsterdam terwijl het document en de planning
+       Purmerend toonden. Samen nagemeten: het klantblok OP de opdracht bevatte
+       werkelijk de oude klant. Er is geen tweede formulier en geen achterlopend
+       scherm - het opslaan schrijft gewoon weg wat er in de velden staat. Staat
+       in dit zoekveld nog de vorige klant en vult die de klantvelden, dan wordt
+       die opgeslagen, welke opslagknop je ook gebruikt.
+       Deze vijf velden werden al geleegd na opslaan of een nieuwe opdracht; het
+       klantzoekveld en het locatiezoekveld ontbraken. Ook de resultatenlijsten
+       eronder worden nu weggehaald, anders blijft er een klant aanklikbaar die
+       niet meer bij deze opdracht hoort.
+    ========================================================== */
+    ['customerSearch','locationSearch'].forEach(clearField);
+    ['customerResults','locationResults'].forEach(function(id){
+      try{ var e=document.getElementById(id); if(e) e.innerHTML=''; }catch(err){}
+    });
   }
   function safeCat(){
     var c=U(window.currentCat || window.__BNS613_LAST_CAT || localStorage.getItem('bns613LastMaterialCat') || '');
@@ -54316,6 +54337,33 @@ try{ console.info('[BNS 816] Documenten: opgeslagen opdracht wint van window.cho
     try{ document.body.classList.remove('tap-v939-neworder'); }catch(e){}
   }
   function ensureBar(){
+    /* ==========================================================
+       21-10-2026 - DEZE BALK IS UITGEZET. Er blijft er nog een over.
+       ----------------------------------------------------------
+       Dit is de onderste knoppenbalk die begint met "Overzicht". Hij was
+       bedoeld voor de telefoon: alleen tonen op een smal scherm en alleen op
+       Nieuwe opdracht. Die regel werkte niet meer - [stated] "die balk staat
+       dus op bijna elke rubriek", ook op een groot beeldscherm.
+       Daardoor ging er meer mis. Zijn Opslaan drukt op de opslagknop van het
+       opdrachtformulier, ook als je daar niet bent; [stated] "gebruik ik die,
+       dan blijft hij het formulier openen, en gebruik ik de juiste dan sluit
+       hij hem netjes". Daar kwam het verwarrende klantblok bij, al bleek dat
+       bij het nameten de gevulde klantvelden te zijn (zie clearOrderSearches).
+       Er is bovendien een andere module die knoppenbalken hernoemt naar
+       `bnsV58OrderActions`; in zijn meting kwam die id TWEE keer voor. Twee
+       modules vochten dus om dezelfde balken.
+       [stated] zijn keuze: deze balk weghalen, want de goede balk - die met
+       "Overzicht maken" - plakt al onderaan en werkt ook op de telefoon. Dan
+       is er nog maar een en kan er niets meer uit de pas lopen.
+       Terugzetten: haal de regel `return;` hieronder weg.
+    ========================================================== */
+    try{
+      var oud=E(BAR_ID);
+      if(oud && oud.parentElement) oud.parentElement.removeChild(oud);
+      document.body.classList.remove('tap-v940-neworder');
+    }catch(e){}
+    return;
+
     ensureCss();
     removeOldV939();
     var bar=E(BAR_ID);
