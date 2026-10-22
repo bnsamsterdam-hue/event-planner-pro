@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-APK2-2026-10-22';
+window.TAPWAGEN_BUILD_ID = 'TW-APK3-2026-10-22';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59136,6 +59136,19 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
   var PANE='adminApk';
   var BLOK='bnsTwApkVak';
+  /* 22-10-2026 - ER WAS NOG EEN LOS BLOK.
+     [stated] "staat nog op alle rubrieken, dit moet alleen nog zichtbaar zijn
+     op voertuigen." Dat ging over "Zichtbaar voor de bezorgers". Dat blok is
+     op 17-9 gebouwd en hangt net zo los onder #adminArea als het APK-blok
+     deed; R109 kent het niet. Het hoort bij de wagens, dus het gaat naar het
+     tabblad Voertuigen - niet naar APK.
+     Alle vier de blokken zitten nu op hun plek:
+       bnsR88Vak      (voertuigen)        -> Voertuigen, via R109
+       bnsR105Vak     (toegangsdatums)    -> Voertuigen, via R109
+       bnsTwVinkVak   (bezorgers)         -> Voertuigen, hieronder
+       bnsTwApkVak    (APK-keuringen)     -> APK, hieronder */
+  var VOERTUIGPANE='adminVoertuigen';
+  var NAAR_VOERTUIGEN=['bnsTwVinkVak'];
 
   function E(id){ return document.getElementById(id); }
 
@@ -59181,9 +59194,19 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      module het daar terug en zet het er niet opnieuw neer. */
   function verhuis(){
     var pane=maakTab();
-    if(!pane) return;
-    var vak=E(BLOK);
-    if(vak && vak.parentNode!==pane) pane.appendChild(vak);
+    if(pane){
+      var vak=E(BLOK);
+      if(vak && vak.parentNode!==pane) pane.appendChild(vak);
+    }
+    /* Het bezorgersblok naar het tabblad Voertuigen. Dat paneel wordt door
+       R109 gemaakt; bestaat het nog niet, dan proberen we het straks opnieuw. */
+    var vp=E(VOERTUIGPANE);
+    if(vp){
+      NAAR_VOERTUIGEN.forEach(function(id){
+        var b=E(id);
+        if(b && b.parentNode!==vp) vp.appendChild(b);
+      });
+    }
   }
 
   setInterval(verhuis, 1500);
