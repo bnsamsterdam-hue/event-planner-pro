@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-APK3-2026-10-22';
+window.TAPWAGEN_BUILD_ID = 'TW-APK4-2026-10-22';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -58826,15 +58826,23 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function lees(){
     try{ var l=JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
   }
+  /* ==========================================================
+     22-10-2026 - DEZE MODULE SCHRIJFT NIET MEER NAAR DE BEZORGERSPLEK.
+     ----------------------------------------------------------
+     Hier stond een regel die de VOLLEDIGE wagenlijst naar
+     `settings/voertuigen` stuurde - de plek waar de bezorgerstelefoon kijkt.
+     Maar de voertuigmodule stuurt daar juist alleen de GROENE wagens heen
+     (zie `schrijf()` bij R87: `voorBezorgers`). Deze module maakte dat filter
+     dus elke keer ongedaan: zette je een wagen op rood, dan stond hij bij de
+     eerstvolgende keer openen weer aan voor de bezorgers. Niemand had het
+     gemerkt omdat op dit moment alle wagens op groen staan.
+
+     Het bijhouden van die plek hoort bij de voertuigmodule, niet hier. Deze
+     module gaat alleen nog over de APK-datum. Ze delen dezelfde lijst in de
+     opslag, dus een nieuwe datum komt vanzelf mee zodra die module schrijft.
+  ========================================================== */
   function bewaar(l){
     try{ localStorage.setItem(KEY, JSON.stringify(l)); }catch(e){}
-    /* net als de voertuigmodule hier: de lijst hoort ook bij de instellingen,
-       zodat de telefoon hem meekrijgt (zie R95 in deze app) */
-    try{
-      if(window.BNS && typeof window.BNS.syncDoc==='function'){
-        window.BNS.syncDoc('settings',{id:'voertuigen', lijst:l});
-      }
-    }catch(e){}
     try{
       var st=(window.state&&state.settings)||null;
       if(st){ st.voertuigen=l; }
@@ -58903,16 +58911,24 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     bezig=true;
     var l=lees();
     if(!l.length){ bezig=false; return Promise.resolve(l); }
+    /* 22-10-2026 - ALLEEN OPSLAAN ALS ER ECHT IETS VERANDERD IS.
+       Hier werd na elke ronde opgeslagen, ook als de RDW precies dezelfde
+       datums teruggaf - en dat is negen van de tien keer zo. Dat opslaan is
+       niet niks: het gaat via `save()`, de algemene opslag van het hele
+       programma. Nu blijft alles met rust als er geen nieuwe datum is. */
+    var iets=false;
     return Promise.all(l.map(function(v){
       return apkBijRdw(v&&v.kenteken).then(function(datum){
         if(datum && v && T(v.apk)!==T(datum)){
           v.apk=datum;
+          iets=true;
           try{ var u=uitgesteldLijst(); delete u[sleutel(v.kenteken)]; uitgesteldOpslaan(u); }catch(e){}
         }
         return v;
       });
     })).then(function(){
-      bewaar(l); bezig=false; tekenen(); return l;
+      if(iets) bewaar(l);
+      bezig=false; tekenen(); return l;
     }).catch(function(){ bezig=false; return l; });
   }
 
