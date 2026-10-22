@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-EENBALK-2026-10-21';
+window.TAPWAGEN_BUILD_ID = 'TW-APK2-2026-10-22';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56967,9 +56967,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      het later opnieuw proberen. */
   function ophalen(kenteken){
     var k=sleutel(kenteken);
+    /* 22-10-2026 - VERS OPHALEN, GEEN OUD ANTWOORD UIT DE BROWSER.
+       [stated] "bij rdw staat hij wel op 2027" terwijl de app de oude datum
+       bleef tonen. De browser mag een eerder antwoord hergebruiken zonder
+       opnieuw te vragen; met een teller achter het adres en `no-store` is elke
+       opvraging nieuw. Kost niets en haalt deze twijfel voorgoed weg. */
+    var vers='&_='+Date.now();
     return Promise.all([
-      fetch(RDW+encodeURIComponent(k)).then(function(r){ return r.json(); }).catch(function(){ return []; }),
-      fetch(RDW_BRANDSTOF+encodeURIComponent(k)).then(function(r){ return r.json(); }).catch(function(){ return []; })
+      fetch(RDW+encodeURIComponent(k)+vers,{cache:'no-store'}).then(function(r){ return r.json(); }).catch(function(){ return []; }),
+      fetch(RDW_BRANDSTOF+encodeURIComponent(k)+vers,{cache:'no-store'}).then(function(r){ return r.json(); }).catch(function(){ return []; })
     ]).then(function(res){
       var rij=(Array.isArray(res[0])&&res[0][0])||null;
       var br =(Array.isArray(res[1])&&res[1][0])||null;
@@ -56987,6 +56993,16 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
              we gooiden ze alleen weg. Geen nieuwe bevraging dus. */
           v.det=T(rij.datum_eerste_toelating||'');          // JJJJMMDD
           v.inrichting=T(rij.inrichting||'');
+          /* 22-10-2026 - DE APK-DATUM HOORT HIER OOK BIJ.
+             [stated] "ook als ik check in druk of gegevens ophalen rdw komt de
+             nieuwe apk datum niet op het scherm." Klopte: de knoppen Check en
+             Gegevens ophalen gaan hier langs, en hier werd `vervaldatum_apk`
+             nooit uitgelezen - dat gebeurde alleen in het APK-overzicht. Je kon
+             dus honderd keer op Check drukken zonder dat de datum veranderde.
+             Hij zit al in dit antwoord, dus dit is geen extra bevraging.
+             Alleen overschrijven als de RDW echt iets teruggeeft; een leeg
+             antwoord mag een goede datum niet wissen. */
+          if(T(rij.vervaldatum_apk)) v.apk=T(rij.vervaldatum_apk);
         }
         if(br){
           v.brandstof=T(br.brandstof_omschrijving||'');
@@ -58848,7 +58864,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function apkBijRdw(kenteken){
     var k=sleutel(kenteken);
     if(!k) return Promise.resolve(null);
-    return fetch('https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken='+encodeURIComponent(k))
+    /* 22-10-2026: teller achter het adres en `no-store`, zodat de browser geen
+       oud antwoord hergebruikt - zie dezelfde aanpassing bij de voertuigen. */
+    return fetch('https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken='+encodeURIComponent(k)+'&_='+Date.now(),{cache:'no-store'})
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ return (d&&d.length) ? (d[0].vervaldatum_apk||null) : null; })
       .catch(function(){ return null; });
@@ -59084,6 +59102,93 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     dagen:function(n){ return n===undefined?dagenInstelling():dagenZetten(n); },
     herinneringenWissen:function(){ uitgesteldOpslaan({}); return 'alle herinneringen gewist'; }
   };
+})();
+
+/* ==========================================================
+   BNS TW APK-TAB - het APK-overzicht krijgt een eigen rubriek (22-10-2026)
+   ----------------------------------------------------------
+   [stated] "ook viel me op dat de gegevens van dit rdw zoals voertuigen bij
+   alle rubrieken in admin staan zoals materiaal, klanten, personeel enz
+   terwijl we een eigen rubriek hebben voertuigen."
+
+   Klopt, en het is dezelfde fout als eerder bij de voertuigen. In Admin hoort
+   elk tabblad de klasse `adminPane` te hebben; de knoppen erboven verbergen
+   alle panelen en tonen er een. Een blok zonder die klasse wordt nooit
+   verborgen en staat dus onder Materialen, Klanten, Locaties, Personeel en
+   Data tegelijk.
+
+   Voor de voertuigen is dat destijds opgelost met R109: die maakt een tabblad
+   "Voertuigen" en zet de blokken daarin. Het APK-blok is daarna gebouwd en
+   stond niet in dat lijstje - vandaar dat het alsnog overal opdook.
+
+   Hier komt een eigen knop "APK" naast Voertuigen, met een eigen paneel waar
+   het APK-blok in wordt gezet. Verder verandert er niets aan wat dat blok
+   doet; dit verhuist het alleen. Een eigen module in plaats van R109
+   uitbreiden, zodat die module met rust blijft.
+
+   Eerder gevraagd en nu pas echt geleverd: [stated] "kunnen we naast rubriek
+   voertuigen een rubriek krijgen apk."
+========================================================== */
+(function bnsTwApkTab(){
+  'use strict';
+  if(window.__BNS_TW_APK_TAB__) return;
+  window.__BNS_TW_APK_TAB__=true;
+
+  var PANE='adminApk';
+  var BLOK='bnsTwApkVak';
+
+  function E(id){ return document.getElementById(id); }
+
+  function maakTab(){
+    var area=E('adminArea');
+    if(!area) return null;
+
+    var pane=E(PANE);
+    if(!pane){
+      pane=document.createElement('div');
+      pane.id=PANE;
+      pane.className='adminPane panel hidden';
+      area.appendChild(pane);
+    }
+
+    var eersteTab=document.querySelector('.adminTab');
+    if(eersteTab && !document.querySelector('.adminTab[data-admin="'+PANE+'"]')){
+      var knop=document.createElement('button');
+      knop.type='button';
+      knop.className=eersteTab.className.replace('active','').trim();
+      knop.setAttribute('data-admin', PANE);
+      knop.textContent='APK';
+      /* Dezelfde afhandeling als de bestaande knoppen: alles verbergen, deze tonen. */
+      knop.addEventListener('click', function(){
+        document.querySelectorAll('.adminTab').forEach(function(x){ x.classList.remove('active'); });
+        document.querySelectorAll('.adminPane').forEach(function(x){ x.classList.add('hidden'); });
+        knop.classList.add('active');
+        var p=E(PANE); if(p) p.classList.remove('hidden');
+      });
+      /* Achter de knop Voertuigen als die er is, anders gewoon achteraan. */
+      var voertuigKnop=document.querySelector('.adminTab[data-admin="adminVoertuigen"]');
+      if(voertuigKnop && voertuigKnop.parentNode){
+        voertuigKnop.parentNode.insertBefore(knop, voertuigKnop.nextSibling);
+      } else {
+        eersteTab.parentNode.appendChild(knop);
+      }
+    }
+    return pane;
+  }
+
+  /* Het APK-blok naar binnen halen zodra het getekend is. Het APK-overzicht
+     maakt het blok zelf aan onder #adminArea; zodra het hier staat vindt die
+     module het daar terug en zet het er niet opnieuw neer. */
+  function verhuis(){
+    var pane=maakTab();
+    if(!pane) return;
+    var vak=E(BLOK);
+    if(vak && vak.parentNode!==pane) pane.appendChild(vak);
+  }
+
+  setInterval(verhuis, 1500);
+  setTimeout(verhuis, 1400);
+  try{ console.info('[BNS TW APK-TAB] Het APK-overzicht staat nu op een eigen tabblad in Admin.'); }catch(e){}
 })();
 
 /* ==========================================================
