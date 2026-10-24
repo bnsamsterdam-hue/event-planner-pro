@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-09-17-R27';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-24-R28';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -20,8 +20,21 @@ function orderStart(o){return clean(o.start||o.dateStart||o.startDate||o.date||"
 function orderEnd(o){return clean(o.end||o.dateEnd||o.endDate||orderStart(o))}
 function dateTime(v){const d=new Date(clean(v).slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?0:d.getTime()}
 function todayTime(){const d=new Date();d.setHours(0,0,0,0);return d.getTime()}
-function canFinishOrderNow(o){const e=dateTime(orderEnd(o)); if(!e) return true; return todayTime()>e}
-function finishBlockedText(o){const e=orderEnd(o); return "Deze opdracht kan nog niet worden afgemeld. Afmelden kan pas na de einddatum"+(e?" (na "+niceDate(e)+")":"")+"."}
+/* ==========================================================
+   24-10-2026 - AFMELDEN KON HIER HELEMAAL NIET.
+   ----------------------------------------------------------
+   Er stonden twee regels die elkaar precies uitsloten:
+     - afmelden mocht pas NA de einddatum  (todayTime() > e)
+     - vanaf de dag NA de einddatum is de opdracht van de telefoon af
+       (zie visibleOrder: e < todayTime() -> weg)
+   De knop kwam dus pas vrij op het moment dat de opdracht verdween, en was in
+   de praktijk nooit in te drukken.
+   Nu mag afmelden vanaf de einddatum ZELF: op de laatste dag meldt de bezorger
+   af, de dag erna valt de opdracht vanzelf uit de werklijst. De andere app
+   deed het al zo.
+========================================================== */
+function canFinishOrderNow(o){const e=dateTime(orderEnd(o)); if(!e) return true; return todayTime()>=e}
+function finishBlockedText(o){const e=orderEnd(o); return "Deze opdracht kan nog niet worden afgemeld. Afmelden kan vanaf de einddatum"+(e?" ("+niceDate(e)+")":"")+"."}
 function niceDate(v){v=clean(v).slice(0,10);const p=v.split("-");return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:v}
 function addressOf(o){const p=[];const add=v=>{v=clean(v);if(v&&!p.includes(v))p.push(v)};[o.locationName,o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,o.address,o.street,o.zip,o.city].forEach(add);if(o.location&&typeof o.location==="object")[o.location.name,o.location.address,o.location.street,o.location.zip,o.location.city].forEach(add);return p.join(", ")}
 function customerName(o){return clean(o.customerName||(o.customer&&o.customer.name)||o.klant||"")}
@@ -572,12 +585,102 @@ function orderCard(o){
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
-      ${canDone()?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden pas na einddatum'}</button>`:""}
+      ${(canDone() && !bnsR28IsAfgerond(o))?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden vanaf einddatum'}</button>`:""}
     </div>
   </article>`;
 }
 
+/* ==========================================================
+   24-10-2026 - TWEEDE LIJST: AFGERONDE OPDRACHTEN TERUGKIJKEN.
+   ----------------------------------------------------------
+   Zodra een opdracht van de werklijst viel was hij voor de bezorger
+   onbereikbaar - ook alles wat hij er zelf in had gezet: foto's, meldingen,
+   de handtekening. Daarom een tweede lijst naast de werklijst.
+
+   Wat er in hoort: zijn eigen opdrachten van DIT KALENDERJAAR die bevestigd
+   zijn geweest en nu voorbij of afgemeld zijn. Op 1 januari is de lijst leeg
+   en begint het jaar schoon. Offertes, opties, geannuleerde en verwijderde
+   opdrachten horen er net zo min in als in de werklijst.
+
+   Het is om te KIJKEN, niet om te werken: geen afmelden, geen navigatie, geen
+   melding maken. Afmelden hoort bij de werklijst, en daar kan het sinds
+   vandaag ook echt (zie canFinishOrderNow hierboven).
+
+   Let op: de einddatum verandert niets aan de opdracht zelf. De status blijft
+   gewoon staan; het zijn de schermen die op datum indelen - hier en op de
+   Archief-pagina in de app. Dat is altijd zo geweest.
+========================================================== */
+var BNS_R28_TOON_AFGEROND = false;
+
+function bnsR28IsAfgerond(o){
+  if(!o) return false;
+  if(isCancelled(o) || isDeleted(o)) return false;
+  try{ if(typeof deletedFlag==='function' && deletedFlag(o)) return false; }catch(e){}
+  var f = BNS_driverFolder(o);
+  if(f!=='lopend' && f!=='uitgevoerd') return false;      /* nooit offerte, optie of archief */
+  try{ if(typeof visibleOrder==='function' && visibleOrder(o)) return false; }catch(e){}  /* staat nog in de werklijst */
+  var jaar = clean(orderEnd(o)||orderStart(o)).slice(0,4);
+  if(jaar !== String(new Date().getFullYear())) return false;
+  return assignedToUser(o);
+}
+
+function bnsR28AfgerondeOrders(){
+  return bns518LatestOrdersByNumber(BNS.state.orders||[])
+    .filter(bnsR28IsAfgerond)
+    .sort((a,b)=>dateTime(orderEnd(b)||orderStart(b))-dateTime(orderEnd(a)||orderStart(a)));
+}
+
+function bnsR28AfgerondeKaart(o){
+  const a=addressOf(o), s=orderStart(o), e=orderEnd(o);
+  const dl = s&&e&&s!==e ? `${niceDate(s)} tot ${niceDate(e)}` : niceDate(s||e);
+  const af = clean(o.doneAt||o.driverDoneAt||"").slice(0,10);
+  const door = clean(o.doneBy||o.driverDoneBy||"");
+  return `<article class="order-card order" data-id="${esc(o.id)}" data-search="${esc(searchIndexText(o))}" style="opacity:.92">
+    <span class="order-number">${esc(o.number||"Opdracht")}</span>
+    <div class="order-title">${esc(o.title||"Zonder titel")}</div>
+    <div class="badges"><span class="badge">${esc(o.status||"Uitgevoerd")}</span></div>
+    <div class="meta">
+      <div class="meta-row"><span>\u{1F4C5}</span><div><strong>${esc(dl||"Geen datum")}</strong></div></div>
+      <div class="meta-row"><span>\u{1F464}</span><div>${esc(customerName(o)||"Klant onbekend")}</div></div>
+      <div class="meta-row"><span>\u{1F4CD}</span><div>${esc(a||"Adres onbekend")}</div></div>
+      ${af?`<div class="meta-row"><span>\u2714\uFE0F</span><div>Afgemeld op ${esc(niceDate(af))}${door?` door ${esc(door)}`:""}</div></div>`:""}
+    </div>
+    <div class="action-grid">
+      <button type="button" class="more-btn wide" data-detail="${esc(o.id)}">Open opdracht</button>
+    </div>
+  </article>`;
+}
+
+/* De twee knoppen boven de lijst. Hier gemaakt en niet in de pagina gezet,
+   zodat er maar een bestand vervangen hoeft te worden. */
+function bnsR28Balk(){
+  const box = $("orders");
+  if(!box) return;
+  let b = document.getElementById("bnsR28Balk");
+  if(!b){
+    b = document.createElement("div");
+    b.id = "bnsR28Balk";
+    b.style.cssText = "display:flex;gap:8px;margin:10px 0";
+    b.innerHTML = '<button type="button" id="bnsR28TabWerk" class="btn wide" style="flex:1"></button>'+
+                  '<button type="button" id="bnsR28TabAf" class="btn wide" style="flex:1"></button>';
+    box.parentNode.insertBefore(b, box);
+    b.querySelector("#bnsR28TabWerk").onclick=function(){ BNS_R28_TOON_AFGEROND=false; render(); };
+    b.querySelector("#bnsR28TabAf").onclick=function(){ BNS_R28_TOON_AFGEROND=true; render(); };
+  }
+  const w=document.getElementById("bnsR28TabWerk"), f=document.getElementById("bnsR28TabAf");
+  if(w){ w.textContent="Opdrachten ("+getOrders().length+")"; w.className="btn wide "+(BNS_R28_TOON_AFGEROND?"btn-dark":"btn-green"); }
+  if(f){ f.textContent="Afgerond ("+bnsR28AfgerondeOrders().length+")"; f.className="btn wide "+(BNS_R28_TOON_AFGEROND?"btn-green":"btn-dark"); }
+}
+
 function render(){
+  bnsR28Balk();
+  if(BNS_R28_TOON_AFGEROND){
+    const af=bnsR28AfgerondeOrders();
+    $("orders").innerHTML=af.length?af.map(bnsR28AfgerondeKaart).join(""):`<div class="empty">Nog geen afgeronde opdrachten dit jaar.</div>`;
+    bindActions();
+    setTimeout(applyDriverSearch,0);
+    return;
+  }
   const rows=getOrders();
   $("orders").innerHTML=rows.length?rows.map(orderCard).join(""):`<div class="empty">Geen opdrachten voor deze gebruiker.</div>`;
   bindActions();
@@ -678,6 +781,12 @@ function fullOrderHtml(o, title){
   </div>`;
 }
 
+/* 24-10-2026: geen afmeldknop bij een opdracht die al in Afgerond staat.
+   [stated] "jij meldde net dat je in de nieuwe rubriek ook afmelden hebt
+   gemaakt, die mag daar weg." Afmelden hoort bij de werklijst; in de kijklijst
+   zou een druk op de knop de naam en datum van de eerste afmelding
+   overschrijven. In de werklijst verandert er niets: daar is een opdracht per
+   definitie niet afgerond, dus de knop staat er gewoon. */
 function detailHtml(o){
   const a=addressOf(o),p=locationPhone(o),more=otherCustomerOrders(o);
   return `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div>
@@ -691,7 +800,7 @@ function detailHtml(o){
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red wide" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
-      ${canDone()?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden pas na einddatum'}</button>`:""}
+      ${(canDone() && !bnsR28IsAfgerond(o))?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden vanaf einddatum'}</button>`:""}
     </div>
   </article>`;
 }
