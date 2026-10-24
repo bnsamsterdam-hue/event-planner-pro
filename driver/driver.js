@@ -23,15 +23,12 @@ function todayTime(){const d=new Date();d.setHours(0,0,0,0);return d.getTime()}
 /* ==========================================================
    24-10-2026 - AFMELDEN KON HIER HELEMAAL NIET.
    ----------------------------------------------------------
-   Er stonden twee regels die elkaar precies uitsloten:
-     - afmelden mocht pas NA de einddatum  (todayTime() > e)
-     - vanaf de dag NA de einddatum is de opdracht van de telefoon af
-       (zie visibleOrder: e < todayTime() -> weg)
-   De knop kwam dus pas vrij op het moment dat de opdracht verdween, en was in
-   de praktijk nooit in te drukken.
-   Nu mag afmelden vanaf de einddatum ZELF: op de laatste dag meldt de bezorger
-   af, de dag erna valt de opdracht vanzelf uit de werklijst. De andere app
-   deed het al zo.
+   Twee regels sloten elkaar precies uit: afmelden mocht pas NA de einddatum,
+   en vanaf de dag NA de einddatum is de opdracht van de telefoon af (zie de
+   datumcontrole in visibleOrder). De knop kwam dus vrij op het moment dat de
+   opdracht verdween en was in de praktijk nooit in te drukken.
+   Nu mag afmelden vanaf de einddatum ZELF: op de laatste dag meldt de
+   bezorger af, de dag erna valt de opdracht vanzelf uit de werklijst.
 ========================================================== */
 function canFinishOrderNow(o){const e=dateTime(orderEnd(o)); if(!e) return true; return todayTime()>=e}
 function finishBlockedText(o){const e=orderEnd(o); return "Deze opdracht kan nog niet worden afgemeld. Afmelden kan vanaf de einddatum"+(e?" ("+niceDate(e)+")":"")+"."}
@@ -585,7 +582,7 @@ function orderCard(o){
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
-      ${(canDone() && !bnsR28IsAfgerond(o))?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden vanaf einddatum'}</button>`:""}
+      ${canDone()?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden vanaf einddatum'}</button>`:""}
     </div>
   </article>`;
 }
@@ -603,11 +600,11 @@ function orderCard(o){
    opdrachten horen er net zo min in als in de werklijst.
 
    Het is om te KIJKEN, niet om te werken: geen afmelden, geen navigatie, geen
-   melding maken. Afmelden hoort bij de werklijst, en daar kan het sinds
-   vandaag ook echt (zie canFinishOrderNow hierboven).
+   nieuwe foto's. Afmelden hoort bij de werklijst, en daar kan het sinds
+   vandaag ook echt.
 
    Let op: de einddatum verandert niets aan de opdracht zelf. De status blijft
-   gewoon staan; het zijn de schermen die op datum indelen - hier en op de
+   staan; het zijn de schermen die op datum indelen - hier en op de
    Archief-pagina in de app. Dat is altijd zo geweest.
 ========================================================== */
 var BNS_R28_TOON_AFGEROND = false;
@@ -617,8 +614,8 @@ function bnsR28IsAfgerond(o){
   if(isCancelled(o) || isDeleted(o)) return false;
   try{ if(typeof deletedFlag==='function' && deletedFlag(o)) return false; }catch(e){}
   var f = BNS_driverFolder(o);
-  if(f!=='lopend' && f!=='uitgevoerd') return false;      /* nooit offerte, optie of archief */
-  try{ if(typeof visibleOrder==='function' && visibleOrder(o)) return false; }catch(e){}  /* staat nog in de werklijst */
+  if(f!=='lopend' && f!=='uitgevoerd') return false;
+  try{ if(typeof visibleOrder==='function' && visibleOrder(o)) return false; }catch(e){}
   var jaar = clean(orderEnd(o)||orderStart(o)).slice(0,4);
   if(jaar !== String(new Date().getFullYear())) return false;
   return assignedToUser(o);
@@ -651,8 +648,47 @@ function bnsR28AfgerondeKaart(o){
   </article>`;
 }
 
-/* De twee knoppen boven de lijst. Hier gemaakt en niet in de pagina gezet,
-   zodat er maar een bestand vervangen hoeft te worden. */
+/* ---------- wat er al is vastgelegd, om te bekijken ---------- */
+function bnsR28Vastgelegd(o){
+  const list=(BNS.state && Array.isArray(BNS.state.alerts)) ? BNS.state.alerts : [];
+  const oid=String(o&&o.id||""), onr=String(o&&o.number||"");
+  return list.filter(a=>{
+    if(!a) return false;
+    const ai=String(a.orderId||""), an=String(a.orderNumber||"");
+    return (oid&&(ai===oid||an===oid)) || (onr&&(ai===onr||an===onr));
+  }).sort((a,b)=>String(a.createdAt||"").localeCompare(String(b.createdAt||"")));
+}
+function bnsR28Afbeelding(a){
+  return (a && (a.data || a.photoData || a.signatureData || a.imageData || a.image)) || "";
+}
+function bnsR28ToonVastgelegd(o){
+  const items=bnsR28Vastgelegd(o);
+  const wrap=document.createElement("div");
+  wrap.style.cssText="position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:14px";
+  const body = items.length ? items.map(a=>{
+    const img=bnsR28Afbeelding(a);
+    const wanneer=clean(a.time||"")||niceDate(clean(a.createdAt||"").slice(0,10));
+    const wie=clean(a.driverName||a.from||"");
+    const tekst=clean(a.note||a.text||a.message||"");
+    return `<div style="border:1px solid #e2e8f0;border-radius:14px;padding:11px;margin-bottom:10px">
+      <div style="font-weight:900">${esc(a.type||a.title||"Melding")}</div>
+      <div style="font-size:13px;color:#64748b">${esc(wanneer)}${wie?" - "+esc(wie):""}</div>
+      ${tekst?`<div style="margin-top:5px">${esc(tekst)}</div>`:""}
+      ${img?`<img src="${img}" style="margin-top:8px;max-width:100%;border-radius:10px">`:""}
+    </div>`;
+  }).join("") : `<div style="color:#64748b">Er is bij deze opdracht niets vastgelegd.</div>`;
+  wrap.innerHTML=`<div style="background:#fff;border-radius:22px;padding:16px;width:min(620px,100%);max-height:88vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.35)">
+    <h2 style="margin:0 0 4px;font-size:19px">Vastgelegd bij deze opdracht</h2>
+    <div style="font-size:13px;color:#64748b;margin-bottom:12px">${esc(o.number||"")} ${esc(o.title||"")}</div>
+    ${body}
+    <button type="button" id="bnsR28Sluit" style="width:100%;margin-top:6px;padding:14px;border:0;border-radius:12px;background:#475569;color:#fff;font-weight:900;font-size:16px">Sluiten</button>
+  </div>`;
+  document.body.appendChild(wrap);
+  wrap.querySelector("#bnsR28Sluit").onclick=()=>wrap.remove();
+  wrap.onclick=(ev)=>{ if(ev.target===wrap) wrap.remove(); };
+}
+
+/* ---------- de twee knoppen boven de lijst ---------- */
 function bnsR28Balk(){
   const box = $("orders");
   if(!box) return;
@@ -781,18 +817,17 @@ function fullOrderHtml(o, title){
   </div>`;
 }
 
-/* 24-10-2026: geen afmeldknop bij een opdracht die al in Afgerond staat.
-   [stated] "jij meldde net dat je in de nieuwe rubriek ook afmelden hebt
-   gemaakt, die mag daar weg." Afmelden hoort bij de werklijst; in de kijklijst
-   zou een druk op de knop de naam en datum van de eerste afmelding
-   overschrijven. In de werklijst verandert er niets: daar is een opdracht per
-   definitie niet afgerond, dus de knop staat er gewoon. */
 function detailHtml(o){
   const a=addressOf(o),p=locationPhone(o),more=otherCustomerOrders(o);
   return `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div>
   <article class="card detail-card">
     ${fullOrderHtml(o,'Open opdracht')}
     ${more.length?`<div class="section-title">Meer artikelen / opdrachten voor deze klant</div><div class="info-box">${more.map(x=>`• ${esc(x.number||"")} ${esc(x.title||"")} - ${esc(niceDate(orderStart(x)))}`).join("<br>")}</div>`:""}
+    ${bnsR28IsAfgerond(o)?`
+    <div class="section-title">Afgeronde opdracht</div>
+    <div class="report-grid">
+      <button type="button" class="btn btn-purple wide" data-bns-vastgelegd="${esc(o.id)}">Foto's en handtekening bekijken (${bnsR28Vastgelegd(o).length})</button>
+    </div>`:`
     <div class="section-title">Acties</div>
     <div class="report-grid">
       ${waarschuwBlok(o)}
@@ -800,8 +835,8 @@ function detailHtml(o){
       ${p?`<a class="btn" href="tel:${esc(p)}">Bel klant</a>`:""}
       ${canAnyReportAction()?`<button type="button" class="btn btn-red wide" style="background:#dc2626!important;color:#fff!important" data-report-menu="${esc(o.id)}">Melding maken</button>`:""}
       ${canQuote()?`<button type="button" class="btn btn-orange" data-quote="${esc(o.id)}">Offerte</button>`:""}
-      ${(canDone() && !bnsR28IsAfgerond(o))?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden vanaf einddatum'}</button>`:""}
-    </div>
+      ${canDone()?`<button type="button" class="btn btn-full ${canFinishOrderNow(o)?'btn-green':'btn-dark'} wide" data-done="${esc(o.id)}">${canFinishOrderNow(o)?'Afmelden / uitgevoerd':'Afmelden vanaf einddatum'}</button>`:""}
+    </div>`}
   </article>`;
 }
 
@@ -1231,6 +1266,11 @@ function openSignatureModal(order){
 function enhanceDriverButtons(){
   function addMediaButtons(grid,id){
     if(!id||!grid||grid.dataset.media143)return;
+    /* 24-10-2026: bij een afgeronde opdracht niets toevoegen waarmee je iets
+       NIEUWS maakt - daar wordt gekeken, niet gewerkt. [stated] "het lijkt
+       erop dat ik nog een foto dien te maken ... er zou dus uit het archief
+       iets van bewijs moeten komen." */
+    try{ var ord=findOrder(id); if(ord && bnsR28IsAfgerond(ord)) return; }catch(e){}
     grid.dataset.media143="1";
     if(canAnyPhotoAction()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-dark" data-photo-menu="${esc(id)}">Foto / bewijs</button>`);
     if(canSignature()) grid.insertAdjacentHTML("beforeend",`<button type="button" class="btn btn-purple wide" data-signature="${esc(id)}">Handtekening klant</button>`);
@@ -1253,6 +1293,7 @@ function enhanceDriverButtons(){
   qsa("[data-photo-after]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoAfter); if(o)sendPhoto(o,"Foto na levering")}});
   qsa("[data-photo-menu]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.photoMenu); if(o)openPhotoChoice(o)}});
   qsa("[data-signature]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.dataset.signature); if(o)openSignatureModal(o)}});
+  qsa("[data-bns-vastgelegd]").forEach(b=>{b.onclick=()=>{const o=findOrder(b.getAttribute("data-bns-vastgelegd")); if(o)bnsR28ToonVastgelegd(o)}});
 }
 
 function bindActions(){
