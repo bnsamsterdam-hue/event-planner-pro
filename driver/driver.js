@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R38';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R39';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -1487,6 +1487,9 @@ async function boot(){
     $("clearSearchBtn").onclick=()=>{$("searchBox").value="";applyDriverSearch()};
     $("searchBox").oninput=applyDriverSearch;
     restoreSession(userAllowed,SESSION_KEY,showApp);
+    /* 25-10-2026: meeluisteren op het overzichtje van openstaande reparaties,
+       zodat de rode knop en de lijst vanzelf meelopen. */
+    try{ setTimeout(bnsOhMeeluisteren, 2000); }catch(e){}
   }catch(e){console.error(e);setStatus("Fout: "+e.message)}
 }
 boot();
@@ -2357,6 +2360,55 @@ async function bnsOhVastePuntenHalen(){
    zijn hele rode lijst. Er wordt hier dus NIETS per object opgehaald; dat
    gebeurt pas als je er eentje opent om af te melden.
 ========================================================== */
+/* ==========================================================
+   25-10-2026 - DE RODE KNOP LOOPT NU VANZELF MEE.
+   ----------------------------------------------------------
+   [stated] "dit is ook onder de bezorgtelefoons; hij moet opnieuw laden wil
+   de wijziging van een andere bezorger zichtbaar worden."
+
+   Dat klopte: het overzichtje werd alleen opgehaald op het moment dat je op
+   de knop Reparatie drukte. Meldt een andere bezorger intussen iets af, dan
+   zag je dat pas als je de knop opnieuw aantikte.
+
+   Hier dezelfde weg als de opdrachten en de bezorgers in deze telefoon al
+   gebruiken: een meeluisteraar. Firebase duwt een wijziging door op het
+   moment dat hij gemaakt wordt. Het gaat om EEN klein document, dus dit kost
+   niets zolang er niets verandert - zeker minder dan elke tien seconden zelf
+   gaan kijken.
+
+   Staat de bezorger een wagen te bekijken, dan worden ook de beurten van die
+   ene wagen opnieuw opgehaald, zodat hij niet iets afmeldt wat al weg is.
+========================================================== */
+var bnsOhLuistert=false;
+function bnsOhMeeluisteren(){
+  try{
+    var f=window.BNS && BNS.firebase, db=window.BNS && BNS.db;
+    if(!(f && db && f.onSnapshot && f.doc)){ setTimeout(bnsOhMeeluisteren, 4000); return; }
+    if(bnsOhLuistert) return;
+    bnsOhLuistert=true;
+    f.onSnapshot(f.doc(db,'settings','onderhoud_open'), async function(snap){
+      try{
+        const d=(snap && snap.exists && snap.exists()) ? snap.data() : null;
+        if(!d) return;
+        const uit={};
+        Object.keys(d).forEach(function(k){
+          if(k.indexOf('o_')!==0) return;
+          const v=d[k];
+          if(v && typeof v==='object' && Number(v.n)>0) uit[k.slice(2)]=v;
+          else if(Number(v)>0) uit[k.slice(2)]={n:Number(v), naam:'', nr:'', punten:[]};
+        });
+        bnsOhTellers=uit;
+        if(BNS_R30_ONDERHOUD && bnsOhScherm==='boek' && bnsOhObject){
+          delete bnsOhRegels[bnsOhObject];
+          await bnsOhRegelsHalen(bnsOhObject);
+        }
+        bnsOhBalk();
+        if(BNS_R30_ONDERHOUD) bnsOhTeken();
+      }catch(e){}
+    }, function(){ bnsOhLuistert=false; setTimeout(bnsOhMeeluisteren, 8000); });
+  }catch(e){ bnsOhLuistert=false; }
+}
+
 async function bnsOhTellersHalen(force){
   if(bnsOhTellers && !force) return bnsOhTellers;
   const uit={};
