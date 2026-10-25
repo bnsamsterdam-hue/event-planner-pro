@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD10-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD11-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59590,7 +59590,33 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function regelsOpslaan(objId,l){
     try{ localStorage.setItem(REG_KEY+objId, JSON.stringify(l)); }catch(e){}
     try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('onderhoud',{id:String(objId), regels:l, bijgewerkt:nuISO()}); }catch(e){}
+    tellerDelen(objId);
     return l;
+  }
+
+  /* ==========================================================
+     25-10-2026 - EEN KLEIN OVERZICHTJE VAN WAT ER OPENSTAAT.
+     ----------------------------------------------------------
+     [stated] "bij de bezorgtelefoon opent een hele lijst van alle materialen;
+     hier zou alleen op moeten te zien zijn wat nog gerepareerd moet worden,
+     ook in rood."
+     De telefoon kan dat niet weten zonder van alle 169 objecten de regels op
+     te halen, en dat is precies wat we niet willen. Daarom houdt deze kant
+     een klein lijstje bij in settings/onderhoud_open: per object hoeveel
+     punten er nog openstaan. Dat is een document van een paar regels tekst,
+     en daarmee weet de telefoon meteen welke paar objecten hij moet ophalen.
+
+     Er wordt PER OBJECT een veld geschreven, niet het hele lijstje in een
+     keer. Anders zou een computer die maar een paar objecten geopend heeft
+     de tellers van alle andere op nul zetten - die kent hij immers niet.
+  ========================================================== */
+  function tellerDelen(objId){
+    try{
+      if(!(window.BNS && typeof window.BNS.syncDoc==='function')) return;
+      var mee={id:'onderhoud_open', bijgewerkt:nuISO()};
+      mee['o_'+String(objId)]=openPunten(objId);
+      window.BNS.syncDoc('settings', mee);
+    }catch(e){}
   }
   function regelsOphalen(objId){
     if(!objId || geladen[objId]) return Promise.resolve(regels(objId));
@@ -60260,6 +60286,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         var fs=window.BNS && window.BNS.fs, db=window.BNS && window.BNS.db;
         if(fs && db && fs.deleteDoc && fs.doc) fs.deleteDoc(fs.doc(db,'onderhoud',String(i))).catch(function(){});
       }catch(e){}
+      try{ if(window.BNS && typeof window.BNS.syncDoc==='function'){ var m={id:'onderhoud_open'}; m['o_'+String(i)]=0; window.BNS.syncDoc('settings', m); } }catch(e){}
       if(T(gekozen)===T(i)){ gekozen=''; form=null; }
     });
     aangevinkt={};
