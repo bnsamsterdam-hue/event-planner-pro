@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R34';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R35';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -2306,25 +2306,32 @@ async function bnsOhVastePuntenHalen(){
   return bnsOhVastePunten;
 }
 
-async function bnsOhTellersHalen(){
-  if(bnsOhTellers) return bnsOhTellers;
-  bnsOhTellers={};
+/* ==========================================================
+   25-10-2026 - EEN DOCUMENT, EN DAAR STAAT ALLES IN WAT OPENSTAAT.
+   ----------------------------------------------------------
+   [stated] "het gaat om de bezorgtelefoon waar alleen de nog te repareren op
+   moeten komen, dat zijn er 4 of 5."
+   De planner zet die paar punten in settings/onderhoud_open, met de naam van
+   het object erbij. De telefoon leest dat ene kleine document en heeft daarmee
+   zijn hele rode lijst. Er wordt hier dus NIETS per object opgehaald; dat
+   gebeurt pas als je er eentje opent om af te melden.
+========================================================== */
+async function bnsOhTellersHalen(force){
+  if(bnsOhTellers && !force) return bnsOhTellers;
+  const uit={};
   try{
     const {doc,getDoc}=await bnsOhFirestore();
     const snap=await getDoc(doc(BNS.db,'settings','onderhoud_open'));
     const d=snap && snap.exists() ? snap.data() : null;
     if(d) Object.keys(d).forEach(function(k){
-      if(k.indexOf('o_')===0){ const n=Number(d[k])||0; if(n>0) bnsOhTellers[k.slice(2)]=n; }
+      if(k.indexOf('o_')!==0) return;
+      const v=d[k];
+      if(v && typeof v==='object' && Number(v.n)>0) uit[k.slice(2)]=v;
+      else if(Number(v)>0) uit[k.slice(2)]={n:Number(v), naam:'', nr:'', punten:[]};
     });
   }catch(e){}
+  bnsOhTellers=uit;
   return bnsOhTellers;
-}
-/* Alleen de objecten met openstaand werk ophalen - dat zijn er een paar. */
-async function bnsOhOpenstaandeHalen(){
-  await bnsOhObjectenHalen();
-  const t=await bnsOhTellersHalen();
-  const ids=Object.keys(t);
-  for(let i=0;i<ids.length && i<40;i++){ try{ await bnsOhRegelsHalen(ids[i]); }catch(e){} }
 }
 
 /* ---------- de regels van een object, pas bij openen ---------- */
@@ -2366,12 +2373,20 @@ async function bnsOhRegelsBewaren(objId, lijst){
   /* 25-10-2026: de teller voor de telefoon meteen bijwerken, zodat het
      beginscherm klopt zonder dat er iets opnieuw opgehaald hoeft te worden. */
   try{
-    let n=0;
-    (lijst||[]).forEach(function(r){ (r.punten||[]).forEach(function(p){ if(clean(p.staat)!=='klaar') n++; }); });
+    const o=bnsOhObjectVan(objId) || {naam:(bnsOhTellers&&bnsOhTellers[objId]&&bnsOhTellers[objId].naam)||'', twnr:'', kenteken:''};
+    const punten=[];
+    (lijst||[]).forEach(function(r){
+      (r.punten||[]).forEach(function(p,i){
+        if(clean(p.staat)==='klaar') return;
+        punten.push({t:clean(p.tekst), r:clean(r.id), i:i, d:clean(r.datum), s:clean(r.soort)});
+      });
+    });
+    const vak={ n:punten.length, naam:clean(o.naam),
+                nr:[clean(o.twnr), clean(o.kenteken)].filter(Boolean).join(' \u00B7 '), punten:punten };
     if(!bnsOhTellers) bnsOhTellers={};
-    if(n>0) bnsOhTellers[objId]=n; else delete bnsOhTellers[objId];
+    if(vak.n>0) bnsOhTellers[objId]=vak; else delete bnsOhTellers[objId];
     const {doc,setDoc}=await bnsOhFirestore();
-    const mee={id:'onderhoud_open'}; mee['o_'+String(objId)]=n;
+    const mee={id:'onderhoud_open'}; mee['o_'+String(objId)]=vak;
     await setDoc(doc(BNS.db,'settings','onderhoud_open'), mee, {merge:true});
   }catch(e){}
   try{ localStorage.setItem('bns_tw_oh_regels_'+objId, JSON.stringify(lijst)); }catch(e){}
@@ -2392,7 +2407,7 @@ function bnsOhTotaalOpen(){
      waarvan we de regels nog niet hebben opgehaald */
   if(bnsOhTellers){
     let t=0;
-    Object.keys(bnsOhTellers).forEach(function(k){ t+=Number(bnsOhTellers[k])||0; });
+    Object.keys(bnsOhTellers).forEach(function(k){ t+=Number(bnsOhTellers[k].n)||0; });
     return t;
   }
   let n=0;
@@ -2464,28 +2479,27 @@ function bnsOhTeken(){
       </article>`;
     }).join('') : `<div class="empty">Niets gevonden voor "${esc(bnsOhZoek)}".</div>`;
   } else {
-    const metWerk=(bnsOhObjecten||[]).filter(o=>((bnsOhTellers&&bnsOhTellers[o.id])||bnsOhOpen(o.id).length)>0);
-    inhoud = metWerk.length ? metWerk.map(o=>{
-      const punten=bnsOhOpen(o.id);
-      const n=punten.length||((bnsOhTellers&&bnsOhTellers[o.id])||0);
-      const onder=[bnsOhT(o.twnr), bnsOhT(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
-      const rijen=punten.length
-        ? punten.map(p=>`<div style="padding:7px 10px;border-radius:9px;margin:0 0 5px;background:#fff6f6;color:#b91c1c;font-weight:800">${esc(p.tekst)}</div>`).join('')
-        : `<div style="color:#64748b">Bezig met ophalen...</div>`;
-      return `<article class="order-card order" data-id="${esc(o.id)}" style="border-top-color:#dc2626">
-        <div style="display:flex;justify-content:space-between;gap:9px;align-items:center">
-          <div class="order-title" style="color:#b91c1c">${esc(o.naam)}</div>
-          <span class="badge" style="background:#fee2e2;color:#b91c1c">${n} nog doen</span>
-        </div>
-        <div class="meta"><div class="meta-row"><span>\u{1F527}</span><div>${esc(onder)}</div></div></div>
-        <div style="margin:8px 0">${rijen}</div>
-        <div class="action-grid"><button type="button" class="more-btn wide" data-oh-open="${esc(o.id)}">Openen en afmelden</button></div>
-      </article>`;
+    /* Alles komt uit het overzichtsdocument: naam, nummer en de punten zelf. */
+    const ids=Object.keys(bnsOhTellers||{});
+    inhoud = ids.length ? ids.map(function(id){
+      const v=bnsOhTellers[id];
+      const rijen=(v.punten&&v.punten.length)
+        ? v.punten.map(function(p){ return '<div style="padding:8px 11px;border-radius:9px;margin:0 0 5px;background:#fff6f6;color:#b91c1c;font-weight:800">'+esc(p.t)+'</div>'; }).join('')
+        : '<div style="color:#64748b">'+v.n+' punt(en)</div>';
+      return '<article class="order-card order" data-id="'+esc(id)+'" style="border-top-color:#dc2626">'+
+        '<div style="display:flex;justify-content:space-between;gap:9px;align-items:center">'+
+          '<div class="order-title" style="color:#b91c1c">'+esc(v.naam||'Onbekend')+'</div>'+
+          '<span class="badge" style="background:#fee2e2;color:#b91c1c">'+v.n+' nog doen</span>'+
+        '</div>'+
+        (v.nr? '<div class="meta"><div class="meta-row"><span>\u{1F527}</span><div>'+esc(v.nr)+'</div></div></div>' : '')+
+        '<div style="margin:8px 0">'+rijen+'</div>'+
+        '<div class="action-grid"><button type="button" class="more-btn wide" data-oh-open="'+esc(id)+'">Openen en afmelden</button></div>'+
+      '</article>';
     }).join('')
-    : `<article class="order-card"><div class="order-title" style="color:#166534">Niets te repareren</div>
-        <div class="meta"><div class="meta-row"><span>✔️</span><div>Er staat op dit moment niets open.</div></div></div>
-        <div class="meta"><div class="meta-row"><span>\u{1F50D}</span><div>Zoek hierboven op naam, TW-nummer of kenteken om iets te melden.</div></div></div>
-      </article>`;
+    : '<article class="order-card"><div class="order-title" style="color:#166534">Niets te repareren</div>'+
+      '<div class="meta"><div class="meta-row"><span>\u2714\uFE0F</span><div>Er staat op dit moment niets open.</div></div></div>'+
+      '<div class="meta"><div class="meta-row"><span>\u{1F50D}</span><div>Een nieuwe reparatie meld je vanuit de opdracht, bij Melding maken.</div></div></div>'+
+      '</article>';
   }
 
   box.innerHTML = terug + zoekveld + inhoud;
@@ -2691,11 +2705,9 @@ function bnsOhBalk(){
       BNS_R28_TOON_AFGEROND=false;
       bnsOhScherm='lijst'; bnsOhZoek='';
       render();
-      await bnsOhObjectenHalen();
+      await bnsOhTellersHalen(true);     /* een klein document, vers opgehaald */
       render();
-      /* alleen de objecten met openstaand werk ophalen, niet alle 169 */
-      await bnsOhOpenstaandeHalen();
-      render();
+      bnsOhObjectenHalen();              /* op de achtergrond, voor het zoeken */
       bnsOhBalk();
     };
   }
