@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD8-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD9-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59437,6 +59437,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
 
 
+
 /* ==========================================================
    BNS TW ONDERHOUD - beurten met losse punten (25-10-2026)
    ----------------------------------------------------------
@@ -59490,6 +59491,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      het zoeken staan: de objecten, alles wat nog moet, en alles wat gedaan
      is. */
   var view='objecten';            /* objecten | todo | gedaan */
+  var uitgeklapt={};              /* welke objecten open staan in 'Wat er gedaan is' */
   var toevoegOpen=false, opschoonStand=false, puntenBeheer=false, aangevinkt={};
   var geladen={};
   var form=null;                /* de beurt die nu open staat in het formulier */
@@ -59688,7 +59690,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function vinger(){
     return view+'|'+JSON.stringify(objecten().map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,x.soort,openPunten(x.id)]; }))+
       '|'+gekozen+'|'+filter+'|'+(alleenOpen?1:0)+'|'+(toevoegOpen?1:0)+'|'+(opschoonStand?1:0)+'|'+(puntenBeheer?1:0)+
-      '|'+(form?'F':'-')+'|'+JSON.stringify(regels(gekozen).map(function(r){ return [r.id,(r.punten||[]).length,heeftOpen(r)?1:0,r.datum]; }));
+      '|'+(form?'F':'-')+'|'+JSON.stringify(uitgeklapt)+'|'+JSON.stringify(regels(gekozen).map(function(r){ return [r.id,(r.punten||[]).length,heeftOpen(r)?1:0,r.datum]; }));
   }
 
   function tekenen(forceer){
@@ -59747,7 +59749,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">'+
         '<span id="bnsOhTeller" style="font-size:12px;color:#64748b">'+lijst.length+' van '+objecten().length+' getoond</span>'+
         '<span style="display:flex;gap:7px;flex-wrap:wrap">'+
-          knop(opschoonStand?'Klaar met opschonen':'Opschonen', Object.assign({}, opschoonStand?DONKER:GRIJS, {extra:'padding:7px 11px;font-size:13px',attr:'data-oh-opschoon'}))+
+          knop(opschoonStand?'Klaar':'Meerdere tegelijk', Object.assign({}, opschoonStand?DONKER:GRIJS, {extra:'padding:7px 11px;font-size:13px',attr:'data-oh-opschoon'}))+
           knop(toevoegOpen?'Sluit toevoegen':'Object toevoegen', Object.assign({},GROEN,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-toevoeg'}))+
         '</span>'+
       '</div>'+
@@ -59756,15 +59758,34 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       vastePuntenHtml();
   }
 
+  /* ==========================================================
+     25-10-2026 - MEERDERE TEGELIJK: SOORT ZETTEN EN VERWIJDEREN.
+     ----------------------------------------------------------
+     [stated] "je vinkt er een stel aan en kiest dan Maak er Aanhanger van of
+     Maak er Voertuig van, naast de knop om ze te verwijderen. Dan zet je in
+     een keer al je tapwagens en aanhangers goed."
+     Nodig omdat alles wat uit Materialen is overgenomen op "Materiaal" staat
+     en je er met 169 objecten niet een voor een doorheen wilt. De soort is
+     wat de filterknoppen bovenaan gebruiken; per stuk kan het ook, via
+     Object wijzigen.
+  ========================================================== */
   function opschoonHtml(){
     var n=0; Object.keys(aangevinkt).forEach(function(k){ if(aangevinkt[k]) n++; });
-    return '<div style="border:2px solid #dc2626;border-radius:12px;padding:11px;margin-top:9px;background:#fff8f8">'+
-      '<div style="font-weight:900;margin-bottom:4px;color:#172033">Opschonen</div>'+
-      '<div style="font-size:13px;color:#475569;margin-bottom:9px">Vink links aan wat weg mag.</div>'+
-      '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+    return '<div style="border:2px solid #334155;border-radius:12px;padding:11px;margin-top:9px;background:#f8fafc">'+
+      '<div style="font-weight:900;margin-bottom:4px;color:#172033">Meerdere tegelijk</div>'+
+      '<div style="font-size:13px;color:#475569;margin-bottom:9px">Vink links aan welke objecten je wilt veranderen. '+n+' aangevinkt.</div>'+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px">'+
         knop('Alles aanvinken', Object.assign({},GRIJS,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-vink-alles'}))+
         knop('Alleen lege aanvinken', Object.assign({},GRIJS,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-vink-leeg'}))+
         knop('Niets aanvinken', Object.assign({},GRIJS,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-vink-niets'}))+
+      '</div>'+
+      '<div style="font-size:13px;color:#475569;margin-bottom:6px">Soort van de aangevinkte zetten op:</div>'+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px">'+
+        knop('Voertuig', Object.assign({},BLAUW,{extra:'padding:7px 13px;font-size:13px',attr:'data-oh-soortzet="voertuig"'}))+
+        knop('Aanhanger', Object.assign({},BLAUW,{extra:'padding:7px 13px;font-size:13px',attr:'data-oh-soortzet="aanhanger"'}))+
+        knop('Materiaal', Object.assign({},BLAUW,{extra:'padding:7px 13px;font-size:13px',attr:'data-oh-soortzet="materiaal"'}))+
+      '</div>'+
+      '<div style="border-top:1px solid #e2e8f0;padding-top:10px">'+
         knop('Verwijder aangevinkte ('+n+')', Object.assign({},ROOD,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-vink-wis'}))+
       '</div></div>';
   }
@@ -59867,66 +59888,81 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
 
   /* ==========================================================
-     25-10-2026 - TWEE EIGEN RUBRIEKEN: NOG TE DOEN EN WAT ER GEDAAN IS.
+     25-10-2026 - GEGROEPEERD PER OBJECT.
      ----------------------------------------------------------
-     [stated] "die we nog te repareren moeten blijven in rode tekst staan, dus
-     daar een rubriek voor maken, ook een rubriek wat er gedaan is."
-     Beide lopen door ALLE objecten heen, zodat je in een oogopslag ziet wat er
-     nog openstaat zonder per wagen te hoeven kijken. Afmelden kan rechtstreeks
-     vanuit de lijst; met Openen spring je naar het boek van dat object.
+     [stated] "is het niet beter om wat uitgevoerd is in 1 voertuig/materiaal
+     status te maken, nu zie ik al 2x hetzelfde kenteken."
+     Klopt: een regel per punt betekent dat een wagen met drie dingen er drie
+     keer staat. Nu een kopregel per object met een teller, en de punten
+     daaronder. Nog te doen staat open, want daar wil je meteen op handelen;
+     Wat er gedaan is staat dicht, anders is dat na een jaar onleesbaar.
   ========================================================== */
-  function allePunten(alleenOpenstaand){
+  function groepen(alleenOpenstaand){
     var uit=[];
     objecten().forEach(function(o){
+      var punten=[];
       regels(o.id).forEach(function(r){
         (r.punten||[]).forEach(function(p,i){
           var klaar=(T(p.staat)==='klaar');
-          if(alleenOpenstaand && klaar) return;
-          if(!alleenOpenstaand && !klaar) return;
-          uit.push({obj:o, regel:r, punt:p, i:i, klaar:klaar});
+          if(alleenOpenstaand === klaar) return;
+          punten.push({obj:o, regel:r, punt:p, i:i, klaar:klaar});
         });
       });
+      if(!punten.length) return;
+      punten.sort(function(a,b){
+        var ad=String(a.klaar ? (a.punt.klaarOp||a.regel.datum||'') : (a.regel.datum||''));
+        var bd=String(b.klaar ? (b.punt.klaarOp||b.regel.datum||'') : (b.regel.datum||''));
+        return bd.localeCompare(ad);
+      });
+      uit.push({obj:o, punten:punten});
     });
-    uit.sort(function(a,b){
-      var ad=String(a.klaar? (a.punt.klaarOp||a.regel.datum) : a.regel.datum||'');
-      var bd=String(b.klaar? (b.punt.klaarOp||b.regel.datum) : b.regel.datum||'');
-      return bd.localeCompare(ad);
-    });
+    uit.sort(function(a,b){ return T(a.obj.naam).localeCompare(T(b.obj.naam)); });
     return uit;
   }
-  function puntRegelHtml(x, metAfmelden){
-    var s=soortVan(x.regel.soort);
-    var nr=[T(x.obj.twnr), T(x.obj.kenteken)].filter(Boolean).join(' \u00B7 ');
-    return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid #e5e7eb;'+
-        'border-left:6px solid '+(x.klaar?'#15803d':'#dc2626')+';border-radius:12px;padding:10px 12px;margin:0 0 8px;background:'+(x.klaar?'#fff':'#fffafa')+'">'+
-      '<span style="flex:1 1 240px;min-width:0">'+
-        '<span style="font-weight:900;color:'+(x.klaar?'#172033':'#b91c1c')+'">'+esc(x.punt.tekst)+'</span>'+
-        '<span style="display:block;font-size:12px;color:#64748b;margin-top:2px">'+esc(x.obj.naam)+(nr?' \u00B7 '+esc(nr):'')+
-          ' \u00B7 '+esc(s.naam)+' van '+esc(nl(x.regel.datum))+
-          (x.klaar && x.punt.klaarOp ? ' \u00B7 afgemeld op '+esc(nl(x.punt.klaarOp))+(x.punt.klaarDoor?' door '+esc(x.punt.klaarDoor):'') : '')+
+  function groepHtml(g, open, metAfmelden){
+    var nr=[T(g.obj.twnr), T(g.obj.kenteken)].filter(Boolean).join(' \u00B7 ');
+    var kleur = metAfmelden ? '#dc2626' : '#15803d';
+    var kop='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:#f3f7fc;margin:0 0 6px">'+
+        '<span style="flex:1 1 220px;min-width:0">'+
+          tekstIn(esc(g.obj.naam),'#172033','font-weight:900;font-size:15px')+
+          (nr? tekstIn('&nbsp;&nbsp;'+esc(nr),'#64748b','font-size:12px') : '')+
         '</span>'+
-      '</span>'+
-      (metAfmelden? knop('Afmelden', Object.assign({},GROEN,{extra:'padding:8px 13px;font-size:14px',attr:'data-oh-losklaar="'+esc(x.obj.id)+'|'+esc(x.regel.id)+'|'+x.i+'"'})) : '')+
-      knop('Openen', Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:14px',attr:'data-oh-naarobject="'+esc(x.obj.id)+'"'}))+
-    '</div>';
+        '<span style="background:'+(metAfmelden?'#fee2e2':'#dcfce7')+';color:'+(metAfmelden?'#b91c1c':'#166534')+';border-radius:9px;padding:3px 10px;font-size:12px;font-weight:800;white-space:nowrap">'+
+          g.punten.length+(metAfmelden?' nog te doen':' gedaan')+'</span>'+
+        knop(open?'Dichtklappen':'Bekijken', Object.assign({},GRIJS,{extra:'padding:7px 12px;font-size:13px',attr:'data-oh-klap="'+esc(g.obj.id)+'"'}))+
+        knop('Openen', Object.assign({},GRIJS,{extra:'padding:7px 12px;font-size:13px',attr:'data-oh-naarobject="'+esc(g.obj.id)+'"'}))+
+      '</div>';
+    if(!open) return '<div style="margin:0 0 8px">'+kop+'</div>';
+    var rijen=g.punten.map(function(x){
+      var s=soortVan(x.regel.soort);
+      return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-left:4px solid '+kleur+';border-radius:9px;padding:8px 11px;margin:0 0 5px 14px;background:'+(x.klaar?'#fbfdfb':'#fffafa')+'">'+
+        '<span style="flex:1 1 220px;min-width:0">'+
+          tekstIn(esc(x.punt.tekst), x.klaar?'#172033':'#b91c1c','font-weight:800')+
+          tekstIn('<br>'+esc(s.naam)+' van '+esc(nl(x.regel.datum))+
+            (x.klaar && x.punt.klaarOp ? ' \u00B7 afgemeld op '+esc(nl(x.punt.klaarOp))+(x.punt.klaarDoor?' door '+esc(x.punt.klaarDoor):'') : ''),
+            '#64748b','font-size:12px')+
+        '</span>'+
+        (metAfmelden? knop('Afmelden', Object.assign({},GROEN,{extra:'padding:7px 12px;font-size:13px',attr:'data-oh-losklaar="'+esc(x.obj.id)+'|'+esc(x.regel.id)+'|'+x.i+'"'})) : '')+
+      '</div>';
+    }).join('');
+    return '<div style="margin:0 0 10px">'+kop+rijen+'</div>';
   }
   function todoHtml(){
-    var l=allePunten(true);
+    var g=groepen(true);
     return '<div style="border:1px solid #d8dee9;border-radius:14px;padding:14px;background:#fff">'+
       '<div style="font-size:19px;font-weight:900;color:#b91c1c;margin-bottom:3px">Nog te doen</div>'+
-      '<div style="font-size:13px;color:#64748b;margin-bottom:12px">Alles wat op Nog doen staat, over alle wagens en materialen heen. Nieuwste bovenaan.</div>'+
-      (l.length ? l.map(function(x){ return puntRegelHtml(x,true); }).join('')
+      '<div style="font-size:13px;color:#64748b;margin-bottom:12px">Per wagen of materiaal, met alles wat er nog moet gebeuren.</div>'+
+      (g.length ? g.map(function(x){ return groepHtml(x, true, true); }).join('')
                 : '<div style="color:#166534;font-weight:800">Er staat niets open.</div>')+
     '</div>';
   }
   function gedaanHtml(){
-    var l=allePunten(false);
+    var g=groepen(false);
     return '<div style="border:1px solid #d8dee9;border-radius:14px;padding:14px;background:#fff">'+
       '<div style="font-size:19px;font-weight:900;color:#172033;margin-bottom:3px">Wat er gedaan is</div>'+
-      '<div style="font-size:13px;color:#64748b;margin-bottom:12px">Alles wat is afgevinkt of afgemeld, over alle wagens en materialen heen. Nieuwste bovenaan.</div>'+
-      (l.length ? l.slice(0,300).map(function(x){ return puntRegelHtml(x,false); }).join('')
+      '<div style="font-size:13px;color:#64748b;margin-bottom:12px">Per wagen of materiaal. Druk op Bekijken om de historie open te klappen.</div>'+
+      (g.length ? g.map(function(x){ return groepHtml(x, !!uitgeklapt[x.obj.id], false); }).join('')
                 : '<div style="color:#64748b">Nog niets afgerond.</div>')+
-      (l.length>300 ? '<div style="font-size:12px;color:#64748b">De eerste 300 worden getoond.</div>' : '')+
     '</div>';
   }
 
@@ -59935,9 +59971,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var uit=[], d=new Date().toLocaleDateString('nl-NL');
     if(view==='todo' || view==='gedaan'){
       uit.push(view==='todo' ? 'NOG TE DOEN - '+d : 'WAT ER GEDAAN IS - '+d, '');
-      allePunten(view==='todo').slice(0,300).forEach(function(x){
-        var nr=[T(x.obj.twnr), T(x.obj.kenteken)].filter(Boolean).join(' / ');
-        uit.push('- '+T(x.punt.tekst)+'  ['+T(x.obj.naam)+(nr?' '+nr:'')+', '+soortVan(x.regel.soort).naam+' '+nl(x.regel.datum)+']');
+      groepen(view==='todo').forEach(function(g){
+        var nr=[T(g.obj.twnr), T(g.obj.kenteken)].filter(Boolean).join(' / ');
+        uit.push(T(g.obj.naam)+(nr?' ('+nr+')':'')+' - '+g.punten.length);
+        g.punten.forEach(function(x){
+          uit.push('   - '+T(x.punt.tekst)+'  ['+soortVan(x.regel.soort).naam+' '+nl(x.regel.datum)+']');
+        });
+        uit.push('');
       });
     } else {
       var o=objectVan(gekozen);
@@ -60284,6 +60324,27 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var va=pane.querySelector('[data-oh-vink-alles]'); if(va) va.addEventListener('click', function(){ gevonden().forEach(function(o){ aangevinkt[o.id]=true; }); tekenen(true); });
     var vl=pane.querySelector('[data-oh-vink-leeg]');  if(vl) vl.addEventListener('click', function(){ gevonden().forEach(function(o){ if(!regels(o.id).length) aangevinkt[o.id]=true; }); tekenen(true); });
     var vn=pane.querySelector('[data-oh-vink-niets]'); if(vn) vn.addEventListener('click', function(){ aangevinkt={}; tekenen(true); });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-soortzet]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var ids=Object.keys(aangevinkt).filter(function(k){ return aangevinkt[k]; });
+        if(!ids.length){ meld('Niets aangevinkt','Vink eerst aan welke objecten je wilt veranderen.'); return; }
+        var nieuweSoort=b.getAttribute('data-oh-soortzet'), weg={};
+        ids.forEach(function(i){ weg[i]=true; });
+        var l=objecten();
+        l.forEach(function(o){ if(weg[o.id]) o.soort=nieuweSoort; });
+        objectenOpslaan(l);
+        aangevinkt={};
+        meld('Soort gewijzigd', ids.length+' object(en) staan nu op '+nieuweSoort+'.');
+        tekenen(true);
+      });
+    });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-klap]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var id=b.getAttribute('data-oh-klap');
+        uitgeklapt[id]=!uitgeklapt[id];
+        tekenen(true);
+      });
+    });
     var vw=pane.querySelector('[data-oh-vink-wis]');
     if(vw) vw.addEventListener('click', function(){
       var ids=Object.keys(aangevinkt).filter(function(k){ return aangevinkt[k]; });
