@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD6-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD7-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59435,41 +59435,40 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 })();
 
 
+
 /* ==========================================================
-   BNS TW ONDERHOUD - rubriek onderhoud en reparaties (25-10-2026, tweede opzet)
+   BNS TW ONDERHOUD - beurten met losse punten (25-10-2026)
    ----------------------------------------------------------
-   WAAROM OPNIEUW OPGEBOUWD.
-   [stated] "nog steeds witte vlakken ... ook opslaan en verwijderen vallen wit
-   weg ... ook de popup moet eigen tekst zijn van ons eigen app, nu krijg ik
-   een zwarte balk ... ook vind ik het niet heel overzichtelijk werken."
+   [stated] "het is nog niet echt wat ik wil, het moet meer mogelijkheden bij
+   komen, meer opties, meer tekstblokken waarbij ik dingen afvinken kan en of
+   kan zeggen uitgevoerd of moet nog gebeuren en dat die dan meteen
+   reparatieverzoek mogelijk maakt." En: "beter om dat anders te benoemen,
+   reparatie aanvraag of beter nog uitvoeren reparatie."
 
-   Drie oorzaken, alle drie hier opgelost:
+   WAT ER VERANDERT TEN OPZICHTE VAN DE VORIGE OPZET.
+   Een invoer is niet langer EEN regeltje met een vinkje, maar een BEURT met
+   zoveel punten als je wilt. Per punt zet je zelf of het Uitgevoerd is of Nog
+   doen. Alles wat op Nog doen staat is een reparatieverzoek: rood in het boek
+   en meegeteld in de teller bovenaan. Dat vinkje "dit moet nog uitgevoerd
+   worden" is daarmee verdwenen; twee knoppen per punt lezen beter dan een
+   hokje dat je moet uitleggen.
 
-   1. DE WITTE TEKST. In styles.css staat `button { color:#fff !important; }`,
-      en verderop nog een keer voor de leesbare weergave. Een gewone kleur in
-      het style-attribuut verliest het van !important, dus al mijn lichte
-      knoppen bleven wit op wit. Elke knop hieronder wordt daarom getekend met
-      de hulpfunctie `knop()`, die de kleur ALTIJD met !important meegeeft.
-      Zet nooit meer met de hand een <button> in dit blok; gebruik knop().
+   DE VASTE LIJST.
+   Punten die telkens terugkomen - banden, remmen, verlichting - staan in een
+   eigen lijst die je met een klik toevoegt in plaats van intikt. Die lijst pas
+   je onderin de rubriek zelf aan; ik heb alleen een eerste zet gedaan, want
+   [stated] "eventueel dat we dus zelf de teksten kunnen aanpassen als jij ze
+   niet helemaal goed hebt."
 
-   2. DE ZWARTE BALK. Dat is het venster van de browser zelf (confirm/alert).
-      Die hoort hier niet. Er is nu een eigen venster in de stijl van de app,
-      met onze eigen tekst en knoppen: `vraag()` en `meld()`.
+   OUDE REGELS BLIJVEN WERKEN.
+   Wat er met de vorige opzet is ingevoerd heeft geen punten maar een veld
+   `wat` en een status. Dat wordt bij het lezen omgezet naar een beurt met een
+   punt, zodat er niets verdwijnt en je niets opnieuw hoeft in te voeren.
 
-   3. HET OVERZICHT. Na "Uit Materialen overnemen" staan er 159 objecten in de
-      lijst, en dan werkt een lange kolom niet meer. Nu: regels van een regel
-      hoog, knoppen om te filteren op soort en op "alleen openstaand", een
-      teller, en het toevoegblok dat is ingeklapt tot je het nodig hebt. En een
-      opschoonstand waarin je er in een keer een stapel uit haalt.
-
-   WAT ER VERDER GELDT (ongewijzigd ten opzichte van de eerste opzet):
-   - Een object heeft altijd een NAAM; kenteken en TW-nummer mogen leeg,
-     want veel aanhangers hebben geen kenteken. Geen APK in deze rubriek.
-   - De objectenlijst staat in settings/onderhoud_objecten. De REGELS van een
-     object staan apart in onderhoud/<object-id> en worden pas opgehaald als je
-     dat object opent, zodat het opstarten niet trager wordt.
-   - Elke regel is open of klaar. Open staat bovenaan in het rood met een
-     teller; afmelden legt vast wie en wanneer, en dat wordt niet overschreven.
+   WAAROM DE KLEUR OVERAL MET !important STAAT.
+   styles.css zet `button` en `button *` op witte letters met !important. Elke
+   knop loopt daarom langs `knop()`, en elk stukje tekst binnen een knop krijgt
+   zijn kleur met !important mee. Zet hier nooit met de hand een <button> neer.
 
    Console: window.BNS_TW_ONDERHOUD.objecten() / .regels('<id>')
 ========================================================== */
@@ -59481,9 +59480,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   var PANE='adminOnderhoud';
   var OBJ_KEY='bns_tw_onderhoud_objecten';
   var REG_KEY='bns_tw_onderhoud_regels_';
+  var PUNT_KEY='bns_tw_onderhoud_vastepunten';
   var gekozen='', zoek='', filter='alles', alleenOpen=false;
-  var toevoegOpen=false, opschoonStand=false, aangevinkt={};
+  var toevoegOpen=false, opschoonStand=false, puntenBeheer=false, aangevinkt={};
   var geladen={};
+  var form=null;                /* de beurt die nu open staat in het formulier */
+
+  var STANDAARD=['Banden','Remmen','Verlichting','Olie en vloeistoffen','Ruitenwissers',
+                 'Carrosserie','Vloer en wanden','Sloten en sleutels','Stroomkabel',
+                 'Koeling','Tapinstallatie','Luifel'];
 
   function T(v){ return String(v==null?'':v).trim(); }
   function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -59500,31 +59505,22 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return 'beheer';
   }
 
-  /* ---------------------------------------------------------
-     KNOPPEN. De opmaak van deze app dwingt witte letters af met
-     !important. Alleen een inline !important wint daarvan. Daarom loopt
-     elke knop hier langs deze functie en nooit rechtstreeks.
-  --------------------------------------------------------- */
-  function knop(tekst, opts){
-    opts=opts||{};
-    var vlak=opts.vlak||'#ffffff';
-    var inkt=opts.inkt||'#172033';
-    var rand=opts.rand||'1px solid #cbd5e1';
-    var extra=opts.extra||'';
-    var attr=opts.attr||'';
-    return '<button type="button" '+attr+' style="'+
-      'background:'+vlak+' !important;color:'+inkt+' !important;border:'+rand+' !important;'+
-      'border-radius:12px;padding:9px 14px;font-weight:800;cursor:pointer;height:auto !important;'+extra+'">'+tekst+'</button>';
+  /* ---------------- knoppen ---------------- */
+  function knop(tekst, o){
+    o=o||{};
+    return '<button type="button" '+(o.attr||'')+' style="'+
+      'background:'+(o.vlak||'#ffffff')+' !important;color:'+(o.inkt||'#172033')+' !important;'+
+      'border:'+(o.rand||'1px solid #cbd5e1')+' !important;border-radius:12px;padding:9px 14px;'+
+      'font-weight:800;cursor:pointer;height:auto !important;'+(o.extra||'')+'">'+tekst+'</button>';
   }
-  var GROEN={vlak:'#16a34a', inkt:'#ffffff', rand:'0'};
-  var BLAUW={vlak:'#2563eb', inkt:'#ffffff', rand:'0'};
-  var ROOD ={vlak:'#dc2626', inkt:'#ffffff', rand:'0'};
-  var GRIJS={vlak:'#ffffff', inkt:'#334155', rand:'1px solid #cbd5e1'};
+  var GROEN ={vlak:'#16a34a', inkt:'#ffffff', rand:'0'};
+  var BLAUW ={vlak:'#2563eb', inkt:'#ffffff', rand:'0'};
+  var ROOD  ={vlak:'#dc2626', inkt:'#ffffff', rand:'0'};
+  var GRIJS ={vlak:'#ffffff', inkt:'#334155', rand:'1px solid #cbd5e1'};
   var DONKER={vlak:'#334155', inkt:'#ffffff', rand:'0'};
+  function tekstIn(t, kleur, extra){ return '<span style="color:'+(kleur||'#172033')+' !important;'+(extra||'')+'">'+t+'</span>'; }
 
-  /* ---------------------------------------------------------
-     EIGEN VENSTER in plaats van de zwarte balk van de browser.
-  --------------------------------------------------------- */
+  /* ---------------- eigen venster ---------------- */
   function venster(titel, tekst, knoppen){
     return new Promise(function(klaar){
       var wrap=document.createElement('div');
@@ -59532,10 +59528,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       wrap.innerHTML='<div style="background:#fff;border-radius:20px;padding:20px;width:min(460px,100%);box-shadow:0 24px 70px rgba(0,0,0,.3)">'+
         '<div style="font-size:19px;font-weight:900;margin-bottom:6px;color:#172033">'+esc(titel)+'</div>'+
         '<div style="font-size:15px;color:#334155;line-height:1.35;margin-bottom:16px">'+esc(tekst)+'</div>'+
-        '<div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end" id="bnsOhVensterKnoppen"></div>'+
-      '</div>';
+        '<div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end" id="bnsOhVK"></div></div>';
       document.body.appendChild(wrap);
-      var rij=wrap.querySelector('#bnsOhVensterKnoppen');
+      var rij=wrap.querySelector('#bnsOhVK');
       (knoppen||[{tekst:'Oke', waarde:true, stijl:BLAUW}]).forEach(function(k){
         var b=document.createElement('span');
         b.innerHTML=knop(esc(k.tekst), Object.assign({}, k.stijl||GRIJS, {extra:'min-width:110px'}));
@@ -59544,41 +59539,47 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       });
     });
   }
-  function meld(titel, tekst){ return venster(titel, tekst, [{tekst:'Oke', waarde:true, stijl:BLAUW}]); }
-  function vraag(titel, tekst, jaTekst){
-    return venster(titel, tekst, [
-      {tekst:'Annuleren', waarde:false, stijl:GRIJS},
-      {tekst:jaTekst||'Ja', waarde:true, stijl:ROOD}
-    ]);
-  }
+  function meld(t,x){ return venster(t,x,[{tekst:'Oke',waarde:true,stijl:BLAUW}]); }
+  function vraag(t,x,ja){ return venster(t,x,[{tekst:'Annuleren',waarde:false,stijl:GRIJS},{tekst:ja||'Ja',waarde:true,stijl:ROOD}]); }
 
-  /* ---------------- objecten ---------------- */
-  function objecten(){
-    try{ var l=JSON.parse(localStorage.getItem(OBJ_KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
-  }
+  /* ---------------- opslag ---------------- */
+  function objecten(){ try{ var l=JSON.parse(localStorage.getItem(OBJ_KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; } }
   function objectenOpslaan(l){
     try{ localStorage.setItem(OBJ_KEY, JSON.stringify(l)); }catch(e){}
-    try{
-      if(window.BNS && typeof window.BNS.syncDoc==='function'){
-        window.BNS.syncDoc('settings', {id:'onderhoud_objecten', lijst:l, bijgewerkt:nuISO()});
-      }
-    }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('settings',{id:'onderhoud_objecten', lijst:l, bijgewerkt:nuISO()}); }catch(e){}
     return l;
   }
-  function objectVan(id){ var uit=null; objecten().forEach(function(o){ if(T(o&&o.id)===T(id)) uit=o; }); return uit; }
+  function objectVan(id){ var u=null; objecten().forEach(function(o){ if(T(o&&o.id)===T(id)) u=o; }); return u; }
 
-  /* ---------------- regels ---------------- */
+  function vastePunten(){
+    try{ var l=JSON.parse(localStorage.getItem(PUNT_KEY)||'null'); if(Array.isArray(l)) return l; }catch(e){}
+    return STANDAARD.slice();
+  }
+  function vastePuntenOpslaan(l){
+    try{ localStorage.setItem(PUNT_KEY, JSON.stringify(l)); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('settings',{id:'onderhoud_punten', lijst:l, bijgewerkt:nuISO()}); }catch(e){}
+    return l;
+  }
+
+  /* Een oude regel had `wat` en een status; een nieuwe heeft punten. Hier
+     wordt het oude vorm gegeven zodat alles door een deur kan. */
+  function netjes(r){
+    if(r && !Array.isArray(r.punten)){
+      r.punten=[{tekst:T(r.wat)||'(zonder omschrijving)', staat:(T(r.status)==='klaar'?'klaar':'open')}];
+    }
+    if(r && !r.punten.length) r.punten=[{tekst:'(leeg)', staat:'klaar'}];
+    return r;
+  }
   function regels(objId){
     if(!objId) return [];
-    try{ var l=JSON.parse(localStorage.getItem(REG_KEY+objId)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
-  }
-  function regelsOpslaan(objId, l){
-    try{ localStorage.setItem(REG_KEY+objId, JSON.stringify(l)); }catch(e){}
     try{
-      if(window.BNS && typeof window.BNS.syncDoc==='function'){
-        window.BNS.syncDoc('onderhoud', {id:String(objId), regels:l, bijgewerkt:nuISO()});
-      }
-    }catch(e){}
+      var l=JSON.parse(localStorage.getItem(REG_KEY+objId)||'[]');
+      return Array.isArray(l) ? l.map(netjes) : [];
+    }catch(e){ return []; }
+  }
+  function regelsOpslaan(objId,l){
+    try{ localStorage.setItem(REG_KEY+objId, JSON.stringify(l)); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('onderhoud',{id:String(objId), regels:l, bijgewerkt:nuISO()}); }catch(e){}
     return l;
   }
   function regelsOphalen(objId){
@@ -59587,8 +59588,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{
       var fs=window.BNS && window.BNS.fs, db=window.BNS && window.BNS.db;
       if(fs && db && fs.getDoc && fs.doc){
-        return fs.getDoc(fs.doc(db,'onderhoud',String(objId))).then(function(snap){
-          var d=(snap && snap.exists && snap.exists()) ? snap.data() : null;
+        return fs.getDoc(fs.doc(db,'onderhoud',String(objId))).then(function(s){
+          var d=(s && s.exists && s.exists()) ? s.data() : null;
           if(d && Array.isArray(d.regels)){ try{ localStorage.setItem(REG_KEY+objId, JSON.stringify(d.regels)); }catch(e){} }
           return regels(objId);
         }).catch(function(){ return regels(objId); });
@@ -59596,51 +59597,63 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }catch(e){}
     return Promise.resolve(regels(objId));
   }
-  function objectenOphalen(){
+  function uitFirebase(){
     try{
       var fs=window.BNS && window.BNS.fs, db=window.BNS && window.BNS.db;
       if(!(fs && db && fs.getDoc && fs.doc)) return;
-      fs.getDoc(fs.doc(db,'settings','onderhoud_objecten')).then(function(snap){
-        var d=(snap && snap.exists && snap.exists()) ? snap.data() : null;
+      fs.getDoc(fs.doc(db,'settings','onderhoud_objecten')).then(function(s){
+        var d=(s && s.exists && s.exists()) ? s.data() : null;
         if(d && Array.isArray(d.lijst) && d.lijst.length){
           try{ localStorage.setItem(OBJ_KEY, JSON.stringify(d.lijst)); }catch(e){}
           tekenen(true);
         }
       }).catch(function(){});
+      fs.getDoc(fs.doc(db,'settings','onderhoud_punten')).then(function(s){
+        var d=(s && s.exists && s.exists()) ? s.data() : null;
+        if(d && Array.isArray(d.lijst)){ try{ localStorage.setItem(PUNT_KEY, JSON.stringify(d.lijst)); }catch(e){} }
+      }).catch(function(){});
     }catch(e){}
   }
 
-  function open(objId){ return regels(objId).filter(function(r){ return T(r&&r.status)!=='klaar'; }); }
-  function alleOpen(){ var n=0; objecten().forEach(function(o){ n+=open(o.id).length; }); return n; }
+  /* Open = het aantal PUNTEN dat nog moet gebeuren, niet het aantal beurten. */
+  function openPunten(objId){
+    var n=0;
+    regels(objId).forEach(function(r){ (r.punten||[]).forEach(function(p){ if(T(p.staat)!=='klaar') n++; }); });
+    return n;
+  }
+  function alleOpen(){ var n=0; objecten().forEach(function(o){ n+=openPunten(o.id); }); return n; }
+  function heeftOpen(r){ return (r.punten||[]).some(function(p){ return T(p.staat)!=='klaar'; }); }
 
-  /* ---------------- zoeken en filteren ---------------- */
-  function past(o, q){
+  /* ---------------- zoeken ---------------- */
+  function past(o,q){
     if(filter!=='alles' && T(o.soort)!==filter) return false;
-    if(alleenOpen && !open(o.id).length) return false;
+    if(alleenOpen && !openPunten(o.id)) return false;
     if(!q) return true;
-    var hooi=[T(o.naam), T(o.kenteken), T(o.twnr)].join(' ').toLowerCase();
-    if(hooi.indexOf(q)>=0) return true;
+    if([T(o.naam),T(o.kenteken),T(o.twnr)].join(' ').toLowerCase().indexOf(q)>=0) return true;
     var raak=false;
     regels(o.id).forEach(function(r){
       if(raak) return;
-      if([T(r.wat), T(r.toelichting), T(r.door)].join(' ').toLowerCase().indexOf(q)>=0) raak=true;
+      var t=[T(r.toelichting), T(r.door)].concat((r.punten||[]).map(function(p){ return T(p.tekst); })).join(' ').toLowerCase();
+      if(t.indexOf(q)>=0) raak=true;
     });
     return raak;
   }
-  function gevonden(){
-    var q=T(zoek).toLowerCase();
-    return objecten().filter(function(o){ return past(o,q); });
-  }
+  function gevonden(){ var q=T(zoek).toLowerCase(); return objecten().filter(function(o){ return past(o,q); }); }
 
   var SOORTEN=[
-    {k:'reparatie', naam:'Reparatie',  vlak:'#ede9fe', inkt:'#4c1d95', rand:'#6d28d9'},
-    {k:'vervangen', naam:'Vervangen',  vlak:'#dcfce7', inkt:'#14532d', rand:'#15803d'},
-    {k:'onderhoud', naam:'Onderhoud',  vlak:'#dbeafe', inkt:'#14509b', rand:'#2563eb'},
-    {k:'melding',   naam:'Melding',    vlak:'#ffedd5', inkt:'#7a3f06', rand:'#b45309'}
+    {k:'reparatie',     naam:'Reparatie',      vlak:'#ede9fe', inkt:'#4c1d95', rand:'#6d28d9'},
+    {k:'onderhoudsbeurt',naam:'Onderhoudsbeurt',vlak:'#dbeafe', inkt:'#14509b', rand:'#2563eb'},
+    {k:'controle',      naam:'Controle',       vlak:'#dcfce7', inkt:'#14532d', rand:'#15803d'},
+    {k:'melding',       naam:'Melding',        vlak:'#ffedd5', inkt:'#7a3f06', rand:'#b45309'}
   ];
-  function soortVan(k){ var uit=SOORTEN[0]; SOORTEN.forEach(function(s){ if(s.k===T(k)) uit=s; }); return uit; }
+  function soortVan(k){
+    var u=SOORTEN[0];
+    SOORTEN.forEach(function(s){ if(s.k===T(k)) u=s; });
+    if(T(k)==='vervangen' || T(k)==='onderhoud') u=SOORTEN[1];   /* oude namen */
+    return u;
+  }
 
-  /* ---------------- het tabblad ---------------- */
+  /* ---------------- tabblad ---------------- */
   function maakTab(){
     var area=E('adminArea'); if(!area) return null;
     var p=E(PANE);
@@ -59648,10 +59661,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var eerste=document.querySelector('.adminTab');
     if(eerste && !document.querySelector('.adminTab[data-admin="'+PANE+'"]')){
       var k=document.createElement('button');
-      k.type='button';
-      k.className=eerste.className.replace('active','').trim();
-      k.setAttribute('data-admin', PANE);
-      k.textContent='Onderhoud';
+      k.type='button'; k.className=eerste.className.replace('active','').trim();
+      k.setAttribute('data-admin',PANE); k.textContent='Onderhoud';
       k.addEventListener('click', function(){
         document.querySelectorAll('.adminTab').forEach(function(x){ x.classList.remove('active'); });
         document.querySelectorAll('.adminPane').forEach(function(x){ x.classList.add('hidden'); });
@@ -59663,14 +59674,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
     return p;
   }
-
   function aanHetTypen(){
     try{ var p=E(PANE), a=document.activeElement; return !!(p && a && a!==document.body && p.contains(a)); }catch(e){ return false; }
   }
   function vinger(){
-    return JSON.stringify(objecten().map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,x.soort,open(x.id).length]; }))+
-      '|'+gekozen+'|'+filter+'|'+(alleenOpen?1:0)+'|'+(toevoegOpen?1:0)+'|'+(opschoonStand?1:0)+
-      '|'+JSON.stringify(regels(gekozen).map(function(r){ return [r.id,r.status,r.wat,r.datum,r.kosten]; }));
+    return JSON.stringify(objecten().map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,x.soort,openPunten(x.id)]; }))+
+      '|'+gekozen+'|'+filter+'|'+(alleenOpen?1:0)+'|'+(toevoegOpen?1:0)+'|'+(opschoonStand?1:0)+'|'+(puntenBeheer?1:0)+
+      '|'+(form?'F':'-')+'|'+JSON.stringify(regels(gekozen).map(function(r){ return [r.id,(r.punten||[]).length,heeftOpen(r)?1:0,r.datum]; }));
   }
 
   function tekenen(forceer){
@@ -59683,62 +59693,60 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       if(!forceer && pane.__vinger===v) return;
       pane.__vinger=v;
 
-      var totaal=objecten().length, nOpen=alleOpen();
-
+      var nOpen=alleOpen();
       pane.innerHTML=
         '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;margin-bottom:10px">'+
           '<h3 style="margin:0">Onderhoud en reparaties</h3>'+
-          '<span style="font-size:13px;color:#64748b">'+totaal+' objecten</span>'+
+          '<span style="font-size:13px;color:#64748b">'+objecten().length+' objecten</span>'+
           (nOpen? '<span style="background:#fee2e2;color:#b91c1c;border-radius:9px;padding:3px 10px;font-size:13px;font-weight:800">'+nOpen+' nog uit te voeren</span>'
                 : '<span style="background:#dcfce7;color:#166534;border-radius:9px;padding:3px 10px;font-size:13px;font-weight:800">niets open</span>')+
         '</div>'+
         '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">'+
-          '<div style="flex:1 1 340px;min-width:0">'+ linksHtml() +'</div>'+
-          '<div style="flex:999 1 500px;min-width:0" id="bnsOhBoek">'+ boekHtml() +'</div>'+
+          '<div style="flex:1 1 330px;min-width:0">'+ linksHtml() +'</div>'+
+          '<div style="flex:999 1 520px;min-width:0" id="bnsOhBoek">'+ boekHtml() +'</div>'+
         '</div>';
-
       koppelen();
     }catch(e){ try{ console.warn('[BNS TW Onderhoud]', e&&e.message||e); }catch(_){} }
   }
 
   function linksHtml(){
-    var lijst=gevonden(), totaal=objecten().length;
+    var lijst=gevonden();
     var chip=function(k,naam){
       var aan=(filter===k);
       return knop(naam, aan?{vlak:'#2563eb',inkt:'#fff',rand:'0',extra:'padding:7px 11px;font-size:13px',attr:'data-oh-filter="'+k+'"'}
                           :{vlak:'#fff',inkt:'#334155',extra:'padding:7px 11px;font-size:13px',attr:'data-oh-filter="'+k+'"'});
     };
-    return '<input id="bnsOhZoek" type="search" placeholder="Zoek op naam, TW-nummer, kenteken of reparatie" value="'+esc(zoek)+'" style="width:100%;box-sizing:border-box;padding:11px 13px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:9px">'+
+    return '<input id="bnsOhZoek" type="search" placeholder="Zoek op naam, TW-nummer, kenteken of punt" value="'+esc(zoek)+'" style="width:100%;box-sizing:border-box;padding:11px 13px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:9px">'+
       '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px">'+
         chip('alles','Alles')+chip('voertuig','Voertuigen')+chip('aanhanger','Aanhangers')+chip('materiaal','Materiaal')+
         knop(alleenOpen?'Alleen open ✓':'Alleen open',
-             alleenOpen?{vlak:'#dc2626',inkt:'#fff',rand:'0',extra:'padding:7px 11px;font-size:13px',attr:'data-oh-open-filter'}
-                       :{vlak:'#fff',inkt:'#334155',extra:'padding:7px 11px;font-size:13px',attr:'data-oh-open-filter'})+
+          alleenOpen?{vlak:'#dc2626',inkt:'#fff',rand:'0',extra:'padding:7px 11px;font-size:13px',attr:'data-oh-open-filter'}
+                    :{vlak:'#fff',inkt:'#334155',extra:'padding:7px 11px;font-size:13px',attr:'data-oh-open-filter'})+
       '</div>'+
       '<div id="bnsOhLijst" style="max-height:48vh;min-height:110px;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:7px;background:#fbfdff">'+ lijstHtml(lijst) +'</div>'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:7px 0 0">'+
-        '<span id="bnsOhTeller" style="font-size:12px;color:#64748b">'+lijst.length+' van '+totaal+' getoond</span>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">'+
+        '<span id="bnsOhTeller" style="font-size:12px;color:#64748b">'+lijst.length+' van '+objecten().length+' getoond</span>'+
         '<span style="display:flex;gap:7px;flex-wrap:wrap">'+
-          knop(opschoonStand?'Klaar met opschonen':'Opschonen', opschoonStand?Object.assign({},DONKER,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-opschoon'}):Object.assign({},GRIJS,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-opschoon'}))+
+          knop(opschoonStand?'Klaar met opschonen':'Opschonen', Object.assign({}, opschoonStand?DONKER:GRIJS, {extra:'padding:7px 11px;font-size:13px',attr:'data-oh-opschoon'}))+
           knop(toevoegOpen?'Sluit toevoegen':'Object toevoegen', Object.assign({},GROEN,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-toevoeg'}))+
         '</span>'+
       '</div>'+
-      (opschoonStand? opschoonHtml(lijst) : '')+
-      (toevoegOpen? toevoegHtml() : '');
+      (opschoonStand? opschoonHtml() : '')+
+      (toevoegOpen? toevoegHtml() : '')+
+      vastePuntenHtml();
   }
 
-  function opschoonHtml(lijst){
+  function opschoonHtml(){
     var n=0; Object.keys(aangevinkt).forEach(function(k){ if(aangevinkt[k]) n++; });
     return '<div style="border:2px solid #dc2626;border-radius:12px;padding:11px;margin-top:9px;background:#fff8f8">'+
       '<div style="font-weight:900;margin-bottom:4px;color:#172033">Opschonen</div>'+
-      '<div style="font-size:13px;color:#475569;margin-bottom:9px">Vink aan wat weg mag. Je ziet links een hokje bij elk object. Objecten met regels blijven staan tenzij je ze zelf aanvinkt.</div>'+
+      '<div style="font-size:13px;color:#475569;margin-bottom:9px">Vink links aan wat weg mag.</div>'+
       '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
-        knop('Alles hierboven aanvinken', Object.assign({},GRIJS,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-vink-alles'}))+
+        knop('Alles aanvinken', Object.assign({},GRIJS,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-vink-alles'}))+
         knop('Alleen lege aanvinken', Object.assign({},GRIJS,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-vink-leeg'}))+
         knop('Niets aanvinken', Object.assign({},GRIJS,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-vink-niets'}))+
         knop('Verwijder aangevinkte ('+n+')', Object.assign({},ROOD,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-vink-wis'}))+
-      '</div>'+
-    '</div>';
+      '</div></div>';
   }
 
   function toevoegHtml(){
@@ -59750,179 +59758,257 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         '<input id="bnsOhKent" placeholder="Kenteken" style="flex:1 1 110px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;text-transform:uppercase">'+
         '<input id="bnsOhTwnr" placeholder="TW-nummer" style="flex:1 1 110px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
         '<select id="bnsOhSoort" style="flex:1 1 130px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
-          '<option value="voertuig">Voertuig</option><option value="aanhanger">Aanhanger</option><option value="materiaal">Materiaal</option>'+
-        '</select>'+
+          '<option value="voertuig">Voertuig</option><option value="aanhanger">Aanhanger</option><option value="materiaal">Materiaal</option></select>'+
       '</div>'+
       '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
         knop('Toevoegen', Object.assign({},GROEN,{attr:'data-oh-add'}))+
         knop('Uit Materialen overnemen', Object.assign({},GRIJS,{attr:'data-oh-uit="materialen"'}))+
         knop('Uit Voertuigen overnemen', Object.assign({},GRIJS,{attr:'data-oh-uit="voertuigen"'}))+
+      '</div></div>';
+  }
+
+  function vastePuntenHtml(){
+    var vp=vastePunten();
+    if(!puntenBeheer){
+      return '<div style="margin-top:10px">'+knop('Vaste punten aanpassen ('+vp.length+')', Object.assign({},GRIJS,{extra:'padding:7px 11px;font-size:13px',attr:'data-oh-punten'}))+'</div>';
+    }
+    return '<div style="border:1px solid #cbd5e1;border-radius:12px;padding:11px;margin-top:10px;background:#fffdf5">'+
+      '<div style="font-weight:900;margin-bottom:4px;color:#172033">Vaste punten</div>'+
+      '<div style="font-size:13px;color:#475569;margin-bottom:9px">Deze punten kun je bij een beurt met een klik toevoegen. Pas de teksten gerust aan naar hoe jullie ze noemen.</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px">'+
+        vp.map(function(p,i){
+          return '<span style="display:inline-flex;align-items:center;gap:5px;border:1px solid #cbd5e1;border-radius:999px;padding:5px 6px 5px 12px;background:#fff">'+
+            '<span style="font-size:14px;color:#172033">'+esc(p)+'</span>'+
+            knop('×', Object.assign({},GRIJS,{extra:'padding:2px 8px;font-size:13px;border-radius:999px',attr:'data-oh-punt-wis="'+i+'"'}))+'</span>';
+        }).join('')+
       '</div>'+
-      '<div style="font-size:12px;color:#64748b;margin-top:7px">Overnemen leest die lijsten alleen; aan Materialen en Voertuigen zelf verandert niets.</div>'+
-    '</div>';
+      '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+        '<input id="bnsOhNieuwPunt" placeholder="Nieuw punt" style="flex:1 1 180px;min-width:0;padding:9px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+        knop('Erbij', Object.assign({},GROEN,{extra:'padding:9px 14px',attr:'data-oh-punt-add'}))+
+        knop('Sluiten', Object.assign({},GRIJS,{extra:'padding:9px 14px',attr:'data-oh-punten'}))+
+      '</div></div>';
   }
 
   function lijstHtml(lijst){
     if(!objecten().length) return '<div style="color:#64748b;padding:8px">Nog geen objecten. Gebruik Object toevoegen.</div>';
     if(!lijst.length) return '<div style="color:#64748b;padding:8px">Niets gevonden.</div>';
     return lijst.map(function(o){
-      var n=open(o.id).length, aan=(T(o.id)===T(gekozen)), aantal=regels(o.id).length;
+      var n=openPunten(o.id), aan=(T(o.id)===T(gekozen)), aantal=regels(o.id).length;
       var nr=[T(o.twnr), T(o.kenteken)].filter(Boolean).join(' · ') || 'geen nummer';
-      /* 25-10-2026 - OOK ALLES BINNEN EEN KNOP WORDT WIT GEMAAKT.
-         In styles.css staat niet alleen `button{color:#fff!important}` maar
-         ook `button *` op wit, met !important. De knop had dus wel mijn kleur,
-         maar de spans erin niet. Daarom staat de kleur hieronder op elk los
-         stukje tekst, telkens met !important. */
       var merk=n? '<span style="background:#fee2e2 !important;color:#b91c1c !important;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap">'+n+'</span>'
                : (aantal? '<span style="color:#94a3b8 !important;font-size:11px;white-space:nowrap">'+aantal+'</span>' : '');
       var binnen='<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#172033 !important">'+
-            '<span style="font-weight:800;color:#172033 !important">'+esc(o.naam)+'</span>'+
-            '<span style="color:#64748b !important;font-size:12px"> &nbsp;'+esc(nr)+'</span>'+
-          '</span>'+merk;
+          tekstIn(esc(o.naam),'#172033','font-weight:800')+tekstIn('&nbsp;&nbsp;'+esc(nr),'#64748b','font-size:12px')+'</span>'+merk;
       if(opschoonStand){
         var vink=!!aangevinkt[o.id];
         return '<label style="display:flex;gap:9px;align-items:center;padding:7px 9px;margin:0 0 4px;border-radius:10px;cursor:pointer;'+
           'border:1px solid '+(vink?'#dc2626':'#e2e8f0')+';background:'+(vink?'#fff1f1':'#fff')+'">'+
           '<input type="checkbox" data-oh-vink="'+esc(o.id)+'"'+(vink?' checked':'')+' style="width:17px;height:17px;flex:none">'+binnen+'</label>';
       }
-      return knop(binnen, {
-        vlak: aan?'#e8f0ff':'#ffffff',
-        inkt: '#172033',
+      return knop(binnen, {vlak: aan?'#e8f0ff':'#ffffff', inkt:'#172033',
         rand: aan?'2px solid #2563eb':'1px solid #e2e8f0',
         extra:'display:flex;gap:9px;align-items:center;width:100%;text-align:left;padding:8px 10px;margin:0 0 4px;font-weight:600',
-        attr:'data-oh-kies="'+esc(o.id)+'"'
-      });
+        attr:'data-oh-kies="'+esc(o.id)+'"'});
     }).join('');
   }
 
+  /* ---------------- het boek ---------------- */
   function boekHtml(){
     var o=objectVan(gekozen);
-    if(!o) return '<div style="border:1px dashed #cbd5e1;border-radius:14px;padding:24px;color:#64748b;background:#fbfdff">Kies links een object. Je ziet dan alles wat er aan onderhoud en reparaties is vastgelegd.</div>';
+    if(!o) return '<div style="border:1px dashed #cbd5e1;border-radius:14px;padding:24px;color:#64748b;background:#fbfdff">Kies links een object. Je ziet dan alle beurten, reparaties en openstaande punten.</div>';
     var rs=regels(o.id).slice().sort(function(a,b){
-      var ao=(T(a.status)!=='klaar')?0:1, bo=(T(b.status)!=='klaar')?0:1;
+      var ao=heeftOpen(a)?0:1, bo=heeftOpen(b)?0:1;
       if(ao!==bo) return ao-bo;
       return String(b.datum||'').localeCompare(String(a.datum||''));
     });
     var som=0; rs.forEach(function(r){ som+=getal(r.kosten); });
     var kop=[T(o.twnr), T(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
+    var nOpen=openPunten(o.id);
     return '<div style="border:1px solid #d8dee9;border-radius:14px;padding:14px;background:#fff">'+
       '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'+
         '<div style="min-width:0">'+
           '<div style="font-size:19px;font-weight:900;color:#172033">'+esc(o.naam)+'</div>'+
-          '<div style="font-size:13px;color:#64748b;margin-top:2px">'+esc(kop)+' · '+rs.length+' regels'+(som>0?' · '+geld(som):'')+'</div>'+
+          '<div style="font-size:13px;color:#64748b;margin-top:2px">'+esc(kop)+' · '+rs.length+' beurten'+(som>0?' · '+geld(som):'')+
+            (nOpen?' · <b style="color:#b91c1c">'+nOpen+' nog uit te voeren</b>':'')+'</div>'+
         '</div>'+
         '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
-          knop('Regel toevoegen', Object.assign({},BLAUW,{attr:'id="bnsOhNieuw"'}))+
+          knop('Beurt toevoegen', Object.assign({},BLAUW,{attr:'id="bnsOhNieuw"'}))+
           knop('Object wijzigen', Object.assign({},GRIJS,{attr:'id="bnsOhWijzigObj"'}))+
           knop('Object verwijderen', Object.assign({},ROOD,{attr:'id="bnsOhWisObj"'}))+
         '</div>'+
       '</div>'+
-      '<div id="bnsOhForm"></div>'+
-      (rs.length ? rs.map(regelHtml).join('') : '<div style="color:#64748b">Nog geen regels. Gebruik Regel toevoegen.</div>')+
+      '<div id="bnsOhForm">'+(form? formHtml() : '')+'</div>'+
+      (rs.length ? rs.map(regelHtml).join('') : '<div style="color:#64748b">Nog niets vastgelegd. Gebruik Beurt toevoegen.</div>')+
     '</div>';
   }
 
   function regelHtml(r){
-    var s=soortVan(r.soort), isOpen=(T(r.status)!=='klaar'), k=geld(r.kosten);
-    return '<div style="border:1px solid #e5e7eb;border-left:6px solid '+(isOpen?'#dc2626':s.rand)+';border-radius:12px;padding:11px 12px;margin:0 0 9px;background:'+(isOpen?'#fff8f8':'#fff')+'">'+
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:3px">'+
-        '<span style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">'+
-          '<span style="background:'+s.vlak+';color:'+s.inkt+';border-radius:9px;padding:3px 9px;font-size:12px;font-weight:800">'+esc(s.naam)+'</span>'+
-          (isOpen?'<span style="background:#fee2e2;color:#b91c1c;border-radius:9px;padding:3px 9px;font-size:12px;font-weight:800">Nog uit te voeren</span>':'')+
-        '</span>'+
-        '<span style="font-size:13px;color:#64748b">'+esc(nl(r.datum))+'</span>'+
+    var s=soortVan(r.soort), isOpen=heeftOpen(r), k=geld(r.kosten);
+    var punten=(r.punten||[]).map(function(p,i){
+      var klaar=(T(p.staat)==='klaar');
+      return '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:7px 9px;border-radius:9px;margin:0 0 5px;background:'+(klaar?'#f3fdf5':'#fff6f6')+'">'+
+        '<span style="flex:1;min-width:140px;color:#172033;font-weight:700">'+esc(p.tekst)+'</span>'+
+        '<span style="background:'+(klaar?'#dcfce7':'#fee2e2')+';color:'+(klaar?'#166534':'#b91c1c')+';border-radius:8px;padding:3px 9px;font-size:12px;font-weight:800;white-space:nowrap">'+(klaar?'Uitgevoerd':'Nog doen')+'</span>'+
+        (klaar?'':knop('Afmelden', Object.assign({},GROEN,{extra:'padding:6px 11px;font-size:13px',attr:'data-oh-puntklaar="'+esc(r.id)+'|'+i+'"'})))+
+      '</div>';
+    }).join('');
+    return '<div style="border:1px solid #e5e7eb;border-left:6px solid '+(isOpen?'#dc2626':s.rand)+';border-radius:12px;padding:11px 12px;margin:0 0 10px;background:'+(isOpen?'#fffafa':'#fff')+'">'+
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:7px">'+
+        '<span style="background:'+s.vlak+';color:'+s.inkt+';border-radius:9px;padding:3px 9px;font-size:12px;font-weight:800">'+esc(s.naam)+'</span>'+
+        '<span style="font-size:13px;color:#64748b">'+esc(nl(r.datum))+' · '+esc(T(r.door)||'onbekend')+(k?' · '+k:'')+'</span>'+
       '</div>'+
-      '<div style="font-weight:900;color:#172033">'+esc(r.wat||'(zonder omschrijving)')+'</div>'+
-      (T(r.toelichting)?'<div style="font-size:14px;color:#334155;margin-top:3px">'+esc(r.toelichting)+'</div>':'')+
-      '<div style="font-size:12px;color:#64748b;margin-top:5px">'+esc(T(r.door)||'onbekend')+(k?' · '+k:'')+
-        (!isOpen && r.klaarOp ? ' · afgemeld op '+esc(nl(r.klaarOp))+(r.klaarDoor?' door '+esc(r.klaarDoor):'') : '')+'</div>'+
+      punten+
+      (T(r.toelichting)?'<div style="font-size:14px;color:#334155;margin-top:4px">'+esc(r.toelichting)+'</div>':'')+
       '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">'+
-        (isOpen? knop('Afmelden als uitgevoerd', Object.assign({},GROEN,{extra:'padding:8px 12px;font-size:14px',attr:'data-oh-klaar="'+esc(r.id)+'"'})) : '')+
-        knop('Wijzigen', Object.assign({},GRIJS,{extra:'padding:8px 12px;font-size:14px',attr:'data-oh-wijzig="'+esc(r.id)+'"'}))+
-        knop('Wissen', Object.assign({},ROOD,{extra:'padding:8px 12px;font-size:14px',attr:'data-oh-wis="'+esc(r.id)+'"'}))+
+        knop('Wijzigen', Object.assign({},GRIJS,{extra:'padding:7px 12px;font-size:13px',attr:'data-oh-wijzig="'+esc(r.id)+'"'}))+
+        knop('Wissen', Object.assign({},ROOD,{extra:'padding:7px 12px;font-size:13px',attr:'data-oh-wis="'+esc(r.id)+'"'}))+
       '</div>'+
     '</div>';
   }
 
-  /* ---------------- invulblok ---------------- */
-  function formHtml(r){
-    r=r||{};
-    var huidig=T(r.soort)||'reparatie';
-    var rij=SOORTEN.map(function(s){
-      var aan=(huidig===s.k);
-      return knop(s.naam, aan?{vlak:s.rand,inkt:'#fff',rand:'0',extra:'padding:9px 13px',attr:'data-oh-soort="'+s.k+'"'}
-                            :{vlak:'#fff',inkt:'#334155',extra:'padding:9px 13px',attr:'data-oh-soort="'+s.k+'"'});
+  /* ---------------- het formulier: een beurt met punten ---------------- */
+  function nieuwForm(r){
+    if(r){
+      form={id:r.id, soort:T(r.soort)||'reparatie',
+            punten:(r.punten||[]).map(function(p){ return {tekst:T(p.tekst), staat:T(p.staat)==='klaar'?'klaar':'open'}; }),
+            toelichting:T(r.toelichting), datum:T(r.datum)||vandaag(), door:T(r.door)||wieIsHet(), kosten:T(r.kosten)};
+    } else {
+      form={id:'', soort:'reparatie', punten:[{tekst:'', staat:'klaar'}], toelichting:'', datum:vandaag(), door:wieIsHet(), kosten:''};
+    }
+  }
+  function formLezen(){
+    if(!form) return;
+    form.punten.forEach(function(p,i){ var el=E('bnsOhPunt'+i); if(el) p.tekst=T(el.value); });
+    var t=E('bnsOhToel'); if(t) form.toelichting=T(t.value);
+    var d=E('bnsOhDatum'); if(d) form.datum=T(d.value)||vandaag();
+    var w=E('bnsOhDoor'); if(w) form.door=T(w.value);
+    var k=E('bnsOhKosten'); if(k) form.kosten=T(k.value);
+  }
+  function formTekenen(){
+    var vak=E('bnsOhForm'); if(!vak) return;
+    vak.innerHTML=form? formHtml() : '';
+    koppelForm();
+  }
+  function formHtml(){
+    var nOpen=form.punten.filter(function(p){ return p.staat!=='klaar'; }).length;
+    var soortRij=SOORTEN.map(function(s){
+      var aan=(form.soort===s.k);
+      return knop(s.naam, aan?{vlak:s.rand,inkt:'#fff',rand:'0',extra:'padding:9px 15px',attr:'data-oh-soort="'+s.k+'"'}
+                            :{vlak:'#fff',inkt:'#334155',extra:'padding:9px 15px',attr:'data-oh-soort="'+s.k+'"'});
     }).join('');
-    return '<div id="bnsOhFormVak" data-oh-id="'+esc(r.id||'')+'" data-oh-soortwaarde="'+esc(huidig)+'" style="border:2px solid #2563eb;border-radius:14px;padding:13px;margin:0 0 12px;background:#f8fbff">'+
-      '<div style="font-weight:900;margin-bottom:9px;color:#172033">'+(r.id?'Regel wijzigen':'Nieuwe regel')+'</div>'+
-      '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px" id="bnsOhSoortRij">'+rij+'</div>'+
-      '<input id="bnsOhWat" placeholder="Wat is er gedaan, bijvoorbeeld: remblokken achter" value="'+esc(r.wat||'')+'" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px">'+
-      '<textarea id="bnsOhToel" rows="2" placeholder="Toelichting, niet verplicht" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px;resize:vertical">'+esc(r.toelichting||'')+'</textarea>'+
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+
-        '<input id="bnsOhDatum" type="date" value="'+esc(r.datum||vandaag())+'" style="flex:1 1 160px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
-        '<input id="bnsOhDoor" placeholder="Door wie" value="'+esc(T(r.door)||wieIsHet())+'" style="flex:1 1 150px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
-        '<input id="bnsOhKosten" placeholder="Kosten" value="'+esc(r.kosten||'')+'" style="flex:1 1 110px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+    var puntRijen=form.punten.map(function(p,i){
+      var klaar=(p.staat==='klaar');
+      return '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:9px 10px;border-bottom:1px solid #eef2f7;background:'+(klaar?'#f3fdf5':'#fff6f6')+'">'+
+        '<input id="bnsOhPunt'+i+'" value="'+esc(p.tekst)+'" placeholder="Wat is er gedaan of wat moet er gebeuren" style="flex:1 1 240px;min-width:0;padding:9px 11px;border:1px solid #d8dee9;border-radius:10px">'+
+        '<span style="display:flex;gap:6px">'+
+          knop('Uitgevoerd', klaar?Object.assign({},GROEN,{extra:'padding:8px 13px;font-size:14px',attr:'data-oh-staat="'+i+'|klaar"'})
+                                  :Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:14px',attr:'data-oh-staat="'+i+'|klaar"'}))+
+          knop('Nog doen', klaar?Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:14px',attr:'data-oh-staat="'+i+'|open"'})
+                                :Object.assign({},ROOD,{extra:'padding:8px 13px;font-size:14px',attr:'data-oh-staat="'+i+'|open"'}))+
+        '</span>'+
+        knop('×', Object.assign({},GRIJS,{extra:'padding:8px 12px;font-size:14px',attr:'data-oh-puntweg="'+i+'"'}))+
+      '</div>';
+    }).join('');
+    var vp=vastePunten();
+    return '<div style="border:2px solid #2563eb;border-radius:14px;padding:14px;margin:0 0 14px;background:#f8fbff">'+
+      '<div style="font-size:17px;font-weight:900;margin-bottom:10px;color:#172033">'+(form.id?'Beurt wijzigen':'Nieuwe beurt')+'</div>'+
+      '<div style="font-size:13px;color:#475569;margin-bottom:6px">Wat voor beurt is dit</div>'+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px">'+soortRij+'</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:baseline;margin-bottom:6px">'+
+        '<span style="font-size:13px;color:#475569">Punten - zet per punt of het klaar is of nog moet gebeuren</span>'+
+        (nOpen? '<span style="font-size:13px;color:#b91c1c;font-weight:800">'+nOpen+' punt(en) worden een reparatieverzoek</span>' : '')+
       '</div>'+
-      '<label style="display:flex;gap:9px;align-items:center;font-weight:700;margin-bottom:11px;color:#172033">'+
-        '<input type="checkbox" id="bnsOhOpen" '+(T(r.status)==='klaar'?'':'checked')+' style="width:18px;height:18px">'+
-        '<span>Dit moet nog uitgevoerd worden (reparatieverzoek)</span>'+
-      '</label>'+
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-        knop('Opslaan', Object.assign({},GROEN,{extra:'padding:11px 20px',attr:'id="bnsOhBewaar"'}))+
-        knop('Annuleren', Object.assign({},GRIJS,{extra:'padding:11px 20px',attr:'id="bnsOhAnnuleer"'}))+
+      '<div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:10px;background:#fff">'+puntRijen+'</div>'+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">'+
+        knop('+ Punt erbij', Object.assign({},BLAUW,{attr:'data-oh-puntbij'}))+
+      '</div>'+
+      '<div style="border:1px dashed #b9cde2;border-radius:12px;padding:11px;background:#fff;margin-bottom:12px">'+
+        '<div style="font-size:13px;color:#475569;margin-bottom:7px">Uit de vaste lijst - aanklikken zet het punt erbij</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+          vp.map(function(p){ return knop(esc(p), Object.assign({},GRIJS,{extra:'padding:7px 13px;font-size:14px;border-radius:999px;font-weight:700',attr:'data-oh-vastpunt="'+esc(p)+'"'})); }).join('')+
+        '</div>'+
+      '</div>'+
+      '<textarea id="bnsOhToel" rows="2" placeholder="Toelichting bij deze beurt, niet verplicht" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:10px;resize:vertical">'+esc(form.toelichting)+'</textarea>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+
+        '<input id="bnsOhDatum" type="date" value="'+esc(form.datum)+'" style="flex:1 1 160px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+        '<input id="bnsOhDoor" placeholder="Uitgevoerd door" value="'+esc(form.door)+'" style="flex:1 1 170px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+        '<input id="bnsOhKosten" placeholder="Kosten" value="'+esc(form.kosten)+'" style="flex:1 1 110px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+        knop('Beurt opslaan', Object.assign({},GROEN,{extra:'padding:12px 22px;font-size:15px',attr:'data-oh-bewaar'}))+
+        knop('Annuleren', Object.assign({},GRIJS,{extra:'padding:12px 22px;font-size:15px',attr:'data-oh-annuleer'}))+
+        '<span style="font-size:13px;color:#64748b">Punten op Nog doen komen rood in het boek te staan.</span>'+
       '</div>'+
     '</div>';
   }
-  function formTonen(r){
-    var vak=E('bnsOhForm'); if(!vak) return;
-    vak.innerHTML=formHtml(r);
-    var rij=E('bnsOhSoortRij');
-    if(rij) Array.prototype.slice.call(rij.querySelectorAll('[data-oh-soort]')).forEach(function(b){
-      b.addEventListener('click', function(){ var h=lezenForm(); h.soort=b.getAttribute('data-oh-soort'); formTonen(h); });
+
+  function koppelForm(){
+    var vak=E('bnsOhForm'); if(!vak || !form) return;
+    Array.prototype.slice.call(vak.querySelectorAll('[data-oh-soort]')).forEach(function(b){
+      b.addEventListener('click', function(){ formLezen(); form.soort=b.getAttribute('data-oh-soort'); formTekenen(); });
     });
-    var bew=E('bnsOhBewaar'); if(bew) bew.addEventListener('click', bewaren);
-    var ann=E('bnsOhAnnuleer'); if(ann) ann.addEventListener('click', function(){ vak.innerHTML=''; });
-    var w=E('bnsOhWat'); if(w) w.focus();
+    Array.prototype.slice.call(vak.querySelectorAll('[data-oh-staat]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        formLezen();
+        var d=b.getAttribute('data-oh-staat').split('|');
+        if(form.punten[Number(d[0])]) form.punten[Number(d[0])].staat=d[1];
+        formTekenen();
+      });
+    });
+    Array.prototype.slice.call(vak.querySelectorAll('[data-oh-puntweg]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        formLezen();
+        form.punten.splice(Number(b.getAttribute('data-oh-puntweg')),1);
+        if(!form.punten.length) form.punten=[{tekst:'', staat:'klaar'}];
+        formTekenen();
+      });
+    });
+    var bij=vak.querySelector('[data-oh-puntbij]');
+    if(bij) bij.addEventListener('click', function(){ formLezen(); form.punten.push({tekst:'', staat:'klaar'}); formTekenen(); });
+    Array.prototype.slice.call(vak.querySelectorAll('[data-oh-vastpunt]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        formLezen();
+        var t=b.getAttribute('data-oh-vastpunt');
+        /* staat er nog een leeg punt, dan daarin; anders een nieuwe regel erbij */
+        var leeg=-1;
+        form.punten.forEach(function(p,i){ if(leeg<0 && !T(p.tekst)) leeg=i; });
+        if(leeg>=0) form.punten[leeg].tekst=t; else form.punten.push({tekst:t, staat:'klaar'});
+        formTekenen();
+      });
+    });
+    var bew=vak.querySelector('[data-oh-bewaar]');
+    if(bew) bew.addEventListener('click', bewaren);
+    var ann=vak.querySelector('[data-oh-annuleer]');
+    if(ann) ann.addEventListener('click', function(){ form=null; formTekenen(); tekenen(true); });
   }
-  function lezenForm(){
-    var vak=E('bnsOhFormVak'); if(!vak) return {};
-    return {
-      id:T(vak.getAttribute('data-oh-id')),
-      soort:T(vak.getAttribute('data-oh-soortwaarde'))||'reparatie',
-      wat:T(E('bnsOhWat')&&E('bnsOhWat').value),
-      toelichting:T(E('bnsOhToel')&&E('bnsOhToel').value),
-      datum:T(E('bnsOhDatum')&&E('bnsOhDatum').value)||vandaag(),
-      door:T(E('bnsOhDoor')&&E('bnsOhDoor').value)||wieIsHet(),
-      kosten:T(E('bnsOhKosten')&&E('bnsOhKosten').value),
-      status:(E('bnsOhOpen')&&E('bnsOhOpen').checked)?'open':'klaar'
-    };
-  }
+
   function bewaren(){
-    var o=objectVan(gekozen); if(!o) return;
-    var n=lezenForm();
-    if(!T(n.wat)){ meld('Niets ingevuld','Vul eerst in wat er gedaan is of wat er moet gebeuren.'); return; }
+    var o=objectVan(gekozen); if(!o || !form) return;
+    formLezen();
+    var punten=form.punten.filter(function(p){ return T(p.tekst); });
+    if(!punten.length){ meld('Niets ingevuld','Vul minstens een punt in, of kies er een uit de vaste lijst.'); return; }
     var l=regels(o.id), best=null;
-    l.forEach(function(r){ if(T(r.id)===T(n.id)) best=r; });
+    l.forEach(function(r){ if(T(r.id)===T(form.id)) best=r; });
+    var ik=wieIsHet();
+    punten.forEach(function(p){
+      if(p.staat==='klaar' && !p.klaarOp){ p.klaarOp=nuISO(); p.klaarDoor=ik; }
+    });
     if(best){
-      best.soort=n.soort; best.wat=n.wat; best.toelichting=n.toelichting;
-      best.datum=n.datum; best.door=n.door; best.kosten=n.kosten;
-      if(n.status==='klaar' && T(best.status)!=='klaar'){
-        best.status='klaar';
-        if(!best.klaarOp){ best.klaarOp=nuISO(); best.klaarDoor=wieIsHet(); }
-      } else if(n.status==='open'){ best.status='open'; }
+      best.soort=form.soort; best.punten=punten; best.toelichting=form.toelichting;
+      best.datum=form.datum; best.door=form.door; best.kosten=form.kosten;
     } else {
-      var nw={id:nieuwId('oh'), soort:n.soort, wat:n.wat, toelichting:n.toelichting, datum:n.datum,
-              door:n.door, kosten:n.kosten, status:n.status, gemaaktOp:nuISO(), gemaaktDoor:wieIsHet()};
-      if(n.status==='klaar'){ nw.klaarOp=nuISO(); nw.klaarDoor=wieIsHet(); }
-      l.push(nw);
+      l.push({id:nieuwId('oh'), soort:form.soort, punten:punten, toelichting:form.toelichting,
+              datum:form.datum, door:form.door, kosten:form.kosten,
+              gemaaktOp:nuISO(), gemaaktDoor:ik});
     }
     regelsOpslaan(o.id,l);
+    form=null;
     tekenen(true);
   }
 
-  /* ---------------- overnemen ---------------- */
-  function bestaatAl(l, twnr, naam, kenteken){
-    var t=T(twnr).toLowerCase(), n=T(naam).toLowerCase(), k=T(kenteken).toUpperCase().replace(/[^A-Z0-9]/g,''), raak=false;
+  /* ---------------- overnemen en wissen ---------------- */
+  function bestaatAl(l,twnr,naam,kent){
+    var t=T(twnr).toLowerCase(), n=T(naam).toLowerCase(), k=T(kent).toUpperCase().replace(/[^A-Z0-9]/g,''), raak=false;
     l.forEach(function(o){
       if(raak) return;
       if(t && T(o.twnr).toLowerCase()===t) raak=true;
@@ -59940,36 +60026,32 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }catch(e){}
     return [];
   }
-  function voertuigenLezen(){
-    try{ var l=JSON.parse(localStorage.getItem('bns_voertuigen')||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
-  }
+  function voertuigenLezen(){ try{ var l=JSON.parse(localStorage.getItem('bns_voertuigen')||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; } }
   function overnemen(bron){
     var l=objecten(), erbij=0;
     if(bron==='materialen'){
       materialenLezen().forEach(function(m){
         var naam=T(m&&(m.name||m.naam)), code=T(m&&m.code);
         if(!naam || naam==='-') return;
-        if(bestaatAl(l, code, naam, '')) return;
-        l.push({id:nieuwId('obj'), naam:naam, kenteken:'', twnr:code, soort:'materiaal', blokken:[], gemaaktOp:nuISO(), uit:'materialen'});
+        if(bestaatAl(l,code,naam,'')) return;
+        l.push({id:nieuwId('obj'), naam:naam, kenteken:'', twnr:code, soort:'materiaal', gemaaktOp:nuISO(), uit:'materialen'});
         erbij++;
       });
     } else {
       voertuigenLezen().forEach(function(v){
         var naam=T(v&&v.naam), kent=T(v&&v.kenteken);
         if(!naam && !kent) return;
-        if(bestaatAl(l, '', naam, kent)) return;
-        l.push({id:nieuwId('obj'), naam:naam||kent, kenteken:kent, twnr:'', soort:'voertuig', blokken:[], gemaaktOp:nuISO(), uit:'voertuigen'});
+        if(bestaatAl(l,'',naam,kent)) return;
+        l.push({id:nieuwId('obj'), naam:naam||kent, kenteken:kent, twnr:'', soort:'voertuig', gemaaktOp:nuISO(), uit:'voertuigen'});
         erbij++;
       });
     }
     if(erbij) objectenOpslaan(l);
-    meld('Overnemen', erbij ? erbij+' object(en) overgenomen. Vul er zelf het kenteken of nummer bij waar dat nog mist.' : 'Er was niets nieuws om over te nemen.');
+    meld('Overnemen', erbij? erbij+' object(en) overgenomen.' : 'Er was niets nieuws om over te nemen.');
     tekenen(true);
   }
-
   function objectenWissen(ids){
-    var weg={};
-    ids.forEach(function(i){ weg[i]=true; });
+    var weg={}; ids.forEach(function(i){ weg[i]=true; });
     objectenOpslaan(objecten().filter(function(o){ return !weg[o.id]; }));
     ids.forEach(function(i){
       try{ localStorage.removeItem(REG_KEY+i); }catch(e){}
@@ -59977,7 +60059,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         var fs=window.BNS && window.BNS.fs, db=window.BNS && window.BNS.db;
         if(fs && db && fs.deleteDoc && fs.doc) fs.deleteDoc(fs.doc(db,'onderhoud',String(i))).catch(function(){});
       }catch(e){}
-      if(T(gekozen)===T(i)) gekozen='';
+      if(T(gekozen)===T(i)){ gekozen=''; form=null; }
     });
     aangevinkt={};
   }
@@ -59997,32 +60079,40 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         koppelRijen();
       }
     });
-
     Array.prototype.slice.call(pane.querySelectorAll('[data-oh-filter]')).forEach(function(b){
       b.addEventListener('click', function(){ filter=b.getAttribute('data-oh-filter'); tekenen(true); });
     });
-    var of_=pane.querySelector('[data-oh-open-filter]');
-    if(of_) of_.addEventListener('click', function(){ alleenOpen=!alleenOpen; tekenen(true); });
-    var tv=pane.querySelector('[data-oh-toevoeg]');
-    if(tv) tv.addEventListener('click', function(){ toevoegOpen=!toevoegOpen; tekenen(true); });
-    var op=pane.querySelector('[data-oh-opschoon]');
-    if(op) op.addEventListener('click', function(){ opschoonStand=!opschoonStand; aangevinkt={}; tekenen(true); });
+    var of_=pane.querySelector('[data-oh-open-filter]'); if(of_) of_.addEventListener('click', function(){ alleenOpen=!alleenOpen; tekenen(true); });
+    var tv=pane.querySelector('[data-oh-toevoeg]'); if(tv) tv.addEventListener('click', function(){ toevoegOpen=!toevoegOpen; tekenen(true); });
+    var op=pane.querySelector('[data-oh-opschoon]'); if(op) op.addEventListener('click', function(){ opschoonStand=!opschoonStand; aangevinkt={}; tekenen(true); });
 
-    var va=pane.querySelector('[data-oh-vink-alles]');
-    if(va) va.addEventListener('click', function(){ gevonden().forEach(function(o){ aangevinkt[o.id]=true; }); tekenen(true); });
-    var vl=pane.querySelector('[data-oh-vink-leeg]');
-    if(vl) vl.addEventListener('click', function(){ gevonden().forEach(function(o){ if(!regels(o.id).length) aangevinkt[o.id]=true; }); tekenen(true); });
-    var vn=pane.querySelector('[data-oh-vink-niets]');
-    if(vn) vn.addEventListener('click', function(){ aangevinkt={}; tekenen(true); });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-punten]')).forEach(function(b){
+      b.addEventListener('click', function(){ puntenBeheer=!puntenBeheer; tekenen(true); });
+    });
+    var pa=pane.querySelector('[data-oh-punt-add]');
+    if(pa) pa.addEventListener('click', function(){
+      var t=T(E('bnsOhNieuwPunt')&&E('bnsOhNieuwPunt').value);
+      if(!t) return;
+      var l=vastePunten(); l.push(t); vastePuntenOpslaan(l); tekenen(true);
+    });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-punt-wis]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var l=vastePunten(); l.splice(Number(b.getAttribute('data-oh-punt-wis')),1); vastePuntenOpslaan(l); tekenen(true);
+      });
+    });
+
+    var va=pane.querySelector('[data-oh-vink-alles]'); if(va) va.addEventListener('click', function(){ gevonden().forEach(function(o){ aangevinkt[o.id]=true; }); tekenen(true); });
+    var vl=pane.querySelector('[data-oh-vink-leeg]');  if(vl) vl.addEventListener('click', function(){ gevonden().forEach(function(o){ if(!regels(o.id).length) aangevinkt[o.id]=true; }); tekenen(true); });
+    var vn=pane.querySelector('[data-oh-vink-niets]'); if(vn) vn.addEventListener('click', function(){ aangevinkt={}; tekenen(true); });
     var vw=pane.querySelector('[data-oh-vink-wis]');
     if(vw) vw.addEventListener('click', function(){
       var ids=Object.keys(aangevinkt).filter(function(k){ return aangevinkt[k]; });
       if(!ids.length){ meld('Niets aangevinkt','Vink eerst aan welke objecten weg mogen.'); return; }
-      vraag('Objecten verwijderen', ids.length+' object(en) worden verwijderd, met alles wat eraan vastzit. Dit kan niet ongedaan gemaakt worden.', 'Verwijderen')
-        .then(function(ja){ if(!ja) return; objectenWissen(ids); tekenen(true); });
+      vraag('Objecten verwijderen', ids.length+' object(en) worden verwijderd, met alles wat eraan vastzit.','Verwijderen')
+        .then(function(ja){ if(ja){ objectenWissen(ids); tekenen(true); } });
     });
 
-    var add=E('bnsOhAdd') || pane.querySelector('[data-oh-add]');
+    var add=pane.querySelector('[data-oh-add]');
     if(add) add.addEventListener('click', function(){
       var naam=T(E('bnsOhNaam')&&E('bnsOhNaam').value);
       if(!naam){ meld('Naam ontbreekt','Een object heeft altijd een naam nodig.'); return; }
@@ -60030,8 +60120,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       l.push({id:nieuwId('obj'), naam:naam,
         kenteken:T(E('bnsOhKent')&&E('bnsOhKent').value).toUpperCase(),
         twnr:T(E('bnsOhTwnr')&&E('bnsOhTwnr').value),
-        soort:T(E('bnsOhSoort')&&E('bnsOhSoort').value)||'voertuig',
-        blokken:[], gemaaktOp:nuISO()});
+        soort:T(E('bnsOhSoort')&&E('bnsOhSoort').value)||'voertuig', gemaaktOp:nuISO()});
       objectenOpslaan(l);
       gekozen=l[l.length-1].id; geladen[gekozen]=true; toevoegOpen=false;
       tekenen(true);
@@ -60040,26 +60129,22 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       b.addEventListener('click', function(){ overnemen(b.getAttribute('data-oh-uit')); });
     });
 
-    var nieuw=E('bnsOhNieuw');
-    if(nieuw) nieuw.addEventListener('click', function(){ formTonen({status:'klaar'}); });
-
-    var wijzObj=E('bnsOhWijzigObj');
-    if(wijzObj) wijzObj.addEventListener('click', objectWijzigen);
-
-    var wisObj=E('bnsOhWisObj');
-    if(wisObj) wisObj.addEventListener('click', function(){
+    var nieuw=E('bnsOhNieuw'); if(nieuw) nieuw.addEventListener('click', function(){ nieuwForm(null); formTekenen(); });
+    var wo=E('bnsOhWijzigObj'); if(wo) wo.addEventListener('click', objectWijzigen);
+    var wis=E('bnsOhWisObj');
+    if(wis) wis.addEventListener('click', function(){
       var o=objectVan(gekozen); if(!o) return;
-      vraag('Object verwijderen', '"'+o.naam+'" helemaal verwijderen, met alle regels? Dit kan niet ongedaan gemaakt worden.', 'Verwijderen')
-        .then(function(ja){ if(!ja) return; objectenWissen([o.id]); tekenen(true); });
+      vraag('Object verwijderen','"'+o.naam+'" helemaal verwijderen, met alle beurten?','Verwijderen')
+        .then(function(ja){ if(ja){ objectenWissen([o.id]); tekenen(true); } });
     });
 
-    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-klaar]')).forEach(function(b){
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-puntklaar]')).forEach(function(b){
       b.addEventListener('click', function(){
-        var id=b.getAttribute('data-oh-klaar'), l=regels(gekozen);
+        var d=b.getAttribute('data-oh-puntklaar').split('|'), l=regels(gekozen);
         l.forEach(function(r){
-          if(T(r.id)!==T(id)) return;
-          r.status='klaar';
-          if(!r.klaarOp){ r.klaarOp=nuISO(); r.klaarDoor=wieIsHet(); }
+          if(T(r.id)!==T(d[0])) return;
+          var p=(r.punten||[])[Number(d[1])];
+          if(p){ p.staat='klaar'; if(!p.klaarOp){ p.klaarOp=nuISO(); p.klaarDoor=wieIsHet(); } }
         });
         regelsOpslaan(gekozen,l); tekenen(true);
       });
@@ -60068,13 +60153,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       b.addEventListener('click', function(){
         var id=b.getAttribute('data-oh-wijzig'), raak=null;
         regels(gekozen).forEach(function(r){ if(T(r.id)===T(id)) raak=r; });
-        if(raak) formTonen(raak);
+        if(raak){ nieuwForm(raak); formTekenen(); }
       });
     });
     Array.prototype.slice.call(pane.querySelectorAll('[data-oh-wis]')).forEach(function(b){
       b.addEventListener('click', function(){
         var id=b.getAttribute('data-oh-wis');
-        vraag('Regel verwijderen','Deze regel definitief verwijderen?','Verwijderen').then(function(ja){
+        vraag('Beurt verwijderen','Deze beurt met alle punten verwijderen?','Verwijderen').then(function(ja){
           if(!ja) return;
           regelsOpslaan(gekozen, regels(gekozen).filter(function(r){ return T(r.id)!==T(id); }));
           tekenen(true);
@@ -60083,13 +60168,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     });
 
     koppelRijen();
+    koppelForm();
   }
 
   function koppelRijen(){
     var pane=E(PANE); if(!pane) return;
     Array.prototype.slice.call(pane.querySelectorAll('[data-oh-kies]')).forEach(function(b){
       b.addEventListener('click', function(){
-        gekozen=b.getAttribute('data-oh-kies');
+        gekozen=b.getAttribute('data-oh-kies'); form=null;
         tekenen(true);
         regelsOphalen(gekozen).then(function(){ tekenen(true); });
       });
@@ -60107,6 +60193,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function objectWijzigen(){
     var o=objectVan(gekozen); if(!o) return;
     var vak=E('bnsOhForm'); if(!vak) return;
+    form=null;
     vak.innerHTML='<div style="border:2px solid #334155;border-radius:14px;padding:13px;margin:0 0 12px;background:#f8fafc">'+
       '<div style="font-weight:900;margin-bottom:9px;color:#172033">Object wijzigen</div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+
@@ -60116,15 +60203,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         '<select id="bnsOhOSoort" style="flex:1 1 130px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
           '<option value="voertuig"'+(T(o.soort)==='voertuig'?' selected':'')+'>Voertuig</option>'+
           '<option value="aanhanger"'+(T(o.soort)==='aanhanger'?' selected':'')+'>Aanhanger</option>'+
-          '<option value="materiaal"'+(T(o.soort)==='materiaal'?' selected':'')+'>Materiaal</option>'+
-        '</select>'+
+          '<option value="materiaal"'+(T(o.soort)==='materiaal'?' selected':'')+'>Materiaal</option></select>'+
       '</div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-        knop('Opslaan', Object.assign({},GROEN,{extra:'padding:11px 20px',attr:'id="bnsOhOBewaar"'}))+
-        knop('Annuleren', Object.assign({},GRIJS,{extra:'padding:11px 20px',attr:'id="bnsOhOAnnuleer"'}))+
-      '</div>'+
-    '</div>';
-    var b=E('bnsOhOBewaar');
+        knop('Opslaan', Object.assign({},GROEN,{extra:'padding:11px 20px',attr:'data-oh-obewaar'}))+
+        knop('Annuleren', Object.assign({},GRIJS,{extra:'padding:11px 20px',attr:'data-oh-oannuleer'}))+
+      '</div></div>';
+    var b=vak.querySelector('[data-oh-obewaar]');
     if(b) b.addEventListener('click', function(){
       var naam=T(E('bnsOhONaam')&&E('bnsOhONaam').value);
       if(!naam){ meld('Naam ontbreekt','Een object heeft altijd een naam nodig.'); return; }
@@ -60138,18 +60223,19 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       });
       objectenOpslaan(l); tekenen(true);
     });
-    var a=E('bnsOhOAnnuleer');
+    var a=vak.querySelector('[data-oh-oannuleer]');
     if(a) a.addEventListener('click', function(){ vak.innerHTML=''; });
   }
 
-  setTimeout(function(){ maakTab(); objectenOphalen(); }, 1600);
+  setTimeout(function(){ maakTab(); uitFirebase(); }, 1600);
   setInterval(function(){ tekenen(false); }, 1500);
 
   window.BNS_TW_ONDERHOUD={
     objecten:objecten,
     regels:function(id){ return regels(id||gekozen); },
     open:alleOpen,
+    vastePunten:vastePunten,
     ophalen:function(id){ delete geladen[id]; return regelsOphalen(id); }
   };
-  try{ console.info('[BNS TW Onderhoud] Rubriek actief - window.BNS_TW_ONDERHOUD.objecten()'); }catch(e){}
+  try{ console.info('[BNS TW Onderhoud] Beurten met losse punten actief.'); }catch(e){}
 })();
