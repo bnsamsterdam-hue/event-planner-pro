@@ -2836,7 +2836,7 @@ async function bnsOhReparatieMelden(order){
     body.innerHTML=
       '<h2>Reparatie of melding</h2>'+
       '<label style="display:block;font-size:15px;color:#475569;margin:0 0 5px">Kenteken of TW-nummer</label>'+
-      '<input id="bnsOhRepMerk" value="'+esc(staat.merk)+'" placeholder="voorbeeld materiaal of tw of kenteken" style="width:100%;box-sizing:border-box;border:2px solid #c9e4fb;border-radius:14px;font-size:17px;font-weight:800;padding:13px 14px;margin:0 0 6px">'+
+      '<input id="bnsOhRepMerk" value="'+esc(staat.merk)+'" placeholder="voer hier bv tapwagen tw.. of voertuig in" style="width:100%;box-sizing:border-box;border:2px solid #c9e4fb;border-radius:14px;font-size:17px;font-weight:800;padding:13px 14px;margin:0 0 6px">'+
       '<div style="font-size:13px;color:#64748b;margin:0 0 14px">'+
         (bnsOhZoekObject(staat.merk) ? 'Bekend: '+esc(bnsOhZoekObject(staat.merk).naam) : (clean(staat.merk)?'Nog niet bekend - wordt aangemaakt':'Vul in om welke wagen of welk materiaal het gaat'))+
       '</div>'+
