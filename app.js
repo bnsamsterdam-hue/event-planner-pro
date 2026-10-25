@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD1-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD2-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59604,6 +59604,70 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return uit;
   }
 
+  /* ==========================================================
+     25-10-2026 - IN EEN KEER OVERNEMEN UIT MATERIALEN EN VOERTUIGEN.
+     ----------------------------------------------------------
+     [stated] "kon je niet meteen alle materialen uit de materiaallijst
+     meenemen, kan ik zelf het kenteken erbij zoeken? Of tasten we dan wel
+     iets aan?"
+
+     Nee, er wordt niets aangetast: dit LEEST die twee lijsten en maakt er een
+     kopie van hier. De materialenlijst en de voertuigenlijst blijven precies
+     zoals ze zijn; er gaat niets terug. Wat hier ontstaat is een eigen object
+     met dezelfde naam en hetzelfde nummer, waar jij daarna zelf het kenteken
+     bij zet.
+
+     Twee keer drukken levert geen dubbele op: wat er al staat wordt
+     overgeslagen, herkend aan het TW-nummer, anders aan de naam.
+  ========================================================== */
+  function bestaatAl(l, twnr, naam, kenteken){
+    var t=T(twnr).toLowerCase(), n=T(naam).toLowerCase(), k=T(kenteken).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    var raak=false;
+    l.forEach(function(o){
+      if(raak) return;
+      if(t && T(o.twnr).toLowerCase()===t) raak=true;
+      else if(k && T(o.kenteken).toUpperCase().replace(/[^A-Z0-9]/g,'')===k) raak=true;
+      else if(!t && !k && n && T(o.naam).toLowerCase()===n) raak=true;
+    });
+    return raak;
+  }
+  function materialenLezen(){
+    var uit=[];
+    try{
+      var s=null;
+      try{ if(typeof state!=='undefined' && state) s=state; }catch(e){}
+      if(!s && window.state) s=window.state;
+      if(s && Array.isArray(s.materials)) uit=s.materials;
+    }catch(e){}
+    return uit;
+  }
+  function voertuigenLezen(){
+    try{ var l=JSON.parse(localStorage.getItem('bns_voertuigen')||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
+  }
+  function overnemen(bron){
+    var l=objecten(), erbij=0;
+    if(bron==='materialen'){
+      materialenLezen().forEach(function(m){
+        var naam=T(m&&(m.name||m.naam)), code=T(m&&m.code);
+        if(!naam || naam==='-') return;
+        if(bestaatAl(l, code, naam, '')) return;
+        l.push({id:nieuwId('obj'), naam:naam, kenteken:'', twnr:code, soort:'materiaal', blokken:[], gemaaktOp:nuISO(), uit:'materialen'});
+        erbij++;
+      });
+    } else {
+      voertuigenLezen().forEach(function(v){
+        var naam=T(v&&v.naam), kent=T(v&&v.kenteken);
+        if(!naam && !kent) return;
+        if(bestaatAl(l, '', naam, kent)) return;
+        l.push({id:nieuwId('obj'), naam:naam||kent, kenteken:kent, twnr:'', soort:'voertuig', blokken:[], gemaaktOp:nuISO(), uit:'voertuigen'});
+        erbij++;
+      });
+    }
+    if(erbij) objectenOpslaan(l);
+    try{ alert(erbij ? erbij+' object(en) overgenomen. Vul er zelf het kenteken of nummer bij waar dat nog mist.' : 'Er was niets nieuws om over te nemen.'); }catch(e){}
+    tekenen(true);
+  }
+
   /* ---------------- het tabblad ---------------- */
   function maakTab(){
     var area=E('adminArea');
@@ -59640,7 +59704,22 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      terwijl je aan het typen bent - dat is hier eerder misgegaan. */
   function vingerafdruk(){
     var o=objecten();
-    return JSON.stringify(o.map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,open(x.id).length]; }))+'|'+gekozen+'|'+zoek+'|'+JSON.stringify(regels(gekozen).map(function(r){ return [r.id,r.status,r.wat,r.datum,r.kosten]; }));
+    /* 25-10-2026: het zoekwoord zit hier BEWUST NIET in. Stond het er wel in,
+       dan veranderde de vingerafdruk bij elke toets en bouwde de ronde van
+       anderhalve seconde het hele blok opnieuw op - met je cursor weg en je
+       tekst kwijt. [stated] "kan niets invullen". Precies dezelfde fout als
+       destijds bij het voertuigenblok (R90). Het zoeken tekent zelf alleen
+       het lijstje opnieuw; daar is de ronde niet voor nodig. */
+    return JSON.stringify(o.map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,open(x.id).length]; }))+'|'+gekozen+'|'+JSON.stringify(regels(gekozen).map(function(r){ return [r.id,r.status,r.wat,r.datum,r.kosten]; }));
+  }
+
+  /* Tweede slot: sta je ergens in dit blok te typen, dan wordt er sowieso niet
+     opnieuw getekend. Een automatische ronde mag nooit je invoer wegvagen. */
+  function aanHetTypen(){
+    try{
+      var pane=E(PANE), a=document.activeElement;
+      return !!(pane && a && a!==document.body && pane.contains(a));
+    }catch(e){ return false; }
   }
 
   function tekenen(forceer){
@@ -59650,6 +59729,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       var admin=E('adminArea');
       if(!admin || !admin.offsetParent) return;
       if(pane.classList.contains('hidden') && !forceer) return;
+      if(!forceer && aanHetTypen()) return;
       var v=vingerafdruk();
       if(!forceer && pane.__vinger===v) return;
       pane.__vinger=v;
@@ -59680,6 +59760,11 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
                   '<option value="materiaal">Materiaal</option>'+
                 '</select>'+
                 '<button type="button" id="bnsOhAdd" style="border:0;border-radius:12px;padding:10px 16px;background:#16a34a;color:#fff;font-weight:900">Toevoegen</button>'+
+              '</div>'+
+              '<div style="font-size:12px;color:#64748b;margin:10px 0 6px">Of neem je bestaande lijsten in een keer over. Dit leest die lijsten alleen; er verandert niets aan Materialen of Voertuigen zelf.</div>'+
+              '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+                '<button type="button" id="bnsOhUitMat" style="border:1px solid #cbd5e1;border-radius:12px;padding:9px 13px;background:#fff;color:#334155;font-weight:800">Uit Materialen overnemen</button>'+
+                '<button type="button" id="bnsOhUitVt" style="border:1px solid #cbd5e1;border-radius:12px;padding:9px 13px;background:#fff;color:#334155;font-weight:800">Uit Voertuigen overnemen</button>'+
               '</div>'+
             '</div>'+
           '</div>'+
@@ -59731,6 +59816,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         '</div>'+
         '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
           '<button type="button" id="bnsOhNieuw" style="border:0;border-radius:12px;padding:10px 14px;background:#2563eb;color:#fff;font-weight:900">Regel toevoegen</button>'+
+          '<button type="button" id="bnsOhWijzigObj" style="border:1px solid #cbd5e1;border-radius:12px;padding:10px 14px;background:#fff;color:#334155;font-weight:800">Object wijzigen</button>'+
           '<button type="button" id="bnsOhWisObj" style="border:0;border-radius:12px;padding:10px 14px;background:#dc2626;color:#fff;font-weight:900">Object verwijderen</button>'+
         '</div>'+
       '</div>'+
@@ -59891,8 +59977,56 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       tekenen(true);
     });
 
+    var uitMat=E('bnsOhUitMat');
+    if(uitMat) uitMat.addEventListener('click', function(){ overnemen('materialen'); });
+    var uitVt=E('bnsOhUitVt');
+    if(uitVt) uitVt.addEventListener('click', function(){ overnemen('voertuigen'); });
+
     var nieuw=E('bnsOhNieuw');
     if(nieuw) nieuw.addEventListener('click', function(){ formTonen({status:'klaar'}); });
+
+    /* 25-10-2026: de naam, het kenteken en het nummer moeten achteraf aan te
+       passen zijn. [stated] "kan ik zelf het kenteken erbij zoeken?" Bij het
+       overnemen uit Materialen is dat veld immers nog leeg. */
+    var wijzObj=E('bnsOhWijzigObj');
+    if(wijzObj) wijzObj.addEventListener('click', function(){
+      var o=objectVan(gekozen); if(!o) return;
+      var vak=E('bnsOhForm'); if(!vak) return;
+      vak.innerHTML='<div style="border:2px solid #334155;border-radius:14px;padding:13px;margin:0 0 12px;background:#f8fafc">'+
+        '<div style="font-weight:900;margin-bottom:9px">Object wijzigen</div>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+
+          '<input id="bnsOhONaam" placeholder="Naam" value="'+esc(o.naam||'')+'" style="flex:1 1 170px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+          '<input id="bnsOhOKent" placeholder="Kenteken" value="'+esc(o.kenteken||'')+'" style="flex:1 1 120px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;text-transform:uppercase">'+
+          '<input id="bnsOhOTwnr" placeholder="TW-nummer" value="'+esc(o.twnr||'')+'" style="flex:1 1 120px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+          '<select id="bnsOhOSoort" style="flex:1 1 130px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+            '<option value="voertuig"'+(T(o.soort)==='voertuig'?' selected':'')+'>Voertuig</option>'+
+            '<option value="aanhanger"'+(T(o.soort)==='aanhanger'?' selected':'')+'>Aanhanger</option>'+
+            '<option value="materiaal"'+(T(o.soort)==='materiaal'?' selected':'')+'>Materiaal</option>'+
+          '</select>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+          '<button type="button" id="bnsOhOBewaar" style="border:0;border-radius:12px;padding:11px 18px;background:#16a34a;color:#fff;font-weight:900">Opslaan</button>'+
+          '<button type="button" id="bnsOhOAnnuleer" style="border:1px solid #cbd5e1;border-radius:12px;padding:11px 18px;background:#fff;color:#334155;font-weight:800">Annuleren</button>'+
+        '</div>'+
+      '</div>';
+      var b=E('bnsOhOBewaar');
+      if(b) b.addEventListener('click', function(){
+        var naam=T(E('bnsOhONaam')&&E('bnsOhONaam').value);
+        if(!naam){ try{ alert('Een object heeft altijd een naam nodig.'); }catch(e){} return; }
+        var l=objecten();
+        l.forEach(function(x){
+          if(T(x.id)!==T(o.id)) return;
+          x.naam=naam;
+          x.kenteken=T(E('bnsOhOKent')&&E('bnsOhOKent').value).toUpperCase();
+          x.twnr=T(E('bnsOhOTwnr')&&E('bnsOhOTwnr').value);
+          x.soort=T(E('bnsOhOSoort')&&E('bnsOhOSoort').value)||x.soort;
+        });
+        objectenOpslaan(l);
+        tekenen(true);
+      });
+      var a=E('bnsOhOAnnuleer');
+      if(a) a.addEventListener('click', function(){ vak.innerHTML=''; });
+    });
 
     var wisObj=E('bnsOhWisObj');
     if(wisObj) wisObj.addEventListener('click', function(){
