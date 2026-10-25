@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R36';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R37';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -2609,7 +2609,10 @@ function bnsOhTekenBoek(){
     b.onclick=async()=>{
       if(!await askConfirm('Afmelden','Dit punt afmelden als uitgevoerd?')) return;
       const d=b.getAttribute('data-oh-puntklaar').split('|');
-      const l=(bnsOhRegels[o.id]||[]).slice();
+      /* 25-10-2026: vers ophalen voor het afmelden, anders schrijf je een oude
+         kopie terug over wat de planner intussen heeft veranderd. */
+      delete bnsOhRegels[o.id];
+      const l=(await bnsOhRegelsHalen(o.id)).slice();
       l.forEach(r=>{
         if(bnsOhT(r.id)!==bnsOhT(d[0])) return;
         const p=(r.punten||[])[Number(d[1])];
@@ -2760,8 +2763,29 @@ function bnsOhZoekObject(tekst){
   return raak;
 }
 
+/* ==========================================================
+   25-10-2026 - NOOIT EEN OUDE KOPIE TERUGSCHRIJVEN.
+   ----------------------------------------------------------
+   De telefoon haalt de objectenlijst bij het starten op. Schrijft hij later
+   zijn eigen kopie terug, dan verdwijnt alles wat de planner intussen heeft
+   toegevoegd of veranderd. Daarom wordt de lijst vlak voor het schrijven
+   opnieuw opgehaald, en wordt het nieuwe object DAARAAN toegevoegd. Blijkt
+   het er dan al in te staan - iemand anders was net sneller - dan wordt dat
+   object gebruikt in plaats van er nog een te maken.
+========================================================== */
 async function bnsOhObjectMaken(tekst){
   const t=bnsOhT(tekst);
+  try{
+    const {doc,getDoc}=await bnsOhFirestore();
+    const snap=await getDoc(doc(BNS.db,'settings','onderhoud_objecten'));
+    const d=snap && snap.exists() ? snap.data() : null;
+    if(d && Array.isArray(d.lijst)){
+      bnsOhObjecten=d.lijst;
+      try{ localStorage.setItem('bns_tw_oh_objecten_tel', JSON.stringify(d.lijst)); }catch(e){}
+      const alBekend=bnsOhZoekObject(t);
+      if(alBekend) return alBekend;
+    }
+  }catch(e){}
   const lijktOpKenteken=/^[A-Z0-9]{6}$/.test(t.toUpperCase().replace(/[^A-Z0-9]/g,''));
   const o={ id:'obj_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),
             naam:t, kenteken: lijktOpKenteken ? t.toUpperCase() : '',
@@ -2836,7 +2860,7 @@ async function bnsOhReparatieMelden(order){
     body.innerHTML=
       '<h2>Reparatie of melding</h2>'+
       '<label style="display:block;font-size:15px;color:#475569;margin:0 0 5px">Kenteken of TW-nummer</label>'+
-      '<input id="bnsOhRepMerk" value="'+esc(staat.merk)+'" placeholder="voer hier bv tapwagen tw.. of voertuig in" style="width:100%;box-sizing:border-box;border:2px solid #c9e4fb;border-radius:14px;font-size:17px;font-weight:800;padding:13px 14px;margin:0 0 6px">'+
+      '<input id="bnsOhRepMerk" value="'+esc(staat.merk)+'" placeholder="Bijvoorbeeld VSN-68-R of TW17" style="width:100%;box-sizing:border-box;border:2px solid #c9e4fb;border-radius:14px;font-size:17px;font-weight:800;padding:13px 14px;margin:0 0 6px">'+
       '<div style="font-size:13px;color:#64748b;margin:0 0 14px">'+
         (bnsOhZoekObject(staat.merk) ? 'Bekend: '+esc(bnsOhZoekObject(staat.merk).naam) : (clean(staat.merk)?'Nog niet bekend - wordt aangemaakt':'Vul in om welke wagen of welk materiaal het gaat'))+
       '</div>'+
@@ -2903,6 +2927,9 @@ async function bnsOhReparatieMelden(order){
     if(!obj) obj=await bnsOhObjectMaken(staat.merk);
     const ik=clean(BNS.user && BNS.user.name||'');
     punten.forEach(function(p){ if(p.staat==='klaar' && !p.klaarOp){ p.klaarOp=new Date().toISOString(); p.klaarDoor=ik; } });
+    /* 25-10-2026: de regels vlak voor het opslaan opnieuw ophalen, zodat een
+       beurt die de planner net heeft toegevoegd niet wordt overschreven. */
+    delete bnsOhRegels[obj.id];
     const l=(await bnsOhRegelsHalen(obj.id)).slice();
     l.push({ id:'oh_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),
              soort:staat.soort, punten:punten, toelichting:staat.toelichting,
