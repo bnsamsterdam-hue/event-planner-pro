@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD13-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD14-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59707,7 +59707,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     regels(objId).forEach(function(r){ (r.punten||[]).forEach(function(p){ if(T(p.staat)!=='klaar') n++; }); });
     return n;
   }
-  function alleOpen(){ var n=0; objecten().forEach(function(o){ n+=openPunten(o.id); }); return n; }
+  function alleOpen(){
+    var n=0;
+    objecten().forEach(function(o){ n+=openPunten(o.id); });
+    /* en wat een telefoon meldt op een object dat hier nog niet bekend is,
+       anders zegt de knop nul terwijl de lijst eronder wel iets laat zien */
+    extraObjecten().forEach(function(o){ n+=Number(vanBuiten[o.id] && vanBuiten[o.id].n)||0; });
+    return n;
+  }
   function heeftOpen(r){ return (r.punten||[]).some(function(p){ return T(p.staat)!=='klaar'; }); }
 
   /* ---------------- zoeken ---------------- */
@@ -59982,7 +59989,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   ========================================================== */
   function groepen(alleenOpenstaand){
     var uit=[];
-    objecten().forEach(function(o){
+    var lijst = alleenOpenstaand ? objecten().concat(extraObjecten()) : objecten();
+    lijst.forEach(function(o){
       var punten=[];
       regels(o.id).forEach(function(r){
         (r.punten||[]).forEach(function(p,i){
@@ -59991,6 +59999,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           punten.push({obj:o, regel:r, punt:p, i:i, klaar:klaar});
         });
       });
+      /* Nog geen beurten van dit object op deze computer, maar de telefoon
+         meldt wel iets: dan tonen we wat de telefoon doorgaf. Het ophalen
+         loopt intussen; zodra dat binnen is komt de echte regel hierboven. */
+      if(!punten.length && alleenOpenstaand && vanBuiten[o.id] && (vanBuiten[o.id].punten||[]).length){
+        vanBuiten[o.id].punten.forEach(function(p){
+          punten.push({obj:o, regel:{id:T(p.r), datum:T(p.d), soort:T(p.s)},
+                       punt:{tekst:T(p.t), staat:'open'}, i:Number(p.i)||0, klaar:false});
+        });
+      }
       if(!punten.length) return;
       punten.sort(function(a,b){
         var ad=String(a.klaar ? (a.punt.klaarOp||a.regel.datum||'') : (a.regel.datum||''));
@@ -60378,13 +60395,21 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     Array.prototype.slice.call(pane.querySelectorAll('[data-oh-losklaar]')).forEach(function(b){
       b.addEventListener('click', function(){
         var d=b.getAttribute('data-oh-losklaar').split('|');
-        var l=regels(d[0]);
-        l.forEach(function(r){
-          if(T(r.id)!==T(d[1])) return;
-          var p=(r.punten||[])[Number(d[2])];
-          if(p){ p.staat='klaar'; if(!p.klaarOp){ p.klaarOp=nuISO(); p.klaarDoor=wieIsHet(); } }
-        });
-        regelsOpslaan(d[0],l); tekenen(true);
+        /* 25-10-2026: staan de beurten van dit object hier nog niet, haal ze
+           dan eerst op. Anders zou afmelden een lege lijst terugschrijven en
+           de melding van de bezorger wissen in plaats van afmelden. */
+        var afmaken=function(){
+          var l=regels(d[0]), raak=false;
+          l.forEach(function(r){
+            if(T(r.id)!==T(d[1])) return;
+            var p=(r.punten||[])[Number(d[2])];
+            if(p){ p.staat='klaar'; raak=true; if(!p.klaarOp){ p.klaarOp=nuISO(); p.klaarDoor=wieIsHet(); } }
+          });
+          if(!raak){ meld('Even opnieuw proberen','Deze melding was nog niet helemaal opgehaald. Probeer het zo nog een keer.'); tekenen(true); return; }
+          regelsOpslaan(d[0],l); tekenen(true);
+        };
+        if(!regels(d[0]).length){ delete geladen[d[0]]; regelsOphalen(d[0]).then(afmaken); }
+        else afmaken();
       });
     });
     var tv=pane.querySelector('[data-oh-toevoeg]'); if(tv) tv.addEventListener('click', function(){ toevoegOpen=!toevoegOpen; tekenen(true); });
@@ -60576,6 +60601,36 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      wordt met rust gelaten tot hij opslaat; anders trekt een melding van een
      bezorger zijn invulling onder zijn handen weg.
   ========================================================== */
+  /* ==========================================================
+     25-10-2026 - EEN MELDING MAG NOOIT ONZICHTBAAR BLIJVEN.
+     ----------------------------------------------------------
+     [stated] "in tapwagen bezorgtelefoon maak ik een test reparatie aan; in
+     de telefoon zie je hem, maar bij de planner niet, ook niet na F5."
+
+     Oorzaak: de rubrieken hier worden opgebouwd door de OBJECTENLIJST langs
+     te lopen. Kent deze computer het object niet - bijvoorbeeld omdat een
+     bezorger het zelf heeft aangemaakt vanuit een opdracht - dan staat het
+     niet in die lijst, en dan is er ook geen plek waar zijn melding kan
+     verschijnen. Ook niet na een herlaad, want het ontbrak niet aan verse
+     gegevens maar aan een regel om ze op te hangen.
+
+     Daarom wordt het overzichtje van de telefoons hier bewaard, en vult het
+     de rubriek Nog te doen aan met objecten die deze computer (nog) niet
+     kent. Zo kan een melding nergens meer tussenvallen.
+  ========================================================== */
+  var vanBuiten={};          /* wat de telefoons melden, per object-id */
+
+  function extraObjecten(){
+    var uit=[];
+    Object.keys(vanBuiten).forEach(function(id){
+      if(objectVan(id)) return;
+      var v=vanBuiten[id]||{};
+      if(!(Number(v.n)>0)) return;
+      uit.push({id:id, naam:T(v.naam)||'Nog niet in de objectenlijst', twnr:T(v.nr), kenteken:'', soort:'materiaal', vanTelefoon:true});
+    });
+    return uit;
+  }
+
   var luistert=false;
   function meeluisteren(){
     try{
@@ -60591,16 +60646,19 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           var d=(snap && snap.exists && snap.exists()) ? snap.data() : null;
           if(!d) return;
           var halen=[], onbekend=false;
+          vanBuiten={};
           Object.keys(d).forEach(function(k){
             if(k.indexOf('o_')!==0) return;
             var id=k.slice(2), v=d[k];
             var daar=(v && typeof v==='object') ? (Number(v.n)||0) : (Number(v)||0);
+            if(v && typeof v==='object' && daar>0) vanBuiten[id]=v;
             if(!objectVan(id)) onbekend=true;
             /* het object dat nu in het formulier openstaat niet overschrijven */
             if(form && T(gekozen)===T(id)) return;
             if(openPunten(id)!==daar) halen.push(id);
           });
           if(onbekend) uitFirebase();        /* een telefoon heeft een nieuw object gemaakt */
+          tekenen(true);                     /* ook zonder ophalen kan de lijst veranderd zijn */
           if(!halen.length) return;
           var klaar=0;
           halen.forEach(function(id){
