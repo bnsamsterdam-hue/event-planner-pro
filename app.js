@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD9-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD10-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59704,17 +59704,23 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       pane.__vinger=v;
 
       var nOpen=alleOpen();
-      var rub=function(k,naam,extra){
+      /* 25-10-2026: [stated] "konden we niet meteen de rubriek een kleur geven,
+         nog uit te voeren rood en wat gedaan is groen." Zo zie je aan de
+         knoppenbalk al of er iets openstaat, zonder erop te klikken. Staat er
+         niets open, dan is Nog te doen rustig grijs - rood zonder reden went
+         en dan kijk je er straks overheen. */
+      var rub=function(k,naam,extra,kleur){
         var aan=(view===k);
-        return knop(naam+(extra||''), aan?{vlak:'#0f172a',inkt:'#fff',rand:'0',extra:'padding:9px 16px',attr:'data-oh-view="'+k+'"'}
-                                         :{vlak:'#fff',inkt:'#334155',extra:'padding:9px 16px',attr:'data-oh-view="'+k+'"'});
+        if(aan) return knop(naam+(extra||''), {vlak:kleur||'#0f172a', inkt:'#fff', rand:'0', extra:'padding:9px 16px', attr:'data-oh-view="'+k+'"'});
+        return knop(naam+(extra||''), {vlak:'#fff', inkt:kleur||'#334155',
+          rand:'2px solid '+(kleur||'#cbd5e1'), extra:'padding:9px 16px', attr:'data-oh-view="'+k+'"'});
       };
       pane.innerHTML=
         '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px">'+
           '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">'+
-            rub('objecten','Objecten',' ('+objecten().length+')')+
-            rub('todo','Nog te doen', nOpen?' ('+nOpen+')':' (0)')+
-            rub('gedaan','Wat er gedaan is')+
+            rub('objecten','Objecten',' ('+objecten().length+')', '#0f172a')+
+            rub('todo','Nog te doen', ' ('+nOpen+')', nOpen?'#dc2626':'#94a3b8')+
+            rub('gedaan','Wat er gedaan is', '', '#15803d')+
           '</div>'+
           '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
             knop('Printen', Object.assign({},GRIJS,{extra:'padding:9px 14px',attr:'data-oh-print'}))+
