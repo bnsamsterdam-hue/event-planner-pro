@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD7-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD8-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59436,6 +59436,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
 
 
+
 /* ==========================================================
    BNS TW ONDERHOUD - beurten met losse punten (25-10-2026)
    ----------------------------------------------------------
@@ -59482,6 +59483,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   var REG_KEY='bns_tw_onderhoud_regels_';
   var PUNT_KEY='bns_tw_onderhoud_vastepunten';
   var gekozen='', zoek='', filter='alles', alleenOpen=false;
+  /* 25-10-2026: [stated] "ik zie nu nog te repareren staan in de zoeklijst,
+     dit moet een rubriek knop krijgen; druk ik daar op opent de lijst met wat
+     te doen, ook een rubriek wat er gedaan is."
+     Daarom drie rubrieken binnen Onderhoud in plaats van filters die tussen
+     het zoeken staan: de objecten, alles wat nog moet, en alles wat gedaan
+     is. */
+  var view='objecten';            /* objecten | todo | gedaan */
   var toevoegOpen=false, opschoonStand=false, puntenBeheer=false, aangevinkt={};
   var geladen={};
   var form=null;                /* de beurt die nu open staat in het formulier */
@@ -59678,7 +59686,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{ var p=E(PANE), a=document.activeElement; return !!(p && a && a!==document.body && p.contains(a)); }catch(e){ return false; }
   }
   function vinger(){
-    return JSON.stringify(objecten().map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,x.soort,openPunten(x.id)]; }))+
+    return view+'|'+JSON.stringify(objecten().map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,x.soort,openPunten(x.id)]; }))+
       '|'+gekozen+'|'+filter+'|'+(alleenOpen?1:0)+'|'+(toevoegOpen?1:0)+'|'+(opschoonStand?1:0)+'|'+(puntenBeheer?1:0)+
       '|'+(form?'F':'-')+'|'+JSON.stringify(regels(gekozen).map(function(r){ return [r.id,(r.punten||[]).length,heeftOpen(r)?1:0,r.datum]; }));
   }
@@ -59694,17 +59702,29 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       pane.__vinger=v;
 
       var nOpen=alleOpen();
+      var rub=function(k,naam,extra){
+        var aan=(view===k);
+        return knop(naam+(extra||''), aan?{vlak:'#0f172a',inkt:'#fff',rand:'0',extra:'padding:9px 16px',attr:'data-oh-view="'+k+'"'}
+                                         :{vlak:'#fff',inkt:'#334155',extra:'padding:9px 16px',attr:'data-oh-view="'+k+'"'});
+      };
       pane.innerHTML=
-        '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;margin-bottom:10px">'+
-          '<h3 style="margin:0">Onderhoud en reparaties</h3>'+
-          '<span style="font-size:13px;color:#64748b">'+objecten().length+' objecten</span>'+
-          (nOpen? '<span style="background:#fee2e2;color:#b91c1c;border-radius:9px;padding:3px 10px;font-size:13px;font-weight:800">'+nOpen+' nog uit te voeren</span>'
-                : '<span style="background:#dcfce7;color:#166534;border-radius:9px;padding:3px 10px;font-size:13px;font-weight:800">niets open</span>')+
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px">'+
+          '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">'+
+            rub('objecten','Objecten',' ('+objecten().length+')')+
+            rub('todo','Nog te doen', nOpen?' ('+nOpen+')':' (0)')+
+            rub('gedaan','Wat er gedaan is')+
+          '</div>'+
+          '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+            knop('Printen', Object.assign({},GRIJS,{extra:'padding:9px 14px',attr:'data-oh-print'}))+
+            knop('Delen', Object.assign({},GRIJS,{extra:'padding:9px 14px',attr:'data-oh-delen'}))+
+          '</div>'+
         '</div>'+
-        '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">'+
-          '<div style="flex:1 1 330px;min-width:0">'+ linksHtml() +'</div>'+
-          '<div style="flex:999 1 520px;min-width:0" id="bnsOhBoek">'+ boekHtml() +'</div>'+
-        '</div>';
+        (view==='objecten'
+          ? '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">'+
+              '<div style="flex:1 1 330px;min-width:0">'+ linksHtml() +'</div>'+
+              '<div style="flex:999 1 520px;min-width:0" id="bnsOhBoek">'+ boekHtml() +'</div>'+
+            '</div>'
+          : (view==='todo' ? todoHtml() : gedaanHtml()));
       koppelen();
     }catch(e){ try{ console.warn('[BNS TW Onderhoud]', e&&e.message||e); }catch(_){} }
   }
@@ -59825,6 +59845,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var kop=[T(o.twnr), T(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
     var nOpen=openPunten(o.id);
     return '<div style="border:1px solid #d8dee9;border-radius:14px;padding:14px;background:#fff">'+
+      /* 25-10-2026: [stated] "na het aanmaken van meldingen zie je die zoekbalk
+         van materiaal of aanhangers niet meer." Met een lang boek scrol je de
+         lijst links uit beeld. Deze knop zet je in een tik terug bij de lijst. */
+      '<div style="margin-bottom:10px">'+knop('\u2190 Terug naar de lijst', Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:14px',attr:'data-oh-terug'}))+'</div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'+
         '<div style="min-width:0">'+
           '<div style="font-size:19px;font-weight:900;color:#172033">'+esc(o.naam)+'</div>'+
@@ -59840,6 +59864,128 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       '<div id="bnsOhForm">'+(form? formHtml() : '')+'</div>'+
       (rs.length ? rs.map(regelHtml).join('') : '<div style="color:#64748b">Nog niets vastgelegd. Gebruik Beurt toevoegen.</div>')+
     '</div>';
+  }
+
+  /* ==========================================================
+     25-10-2026 - TWEE EIGEN RUBRIEKEN: NOG TE DOEN EN WAT ER GEDAAN IS.
+     ----------------------------------------------------------
+     [stated] "die we nog te repareren moeten blijven in rode tekst staan, dus
+     daar een rubriek voor maken, ook een rubriek wat er gedaan is."
+     Beide lopen door ALLE objecten heen, zodat je in een oogopslag ziet wat er
+     nog openstaat zonder per wagen te hoeven kijken. Afmelden kan rechtstreeks
+     vanuit de lijst; met Openen spring je naar het boek van dat object.
+  ========================================================== */
+  function allePunten(alleenOpenstaand){
+    var uit=[];
+    objecten().forEach(function(o){
+      regels(o.id).forEach(function(r){
+        (r.punten||[]).forEach(function(p,i){
+          var klaar=(T(p.staat)==='klaar');
+          if(alleenOpenstaand && klaar) return;
+          if(!alleenOpenstaand && !klaar) return;
+          uit.push({obj:o, regel:r, punt:p, i:i, klaar:klaar});
+        });
+      });
+    });
+    uit.sort(function(a,b){
+      var ad=String(a.klaar? (a.punt.klaarOp||a.regel.datum) : a.regel.datum||'');
+      var bd=String(b.klaar? (b.punt.klaarOp||b.regel.datum) : b.regel.datum||'');
+      return bd.localeCompare(ad);
+    });
+    return uit;
+  }
+  function puntRegelHtml(x, metAfmelden){
+    var s=soortVan(x.regel.soort);
+    var nr=[T(x.obj.twnr), T(x.obj.kenteken)].filter(Boolean).join(' \u00B7 ');
+    return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid #e5e7eb;'+
+        'border-left:6px solid '+(x.klaar?'#15803d':'#dc2626')+';border-radius:12px;padding:10px 12px;margin:0 0 8px;background:'+(x.klaar?'#fff':'#fffafa')+'">'+
+      '<span style="flex:1 1 240px;min-width:0">'+
+        '<span style="font-weight:900;color:'+(x.klaar?'#172033':'#b91c1c')+'">'+esc(x.punt.tekst)+'</span>'+
+        '<span style="display:block;font-size:12px;color:#64748b;margin-top:2px">'+esc(x.obj.naam)+(nr?' \u00B7 '+esc(nr):'')+
+          ' \u00B7 '+esc(s.naam)+' van '+esc(nl(x.regel.datum))+
+          (x.klaar && x.punt.klaarOp ? ' \u00B7 afgemeld op '+esc(nl(x.punt.klaarOp))+(x.punt.klaarDoor?' door '+esc(x.punt.klaarDoor):'') : '')+
+        '</span>'+
+      '</span>'+
+      (metAfmelden? knop('Afmelden', Object.assign({},GROEN,{extra:'padding:8px 13px;font-size:14px',attr:'data-oh-losklaar="'+esc(x.obj.id)+'|'+esc(x.regel.id)+'|'+x.i+'"'})) : '')+
+      knop('Openen', Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:14px',attr:'data-oh-naarobject="'+esc(x.obj.id)+'"'}))+
+    '</div>';
+  }
+  function todoHtml(){
+    var l=allePunten(true);
+    return '<div style="border:1px solid #d8dee9;border-radius:14px;padding:14px;background:#fff">'+
+      '<div style="font-size:19px;font-weight:900;color:#b91c1c;margin-bottom:3px">Nog te doen</div>'+
+      '<div style="font-size:13px;color:#64748b;margin-bottom:12px">Alles wat op Nog doen staat, over alle wagens en materialen heen. Nieuwste bovenaan.</div>'+
+      (l.length ? l.map(function(x){ return puntRegelHtml(x,true); }).join('')
+                : '<div style="color:#166534;font-weight:800">Er staat niets open.</div>')+
+    '</div>';
+  }
+  function gedaanHtml(){
+    var l=allePunten(false);
+    return '<div style="border:1px solid #d8dee9;border-radius:14px;padding:14px;background:#fff">'+
+      '<div style="font-size:19px;font-weight:900;color:#172033;margin-bottom:3px">Wat er gedaan is</div>'+
+      '<div style="font-size:13px;color:#64748b;margin-bottom:12px">Alles wat is afgevinkt of afgemeld, over alle wagens en materialen heen. Nieuwste bovenaan.</div>'+
+      (l.length ? l.slice(0,300).map(function(x){ return puntRegelHtml(x,false); }).join('')
+                : '<div style="color:#64748b">Nog niets afgerond.</div>')+
+      (l.length>300 ? '<div style="font-size:12px;color:#64748b">De eerste 300 worden getoond.</div>' : '')+
+    '</div>';
+  }
+
+  /* ---------------- printen en delen ---------------- */
+  function alsTekst(){
+    var uit=[], d=new Date().toLocaleDateString('nl-NL');
+    if(view==='todo' || view==='gedaan'){
+      uit.push(view==='todo' ? 'NOG TE DOEN - '+d : 'WAT ER GEDAAN IS - '+d, '');
+      allePunten(view==='todo').slice(0,300).forEach(function(x){
+        var nr=[T(x.obj.twnr), T(x.obj.kenteken)].filter(Boolean).join(' / ');
+        uit.push('- '+T(x.punt.tekst)+'  ['+T(x.obj.naam)+(nr?' '+nr:'')+', '+soortVan(x.regel.soort).naam+' '+nl(x.regel.datum)+']');
+      });
+    } else {
+      var o=objectVan(gekozen);
+      if(!o){
+        uit.push('ONDERHOUD - OBJECTEN - '+d, '');
+        gevonden().forEach(function(x){
+          var nr=[T(x.twnr), T(x.kenteken)].filter(Boolean).join(' / ');
+          uit.push('- '+T(x.naam)+(nr?' ('+nr+')':'')+' - '+openPunten(x.id)+' open');
+        });
+      } else {
+        var nr2=[T(o.twnr), T(o.kenteken)].filter(Boolean).join(' / ');
+        uit.push('ONDERHOUDSBOEK - '+T(o.naam)+(nr2?' ('+nr2+')':''), d, '');
+        regels(o.id).forEach(function(r){
+          uit.push(soortVan(r.soort).naam+' - '+nl(r.datum)+' - '+(T(r.door)||'onbekend')+(T(r.kosten)?' - '+geld(r.kosten):''));
+          (r.punten||[]).forEach(function(p){
+            uit.push('   ['+(T(p.staat)==='klaar'?'x':' ')+'] '+T(p.tekst));
+          });
+          if(T(r.toelichting)) uit.push('   '+T(r.toelichting));
+          uit.push('');
+        });
+      }
+    }
+    return uit.join('\n');
+  }
+  function printen(){
+    try{
+      var w=window.open('','_blank');
+      if(!w){ meld('Printen','De browser blokkeert het printvenster. Sta pop-ups toe voor deze pagina.'); return; }
+      w.document.write('<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>Onderhoud</title>'+
+        '<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111}pre{white-space:pre-wrap;font:inherit;font-size:14px;line-height:1.45}</style>'+
+        '</head><body><pre>'+esc(alsTekst())+'</pre></body></html>');
+      w.document.close();
+      setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 300);
+    }catch(e){ meld('Printen','Het printvenster kon niet worden geopend.'); }
+  }
+  function delen(){
+    var tekst=alsTekst();
+    try{
+      if(navigator.share){ navigator.share({title:'Onderhoud', text:tekst}).catch(function(){}); return; }
+    }catch(e){}
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(tekst).then(function(){ meld('Delen','De lijst staat op het klembord. Plak hem in een mail of WhatsApp.'); })
+          .catch(function(){ meld('Delen','Kopieren naar het klembord lukte niet.'); });
+        return;
+      }
+    }catch(e){}
+    meld('Delen','Deze browser kan niet delen. Gebruik Printen en kies daar Opslaan als pdf.');
   }
 
   function regelHtml(r){
@@ -60003,7 +60149,16 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
     regelsOpslaan(o.id,l);
     form=null;
+    /* 25-10-2026: [stated] "na opslaan moet de zoekbalk weer leeg zijn, en de
+       laatste opdracht die je opgeslagen hebt blijft in beeld staan."
+       Het zoekwoord gaat weg zodat je de hele lijst weer ziet, het object
+       blijft gekozen, en we rollen naar het boek toe. */
+    zoek='';
     tekenen(true);
+    try{
+      var b=E('bnsOhBoek');
+      if(b && b.scrollIntoView) b.scrollIntoView({behavior:'smooth', block:'start'});
+    }catch(e){}
   }
 
   /* ---------------- overnemen en wissen ---------------- */
@@ -60082,7 +60237,32 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     Array.prototype.slice.call(pane.querySelectorAll('[data-oh-filter]')).forEach(function(b){
       b.addEventListener('click', function(){ filter=b.getAttribute('data-oh-filter'); tekenen(true); });
     });
-    var of_=pane.querySelector('[data-oh-open-filter]'); if(of_) of_.addEventListener('click', function(){ alleenOpen=!alleenOpen; tekenen(true); });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-view]')).forEach(function(b){
+      b.addEventListener('click', function(){ view=b.getAttribute('data-oh-view'); form=null; tekenen(true); });
+    });
+    var pr=pane.querySelector('[data-oh-print]'); if(pr) pr.addEventListener('click', printen);
+    var dl=pane.querySelector('[data-oh-delen]'); if(dl) dl.addEventListener('click', delen);
+    var tg=pane.querySelector('[data-oh-terug]');
+    if(tg) tg.addEventListener('click', function(){ gekozen=''; form=null; tekenen(true); });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-naarobject]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        gekozen=b.getAttribute('data-oh-naarobject'); view='objecten'; form=null;
+        tekenen(true);
+        regelsOphalen(gekozen).then(function(){ tekenen(true); });
+      });
+    });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-losklaar]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var d=b.getAttribute('data-oh-losklaar').split('|');
+        var l=regels(d[0]);
+        l.forEach(function(r){
+          if(T(r.id)!==T(d[1])) return;
+          var p=(r.punten||[])[Number(d[2])];
+          if(p){ p.staat='klaar'; if(!p.klaarOp){ p.klaarOp=nuISO(); p.klaarDoor=wieIsHet(); } }
+        });
+        regelsOpslaan(d[0],l); tekenen(true);
+      });
+    });
     var tv=pane.querySelector('[data-oh-toevoeg]'); if(tv) tv.addEventListener('click', function(){ toevoegOpen=!toevoegOpen; tekenen(true); });
     var op=pane.querySelector('[data-oh-opschoon]'); if(op) op.addEventListener('click', function(){ opschoonStand=!opschoonStand; aangevinkt={}; tekenen(true); });
 
