@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R30';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R33';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -900,6 +900,8 @@ function askChoice(title, options, subtitel){   // DRV-R7: subtitel toont wat er
 async function openReportChoice(order){
   const opts=[];
   if(canReport()) opts.push({value:"Melding",label:"Algemene melding",cls:"btn-orange"});
+  /* 25-10-2026: [stated] "daar maken we nu een rubriek met reparatie." */
+  if(typeof bnsOhMag==='function' && bnsOhMag()) opts.push({value:"Reparatie",label:"Reparatie / onderhoud",cls:"btn-dark"});
   if(canDamage()) opts.push({value:"Schade",label:"Schade",cls:"btn-red"},{value:"Storing",label:"Storing",cls:"btn-purple"});
   /* DRV-R6 (2026-08-27): sleutels apart, want dat is het probleem dat het vaakst
      terugkomt - sleutels die niet retour zijn. En een knop om een melding weer
@@ -907,6 +909,7 @@ async function openReportChoice(order){
   opts.push({value:"Sleutels",label:"Sleutels afgeven",cls:"btn-dark"});
   if(openMeldingenVoor(order).length) opts.push({value:"Opgelost",label:"Melding oplossen",cls:"btn-green"});
   const type=await askChoice("Melding maken",opts);
+  if(type==="Reparatie") return bnsOhReparatieMelden(order);
   if(type==="Sleutels") return sendSleutels(order);
   if(type==="Opgelost") return losMeldingOp(order);
   if(type) await sendReport(order,type);
@@ -2250,6 +2253,11 @@ var bnsOhObjecten = null;               /* null = nog niet opgehaald */
 var bnsOhRegels = {};                   /* per object-id */
 var bnsOhBezig = {};
 var bnsOhFoto = '';                     /* welke melding zijn foto laat zien */
+/* 25-10-2026: per object hoeveel punten er openstaan, uit settings/onderhoud_open.
+   Daarmee weet de telefoon welke paar objecten hij moet ophalen in plaats van
+   alle 169. Zie de uitleg aan de Admin-kant. */
+var bnsOhTellers = null;
+var bnsOhVastePunten = null;   /* de vaste puntenlijst uit Admin */
 
 function bnsOhMag(){ try{ return hasRight('onderhoud') || lower(BNS.user && BNS.user.role)==='admin'; }catch(e){ return false; } }
 function bnsOhT(v){ return String(v==null?'':v).trim(); }
@@ -2279,7 +2287,60 @@ async function bnsOhObjectenHalen(){
   return bnsOhObjecten;
 }
 
+async function bnsOhVastePuntenHalen(){
+  if(Array.isArray(bnsOhVastePunten)) return bnsOhVastePunten;
+  bnsOhVastePunten=['Banden','Remmen','Verlichting','Olie en vloeistoffen','Carrosserie','Sloten en sleutels','Koeling','Tapinstallatie'];
+  try{
+    const b=JSON.parse(localStorage.getItem('bns_tw_oh_vastepunten_tel')||'null');
+    if(Array.isArray(b) && b.length) bnsOhVastePunten=b;
+  }catch(e){}
+  try{
+    const {doc,getDoc}=await bnsOhFirestore();
+    const snap=await getDoc(doc(BNS.db,'settings','onderhoud_punten'));
+    const d=snap && snap.exists() ? snap.data() : null;
+    if(d && Array.isArray(d.lijst) && d.lijst.length){
+      bnsOhVastePunten=d.lijst;
+      try{ localStorage.setItem('bns_tw_oh_vastepunten_tel', JSON.stringify(d.lijst)); }catch(e){}
+    }
+  }catch(e){}
+  return bnsOhVastePunten;
+}
+
+async function bnsOhTellersHalen(){
+  if(bnsOhTellers) return bnsOhTellers;
+  bnsOhTellers={};
+  try{
+    const {doc,getDoc}=await bnsOhFirestore();
+    const snap=await getDoc(doc(BNS.db,'settings','onderhoud_open'));
+    const d=snap && snap.exists() ? snap.data() : null;
+    if(d) Object.keys(d).forEach(function(k){
+      if(k.indexOf('o_')===0){ const n=Number(d[k])||0; if(n>0) bnsOhTellers[k.slice(2)]=n; }
+    });
+  }catch(e){}
+  return bnsOhTellers;
+}
+/* Alleen de objecten met openstaand werk ophalen - dat zijn er een paar. */
+async function bnsOhOpenstaandeHalen(){
+  await bnsOhObjectenHalen();
+  const t=await bnsOhTellersHalen();
+  const ids=Object.keys(t);
+  for(let i=0;i<ids.length && i<40;i++){ try{ await bnsOhRegelsHalen(ids[i]); }catch(e){} }
+}
+
 /* ---------- de regels van een object, pas bij openen ---------- */
+/* 25-10-2026: in Admin is een regel een BEURT met losse punten geworden, elk
+   met Uitgevoerd of Nog doen. De telefoon werkte nog met een regeltje plus
+   een vinkje. Hieronder wordt alles naar die ene vorm gebracht, zodat wat de
+   planner maakt hier leesbaar is en wat hier gemaakt wordt daar klopt. */
+function bnsOhNetjes(r){
+  if(r && !Array.isArray(r.punten)){
+    r.punten=[{tekst:clean(r.wat)||'(zonder omschrijving)', staat:(clean(r.status)==='klaar'?'klaar':'open')}];
+  }
+  if(r && !r.punten.length) r.punten=[{tekst:'(leeg)', staat:'klaar'}];
+  return r;
+}
+function bnsOhHeeftOpen(r){ return (r&&r.punten||[]).some(function(p){ return clean(p.staat)!=='klaar'; }); }
+
 async function bnsOhRegelsHalen(objId){
   if(bnsOhRegels[objId]) return bnsOhRegels[objId];
   if(bnsOhBezig[objId]) return [];
@@ -2295,12 +2356,24 @@ async function bnsOhRegelsHalen(objId){
       try{ localStorage.setItem('bns_tw_oh_regels_'+objId, JSON.stringify(uit)); }catch(e){}
     }
   }catch(e){}
+  uit=(uit||[]).map(bnsOhNetjes);
   bnsOhRegels[objId]=uit;
   bnsOhBezig[objId]=false;
   return uit;
 }
 async function bnsOhRegelsBewaren(objId, lijst){
   bnsOhRegels[objId]=lijst;
+  /* 25-10-2026: de teller voor de telefoon meteen bijwerken, zodat het
+     beginscherm klopt zonder dat er iets opnieuw opgehaald hoeft te worden. */
+  try{
+    let n=0;
+    (lijst||[]).forEach(function(r){ (r.punten||[]).forEach(function(p){ if(clean(p.staat)!=='klaar') n++; }); });
+    if(!bnsOhTellers) bnsOhTellers={};
+    if(n>0) bnsOhTellers[objId]=n; else delete bnsOhTellers[objId];
+    const {doc,setDoc}=await bnsOhFirestore();
+    const mee={id:'onderhoud_open'}; mee['o_'+String(objId)]=n;
+    await setDoc(doc(BNS.db,'settings','onderhoud_open'), mee, {merge:true});
+  }catch(e){}
   try{ localStorage.setItem('bns_tw_oh_regels_'+objId, JSON.stringify(lijst)); }catch(e){}
   try{
     const {doc,setDoc}=await bnsOhFirestore();
@@ -2310,9 +2383,18 @@ async function bnsOhRegelsBewaren(objId, lijst){
 
 function bnsOhOpen(objId){
   const l=bnsOhRegels[objId]||[];
-  return l.filter(r => bnsOhT(r&&r.status)!=='klaar');
+  let n=[];
+  l.forEach(function(r){ (r.punten||[]).forEach(function(p){ if(clean(p.staat)!=='klaar') n.push(p); }); });
+  return n;
 }
 function bnsOhTotaalOpen(){
+  /* liefst uit het overzichtje, want dan klopt het ook voor objecten
+     waarvan we de regels nog niet hebben opgehaald */
+  if(bnsOhTellers){
+    let t=0;
+    Object.keys(bnsOhTellers).forEach(function(k){ t+=Number(bnsOhTellers[k])||0; });
+    return t;
+  }
   let n=0;
   (bnsOhObjecten||[]).forEach(o=>{ n+=bnsOhOpen(o.id).length; });
   return n;
@@ -2336,9 +2418,11 @@ function bnsOhSchadeVoor(obj){
 /* ---------- tekenen ---------- */
 function bnsOhSoortKleur(k){
   const m={reparatie:['#e6ddfb','#4c1d95','#6d28d9','Reparatie'],
+           onderhoudsbeurt:['#dbeafe','#14509b','#1765d8','Onderhoudsbeurt'],
+           controle:['#d6f0dc','#14532d','#15803d','Controle'],
+           melding:['#fde8c8','#7a3f06','#b45309','Melding'],
            vervangen:['#d6f0dc','#14532d','#15803d','Vervangen'],
-           onderhoud:['#dbeafe','#14509b','#1765d8','Onderhoud'],
-           melding:['#fde8c8','#7a3f06','#b45309','Melding']};
+           onderhoud:['#dbeafe','#14509b','#1765d8','Onderhoud']};
   return m[bnsOhT(k)] || m.reparatie;
 }
 
@@ -2346,15 +2430,29 @@ function bnsOhTeken(){
   const box=$("orders"); if(!box) return;
   if(bnsOhScherm==='boek' || bnsOhScherm==='schade'){ bnsOhTekenBoek(); return; }
 
+  /* ==========================================================
+     25-10-2026 - EERST ALLEEN WAT ROOD STAAT.
+     ----------------------------------------------------------
+     [stated] "bij de bezorgtelefoon is het niet heel duidelijk, hier opent een
+     hele lijst van alle materialen; hier zou alleen op moeten te zien zijn wat
+     nog gerepareerd moet worden, ook in rood. En als hij gaat zoeken dan
+     alleen bv tw 9 dat die naar voren komt, en als hij dan zoekt kan hij die
+     openen en een reparatie aanmaken."
+     Dus: zonder zoekwoord alleen de objecten met openstaand werk, rood, met de
+     punten eronder. Tikt hij iets in het zoekvak, dan verschijnt de hele lijst
+     om uit te kiezen. Welke objecten iets openstaan hebben weet hij uit het
+     kleine overzichtje in settings/onderhoud_open; alleen van die paar worden
+     de regels opgehaald.
+  ========================================================== */
   const q=bnsOhT(bnsOhZoek).toLowerCase();
-  const lijst=(bnsOhObjecten||[]).filter(o=>{
-    if(!q) return true;
-    return [o.naam,o.kenteken,o.twnr].map(x=>bnsOhT(x).toLowerCase()).join(' ').indexOf(q)>=0;
-  });
-  box.innerHTML =
-    `<input id="bnsOhZoekVeld" type="search" class="search" placeholder="Naam, TW-nummer of kenteken" value="${esc(bnsOhZoek)}">` +
-    (lijst.length ? lijst.map(o=>{
-      const n=bnsOhOpen(o.id).length;
+  const terug=`<button type="button" class="btn btn-dark wide" data-oh-naarwerk style="margin-bottom:10px">&larr; Terug naar opdrachten</button>`;
+  const zoekveld=`<input id="bnsOhZoekVeld" type="search" class="search" placeholder="Zoek op naam, TW-nummer of kenteken" value="${esc(bnsOhZoek)}">`;
+
+  let inhoud='';
+  if(q){
+    const lijst=(bnsOhObjecten||[]).filter(o=>[o.naam,o.kenteken,o.twnr].map(x=>bnsOhT(x).toLowerCase()).join(' ').indexOf(q)>=0);
+    inhoud = lijst.length ? lijst.map(o=>{
+      const n=(bnsOhTellers&&bnsOhTellers[o.id])||bnsOhOpen(o.id).length;
       const onder=[bnsOhT(o.twnr), bnsOhT(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
       return `<article class="order-card order" data-id="${esc(o.id)}">
         <div style="display:flex;justify-content:space-between;gap:9px;align-items:center">
@@ -2364,10 +2462,41 @@ function bnsOhTeken(){
         <div class="meta"><div class="meta-row"><span>\u{1F527}</span><div>${esc(onder)}</div></div></div>
         <div class="action-grid"><button type="button" class="more-btn wide" data-oh-open="${esc(o.id)}">Openen</button></div>
       </article>`;
-    }).join('') : `<div class="empty">${bnsOhObjecten===null?'Bezig met ophalen...':'Geen objecten gevonden.'}</div>`);
+    }).join('') : `<div class="empty">Niets gevonden voor "${esc(bnsOhZoek)}".</div>`;
+  } else {
+    const metWerk=(bnsOhObjecten||[]).filter(o=>((bnsOhTellers&&bnsOhTellers[o.id])||bnsOhOpen(o.id).length)>0);
+    inhoud = metWerk.length ? metWerk.map(o=>{
+      const punten=bnsOhOpen(o.id);
+      const n=punten.length||((bnsOhTellers&&bnsOhTellers[o.id])||0);
+      const onder=[bnsOhT(o.twnr), bnsOhT(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
+      const rijen=punten.length
+        ? punten.map(p=>`<div style="padding:7px 10px;border-radius:9px;margin:0 0 5px;background:#fff6f6;color:#b91c1c;font-weight:800">${esc(p.tekst)}</div>`).join('')
+        : `<div style="color:#64748b">Bezig met ophalen...</div>`;
+      return `<article class="order-card order" data-id="${esc(o.id)}" style="border-top-color:#dc2626">
+        <div style="display:flex;justify-content:space-between;gap:9px;align-items:center">
+          <div class="order-title" style="color:#b91c1c">${esc(o.naam)}</div>
+          <span class="badge" style="background:#fee2e2;color:#b91c1c">${n} nog doen</span>
+        </div>
+        <div class="meta"><div class="meta-row"><span>\u{1F527}</span><div>${esc(onder)}</div></div></div>
+        <div style="margin:8px 0">${rijen}</div>
+        <div class="action-grid"><button type="button" class="more-btn wide" data-oh-open="${esc(o.id)}">Openen en afmelden</button></div>
+      </article>`;
+    }).join('')
+    : `<article class="order-card"><div class="order-title" style="color:#166534">Niets te repareren</div>
+        <div class="meta"><div class="meta-row"><span>✔️</span><div>Er staat op dit moment niets open.</div></div></div>
+        <div class="meta"><div class="meta-row"><span>\u{1F50D}</span><div>Zoek hierboven op naam, TW-nummer of kenteken om iets te melden.</div></div></div>
+      </article>`;
+  }
 
+  box.innerHTML = terug + zoekveld + inhoud;
+
+  const nw=document.querySelector('[data-oh-naarwerk]');
+  if(nw) nw.onclick=()=>{ BNS_R30_ONDERHOUD=false; bnsOhZoek=''; render(); };
   const zv=$("bnsOhZoekVeld");
-  if(zv) zv.oninput=function(){ bnsOhZoek=zv.value; bnsOhTeken(); const n=$("bnsOhZoekVeld"); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } };
+  if(zv) zv.oninput=function(){
+    bnsOhZoek=zv.value; bnsOhTeken();
+    const n=$("bnsOhZoekVeld"); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); }
+  };
   qsa("[data-oh-open]").forEach(b=>{
     b.onclick=async()=>{
       bnsOhObject=b.getAttribute('data-oh-open');
@@ -2418,8 +2547,8 @@ function bnsOhTekenBoek(){
     return;
   }
 
-  const rs=(bnsOhRegels[o.id]||[]).slice().sort((a,b)=>{
-    const ao=(bnsOhT(a.status)!=='klaar')?0:1, bo=(bnsOhT(b.status)!=='klaar')?0:1;
+  const rs=(bnsOhRegels[o.id]||[]).map(bnsOhNetjes).slice().sort((a,b)=>{
+    const ao=bnsOhHeeftOpen(a)?0:1, bo=bnsOhHeeftOpen(b)?0:1;
     if(ao!==bo) return ao-bo;
     return String(b.datum||'').localeCompare(String(a.datum||''));
   });
@@ -2437,21 +2566,22 @@ function bnsOhTekenBoek(){
     </article>
     <div id="bnsOhFormTel"></div>` +
     (rs.length ? rs.map(r=>{
-      const k=bnsOhSoortKleur(r.soort), isOpen=(bnsOhT(r.status)!=='klaar');
-      const vanMij=(clean(r.door)===ik || clean(r.gemaaktDoor)===ik);
+      const k=bnsOhSoortKleur(r.soort), isOpen=bnsOhHeeftOpen(r);
+      const punten=(r.punten||[]).map((p,i)=>{
+        const klaar=(clean(p.staat)==='klaar');
+        return `<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:8px 10px;border-radius:10px;margin:0 0 6px;background:${klaar?'#f3fdf5':'#fff6f6'}">
+          <span style="flex:1 1 150px;min-width:0;font-weight:800;color:${klaar?'#101827':'#b91c1c'}">${esc(p.tekst)}</span>
+          <span class="badge" style="background:${klaar?'#dcfce7':'#fee2e2'};color:${klaar?'#166534':'#b91c1c'}">${klaar?'Uitgevoerd':'Nog doen'}</span>
+          ${klaar?'':`<button type="button" class="btn btn-green" data-oh-puntklaar="${esc(r.id)}|${i}" style="padding:9px 13px">Afmelden</button>`}
+        </div>`;
+      }).join('');
       return `<article class="order-card" style="border-top-color:${isOpen?'#dc2626':k[2]}">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
           <span class="badge" style="background:${k[0]};color:${k[1]}">${esc(k[3])}</span>
-          <span style="font-size:13px;color:#64748b">${esc(bnsOhDatumNL(r.datum))}</span>
+          <span style="font-size:13px;color:#64748b">${esc(bnsOhDatumNL(r.datum))} - ${esc(clean(r.door)||'onbekend')}</span>
         </div>
-        ${isOpen?'<div style="margin-top:6px"><span class="badge" style="background:#fee2e2;color:#b91c1c">Nog uit te voeren</span></div>':''}
-        <div class="order-title" style="margin-top:6px">${esc(r.wat||'(zonder omschrijving)')}</div>
+        <div style="margin-top:8px">${punten}</div>
         ${clean(r.toelichting)?`<div style="font-size:15px;line-height:1.3">${esc(r.toelichting)}</div>`:''}
-        <div style="font-size:13px;color:#64748b;margin-top:5px">${esc(clean(r.door)||'onbekend')}${!isOpen&&r.klaarOp?' · afgemeld op '+esc(bnsOhDatumNL(r.klaarOp))+(r.klaarDoor?' door '+esc(r.klaarDoor):''):''}</div>
-        <div class="action-grid">
-          ${isOpen?`<button type="button" class="btn btn-green wide" data-oh-klaar="${esc(r.id)}">Afmelden als uitgevoerd</button>`:''}
-          ${(isOpen&&vanMij)?`<button type="button" class="btn btn-dark" data-oh-wijzig="${esc(r.id)}">Wijzigen</button>`:''}
-        </div>
       </article>`;
     }).join('') : '<p class="status">Nog niets vastgelegd bij dit object.</p>');
 
@@ -2461,26 +2591,19 @@ function bnsOhTekenBoek(){
   if(sb) sb.onclick=()=>{ bnsOhScherm='schade'; bnsOhFoto=''; bnsOhTeken(); };
   const nb=document.querySelector('[data-oh-nieuw]');
   if(nb) nb.onclick=()=>bnsOhForm({});
-  qsa("[data-oh-klaar]").forEach(b=>{
+  qsa("[data-oh-puntklaar]").forEach(b=>{
     b.onclick=async()=>{
-      if(!await askConfirm('Afmelden','Deze reparatie afmelden als uitgevoerd?')) return;
+      if(!await askConfirm('Afmelden','Dit punt afmelden als uitgevoerd?')) return;
+      const d=b.getAttribute('data-oh-puntklaar').split('|');
       const l=(bnsOhRegels[o.id]||[]).slice();
       l.forEach(r=>{
-        if(bnsOhT(r.id)!==bnsOhT(b.getAttribute('data-oh-klaar'))) return;
-        r.status='klaar';
-        if(!r.klaarOp){ r.klaarOp=new Date().toISOString(); r.klaarDoor=clean(BNS.user&&BNS.user.name||''); }
+        if(bnsOhT(r.id)!==bnsOhT(d[0])) return;
+        const p=(r.punten||[])[Number(d[1])];
+        if(p){ p.staat='klaar'; if(!p.klaarOp){ p.klaarOp=new Date().toISOString(); p.klaarDoor=clean(BNS.user&&BNS.user.name||''); } }
       });
       await bnsOhRegelsBewaren(o.id,l);
       toast('Afgemeld');
       bnsOhTeken(); bnsOhBalk();
-    };
-  });
-  qsa("[data-oh-wijzig]").forEach(b=>{
-    b.onclick=()=>{
-      const id=b.getAttribute('data-oh-wijzig');
-      let raak=null;
-      (bnsOhRegels[o.id]||[]).forEach(r=>{ if(bnsOhT(r.id)===bnsOhT(id)) raak=r; });
-      if(raak) bnsOhForm(raak);
     };
   });
 }
@@ -2489,7 +2612,7 @@ function bnsOhTekenBoek(){
 function bnsOhForm(r){
   r=r||{};
   const vak=$("bnsOhFormTel"); if(!vak) return;
-  const soorten=[['reparatie','Reparatie'],['vervangen','Vervangen'],['onderhoud','Onderhoud'],['melding','Melding']];
+  const soorten=[['melding','Melding'],['reparatie','Reparatie'],['onderhoudsbeurt','Onderhoudsbeurt'],['controle','Controle']];
   const huidig=bnsOhT(r.soort)||'melding';
   vak.innerHTML=`<article class="order-card" style="border-top-color:#16a34a">
     <div class="order-title">${r.id?'Regel wijzigen':'Nieuwe regel'}</div>
@@ -2530,16 +2653,19 @@ function bnsOhForm(r){
     const status=($("bnsOhOpenTel")&&$("bnsOhOpenTel").checked)?'open':'klaar';
     const toel=clean(($("bnsOhToelTel")||{}).value||'');
     const ik=clean(BNS.user&&BNS.user.name||'');
+    /* 25-10-2026: wegschrijven in dezelfde vorm als Admin gebruikt - een beurt
+       met punten. De bezorger zet er een punt in; de planner kan er in Admin
+       meer aan toevoegen. Zo leest alles aan beide kanten hetzelfde. */
+    const punt={tekst:wat, staat:status};
+    if(status==='klaar'){ punt.klaarOp=new Date().toISOString(); punt.klaarDoor=ik; }
     let bestaand=null;
     l.forEach(x=>{ if(bnsOhT(x.id)===id) bestaand=x; });
     if(bestaand){
-      bestaand.soort=soort; bestaand.wat=wat; bestaand.toelichting=toel; bestaand.status=status;
-      if(status==='klaar' && !bestaand.klaarOp){ bestaand.klaarOp=new Date().toISOString(); bestaand.klaarDoor=ik; }
+      bestaand.soort=soort; bestaand.toelichting=toel; bestaand.punten=[punt];
+      delete bestaand.wat; delete bestaand.status;
     } else {
-      const n={id:bnsOhId('oh'), soort:soort, wat:wat, toelichting:toel, datum:bnsOhVandaag(),
-               door:ik, kosten:'', status:status, gemaaktOp:new Date().toISOString(), gemaaktDoor:ik, vanTelefoon:true};
-      if(status==='klaar'){ n.klaarOp=new Date().toISOString(); n.klaarDoor=ik; }
-      l.push(n);
+      l.push({id:bnsOhId('oh'), soort:soort, punten:[punt], toelichting:toel, datum:bnsOhVandaag(),
+              door:ik, kosten:'', gemaaktOp:new Date().toISOString(), gemaaktDoor:ik, vanTelefoon:true});
     }
     await bnsOhRegelsBewaren(o.id,l);
     toast('Opgeslagen');
@@ -2563,15 +2689,187 @@ function bnsOhBalk(){
     k.onclick=async()=>{
       BNS_R30_ONDERHOUD=true;
       BNS_R28_TOON_AFGEROND=false;
-      bnsOhScherm='lijst';
+      bnsOhScherm='lijst'; bnsOhZoek='';
       render();
       await bnsOhObjectenHalen();
+      render();
+      /* alleen de objecten met openstaand werk ophalen, niet alle 169 */
+      await bnsOhOpenstaandeHalen();
       render();
       bnsOhBalk();
     };
   }
   const n=bnsOhTotaalOpen();
-  k.textContent='Onderhoud ('+n+')';
+  /* 25-10-2026: [stated] "alleen in rood knop met reparatie en een getal bv 4,
+     en is er geen reparatie wordt diezelfde knop groen met getal 0." */
+  k.textContent='Reparatie ('+n+')';
   k.className='btn wide '+(BNS_R30_ONDERHOUD ? (n?'btn-red':'btn-green') : (n?'btn-red':'btn-dark'));
   if(n) k.style.background='#dc2626'; else if(BNS_R30_ONDERHOUD) k.style.background='#16a34a'; else k.style.background='';
+}
+
+/* ==========================================================
+   BNS TW R33 - REPARATIE MELDEN VANUIT DE OPDRACHT (25-10-2026)
+   ----------------------------------------------------------
+   [stated] "bij een opdracht waar hij een schade of reparatie tegenkomt dan
+   opent hij de opdracht, drukt op melding maken, en daar maken we nu een
+   rubriek met reparatie. Opent hij die dan kan hij zelf kenteken en of tw
+   invullen en hij moet dezelfde lijst krijgen die ik bij beurt toevoegen
+   krijg. Simpel, snel en geen hele lijsten nodig, wij weten al met welke
+   wagen hij is."
+
+   Daarom geen objectenlijst om doorheen te bladeren. Hij staat al in de
+   opdracht, dus het kenteken van die opdracht staat alvast ingevuld; hij kan
+   het overtypen als het om iets anders gaat, bijvoorbeeld een TW-nummer van
+   een materiaal.
+
+   Daarna dezelfde opzet als in Admin: een soort, punten die je uit de vaste
+   lijst aantikt of zelf intypt, en per punt Uitgevoerd of Nog doen. Wat op
+   Nog doen staat telt mee in de rode knop en komt bij de planner in de lijst
+   Nog te doen.
+
+   KENTEKEN ONBEKEND? Dan wordt het object AANGEMAAKT in plaats van de melding
+   te weigeren. Liever een object dat de planner later bijwerkt dan een
+   reparatie die niemand heeft vastgelegd.
+========================================================== */
+function bnsOhZoekObject(tekst){
+  const t=bnsOhT(tekst).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!t) return null;
+  let raak=null;
+  (bnsOhObjecten||[]).forEach(function(o){
+    if(raak) return;
+    const k=bnsOhT(o.kenteken).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const n=bnsOhT(o.twnr).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if((k && k===t) || (n && n===t)) raak=o;
+  });
+  return raak;
+}
+
+async function bnsOhObjectMaken(tekst){
+  const t=bnsOhT(tekst);
+  const lijktOpKenteken=/^[A-Z0-9]{6}$/.test(t.toUpperCase().replace(/[^A-Z0-9]/g,''));
+  const o={ id:'obj_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),
+            naam:t, kenteken: lijktOpKenteken ? t.toUpperCase() : '',
+            twnr: lijktOpKenteken ? '' : t, soort: lijktOpKenteken ? 'voertuig' : 'materiaal',
+            gemaaktOp:new Date().toISOString(), uit:'telefoon' };
+  bnsOhObjecten=(bnsOhObjecten||[]).concat([o]);
+  try{ localStorage.setItem('bns_tw_oh_objecten_tel', JSON.stringify(bnsOhObjecten)); }catch(e){}
+  try{
+    const {doc,setDoc}=await bnsOhFirestore();
+    await setDoc(doc(BNS.db,'settings','onderhoud_objecten'), {id:'onderhoud_objecten', lijst:bnsOhObjecten, bijgewerkt:new Date().toISOString()}, {merge:true});
+  }catch(e){}
+  return o;
+}
+
+/* het formulier zelf - dezelfde onderdelen als bij een beurt in Admin */
+async function bnsOhReparatieMelden(order){
+  await bnsOhObjectenHalen();
+  const vp=await bnsOhVastePuntenHalen();
+
+  const kentekenVanOpdracht = clean(order && (order.vehicle||order.kenteken||order.voertuig||''));
+  const staat={ merk: kentekenVanOpdracht, soort:'reparatie', punten:[{tekst:'', staat:'open'}], toelichting:'' };
+
+  const m=modalVoorReparatie();
+  function modalVoorReparatie(){
+    const wrap=document.createElement('div');
+    wrap.className='modal';
+    wrap.innerHTML='<div class="modal-card"><div class="modal-topbar"><button class="modal-back" type="button" data-sluit>&larr; Terug</button></div><div class="modal-body" id="bnsOhRepBody"></div></div>';
+    document.body.appendChild(wrap);
+    wrap.querySelector('[data-sluit]').onclick=function(){ wrap.remove(); };
+    return wrap;
+  }
+
+  function lezen(){
+    staat.punten.forEach(function(p,i){ const el=document.getElementById('bnsOhRepPunt'+i); if(el) p.tekst=clean(el.value); });
+    const k=document.getElementById('bnsOhRepMerk'); if(k) staat.merk=clean(k.value);
+    const t=document.getElementById('bnsOhRepToel'); if(t) staat.toelichting=clean(t.value);
+  }
+
+  function teken(){
+    const body=m.querySelector('#bnsOhRepBody');
+    const soorten=[['reparatie','Reparatie'],['melding','Melding'],['onderhoudsbeurt','Onderhoudsbeurt'],['controle','Controle']];
+    const nOpen=staat.punten.filter(function(p){ return p.staat!=='klaar'; }).length;
+    body.innerHTML=
+      '<h2>Reparatie of melding</h2>'+
+      '<label style="display:block;font-size:15px;color:#475569;margin:0 0 5px">Welk voertuig of materiaal</label>'+
+      '<input id="bnsOhRepMerk" value="'+esc(staat.merk)+'" placeholder="Kenteken of TW-nummer" style="width:100%;box-sizing:border-box;border:2px solid #c9e4fb;border-radius:14px;font-size:17px;font-weight:800;padding:13px 14px;margin:0 0 6px">'+
+      '<div style="font-size:13px;color:#64748b;margin:0 0 14px">'+
+        (bnsOhZoekObject(staat.merk) ? 'Bekend: '+esc(bnsOhZoekObject(staat.merk).naam) : (clean(staat.merk)?'Nog niet bekend - wordt aangemaakt':'Vul het kenteken of TW-nummer in'))+
+      '</div>'+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px">'+
+        soorten.map(function(s){
+          const aan=(staat.soort===s[0]);
+          return '<button type="button" class="btn" data-rep-soort="'+s[0]+'" style="flex:1 1 45%;min-height:48px;background:'+(aan?'#6d28d9':'#fff')+';color:'+(aan?'#fff':'#334155')+';border:'+(aan?'0':'2px solid #dce7f2')+'">'+s[1]+'</button>';
+        }).join('')+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0 0 6px">'+
+        '<span style="font-size:15px;color:#475569">Punten</span>'+
+        (nOpen? '<span style="font-size:14px;color:#b91c1c;font-weight:800">'+nOpen+' nog doen</span>' : '')+
+      '</div>'+
+      staat.punten.map(function(p,i){
+        const klaar=(p.staat==='klaar');
+        return '<div style="border:2px solid '+(klaar?'#bbf7d0':'#fecaca')+';border-radius:14px;padding:10px;margin:0 0 9px;background:'+(klaar?'#f3fdf5':'#fff6f6')+'">'+
+          '<input id="bnsOhRepPunt'+i+'" value="'+esc(p.tekst)+'" placeholder="Wat is er aan de hand" style="width:100%;box-sizing:border-box;border:1px solid #d8dee9;border-radius:12px;font-size:16px;font-weight:700;padding:11px 12px;margin:0 0 8px">'+
+          '<div style="display:flex;gap:7px">'+
+            '<button type="button" class="btn" data-rep-staat="'+i+'|klaar" style="flex:1;min-height:46px;background:'+(klaar?'#16a34a':'#fff')+';color:'+(klaar?'#fff':'#334155')+';border:'+(klaar?'0':'2px solid #dce7f2')+'">Uitgevoerd</button>'+
+            '<button type="button" class="btn" data-rep-staat="'+i+'|open" style="flex:1;min-height:46px;background:'+(klaar?'#fff':'#dc2626')+';color:'+(klaar?'#334155':'#fff')+';border:'+(klaar?'2px solid #dce7f2':'0')+'">Nog doen</button>'+
+            '<button type="button" class="btn" data-rep-weg="'+i+'" style="min-height:46px;background:#e2e8f0;color:#334155;border:0;padding:0 14px">&times;</button>'+
+          '</div>'+
+        '</div>';
+      }).join('')+
+      '<button type="button" class="btn btn-dark wide" data-rep-bij style="margin:0 0 12px">+ Punt erbij</button>'+
+      '<div style="font-size:14px;color:#475569;margin:0 0 6px">Of kies uit de vaste lijst</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px">'+
+        (vp||[]).map(function(x){ return '<button type="button" class="btn" data-rep-vast="'+esc(x)+'" style="background:#fff;color:#334155;border:2px solid #dce7f2;border-radius:999px;padding:9px 14px;min-height:44px">'+esc(x)+'</button>'; }).join('')+
+      '</div>'+
+      '<textarea id="bnsOhRepToel" rows="2" placeholder="Toelichting, niet verplicht" style="width:100%;box-sizing:border-box;border:2px solid #e5e7eb;border-radius:14px;font-size:15px;font-weight:700;padding:12px 14px;margin:0 0 14px">'+esc(staat.toelichting)+'</textarea>'+
+      '<button type="button" class="action-btn green" id="bnsOhRepBewaar" style="min-height:54px;font-size:17px">Opslaan</button>';
+
+    qsa('[data-rep-soort]', body).forEach(function(b){ b.onclick=function(){ lezen(); staat.soort=b.getAttribute('data-rep-soort'); teken(); }; });
+    qsa('[data-rep-staat]', body).forEach(function(b){
+      b.onclick=function(){ lezen(); const d=b.getAttribute('data-rep-staat').split('|'); if(staat.punten[Number(d[0])]) staat.punten[Number(d[0])].staat=d[1]; teken(); };
+    });
+    qsa('[data-rep-weg]', body).forEach(function(b){
+      b.onclick=function(){ lezen(); staat.punten.splice(Number(b.getAttribute('data-rep-weg')),1); if(!staat.punten.length) staat.punten=[{tekst:'',staat:'open'}]; teken(); };
+    });
+    const bij=body.querySelector('[data-rep-bij]');
+    if(bij) bij.onclick=function(){ lezen(); staat.punten.push({tekst:'', staat:'open'}); teken(); };
+    qsa('[data-rep-vast]', body).forEach(function(b){
+      b.onclick=function(){
+        lezen();
+        const t=b.getAttribute('data-rep-vast');
+        let leeg=-1;
+        staat.punten.forEach(function(p,i){ if(leeg<0 && !clean(p.tekst)) leeg=i; });
+        if(leeg>=0) staat.punten[leeg].tekst=t; else staat.punten.push({tekst:t, staat:'open'});
+        teken();
+      };
+    });
+    const bew=body.querySelector('#bnsOhRepBewaar');
+    if(bew) bew.onclick=opslaan;
+    const mk=body.querySelector('#bnsOhRepMerk');
+    if(mk) mk.onblur=function(){ lezen(); teken(); };
+  }
+
+  async function opslaan(){
+    lezen();
+    if(!clean(staat.merk)){ await askConfirm('Nog niet compleet','Vul eerst het kenteken of TW-nummer in.'); return; }
+    const punten=staat.punten.filter(function(p){ return clean(p.tekst); });
+    if(!punten.length){ await askConfirm('Nog niet compleet','Vul minstens een punt in, of kies er een uit de vaste lijst.'); return; }
+    let obj=bnsOhZoekObject(staat.merk);
+    if(!obj) obj=await bnsOhObjectMaken(staat.merk);
+    const ik=clean(BNS.user && BNS.user.name||'');
+    punten.forEach(function(p){ if(p.staat==='klaar' && !p.klaarOp){ p.klaarOp=new Date().toISOString(); p.klaarDoor=ik; } });
+    const l=(await bnsOhRegelsHalen(obj.id)).slice();
+    l.push({ id:'oh_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),
+             soort:staat.soort, punten:punten, toelichting:staat.toelichting,
+             datum:new Date().toISOString().slice(0,10), door:ik, kosten:'',
+             gemaaktOp:new Date().toISOString(), gemaaktDoor:ik, vanTelefoon:true,
+             orderId: clean(order && order.id || ''), orderNumber: clean(order && order.number || '') });
+    await bnsOhRegelsBewaren(obj.id, l);
+    m.remove();
+    toast('Reparatie vastgelegd bij '+obj.naam);
+    bnsOhBalk();
+    if(BNS_R30_ONDERHOUD) bnsOhTeken();
+  }
+
+  teken();
 }
