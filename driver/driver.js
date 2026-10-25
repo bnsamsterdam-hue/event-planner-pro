@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R33';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R34';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -2446,7 +2446,7 @@ function bnsOhTeken(){
   ========================================================== */
   const q=bnsOhT(bnsOhZoek).toLowerCase();
   const terug=`<button type="button" class="btn btn-dark wide" data-oh-naarwerk style="margin-bottom:10px">&larr; Terug naar opdrachten</button>`;
-  const zoekveld=`<input id="bnsOhZoekVeld" type="search" class="search" placeholder="Zoek op naam, TW-nummer of kenteken" value="${esc(bnsOhZoek)}">`;
+  const zoekveld=`<input id="bnsOhZoekVeld" type="search" style="width:100%;box-sizing:border-box;border:2px solid #cbd5e1;border-radius:14px;font-size:16px;font-weight:700;padding:12px 14px;margin:0 0 10px" placeholder="Zoek op naam, TW-nummer of kenteken" value="${esc(bnsOhZoek)}">`;
 
   let inhoud='';
   if(q){
@@ -2700,11 +2700,15 @@ function bnsOhBalk(){
     };
   }
   const n=bnsOhTotaalOpen();
-  /* 25-10-2026: [stated] "alleen in rood knop met reparatie en een getal bv 4,
-     en is er geen reparatie wordt diezelfde knop groen met getal 0." */
+  /* 25-10-2026: [stated] "die knop rode letters geven, en als er een melding
+     komt wordt de knop helemaal rood; bij geen melding de letters groen." */
   k.textContent='Reparatie ('+n+')';
-  k.className='btn wide '+(BNS_R30_ONDERHOUD ? (n?'btn-red':'btn-green') : (n?'btn-red':'btn-dark'));
-  if(n) k.style.background='#dc2626'; else if(BNS_R30_ONDERHOUD) k.style.background='#16a34a'; else k.style.background='';
+  k.className='btn wide';
+  if(n){
+    k.style.background='#dc2626'; k.style.color='#ffffff'; k.style.border='0';
+  } else {
+    k.style.background='#ffffff'; k.style.color='#15803d'; k.style.border='2px solid #15803d';
+  }
 }
 
 /* ==========================================================
@@ -2769,10 +2773,20 @@ async function bnsOhReparatieMelden(order){
   const staat={ merk: kentekenVanOpdracht, soort:'reparatie', punten:[{tekst:'', staat:'open'}], toelichting:'' };
 
   const m=modalVoorReparatie();
+  /* 25-10-2026 - EIGEN VENSTER MET EIGEN OPMAAK.
+     [stated] "als ik op de knop reparatie / onderhoud druk gaat hij terug naar
+     het beginscherm." Oorzaak: ik gebruikte opmaaknamen die in DEZE telefoon
+     niet bestaan, dus het venster werd onzichtbaar en je keek door naar het
+     scherm eronder. Alles wat dit venster nodig heeft staat nu in het venster
+     zelf, net als bij het sleutelformulier hierboven. Gebruik hier alleen de
+     klassen die driver.css van Tapwagen zelf kent: btn, btn-green, btn-dark,
+     wide, order-card, badge, meta, meta-row, search, empty, status. */
   function modalVoorReparatie(){
     const wrap=document.createElement('div');
-    wrap.className='modal';
-    wrap.innerHTML='<div class="modal-card"><div class="modal-topbar"><button class="modal-back" type="button" data-sluit>&larr; Terug</button></div><div class="modal-body" id="bnsOhRepBody"></div></div>';
+    wrap.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.62);display:flex;align-items:flex-start;justify-content:center;padding:12px;overflow:auto';
+    wrap.innerHTML='<div style="background:#fff;border-radius:22px;padding:16px;width:min(620px,100%);max-height:94vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.35)">'+
+      '<button type="button" data-sluit style="border:0;border-radius:14px;background:#374151;color:#fff;font-size:16px;font-weight:800;padding:11px 16px;min-height:46px;margin:0 0 12px">&larr; Terug</button>'+
+      '<div id="bnsOhRepBody"></div></div>';
     document.body.appendChild(wrap);
     wrap.querySelector('[data-sluit]').onclick=function(){ wrap.remove(); };
     return wrap;
@@ -2822,7 +2836,7 @@ async function bnsOhReparatieMelden(order){
         (vp||[]).map(function(x){ return '<button type="button" class="btn" data-rep-vast="'+esc(x)+'" style="background:#fff;color:#334155;border:2px solid #dce7f2;border-radius:999px;padding:9px 14px;min-height:44px">'+esc(x)+'</button>'; }).join('')+
       '</div>'+
       '<textarea id="bnsOhRepToel" rows="2" placeholder="Toelichting, niet verplicht" style="width:100%;box-sizing:border-box;border:2px solid #e5e7eb;border-radius:14px;font-size:15px;font-weight:700;padding:12px 14px;margin:0 0 14px">'+esc(staat.toelichting)+'</textarea>'+
-      '<button type="button" class="action-btn green" id="bnsOhRepBewaar" style="min-height:54px;font-size:17px">Opslaan</button>';
+      '<button type="button" class="btn btn-green wide" id="bnsOhRepBewaar" style="min-height:54px;font-size:17px">Opslaan</button>';
 
     qsa('[data-rep-soort]', body).forEach(function(b){ b.onclick=function(){ lezen(); staat.soort=b.getAttribute('data-rep-soort'); teken(); }; });
     qsa('[data-rep-staat]', body).forEach(function(b){
