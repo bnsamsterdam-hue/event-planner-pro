@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-APK4-2026-10-22';
+window.TAPWAGEN_BUILD_ID = 'TW-APK5-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -58923,6 +58923,17 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           v.apk=datum;
           iets=true;
           try{ var u=uitgesteldLijst(); delete u[sleutel(v.kenteken)]; uitgesteldOpslaan(u); }catch(e){}
+          /* 25-10-2026 - OOK HET BRIEFJE VAN DE VORIGE KEURING WEGHALEN.
+             [stated] "deze auto is nu gekeurd en geeft weer de nieuwe datum
+             van keuren, maar ik zie nog wel de tekst herinnering uitgesteld,
+             zou dit dan ook niet moeten resetten?"
+             Klopt. Het uitstel hierboven werd al gewist, maar de regel die je
+             ziet staan komt uit een tweede lijst: wie wanneer heeft bevestigd.
+             Die bleef staan, dus er stond een briefje over een herinnering die
+             allang niet meer bestond. Bij een nieuwe datum begint de wagen met
+             een schone lei; de melding komt vanzelf terug zodra de nieuwe
+             vervaldatum binnen de ingestelde termijn valt. */
+          try{ var b=bevestigdLijst(); delete b[sleutel(v.kenteken)]; bevestigdOpslaan(b); }catch(e){}
         }
         return v;
       });
