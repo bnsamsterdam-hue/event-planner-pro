@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-APK5-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-APK6-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -58899,10 +58899,49 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
   function isIngelogd(){ return !!wieIsHet(); }
 
+  /* 25-10-2026: onthouden BIJ WELKE vervaldatum dit briefje hoort. Zonder dat
+     weet je later niet of het nog over de huidige keuring gaat. */
+  function apkVan(kenteken){
+    var k=sleutel(kenteken), uit='';
+    try{ lees().forEach(function(v){ if(sleutel(v&&v.kenteken)===k) uit=T(v&&v.apk); }); }catch(e){}
+    return uit;
+  }
   function bevestigen(kenteken, soort, extra){
     var b=bevestigdLijst();
-    b[sleutel(kenteken)]={op:new Date().toISOString(), soort:soort||'gezien', extra:extra||'', door:wieIsHet()};
+    b[sleutel(kenteken)]={op:new Date().toISOString(), soort:soort||'gezien', extra:extra||'', door:wieIsHet(), bijApk:apkVan(kenteken)};
     bevestigdOpslaan(b);
+  }
+
+  /* ==========================================================
+     25-10-2026 - BRIEFJES VAN EEN AFGEHANDELDE KEURING OPRUIMEN.
+     ----------------------------------------------------------
+     [stated] "melding blijft bij tapwagen staan, ik druk ophalen bij rdw maar
+     melding staat er nog."
+
+     Mijn eerste poging wiste het briefje alleen op het MOMENT dat er een
+     nieuwe datum binnenkwam. Bij deze wagen was die datum al eerder
+     opgehaald, dus dat moment was allang voorbij en er veranderde niets meer.
+
+     Daarom nu bij elke ronde opruimen, op twee manieren:
+       - hoort het briefje bij een andere vervaldatum dan de wagen nu heeft,
+         dan gaat het weg (daarvoor wordt sinds vandaag `bijApk` bewaard)
+       - staat de wagen weer ruim binnen de termijn (groen), dan valt er niets
+         te herinneren en gaat het briefje ook weg
+     Die tweede regel vangt de oude briefjes op die nog geen `bijApk` hebben.
+  ========================================================== */
+  function opruimenBriefjes(){
+    try{
+      var b=bevestigdLijst(), grens=dagenInstelling(), gewijzigd=false;
+      lees().forEach(function(v){
+        var k=sleutel(v&&v.kenteken), bev=b[k];
+        if(!bev) return;
+        var nu=T(v&&v.apk);
+        if(bev.bijApk && T(bev.bijApk)!==nu){ delete b[k]; gewijzigd=true; return; }
+        var d=alsDatum(nu), n=dagenTot(d);
+        if(n!==null && n>grens){ delete b[k]; gewijzigd=true; }
+      });
+      if(gewijzigd) bevestigdOpslaan(b);
+    }catch(e){}
   }
 
   /* ALTIJD opnieuw bij de RDW - zo wordt een verse keuring vanzelf opgepikt */
@@ -58939,6 +58978,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       });
     })).then(function(){
       if(iets) bewaar(l);
+      opruimenBriefjes();
       bezig=false; tekenen(); return l;
     }).catch(function(){ bezig=false; return l; });
   }
