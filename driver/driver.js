@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R35';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R36';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -2781,8 +2781,27 @@ async function bnsOhReparatieMelden(order){
   await bnsOhObjectenHalen();
   const vp=await bnsOhVastePuntenHalen();
 
-  const kentekenVanOpdracht = clean(order && (order.vehicle||order.kenteken||order.voertuig||''));
-  const staat={ merk: kentekenVanOpdracht, soort:'reparatie', punten:[{tekst:'', staat:'open'}], toelichting:'' };
+  /* ==========================================================
+     25-10-2026 - NIET BLIND HET VELD VAN DE OPDRACHT OVERNEMEN.
+     ----------------------------------------------------------
+     [stated] "er staat nu transport brengen + ophalen, daar moet toch komen
+     kenteken en of materiaal / tw nr."
+     Het veld `vehicle` op een opdracht blijkt hier geen kenteken te bevatten
+     maar een omschrijving van het transport. Daarom wordt het alleen nog
+     ingevuld als het ook echt ergens op slaat: als het een bekend object is,
+     of als het eruitziet als een kenteken. Anders blijft het leeg en vult de
+     bezorger het zelf in - dat is maar een paar tekens werk. */
+  function bruikbaarKenteken(v){
+    const t=clean(v);
+    if(!t) return '';
+    const bekend=bnsOhZoekObject(t);
+    if(bekend) return clean(bekend.kenteken) || clean(bekend.twnr) || t;
+    const kaal=t.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(kaal.length>=5 && kaal.length<=8 && /[0-9]/.test(kaal) && /[A-Z]/.test(kaal) && t.indexOf(' ')<0) return t.toUpperCase();
+    return '';
+  }
+  const staat={ merk: bruikbaarKenteken(order && (order.vehicle||order.kenteken||order.voertuig||'')),
+                soort:'reparatie', punten:[{tekst:'', staat:'open'}], toelichting:'' };
 
   const m=modalVoorReparatie();
   /* 25-10-2026 - EIGEN VENSTER MET EIGEN OPMAAK.
@@ -2816,10 +2835,10 @@ async function bnsOhReparatieMelden(order){
     const nOpen=staat.punten.filter(function(p){ return p.staat!=='klaar'; }).length;
     body.innerHTML=
       '<h2>Reparatie of melding</h2>'+
-      '<label style="display:block;font-size:15px;color:#475569;margin:0 0 5px">Welk voertuig of materiaal</label>'+
-      '<input id="bnsOhRepMerk" value="'+esc(staat.merk)+'" placeholder="Kenteken of TW-nummer" style="width:100%;box-sizing:border-box;border:2px solid #c9e4fb;border-radius:14px;font-size:17px;font-weight:800;padding:13px 14px;margin:0 0 6px">'+
+      '<label style="display:block;font-size:15px;color:#475569;margin:0 0 5px">Kenteken of TW-nummer</label>'+
+      '<input id="bnsOhRepMerk" value="'+esc(staat.merk)+'" placeholder="Bijvoorbeeld VSN-68-R of TW17" style="width:100%;box-sizing:border-box;border:2px solid #c9e4fb;border-radius:14px;font-size:17px;font-weight:800;padding:13px 14px;margin:0 0 6px">'+
       '<div style="font-size:13px;color:#64748b;margin:0 0 14px">'+
-        (bnsOhZoekObject(staat.merk) ? 'Bekend: '+esc(bnsOhZoekObject(staat.merk).naam) : (clean(staat.merk)?'Nog niet bekend - wordt aangemaakt':'Vul het kenteken of TW-nummer in'))+
+        (bnsOhZoekObject(staat.merk) ? 'Bekend: '+esc(bnsOhZoekObject(staat.merk).naam) : (clean(staat.merk)?'Nog niet bekend - wordt aangemaakt':'Vul in om welke wagen of welk materiaal het gaat'))+
       '</div>'+
       '<div style="display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px">'+
         soorten.map(function(s){
