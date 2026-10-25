@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-24-R28';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R29';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -819,7 +819,13 @@ function fullOrderHtml(o, title){
 
 function detailHtml(o){
   const a=addressOf(o),p=locationPhone(o),more=otherCustomerOrders(o);
-  return `<div class="detail-header"><button type="button" class="back-btn" data-back>Terug</button></div>
+  /* 25-10-2026: de terugknop plakt nu bovenaan vast terwijl je scrolt.
+     [stated] "ook mis ik een terugknop onder de pagina, boven staat er wel
+     een van een opdracht maar onder dus niet en dan moet ik steeds scrollen
+     naar boven." Zijn keuze was een plakkende knop boven in plaats van een
+     tweede knop onderaan - dan heb je er maar een en hoef je nooit te
+     scrollen. */
+  return `<div class="detail-header" style="position:sticky;top:0;z-index:60;background:#fff;padding:8px 0;margin:0 0 6px;box-shadow:0 6px 10px -8px rgba(15,23,42,.45)"><button type="button" class="back-btn" data-back>Terug</button></div>
   <article class="card detail-card">
     ${fullOrderHtml(o,'Open opdracht')}
     ${more.length?`<div class="section-title">Meer artikelen / opdrachten voor deze klant</div><div class="info-box">${more.map(x=>`• ${esc(x.number||"")} ${esc(x.title||"")} - ${esc(niceDate(orderStart(x)))}`).join("<br>")}</div>`:""}
@@ -1530,8 +1536,38 @@ boot();
       BNS.firebase.onSnapshot(BNS.firebase.collection(BNS.db,"users"), function(){
         try{ loadUsersOnly().then(function(){
           if(BNS.user){
-            var fresh=(BNS.state.users||[]).find(function(u){return String(u.id)===String(BNS.user.id);});
-            if(!fresh || fresh.active===false || fresh.deleted===true || fresh.disabled===true){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} try{ localStorage.removeItem(DAG_SESSIE_KEY); }catch(e){} location.reload(); return; }
+            /* ==========================================================
+               25-10-2026 - NIET MEER UITLOGGEN OP EEN HIKJE.
+               ----------------------------------------------------------
+               [stated] "bij mij is het als ik te snel druk gaat hij terug
+               naar inlogscherm, moet ik wachten en dan opent hij weer."
+
+               Hier stond: vind ik mijn gebruiker niet in de lijst, dan is hij
+               verwijderd - dagsessie wissen en herladen. Maar er werd nergens
+               gekeken of die lijst UBERHAUPT iets bevatte. Kwam er door een
+               traag moment of even geen bereik een lege of halve lijst binnen,
+               dan was de conclusie "die bestaat niet meer" en vloog je terug
+               naar de pin. In de eerste seconden na het openen is die lijst
+               nog onderweg; vandaar dat het juist gebeurde als hij snel drukte.
+
+               Nu twee sloten:
+                 1. een lege lijst zegt niets - dan gebeurt er niets
+                 2. pas uitloggen als hij twee keer op rij ontbreekt
+               Ben je echt uit Admin gehaald, dan word je nog steeds uitgelogd,
+               alleen een rondje later.
+            ========================================================== */
+            var lijst=(BNS.state.users||[]);
+            if(!lijst.length){ try{ render(); }catch(e){} return; }
+            var fresh=lijst.find(function(u){return String(u.id)===String(BNS.user.id);});
+            var weg = (!fresh || fresh.active===false || fresh.deleted===true || fresh.disabled===true);
+            if(weg){
+              window.__bnsWegTeller = (window.__bnsWegTeller||0) + 1;
+              if(window.__bnsWegTeller < 2){ return; }      /* eerste keer: even afwachten */
+              try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+              try{ localStorage.removeItem(DAG_SESSIE_KEY); }catch(e){}
+              location.reload(); return;
+            }
+            window.__bnsWegTeller = 0;
             BNS.user=fresh;
           }
           try{ render(); }catch(e){}
