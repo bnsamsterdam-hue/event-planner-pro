@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-APK6-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD1-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59427,4 +59427,542 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     omzetten:omzetten,
     allesAan:function(){ uitOpslaan({}); doorgeven(); kleuren(); return 'alle wagens weer zichtbaar'; }
   };
+})();
+
+/* ==========================================================
+   BNS TW ONDERHOUD - stap 1: objecten, regels en reparatieverzoeken (25-10-2026)
+   ----------------------------------------------------------
+   [stated] "is er een rubriek te maken voor onderhoud aan wagens, dus zelfde
+   als rdw maar dan dat we ook reparaties kunnen bijhouden met datum, is
+   vervangen enz. We hebben ook materialen zonder kenteken, dit zou dan een tw
+   nr of een naam moeten hebben waar je hem op kan vinden, dus kunnen zoeken op
+   naam, kenteken of reparatie naam."
+
+   WAT HET IS.
+   Een eigen rubriek Onderhoud in Admin met een eigen objectenlijst. Een object
+   heeft altijd een NAAM; kenteken en TW-nummer zijn vrij in te vullen, want
+   [stated] veel aanhangers hebben geen kenteken en geen APK-plicht. Geen
+   APK-gedoe in deze rubriek dus; dat blijft waar het staat.
+
+   WAAROM EEN EIGEN LIJST EN NIET DIE VAN VOERTUIGEN OF MATERIALEN.
+   Een tapwagen staat nu in allebei: als materiaal TW17 en als voertuig met
+   kenteken. Zou ik die twee lijsten samenvoegen, dan krijg je dezelfde wagen
+   twee keer en twee halve boeken. Nu is het er een, met allebei de nummers
+   erin, en zoek je hem op wat je toevallig bij de hand hebt.
+
+   HOE DE GEGEVENS STAAN - en waarom zo.
+   [stated] "foto's lijkt me voor het geheugen en laden te veel opslag."
+   Terecht, en dat is geen theorie: deze app haalt bij elke start al ruim 20 MB
+   binnen door foto's die in de meldingen zijn gestopt. Daarom:
+     - de objectenlijst staat in settings/onderhoud_objecten, een klein lijstje
+     - de REGELS van een object staan apart, in onderhoud/<object-id>, en
+       worden pas opgehaald als je dat object opent
+   Zo blijft het opstarten even snel bij vijf regels als bij vijfhonderd, en
+   kun je er eindeloos regels bij zetten.
+
+   REPARATIEVERZOEKEN.
+   [stated] "we moeten een reparatieverzoek kunnen aanmaken en dat of bezorger
+   of planner hem afmeldt dat het uitgevoerd is; is hij niet uitgevoerd komt
+   hij in het rood te staan bij nog uit te voeren reparatie."
+   Elke regel heeft daarom een stand: OPEN of KLAAR. Open regels staan bovenaan
+   in het rood, met een teller bij het object en boven de rubriek. Afmelden
+   legt vast wie het deed en wanneer, en dat stempel wordt niet overschreven.
+
+   Console: window.BNS_TW_ONDERHOUD.objecten() / .regels('<id>')
+========================================================== */
+(function bnsTwOnderhoud(){
+  'use strict';
+  if(window.__BNS_TW_ONDERHOUD__) return;
+  window.__BNS_TW_ONDERHOUD__=true;
+
+  var PANE='adminOnderhoud';
+  var OBJ_KEY='bns_tw_onderhoud_objecten';
+  var REG_KEY='bns_tw_onderhoud_regels_';       /* + object-id */
+  var gekozen='';                                /* welk object openstaat */
+  var geladen={};                                /* welke objecten al uit Firebase zijn gehaald */
+  var zoek='';
+  var bezigLaden=false;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function E(id){ return document.getElementById(id); }
+  function nuISO(){ return new Date().toISOString(); }
+  function vandaag(){ return new Date().toISOString().slice(0,10); }
+  function nl(d){ var s=T(d).slice(0,10), p=s.split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : s; }
+  function nieuwId(p){ return p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7); }
+  function geld(v){
+    var n=Number(String(v==null?'':v).replace(/[^0-9,.-]/g,'').replace(',','.'));
+    return isFinite(n)&&n>0 ? '€ '+n.toFixed(2).replace('.',',') : '';
+  }
+  function wieIsHet(){
+    try{ if(typeof user!=='undefined' && user) return T(user.name||user.naam||user.id)||'beheer'; }catch(e){}
+    try{ var u=window.currentUser && window.currentUser(); if(u) return T(u.name||u.naam||u.id)||'beheer'; }catch(e){}
+    return 'beheer';
+  }
+
+  /* ---------------- de objectenlijst ---------------- */
+  function objecten(){
+    try{ var l=JSON.parse(localStorage.getItem(OBJ_KEY)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
+  }
+  function objectenOpslaan(l){
+    try{ localStorage.setItem(OBJ_KEY, JSON.stringify(l)); }catch(e){}
+    try{
+      if(window.BNS && typeof window.BNS.syncDoc==='function'){
+        window.BNS.syncDoc('settings', {id:'onderhoud_objecten', lijst:l, bijgewerkt:nuISO()});
+      }
+    }catch(e){}
+    return l;
+  }
+  function objectVan(id){
+    var uit=null;
+    objecten().forEach(function(o){ if(T(o&&o.id)===T(id)) uit=o; });
+    return uit;
+  }
+
+  /* ---------------- de regels van een object ----------------
+     Pas ophalen als je het object opent. Daarna blijft de kopie in de browser
+     staan, zodat heen en weer klikken niets extra's kost. */
+  function regels(objId){
+    try{ var l=JSON.parse(localStorage.getItem(REG_KEY+objId)||'[]'); return Array.isArray(l)?l:[]; }catch(e){ return []; }
+  }
+  function regelsOpslaan(objId, l){
+    try{ localStorage.setItem(REG_KEY+objId, JSON.stringify(l)); }catch(e){}
+    try{
+      if(window.BNS && typeof window.BNS.syncDoc==='function'){
+        window.BNS.syncDoc('onderhoud', {id:String(objId), regels:l, bijgewerkt:nuISO()});
+      }
+    }catch(e){}
+    return l;
+  }
+  function regelsOphalen(objId){
+    if(geladen[objId]) return Promise.resolve(regels(objId));
+    geladen[objId]=true;
+    try{
+      var fs=window.BNS && window.BNS.fs, db=window.BNS && window.BNS.db;
+      if(fs && db && fs.getDoc && fs.doc){
+        return fs.getDoc(fs.doc(db,'onderhoud',String(objId))).then(function(snap){
+          var d=snap && snap.exists && snap.exists() ? snap.data() : null;
+          if(d && Array.isArray(d.regels)){
+            try{ localStorage.setItem(REG_KEY+objId, JSON.stringify(d.regels)); }catch(e){}
+          }
+          return regels(objId);
+        }).catch(function(){ return regels(objId); });
+      }
+    }catch(e){}
+    return Promise.resolve(regels(objId));
+  }
+  /* De objectenlijst eenmalig uit Firebase halen, zodat elke computer dezelfde
+     lijst ziet. Is hij er nog niet, dan blijft wat hier staat gewoon staan. */
+  function objectenOphalen(){
+    try{
+      var fs=window.BNS && window.BNS.fs, db=window.BNS && window.BNS.db;
+      if(!(fs && db && fs.getDoc && fs.doc)) return;
+      fs.getDoc(fs.doc(db,'settings','onderhoud_objecten')).then(function(snap){
+        var d=snap && snap.exists && snap.exists() ? snap.data() : null;
+        if(d && Array.isArray(d.lijst) && d.lijst.length){
+          try{ localStorage.setItem(OBJ_KEY, JSON.stringify(d.lijst)); }catch(e){}
+          tekenen(true);
+        }
+      }).catch(function(){});
+    }catch(e){}
+  }
+
+  function open(objId){ return regels(objId).filter(function(r){ return T(r&&r.status)!=='klaar'; }); }
+  function alleOpen(){
+    var n=0;
+    objecten().forEach(function(o){ n+=open(o.id).length; });
+    return n;
+  }
+
+  /* ---------------- zoeken ----------------
+     [stated] "dus kunnen zoeken op naam, kenteken, of reparatie naam."
+     Daarom wordt ook in de regels gezocht, niet alleen in de kop van het
+     object. Zoek je op "remblokken", dan vind je de wagen waar dat in staat. */
+  function past(o, q){
+    if(!q) return true;
+    var hooi=[T(o.naam), T(o.kenteken), T(o.twnr), T(o.soort)].join(' ').toLowerCase();
+    if(hooi.indexOf(q)>=0) return true;
+    var raak=false;
+    regels(o.id).forEach(function(r){
+      if(raak) return;
+      var t=[T(r.wat), T(r.toelichting), T(r.soort), T(r.door)].join(' ').toLowerCase();
+      if(t.indexOf(q)>=0) raak=true;
+    });
+    return raak;
+  }
+
+  /* ---------------- soorten en kleuren ---------------- */
+  var SOORTEN=[
+    {k:'reparatie', naam:'Reparatie',  vlak:'#e6ddfb', tekst:'#4c1d95', rand:'#6d28d9'},
+    {k:'vervangen', naam:'Vervangen',  vlak:'#d6f0dc', tekst:'#14532d', rand:'#15803d'},
+    {k:'onderhoud', naam:'Onderhoud',  vlak:'#dbeafe', tekst:'#14509b', rand:'#1765d8'},
+    {k:'melding',   naam:'Melding',    vlak:'#fde8c8', tekst:'#7a3f06', rand:'#b45309'}
+  ];
+  function soortVan(k){
+    var uit=SOORTEN[0];
+    SOORTEN.forEach(function(s){ if(s.k===T(k)) uit=s; });
+    return uit;
+  }
+
+  /* ---------------- het tabblad ---------------- */
+  function maakTab(){
+    var area=E('adminArea');
+    if(!area) return null;
+    var p=E(PANE);
+    if(!p){
+      p=document.createElement('div');
+      p.id=PANE;
+      p.className='adminPane panel hidden';
+      area.appendChild(p);
+    }
+    var eerste=document.querySelector('.adminTab');
+    if(eerste && !document.querySelector('.adminTab[data-admin="'+PANE+'"]')){
+      var k=document.createElement('button');
+      k.type='button';
+      k.className=eerste.className.replace('active','').trim();
+      k.setAttribute('data-admin', PANE);
+      k.textContent='Onderhoud';
+      k.addEventListener('click', function(){
+        document.querySelectorAll('.adminTab').forEach(function(x){ x.classList.remove('active'); });
+        document.querySelectorAll('.adminPane').forEach(function(x){ x.classList.add('hidden'); });
+        k.classList.add('active');
+        var pp=E(PANE); if(pp) pp.classList.remove('hidden');
+        tekenen(true);
+      });
+      eerste.parentNode.appendChild(k);
+    }
+    return p;
+  }
+
+  /* ---------------- tekenen ----------------
+     Net als de andere blokken hier wordt er alleen opnieuw getekend als er
+     echt iets veranderd is. Anders worden de invulvelden telkens vervangen
+     terwijl je aan het typen bent - dat is hier eerder misgegaan. */
+  function vingerafdruk(){
+    var o=objecten();
+    return JSON.stringify(o.map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,open(x.id).length]; }))+'|'+gekozen+'|'+zoek+'|'+JSON.stringify(regels(gekozen).map(function(r){ return [r.id,r.status,r.wat,r.datum,r.kosten]; }));
+  }
+
+  function tekenen(forceer){
+    try{
+      var pane=maakTab();
+      if(!pane) return;
+      var admin=E('adminArea');
+      if(!admin || !admin.offsetParent) return;
+      if(pane.classList.contains('hidden') && !forceer) return;
+      var v=vingerafdruk();
+      if(!forceer && pane.__vinger===v) return;
+      pane.__vinger=v;
+
+      var lijst=objecten(), q=T(zoek).toLowerCase();
+      var zichtbaar=lijst.filter(function(o){ return past(o,q); });
+      var totaalOpen=alleOpen();
+
+      pane.innerHTML=
+        '<h3 style="margin:0 0 4px">Onderhoud en reparaties</h3>'+
+        '<div style="font-size:13px;color:#64748b;margin-bottom:12px">Een object heeft altijd een naam. Kenteken en TW-nummer zijn vrij in te vullen - een aanhanger zonder kenteken laat je leeg. Zoeken kan op naam, kenteken, TW-nummer en op de tekst van een reparatie.'+
+          (totaalOpen? ' <b style="color:#b91c1c">'+totaalOpen+' nog uit te voeren.</b>' : ' Er staat niets open.')+'</div>'+
+
+        '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">'+
+
+          '<div style="flex:1 1 320px;min-width:0">'+
+            '<input id="bnsOhZoek" type="search" placeholder="Naam, TW-nummer, kenteken of reparatie" value="'+esc(zoek)+'" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:10px">'+
+            '<div id="bnsOhLijst">'+ lijstHtml(zichtbaar) +'</div>'+
+            '<div style="border-top:1px solid #e5e9f0;margin-top:14px;padding-top:12px">'+
+              '<div style="font-weight:800;margin-bottom:8px">Object toevoegen</div>'+
+              '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
+                '<input id="bnsOhNaam" placeholder="Naam" style="flex:1 1 150px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+                '<input id="bnsOhKent" placeholder="Kenteken" style="flex:1 1 110px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;text-transform:uppercase">'+
+                '<input id="bnsOhTwnr" placeholder="TW-nummer" style="flex:1 1 110px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+                '<select id="bnsOhSoort" style="flex:1 1 130px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+                  '<option value="voertuig">Voertuig</option>'+
+                  '<option value="aanhanger">Aanhanger</option>'+
+                  '<option value="materiaal">Materiaal</option>'+
+                '</select>'+
+                '<button type="button" id="bnsOhAdd" style="border:0;border-radius:12px;padding:10px 16px;background:#16a34a;color:#fff;font-weight:900">Toevoegen</button>'+
+              '</div>'+
+            '</div>'+
+          '</div>'+
+
+          '<div style="flex:999 1 520px;min-width:0" id="bnsOhBoek">'+ boekHtml() +'</div>'+
+
+        '</div>';
+
+      koppelen();
+    }catch(e){ try{ console.warn('[BNS TW Onderhoud] tekenen mislukt:', e&&e.message||e); }catch(_){} }
+  }
+
+  function lijstHtml(zichtbaar){
+    if(!objecten().length) return '<div style="color:#64748b">Er staan nog geen objecten in de lijst. Voeg er hieronder een toe.</div>';
+    if(!zichtbaar.length) return '<div style="color:#64748b">Niets gevonden.</div>';
+    return zichtbaar.map(function(o){
+      var n=open(o.id).length, aan=(T(o.id)===T(gekozen));
+      var onder=[T(o.twnr), T(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
+      return '<button type="button" data-oh-kies="'+esc(o.id)+'" style="display:block;width:100%;text-align:left;margin:0 0 7px;padding:11px 12px;border-radius:12px;cursor:pointer;'+
+        'border:'+(aan?'2px solid #2563eb':'1px solid #d8dee9')+';background:'+(aan?'#eff5ff':'#fff')+'">'+
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
+          '<span style="font-weight:800">'+esc(o.naam)+'</span>'+
+          (n? '<span style="background:#fee2e2;color:#b91c1c;border-radius:9px;padding:3px 8px;font-size:12px;white-space:nowrap">'+n+' open</span>'
+            : '<span style="background:#dcfce7;color:#166534;border-radius:9px;padding:3px 8px;font-size:12px;white-space:nowrap">in orde</span>')+
+        '</div>'+
+        '<div style="font-size:12px;color:#64748b;margin-top:2px">'+esc(onder)+' · '+regels(o.id).length+' regels</div>'+
+      '</button>';
+    }).join('');
+  }
+
+  function boekHtml(){
+    var o=objectVan(gekozen);
+    if(!o) return '<div style="border:1px dashed #cbd5e1;border-radius:16px;padding:22px;color:#64748b">Kies links een object om het onderhoudsboek te zien.</div>';
+
+    var rs=regels(o.id).slice().sort(function(a,b){
+      var ao=(T(a.status)!=='klaar')?0:1, bo=(T(b.status)!=='klaar')?0:1;
+      if(ao!==bo) return ao-bo;                              /* open altijd bovenaan */
+      return String(b.datum||'').localeCompare(String(a.datum||''));
+    });
+    var kop=[T(o.twnr), T(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
+    var som=0;
+    rs.forEach(function(r){ var n=Number(String(r.kosten||'').replace(/[^0-9,.-]/g,'').replace(',','.')); if(isFinite(n)) som+=n; });
+
+    return '<div style="border:1px solid #d8dee9;border-radius:16px;padding:14px;background:#fff">'+
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'+
+        '<div>'+
+          '<div style="font-size:18px;font-weight:900">'+esc(o.naam)+'</div>'+
+          '<div style="font-size:13px;color:#64748b;margin-top:2px">'+esc(kop)+' · '+rs.length+' regels'+(som>0?' · '+geld(som)+' in totaal':'')+'</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+          '<button type="button" id="bnsOhNieuw" style="border:0;border-radius:12px;padding:10px 14px;background:#2563eb;color:#fff;font-weight:900">Regel toevoegen</button>'+
+          '<button type="button" id="bnsOhWisObj" style="border:0;border-radius:12px;padding:10px 14px;background:#dc2626;color:#fff;font-weight:900">Object verwijderen</button>'+
+        '</div>'+
+      '</div>'+
+      '<div id="bnsOhForm"></div>'+
+      (rs.length ? rs.map(regelHtml).join('') : '<div style="color:#64748b">Nog geen regels. Gebruik Regel toevoegen.</div>')+
+    '</div>';
+  }
+
+  function regelHtml(r){
+    var s=soortVan(r.soort), isOpen=(T(r.status)!=='klaar');
+    var k=geld(r.kosten);
+    return '<div style="border:1px solid #e5e7eb;border-left:6px solid '+(isOpen?'#dc2626':s.rand)+';border-radius:12px;padding:11px 12px;margin:0 0 9px;background:'+(isOpen?'#fff7f7':'#fff')+'">'+
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:3px">'+
+        '<div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">'+
+          '<span style="background:'+s.vlak+';color:'+s.tekst+';border-radius:9px;padding:3px 9px;font-size:12px">'+esc(s.naam)+'</span>'+
+          (isOpen?'<span style="background:#fee2e2;color:#b91c1c;border-radius:9px;padding:3px 9px;font-size:12px;font-weight:800">Nog uit te voeren</span>':'')+
+        '</div>'+
+        '<span style="font-size:13px;color:#64748b">'+esc(nl(r.datum))+'</span>'+
+      '</div>'+
+      '<div style="font-weight:900">'+esc(r.wat||'(zonder omschrijving)')+'</div>'+
+      (T(r.toelichting)?'<div style="font-size:14px;color:#334155;margin-top:3px">'+esc(r.toelichting)+'</div>':'')+
+      '<div style="font-size:12px;color:#64748b;margin-top:5px">'+
+        esc(T(r.door)||'onbekend')+(k?' · '+k:'')+
+        (!isOpen && r.klaarOp ? ' · afgemeld op '+esc(nl(r.klaarOp))+(r.klaarDoor?' door '+esc(r.klaarDoor):'') : '')+
+      '</div>'+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">'+
+        (isOpen?'<button type="button" data-oh-klaar="'+esc(r.id)+'" style="border:0;border-radius:10px;padding:8px 12px;background:#16a34a;color:#fff;font-weight:800">Afmelden als uitgevoerd</button>':'')+
+        '<button type="button" data-oh-wijzig="'+esc(r.id)+'" style="border:1px solid #cbd5e1;border-radius:10px;padding:8px 12px;background:#fff;color:#334155;font-weight:800">Wijzigen</button>'+
+        '<button type="button" data-oh-wis="'+esc(r.id)+'" style="border:0;border-radius:10px;padding:8px 12px;background:#dc2626;color:#fff;font-weight:800">Wissen</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  /* ---------------- het invulblok ---------------- */
+  function formHtml(r){
+    r=r||{};
+    var knoppen=SOORTEN.map(function(s){
+      var aan=(T(r.soort)||'reparatie')===s.k;
+      return '<button type="button" data-oh-soort="'+s.k+'" style="border:'+(aan?'0':'1px solid #cbd5e1')+';border-radius:10px;padding:9px 13px;font-weight:800;'+
+        'background:'+(aan?s.rand:'#fff')+';color:'+(aan?'#fff':'#334155')+'">'+esc(s.naam)+'</button>';
+    }).join('');
+    return '<div id="bnsOhFormVak" data-oh-id="'+esc(r.id||'')+'" data-oh-soortwaarde="'+esc(T(r.soort)||'reparatie')+'" style="border:2px solid #2563eb;border-radius:14px;padding:13px;margin:0 0 12px;background:#f8fbff">'+
+      '<div style="font-weight:900;margin-bottom:9px">'+(r.id?'Regel wijzigen':'Nieuwe regel')+'</div>'+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px" id="bnsOhSoortRij">'+knoppen+'</div>'+
+      '<input id="bnsOhWat" placeholder="Wat is er gedaan, bijvoorbeeld: remblokken achter" value="'+esc(r.wat||'')+'" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px">'+
+      '<textarea id="bnsOhToel" rows="2" placeholder="Toelichting, niet verplicht" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px;resize:vertical">'+esc(r.toelichting||'')+'</textarea>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+
+        '<input id="bnsOhDatum" type="date" value="'+esc(r.datum||vandaag())+'" style="flex:1 1 150px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+        '<input id="bnsOhDoor" placeholder="Door wie" value="'+esc(T(r.door)||wieIsHet())+'" style="flex:1 1 150px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+        '<input id="bnsOhKosten" placeholder="Kosten" value="'+esc(r.kosten||'')+'" style="flex:1 1 110px;min-width:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px">'+
+      '</div>'+
+      '<label style="display:flex;gap:8px;align-items:center;font-weight:700;margin-bottom:11px">'+
+        '<input type="checkbox" id="bnsOhOpen" '+(T(r.status)==='klaar'?'':'checked')+' style="width:18px;height:18px">'+
+        '<span>Dit moet nog uitgevoerd worden (reparatieverzoek)</span>'+
+      '</label>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button type="button" id="bnsOhBewaar" style="border:0;border-radius:12px;padding:11px 18px;background:#16a34a;color:#fff;font-weight:900">Opslaan</button>'+
+        '<button type="button" id="bnsOhAnnuleer" style="border:1px solid #cbd5e1;border-radius:12px;padding:11px 18px;background:#fff;color:#334155;font-weight:800">Annuleren</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  function formTonen(r){
+    var vak=E('bnsOhForm');
+    if(!vak) return;
+    vak.innerHTML=formHtml(r);
+    var rij=E('bnsOhSoortRij');
+    if(rij){
+      Array.prototype.slice.call(rij.querySelectorAll('[data-oh-soort]')).forEach(function(b){
+        b.addEventListener('click', function(){
+          var huidig=lezenForm();
+          huidig.soort=b.getAttribute('data-oh-soort');
+          formTonen(huidig);
+        });
+      });
+    }
+    var bew=E('bnsOhBewaar'); if(bew) bew.addEventListener('click', bewaren);
+    var ann=E('bnsOhAnnuleer'); if(ann) ann.addEventListener('click', function(){ vak.innerHTML=''; });
+    var wat=E('bnsOhWat'); if(wat) wat.focus();
+  }
+
+  function lezenForm(){
+    var vak=E('bnsOhFormVak');
+    if(!vak) return {};
+    return {
+      id: T(vak.getAttribute('data-oh-id')),
+      soort: T(vak.getAttribute('data-oh-soortwaarde'))||'reparatie',
+      wat: T(E('bnsOhWat')&&E('bnsOhWat').value),
+      toelichting: T(E('bnsOhToel')&&E('bnsOhToel').value),
+      datum: T(E('bnsOhDatum')&&E('bnsOhDatum').value)||vandaag(),
+      door: T(E('bnsOhDoor')&&E('bnsOhDoor').value)||wieIsHet(),
+      kosten: T(E('bnsOhKosten')&&E('bnsOhKosten').value),
+      status: (E('bnsOhOpen')&&E('bnsOhOpen').checked) ? 'open' : 'klaar'
+    };
+  }
+
+  function bewaren(){
+    var o=objectVan(gekozen); if(!o) return;
+    var n=lezenForm();
+    if(!T(n.wat)){ try{ alert('Vul in wat er gedaan is.'); }catch(e){} return; }
+    var l=regels(o.id), bestaand=null;
+    l.forEach(function(r){ if(T(r.id)===T(n.id)) bestaand=r; });
+    if(bestaand){
+      bestaand.soort=n.soort; bestaand.wat=n.wat; bestaand.toelichting=n.toelichting;
+      bestaand.datum=n.datum; bestaand.door=n.door; bestaand.kosten=n.kosten;
+      /* 25-10-2026: een eenmaal gezet afmeldstempel wordt niet overschreven -
+         anders raak je kwijt wie het werk echt heeft gedaan. */
+      if(n.status==='klaar' && T(bestaand.status)!=='klaar'){
+        bestaand.status='klaar';
+        if(!bestaand.klaarOp){ bestaand.klaarOp=nuISO(); bestaand.klaarDoor=wieIsHet(); }
+      } else if(n.status==='open'){
+        bestaand.status='open';
+      }
+    } else {
+      var nieuw={
+        id:nieuwId('oh'), soort:n.soort, wat:n.wat, toelichting:n.toelichting,
+        datum:n.datum, door:n.door, kosten:n.kosten, status:n.status,
+        gemaaktOp:nuISO(), gemaaktDoor:wieIsHet()
+      };
+      if(n.status==='klaar'){ nieuw.klaarOp=nuISO(); nieuw.klaarDoor=wieIsHet(); }
+      l.push(nieuw);
+    }
+    regelsOpslaan(o.id, l);
+    tekenen(true);
+  }
+
+  /* ---------------- knoppen koppelen ---------------- */
+  function koppelen(){
+    var z=E('bnsOhZoek');
+    if(z){
+      z.addEventListener('input', function(){
+        zoek=z.value;
+        var vak=E('bnsOhLijst');
+        if(vak){
+          var q=T(zoek).toLowerCase();
+          vak.innerHTML=lijstHtml(objecten().filter(function(o){ return past(o,q); }));
+          koppelKiezen();
+        }
+      });
+    }
+    koppelKiezen();
+
+    var add=E('bnsOhAdd');
+    if(add) add.addEventListener('click', function(){
+      var naam=T(E('bnsOhNaam')&&E('bnsOhNaam').value);
+      if(!naam){ try{ alert('Een object heeft altijd een naam nodig.'); }catch(e){} return; }
+      var l=objecten();
+      l.push({
+        id:nieuwId('obj'), naam:naam,
+        kenteken:T(E('bnsOhKent')&&E('bnsOhKent').value).toUpperCase(),
+        twnr:T(E('bnsOhTwnr')&&E('bnsOhTwnr').value),
+        soort:T(E('bnsOhSoort')&&E('bnsOhSoort').value)||'voertuig',
+        blokken:[], gemaaktOp:nuISO()
+      });
+      objectenOpslaan(l);
+      gekozen=l[l.length-1].id;
+      geladen[gekozen]=true;                 /* nieuw object: niets op te halen */
+      tekenen(true);
+    });
+
+    var nieuw=E('bnsOhNieuw');
+    if(nieuw) nieuw.addEventListener('click', function(){ formTonen({status:'klaar'}); });
+
+    var wisObj=E('bnsOhWisObj');
+    if(wisObj) wisObj.addEventListener('click', function(){
+      var o=objectVan(gekozen); if(!o) return;
+      var zeker=false;
+      try{ zeker=confirm('"'+o.naam+'" helemaal verwijderen, met alle regels? Dit kan niet ongedaan gemaakt worden.'); }catch(e){}
+      if(!zeker) return;
+      objectenOpslaan(objecten().filter(function(x){ return T(x.id)!==T(o.id); }));
+      try{ localStorage.removeItem(REG_KEY+o.id); }catch(e){}
+      try{
+        var fs=window.BNS && window.BNS.fs, db=window.BNS && window.BNS.db;
+        if(fs && db && fs.deleteDoc && fs.doc) fs.deleteDoc(fs.doc(db,'onderhoud',String(o.id))).catch(function(){});
+      }catch(e){}
+      gekozen='';
+      tekenen(true);
+    });
+
+    var pane=E(PANE);
+    if(!pane) return;
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-klaar]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var id=b.getAttribute('data-oh-klaar'), l=regels(gekozen);
+        l.forEach(function(r){
+          if(T(r.id)!==T(id)) return;
+          r.status='klaar';
+          if(!r.klaarOp){ r.klaarOp=nuISO(); r.klaarDoor=wieIsHet(); }
+        });
+        regelsOpslaan(gekozen, l);
+        tekenen(true);
+      });
+    });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-wijzig]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var id=b.getAttribute('data-oh-wijzig'), raak=null;
+        regels(gekozen).forEach(function(r){ if(T(r.id)===T(id)) raak=r; });
+        if(raak) formTonen(raak);
+      });
+    });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-wis]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var id=b.getAttribute('data-oh-wis'), zeker=false;
+        try{ zeker=confirm('Deze regel verwijderen?'); }catch(e){}
+        if(!zeker) return;
+        regelsOpslaan(gekozen, regels(gekozen).filter(function(r){ return T(r.id)!==T(id); }));
+        tekenen(true);
+      });
+    });
+  }
+
+  function koppelKiezen(){
+    var pane=E(PANE); if(!pane) return;
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-kies]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        gekozen=b.getAttribute('data-oh-kies');
+        if(bezigLaden) return;
+        bezigLaden=true;
+        regelsOphalen(gekozen).then(function(){ bezigLaden=false; tekenen(true); });
+        tekenen(true);
+      });
+    });
+  }
+
+  setTimeout(function(){ maakTab(); objectenOphalen(); }, 1600);
+  setInterval(function(){ tekenen(false); }, 1500);
+
+  window.BNS_TW_ONDERHOUD={
+    objecten:objecten,
+    regels:function(id){ return regels(id||gekozen); },
+    open:function(){ return alleOpen(); },
+    ophalen:function(id){ delete geladen[id]; return regelsOphalen(id); }
+  };
+  try{ console.info('[BNS TW Onderhoud] Rubriek Onderhoud actief - window.BNS_TW_ONDERHOUD.objecten()'); }catch(e){}
 })();
