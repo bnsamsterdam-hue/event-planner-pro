@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD12-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD13-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -60552,7 +60552,71 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(a) a.addEventListener('click', function(){ vak.innerHTML=''; });
   }
 
-  setTimeout(function(){ maakTab(); uitFirebase(); }, 1600);
+  /* ==========================================================
+     25-10-2026 - WAT DE BEZORGER MELDT KOMT NU VANZELF BINNEN.
+     ----------------------------------------------------------
+     [stated] "als de bezorger een onderhoud aanmaakt, hoe krijgt de planner
+     het te zien? Want nu komt hij niet binnen dan alleen door F5."
+
+     Klopt. Deze rubriek las de gegevens een keer bij het opstarten en tekende
+     daarna alleen nog uit het geheugen. Een melding van een telefoon zag de
+     planner dus pas na een herlaad.
+
+     Hier wordt dezelfde weg gebruikt als de systeemmeldingen in deze app al
+     gebruiken: een MEELUISTERAAR. Firebase duwt een wijziging naar de app op
+     het moment dat hij gemaakt wordt, en kost niets zolang er niets gebeurt.
+
+     Er wordt maar naar EEN klein document geluisterd: settings/onderhoud_open,
+     waar per object staat hoeveel er openstaat. Verschilt dat van wat deze
+     computer heeft, dan - en alleen dan - worden de beurten van juist dat
+     object opnieuw opgehaald. Onze eigen wijzigingen komen ook langs, maar
+     die leveren geen verschil op en veroorzaken dus geen tweede ophaalronde.
+
+     Een object waar de planner op dat moment een beurt van zit in te vullen
+     wordt met rust gelaten tot hij opslaat; anders trekt een melding van een
+     bezorger zijn invulling onder zijn handen weg.
+  ========================================================== */
+  var luistert=false;
+  function meeluisteren(){
+    try{
+      var fs=window.BNS && window.BNS.fs, db=window.BNS && window.BNS.db;
+      if(!(fs && db && fs.onSnapshot && fs.doc)){
+        setTimeout(meeluisteren, 4000);     /* Firebase is er nog niet */
+        return;
+      }
+      if(luistert) return;
+      luistert=true;
+      fs.onSnapshot(fs.doc(db,'settings','onderhoud_open'), function(snap){
+        try{
+          var d=(snap && snap.exists && snap.exists()) ? snap.data() : null;
+          if(!d) return;
+          var halen=[], onbekend=false;
+          Object.keys(d).forEach(function(k){
+            if(k.indexOf('o_')!==0) return;
+            var id=k.slice(2), v=d[k];
+            var daar=(v && typeof v==='object') ? (Number(v.n)||0) : (Number(v)||0);
+            if(!objectVan(id)) onbekend=true;
+            /* het object dat nu in het formulier openstaat niet overschrijven */
+            if(form && T(gekozen)===T(id)) return;
+            if(openPunten(id)!==daar) halen.push(id);
+          });
+          if(onbekend) uitFirebase();        /* een telefoon heeft een nieuw object gemaakt */
+          if(!halen.length) return;
+          var klaar=0;
+          halen.forEach(function(id){
+            delete geladen[id];
+            regelsOphalen(id).then(function(){
+              klaar++;
+              if(klaar===halen.length) tekenen(true);
+            });
+          });
+          try{ console.info('[BNS TW Onderhoud] '+halen.length+' object(en) bijgewerkt na een melding van een telefoon.'); }catch(e){}
+        }catch(e){}
+      }, function(){ luistert=false; setTimeout(meeluisteren, 8000); });
+    }catch(e){ luistert=false; }
+  }
+
+  setTimeout(function(){ maakTab(); uitFirebase(); meeluisteren(); }, 1600);
   setInterval(function(){ tekenen(false); }, 1500);
 
   window.BNS_TW_ONDERHOUD={
