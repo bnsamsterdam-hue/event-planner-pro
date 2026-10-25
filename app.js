@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD5-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD6-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59768,11 +59768,16 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return lijst.map(function(o){
       var n=open(o.id).length, aan=(T(o.id)===T(gekozen)), aantal=regels(o.id).length;
       var nr=[T(o.twnr), T(o.kenteken)].filter(Boolean).join(' · ') || 'geen nummer';
-      var merk=n? '<span style="background:#fee2e2;color:#b91c1c;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap">'+n+'</span>'
-               : (aantal? '<span style="color:#94a3b8;font-size:11px;white-space:nowrap">'+aantal+'</span>' : '');
-      var binnen='<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
-            '<span style="font-weight:800;color:#172033">'+esc(o.naam)+'</span>'+
-            '<span style="color:#64748b;font-size:12px"> &nbsp;'+esc(nr)+'</span>'+
+      /* 25-10-2026 - OOK ALLES BINNEN EEN KNOP WORDT WIT GEMAAKT.
+         In styles.css staat niet alleen `button{color:#fff!important}` maar
+         ook `button *` op wit, met !important. De knop had dus wel mijn kleur,
+         maar de spans erin niet. Daarom staat de kleur hieronder op elk los
+         stukje tekst, telkens met !important. */
+      var merk=n? '<span style="background:#fee2e2 !important;color:#b91c1c !important;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap">'+n+'</span>'
+               : (aantal? '<span style="color:#94a3b8 !important;font-size:11px;white-space:nowrap">'+aantal+'</span>' : '');
+      var binnen='<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#172033 !important">'+
+            '<span style="font-weight:800;color:#172033 !important">'+esc(o.naam)+'</span>'+
+            '<span style="color:#64748b !important;font-size:12px"> &nbsp;'+esc(nr)+'</span>'+
           '</span>'+merk;
       if(opschoonStand){
         var vink=!!aangevinkt[o.id];
