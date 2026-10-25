@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R37';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R38';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -339,34 +339,75 @@ function loginWithFilter(f,key,after){
      wordt afgesloten. Vandaar dat de bezorger telkens opnieuw zijn PIN moest
      intoetsen. Nu wordt de aanmelding ook met een tijdstempel bewaard, zodat
      hij een werkdag lang meegaat en de PIN nog maar een keer per dag nodig is. */
-  try{ localStorage.setItem(DAG_SESSIE_KEY, JSON.stringify({id:found.id, ts:Date.now()})); }catch(e){}
+  /* 25-10-2026 - OOK EEN KOPIE VAN DE GEBRUIKER ZELF BEWAREN.
+     Zie de uitleg bij restoreSession: bij een trage start is de
+     gebruikerslijst er nog niet, en dan viel de bezorger terug naar het
+     pinscherm. Met deze kopie kan hij alvast binnen. */
+  try{
+    localStorage.setItem(DAG_SESSIE_KEY, JSON.stringify({
+      id:found.id, ts:Date.now(),
+      user:{ id:found.id, name:found.name, role:found.role, rights:found.rights||{}, active:found.active }
+    }));
+  }catch(e){}
   $("loginPin").value="";
   after();
 }
-function dagSessieGeldig(){
+function dagSessie(){
   try{
     var raw=localStorage.getItem(DAG_SESSIE_KEY);
-    if(!raw) return "";
+    if(!raw) return null;
     var d=JSON.parse(raw);
-    if(!d || !d.id || !d.ts) return "";
-    if(Date.now()-Number(d.ts) > DAG_SESSIE_UREN*3600*1000) return "";   // verlopen
-    return String(d.id);
-  }catch(e){ return ""; }
+    if(!d || !d.id || !d.ts) return null;
+    /* 25-10-2026: DAG_SESSIE_UREN op 0 betekent GEEN vervaldatum. */
+    if(DAG_SESSIE_UREN>0 && Date.now()-Number(d.ts) > DAG_SESSIE_UREN*3600*1000) return null;
+    return d;
+  }catch(e){ return null; }
 }
+function dagSessieGeldig(){ var d=dagSessie(); return d ? String(d.id) : ""; }
+
+/* ==========================================================
+   25-10-2026 - NIET MEER TERUG NAAR HET PINSCHERM BIJ EEN TRAGE START.
+   ----------------------------------------------------------
+   [stated] "bij mij is het als ik te snel druk gaat hij terug naar het
+   inlogscherm; moet ik wachten en dan opent hij weer."
+
+   Hier stond: zoek de bewaarde bezorger op in BNS.state.users, en alleen als
+   je hem daar vindt mag hij binnen. Maar deze regel loopt bij het opstarten,
+   en op dat moment kan die lijst nog leeg zijn - de gegevens zijn dan nog
+   onderweg. Gevolg: niets gevonden, dus geen sessie, dus pinscherm. Even
+   wachten en opnieuw openen hielp, want dan was de lijst er wel. Precies wat
+   hij beschreef.
+
+   Nu wordt alleen in dat ene geval - lijst nog HELEMAAL leeg - teruggevallen
+   op de kopie die bij het inloggen is bewaard. Is de lijst er wel en staat de
+   bezorger er niet in, dan is hij echt verwijderd en blijft het pinscherm
+   staan; die controle wordt dus niet zwakker. Komt de lijst daarna binnen,
+   dan vervangt de bewaking verderop de kopie door de echte gebruiker, of logt
+   alsnog uit als hij weg blijkt.
+========================================================== */
 function restoreSession(f,key,after){
-  var id=sessionStorage.getItem(key) || dagSessieGeldig();
+  var d=dagSessie();
+  var id=sessionStorage.getItem(key) || (d ? String(d.id) : "");
   if(!id)return;
-  const found=(BNS.state.users||[]).find(u=>String(u.id)===String(id));
+  var lijst=(BNS.state.users||[]);
+  var found=lijst.find(u=>String(u.id)===String(id));
+  if(!found && !lijst.length && d && d.user && String(d.user.id)===String(id)){
+    found=d.user;                                            /* lijst nog niet binnen */
+  }
   if(found&&f(found)){
     BNS.user=found;
-    try{ sessionStorage.setItem(key,found.id); }catch(e){}   // ook deze sessie weer vullen
+    try{ sessionStorage.setItem(key,String(found.id)); }catch(e){}   // ook deze sessie weer vullen
     after();
   }
 }
 
 const SESSION_KEY="tapwagen_driver_user_id_v143";
 const DAG_SESSIE_KEY="tapwagen_driver_dagsessie_v1";   // DRV-R8
-const DAG_SESSIE_UREN=18;                              // een werkdag; daarna weer PIN
+/* 25-10-2026: stond op 18 uur - een werkdag, daarna weer de PIN. [stated] hij
+   wil het zoals de andere app: een keer de PIN en dan blijft hij staan. 0 is
+   geen vervaldatum. Wil je het ooit terug, zet hier weer een aantal uren neer.
+   Uitloggen en een bezorger in Admin weghalen werken gewoon als voorheen. */
+const DAG_SESSIE_UREN=0;
 const LOCKED_USER_KEY="tapwagen_driver_locked_user_id";
 let CURRENT_DETAIL_ID="";
 
