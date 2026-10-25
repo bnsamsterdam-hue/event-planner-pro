@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R29';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R30';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -700,16 +700,22 @@ function bnsR28Balk(){
     b.innerHTML = '<button type="button" id="bnsR28TabWerk" class="btn wide" style="flex:1"></button>'+
                   '<button type="button" id="bnsR28TabAf" class="btn wide" style="flex:1"></button>';
     box.parentNode.insertBefore(b, box);
-    b.querySelector("#bnsR28TabWerk").onclick=function(){ BNS_R28_TOON_AFGEROND=false; render(); };
-    b.querySelector("#bnsR28TabAf").onclick=function(){ BNS_R28_TOON_AFGEROND=true; render(); };
+    b.querySelector("#bnsR28TabWerk").onclick=function(){ BNS_R28_TOON_AFGEROND=false; try{ BNS_R30_ONDERHOUD=false; }catch(e){} render(); };
+    b.querySelector("#bnsR28TabAf").onclick=function(){ BNS_R28_TOON_AFGEROND=true; try{ BNS_R30_ONDERHOUD=false; }catch(e){} render(); };
   }
   const w=document.getElementById("bnsR28TabWerk"), f=document.getElementById("bnsR28TabAf");
   if(w){ w.textContent="Opdrachten ("+getOrders().length+")"; w.className="btn wide "+(BNS_R28_TOON_AFGEROND?"btn-dark":"btn-green"); }
   if(f){ f.textContent="Afgerond ("+bnsR28AfgerondeOrders().length+")"; f.className="btn wide "+(BNS_R28_TOON_AFGEROND?"btn-green":"btn-dark"); }
+  if(w) w.style.background='';
+  if(f) f.style.background='';
+  try{ bnsOhBalk(); }catch(e){}
 }
 
 function render(){
   bnsR28Balk();
+  /* 25-10-2026: de rubriek Onderhoud tekent zijn eigen schermen in dezelfde
+     lijst. Zie het blok onderaan dit bestand (R30). */
+  if(typeof BNS_R30_ONDERHOUD!=='undefined' && BNS_R30_ONDERHOUD){ bnsOhTeken(); return; }
   if(BNS_R28_TOON_AFGEROND){
     const af=bnsR28AfgerondeOrders();
     $("orders").innerHTML=af.length?af.map(bnsR28AfgerondeKaart).join(""):`<div class="empty">Nog geen afgeronde opdrachten dit jaar.</div>`;
@@ -1123,6 +1129,32 @@ async function sendReport(order,type){
 
   if(!extra) return;
 
+  /* ==========================================================
+     25-10-2026 - VRAGEN OM WELK OBJECT HET GAAT.
+     ----------------------------------------------------------
+     [stated] "een bezorger moet een extra vakje krijgen bij rubriek
+     schademelding maken / schade, storing, algemene melding, met de vraag
+     welk materiaal nr, bv tw."
+     Tot nu toe werd alleen het opdrachtnummer bewaard, dus kon je later niet
+     zien WELK ding kapot was. De klant stond er al in. Vanaf nu wordt het
+     object erbij gevraagd en meegeschreven, zodat het schadeverleden per
+     wagen en per materiaal klopt. Weet hij het niet, dan kan hij overslaan -
+     liever een melding zonder object dan geen melding.
+  ========================================================== */
+  let gekozenObject = null;
+  try{
+    const objs = await bnsOhObjectenHalen();
+    if(Array.isArray(objs) && objs.length){
+      const opts = objs.slice(0,40).map(function(o){
+        const nr = [clean(o.twnr), clean(o.kenteken)].filter(Boolean).join(' / ');
+        return { value: String(o.id), label: clean(o.naam) + (nr ? ' - ' + nr : ''), cls: 'btn-dark' };
+      });
+      opts.push({ value: '', label: 'Weet ik niet / niet van toepassing', cls: 'btn-grey' });
+      const keus = await askChoice('Om welk object gaat het?', opts);
+      if(keus) objs.forEach(function(o){ if(String(o.id) === String(keus)) gekozenObject = o; });
+    }
+  }catch(e){}
+
   const label = type || "Melding";
   const aid = "alert_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
   await addAlert({
@@ -1133,6 +1165,9 @@ async function sendReport(order,type){
     fromPhone: true,
     orderId: order.id || "",
     orderNumber: order.number || "",
+    objectId: gekozenObject ? String(gekozenObject.id) : "",
+    objectNaam: gekozenObject ? clean(gekozenObject.naam) : "",
+    objectNummer: gekozenObject ? [clean(gekozenObject.twnr), clean(gekozenObject.kenteken)].filter(Boolean).join(' / ') : "",
     linkedOrder: order.id || "",
     linkedOrderNumber: order.number || "",
     orderTitle: order.title || "",
@@ -2169,3 +2204,374 @@ boot();
   };
   try{ console.info('[BNS DRV R13] Milieuzone-controle actief bij Navigatie.'); }catch(e){}
 })();
+
+/* ==========================================================
+   BNS TW R30 - ONDERHOUD OP DE BEZORGERSTELEFOON (25-10-2026)
+   ----------------------------------------------------------
+   [stated] "deze knop moet ook bij de bezorg telefoon komen zodat een
+   bezorger er ook iets kan invullen en of een melding kan maken en inzien,
+   altijd." En: "als de nieuwe knop met kleur kan, dus geen melding is hij
+   groen met 0 meldingen, en is er een reparatieverzoek dan rood met ...
+   melding. Deze optie moet via admin bij personeel aangevinkt worden als hij
+   dit mag gebruiken; vink ik hem niet aan, ziet hij hem niet."
+
+   Dus: een derde knop naast Opdrachten en Afgerond. Groen met het aantal 0,
+   rood met het aantal zodra er iets openstaat. Zonder het recht `onderhoud`
+   uit Admin > Personeel verschijnt de knop helemaal niet.
+
+   WAT DE BEZORGER MAG.
+   [stated] toevoegen en zijn eigen regel aanpassen; wissen doet de planner.
+   Dat is hier precies zo: toevoegen mag altijd, afmelden mag altijd (ook de
+   planner kan dat), wijzigen alleen bij een regel die hij zelf heeft gezet en
+   die nog niet is afgemeld. Een wisknop is er niet.
+
+   WAAR DE GEGEVENS VANDAAN KOMEN.
+   Dezelfde plekken als in Admin: de objectenlijst uit settings/
+   onderhoud_objecten, en de regels per object uit onderhoud/<object-id>. Die
+   regels worden PAS opgehaald als je dat object opent, zodat de telefoon bij
+   het starten niets extra's binnenhaalt.
+
+   SCHADEVERLEDEN.
+   [stated] "als je op bv knop schade verleden drukt dat hij dan ook aangeeft
+   welke klant de schade heeft gemaakt en pas als je erop drukt dat hij dan
+   pas de gegevens ophaalt."
+   De klantnaam zit al in elke melding, dus die kan altijd getoond worden. De
+   FOTO wordt pas in beeld gebracht als je op die ene melding tikt - tien
+   foto's tegelijk tekenen is wat de telefoon traag maakt.
+   Welk object een melding betrof werd tot nu toe nergens vastgelegd; vanaf nu
+   vraagt de meldingsknop daarom eerst om het object. Oudere meldingen worden
+   gekoppeld via het kenteken dat op de opdracht stond - zo goed als het gaat.
+========================================================== */
+var BNS_R30_ONDERHOUD = false;          /* staat de rubriek open? */
+var bnsOhScherm = 'lijst';              /* lijst | boek | schade */
+var bnsOhObject = '';                   /* welk object openstaat */
+var bnsOhZoek = '';
+var bnsOhObjecten = null;               /* null = nog niet opgehaald */
+var bnsOhRegels = {};                   /* per object-id */
+var bnsOhBezig = {};
+var bnsOhFoto = '';                     /* welke melding zijn foto laat zien */
+
+function bnsOhMag(){ try{ return hasRight('onderhoud') || lower(BNS.user && BNS.user.role)==='admin'; }catch(e){ return false; } }
+function bnsOhT(v){ return String(v==null?'':v).trim(); }
+function bnsOhDatumNL(d){ const s=bnsOhT(d).slice(0,10), p=s.split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : s; }
+function bnsOhVandaag(){ return new Date().toISOString().slice(0,10); }
+function bnsOhId(p){ return p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7); }
+
+async function bnsOhFirestore(){
+  const m = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
+  return m;
+}
+
+/* ---------- de objectenlijst ---------- */
+async function bnsOhObjectenHalen(){
+  if(Array.isArray(bnsOhObjecten)) return bnsOhObjecten;
+  bnsOhObjecten = [];
+  try{ const b=JSON.parse(localStorage.getItem('bns_tw_oh_objecten_tel')||'null'); if(Array.isArray(b)) bnsOhObjecten=b; }catch(e){}
+  try{
+    const {doc,getDoc}=await bnsOhFirestore();
+    const snap=await getDoc(doc(BNS.db,'settings','onderhoud_objecten'));
+    const d=snap && snap.exists() ? snap.data() : null;
+    if(d && Array.isArray(d.lijst)){
+      bnsOhObjecten=d.lijst;
+      try{ localStorage.setItem('bns_tw_oh_objecten_tel', JSON.stringify(d.lijst)); }catch(e){}
+    }
+  }catch(e){}
+  return bnsOhObjecten;
+}
+
+/* ---------- de regels van een object, pas bij openen ---------- */
+async function bnsOhRegelsHalen(objId){
+  if(bnsOhRegels[objId]) return bnsOhRegels[objId];
+  if(bnsOhBezig[objId]) return [];
+  bnsOhBezig[objId]=true;
+  let uit=[];
+  try{ const b=JSON.parse(localStorage.getItem('bns_tw_oh_regels_'+objId)||'null'); if(Array.isArray(b)) uit=b; }catch(e){}
+  try{
+    const {doc,getDoc}=await bnsOhFirestore();
+    const snap=await getDoc(doc(BNS.db,'onderhoud',String(objId)));
+    const d=snap && snap.exists() ? snap.data() : null;
+    if(d && Array.isArray(d.regels)){
+      uit=d.regels;
+      try{ localStorage.setItem('bns_tw_oh_regels_'+objId, JSON.stringify(uit)); }catch(e){}
+    }
+  }catch(e){}
+  bnsOhRegels[objId]=uit;
+  bnsOhBezig[objId]=false;
+  return uit;
+}
+async function bnsOhRegelsBewaren(objId, lijst){
+  bnsOhRegels[objId]=lijst;
+  try{ localStorage.setItem('bns_tw_oh_regels_'+objId, JSON.stringify(lijst)); }catch(e){}
+  try{
+    const {doc,setDoc}=await bnsOhFirestore();
+    await setDoc(doc(BNS.db,'onderhoud',String(objId)), {id:String(objId), regels:lijst, bijgewerkt:new Date().toISOString()}, {merge:true});
+  }catch(e){ toast('Opslaan naar de planning is niet gelukt. Hij staat wel op deze telefoon.'); }
+}
+
+function bnsOhOpen(objId){
+  const l=bnsOhRegels[objId]||[];
+  return l.filter(r => bnsOhT(r&&r.status)!=='klaar');
+}
+function bnsOhTotaalOpen(){
+  let n=0;
+  (bnsOhObjecten||[]).forEach(o=>{ n+=bnsOhOpen(o.id).length; });
+  return n;
+}
+
+/* ---------- schadeverleden ---------- */
+function bnsOhSchadeVoor(obj){
+  const list=(BNS.state && Array.isArray(BNS.state.alerts)) ? BNS.state.alerts : [];
+  const kent=bnsOhT(obj&&obj.kenteken).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  return list.filter(a=>{
+    if(!a) return false;
+    if(bnsOhT(a.objectId) && bnsOhT(a.objectId)===bnsOhT(obj.id)) return true;
+    if(!kent) return false;
+    /* oudere meldingen: via het kenteken dat op de opdracht stond */
+    const o=findOrder(a.orderId||a.orderNumber||'');
+    const v=bnsOhT(o && (o.vehicle||o.kenteken||'')).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    return !!v && v===kent;
+  }).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+}
+
+/* ---------- tekenen ---------- */
+function bnsOhSoortKleur(k){
+  const m={reparatie:['#e6ddfb','#4c1d95','#6d28d9','Reparatie'],
+           vervangen:['#d6f0dc','#14532d','#15803d','Vervangen'],
+           onderhoud:['#dbeafe','#14509b','#1765d8','Onderhoud'],
+           melding:['#fde8c8','#7a3f06','#b45309','Melding']};
+  return m[bnsOhT(k)] || m.reparatie;
+}
+
+function bnsOhTeken(){
+  const box=$("orders"); if(!box) return;
+  if(bnsOhScherm==='boek' || bnsOhScherm==='schade'){ bnsOhTekenBoek(); return; }
+
+  const q=bnsOhT(bnsOhZoek).toLowerCase();
+  const lijst=(bnsOhObjecten||[]).filter(o=>{
+    if(!q) return true;
+    return [o.naam,o.kenteken,o.twnr].map(x=>bnsOhT(x).toLowerCase()).join(' ').indexOf(q)>=0;
+  });
+  box.innerHTML =
+    `<input id="bnsOhZoekVeld" type="search" class="search" placeholder="Naam, TW-nummer of kenteken" value="${esc(bnsOhZoek)}">` +
+    (lijst.length ? lijst.map(o=>{
+      const n=bnsOhOpen(o.id).length;
+      const onder=[bnsOhT(o.twnr), bnsOhT(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
+      return `<article class="order-card order" data-id="${esc(o.id)}">
+        <div style="display:flex;justify-content:space-between;gap:9px;align-items:center">
+          <div class="order-title">${esc(o.naam)}</div>
+          <span class="badge" style="background:${n?'#fee2e2':'#dcfce7'};color:${n?'#b91c1c':'#166534'}">${n?n+' open':'in orde'}</span>
+        </div>
+        <div class="meta"><div class="meta-row"><span>\u{1F527}</span><div>${esc(onder)}</div></div></div>
+        <div class="action-grid"><button type="button" class="more-btn wide" data-oh-open="${esc(o.id)}">Openen</button></div>
+      </article>`;
+    }).join('') : `<div class="empty">${bnsOhObjecten===null?'Bezig met ophalen...':'Geen objecten gevonden.'}</div>`);
+
+  const zv=$("bnsOhZoekVeld");
+  if(zv) zv.oninput=function(){ bnsOhZoek=zv.value; bnsOhTeken(); const n=$("bnsOhZoekVeld"); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } };
+  qsa("[data-oh-open]").forEach(b=>{
+    b.onclick=async()=>{
+      bnsOhObject=b.getAttribute('data-oh-open');
+      bnsOhScherm='boek';
+      bnsOhTeken();
+      await bnsOhRegelsHalen(bnsOhObject);
+      bnsOhTeken();
+      bnsOhBalk();
+    };
+  });
+}
+
+function bnsOhObjectVan(id){
+  let uit=null;
+  (bnsOhObjecten||[]).forEach(o=>{ if(bnsOhT(o.id)===bnsOhT(id)) uit=o; });
+  return uit;
+}
+
+function bnsOhTekenBoek(){
+  const box=$("orders"); if(!box) return;
+  const o=bnsOhObjectVan(bnsOhObject);
+  if(!o){ bnsOhScherm='lijst'; bnsOhTeken(); return; }
+  const kop=[bnsOhT(o.twnr), bnsOhT(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
+
+  if(bnsOhScherm==='schade'){
+    const scha=bnsOhSchadeVoor(o);
+    box.innerHTML =
+      `<button type="button" class="btn btn-dark wide" data-oh-terugboek style="margin-bottom:10px">&larr; Terug naar ${esc(o.naam)}</button>` +
+      `<article class="order-card"><div class="order-title">Schadeverleden</div>
+        <div class="meta"><div class="meta-row"><span>\u{1F6E0}️</span><div>${esc(kop)}</div></div></div>
+        ${scha.length ? scha.map(a=>{
+          const dt=clean(a.time||'')||niceDate(clean(a.createdAt||'').slice(0,10));
+          const klant=clean(a.customerName||'');
+          const toon=(bnsOhFoto===String(a.id));
+          const img=a.data||a.photoData||a.imageData||a.signatureData||'';
+          return `<div style="border:1px solid #e5e7eb;border-radius:12px;padding:11px;margin:9px 0">
+            <div style="font-weight:900">${esc(a.type||a.title||'Melding')}</div>
+            <div style="font-size:13px;color:#64748b">${esc(dt)}${klant?' · klant: '+esc(klant):''}${a.driverName?' · '+esc(a.driverName):''}</div>
+            ${clean(a.note||a.text||a.message||'')?`<div style="margin-top:4px">${esc(clean(a.note||a.text||a.message||''))}</div>`:''}
+            ${img?(toon?`<img src="${img}" style="margin-top:8px;max-width:100%;border-radius:10px">`
+                       :`<button type="button" class="btn btn-dark wide" data-oh-foto="${esc(a.id)}" style="margin-top:8px">Foto tonen</button>`):''}
+          </div>`;
+        }).join('') : '<p class="status">Geen schade bekend bij dit object.</p>'}
+      </article>`;
+    const t=document.querySelector('[data-oh-terugboek]');
+    if(t) t.onclick=()=>{ bnsOhScherm='boek'; bnsOhFoto=''; bnsOhTeken(); };
+    qsa("[data-oh-foto]").forEach(b=>{ b.onclick=()=>{ bnsOhFoto=b.getAttribute('data-oh-foto'); bnsOhTeken(); }; });
+    return;
+  }
+
+  const rs=(bnsOhRegels[o.id]||[]).slice().sort((a,b)=>{
+    const ao=(bnsOhT(a.status)!=='klaar')?0:1, bo=(bnsOhT(b.status)!=='klaar')?0:1;
+    if(ao!==bo) return ao-bo;
+    return String(b.datum||'').localeCompare(String(a.datum||''));
+  });
+  const ik=clean(BNS.user && BNS.user.name||'');
+
+  box.innerHTML =
+    `<button type="button" class="btn btn-dark wide" data-oh-terug style="margin-bottom:10px">&larr; Alle objecten</button>` +
+    `<article class="order-card">
+      <div class="order-title">${esc(o.naam)}</div>
+      <div class="meta"><div class="meta-row"><span>\u{1F527}</span><div>${esc(kop)}</div></div></div>
+      <div class="action-grid">
+        <button type="button" class="btn btn-green wide" data-oh-nieuw>Melding of reparatie toevoegen</button>
+        <button type="button" class="btn btn-dark wide" data-oh-schade>Schadeverleden bekijken</button>
+      </div>
+    </article>
+    <div id="bnsOhFormTel"></div>` +
+    (rs.length ? rs.map(r=>{
+      const k=bnsOhSoortKleur(r.soort), isOpen=(bnsOhT(r.status)!=='klaar');
+      const vanMij=(clean(r.door)===ik || clean(r.gemaaktDoor)===ik);
+      return `<article class="order-card" style="border-top-color:${isOpen?'#dc2626':k[2]}">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="badge" style="background:${k[0]};color:${k[1]}">${esc(k[3])}</span>
+          <span style="font-size:13px;color:#64748b">${esc(bnsOhDatumNL(r.datum))}</span>
+        </div>
+        ${isOpen?'<div style="margin-top:6px"><span class="badge" style="background:#fee2e2;color:#b91c1c">Nog uit te voeren</span></div>':''}
+        <div class="order-title" style="margin-top:6px">${esc(r.wat||'(zonder omschrijving)')}</div>
+        ${clean(r.toelichting)?`<div style="font-size:15px;line-height:1.3">${esc(r.toelichting)}</div>`:''}
+        <div style="font-size:13px;color:#64748b;margin-top:5px">${esc(clean(r.door)||'onbekend')}${!isOpen&&r.klaarOp?' · afgemeld op '+esc(bnsOhDatumNL(r.klaarOp))+(r.klaarDoor?' door '+esc(r.klaarDoor):''):''}</div>
+        <div class="action-grid">
+          ${isOpen?`<button type="button" class="btn btn-green wide" data-oh-klaar="${esc(r.id)}">Afmelden als uitgevoerd</button>`:''}
+          ${(isOpen&&vanMij)?`<button type="button" class="btn btn-dark" data-oh-wijzig="${esc(r.id)}">Wijzigen</button>`:''}
+        </div>
+      </article>`;
+    }).join('') : '<p class="status">Nog niets vastgelegd bij dit object.</p>');
+
+  const t=document.querySelector('[data-oh-terug]');
+  if(t) t.onclick=()=>{ bnsOhScherm='lijst'; bnsOhTeken(); bnsOhBalk(); };
+  const sb=document.querySelector('[data-oh-schade]');
+  if(sb) sb.onclick=()=>{ bnsOhScherm='schade'; bnsOhFoto=''; bnsOhTeken(); };
+  const nb=document.querySelector('[data-oh-nieuw]');
+  if(nb) nb.onclick=()=>bnsOhForm({});
+  qsa("[data-oh-klaar]").forEach(b=>{
+    b.onclick=async()=>{
+      if(!await askConfirm('Afmelden','Deze reparatie afmelden als uitgevoerd?')) return;
+      const l=(bnsOhRegels[o.id]||[]).slice();
+      l.forEach(r=>{
+        if(bnsOhT(r.id)!==bnsOhT(b.getAttribute('data-oh-klaar'))) return;
+        r.status='klaar';
+        if(!r.klaarOp){ r.klaarOp=new Date().toISOString(); r.klaarDoor=clean(BNS.user&&BNS.user.name||''); }
+      });
+      await bnsOhRegelsBewaren(o.id,l);
+      toast('Afgemeld');
+      bnsOhTeken(); bnsOhBalk();
+    };
+  });
+  qsa("[data-oh-wijzig]").forEach(b=>{
+    b.onclick=()=>{
+      const id=b.getAttribute('data-oh-wijzig');
+      let raak=null;
+      (bnsOhRegels[o.id]||[]).forEach(r=>{ if(bnsOhT(r.id)===bnsOhT(id)) raak=r; });
+      if(raak) bnsOhForm(raak);
+    };
+  });
+}
+
+/* ---------- invullen op de telefoon: zo weinig mogelijk typen ---------- */
+function bnsOhForm(r){
+  r=r||{};
+  const vak=$("bnsOhFormTel"); if(!vak) return;
+  const soorten=[['reparatie','Reparatie'],['vervangen','Vervangen'],['onderhoud','Onderhoud'],['melding','Melding']];
+  const huidig=bnsOhT(r.soort)||'melding';
+  vak.innerHTML=`<article class="order-card" style="border-top-color:#16a34a">
+    <div class="order-title">${r.id?'Regel wijzigen':'Nieuwe regel'}</div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin:8px 0">
+      ${soorten.map(s=>{
+        const aan=(s[0]===huidig), k=bnsOhSoortKleur(s[0]);
+        return `<button type="button" data-oh-s="${s[0]}" class="btn" style="flex:1 1 45%;min-height:48px;background:${aan?k[2]:'#ffffff'};color:${aan?'#fff':'#334155'};border:${aan?'0':'2px solid #dce7f2'}">${s[1]}</button>`;
+      }).join('')}
+    </div>
+    <input id="bnsOhWatTel" placeholder="Wat is er aan de hand of gedaan" value="${esc(r.wat||'')}" style="width:100%;box-sizing:border-box;border:2px solid #c9e4fb;border-radius:14px;font-size:16px;font-weight:700;padding:13px 14px;margin:0 0 9px">
+    <textarea id="bnsOhToelTel" rows="3" placeholder="Toelichting, niet verplicht" style="width:100%;box-sizing:border-box;border:2px solid #e5e7eb;border-radius:14px;font-size:15px;font-weight:700;padding:12px 14px;margin:0 0 9px">${esc(r.toelichting||'')}</textarea>
+    <label style="display:flex;gap:10px;align-items:center;font-size:15px;margin:0 0 12px">
+      <input type="checkbox" id="bnsOhOpenTel" ${bnsOhT(r.status)==='klaar'?'':'checked'} style="width:22px;height:22px">
+      <span>Dit moet nog uitgevoerd worden</span>
+    </label>
+    <button type="button" class="btn btn-green wide" id="bnsOhBewaarTel" style="min-height:52px">Opslaan</button>
+    <button type="button" class="btn btn-dark wide" id="bnsOhAnnTel">Annuleren</button>
+  </article>`;
+  vak.setAttribute('data-oh-soort', huidig);
+  vak.setAttribute('data-oh-id', bnsOhT(r.id));
+  qsa("[data-oh-s]").forEach(b=>{
+    b.onclick=()=>{
+      const nu={id:vak.getAttribute('data-oh-id'), soort:b.getAttribute('data-oh-s'),
+                wat:($("bnsOhWatTel")||{}).value||'', toelichting:($("bnsOhToelTel")||{}).value||'',
+                status:($("bnsOhOpenTel")&&$("bnsOhOpenTel").checked)?'open':'klaar'};
+      bnsOhForm(nu);
+    };
+  });
+  const ann=$("bnsOhAnnTel"); if(ann) ann.onclick=()=>{ vak.innerHTML=''; };
+  const bew=$("bnsOhBewaarTel");
+  if(bew) bew.onclick=async()=>{
+    const wat=clean(($("bnsOhWatTel")||{}).value||'');
+    if(!wat){ await askConfirm('Niets ingevuld','Vul eerst in wat er aan de hand is.'); return; }
+    const o=bnsOhObjectVan(bnsOhObject); if(!o) return;
+    const l=(bnsOhRegels[o.id]||[]).slice();
+    const id=bnsOhT(vak.getAttribute('data-oh-id'));
+    const soort=vak.getAttribute('data-oh-soort')||'melding';
+    const status=($("bnsOhOpenTel")&&$("bnsOhOpenTel").checked)?'open':'klaar';
+    const toel=clean(($("bnsOhToelTel")||{}).value||'');
+    const ik=clean(BNS.user&&BNS.user.name||'');
+    let bestaand=null;
+    l.forEach(x=>{ if(bnsOhT(x.id)===id) bestaand=x; });
+    if(bestaand){
+      bestaand.soort=soort; bestaand.wat=wat; bestaand.toelichting=toel; bestaand.status=status;
+      if(status==='klaar' && !bestaand.klaarOp){ bestaand.klaarOp=new Date().toISOString(); bestaand.klaarDoor=ik; }
+    } else {
+      const n={id:bnsOhId('oh'), soort:soort, wat:wat, toelichting:toel, datum:bnsOhVandaag(),
+               door:ik, kosten:'', status:status, gemaaktOp:new Date().toISOString(), gemaaktDoor:ik, vanTelefoon:true};
+      if(status==='klaar'){ n.klaarOp=new Date().toISOString(); n.klaarDoor=ik; }
+      l.push(n);
+    }
+    await bnsOhRegelsBewaren(o.id,l);
+    toast('Opgeslagen');
+    bnsOhTeken(); bnsOhBalk();
+  };
+  const w=$("bnsOhWatTel"); if(w) w.focus();
+}
+
+/* ---------- de derde knop in de balk ---------- */
+function bnsOhBalk(){
+  const bar=document.getElementById('bnsR28Balk');
+  if(!bar) return;
+  let k=document.getElementById('bnsOhTab');
+  if(!bnsOhMag()){ if(k) k.remove(); return; }
+  if(!k){
+    k=document.createElement('button');
+    k.type='button';
+    k.id='bnsOhTab';
+    k.style.flex='1';
+    bar.appendChild(k);
+    k.onclick=async()=>{
+      BNS_R30_ONDERHOUD=true;
+      BNS_R28_TOON_AFGEROND=false;
+      bnsOhScherm='lijst';
+      render();
+      await bnsOhObjectenHalen();
+      render();
+      bnsOhBalk();
+    };
+  }
+  const n=bnsOhTotaalOpen();
+  k.textContent='Onderhoud ('+n+')';
+  k.className='btn wide '+(BNS_R30_ONDERHOUD ? (n?'btn-red':'btn-green') : (n?'btn-red':'btn-dark'));
+  if(n) k.style.background='#dc2626'; else if(BNS_R30_ONDERHOUD) k.style.background='#16a34a'; else k.style.background='';
+}
