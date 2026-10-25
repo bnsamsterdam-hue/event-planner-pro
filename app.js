@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD11-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD12-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59610,12 +59610,62 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      keer. Anders zou een computer die maar een paar objecten geopend heeft
      de tellers van alle andere op nul zetten - die kent hij immers niet.
   ========================================================== */
+  function openLijstVan(objId){
+    var o=objectVan(objId), uit=[];
+    if(!o) return null;
+    regels(objId).forEach(function(r){
+      (r.punten||[]).forEach(function(p,i){
+        if(T(p.staat)==='klaar') return;
+        uit.push({t:T(p.tekst), r:T(r.id), i:i, d:T(r.datum), s:T(r.soort)});
+      });
+    });
+    return {n:uit.length, naam:T(o.naam), nr:[T(o.twnr),T(o.kenteken)].filter(Boolean).join(' \u00B7 '), punten:uit};
+  }
   function tellerDelen(objId){
     try{
       if(!(window.BNS && typeof window.BNS.syncDoc==='function')) return;
+      var vak=openLijstVan(objId);
+      if(!vak) return;
       var mee={id:'onderhoud_open', bijgewerkt:nuISO()};
-      mee['o_'+String(objId)]=openPunten(objId);
+      mee['o_'+String(objId)]=vak;
       window.BNS.syncDoc('settings', mee);
+    }catch(e){}
+  }
+
+  /* ==========================================================
+     25-10-2026 - DE TELEFOON KRIJGT ALLEEN WAT OPENSTAAT.
+     ----------------------------------------------------------
+     [stated] "het zijn er geen 169, het gaat om de bezorgtelefoon waar alleen
+     de nog te repareren op moeten komen, dat zijn er 4 of 5; die 169 zijn niet
+     meer nodig voor de bezorgtelefoon, die gaan nu toch via de opdracht
+     melding maken."
+     Klopt. Daarom staat in settings/onderhoud_open niet alleen een aantal maar
+     ook de punten zelf, met de naam van het object erbij. De telefoon leest
+     dat ene kleine document en heeft daarmee zijn hele rode lijst - zonder
+     ook maar een object op te hoeven halen.
+
+     Dit wordt hier bijgewerkt bij elke ronde, voor de objecten waarvan deze
+     computer de regels kent. Een knop die jij moet indrukken is dus niet
+     nodig. Objecten die deze computer niet geopend heeft worden met rust
+     gelaten; die worden bijgewerkt door de computer die ze wel kent.
+  ========================================================== */
+  var laatstGedeeld='';
+  function alleTellersDelen(){
+    try{
+      if(!(window.BNS && typeof window.BNS.syncDoc==='function')) return;
+      var mee={id:'onderhoud_open', bijgewerkt:nuISO()}, vinger='', iets=false;
+      objecten().forEach(function(o){
+        if(!geladen[o.id] && !regels(o.id).length) return;   /* niets van bekend */
+        var vak=openLijstVan(o.id);
+        if(!vak) return;
+        mee['o_'+String(o.id)]=vak;
+        vinger+=o.id+':'+vak.n+';';
+        iets=true;
+      });
+      if(!iets || vinger===laatstGedeeld) return;
+      laatstGedeeld=vinger;
+      window.BNS.syncDoc('settings', mee);
+      try{ console.info('[BNS TW Onderhoud] Openstaand doorgegeven aan de telefoon.'); }catch(e){}
     }catch(e){}
   }
   function regelsOphalen(objId){
@@ -59760,6 +59810,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
             '</div>'
           : (view==='todo' ? todoHtml() : gedaanHtml()));
       koppelen();
+      alleTellersDelen();
     }catch(e){ try{ console.warn('[BNS TW Onderhoud]', e&&e.message||e); }catch(_){} }
   }
 
