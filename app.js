@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD2-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD4-2026-10-25';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -32393,7 +32393,12 @@ setTimeout(()=>{
   if (window.__bnsV159RightsAndWhatsAppFix) return;
   window.__bnsV159RightsAndWhatsAppFix = true;
   var EXTRA_RIGHTS = [
-  ['whatsappShare', 'Telefoon: WhatsApp opdracht delen']
+  ['whatsappShare', 'Telefoon: WhatsApp opdracht delen'],
+  /* 25-10-2026: [stated] "deze optie moet via admin bij personeel aangevinkt
+     worden als hij dit mag gebruiken; vink ik hem niet aan, ziet hij hem
+     niet." Het recht wordt hier bijgezet in plaats van met eigen plumbing,
+     zodat het meelift op het laden en opslaan dat hier al werkt. */
+  ['onderhoud', 'Telefoon: onderhoud en reparaties']
   ];
   var ALIAS_GROUPS = [
   ['orders','opdrachten','order','planning'],
@@ -59747,7 +59752,12 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
           '<div style="flex:1 1 320px;min-width:0">'+
             '<input id="bnsOhZoek" type="search" placeholder="Naam, TW-nummer, kenteken of reparatie" value="'+esc(zoek)+'" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:10px">'+
-            '<div id="bnsOhLijst">'+ lijstHtml(zichtbaar) +'</div>'+
+            /* 25-10-2026: [stated] "als je de lijst materiaal pakt krijg je een
+               enorme lijst, toevoegen valt dan ook helemaal onder de pagina."
+               Daarom krijgt de lijst een eigen hoogte met een schuifbalk, zodat
+               het invulblok eronder altijd in beeld blijft. */
+            '<div id="bnsOhLijst" style="max-height:46vh;min-height:90px;overflow:auto;padding-right:4px;border:1px solid #e8edf4;border-radius:12px;padding:8px">'+ lijstHtml(zichtbaar) +'</div>'+
+            '<div id="bnsOhTeller" style="font-size:12px;color:#64748b;margin-top:6px">'+zichtbaar.length+' van '+objecten().length+' getoond</div>'+
             '<div style="border-top:1px solid #e5e9f0;margin-top:14px;padding-top:12px">'+
               '<div style="font-weight:800;margin-bottom:8px">Object toevoegen</div>'+
               '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
@@ -59783,7 +59793,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return zichtbaar.map(function(o){
       var n=open(o.id).length, aan=(T(o.id)===T(gekozen));
       var onder=[T(o.twnr), T(o.kenteken)||'geen kenteken'].filter(Boolean).join(' · ');
-      return '<button type="button" data-oh-kies="'+esc(o.id)+'" style="display:block;width:100%;text-align:left;margin:0 0 7px;padding:11px 12px;border-radius:12px;cursor:pointer;'+
+      /* 25-10-2026 - DE TEKST WAS WIT OP WIT.
+         [stated] "bij rubriek onderhoud zie je geen tekst staan, te wit."
+         Klopte: de opmaak van deze app geeft ELKE knop standaard witte letters
+         (`button{color:#fff}` in styles.css). Ik gaf deze knoppen wel een witte
+         achtergrond maar geen letterkleur, dus wit op wit. Overal waar ik hier
+         een lichte knop teken staat de kleur er nu bij. */
+      return '<button type="button" data-oh-kies="'+esc(o.id)+'" style="display:block;width:100%;text-align:left;margin:0 0 7px;padding:11px 12px;border-radius:12px;cursor:pointer;color:#172033;'+
         'border:'+(aan?'2px solid #2563eb':'1px solid #d8dee9')+';background:'+(aan?'#eff5ff':'#fff')+'">'+
         '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
           '<span style="font-weight:800">'+esc(o.naam)+'</span>'+
@@ -59952,7 +59968,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         var vak=E('bnsOhLijst');
         if(vak){
           var q=T(zoek).toLowerCase();
-          vak.innerHTML=lijstHtml(objecten().filter(function(o){ return past(o,q); }));
+          var gevonden=objecten().filter(function(o){ return past(o,q); });
+          vak.innerHTML=lijstHtml(gevonden);
+          var tel=E('bnsOhTeller');
+          if(tel) tel.textContent=gevonden.length+' van '+objecten().length+' getoond';
           koppelKiezen();
         }
       });
