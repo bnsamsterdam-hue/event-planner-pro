@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD15-2026-10-26';
+window.TAPWAGEN_BUILD_ID = 'TW-FACTUUR16-2026-10-26';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -60898,4 +60898,602 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     ophalen:function(id){ delete geladen[id]; return regelsOphalen(id); }
   };
   try{ console.info('[BNS TW Onderhoud] Beurten met losse punten actief.'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS TW OPENSTAANDE FACTUREN (26-10-2026)
+   ----------------------------------------------------------
+   [stated] "ik wil in facturen een knop krijgen die aangeeft welke factuur
+   nog open staat in boekhouding, dus een knop openstaande facturen. Zodra ik
+   heb op betaald zet moet hij uit de rode knop komen en het getal moet dan
+   een minder worden. Eigenlijk hetzelfde idee als onderhoud maar nu dan met
+   de niet betaalde facturen."
+   [stated] "kunnen we hier ook meteen wis knop op zetten, printen enz, en
+   kunnen we ook een knop maken door zetten met een aanmaning."
+   [stated] drie trappen, en bijhouden dat je hem gestuurd hebt.
+
+   WAAROM DIT ANDERS WERKT DAN ONDERHOUD.
+   Bij Onderhoud was een gedeeld lijstje nodig, omdat de telefoon de beurten
+   van 170 wagens niet kan ophalen. Hier is dat NIET nodig: of een factuur
+   betaald is staat op de opdracht zelf, en de opdrachten staan al op elke
+   computer en worden al live bijgewerkt. Dus wordt er hier niets extra's
+   weggeschreven of opgehaald - er wordt alleen geteld wat er al is. Zet
+   iemand anders een factuur op betaald, dan loopt het getal hier vanzelf mee.
+
+   TWEE GROEPEN, want dat zijn twee verschillende problemen:
+     - ROOD: factuur verstuurd, klant heeft niet betaald. Jij wacht op geld.
+     - ORANJE: klus gedaan, nog geen factuurnummer. Jij moet nog iets doen.
+
+   Betaald zetten en de factuurregel wissen gaan via de functies die de
+   boekhouding hier al gebruikt (BNS528_setPaid en BNS528_deleteInvoice), zodat
+   alle velden en de boekhoudregels op dezelfde manier bijwerken als altijd.
+
+   Console: window.BNS_TW_OPENSTAAND.lijst()
+========================================================== */
+(function bnsTwOpenstaandeFacturen(){
+  'use strict';
+  if(window.__BNS_TW_OPENSTAAND__) return;
+  window.__BNS_TW_OPENSTAAND__=true;
+
+  var PANE='adminFacturen';
+  var VAK='bnsTwOpenVak';
+  var TEKST_KEY='bns_tw_aanmaning_teksten';
+
+  var toon='open';          /* open | factureren */
+  var zoek='', instOpen=false;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function E(id){ return document.getElementById(id); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(/[^0-9,.-]/g,'').replace(',','.')); return isFinite(n)?n:0; }
+  function geld(v){ return '€ ' + (Math.round(N(v)*100)/100).toFixed(2).replace('.',','); }
+  function nl(d){ var s=T(d).slice(0,10), p=s.split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : s; }
+  function vandaag(){ return new Date().toISOString().slice(0,10); }
+  function S(){
+    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function orders(){ var s=S(); return (s && Array.isArray(s.orders)) ? s.orders : []; }
+  function wieIsHet(){
+    try{ if(typeof user!=='undefined' && user) return T(user.name||user.naam||user.id)||'beheer'; }catch(e){}
+    return 'beheer';
+  }
+
+  /* Dezelfde velden die de boekhouding hier ook leest. */
+  function orderNo(o){ return T(o && (o.number||o.nr||o.orderNumber||o.opdrachtNr||o.id)); }
+  function invoiceNo(o){ return T(o && o.invoice && (o.invoice.invoiceNumber||o.invoice.number)) || T(o && (o.invoiceNumber||o.factuurNr||o.factuur||o.factuurNummer)); }
+  function klant(o){ return T(o && o.customer && o.customer.name) || T(o && (o.customerName||o.klant)); }
+  function titel(o){ return T(o && (o.title||o.name||o.naam)); }
+  function betaald(o){
+    return !!(o && (o.paid===true || o.betaald===true || o.paymentStatus==='paid' ||
+      (o.invoice && (o.invoice.paid===true || o.invoice.paymentStatus==='paid'))));
+  }
+  function lijnTotaal(l){ return (N(l&&l.qty)||1) * N(l&&l.price); }
+  function bedrag(o){
+    var p=(o&&o.pricing)||{};
+    var basis=N(p.grand||p.total||p.incl||o.total||o.amount||0);
+    if(basis) return basis;
+    var trans=0;
+    if(Array.isArray(o&&o.transportLines)) o.transportLines.forEach(function(l){ trans+=lijnTotaal(l); });
+    var mat=0, borg=0;
+    (o&&o.materials||[]).forEach(function(m){
+      var q=N(m.qty||m.amount||m.aantal||1)||1;
+      mat += q*N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs));
+      borg += q*N(m.lineDeposit||m.deposit||m.borg);
+    });
+    return (mat+trans)*1.21 + borg;
+  }
+  /* Een factuurregel die in de boekhouding is weggehaald telt hier ook niet mee. */
+  function verborgen(o){
+    if(!o) return true;
+    if(o.accountingHidden===true || o.invoiceHidden===true || o.invoiceDeleted===true || o.factuurVerwijderd===true) return true;
+    if(o.invoice && (o.invoice.hidden===true || o.invoice.deleted===true || o.invoice.accountingHidden===true)) return true;
+    if(o.deleted===true || o.verwijderd===true) return true;
+    return false;
+  }
+  /* [stated] alles behalve offerte, optie, geannuleerd en verwijderd. */
+  function telMee(o){
+    var st=L(o && (o.status||o.orderStatus||o.fase));
+    if(!st) return true;
+    if(st.indexOf('offerte')>=0) return false;
+    if(st.indexOf('optie')>=0) return false;
+    if(st.indexOf('annul')>=0) return false;
+    if(st.indexOf('verwijder')>=0) return false;
+    if(st.indexOf('concept')>=0) return false;
+    return true;
+  }
+  function datumVan(o){ return T(o && (o.invoiceDate || (o.invoice&&o.invoice.date) || o.end || o.start)).slice(0,10); }
+  function dagenOud(o){
+    var d=datumVan(o);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+    var ms=Date.now()-new Date(d+'T00:00:00').getTime();
+    return Math.floor(ms/86400000);
+  }
+
+  /* ---------------- de twee lijsten ---------------- */
+  function alles(){
+    var uit=[], gezien={};
+    orders().forEach(function(o){
+      if(!o || verborgen(o) || !telMee(o) || betaald(o)) return;
+      var sleutel=orderNo(o);
+      if(!sleutel || gezien[sleutel]) return;
+      gezien[sleutel]=true;
+      uit.push(o);
+    });
+    return uit;
+  }
+  function past(o){
+    var q=L(zoek);
+    if(!q) return true;
+    return [orderNo(o),invoiceNo(o),klant(o),titel(o)].join(' ').toLowerCase().indexOf(q)>=0;
+  }
+  function openFacturen(){
+    return alles().filter(function(o){ return !!invoiceNo(o); })
+      .sort(function(a,b){ return String(datumVan(a)).localeCompare(String(datumVan(b))); });
+  }
+  function nogFactureren(){
+    return alles().filter(function(o){ return !invoiceNo(o); })
+      .sort(function(a,b){ return String(datumVan(a)).localeCompare(String(datumVan(b))); });
+  }
+  function somVan(l){ var n=0; l.forEach(function(o){ n+=bedrag(o); }); return n; }
+
+  /* ---------------- knoppen met leesbare letters ---------------- */
+  function knop(tekst,o){
+    o=o||{};
+    return '<button type="button" '+(o.attr||'')+' style="'+
+      'background:'+(o.vlak||'#ffffff')+' !important;color:'+(o.inkt||'#172033')+' !important;'+
+      'border:'+(o.rand||'1px solid #cbd5e1')+' !important;border-radius:12px;padding:9px 14px;'+
+      'font-weight:800;cursor:pointer;height:auto !important;'+(o.extra||'')+'">'+tekst+'</button>';
+  }
+  function tekstIn(t,kleur,extra){ return '<span style="color:'+(kleur||'#172033')+' !important;'+(extra||'')+'">'+t+'</span>'; }
+  var GROEN ={vlak:'#16a34a', inkt:'#ffffff', rand:'0'};
+  var BLAUW ={vlak:'#1765d8', inkt:'#ffffff', rand:'0'};
+  var ROOD  ={vlak:'#dc2626', inkt:'#ffffff', rand:'0'};
+  var ORANJE={vlak:'#ea580c', inkt:'#ffffff', rand:'0'};
+  var GRIJS ={vlak:'#ffffff', inkt:'#334155', rand:'1px solid #cbd5e1'};
+  var DONKER={vlak:'#334155', inkt:'#ffffff', rand:'0'};
+
+  function venster(titelT,tekst,knoppen){
+    return new Promise(function(klaar){
+      var wrap=document.createElement('div');
+      wrap.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+      wrap.innerHTML='<div style="background:#fff;border-radius:20px;padding:20px;width:min(480px,100%);box-shadow:0 24px 70px rgba(0,0,0,.3)">'+
+        '<div style="font-size:19px;font-weight:900;margin-bottom:6px;color:#172033">'+esc(titelT)+'</div>'+
+        '<div style="font-size:15px;color:#334155;line-height:1.35;margin-bottom:16px">'+esc(tekst)+'</div>'+
+        '<div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end" id="bnsTwOfVK"></div></div>';
+      document.body.appendChild(wrap);
+      var rij=wrap.querySelector('#bnsTwOfVK');
+      (knoppen||[{tekst:'Oke',waarde:true,stijl:BLAUW}]).forEach(function(k){
+        var b=document.createElement('span');
+        b.innerHTML=knop(esc(k.tekst), Object.assign({}, k.stijl||GRIJS, {extra:'min-width:110px'}));
+        rij.appendChild(b);
+        b.firstChild.onclick=function(){ wrap.remove(); klaar(k.waarde); };
+      });
+    });
+  }
+  function meld(t,x){ return venster(t,x,[{tekst:'Oke',waarde:true,stijl:BLAUW}]); }
+  function vraag(t,x,ja,stijl){ return venster(t,x,[{tekst:'Annuleren',waarde:false,stijl:GRIJS},{tekst:ja||'Ja',waarde:true,stijl:stijl||ROOD}]); }
+
+  /* ---------------- de drie trappen ---------------- */
+  var TRAPPEN=[
+    {k:1, naam:'Herinnering',       kort:'1e herinnering', kleur:'#1765d8'},
+    {k:2, naam:'Aanmaning',         kort:'aanmaning',      kleur:'#ea580c'},
+    {k:3, naam:'Laatste aanmaning', kort:'laatste aanmaning', kleur:'#dc2626'}
+  ];
+  function trapVan(k){ var u=TRAPPEN[0]; TRAPPEN.forEach(function(t){ if(Number(t.k)===Number(k)) u=t; }); return u; }
+
+  /* De teksten staan hier als voorstel; pas ze aan naar eigen smaak. Er staat
+     bewust geen betalingstermijn, rente of administratiekosten in - dat is
+     geen keuze die een programma voor je hoort te maken. */
+  var STANDAARD={
+    t1:'Bij het nalopen van onze administratie zagen wij dat onderstaande factuur nog openstaat. Mogelijk is hij aan uw aandacht ontsnapt.\n\nWij verzoeken u vriendelijk het bedrag alsnog over te maken onder vermelding van het factuurnummer. Heeft u de betaling inmiddels gedaan, dan kunt u dit bericht als niet verzonden beschouwen.',
+    t2:'Eerder stuurden wij u een herinnering voor onderstaande factuur. Tot op heden hebben wij geen betaling ontvangen.\n\nWij verzoeken u het openstaande bedrag alsnog te voldoen onder vermelding van het factuurnummer. Klopt er iets niet aan deze factuur, neem dan contact met ons op zodat wij het samen kunnen oplossen.',
+    t3:'Ondanks onze eerdere herinnering en aanmaning staat onderstaande factuur nog steeds open.\n\nWij verzoeken u dringend het openstaande bedrag te voldoen onder vermelding van het factuurnummer. Blijft betaling uit, dan zien wij ons genoodzaakt verdere stappen te ondernemen.'
+  };
+  function teksten(){
+    try{
+      var o=JSON.parse(localStorage.getItem(TEKST_KEY)||'null');
+      if(o && typeof o==='object') return {t1:T(o.t1)||STANDAARD.t1, t2:T(o.t2)||STANDAARD.t2, t3:T(o.t3)||STANDAARD.t3};
+    }catch(e){}
+    return {t1:STANDAARD.t1, t2:STANDAARD.t2, t3:STANDAARD.t3};
+  }
+  function tekstenOpslaan(o){
+    try{ localStorage.setItem(TEKST_KEY, JSON.stringify(o)); }catch(e){}
+    try{
+      var s=S();
+      if(s){ s.settings=s.settings||{}; s.settings.aanmaningTeksten=o; if(typeof save==='function') save(); }
+    }catch(e){}
+  }
+
+  /* ---------------- wat is er al gestuurd ---------------- */
+  function verstuurd(o){
+    var l=(o && (o.aanmaningen || o.reminders));
+    return Array.isArray(l) ? l : [];
+  }
+  function laatsteTrap(o){
+    var n=0;
+    verstuurd(o).forEach(function(x){ if(Number(x.trap)>n) n=Number(x.trap); });
+    return n;
+  }
+  function noteren(o, trap){
+    try{
+      if(!Array.isArray(o.aanmaningen)) o.aanmaningen=[];
+      o.aanmaningen.push({trap:Number(trap), datum:vandaag(), op:new Date().toISOString(), door:wieIsHet()});
+      o.laatsteAanmaning={trap:Number(trap), datum:vandaag()};
+      o.updatedAt=new Date().toISOString();
+      try{ if(typeof save==='function') save(); }catch(e){}
+      try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+      try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('orders', o); }catch(e){}
+    }catch(e){}
+  }
+
+  /* ---------------- de brief ---------------- */
+  function huisstijl(){
+    function ls(k){ try{ return JSON.parse(localStorage.getItem(k)||'null')||{}; }catch(e){ return {}; } }
+    var s=S()||{};
+    var inv=(s.settings&&s.settings.invoice)||{};
+    var ds=s.documentStyle||{};
+    var h=Object.assign({}, inv, ls('bns_huisstijl_v361'), ds, ls('bns_huisstijl_v408'));
+    return {
+      naam:T(h.companyName)||'Tapwagen.nl',
+      adres:T(h.address)||'Molenlaan 30\n1422 ZA Uithoorn',
+      tel:T(h.phone)||'088-1888000',
+      mail:T(h.email)||'Info@tapwagen.nl',
+      kvk:T(h.kvk)||'32157678',
+      btw:T(h.btw)||'NL001611849B73',
+      iban:T(h.iban)||'NL97ABNA0409126675',
+      slogan:T(h.slogan)||'WE KEEP YOUR PARTY COOL!!!',
+      logo:T(h.logo||h.logoData||''),
+      accent:T(h.accent)||'#0ea5e9'
+    };
+  }
+  function klantAdres(o){
+    var c=(o&&o.customer)||{};
+    var r=[T(c.street||c.adres||o.customerStreet), [T(c.zip||c.postcode),T(c.city||c.plaats)].filter(Boolean).join('  ')];
+    return r.filter(Boolean).map(esc).join('<br>');
+  }
+  function briefHtml(o, trap){
+    var h=huisstijl(), t=trapVan(trap), tk=teksten();
+    var body=(trap===1?tk.t1:(trap===2?tk.t2:tk.t3));
+    var dagen=dagenOud(o);
+    var regels=[
+      ['Factuurnummer', invoiceNo(o)||'-'],
+      ['Opdrachtnummer', orderNo(o)||'-'],
+      ['Omschrijving', titel(o)||'-'],
+      ['Factuurdatum', nl(datumVan(o))||'-'],
+      ['Openstaand bedrag', geld(bedrag(o))]
+    ];
+    if(dagen!=null) regels.splice(4,0,['Staat open sinds', dagen+' dagen']);
+    var eerder=verstuurd(o);
+    return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>'+esc(t.naam)+' '+esc(invoiceNo(o)||orderNo(o))+'</title>'+
+      '<style>@page{size:A4;margin:14mm}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111}'+
+      '.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:12mm 14mm;box-sizing:border-box}'+
+      '.logo{text-align:center}.brand{font-size:34px;font-weight:900;color:'+esc(h.accent)+'}.tag{font-weight:800;font-style:italic}'+
+      'h1{text-align:center;font-size:21px;margin:10mm 0 6mm}.top{display:grid;grid-template-columns:1fr 58mm;gap:10mm}'+
+      '.line{border-top:1.5px solid #333;margin:5mm 0}.cust{font-weight:700;font-style:italic;min-height:16mm}'+
+      'table{width:100%;border-collapse:collapse}td{padding:1.6mm;vertical-align:top}.label{font-weight:700;width:45mm}'+
+      '.bedrag{font-size:17px;font-weight:900}.tekst{line-height:1.45;margin:6mm 0;white-space:pre-line}'+
+      '.eerder{font-size:12px;color:#555;margin-top:4mm}'+
+      '.balk{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}'+
+      '.balk button{border:0;border-radius:10px;color:#fff;font-weight:900;padding:9px 13px;cursor:pointer;box-shadow:0 2px 7px rgba(0,0,0,.18)}'+
+      '@media print{.balk{display:none}body{background:#fff}.page{margin:0}}</style></head><body>'+
+      '<div class="balk">'+
+        '<button id="bPdf" style="background:#16a34a">PDF opslaan</button>'+
+        '<button id="bPrint" style="background:#2563eb">Printen</button>'+
+        '<button id="bMail" style="background:#ea580c">Mailen</button>'+
+        '<button id="bApp" style="background:#22c55e">WhatsApp</button>'+
+        '<button id="bDeel" style="background:#7c3aed">Delen</button>'+
+        '<button id="bDicht" style="background:#64748b">Terug</button>'+
+      '</div>'+
+      '<div class="page">'+
+        '<div class="logo">'+(h.logo? '<img src="'+h.logo+'" style="max-width:95mm;max-height:25mm;object-fit:contain">'
+                                    : '<div class="brand">'+esc(h.naam)+'</div><div class="tag">'+esc(h.slogan)+'</div>')+'</div>'+
+        '<h1>'+esc(t.naam.toUpperCase())+'</h1>'+
+        '<div class="top"><div>'+esc(h.naam)+'<br>'+esc(h.adres).replace(/\n/g,'<br>')+'<br>Tel.: '+esc(h.tel)+'<br>'+esc(h.mail)+
+          '<br>KVK: '+esc(h.kvk)+'<br>BTW NR: '+esc(h.btw)+'<br>Bank: '+esc(h.iban)+'</div>'+
+          '<div><b>Datum:</b> '+esc(nl(vandaag()))+'<br><b>Betreft:</b> factuur '+esc(invoiceNo(o)||orderNo(o))+'</div></div>'+
+        '<div class="line"></div>'+
+        '<div class="cust">'+esc(klant(o)||'-')+(klantAdres(o)?'<br>'+klantAdres(o):'')+'</div>'+
+        '<div class="line"></div>'+
+        '<div class="tekst">'+esc(body)+'</div>'+
+        '<table>'+regels.map(function(r){
+          return '<tr><td class="label">'+esc(r[0])+':</td><td'+(r[0]==='Openstaand bedrag'?' class="bedrag"':'')+'>'+esc(r[1])+'</td></tr>';
+        }).join('')+'</table>'+
+        '<div class="line"></div>'+
+        '<p>Wij verzoeken u het bedrag over te maken op '+esc(h.iban)+' ten name van '+esc(h.naam)+', onder vermelding van factuurnummer '+esc(invoiceNo(o)||orderNo(o))+'.</p>'+
+        (eerder.length? '<div class="eerder">Eerder verstuurd: '+eerder.map(function(x){ return esc(trapVan(x.trap).naam)+' op '+esc(nl(x.datum)); }).join(' · ')+'</div>' : '')+
+      '</div>'+
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>'+
+      '<script>(function(){'+
+        'function el(){return document.querySelector(".page");}'+
+        'function txt(){var e=el();return (e.innerText||e.textContent||"").trim();}'+
+        'function naam(){return (document.title||"aanmaning").replace(/[^a-z0-9_-]+/gi,"_")+".pdf";}'+
+        'function zeg(t){var w=document.createElement("div");w.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.3);display:flex;align-items:center;justify-content:center;z-index:99999";'+
+          'w.innerHTML="<div style=\\"background:#fff;border-radius:16px;padding:20px;max-width:460px;font-family:Arial\\"><b>Systeemmelding</b><p>"+t+"</p></div>";'+
+          'w.onclick=function(){w.remove();};document.body.appendChild(w);}'+
+        'document.getElementById("bPrint").onclick=function(){window.print();};'+
+        'document.getElementById("bDicht").onclick=function(){try{window.close();}catch(e){} setTimeout(function(){try{if(!window.closed)history.back();}catch(e){}},120);};'+
+        'document.getElementById("bMail").onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title)+"&body="+encodeURIComponent(txt());};'+
+        'document.getElementById("bApp").onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(txt());};'+
+        'document.getElementById("bDeel").onclick=function(){if(navigator.share){navigator.share({title:document.title,text:txt()}).catch(function(){});}'+
+          'else if(navigator.clipboard){navigator.clipboard.writeText(txt()).then(function(){zeg("Op het klembord gezet.");});} else {zeg("Delen kan niet in deze browser. Gebruik Mailen of Printen.");}};'+
+        'document.getElementById("bPdf").onclick=function(){if(!window.html2pdf){zeg("De pdf-hulp kon niet laden. Gebruik Printen en kies Opslaan als pdf.");return;}'+
+          'window.html2pdf().set({margin:0,filename:naam(),image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}}).from(el()).save();};'+
+      '})();<\/script></body></html>';
+  }
+  function aanmaningMaken(o, trap){
+    var w=window.open('','_blank');
+    if(!w){ meld('Pop-up geblokkeerd','De browser blokkeert het nieuwe venster. Sta pop-ups toe voor deze pagina en probeer het opnieuw.'); return; }
+    w.document.open(); w.document.write(briefHtml(o, trap)); w.document.close();
+    noteren(o, trap);
+    tekenen(true);
+  }
+
+  /* ---------------- tekenen ---------------- */
+  function aanHetTypen(){
+    try{ var p=E(VAK), a=document.activeElement; return !!(p && a && a!==document.body && p.contains(a)); }catch(e){ return false; }
+  }
+  function vinger(){
+    var r=openFacturen(), f=nogFactureren();
+    return toon+'|'+(instOpen?1:0)+'|'+r.length+'|'+f.length+'|'+Math.round(somVan(r))+'|'+Math.round(somVan(f))+'|'+
+      r.concat(f).map(function(o){ return orderNo(o)+':'+laatsteTrap(o); }).join(',');
+  }
+
+  function tekenen(forceer){
+    try{
+      var admin=E('adminArea');
+      if(!admin || !admin.offsetParent) return;
+      var doel=E(PANE) || admin;
+      var vak=E(VAK);
+      if(!vak){
+        vak=document.createElement('div');
+        vak.id=VAK;
+        vak.style.cssText='margin-top:18px;padding:14px;border:2px solid #e2e8f0;border-radius:14px;background:#fff';
+        doel.appendChild(vak);
+      }
+      if(vak.parentNode!==doel && doel.id===PANE) doel.appendChild(vak);
+      if(!forceer && aanHetTypen()) return;
+      var v=vinger();
+      if(!forceer && vak.__vinger===v) return;
+      vak.__vinger=v;
+
+      var rood=openFacturen(), oranje=nogFactureren();
+      var sRood=somVan(rood), sOranje=somVan(oranje);
+
+      vak.innerHTML=
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px">'+
+          '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">'+
+            rubriek('open','Openstaand', rood.length, sRood, '#dc2626')+
+            rubriek('factureren','Nog factureren', oranje.length, sOranje, '#ea580c')+
+          '</div>'+
+          '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+            knop('Printen', Object.assign({},GRIJS,{extra:'padding:9px 14px',attr:'data-of-print'}))+
+            knop('Delen', Object.assign({},GRIJS,{extra:'padding:9px 14px',attr:'data-of-deel'}))+
+            knop(instOpen?'Sluit teksten':'Teksten aanmaning', Object.assign({},GRIJS,{extra:'padding:9px 14px',attr:'data-of-inst'}))+
+          '</div>'+
+        '</div>'+
+        (instOpen? instellingenHtml() : '')+
+        '<input id="bnsTwOfZoek" type="search" placeholder="Zoek op factuurnummer, opdrachtnummer of klant" value="'+esc(zoek)+'" style="width:100%;box-sizing:border-box;padding:11px 13px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:10px">'+
+        (toon==='open' ? lijstHtml(rood.filter(past), true) : lijstHtml(oranje.filter(past), false));
+      koppelen();
+    }catch(e){ try{ console.warn('[BNS TW Openstaand]', e&&e.message||e); }catch(_){} }
+  }
+
+  function rubriek(k, naam, aantal, som, kleur){
+    var aan=(toon===k);
+    var binnen=tekstIn(esc(naam)+' ('+aantal+')', aan?'#ffffff':kleur, 'font-weight:900')+
+               tekstIn('&nbsp;&nbsp;'+esc(geld(som)), aan?'#e5e7eb':'#64748b', 'font-size:12px');
+    return knop(binnen, aan ? {vlak:kleur, inkt:'#fff', rand:'0', extra:'padding:10px 16px', attr:'data-of-toon="'+k+'"'}
+                            : {vlak:'#fff', inkt:kleur, rand:'2px solid '+kleur, extra:'padding:10px 16px', attr:'data-of-toon="'+k+'"'});
+  }
+
+  function lijstHtml(l, metFactuur){
+    if(!l.length){
+      return '<div style="color:'+(metFactuur?'#166534':'#64748b')+';font-weight:800;padding:10px">'+
+        (metFactuur? 'Geen openstaande facturen. Alles is betaald.' : 'Niets dat nog gefactureerd moet worden.')+'</div>';
+    }
+    return l.map(function(o){
+      var id=T(o.id)||orderNo(o);
+      var dagen=dagenOud(o), trap=laatsteTrap(o), t=trap?trapVan(trap):null;
+      var kleur=metFactuur?'#dc2626':'#ea580c';
+      return '<div style="border:1px solid #e5e7eb;border-left:6px solid '+kleur+';border-radius:12px;padding:11px 12px;margin:0 0 9px;background:#fff">'+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:baseline;margin-bottom:6px">'+
+          '<span style="min-width:0">'+
+            tekstIn(esc(metFactuur ? ('Factuur '+(invoiceNo(o)||'-')) : ('Opdracht '+(orderNo(o)||'-'))),'#172033','font-weight:900;font-size:15px')+
+            tekstIn('&nbsp;&nbsp;'+esc(klant(o)||'klant onbekend'),'#334155','font-size:13px')+
+          '</span>'+
+          '<span style="font-weight:900;font-size:15px;color:#172033">'+esc(geld(bedrag(o)))+'</span>'+
+        '</div>'+
+        '<div style="font-size:12px;color:#64748b;margin-bottom:9px">'+
+          esc(titel(o)||'zonder omschrijving')+
+          (metFactuur? ' · opdracht '+esc(orderNo(o)) : '')+
+          (datumVan(o)? ' · '+esc(nl(datumVan(o))) : '')+
+          (dagen!=null? ' · '+dagen+' dagen open' : '')+
+          (t? ' · <b style="color:'+t.kleur+'">'+esc(t.naam)+' op '+esc(nl((verstuurd(o)[verstuurd(o).length-1]||{}).datum))+'</b>' : '')+
+        '</div>'+
+        '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+          (metFactuur
+            ? knop('Zet betaald', Object.assign({},GROEN,{extra:'padding:8px 13px;font-size:13px',attr:'data-of-betaald="'+esc(id)+'"'}))
+            : knop('Factuur maken', Object.assign({},BLAUW,{extra:'padding:8px 13px;font-size:13px',attr:'data-of-doc="'+esc(id)+'"'})))+
+          (metFactuur? knop('Open factuur', Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:13px',attr:'data-of-doc="'+esc(id)+'"'})) : '')+
+          (metFactuur? TRAPPEN.map(function(x){
+            var aan=(trap+1===x.k) || (trap===0 && x.k===1);
+            return knop(esc(x.naam), {vlak: aan?x.kleur:'#ffffff', inkt: aan?'#ffffff':x.kleur, rand: aan?'0':'2px solid '+x.kleur,
+              extra:'padding:8px 13px;font-size:13px', attr:'data-of-aanmaning="'+esc(id)+'|'+x.k+'"'});
+          }).join('') : '')+
+          knop('Wis factuurregel', Object.assign({},DONKER,{extra:'padding:8px 13px;font-size:13px',attr:'data-of-wis="'+esc(id)+'"'}))+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  function instellingenHtml(){
+    var tk=teksten();
+    return '<div style="border:1px solid #cbd5e1;border-radius:12px;padding:12px;margin-bottom:12px;background:#f8fbff">'+
+      '<div style="font-weight:900;margin-bottom:4px;color:#172033">Teksten voor de aanmaningen</div>'+
+      '<div style="font-size:13px;color:#475569;margin-bottom:10px">Dit is de tekst die boven in de brief komt. Er staat bewust geen betalingstermijn, rente of administratiekosten in - dat is jouw keuze, niet die van het programma. Vul aan wat je erin wilt hebben.</div>'+
+      TRAPPEN.map(function(t,i){
+        return '<div style="margin-bottom:10px">'+
+          '<div style="font-size:13px;font-weight:800;color:'+t.kleur+';margin-bottom:4px">'+esc(t.naam)+'</div>'+
+          '<textarea id="bnsTwOfT'+t.k+'" rows="4" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;resize:vertical;font-family:inherit;font-size:14px">'+esc(tk['t'+t.k])+'</textarea>'+
+        '</div>';
+      }).join('')+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+        knop('Teksten opslaan', Object.assign({},GROEN,{attr:'data-of-tbewaar'}))+
+        knop('Terug naar de standaardtekst', Object.assign({},GRIJS,{attr:'data-of-tstandaard'}))+
+      '</div></div>';
+  }
+
+  /* ---------------- printen en delen ---------------- */
+  function alsTekst(){
+    var rood=openFacturen(), oranje=nogFactureren(), uit=[];
+    uit.push('OPENSTAANDE FACTUREN - '+new Date().toLocaleDateString('nl-NL'), '');
+    uit.push('VERSTUURD EN NIET BETAALD ('+rood.length+') - '+geld(somVan(rood)));
+    rood.forEach(function(o){
+      var d=dagenOud(o), t=laatsteTrap(o);
+      uit.push('  '+(invoiceNo(o)||'-')+'  '+(klant(o)||'-')+'  '+geld(bedrag(o))+
+        (d!=null?'  ('+d+' dagen)':'')+(t?'  ['+trapVan(t).naam+']':''));
+    });
+    uit.push('', 'NOG TE FACTUREREN ('+oranje.length+') - '+geld(somVan(oranje)));
+    oranje.forEach(function(o){
+      uit.push('  '+(orderNo(o)||'-')+'  '+(klant(o)||'-')+'  '+geld(bedrag(o)));
+    });
+    uit.push('', 'Totaal openstaand: '+geld(somVan(rood)+somVan(oranje)));
+    return uit.join('\n');
+  }
+  function printen(){
+    var w=window.open('','_blank');
+    if(!w){ meld('Printen','De browser blokkeert het printvenster. Sta pop-ups toe voor deze pagina.'); return; }
+    w.document.write('<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>Openstaande facturen</title>'+
+      '<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111}pre{white-space:pre-wrap;font:inherit;font-size:14px;line-height:1.45}</style>'+
+      '</head><body><pre>'+esc(alsTekst())+'</pre></body></html>');
+    w.document.close();
+    setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 300);
+  }
+  function delen(){
+    var tekst=alsTekst();
+    try{ if(navigator.share){ navigator.share({title:'Openstaande facturen', text:tekst}).catch(function(){}); return; } }catch(e){}
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(tekst).then(function(){ meld('Delen','De lijst staat op het klembord.'); })
+          .catch(function(){ meld('Delen','Kopieren naar het klembord lukte niet.'); });
+        return;
+      }
+    }catch(e){}
+    meld('Delen','Deze browser kan niet delen. Gebruik Printen en kies daar Opslaan als pdf.');
+  }
+
+  /* ---------------- knoppen ---------------- */
+  function vindOrder(id){
+    id=T(id);
+    var raak=null;
+    orders().forEach(function(o){
+      if(raak) return;
+      if([T(o.id),orderNo(o),invoiceNo(o)].indexOf(id)>=0) raak=o;
+    });
+    return raak;
+  }
+  function koppelen(){
+    var vak=E(VAK); if(!vak) return;
+    var K=function(sel){ return Array.prototype.slice.call(vak.querySelectorAll(sel)); };
+
+    var z=E('bnsTwOfZoek');
+    if(z) z.addEventListener('input', function(){ zoek=z.value; tekenen(true); var n=E('bnsTwOfZoek'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } });
+
+    K('[data-of-toon]').forEach(function(b){ b.addEventListener('click', function(){ toon=b.getAttribute('data-of-toon'); tekenen(true); }); });
+    var pr=vak.querySelector('[data-of-print]'); if(pr) pr.addEventListener('click', printen);
+    var dl=vak.querySelector('[data-of-deel]'); if(dl) dl.addEventListener('click', delen);
+    var inst=vak.querySelector('[data-of-inst]'); if(inst) inst.addEventListener('click', function(){ instOpen=!instOpen; tekenen(true); });
+
+    var tb=vak.querySelector('[data-of-tbewaar]');
+    if(tb) tb.addEventListener('click', function(){
+      tekstenOpslaan({t1:T((E('bnsTwOfT1')||{}).value), t2:T((E('bnsTwOfT2')||{}).value), t3:T((E('bnsTwOfT3')||{}).value)});
+      meld('Opgeslagen','De teksten voor de aanmaningen zijn bewaard.');
+      tekenen(true);
+    });
+    var ts=vak.querySelector('[data-of-tstandaard]');
+    if(ts) ts.addEventListener('click', function(){
+      vraag('Standaardtekst terugzetten','Je eigen teksten worden vervangen door de standaardtekst. Doorgaan?','Terugzetten',DONKER)
+        .then(function(ja){ if(ja){ tekstenOpslaan({t1:STANDAARD.t1,t2:STANDAARD.t2,t3:STANDAARD.t3}); tekenen(true); } });
+    });
+
+    K('[data-of-betaald]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var o=vindOrder(b.getAttribute('data-of-betaald'));
+        if(!o) return;
+        vraag('Op betaald zetten','Factuur '+(invoiceNo(o)||orderNo(o))+' van '+(klant(o)||'onbekend')+' voor '+geld(bedrag(o))+' op betaald zetten?','Zet betaald',GROEN)
+          .then(function(ja){
+            if(!ja) return;
+            try{
+              if(typeof window.BNS528_setPaid==='function') window.BNS528_setPaid(T(o.id)||orderNo(o), true);
+              else if(typeof window.TW300_AU_setPaid==='function') window.TW300_AU_setPaid(T(o.id)||orderNo(o), true);
+              else { o.paid=true; o.betaald=true; o.paymentStatus='paid'; o.invoice=o.invoice||{}; o.invoice.paid=true; if(typeof save==='function') save(); }
+            }catch(e){}
+            tekenen(true);
+          });
+      });
+    });
+
+    K('[data-of-doc]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var o=vindOrder(b.getAttribute('data-of-doc'));
+        if(!o) return;
+        try{
+          if(typeof window.BNS528_openDoc==='function') return window.BNS528_openDoc(T(o.id)||orderNo(o),'factuur');
+          if(typeof window.TW300_AU_openDoc==='function') return window.TW300_AU_openDoc(T(o.id)||orderNo(o),'factuur');
+        }catch(e){}
+        meld('Factuur openen','De documentfunctie van de app kon niet gevonden worden.');
+      });
+    });
+
+    K('[data-of-aanmaning]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var d=b.getAttribute('data-of-aanmaning').split('|');
+        var o=vindOrder(d[0]); if(!o) return;
+        var trap=Number(d[1])||1, t=trapVan(trap), vorige=laatsteTrap(o);
+        var tekst=t.naam+' maken voor factuur '+(invoiceNo(o)||orderNo(o))+' van '+(klant(o)||'onbekend')+'.';
+        if(vorige>=trap) tekst+=' Let op: er is al een '+trapVan(vorige).naam.toLowerCase()+' verstuurd op '+nl((verstuurd(o)[verstuurd(o).length-1]||{}).datum)+'.';
+        vraag(t.naam, tekst+' Hij wordt geopend in een nieuw venster en vastgelegd bij deze opdracht.', t.naam+' maken', {vlak:t.kleur,inkt:'#fff',rand:'0'})
+          .then(function(ja){ if(ja) aanmaningMaken(o, trap); });
+      });
+    });
+
+    K('[data-of-wis]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var o=vindOrder(b.getAttribute('data-of-wis'));
+        if(!o) return;
+        vraag('Factuurregel wissen',
+          'Hiermee verdwijnt de FACTUURREGEL van '+(invoiceNo(o)||orderNo(o))+' uit de boekhouding en uit deze lijst. De opdracht zelf blijft gewoon bestaan. Weet je het zeker?',
+          'Wissen')
+          .then(function(ja){
+            if(!ja) return;
+            try{
+              if(typeof window.BNS528_deleteInvoice==='function'){
+                /* die functie vraagt zelf nog een keer met een browservenster;
+                   dat onderdrukken we, want we hebben het hierboven al gevraagd */
+                var oudeConfirm=window.confirm;
+                window.confirm=function(){ return true; };
+                try{ window.BNS528_deleteInvoice(T(o.id)||orderNo(o)); } finally { window.confirm=oudeConfirm; }
+              } else {
+                o.accountingHidden=true; o.invoiceHidden=true;
+                if(typeof save==='function') save();
+              }
+            }catch(e){}
+            tekenen(true);
+          });
+      });
+    });
+  }
+
+  setInterval(function(){ tekenen(false); }, 1500);
+  setTimeout(function(){ tekenen(true); }, 1600);
+
+  window.BNS_TW_OPENSTAAND={
+    lijst:function(){ return {openstaand:openFacturen().map(orderNo), nogFactureren:nogFactureren().map(orderNo)}; },
+    bedragen:function(){ return {openstaand:somVan(openFacturen()), nogFactureren:somVan(nogFactureren())}; },
+    teksten:teksten
+  };
+  try{ console.info('[BNS TW Openstaand] Openstaande facturen actief - window.BNS_TW_OPENSTAAND.lijst()'); }catch(e){}
 })();
