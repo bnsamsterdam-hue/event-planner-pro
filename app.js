@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD14-2026-10-25';
+window.TAPWAGEN_BUILD_ID = 'TW-ONDERHOUD15-2026-10-26';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -59484,6 +59484,11 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   var REG_KEY='bns_tw_onderhoud_regels_';
   var PUNT_KEY='bns_tw_onderhoud_vastepunten';
   var gekozen='', zoek='', filter='alles', alleenOpen=false;
+  /* 26-10-2026: [stated] "kunnen we ook een snel filter maken met bv ik druk
+     banden, dat alles waar banden in de reparatie staat naar voren komt."
+     `woord` is dat snelle filter: leeg betekent geen woordfilter. Het werkt
+     naast het zoekvak, zodat je ook vrij kunt typen. */
+  var woord='';
   /* 25-10-2026: [stated] "ik zie nu nog te repareren staan in de zoeklijst,
      dit moet een rubriek knop krijgen; druk ik daar op opent de lijst met wat
      te doen, ook een rubriek wat er gedaan is."
@@ -59588,7 +59593,11 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }catch(e){ return []; }
   }
   function regelsOpslaan(objId,l){
+    /* eerst kijken wat er NET op klaar is gezet - daarna pas overschrijven,
+       want de oude stand staat nog in de opslag */
+    var netGedaan=nieuwAfgemeld(objId,l);
     try{ localStorage.setItem(REG_KEY+objId, JSON.stringify(l)); }catch(e){}
+    gedaanDelen(objId, netGedaan);
     try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('onderhoud',{id:String(objId), regels:l, bijgewerkt:nuISO()}); }catch(e){}
     tellerDelen(objId);
     return l;
@@ -59619,7 +59628,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         uit.push({t:T(p.tekst), r:T(r.id), i:i, d:T(r.datum), s:T(r.soort)});
       });
     });
-    return {n:uit.length, naam:T(o.naam), nr:[T(o.twnr),T(o.kenteken)].filter(Boolean).join(' \u00B7 '), punten:uit};
+    /* 26-10-2026: tijdstempel erbij. Zonder dat merkt een andere computer een
+       afmelding niet waarbij er nul overblijft - het aantal gaat dan van nul
+       naar nul en dan lijkt er niets veranderd. */
+    return {n:uit.length, naam:T(o.naam), nr:[T(o.twnr),T(o.kenteken)].filter(Boolean).join(' \u00B7 '), punten:uit, ts:Date.now()};
   }
   function tellerDelen(objId){
     try{
@@ -59659,7 +59671,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         var vak=openLijstVan(o.id);
         if(!vak) return;
         mee['o_'+String(o.id)]=vak;
-        vinger+=o.id+':'+vak.n+';';
+        /* ts bewust NIET in de vingerafdruk: die verandert elke ronde en dan
+           zou deze computer zichzelf eindeloos blijven wegschrijven */
+        vinger+=o.id+':'+vak.n+':'+(vak.punten||[]).map(function(x){ return x.r+'/'+x.i; }).join(',')+';';
         iets=true;
       });
       if(!iets || vinger===laatstGedeeld) return;
@@ -59718,9 +59732,28 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function heeftOpen(r){ return (r.punten||[]).some(function(p){ return T(p.staat)!=='klaar'; }); }
 
   /* ---------------- zoeken ---------------- */
+  /* Zoekt een woord in alles wat we van deze wagen hebben: de beurten die
+     hier staan, wat er openstaat volgens de telefoons, en de laatste
+     afgemelde punten. */
+  function heeftWoord(o,w){
+    if(!w) return true;
+    if([T(o.naam),T(o.kenteken),T(o.twnr)].join(' ').toLowerCase().indexOf(w)>=0) return true;
+    var raak=false;
+    regels(o.id).forEach(function(r){
+      if(raak) return;
+      var t=[T(r.toelichting),T(r.door),T(r.soort)].concat((r.punten||[]).map(function(p){ return T(p.tekst); })).join(' ').toLowerCase();
+      if(t.indexOf(w)>=0) raak=true;
+    });
+    if(raak) return true;
+    var v=vanBuiten[o.id];
+    if(v && (v.punten||[]).some(function(p){ return T(p.t).toLowerCase().indexOf(w)>=0; })) return true;
+    return gedaanLijst.some(function(x){ return T(x.o)===T(o.id) && T(x.t).toLowerCase().indexOf(w)>=0; });
+  }
+
   function past(o,q){
     if(filter!=='alles' && T(o.soort)!==filter) return false;
     if(alleenOpen && !openPunten(o.id)) return false;
+    if(woord && !heeftWoord(o, T(woord).toLowerCase())) return false;
     if(!q) return true;
     if([T(o.naam),T(o.kenteken),T(o.twnr)].join(' ').toLowerCase().indexOf(q)>=0) return true;
     var raak=false;
@@ -59771,7 +59804,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{ var p=E(PANE), a=document.activeElement; return !!(p && a && a!==document.body && p.contains(a)); }catch(e){ return false; }
   }
   function vinger(){
-    return view+'|'+JSON.stringify(objecten().map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,x.soort,openPunten(x.id)]; }))+
+    return view+'|'+woord+'|'+gedaanLijst.length+'|'+(allesGehaald?1:0)+'|'+JSON.stringify(objecten().map(function(x){ return [x.id,x.naam,x.kenteken,x.twnr,x.soort,openPunten(x.id),gedaanVan(x.id)]; }))+
       '|'+gekozen+'|'+filter+'|'+(alleenOpen?1:0)+'|'+(toevoegOpen?1:0)+'|'+(opschoonStand?1:0)+'|'+(puntenBeheer?1:0)+
       '|'+(form?'F':'-')+'|'+JSON.stringify(uitgeklapt)+'|'+JSON.stringify(regels(gekozen).map(function(r){ return [r.id,(r.punten||[]).length,heeftOpen(r)?1:0,r.datum]; }));
   }
@@ -59835,6 +59868,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           alleenOpen?{vlak:'#dc2626',inkt:'#fff',rand:'0',extra:'padding:7px 11px;font-size:13px',attr:'data-oh-open-filter'}
                     :{vlak:'#fff',inkt:'#334155',extra:'padding:7px 11px;font-size:13px',attr:'data-oh-open-filter'})+
       '</div>'+
+      woordFilterHtml()+
       '<div id="bnsOhLijst" style="max-height:48vh;min-height:110px;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:7px;background:#fbfdff">'+ lijstHtml(lijst) +'</div>'+
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">'+
         '<span id="bnsOhTeller" style="font-size:12px;color:#64748b">'+lijst.length+' van '+objecten().length+' getoond</span>'+
@@ -59920,14 +59954,58 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       '</div></div>';
   }
 
+  /* De snelle filterknoppen: de vaste punten, plus alles doorzoeken. */
+  function woordFilterHtml(){
+    var vp=vastePunten().slice(0,14);
+    var knopje=function(w){
+      var aan=(T(woord).toLowerCase()===T(w).toLowerCase());
+      return knop(esc(w), aan?{vlak:'#15803d',inkt:'#fff',rand:'0',extra:'padding:6px 11px;font-size:12px;border-radius:999px',attr:'data-oh-woord="'+esc(w)+'"'}
+                            :{vlak:'#fff',inkt:'#334155',extra:'padding:6px 11px;font-size:12px;border-radius:999px',attr:'data-oh-woord="'+esc(w)+'"'});
+    };
+    return '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:9px">'+
+      '<span style="font-size:12px;color:#64748b;margin-right:2px">Snel zoeken:</span>'+
+      (woord? knop('Filter weg', {vlak:'#334155',inkt:'#fff',rand:'0',extra:'padding:6px 11px;font-size:12px;border-radius:999px',attr:'data-oh-woord=""'}) : '')+
+      vp.map(knopje).join('')+
+      knop(allesGehaald?'Alles opgehaald':'Alles doorzoeken',
+        Object.assign({}, allesGehaald?{vlak:'#e2e8f0',inkt:'#475569',rand:'0'}:GRIJS,
+          {extra:'padding:6px 11px;font-size:12px;border-radius:999px',attr:'data-oh-alles'}))+
+    '</div>'+
+    (woord? '<div style="font-size:12px;color:#64748b;margin:-4px 0 9px">Toont wagens met "'+esc(woord)+'" in een beurt. Van wagens die nog niet opgehaald zijn wordt alleen gekeken naar wat openstaat en naar de laatste '+GEDAAN_MAX+' die gedaan zijn - druk op Alles doorzoeken om echt alles mee te nemen.</div>' : '');
+  }
+
+  /* Eenmalig alle wagens ophalen, zodat het filter door de hele geschiedenis
+     kan zoeken. Dit is de duurste knop in deze rubriek, dus hij staat er als
+     keuze en gebeurt niet vanzelf. */
+  var allesGehaald=false, allesBezig=false;
+  function allesDoorzoeken(){
+    if(allesBezig) return;
+    allesBezig=true;
+    var l=objecten(), open=0;
+    l.forEach(function(o){
+      if(geladen[o.id]) return;
+      open++;
+      regelsOphalen(o.id).then(function(){
+        open--;
+        if(open<=0){ allesGehaald=true; allesBezig=false; tekenen(true); }
+      });
+    });
+    if(!open){ allesGehaald=true; allesBezig=false; tekenen(true); }
+    else meld('Alles doorzoeken', open+' wagens worden opgehaald. Zodra dat klaar is zoekt het filter door de hele geschiedenis.');
+  }
+
   function lijstHtml(lijst){
     if(!objecten().length) return '<div style="color:#64748b;padding:8px">Nog geen objecten. Gebruik Object toevoegen.</div>';
     if(!lijst.length) return '<div style="color:#64748b;padding:8px">Niets gevonden.</div>';
     return lijst.map(function(o){
-      var n=openPunten(o.id), aan=(T(o.id)===T(gekozen)), aantal=regels(o.id).length;
+      var n=openPunten(o.id), aan=(T(o.id)===T(gekozen));
       var nr=[T(o.twnr), T(o.kenteken)].filter(Boolean).join(' · ') || 'geen nummer';
-      var merk=n? '<span style="background:#fee2e2 !important;color:#b91c1c !important;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap">'+n+'</span>'
-               : (aantal? '<span style="color:#94a3b8 !important;font-size:11px;white-space:nowrap">'+aantal+'</span>' : '');
+      /* 26-10-2026: [stated] het groene getal telt alleen wat er in de groene
+         map staat - de laatste veertig die afgemeld zijn. Dat is voor elke
+         computer hetzelfde, ook voor wagens die hier nog niet opgehaald zijn.
+         Het rode getal blijft wat er nog te doen is. */
+      var g=gedaanVan(o.id);
+      var merk=(n? '<span style="background:#fee2e2 !important;color:#b91c1c !important;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap">'+n+'</span>' : '')+
+               (g? '<span style="background:#dcfce7 !important;color:#166534 !important;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap;margin-left:4px">'+g+'</span>' : '');
       var binnen='<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#172033 !important">'+
           tekstIn(esc(o.naam),'#172033','font-weight:800')+tekstIn('&nbsp;&nbsp;'+esc(nr),'#64748b','font-size:12px')+'</span>'+merk;
       if(opschoonStand){
@@ -60056,13 +60134,123 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
                 : '<div style="color:#166534;font-weight:800">Er staat niets open.</div>')+
     '</div>';
   }
+  /* ==========================================================
+     26-10-2026 - DE GROENE KNOP: DE LAATSTE 40 DIE GEDAAN ZIJN.
+     ----------------------------------------------------------
+     [stated] "onder de groene knop de laatste bv 40 reparaties die gedaan
+     zijn, maar wel de oudste gaat uit de lijst en komt in de gewone map
+     terecht; druk je dan de wagen in de zoeklijst dan kun je hem daar gewoon
+     vinden en zie je ook wat er gedaan is."
+
+     WAAROM DIT NODIG WAS.
+     Deze rubriek werd opgebouwd uit de beurten die DEZE computer toevallig in
+     huis had, en een wagen wordt hier pas opgehaald als je hem opent. Alles
+     wat een bezorger afmeldde bleef daardoor onzichtbaar tot je die wagen
+     zelf opzocht - en dan was de knop er eigenlijk voor niets.
+
+     Nu is er een klein gedeeld lijstje, settings/onderhoud_gedaan, met de
+     laatste veertig afgemelde punten over alle wagens heen. Iedereen die iets
+     afmeldt - planner of bezorger - zet zijn punt erbij. Elk punt krijgt een
+     EIGEN sleutel, zodat twee mensen die tegelijk afmelden elkaar niet
+     overschrijven; bij een gedeelde lijst in een veld was dat zo gebeurd.
+     Wordt het er eenenveertig, dan gaat de oudste eruit. Die raakt niet weg:
+     hij blijft gewoon in de wagen zelf staan, dus zoek je die wagen op dan
+     zie je nog steeds zijn hele geschiedenis.
+  ========================================================== */
+  var GEDAAN_MAX=40;
+  var gedaanLijst=[];        /* nieuwste eerst */
+
+  function gedaanUitDoc(d){
+    var uit=[];
+    Object.keys(d||{}).forEach(function(k){
+      if(k.indexOf('g_')!==0) return;
+      var v=d[k];
+      if(!v || typeof v!=='object') return;
+      v.__k=k;
+      uit.push(v);
+    });
+    uit.sort(function(a,b){ return (Number(b.ts)||0)-(Number(a.ts)||0); });
+    return uit;
+  }
+  function gedaanVan(objId){
+    var n=0;
+    gedaanLijst.forEach(function(x){ if(T(x.o)===T(objId)) n++; });
+    return n;
+  }
+  /* Wat is er sinds de vorige opslag op klaar gezet? */
+  function nieuwAfgemeld(objId, nieuweLijst){
+    var oud={}, uit=[];
+    try{
+      JSON.parse(localStorage.getItem(REG_KEY+objId)||'[]').forEach(function(r){
+        (r.punten||[]).forEach(function(p,i){ oud[T(r.id)+'|'+i]=(T(p.staat)==='klaar'); });
+      });
+    }catch(e){}
+    (nieuweLijst||[]).forEach(function(r){
+      (r.punten||[]).forEach(function(p,i){
+        if(T(p.staat)!=='klaar') return;
+        if(oud[T(r.id)+'|'+i]===true) return;      /* stond al op klaar */
+        uit.push({r:r, p:p, i:i});
+      });
+    });
+    return uit;
+  }
+  function gedaanDelen(objId, nieuwe){
+    if(!nieuwe || !nieuwe.length) return;
+    try{
+      var o=objectVan(objId)||{};
+      var naam=T(o.naam) || T((vanBuiten[objId]||{}).naam) || 'Onbekend';
+      var nr=[T(o.twnr),T(o.kenteken)].filter(Boolean).join(' \u00B7 ') || T((vanBuiten[objId]||{}).nr);
+      var mee={id:'onderhoud_gedaan', bijgewerkt:nuISO()};
+      nieuwe.forEach(function(x,n){
+        var rij={ t:T(x.p.tekst), o:String(objId), naam:naam, nr:nr, d:T(x.r.datum),
+                  w:T(x.p.klaarDoor)||wieIsHet(), s:T(x.r.soort), r:T(x.r.id), i:x.i, ts:Date.now()+n };
+        rij.__k='g_'+Date.now().toString(36)+'_'+n+'_'+Math.random().toString(36).slice(2,6);
+        mee[rij.__k]=rij;
+        gedaanLijst.unshift(rij);              /* meteen zichtbaar, zonder te wachten */
+      });
+      gedaanLijst=gedaanLijst.slice(0,GEDAAN_MAX);
+      if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('settings', mee);
+      setTimeout(gedaanOpschonen, 1200);
+    }catch(e){}
+  }
+  /* De oudste eruit zodra het er meer dan veertig zijn. */
+  function gedaanOpschonen(){
+    try{
+      var fs=window.BNS && window.BNS.fs, db=window.BNS && window.BNS.db;
+      if(!(fs && db && fs.getDoc && fs.doc && fs.updateDoc && fs.deleteField)) return;
+      fs.getDoc(fs.doc(db,'settings','onderhoud_gedaan')).then(function(snap){
+        var d=(snap && snap.exists && snap.exists()) ? snap.data() : null;
+        if(!d) return;
+        var alles=gedaanUitDoc(d);
+        if(alles.length<=GEDAAN_MAX) return;
+        var weg={};
+        alles.slice(GEDAAN_MAX).forEach(function(x){ weg[x.__k]=fs.deleteField(); });
+        fs.updateDoc(fs.doc(db,'settings','onderhoud_gedaan'), weg).catch(function(){});
+      }).catch(function(){});
+    }catch(e){}
+  }
+
   function gedaanHtml(){
-    var g=groepen(false);
+    var q=T(woord||zoek).toLowerCase();
+    var rijen=gedaanLijst.slice(0,GEDAAN_MAX).filter(function(x){
+      if(!q) return true;
+      return [T(x.t),T(x.naam),T(x.nr),T(x.s),T(x.w)].join(' ').toLowerCase().indexOf(q)>=0;
+    });
     return '<div style="border:1px solid #d8dee9;border-radius:14px;padding:14px;background:#fff">'+
       '<div style="font-size:19px;font-weight:900;color:#172033;margin-bottom:3px">Wat er gedaan is</div>'+
-      '<div style="font-size:13px;color:#64748b;margin-bottom:12px">Per wagen of materiaal. Druk op Bekijken om de historie open te klappen.</div>'+
-      (g.length ? g.map(function(x){ return groepHtml(x, !!uitgeklapt[x.obj.id], false); }).join('')
-                : '<div style="color:#64748b">Nog niets afgerond.</div>')+
+      '<div style="font-size:13px;color:#64748b;margin-bottom:12px">De laatste '+GEDAAN_MAX+' die zijn afgemeld, van alle wagens en materialen samen - ook die van de bezorgers. Valt er een uit deze lijst, dan blijft hij gewoon bij de wagen zelf staan: zoek hem op in de lijst Objecten.'+
+        (q? ' Gefilterd op "'+esc(woord||zoek)+'".' : '')+'</div>'+
+      (rijen.length ? rijen.map(function(x){
+        var k=soortVan(x.s);
+        return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-left:4px solid #15803d;border-radius:10px;padding:9px 12px;margin:0 0 6px;background:#fbfdfb">'+
+          '<span style="flex:1 1 240px;min-width:0">'+
+            tekstIn(esc(x.t),'#172033','font-weight:800')+
+            tekstIn('<br>'+esc(x.naam)+(T(x.nr)?' \u00B7 '+esc(x.nr):'')+' \u00B7 '+esc(k.naam)+' van '+esc(nl(x.d))+(T(x.w)?' \u00B7 '+esc(x.w):''),'#64748b','font-size:12px')+
+          '</span>'+
+          knop('Openen', Object.assign({},GRIJS,{extra:'padding:7px 12px;font-size:13px',attr:'data-oh-naarobject="'+esc(x.o)+'"'}))+
+        '</div>';
+      }).join('')
+      : '<div style="color:#64748b">'+(q?'Niets gevonden in de laatste '+GEDAAN_MAX+'. Zoek de wagen op bij Objecten voor zijn hele geschiedenis.':'Nog niets afgemeld.')+'</div>')+
     '</div>';
   }
 
@@ -60412,6 +60600,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         else afmaken();
       });
     });
+    Array.prototype.slice.call(pane.querySelectorAll('[data-oh-woord]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var w=b.getAttribute('data-oh-woord');
+        woord = (T(woord).toLowerCase()===T(w).toLowerCase()) ? '' : w;   /* nog eens drukken zet hem weer uit */
+        tekenen(true);
+      });
+    });
+    var ad=pane.querySelector('[data-oh-alles]'); if(ad) ad.addEventListener('click', allesDoorzoeken);
     var tv=pane.querySelector('[data-oh-toevoeg]'); if(tv) tv.addEventListener('click', function(){ toevoegOpen=!toevoegOpen; tekenen(true); });
     var op=pane.querySelector('[data-oh-opschoon]'); if(op) op.addEventListener('click', function(){ opschoonStand=!opschoonStand; aangevinkt={}; tekenen(true); });
 
@@ -60619,6 +60815,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      kent. Zo kan een melding nergens meer tussenvallen.
   ========================================================== */
   var vanBuiten={};          /* wat de telefoons melden, per object-id */
+  var gezienTs={};           /* laatst gezien tijdstempel per object */
 
   function extraObjecten(){
     var uit=[];
@@ -60655,7 +60852,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
             if(!objectVan(id)) onbekend=true;
             /* het object dat nu in het formulier openstaat niet overschrijven */
             if(form && T(gekozen)===T(id)) return;
-            if(openPunten(id)!==daar) halen.push(id);
+            /* 26-10-2026: niet alleen op het aantal vergelijken maar ook op
+               het tijdstempel, anders glipt een afmelding waarbij er nul
+               overblijft er doorheen (nul naar nul lijkt geen wijziging). */
+            var stempel=Number(v && v.ts)||0;
+            if(openPunten(id)!==daar || (stempel && gezienTs[id]!==stempel)){
+              if(stempel) gezienTs[id]=stempel;
+              halen.push(id);
+            }
           });
           if(onbekend) uitFirebase();        /* een telefoon heeft een nieuw object gemaakt */
           tekenen(true);                     /* ook zonder ophalen kan de lijst veranderd zijn */
@@ -60671,6 +60875,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           try{ console.info('[BNS TW Onderhoud] '+halen.length+' object(en) bijgewerkt na een melding van een telefoon.'); }catch(e){}
         }catch(e){}
       }, function(){ luistert=false; setTimeout(meeluisteren, 8000); });
+
+      /* en het lijstje met wat er gedaan is - ook een klein document */
+      fs.onSnapshot(fs.doc(db,'settings','onderhoud_gedaan'), function(snap){
+        try{
+          var d=(snap && snap.exists && snap.exists()) ? snap.data() : null;
+          gedaanLijst = d ? gedaanUitDoc(d) : [];
+          tekenen(true);
+        }catch(e){}
+      }, function(){});
     }catch(e){ luistert=false; }
   }
 
