@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-26-R40';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-26-R41';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -2461,7 +2461,53 @@ async function bnsOhRegelsHalen(objId){
   bnsOhBezig[objId]=false;
   return uit;
 }
+/* ==========================================================
+   26-10-2026 - DE TELEFOON SCHRIJFT OOK IN DE GROENE LIJST.
+   ----------------------------------------------------------
+   [stated] "onder de groene knop de laatste 40 reparaties die gedaan zijn."
+   Dat lijstje is gedeeld: de planner en elke telefoon zetten er hun eigen
+   afmeldingen in, elk onder een eigen sleutel zodat niemand iets van een
+   ander overschrijft. Wat eruit valt blijft gewoon bij de wagen staan.
+========================================================== */
+function bnsOhNieuwAfgemeld(objId, nieuweLijst){
+  var oud={}, uit=[];
+  try{
+    JSON.parse(localStorage.getItem('bns_tw_oh_regels_'+objId)||'[]').forEach(function(r){
+      (r.punten||[]).forEach(function(p,i){ oud[bnsOhT(r.id)+'|'+i]=(clean(p.staat)==='klaar'); });
+    });
+  }catch(e){}
+  (nieuweLijst||[]).forEach(function(r){
+    (r.punten||[]).forEach(function(p,i){
+      if(clean(p.staat)!=='klaar') return;
+      if(oud[bnsOhT(r.id)+'|'+i]===true) return;
+      uit.push({r:r, p:p, i:i});
+    });
+  });
+  return uit;
+}
+async function bnsOhGedaanDelen(objId, nieuwe){
+  if(!nieuwe || !nieuwe.length) return;
+  try{
+    var o=bnsOhObjectVan(objId) || (bnsOhTellers && bnsOhTellers[objId]) || {};
+    var naam=clean(o.naam)||'Onbekend';
+    var nr=[clean(o.twnr), clean(o.kenteken)].filter(Boolean).join(' \u00B7 ') || clean(o.nr);
+    var ik=clean(BNS.user && BNS.user.name||'');
+    var mee={id:'onderhoud_gedaan'};
+    nieuwe.forEach(function(x,n){
+      mee['g_'+Date.now().toString(36)+'_'+n+'_'+Math.random().toString(36).slice(2,6)]={
+        t:clean(x.p.tekst), o:String(objId), naam:naam, nr:nr, d:clean(x.r.datum),
+        w:clean(x.p.klaarDoor)||ik, s:clean(x.r.soort), r:clean(x.r.id), i:x.i, ts:Date.now()+n
+      };
+    });
+    const {doc,setDoc}=await bnsOhFirestore();
+    await setDoc(doc(BNS.db,'settings','onderhoud_gedaan'), mee, {merge:true});
+  }catch(e){}
+}
+
 async function bnsOhRegelsBewaren(objId, lijst){
+  /* eerst kijken wat er NET op klaar is gezet - de oude stand staat nog in
+     de opslag, dus dit moet voor het wegschrijven gebeuren */
+  const netGedaan=bnsOhNieuwAfgemeld(objId, lijst);
   bnsOhRegels[objId]=lijst;
   /* 25-10-2026: de teller voor de telefoon meteen bijwerken, zodat het
      beginscherm klopt zonder dat er iets opnieuw opgehaald hoeft te worden. */
@@ -2474,8 +2520,11 @@ async function bnsOhRegelsBewaren(objId, lijst){
         punten.push({t:clean(p.tekst), r:clean(r.id), i:i, d:clean(r.datum), s:clean(r.soort)});
       });
     });
+    /* 26-10-2026: een tijdstempel erbij. Zonder dat merkt Admin een afmelding
+       niet waarbij er nul overblijft - het aantal gaat dan van nul naar nul
+       en dan lijkt er niets gebeurd. */
     const vak={ n:punten.length, naam:clean(o.naam),
-                nr:[clean(o.twnr), clean(o.kenteken)].filter(Boolean).join(' \u00B7 '), punten:punten };
+                nr:[clean(o.twnr), clean(o.kenteken)].filter(Boolean).join(' \u00B7 '), punten:punten, ts:Date.now() };
     if(!bnsOhTellers) bnsOhTellers={};
     if(vak.n>0) bnsOhTellers[objId]=vak; else delete bnsOhTellers[objId];
     const {doc,setDoc}=await bnsOhFirestore();
@@ -2483,6 +2532,7 @@ async function bnsOhRegelsBewaren(objId, lijst){
     await setDoc(doc(BNS.db,'settings','onderhoud_open'), mee, {merge:true});
   }catch(e){}
   try{ localStorage.setItem('bns_tw_oh_regels_'+objId, JSON.stringify(lijst)); }catch(e){}
+  bnsOhGedaanDelen(objId, netGedaan);
   try{
     const {doc,setDoc}=await bnsOhFirestore();
     await setDoc(doc(BNS.db,'onderhoud',String(objId)), {id:String(objId), regels:lijst, bijgewerkt:new Date().toISOString()}, {merge:true});
