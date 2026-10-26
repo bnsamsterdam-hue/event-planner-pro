@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-25-R39';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-26-R40';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -756,7 +756,7 @@ function render(){
   bnsR28Balk();
   /* 25-10-2026: de rubriek Onderhoud tekent zijn eigen schermen in dezelfde
      lijst. Zie het blok onderaan dit bestand (R30). */
-  if(typeof BNS_R30_ONDERHOUD!=='undefined' && BNS_R30_ONDERHOUD){ bnsOhTeken(); return; }
+  if(typeof BNS_R30_ONDERHOUD!=='undefined' && BNS_R30_ONDERHOUD){ bnsOhTekenZacht(); return; }
   if(BNS_R28_TOON_AFGEROND){
     const af=bnsR28AfgerondeOrders();
     $("orders").innerHTML=af.length?af.map(bnsR28AfgerondeKaart).join(""):`<div class="empty">Nog geen afgeronde opdrachten dit jaar.</div>`;
@@ -2403,7 +2403,7 @@ function bnsOhMeeluisteren(){
           await bnsOhRegelsHalen(bnsOhObject);
         }
         bnsOhBalk();
-        if(BNS_R30_ONDERHOUD) bnsOhTeken();
+        if(BNS_R30_ONDERHOUD) bnsOhTekenZacht();
       }catch(e){}
     }, function(){ bnsOhLuistert=false; setTimeout(bnsOhMeeluisteren, 8000); });
   }catch(e){ bnsOhLuistert=false; }
@@ -2534,6 +2534,32 @@ function bnsOhSoortKleur(k){
   return m[bnsOhT(k)] || m.reparatie;
 }
 
+/* ==========================================================
+   26-10-2026 - NIET HERTEKENEN TERWIJL IEMAND ZIT IN TE VULLEN.
+   ----------------------------------------------------------
+   [stated] "ik druk op melding of reparatie toevoegen; tijdens typen of als
+   ik gewoon wacht sluit dat stukje en gaat hij steeds terug naar de wagen."
+
+   Dit scherm wordt automatisch opnieuw getekend: elke tien seconden na het
+   ophalen van de gegevens, en sinds gisteren ook zodra een andere bezorger
+   iets afmeldt. Bij zo'n hertekening wordt het hele scherm opnieuw opgebouwd
+   - en daarmee ook het invulblok, dat dan leeg terugkomt. Precies wat hij
+   beschrijft, en zonder dat er iets misgaat met de gegevens: je typwerk is
+   weg omdat het vakje opnieuw is gemaakt.
+
+   Automatische verversingen lopen nu via bnsOhTekenZacht en slaan de
+   hertekening over zolang het invulblok openstaat. Het getal op de knop
+   loopt wel gewoon mee. Druk je zelf op iets - opslaan, annuleren, terug -
+   dan wordt er wel direct getekend, want dan wil je het juist zien.
+========================================================== */
+function bnsOhFormOpen(){
+  try{ var v=document.getElementById('bnsOhFormTel'); return !!(v && v.innerHTML.trim()); }catch(e){ return false; }
+}
+function bnsOhTekenZacht(){
+  if(bnsOhFormOpen()) return;
+  bnsOhTeken();
+}
+
 function bnsOhTeken(){
   const box=$("orders"); if(!box) return;
   if(bnsOhScherm==='boek' || bnsOhScherm==='schade'){ bnsOhTekenBoek(); return; }
@@ -2553,7 +2579,10 @@ function bnsOhTeken(){
      de regels opgehaald.
   ========================================================== */
   const q=bnsOhT(bnsOhZoek).toLowerCase();
-  const terug=`<button type="button" class="btn btn-dark wide" data-oh-naarwerk style="margin-bottom:10px">&larr; Terug naar opdrachten</button>`;
+  /* 26-10-2026: [stated] "mis daar ook een terug knop." Hij stond er wel,
+     maar bovenaan - en zodra je scrolt is hij uit beeld. Nu blijft hij
+     meelopen, net als de terugknop bij een opdracht. */
+  const terug=`<div style="position:sticky;top:0;z-index:60;background:#e0f2fe;padding:8px 0;margin:0 0 6px;box-shadow:0 6px 10px -8px rgba(15,23,42,.45)"><button type="button" class="btn btn-dark wide" data-oh-naarwerk>&larr; Terug naar opdrachten</button></div>`;
   const zoekveld=`<input id="bnsOhZoekVeld" type="search" style="width:100%;box-sizing:border-box;border:2px solid #cbd5e1;border-radius:14px;font-size:16px;font-weight:700;padding:12px 14px;margin:0 0 10px" placeholder="Zoek op naam, TW-nummer of kenteken" value="${esc(bnsOhZoek)}">`;
 
   let inhoud='';
@@ -2631,7 +2660,7 @@ function bnsOhTekenBoek(){
   if(bnsOhScherm==='schade'){
     const scha=bnsOhSchadeVoor(o);
     box.innerHTML =
-      `<button type="button" class="btn btn-dark wide" data-oh-terugboek style="margin-bottom:10px">&larr; Terug naar ${esc(o.naam)}</button>` +
+      `<div style="position:sticky;top:0;z-index:60;background:#e0f2fe;padding:8px 0;margin:0 0 6px;box-shadow:0 6px 10px -8px rgba(15,23,42,.45)"><button type="button" class="btn btn-dark wide" data-oh-terugboek>&larr; Terug naar ${esc(o.naam)}</button></div>` +
       `<article class="order-card"><div class="order-title">Schadeverleden</div>
         <div class="meta"><div class="meta-row"><span>\u{1F6E0}️</span><div>${esc(kop)}</div></div></div>
         ${scha.length ? scha.map(a=>{
@@ -2662,7 +2691,7 @@ function bnsOhTekenBoek(){
   const ik=clean(BNS.user && BNS.user.name||'');
 
   box.innerHTML =
-    `<button type="button" class="btn btn-dark wide" data-oh-terug style="margin-bottom:10px">&larr; Alle objecten</button>` +
+    `<div style="position:sticky;top:0;z-index:60;background:#e0f2fe;padding:8px 0;margin:0 0 6px;box-shadow:0 6px 10px -8px rgba(15,23,42,.45)"><button type="button" class="btn btn-dark wide" data-oh-terug>&larr; Alle objecten</button></div>` +
     `<article class="order-card">
       <div class="order-title">${esc(o.naam)}</div>
       <div class="meta"><div class="meta-row"><span>\u{1F527}</span><div>${esc(kop)}</div></div></div>
@@ -2739,7 +2768,7 @@ function bnsOhForm(r){
       <span>Dit moet nog uitgevoerd worden</span>
     </label>
     <button type="button" class="btn btn-green wide" id="bnsOhBewaarTel" style="min-height:52px">Opslaan</button>
-    <button type="button" class="btn btn-dark wide" id="bnsOhAnnTel">Annuleren</button>
+    <button type="button" class="btn btn-dark wide" id="bnsOhAnnTel">&larr; Terug zonder opslaan</button>
   </article>`;
   vak.setAttribute('data-oh-soort', huidig);
   vak.setAttribute('data-oh-id', bnsOhT(r.id));
