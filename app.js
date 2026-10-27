@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING34-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-CREDIT35-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -29725,12 +29725,37 @@ setTimeout(()=>{
       return String(o.number||'')===String(nr);
     }) || null;
   }
+  /* ==========================================================
+     27-10-2026 - CREDIT KREEG HET NUMMER VAN DE FACTUUR.
+     ----------------------------------------------------------
+     [stated] "wat gebeurt er als je credit drukt?"
+
+     Een creditnota pakte hier gewoon het nummer dat al in het veld stond,
+     dus hetzelfde nummer als de factuur die je crediteert. Nu komt er een
+     eigen nummer uit een eigen reeks (C2026-0001). Het veld met het
+     factuurnummer wordt daarbij met rust gelaten: dat moet blijven staan,
+     anders weet je niet meer WELKE factuur je hebt gecrediteerd.
+
+     En: staat de keuze op Zelf invullen en is het vakje leeg, dan gaat er
+     straks een factuur de deur uit zonder nummer. Dan blijft de boekhouding
+     roepen dat hij nog gemaakt moet worden. Daar wordt nu voor gewaarschuwd.
+  ========================================================== */
   function invoiceNumberForDoc(){
     var title=docTypeTitle();
     if(title==='Contante betaling') return '';
+    if(title==='Credit factuur'){
+      try{
+        var oc=currentOrder();
+        if(oc && window.BNS_TW_CREDIT) return window.BNS_TW_CREDIT.nummerVoor(oc, (totals()||{}).grand);
+      }catch(e){}
+      return val('bnsInvoiceNumber');
+    }
     var n=val('bnsInvoiceNumber');
     var mode=val('bnsInvoiceNrMode');
     if(!n && mode!=='manual') n=nextInvoiceNumber();
+    if(!n && mode==='manual'){
+      try{ toast('Let op: dit document krijgt geen factuurnummer. In de boekhouding blijft hij op "nog factureren" staan.'); }catch(e){}
+    }
     setVal('bnsInvoiceNumber',n);
     return n;
   }
@@ -29742,7 +29767,9 @@ setTimeout(()=>{
     var title=docTypeTitle();
     o.invoice.invoiceType=title;
     o.invoice.paymentType=val('bnsPaymentType') || (title==='Contante betaling'?'Contant':'Op rekening');
-    o.invoice.invoiceNumber=title==='Contante betaling'?'':val('bnsInvoiceNumber');
+    /* Bij een creditnota blijft het factuurnummer staan - dat vertelt welke
+       factuur is gecrediteerd. Het creditnummer zit apart op de opdracht. */
+    if(title!=='Credit factuur') o.invoice.invoiceNumber=title==='Contante betaling'?'':val('bnsInvoiceNumber');
     saveLocal();
     syncDoc('orders',o.id,o);
   }
@@ -61046,9 +61073,34 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
 
   /* ---------------- wat geldt er voor deze opdracht ---------------- */
+  /* ==========================================================
+     27-10-2026 - CONTANT STOND OP TWEE PLEKKEN.
+     ----------------------------------------------------------
+     [stated] "wat gebeurt er als je credit drukt? of contante betaling enz"
+
+     Maak je bij Documenten een Contante betaling, dan wist de app het
+     factuurnummer en zet Contant neer bij de factuurgegevens. Maar dat is
+     een ander vakje dan de knop Betaling in de opdracht, en alleen naar die
+     knop werd gekeken. Gevolg: geen factuurnummer meer, niet herkend als
+     contant, en hij belandde in Nog factureren met een knipperend icoon -
+     terwijl het geld al binnen was.
+
+     De factuurgegevens tellen nu gewoon mee, onder jouw eigen keuze in de
+     opdracht. Die blijft altijd winnen, net als bij geen factuur. Eén
+     plek om naar te kijken, drie schermen die vanzelf volgen: het icoon op
+     de kaart, het dagvenster en de boekhouding.
+  ========================================================== */
+  function uitFactuurgegevens(o){
+    var inv=(o && o.invoice) || {};
+    var b=(String(inv.paymentType||'')+' '+String(inv.invoiceType||'')).toLowerCase();
+    if(b.indexOf('contant')>=0) return 'contant';
+    return '';
+  }
   function termijnVan(o){
     var eigen=o && o.betaling;
     if(eigen && T(eigen.soort)) return {soort:T(eigen.soort), dagen:N(eigen.dagen)||soortDagen(eigen.soort), bron:'opdracht'};
+    var viaFactuur=uitFactuurgegevens(o);
+    if(viaFactuur) return {soort:viaFactuur, dagen:0, bron:'factuur'};
     var k=klantStandaard(klantVan(o));
     if(k && T(k.soort)) return {soort:T(k.soort), dagen:N(k.dagen)||soortDagen(k.soort), bron:'klant'};
     return {soort:STANDAARD.soort, dagen:STANDAARD.dagen, bron:'standaard'};
@@ -61103,6 +61155,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var o=huidigeOpdracht();
     if(o && o.betaling && T(o.betaling.soort)) return {soort:T(o.betaling.soort), dagen:N(o.betaling.dagen), bron:'opdracht'};
     if(wachtKeuze) return {soort:wachtKeuze.soort, dagen:wachtKeuze.dagen, bron:'nieuw'};
+    var viaFactuur=uitFactuurgegevens(o);
+    if(viaFactuur) return {soort:viaFactuur, dagen:0, bron:'factuur'};
     var k=klantStandaard(huidigeKlantNaam());
     if(k) return {soort:T(k.soort), dagen:N(k.dagen), bron:'klant'};
     return {soort:'', dagen:0, bron:'leeg'};
@@ -61357,6 +61411,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   /* ---------------- de stand van een opdracht ---------------- */
   /* geeft {tekst, vlak, inkt, knippert, fase} */
   function seinVan(o){
+    /* 27-10-2026: een gecrediteerde opdracht staat nergens meer open, dus die
+       hoort niet te knipperen. Het creditnummer staat erbij zodat je op de
+       kaart meteen ziet welke nota erbij hoort. */
+    try{
+      if(window.BNS_TW_CREDIT && window.BNS_TW_CREDIT.isCredit(o))
+        return {tekst:'Gecrediteerd '+T(o.credit&&o.credit.nr), vlak:'#ede9fe', inkt:'#5b21b6', knippert:false, fase:'credit'};
+    }catch(e){}
     if(betaald(o)) return {tekst:'☑ Betaald', vlak:'#dcfce7', inkt:'#166534', knippert:false, fase:'betaald'};
     var s=T(termijn(o).soort);
     if(s==='geen')    return {tekst:'Geen factuur', vlak:'#e2e8f0', inkt:'#475569', knippert:false, fase:'geen'};
@@ -61928,6 +61989,19 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return oudeGeenKlanten().indexOf(L(klant(o)))>=0;
   }
   function contant(o){ return termijnSoort(o)==='contant'; }
+  /* ==========================================================
+     27-10-2026 - GECREDITEERD IS EEN EIGEN TOESTAND.
+     ----------------------------------------------------------
+     Een gecrediteerde opdracht staat nergens meer open: geen openstaande
+     factuur, niet te laat, en er hoeft ook niets meer gefactureerd te
+     worden. Hij krijgt een eigen map, en in de omzet telt hij er juist AF -
+     want je hebt het geld teruggegeven.
+  ========================================================== */
+  function gecrediteerd(o){
+    try{ if(window.BNS_TW_CREDIT && typeof window.BNS_TW_CREDIT.isCredit==='function') return window.BNS_TW_CREDIT.isCredit(o); }catch(e){}
+    return !!(o && o.credit && T(o.credit.nr));
+  }
+  function creditNr(o){ return gecrediteerd(o) ? T(o.credit.nr) : ''; }
 
   /* ---------------- de mappen ---------------- */
   function basis(){
@@ -61946,17 +62020,19 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
   function vanJaar(l){ return jaar==='alles' ? l : l.filter(function(o){ return String(jaarVan(o))===String(jaar); }); }
   function teLaat(o){
+    if(gecrediteerd(o)) return false;
     if(betaald(o) || contant(o) || geenFactuur(o) || !invoiceNo(o)) return false;
     var d=T(o.start||o.end).slice(0,10);
     return /^\d{4}-\d{2}-\d{2}$/.test(d) && d < vandaag();
   }
   var MAPPEN=[
-    {k:'openstaand',  naam:'Openstaand',     kleur:'#dc2626', test:function(o){ return !betaald(o) && !!invoiceNo(o) && !contant(o) && !geenFactuur(o); }},
+    {k:'openstaand',  naam:'Openstaand',     kleur:'#dc2626', test:function(o){ return !gecrediteerd(o) && !betaald(o) && !!invoiceNo(o) && !contant(o) && !geenFactuur(o); }},
     {k:'telaat',      naam:'Te laat',        kleur:'#9f1239', test:teLaat},
-    {k:'factureren',  naam:'Nog factureren', kleur:'#ea580c', test:function(o){ return !betaald(o) && !invoiceNo(o) && !contant(o) && !geenFactuur(o); }},
-    {k:'betaald',     naam:'Betaald',        kleur:'#15803d', test:function(o){ return betaald(o); }},
-    {k:'contant',     naam:'Contant',        kleur:'#b45309', test:function(o){ return contant(o) && !betaald(o); }},
-    {k:'geen',        naam:'Geen factuur',   kleur:'#64748b', test:function(o){ return geenFactuur(o) && !betaald(o); }},
+    {k:'factureren',  naam:'Nog factureren', kleur:'#ea580c', test:function(o){ return !gecrediteerd(o) && !betaald(o) && !invoiceNo(o) && !contant(o) && !geenFactuur(o); }},
+    {k:'betaald',     naam:'Betaald',        kleur:'#15803d', test:function(o){ return !gecrediteerd(o) && betaald(o); }},
+    {k:'contant',     naam:'Contant',        kleur:'#b45309', test:function(o){ return !gecrediteerd(o) && contant(o) && !betaald(o); }},
+    {k:'geen',        naam:'Geen factuur',   kleur:'#64748b', test:function(o){ return !gecrediteerd(o) && geenFactuur(o) && !betaald(o); }},
+    {k:'credit',      naam:'Gecrediteerd',   kleur:'#7c3aed', test:gecrediteerd},
     {k:'alles',       naam:'Alles',          kleur:'#0f172a', test:function(){ return true; }},
     {k:'klanten',     naam:'Klanten',        kleur:'#0d9488', test:function(){ return false; }},
     {k:'betalingen',  naam:'Betalingen',     kleur:'#1765d8', test:function(){ return false; }},
@@ -61986,7 +62062,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     else c.sort(function(a,b){ return String(datumVan(b)).localeCompare(String(datumVan(a))); });
     return c;
   }
-  function som(l){ var n=0; l.forEach(function(o){ n+=bedrag(o); }); return n; }
+  /* Gecrediteerd telt er AF: het geld is teruggegeven, dus het is geen omzet.
+     In de eigen map Gecrediteerd zie je het bedrag negatief staan. */
+  function som(l){ var n=0; l.forEach(function(o){ n += gecrediteerd(o) ? -bedrag(o) : bedrag(o); }); return n; }
 
   /* ---------------- aanmaningen ---------------- */
   var TRAPPEN=[
@@ -62269,7 +62347,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var kern=l.map(function(x){
       if(x && x.naam!==undefined && x.orders) return x.naam+':'+x.orders.length+':'+Math.round(x.open);
       if(x && x.time) return T(x.id)+':'+T(x.time);
-      return orderNo(x)+':'+(betaald(x)?1:0)+':'+Math.round(bedrag(x))+':'+laatsteTrap(x)+':'+T(invoiceNo(x));
+      return orderNo(x)+':'+(betaald(x)?1:0)+':'+Math.round(bedrag(x))+':'+laatsteTrap(x)+':'+T(invoiceNo(x))+':'+creditNr(x);
     }).join(',');
     var n=0; Object.keys(aangevinkt).forEach(function(k){ if(aangevinkt[k]) n++; });
     return [map,jaar,zoek,zoekIn,sortering,instOpen?1:0,meerStand?1:0,bedragenTonen?1:0,n,gekozenKlant,
@@ -62493,11 +62571,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           knop(isBet?'Zet op openstaand':'Zet op betaald', Object.assign({}, isBet?GRIJS:GROEN, {extra:'padding:8px 13px;font-size:13px',attr:'data-bh-betaald="'+esc(id)+'|'+(isBet?'0':'1')+'"'}))+
           knop(heeftFac?'Open factuur':'Factuur maken', Object.assign({}, heeftFac?GRIJS:BLAUW, {extra:'padding:8px 13px;font-size:13px',attr:'data-bh-doc="'+esc(id)+'"'}))+
           knop('Opdracht openen', Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-opdracht="'+esc(id)+'"'}))+
-          (!isBet && heeftFac ? TRAPPEN.map(function(x){
+          (!isBet && heeftFac && !gecrediteerd(o) ? TRAPPEN.map(function(x){
             var aan=(trap+1===x.k)||(trap===0 && x.k===1);
             return knop(esc(x.naam), {vlak:aan?x.kleur:'#fff', inkt:aan?'#fff':x.kleur, rand:aan?'0':'2px solid '+x.kleur,
               extra:'padding:8px 13px;font-size:13px', attr:'data-bh-aanmaning="'+esc(id)+'|'+x.k+'"'});
           }).join('') : '')+
+          (gecrediteerd(o) ? knop('Credit terugdraaien', {vlak:'#fff',inkt:'#6d28d9',rand:'2px solid #7c3aed',
+              extra:'padding:8px 13px;font-size:13px',attr:'data-bh-credit-terug="'+esc(id)+'"'}) : '')+
           knop('Wis factuurregel', Object.assign({},DONKER,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-wis="'+esc(id)+'"'}))+
         '</div>'+
       '</div>'+
@@ -62558,6 +62638,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function standVan(o){
     if(verborgen(o)) return {t:'gewist', kleur:'#78716c'};
     if(!telMee(o)) return {t:T(o.status)||'offerte', kleur:'#7c3aed'};
+    if(gecrediteerd(o)) return {t:'gecrediteerd '+creditNr(o), kleur:'#7c3aed'};
     if(betaald(o)) return {t:'betaald', kleur:'#15803d'};
     if(teLaat(o)) return {t:'te laat', kleur:'#9f1239'};
     if(geenFactuur(o)) return {t:'geen factuur', kleur:'#64748b'};
@@ -63288,6 +63369,17 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           .then(function(ja){ if(ja){ terughalen(o); tekenen(true); } });
       });
     });
+    K('[data-bh-credit-terug]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var o=vindOrder(b.getAttribute('data-bh-credit-terug')); if(!o) return;
+        vraag('Credit terugdraaien','Creditnota '+creditNr(o)+' wordt losgelaten. De opdracht telt daarna weer gewoon mee. Het nummer blijft uit de reeks, dus een nieuwe creditnota krijgt een nieuw nummer.','Terugdraaien')
+          .then(function(ja){
+            if(!ja) return;
+            try{ if(window.BNS_TW_CREDIT) window.BNS_TW_CREDIT.terugdraaien(o); }catch(e){}
+            tekenen(true);
+          });
+      });
+    });
     K('[data-bh-wis]').forEach(function(b){
       b.addEventListener('click', function(){
         var o=vindOrder(b.getAttribute('data-bh-wis')); if(!o) return;
@@ -63373,4 +63465,133 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
   };
   try{ console.info('[BNS TW Boekhouding] Nieuwe boekhouding actief - window.BNS_TW_BOEKHOUDING.open()'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS TW CREDIT - een creditnota die echt meetelt (27-10-2026)
+   ----------------------------------------------------------
+   [stated] "wat gebeurt er als je credit drukt?"
+
+   Tot nu toe: niets. Credit veranderde alleen het woord bovenaan het papier.
+   De creditnota kreeg hetzelfde nummer als de originele factuur, het bedrag
+   bleef positief, en de opdracht bleef in Openstaand staan voor het volle
+   bedrag. Je crediteerde een klant en je boekhouding zei nog steeds dat hij
+   moest betalen.
+
+   Nu krijgt een creditnota een eigen nummer uit een eigen reeks, C2026-0001
+   en verder. Het originele factuurnummer blijft gewoon op de opdracht staan,
+   want je wilt kunnen zien WELKE factuur je hebt gecrediteerd.
+
+   Het nummer wordt eenmalig per opdracht uitgedeeld en daarna onthouden.
+   Druk je twee keer op credit, dan krijg je twee keer hetzelfde nummer -
+   geen gaten in de reeks en geen tweede creditnota die niemand besteld heeft.
+
+   Console: window.BNS_TW_CREDIT.stand()
+========================================================== */
+(function bnsTwCredit(){
+  'use strict';
+  if(window.__BNS_TW_CREDIT__) return;
+  window.__BNS_TW_CREDIT__=true;
+
+  var REEKS_KEY='bns_tw_creditnr';
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(/[^0-9,.-]/g,'').replace(',','.')); return isFinite(n)?n:0; }
+  function S(){
+    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function orders(){ var s=S(); return (s && Array.isArray(s.orders)) ? s.orders : []; }
+  function bewaren(o){
+    try{ if(typeof save==='function') save(); else if(typeof saveAll==='function') saveAll(); else if(typeof saveLocal==='function') saveLocal(); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+    try{ if(typeof syncDoc==='function' && o) syncDoc('orders', o.id, o); }catch(e){}
+  }
+
+  /* ---------------- de reeks ---------------- */
+  function jaarNu(){ return String(new Date().getFullYear()); }
+  function knip(nr){
+    var m=T(nr).match(/^C(\d{4})-(\d+)$/);
+    return m ? {jaar:m[1], teller:parseInt(m[2],10)||0, breedte:m[2].length} : null;
+  }
+  function bouw(jaar, teller, breedte){ return 'C'+jaar+'-'+String(teller).padStart(breedte||4,'0'); }
+  /* Het hoogste nummer dat al ergens op een opdracht staat is de waarheid.
+     Zo kan de teller nooit achterlopen als er op een andere computer is
+     gecrediteerd. */
+  function hoogsteInGebruik(jaar){
+    var hoog=0;
+    orders().forEach(function(o){
+      var d=knip(o && o.credit && o.credit.nr);
+      if(d && d.jaar===jaar && d.teller>hoog) hoog=d.teller;
+    });
+    return hoog;
+  }
+  function opgeslagenTeller(jaar){
+    var uit=0;
+    try{
+      var r=JSON.parse(localStorage.getItem(REEKS_KEY)||'null');
+      if(r && r.jaar===jaar) uit=N(r.teller);
+    }catch(e){}
+    try{
+      var s=S(), r2=s && s.settings && s.settings.creditReeks;
+      if(r2 && r2.jaar===jaar && N(r2.teller)>uit) uit=N(r2.teller);
+    }catch(e){}
+    return uit;
+  }
+  function tellerBewaren(jaar, teller){
+    var r={jaar:jaar, teller:teller};
+    try{ localStorage.setItem(REEKS_KEY, JSON.stringify(r)); }catch(e){}
+    try{
+      var s=S();
+      if(s){ s.settings=s.settings||{}; s.settings.creditReeks=r; }
+    }catch(e){}
+  }
+  function volgendNummer(){
+    var j=jaarNu();
+    var t=Math.max(hoogsteInGebruik(j), opgeslagenTeller(j))+1;
+    tellerBewaren(j, t);
+    return bouw(j, t, 4);
+  }
+
+  /* ---------------- vastleggen op de opdracht ---------------- */
+  function bedragVan(o){
+    var p=(o&&o.pricing)||{};
+    return N(p.grand||p.total||p.incl||o&&o.total||o&&o.amount||0);
+  }
+  function isCredit(o){ return !!(o && o.credit && T(o.credit.nr)); }
+  /* Eenmaal uitgedeeld blijft het nummer staan. Twee keer credit drukken
+     geeft dus twee keer dezelfde nota, niet twee nota's. */
+  function nummerVoor(o, bedrag){
+    if(!o) return '';
+    if(isCredit(o)) return T(o.credit.nr);
+    var nr=volgendNummer();
+    o.credit={ nr:nr, datum:new Date().toISOString(),
+               bedrag:(bedrag==null? bedragVan(o) : N(bedrag)),
+               factuurNr:T(o.invoice && o.invoice.invoiceNumber) };
+    o.updatedAt=new Date().toISOString();
+    bewaren(o);
+    try{ console.info('[BNS TW Credit] creditnota '+nr+' vastgelegd bij opdracht '+T(o.number)); }catch(e){}
+    return nr;
+  }
+  function terugdraaien(o){
+    if(!o || !isCredit(o)) return false;
+    try{ delete o.credit; }catch(e){ o.credit=null; }
+    o.updatedAt=new Date().toISOString();
+    bewaren(o);
+    return true;
+  }
+
+  window.BNS_TW_CREDIT={
+    isCredit:isCredit,
+    nummerVoor:nummerVoor,
+    terugdraaien:terugdraaien,
+    bedragVan:function(o){ return isCredit(o) ? N(o.credit.bedrag) : 0; },
+    stand:function(){
+      var l=orders().filter(isCredit);
+      return { aantal:l.length, volgende:bouw(jaarNu(), Math.max(hoogsteInGebruik(jaarNu()), opgeslagenTeller(jaarNu()))+1, 4),
+               nota:l.map(function(o){ return T(o.credit.nr)+' - '+T(o.number)+' - '+N(o.credit.bedrag); }) };
+    }
+  };
+  try{ console.info('[BNS TW Credit] Actief - window.BNS_TW_CREDIT.stand()'); }catch(e){}
 })();
