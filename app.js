@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING25-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING27-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -61388,7 +61388,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
   var bezig=false;
   function bijwerken(){
-    if(bezig) return;
+    if(bezig) return;          /* mijn eigen schrijfactie mag de waarnemer niet opnieuw starten */
     var lijst=E('ordersList'); if(!lijst) return;
     bezig=true;
     try{
@@ -61505,8 +61505,20 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var lijst=E('ordersList');
     if(!lijst){ setTimeout(kijken, 1000); return; }
     try{
-      var mo=new MutationObserver(function(){ setTimeout(bijwerken, 30); });
-      mo.observe(lijst, {childList:true, subtree:true});
+      /* ==========================================================
+         27-10-2026 - NIET MEER HEEN EN WEER SPRINGEN.
+         ----------------------------------------------------------
+         [stated] "de status in opdracht verandert steeds naar openstaande
+         factuur en dan weer nog factuur maken, het moet strakker werken."
+
+         De bestaande kaartopmaak zet dat label bij elke hertekening terug op
+         zijn eigen tekst, en ik zette het 30 milliseconden later weer goed.
+         In die tussentijd zag je dus de oude tekst - en bij elke hertekening
+         opnieuw. Nu kijk ik ook mee met de TEKST zelf en schrijf ik direct
+         terug, in hetzelfde beeld. Je ziet er niets meer van.
+      ========================================================== */
+      var mo=new MutationObserver(function(){ bijwerken(); });
+      mo.observe(lijst, {childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:['class']});
     }catch(e){}
     bijwerken();
   }
@@ -62080,12 +62092,42 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       '<div style="font-size:12px;color:#64748b">'+aantal+' stuks</div></div>';
   }
 
+  /* ==========================================================
+     27-10-2026 - HET SCHERM MAG NIET ONDER JE HANDEN WEGLOPEN.
+     ----------------------------------------------------------
+     [stated] "het moet strakker werken en niet steeds wisselen als ik van
+     rubriek verander."
+
+     Dit scherm werd elke 2,5 seconde VOLLEDIG opnieuw opgebouwd, ook als er
+     niets veranderd was. Daardoor sprong je uit je scrollpositie, verdween
+     een halve muisbeweging en voelde alles onrustig. Nu wordt er eerst een
+     vingerafdruk gemaakt van alles wat op het scherm hoort te staan; is die
+     gelijk aan de vorige, dan blijft het beeld gewoon staan.
+  ========================================================== */
+  function vinger(){
+    var l;
+    try{ l = map==='betalingen' ? betalingen() : (map==='gewist' ? gewist() : (map==='klanten' ? klanten() : zichtbaar())); }
+    catch(e){ l=[]; }
+    var kern=l.map(function(x){
+      if(x && x.naam!==undefined && x.orders) return x.naam+':'+x.orders.length+':'+Math.round(x.open);
+      if(x && x.time) return T(x.id)+':'+T(x.time);
+      return orderNo(x)+':'+(betaald(x)?1:0)+':'+Math.round(bedrag(x))+':'+laatsteTrap(x)+':'+T(invoiceNo(x));
+    }).join(',');
+    var n=0; Object.keys(aangevinkt).forEach(function(k){ if(aangevinkt[k]) n++; });
+    return [map,jaar,zoek,zoekIn,sortering,instOpen?1:0,meerStand?1:0,n,gekozenKlant,
+            Object.keys(klantOpen).filter(function(k){ return klantOpen[k]; }).join('+'),
+            jaren().join('-'),kern].join('|');
+  }
+
   function tekenen(forceer){
     var w=scherm();
     if(w.style.display==='none') return;
     try{
       var actief=document.activeElement;
       if(!forceer && actief && actief!==document.body && w.contains(actief) && /INPUT|TEXTAREA|SELECT/.test(actief.tagName)) return;
+      var v=vinger();
+      if(!forceer && w.__vinger===v) return;
+      w.__vinger=v;
 
       var jl=jaren();
       if(jaar!=='alles' && jl.indexOf(jaar)<0) jaar=jl[0]||String(new Date().getFullYear());
@@ -62156,14 +62198,44 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           '<div id="bnsTwBhLijst">'+welkeLijst()+'</div>'+
         '</div>';
       koppelen();
+      try{ w.__vinger=vinger(); }catch(e){}
     }catch(e){ try{ console.warn('[BNS TW Boekhouding]', e&&e.message||e); }catch(_){} }
   }
 
   function zichtbaar(){ return sorteer(inMap(map).filter(past)); }
 
+  /* ==========================================================
+     27-10-2026 - EEN LEGE MAP MOET ZEGGEN WAAROM HIJ LEEG IS.
+     ----------------------------------------------------------
+     [stated] "het ophalen van nog te factureren in 2027 blijft leeg."
+     Een lege lijst zonder uitleg laat je gissen. Hieronder wordt geteld wat
+     er in dat jaar WEL is maar hier niet meetelt, en waarom: offertes en
+     opties horen niet in de boekhouding, en gewiste regels staan in de map
+     Gewist. Dan weet je meteen of er iets mis is of dat het klopt.
+  ========================================================== */
+  function buitenBeeld(){
+    var offerte=0, gewistN=0, anderJaar=0;
+    orders().forEach(function(o){
+      if(!o) return;
+      if(o.deleted===true || o.verwijderd===true) return;
+      var ditJaar=(jaar==='alles' || String(jaarVan(o))===String(jaar));
+      if(!ditJaar){ anderJaar++; return; }
+      if(verborgen(o)){ gewistN++; return; }
+      if(!telMee(o)) offerte++;
+    });
+    return {offerte:offerte, gewist:gewistN, anderJaar:anderJaar};
+  }
+  function leegUitleg(){
+    var b=buitenBeeld(), r=[];
+    if(b.offerte) r.push('<b>'+b.offerte+'</b> staan nog op offerte, optie of geannuleerd - die horen niet in de boekhouding');
+    if(b.gewist) r.push('<b>'+b.gewist+'</b> zijn gewist - die staan in de map Gewist en kun je daar terughalen');
+    if(!r.length) return 'Er staat in dit jaar niets in deze map.';
+    return 'Er staat in dit jaar niets in deze map. Wel buiten beeld: '+r.join(', ')+'.';
+  }
+
   function lijstHtml(){
     var l=zichtbaar();
-    if(!l.length) return '<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:14px;padding:22px;color:#64748b">Niets gevonden in deze map.</div>';
+    if(!l.length) return '<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:14px;padding:22px;color:#64748b;line-height:1.5">'+leegUitleg()+'</div>';
     var totaal=som(l);
     return l.map(regelHtml).join('')+
       '<div style="display:flex;justify-content:flex-end;gap:14px;align-items:baseline;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:4px">'+
@@ -62291,10 +62363,114 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       '</div>';
     }).join('');
   }
+  /* ==========================================================
+     27-10-2026 - DE KLANTMAP ALS EEN ECHT DOSSIER.
+     ----------------------------------------------------------
+     [stated] "de mappen van klanten zie ik niet heel duidelijk wat en
+     wanneer het is, ik zou dan ook echt de oude opdracht moeten kunnen
+     openen en ook de geschiedenis van schades, leveringen, foto's enz."
+
+     Per opdracht een regel met de DATUM groot in beeld, zodat je in een
+     oogopslag ziet wanneer het was. Daarachter wat het was, waar het was en
+     wat het kostte. Met een knop klap je de geschiedenis open: de levering,
+     de meldingen en schades die erbij horen, en de foto's en handtekeningen.
+     Die foto's worden pas getekend als je de regel openklapt - anders staat
+     een klant met vijftig opdrachten de telefoon van de planner vol te
+     trekken met plaatjes die hij niet vroeg.
+  ========================================================== */
+  var klantOpen={};
+
+  function meldingenVan(o){
+    var s2=S(), l=(s2 && Array.isArray(s2.alerts)) ? s2.alerts : [];
+    var id=T(o.id), nr=orderNo(o);
+    return l.filter(function(a){
+      if(!a) return false;
+      return [T(a.orderId),T(a.orderNumber),T(a.linkedOrder),T(a.linkedOrderNumber)].some(function(x){ return x && (x===id || x===nr); });
+    }).sort(function(a,b){ return String(b.createdAt||'').localeCompare(String(a.createdAt||'')); });
+  }
+  function mediaVan(o){ return Array.isArray(o && o.media) ? o.media : []; }
+  function plaatjeVan(x){ return T(x && (x.imageData||x.data||x.photoData||x.signatureData)); }
+
+  function geschiedenisHtml(o){
+    var m=meldingenVan(o), f=mediaVan(o);
+    var l=(o&&o.location)||{};
+    var rij=function(kop, inhoud){
+      return '<div style="margin:0 0 10px"><div style="font-size:12px;font-weight:900;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">'+esc(kop)+'</div>'+inhoud+'</div>';
+    };
+    return '<div style="border-top:1px solid #e5e7eb;margin-top:11px;padding-top:11px">'+
+      rij('Levering',
+        '<div style="font-size:14px;color:#334155;line-height:1.45">'+
+          (T(o.start)? 'Van '+esc(nl(o.start))+(T(o.end)&&T(o.end)!==T(o.start)?' tot '+esc(nl(o.end)):'') : 'geen datum')+
+          (T(l.name)||T(l.city)? '<br>'+esc([T(l.name),T(l.street),T(l.zip),T(l.city)].filter(Boolean).join(', ')) : '')+
+          (T(l.contact)||T(l.phone)? '<br>Contact: '+esc([T(l.contact),T(l.phone)].filter(Boolean).join(' - ')) : '')+
+          (T(o.driver||o.bezorger)? '<br>Bezorger: '+esc(T(o.driver||o.bezorger)) : '')+
+        '</div>')+
+      rij('Meldingen en schades ('+m.length+')',
+        m.length
+          ? m.map(function(a){
+              var tekst=T(a.note||a.text||a.message||'');
+              var p=plaatjeVan(a);
+              return '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:9px 11px;margin:0 0 6px;background:#fbfdff">'+
+                '<div style="font-weight:800;color:#172033;font-size:14px">'+esc(T(a.type||a.title)||'Melding')+'</div>'+
+                '<div style="font-size:12px;color:#64748b">'+esc(nl(T(a.createdAt).slice(0,10)))+(T(a.driverName)?' \u00B7 '+esc(a.driverName):'')+'</div>'+
+                (tekst? '<div style="font-size:14px;color:#334155;margin-top:4px">'+esc(tekst)+'</div>' : '')+
+                (p? '<img src="'+p+'" style="margin-top:7px;max-width:220px;border-radius:9px;border:1px solid #e5e7eb">' : '')+
+              '</div>';
+            }).join('')
+          : '<div style="font-size:14px;color:#64748b">Geen meldingen bij deze opdracht.</div>')+
+      rij("Foto's en handtekeningen ("+f.length+')',
+        f.length
+          ? '<div style="display:flex;gap:8px;flex-wrap:wrap">'+f.map(function(x){
+              var p=plaatjeVan(x);
+              return '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:7px;background:#fff;max-width:210px">'+
+                '<div style="font-size:12px;font-weight:800;color:#334155">'+esc(T(x.title||x.kind||x.type)||'Bestand')+'</div>'+
+                '<div style="font-size:11px;color:#64748b">'+esc(nl(T(x.createdAt).slice(0,10)))+'</div>'+
+                (p? '<img src="'+p+'" style="margin-top:5px;max-width:195px;border-radius:8px">' : '<div style="font-size:12px;color:#94a3b8;margin-top:4px">geen afbeelding</div>')+
+              '</div>';
+            }).join('')+'</div>'
+          : '<div style="font-size:14px;color:#64748b">Geen foto\'s of handtekeningen bewaard.</div>')+
+    '</div>';
+  }
+
+  function klantRegelHtml(o){
+    var id=T(o.id)||orderNo(o);
+    var isBet=betaald(o), heeftFac=!!invoiceNo(o), open=klantOpen[id];
+    var kleur = isBet?'#15803d':(teLaat(o)?'#9f1239':(geenFactuur(o)?'#64748b':(contant(o)?'#b45309':(heeftFac?'#dc2626':'#ea580c'))));
+    var d=T(o.start||datumVan(o)).slice(0,10);
+    var dag=d?d.slice(8,10):'--', maand=d?['','jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][Number(d.slice(5,7))||0]:'', jr=d?d.slice(0,4):'';
+    var m=meldingenVan(o).length, f=mediaVan(o).length;
+    return '<div style="display:flex;gap:13px;background:#fff;border:1px solid #e2e8f0;border-left:6px solid '+kleur+';border-radius:14px;padding:13px 14px;margin:0 0 9px">'+
+      '<div style="flex:none;width:58px;text-align:center;border-right:1px solid #eef2f7;padding-right:11px">'+
+        '<div style="font-size:21px;font-weight:900;color:#0f172a;line-height:1">'+esc(dag)+'</div>'+
+        '<div style="font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase">'+esc(maand)+'</div>'+
+        '<div style="font-size:11px;color:#94a3b8">'+esc(jr)+'</div>'+
+      '</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:baseline">'+
+          tekstIn(esc(titel(o)||'zonder omschrijving'),'#0f172a','font-weight:900;font-size:16px')+
+          '<span style="font-weight:900;font-size:16px;color:#0f172a">'+esc(geld(bedrag(o)))+'</span>'+
+        '</div>'+
+        '<div style="font-size:12px;color:#64748b;margin:4px 0 9px">'+
+          'opdracht '+esc(orderNo(o))+(heeftFac? ' \u00B7 factuur '+esc(invoiceNo(o)) : ' \u00B7 nog geen factuur')+
+          (locatieKort(o)? ' \u00B7 '+esc(locatieKort(o)) : '')+
+          ' \u00B7 '+(isBet?'<b style="color:#15803d">betaald</b>':(teLaat(o)?'<b style="color:#9f1239">te laat</b>':'openstaand'))+
+          (m? ' \u00B7 '+m+' melding(en)' : '')+(f? ' \u00B7 '+f+" foto's" : '')+
+        '</div>'+
+        '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+          knop(open?'Geschiedenis sluiten':'Geschiedenis', Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-klap="'+esc(id)+'"'}))+
+          knop('Opdracht openen', Object.assign({},BLAUW,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-opdracht="'+esc(id)+'"'}))+
+          (heeftFac? knop('Factuur', Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-doc="'+esc(id)+'"'})) : '')+
+          knop(isBet?'Zet op openstaand':'Zet op betaald', Object.assign({}, isBet?GRIJS:GROEN, {extra:'padding:8px 13px;font-size:13px',attr:'data-bh-betaald="'+esc(id)+'|'+(isBet?'0':'1')+'"'}))+
+        '</div>'+
+        (open? geschiedenisHtml(o) : '')+
+      '</div>'+
+    '</div>';
+  }
+
   function klantPaginaHtml(){
     var naam=gekozenKlant;
     var alleJaren=basis().filter(function(o){ return L(klant(o))===L(naam); });
-    var l=vanJaar(alleJaren).sort(function(a,b){ return String(datumVan(b)).localeCompare(String(datumVan(a))); });
+    var l=vanJaar(alleJaren).sort(function(a,b){ return String(T(b.start)||datumVan(b)).localeCompare(String(T(a.start)||datumVan(a))); });
     var buiten=alleJaren.length-l.length;
     var open=0, bet=0, tot=0, brieven=[];
     l.forEach(function(o){
@@ -62306,28 +62482,34 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     brieven.sort(function(a,b){ return String(b.x.datum).localeCompare(String(a.x.datum)); });
     var bet2=(acc().payments||[]).filter(function(p){ return L(p.customer)===L(naam); })
       .sort(function(a,b){ return String(b.time).localeCompare(String(a.time)); });
+    var eersteO=l[l.length-1], laatsteO=l[0];
+    var kop=function(t,n){ return '<div style="font-size:13px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:.04em;margin:18px 0 9px">'+esc(t)+(n!=null?' ('+n+')':'')+'</div>'; };
 
     return '<div style="margin-bottom:12px">'+knop('\u2190 Alle klanten', Object.assign({},GRIJS,{attr:'data-bh-klanten-terug'}))+'</div>'+
-      '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:16px;margin-bottom:12px">'+
-        '<div style="font-size:22px;font-weight:900;color:#0f172a">'+esc(naam)+'</div>'+
-        '<div style="font-size:13px;color:#64748b;margin-top:2px">'+(jaar==='alles'?'alle jaren':'jaar '+esc(jaar))+' \u00B7 '+l.length+' opdracht(en)'+
-          (buiten? ' \u00B7 '+buiten+' in andere jaren - kies hierboven Alle jaren' : '')+'</div>'+
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">'+
+      '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px;box-shadow:0 1px 3px rgba(15,23,42,.05)">'+
+        '<div style="font-size:24px;font-weight:900;color:#0f172a;line-height:1.15">'+esc(naam)+'</div>'+
+        '<div style="font-size:13px;color:#64748b;margin-top:3px">'+
+          (jaar==='alles'?'alle jaren':'jaar '+esc(jaar))+' \u00B7 '+l.length+' opdracht(en)'+
+          (laatsteO? ' \u00B7 laatste '+esc(nl(T(laatsteO.start)||datumVan(laatsteO))) : '')+
+          (eersteO && l.length>1? ' \u00B7 eerste '+esc(nl(T(eersteO.start)||datumVan(eersteO))) : '')+
+          (buiten? ' \u00B7 <b>'+buiten+' in andere jaren</b> - kies hierboven Alle jaren' : '')+
+        '</div>'+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">'+
           tegel('Openstaand', l.filter(function(o){ return !betaald(o)&&!contant(o)&&!geenFactuur(o); }).length, open, '#dc2626')+
           tegel('Betaald', l.filter(betaald).length, bet, '#15803d')+
           tegel('Samen', l.length, tot, '#0f172a')+
         '</div>'+
       '</div>'+
-      '<div style="font-weight:900;color:#0f172a;margin:14px 0 8px">Facturen en opdrachten</div>'+
-      (l.length ? l.map(regelHtml).join('') : '<div style="color:#64748b">Niets gevonden.</div>')+
-      '<div style="font-weight:900;color:#0f172a;margin:16px 0 8px">Verstuurde aanmaningen ('+brieven.length+')</div>'+
+      kop('Opdrachten en facturen', l.length)+
+      (l.length ? l.map(klantRegelHtml).join('') : '<div style="color:#64748b">Niets in dit jaar.</div>')+
+      kop('Verstuurde aanmaningen', brieven.length)+
       (brieven.length ? brieven.map(function(r){
         return '<div style="background:#fff;border:1px solid #e2e8f0;border-left:6px solid '+trapVan(r.x.trap).kleur+';border-radius:12px;padding:10px 13px;margin:0 0 7px">'+
           tekstIn(esc(trapVan(r.x.trap).naam),'#0f172a','font-weight:900')+
           tekstIn('&nbsp;&nbsp;factuur '+esc(invoiceNo(r.o)||orderNo(r.o)),'#334155','font-size:13px')+
           '<div style="font-size:12px;color:#64748b;margin-top:3px">'+esc(nl(r.x.datum))+(r.x.door?' \u00B7 door '+esc(r.x.door):'')+'</div></div>';
       }).join('') : '<div style="color:#64748b;font-size:14px">Nog geen aanmaningen verstuurd aan deze klant.</div>')+
-      '<div style="font-weight:900;color:#0f172a;margin:16px 0 8px">Betalingen ('+bet2.length+')</div>'+
+      kop('Betalingen', bet2.length)+
       (bet2.length ? bet2.map(function(p){
         return '<div style="background:#fff;border:1px solid #e2e8f0;border-left:6px solid '+(p.paid?'#15803d':'#64748b')+';border-radius:12px;padding:10px 13px;margin:0 0 7px">'+
           '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
@@ -62650,6 +62832,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     K('[data-bh-klant]').forEach(function(b){
       b.addEventListener('click', function(){ gekozenKlant=b.getAttribute('data-bh-klant'); zoek=''; tekenen(true); });
     });
+    K('[data-bh-klap]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var id=b.getAttribute('data-bh-klap');
+        klantOpen[id]=!klantOpen[id];
+        tekenen(true);
+      });
+    });
     K('[data-bh-klanten-terug]').forEach(function(b){
       b.addEventListener('click', function(){ gekozenKlant=''; tekenen(true); });
     });
@@ -62734,7 +62923,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     stand:function(){
       var a=vanJaar(basis());
       var uit={jaar:jaar, map:map};
-      MAPPEN.forEach(function(m){ if(m.k!=='betalingen') uit[m.k]={aantal:a.filter(m.test).length, bedrag:som(a.filter(m.test))}; });
+      MAPPEN.forEach(function(m){
+        if(m.k==='betalingen'||m.k==='klanten'||m.k==='gewist') return;
+        uit[m.k]={aantal:a.filter(m.test).length, bedrag:som(a.filter(m.test))};
+      });
+      uit.klanten=klanten().map(function(r){ return r.naam+' ('+r.orders.length+')'; });
+      uit.gewist=gewist().length;
+      uit.buitenBeeld=buitenBeeld();
       return uit;
     }
   };
