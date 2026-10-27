@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING32-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING33-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -47191,6 +47191,12 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     return rows.sort(function(a,b){ return String(mediaTime(b)).localeCompare(String(mediaTime(a))); });
   }
 
+  /* 27-10-2026: deze functie voegt de lichte verwijzingen uit de opdracht en
+     de echte foto's uit de meldingen samen en haalt dubbelen eruit. Boekhouding
+     heeft hetzelfde nodig en bouwde het verkeerd na. Eén uitgang, geen tweede
+     versie van dezelfde logica. */
+  try{ window.BNS_MEDIA_DOSSIER=function(o){ try{ return mediaRows495(o)||[]; }catch(e){ return []; } }; }catch(e){}
+
   function patchMediaOverview(){
     var modal=E("bnsV493Modal") || E("bnsOrderOverviewModal");
     if(!modal) return;
@@ -62130,12 +62136,53 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     document.body.appendChild(w);
     return w;
   }
+  /* ==========================================================
+     27-10-2026 - TWEE SCHUIFBALKEN NAAST ELKAAR.
+     ----------------------------------------------------------
+     [stated] "ook bij boekhouding zit rechts een dubbele scrol om naar
+     beneden te scrollen"
+
+     Boekhouding ligt als een vol scherm over de app heen en schuift zelf.
+     De pagina eronder hield ondertussen gewoon zijn eigen schuifbalk, dus
+     stonden er twee naast elkaar en pakte je net de verkeerde. Zolang
+     Boekhouding openstaat zetten we de pagina eronder vast, en bij het
+     sluiten gaat hij weer los op precies dezelfde plek - anders spring je
+     bij het dichtdoen terug naar boven.
+  ========================================================== */
+  var pagStand=null;
+  function pagVast(){
+    if(pagStand!==null) return;
+    try{
+      pagStand={ y: window.pageYOffset||document.documentElement.scrollTop||0,
+                 body: document.body.style.overflow||'',
+                 html: document.documentElement.style.overflow||'' };
+      document.body.style.overflow='hidden';
+      document.documentElement.style.overflow='hidden';
+    }catch(e){ pagStand=null; }
+  }
+  function pagLos(terug){
+    if(pagStand===null) return;
+    try{
+      document.body.style.overflow=pagStand.body;
+      document.documentElement.style.overflow=pagStand.html;
+      var y=pagStand.y;
+      /* alleen terugzetten als je in de app blijft staan; ga je door naar een
+         opdracht, dan bepaalt dat scherm zelf waar je uitkomt */
+      if(terug!==false) setTimeout(function(){ try{ window.scrollTo(0,y); }catch(e){} }, 0);
+    }catch(e){}
+    pagStand=null;
+  }
   function open(){
     if(!jaar) jaar=String(new Date().getFullYear());
     scherm().style.display='block';
+    pagVast();
     tekenen(true);
   }
-  function dicht(){ scherm().style.display='none'; }
+  function dicht(terug){
+    scherm().style.display='none';
+    var f=E('bnsTwBhFoto'); if(f) f.remove();
+    pagLos(terug);
+  }
 
   function jaren(){
     var set={};
@@ -62549,8 +62596,137 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       return [T(a.orderId),T(a.orderNumber),T(a.linkedOrder),T(a.linkedOrderNumber)].some(function(x){ return x && (x===id || x===nr); });
     }).sort(function(a,b){ return String(b.createdAt||'').localeCompare(String(a.createdAt||'')); });
   }
-  function mediaVan(o){ return Array.isArray(o && o.media) ? o.media : []; }
-  function plaatjeVan(x){ return T(x && (x.imageData||x.data||x.photoData||x.signatureData)); }
+  /* ==========================================================
+     27-10-2026 - DE FOTO'S STONDEN ERGENS ANDERS.
+     ----------------------------------------------------------
+     [stated] "ik zie bij de geschiedenis geen foto of hantekeningen staan"
+
+     De opdracht bewaart twee soorten regels door elkaar. Een echte, met de
+     afbeelding erin, en een licht briefje zonder afbeelding - dat laatste
+     komt van de bezorgtelefoon, die de foto apart wegzet bij de meldingen
+     zodat het geheugen niet volloopt. Ik las alleen die briefjes, telde er
+     netjes twee, en liet twee keer "geen afbeelding" zien.
+
+     De app heeft al een functie die beide bronnen samenvoegt en dubbelen
+     eruit haalt; die gebruikt het Overzicht bestelling ook. Die pakken we
+     hier, zodat er maar een manier van optellen bestaat. Lukt dat niet, dan
+     vallen we terug op de oude manier - liever iets dan niets.
+  ========================================================== */
+  function mediaVan(o){
+    try{
+      if(typeof window.BNS_MEDIA_DOSSIER==='function'){
+        var r=window.BNS_MEDIA_DOSSIER(o);
+        if(Array.isArray(r)) return r.filter(function(x){ return !!plaatjeVan(x); });
+      }
+    }catch(e){}
+    return (Array.isArray(o && o.media) ? o.media : []).filter(function(x){ return !!plaatjeVan(x); });
+  }
+  function plaatjeVan(x){ return T(x && (x.imageData||x.data||x.photoData||x.signatureData||x.photo||x.image||x.signature)); }
+  function wieVan(x){ return T(x && (x.driverName||x.customerName||x.userName||x.by||x.from)); }
+  function soortVanBestand(x){ return T(x && (x.title||x.type||x.kind))||'Bestand'; }
+
+  /* ==========================================================
+     HET ANDERE GEHEUGEN - WAAROM HIER GEEN GROTE PLAATJES STAAN.
+     ----------------------------------------------------------
+     [stated] "hoe zit dat met het geheugen wat je net melde? want dat
+     probleem willen we niet weer"
+
+     Terecht. Opslaan doen we hier niets extra's - dit leest alleen wat al
+     binnen is. Maar een foto die je TOONT wordt door de browser uitgepakt
+     naar losse beeldpunten: een foto van 1200 breed kost zo'n vier megabyte
+     werkgeheugen, ook al staat hij klein op het scherm. Tien opdrachten
+     opengeklapt met een paar foto's elk, en je zit zo op veertig megabyte
+     voor niets.
+
+     Daarom maken we hier eenmalig een echt klein plaatje van 170 punten
+     breed. Dat kost nog geen tiende megabyte en blijft bewaard, zodat
+     opnieuw openklappen meteen gaat. De grote versie wordt alleen uitgepakt
+     op het moment dat je hem schermvullend opent, en gaat bij het sluiten
+     weer weg. Eentje tegelijk uitpakken, nooit een hele rij.
+  ========================================================== */
+  var DUIM_MAX=170, DUIM_RUIMTE=80;
+  var duimpjes={}, duimRij=[], duimBezig=false, duimVolgorde=[];
+  function duimSleutel(x){ return T(x && x.id) || plaatjeVan(x).slice(0,60); }
+  function duimOpruimen(){
+    while(duimVolgorde.length>DUIM_RUIMTE){
+      var weg=duimVolgorde.shift();
+      try{ delete duimpjes[weg]; }catch(e){}
+    }
+  }
+  function duimVolgende(){
+    if(duimBezig) return;
+    var taak=duimRij.shift();
+    if(!taak) return;
+    duimBezig=true;
+    var afgerond=false;
+    var klaar=function(klein){
+      /* 27-10-2026: het loslaten van de grote foto (img.src='') liet de browser
+         alsnog een foutmelding afvuren, en die gooide het net gemaakte duimpje
+         weer weg. Eenmaal klaar is klaar. */
+      if(afgerond) return;
+      afgerond=true;
+      duimBezig=false;
+      if(klein){ duimpjes[taak.sleutel]=klein; duimVolgorde.push(taak.sleutel); duimOpruimen(); }
+      else duimpjes[taak.sleutel]='-';
+      var vak=document.querySelector('[data-bh-duim="'+taak.sleutel.replace(/"/g,'')+'"]');
+      if(vak && klein) vak.innerHTML='<img src="'+klein+'" style="display:block;width:100%;border-radius:8px">';
+      else if(vak) vak.innerHTML='<div style="font-size:11px;color:#94a3b8;padding:9px 0">kon niet worden geopend</div>';
+      setTimeout(duimVolgende, 0);
+    };
+    try{
+      var img=new Image();
+      img.onload=function(){
+        try{
+          var w=img.width, h=img.height;
+          if(!w || !h) return klaar('');
+          if(w>h){ h=Math.round(h*DUIM_MAX/w); w=DUIM_MAX; } else { w=Math.round(w*DUIM_MAX/h); h=DUIM_MAX; }
+          var c=document.createElement('canvas'); c.width=w; c.height=h;
+          c.getContext('2d').drawImage(img,0,0,w,h);
+          var klein=c.toDataURL('image/jpeg',0.72);
+          c.width=0; c.height=0;
+          img.onload=null; img.onerror=null; img.src='';   /* de grote versie meteen loslaten */
+          klaar(klein);
+        }catch(e){ klaar(''); }
+      };
+      img.onerror=function(){ klaar(''); };
+      img.src=taak.groot;
+    }catch(e){ klaar(''); }
+  }
+  function duimVragen(x){
+    var k=duimSleutel(x);
+    if(duimpjes[k]) return duimpjes[k]==='-' ? '' : duimpjes[k];
+    var al=duimRij.some(function(t){ return t.sleutel===k; });
+    if(!al) duimRij.push({sleutel:k, groot:plaatjeVan(x)});
+    setTimeout(duimVolgende, 0);
+    return null;   /* nog bezig */
+  }
+
+  /* ---------------- een foto schermvullend ---------------- */
+  function fotoTonen(x){
+    var groot=plaatjeVan(x);
+    if(!groot) return;
+    var oud=E('bnsTwBhFoto'); if(oud) oud.remove();
+    var w=document.createElement('div');
+    w.id='bnsTwBhFoto';
+    w.style.cssText='position:fixed;inset:0;z-index:1000002;background:rgba(8,13,24,.92);display:flex;'+
+      'flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:10px';
+    var regels=[soortVanBestand(x), nl(T(x.createdAt||x.time||x.date).slice(0,10)), wieVan(x)].filter(Boolean);
+    w.innerHTML='<div style="color:#e2e8f0;font-size:15px;font-weight:800;text-align:center;line-height:1.4">'+
+        esc(regels.join('  \u00B7  '))+'</div>'+
+      '<img src="'+groot+'" style="max-width:min(1100px,96vw);max-height:76vh;border-radius:12px;background:#fff">'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'+
+        knop('Sluiten', {vlak:'#f8fafc',inkt:'#0f172a',rand:'0',extra:'padding:11px 22px;font-size:15px',attr:'data-bh-foto-dicht'})+
+      '</div>';
+    function weg(){
+      try{ var i=w.querySelector('img'); if(i) i.src=''; }catch(e){}
+      w.remove();
+      document.removeEventListener('keydown', toets, true);
+    }
+    function toets(ev){ if(ev.key==='Escape'){ ev.stopPropagation(); weg(); } }
+    w.addEventListener('click', function(ev){ if(ev.target===w || ev.target.getAttribute('data-bh-foto-dicht')!==null) weg(); });
+    document.addEventListener('keydown', toets, true);
+    document.body.appendChild(w);
+  }
 
   function geschiedenisHtml(o){
     var m=meldingenVan(o), f=mediaVan(o);
@@ -62581,12 +62757,18 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           : '<div style="font-size:14px;color:#64748b">Geen meldingen bij deze opdracht.</div>')+
       rij("Foto's en handtekeningen ("+f.length+')',
         f.length
-          ? '<div style="display:flex;gap:8px;flex-wrap:wrap">'+f.map(function(x){
-              var p=plaatjeVan(x);
-              return '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:7px;background:#fff;max-width:210px">'+
-                '<div style="font-size:12px;font-weight:800;color:#334155">'+esc(T(x.title||x.kind||x.type)||'Bestand')+'</div>'+
-                '<div style="font-size:11px;color:#64748b">'+esc(nl(T(x.createdAt).slice(0,10)))+'</div>'+
-                (p? '<img src="'+p+'" style="margin-top:5px;max-width:195px;border-radius:8px">' : '<div style="font-size:12px;color:#94a3b8;margin-top:4px">geen afbeelding</div>')+
+          ? '<div style="display:flex;gap:9px;flex-wrap:wrap">'+f.map(function(x,i){
+              var k=duimSleutel(x), klein=duimVragen(x), wie=wieVan(x);
+              return '<div data-bh-foto="'+esc(k)+'" style="border:1px solid #e5e7eb;border-radius:11px;padding:7px;'+
+                  'background:#fff;width:186px;cursor:zoom-in" title="Klik om groot te bekijken">'+
+                '<div data-bh-duim="'+esc(k).replace(/"/g,'')+'" style="min-height:34px">'+
+                  (klein===null ? '<div style="font-size:11px;color:#94a3b8;padding:9px 0">even laden...</div>'
+                   : klein ? '<img src="'+klein+'" style="display:block;width:100%;border-radius:8px">'
+                           : '<div style="font-size:11px;color:#94a3b8;padding:9px 0">kon niet worden geopend</div>')+
+                '</div>'+
+                '<div style="font-size:12px;font-weight:800;color:#334155;margin-top:6px">'+esc(soortVanBestand(x))+'</div>'+
+                '<div style="font-size:11px;color:#64748b">'+esc(nl(T(x.createdAt||x.time||x.date).slice(0,10)))+
+                  (wie? ' \u00B7 '+esc(wie) : '')+'</div>'+
               '</div>';
             }).join('')+'</div>'
           : '<div style="font-size:14px;color:#64748b">Geen foto\'s of handtekeningen bewaard.</div>')+
@@ -62887,13 +63069,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var w=scherm();
     var K=function(s){ return Array.prototype.slice.call(w.querySelectorAll(s)); };
 
-    var d=w.querySelector('[data-bh-dicht]'); if(d) d.addEventListener('click', dicht);
+    var d=w.querySelector('[data-bh-dicht]'); if(d) d.addEventListener('click', function(){ dicht(true); });
     var pr=w.querySelector('[data-bh-print]'); if(pr) pr.addEventListener('click', printen);
     var de=w.querySelector('[data-bh-deel]'); if(de) de.addEventListener('click', delen);
     var ex=w.querySelector('[data-bh-export]'); if(ex) ex.addEventListener('click', exporteren);
     var oud=w.querySelector('[data-bh-oud]');
     if(oud) oud.addEventListener('click', function(){
-      dicht();
+      dicht(false);
       try{ if(typeof window.BNS528_openAccounting_oud==='function') window.BNS528_openAccounting_oud(); }catch(e){}
     });
     var mr=w.querySelector('[data-bh-meer]'); if(mr) mr.addEventListener('click', function(){ meerStand=!meerStand; aangevinkt={}; tekenen(true); });
@@ -62987,7 +63169,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     K('[data-bh-opdracht]').forEach(function(b){
       b.addEventListener('click', function(){
         var o=vindOrder(b.getAttribute('data-bh-opdracht')); if(!o) return;
-        dicht();
+        dicht(false);
         try{ if(typeof window.editOrder==='function') window.editOrder(T(o.id)); }catch(e){}
       });
     });
@@ -63019,6 +63201,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         gekozenKlant=T(n);
         if(gekozenKlant) zoek='';
         tekenen(true);
+      });
+    });
+    K('[data-bh-foto]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var k=b.getAttribute('data-bh-foto');
+        var alles=[];
+        try{ (S().orders||[]).forEach(function(o){ mediaVan(o).forEach(function(x){ alles.push(x); }); }); }catch(e){}
+        var x=alles.filter(function(y){ return duimSleutel(y)===k; })[0];
+        if(x) fotoTonen(x);
       });
     });
     K('[data-bh-klap]').forEach(function(b){
