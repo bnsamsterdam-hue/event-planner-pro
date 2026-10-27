@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING23-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING24-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -61869,8 +61869,11 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     {k:'contant',     naam:'Contant',        kleur:'#b45309', test:function(o){ return contant(o) && !betaald(o); }},
     {k:'geen',        naam:'Geen factuur',   kleur:'#64748b', test:function(o){ return geenFactuur(o) && !betaald(o); }},
     {k:'alles',       naam:'Alles',          kleur:'#0f172a', test:function(){ return true; }},
-    {k:'betalingen',  naam:'Betalingen',     kleur:'#1765d8', test:function(){ return false; }}
+    {k:'klanten',     naam:'Klanten',        kleur:'#0d9488', test:function(){ return false; }},
+    {k:'betalingen',  naam:'Betalingen',     kleur:'#1765d8', test:function(){ return false; }},
+    {k:'gewist',      naam:'Gewist',         kleur:'#78716c', test:function(){ return false; }}
   ];
+  var gekozenKlant='';
   function mapVan(k){ var u=MAPPEN[0]; MAPPEN.forEach(function(m){ if(m.k===k) u=m; }); return u; }
   function inMap(k){
     var m=mapVan(k);
@@ -62105,7 +62108,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           /* mappen */
           '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">'+
             MAPPEN.map(function(m){
-              var n = m.k==='betalingen' ? betalingen().length : alles.filter(m.test).length;
+              var n = m.k==='betalingen' ? betalingen().length
+                    : (m.k==='klanten' ? klanten().length
+                    : (m.k==='gewist' ? gewist().length : alles.filter(m.test).length));
               var aan=(map===m.k);
               return knop(esc(m.naam)+' ('+n+')',
                 aan?{vlak:m.kleur,inkt:'#fff',rand:'0',extra:'padding:9px 15px',attr:'data-bh-map="'+m.k+'"'}
@@ -62114,7 +62119,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           '</div>'+
           /* gereedschap */
           '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'+
-            '<input id="bnsTwBhZoek" type="search" placeholder="Zoek factuur, opdracht, klant of titel" value="'+esc(zoek)+'" style="flex:1 1 280px;min-width:0;padding:11px 13px;border:1px solid #cbd5e1;border-radius:12px">'+
+            '<input id="bnsTwBhZoek" type="search" placeholder="'+(map==='klanten'&&!gekozenKlant?'Zoek een klant':'Zoek factuur, opdracht, klant of titel')+'" value="'+esc(zoek)+'" style="flex:1 1 280px;min-width:0;padding:11px 13px;border:1px solid #cbd5e1;border-radius:12px">'+
             '<select id="bnsTwBhSort" style="padding:11px 13px;border:1px solid #cbd5e1;border-radius:12px">'+
               [['datum','Nieuwste eerst'],['open','Langst open'],['bedrag','Hoogste bedrag'],['klant','Klantnaam']].map(function(x){
                 return '<option value="'+x[0]+'"'+(sortering===x[0]?' selected':'')+'>'+x[1]+'</option>';
@@ -62126,7 +62131,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           '</div>'+
           (instOpen? instellingenHtml() : '')+
           (meerStand? meerBalkHtml() : '')+
-          '<div id="bnsTwBhLijst">'+(map==='betalingen'? betalingenHtml() : lijstHtml())+'</div>'+
+          '<div id="bnsTwBhLijst">'+welkeLijst()+'</div>'+
         '</div>';
       koppelen();
     }catch(e){ try{ console.warn('[BNS TW Boekhouding]', e&&e.message||e); }catch(_){} }
@@ -62185,6 +62190,169 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         '</div>'+
       '</div>'+
     '</div>';
+  }
+
+  function welkeLijst(){
+    if(map==='betalingen') return betalingenHtml();
+    if(map==='gewist') return gewistHtml();
+    if(map==='klanten') return gekozenKlant ? klantPaginaHtml() : klantenHtml();
+    return lijstHtml();
+  }
+
+  /* ==========================================================
+     27-10-2026 - EEN EIGEN MAP PER KLANT.
+     ----------------------------------------------------------
+     [stated] "ik mis nu nog dat je een klant zoekt en je kan zien wat hij
+     betaald heeft, dus een soort eigen map per klant die geopend wordt waar
+     je kan zien alle facturen, aanmaningen enz. Vooral per klant moet je heel
+     makkelijk alles kunnen terugvinden, net als een echt boekhoudprogramma."
+
+     Klanten worden gekoppeld op NAAM, want op een opdracht zit geen vast
+     klantnummer. Hoofdletters maken niet uit. Staat dezelfde klant twee keer
+     anders geschreven, dan zijn het hier twee regels - dat zie je dan meteen,
+     en dat is eerlijker dan ze stilletjes samenvoegen en een bedrag tonen dat
+     nergens op slaat.
+  ========================================================== */
+  function klanten(){
+    var per={};
+    vanJaar(basis()).forEach(function(o){
+      var n=T(klant(o))||'(zonder klantnaam)';
+      var k=L(n);
+      if(!per[k]) per[k]={naam:n, orders:[], open:0, betaald:0, totaal:0, aanmaningen:0};
+      var r=per[k];
+      r.orders.push(o);
+      r.totaal+=bedrag(o);
+      if(betaald(o)) r.betaald+=bedrag(o);
+      else if(!contant(o) && !geenFactuur(o)) r.open+=bedrag(o);
+      r.aanmaningen+=verstuurd(o).length;
+    });
+    var l=Object.keys(per).map(function(k){ return per[k]; });
+    var q=L(zoek);
+    if(q) l=l.filter(function(r){ return L(r.naam).indexOf(q)>=0; });
+    return l.sort(function(a,b){ return b.open-a.open || b.totaal-a.totaal; });
+  }
+  function klantenHtml(){
+    var l=klanten();
+    if(!l.length) return '<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:14px;padding:22px;color:#64748b">Geen klanten gevonden'+(zoek?' voor "'+esc(zoek)+'"':'')+'.</div>';
+    return l.map(function(r){
+      return '<div style="background:#fff;border:1px solid #e2e8f0;border-left:6px solid '+(r.open>0?'#dc2626':'#15803d')+';border-radius:14px;padding:13px 14px;margin:0 0 9px">'+
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:baseline">'+
+          tekstIn(esc(r.naam),'#0f172a','font-weight:900;font-size:16px')+
+          '<span style="font-weight:900;font-size:16px;color:'+(r.open>0?'#b91c1c':'#15803d')+'">'+esc(geld(r.open))+' open</span>'+
+        '</div>'+
+        '<div style="font-size:12px;color:#64748b;margin:4px 0 10px">'+
+          r.orders.length+' opdracht(en) \u00B7 betaald '+esc(geld(r.betaald))+' \u00B7 samen '+esc(geld(r.totaal))+
+          (r.aanmaningen? ' \u00B7 '+r.aanmaningen+' aanmaning(en) verstuurd' : '')+
+        '</div>'+
+        knop('Map openen', Object.assign({},BLAUW,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-klant="'+esc(r.naam)+'"'}))+
+      '</div>';
+    }).join('');
+  }
+  function klantPaginaHtml(){
+    var naam=gekozenKlant;
+    var l=vanJaar(basis()).filter(function(o){ return L(klant(o))===L(naam); })
+      .sort(function(a,b){ return String(datumVan(b)).localeCompare(String(datumVan(a))); });
+    var open=0, bet=0, tot=0, brieven=[];
+    l.forEach(function(o){
+      tot+=bedrag(o);
+      if(betaald(o)) bet+=bedrag(o);
+      else if(!contant(o) && !geenFactuur(o)) open+=bedrag(o);
+      verstuurd(o).forEach(function(x){ brieven.push({o:o, x:x}); });
+    });
+    brieven.sort(function(a,b){ return String(b.x.datum).localeCompare(String(a.x.datum)); });
+    var bet2=(acc().payments||[]).filter(function(p){ return L(p.customer)===L(naam); })
+      .sort(function(a,b){ return String(b.time).localeCompare(String(a.time)); });
+
+    return '<div style="margin-bottom:12px">'+knop('\u2190 Alle klanten', Object.assign({},GRIJS,{attr:'data-bh-klanten-terug'}))+'</div>'+
+      '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:16px;margin-bottom:12px">'+
+        '<div style="font-size:22px;font-weight:900;color:#0f172a">'+esc(naam)+'</div>'+
+        '<div style="font-size:13px;color:#64748b;margin-top:2px">'+(jaar==='alles'?'alle jaren':'jaar '+esc(jaar))+' \u00B7 '+l.length+' opdracht(en)</div>'+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">'+
+          tegel('Openstaand', l.filter(function(o){ return !betaald(o)&&!contant(o)&&!geenFactuur(o); }).length, open, '#dc2626')+
+          tegel('Betaald', l.filter(betaald).length, bet, '#15803d')+
+          tegel('Samen', l.length, tot, '#0f172a')+
+        '</div>'+
+      '</div>'+
+      '<div style="font-weight:900;color:#0f172a;margin:14px 0 8px">Facturen en opdrachten</div>'+
+      (l.length ? l.map(regelHtml).join('') : '<div style="color:#64748b">Niets gevonden.</div>')+
+      '<div style="font-weight:900;color:#0f172a;margin:16px 0 8px">Verstuurde aanmaningen ('+brieven.length+')</div>'+
+      (brieven.length ? brieven.map(function(r){
+        return '<div style="background:#fff;border:1px solid #e2e8f0;border-left:6px solid '+trapVan(r.x.trap).kleur+';border-radius:12px;padding:10px 13px;margin:0 0 7px">'+
+          tekstIn(esc(trapVan(r.x.trap).naam),'#0f172a','font-weight:900')+
+          tekstIn('&nbsp;&nbsp;factuur '+esc(invoiceNo(r.o)||orderNo(r.o)),'#334155','font-size:13px')+
+          '<div style="font-size:12px;color:#64748b;margin-top:3px">'+esc(nl(r.x.datum))+(r.x.door?' \u00B7 door '+esc(r.x.door):'')+'</div></div>';
+      }).join('') : '<div style="color:#64748b;font-size:14px">Nog geen aanmaningen verstuurd aan deze klant.</div>')+
+      '<div style="font-weight:900;color:#0f172a;margin:16px 0 8px">Betalingen ('+bet2.length+')</div>'+
+      (bet2.length ? bet2.map(function(p){
+        return '<div style="background:#fff;border:1px solid #e2e8f0;border-left:6px solid '+(p.paid?'#15803d':'#64748b')+';border-radius:12px;padding:10px 13px;margin:0 0 7px">'+
+          '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+            tekstIn(esc(T(p.invoiceNumber)||T(p.orderNumber)||'-'),'#0f172a','font-weight:900')+
+            '<span style="font-weight:900;color:#0f172a">'+esc(geld(p.amount))+'</span></div>'+
+          '<div style="font-size:12px;color:#64748b;margin-top:3px">'+esc(nl(T(p.time).slice(0,10)))+' \u00B7 '+(p.paid?'op betaald gezet':'teruggezet op openstaand')+'</div></div>';
+      }).join('') : '<div style="color:#64748b;font-size:14px">Nog geen betalingen vastgelegd.</div>');
+  }
+
+  /* ==========================================================
+     27-10-2026 - GEWIST IS NIET WEG.
+     ----------------------------------------------------------
+     [stated] "druk ik nu op 2027 zie ik die niet, maar kan zijn dat ik die
+     net per ongeluk gewist heb, dus er moet ook iets komen ongedaan of
+     terughalen of wijzigen."
+
+     Terecht, en dat had ik al twee keer voorgesteld. Een factuurregel wissen
+     zette alleen markeringen; de opdracht bleef gewoon bestaan. Hier staan ze
+     allemaal bij elkaar, met een knop om ze weer terug te zetten.
+  ========================================================== */
+  function gewist(){
+    var uit=[], gezien={};
+    orders().forEach(function(o){
+      if(!o || !verborgen(o)) return;
+      if(o.deleted===true || o.verwijderd===true) return;   /* echt verwijderde opdrachten horen hier niet */
+      var k=orderNo(o);
+      if(!k || gezien[k]) return;
+      gezien[k]=true;
+      if(jaar!=='alles' && String(jaarVan(o))!==String(jaar)) return;
+      var q=L(zoek);
+      if(q && [orderNo(o),invoiceNo(o),klant(o),titel(o)].join(' ').toLowerCase().indexOf(q)<0) return;
+      uit.push(o);
+    });
+    return uit;
+  }
+  function terughalen(o){
+    try{
+      ['accountingHidden','invoiceHidden','invoiceDeleted','factuurVerwijderd'].forEach(function(k){ delete o[k]; });
+      if(o.invoice){ delete o.invoice.hidden; delete o.invoice.deleted; delete o.invoice.accountingHidden; }
+      var a=acc();
+      if(Array.isArray(a.removedKeys)){
+        var nr=orderNo(o), fn=invoiceNo(o), id=T(o.id);
+        var sl=['factuur_'+(id||nr||fn), 'factuur_nr_'+nr, nr, fn].filter(Boolean);
+        a.removedKeys=a.removedKeys.filter(function(k){ return sl.indexOf(k)<0; });
+      }
+      bewaarOrder(o);
+    }catch(e){}
+  }
+  function gewistHtml(){
+    var l=gewist();
+    if(!l.length) return '<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:14px;padding:22px;color:#64748b">Er is niets gewist'+(jaar!=='alles'?' in '+esc(jaar):'')+'. Wat je hier wist kun je altijd terughalen.</div>';
+    return '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:11px 13px;margin-bottom:10px;font-size:13px;color:#7a3f06">'+
+        'Deze factuurregels zijn uit de boekhouding gehaald. De opdrachten zelf bestaan gewoon nog. Met Terughalen staan ze weer in de lijsten.'+
+      '</div>'+
+      l.map(function(o){
+        var id=T(o.id)||orderNo(o);
+        return '<div style="background:#fff;border:1px solid #e2e8f0;border-left:6px solid #78716c;border-radius:14px;padding:13px 14px;margin:0 0 9px">'+
+          '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:baseline">'+
+            tekstIn(esc(invoiceNo(o)||orderNo(o)),'#0f172a','font-weight:900;font-size:16px')+
+            tekstIn('&nbsp;&nbsp;'+esc(klant(o)||'klant onbekend'),'#334155','font-size:14px')+
+            '<span style="font-weight:900;color:#0f172a">'+esc(geld(bedrag(o)))+'</span>'+
+          '</div>'+
+          '<div style="font-size:12px;color:#64748b;margin:4px 0 10px">'+esc(titel(o)||'zonder omschrijving')+
+            (datumVan(o)?' \u00B7 '+esc(nl(datumVan(o))):'')+' \u00B7 opdracht '+esc(orderNo(o))+'</div>'+
+          '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+            knop('Terughalen', Object.assign({},GROEN,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-terug="'+esc(id)+'"'}))+
+            knop('Opdracht openen', Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-opdracht="'+esc(id)+'"'}))+
+          '</div>'+
+        '</div>';
+      }).join('');
   }
 
   function betalingen(){
@@ -62338,13 +62506,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var inst=w.querySelector('[data-bh-inst]'); if(inst) inst.addEventListener('click', function(){ instOpen=!instOpen; tekenen(true); });
 
     K('[data-bh-jaar]').forEach(function(b){ b.addEventListener('click', function(){ jaar=b.getAttribute('data-bh-jaar'); aangevinkt={}; tekenen(true); }); });
-    K('[data-bh-map]').forEach(function(b){ b.addEventListener('click', function(){ map=b.getAttribute('data-bh-map'); aangevinkt={}; tekenen(true); }); });
+    K('[data-bh-map]').forEach(function(b){ b.addEventListener('click', function(){ map=b.getAttribute('data-bh-map'); aangevinkt={}; gekozenKlant=''; tekenen(true); }); });
 
     var z=E('bnsTwBhZoek');
     if(z) z.addEventListener('input', function(){
       zoek=z.value;
       var box=E('bnsTwBhLijst');
-      if(box){ box.innerHTML = map==='betalingen'? betalingenHtml() : lijstHtml(); koppelRegels(); }
+      if(box){ box.innerHTML = welkeLijst(); koppelRegels(); }
     });
     var so=E('bnsTwBhSort');
     if(so) so.addEventListener('change', function(){ sortering=so.value; tekenen(true); });
@@ -62430,6 +62598,19 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         if(vorige>=trap) tekst+=' Let op: er is al een '+trapVan(vorige).naam.toLowerCase()+' verstuurd.';
         vraag(t.naam, tekst+' Hij opent in een nieuw venster en wordt vastgelegd bij de opdracht.', t.naam+' maken', {vlak:t.kleur,inkt:'#fff',rand:'0'})
           .then(function(ja){ if(ja) aanmaningMaken(o, trap); });
+      });
+    });
+    K('[data-bh-klant]').forEach(function(b){
+      b.addEventListener('click', function(){ gekozenKlant=b.getAttribute('data-bh-klant'); zoek=''; tekenen(true); });
+    });
+    K('[data-bh-klanten-terug]').forEach(function(b){
+      b.addEventListener('click', function(){ gekozenKlant=''; tekenen(true); });
+    });
+    K('[data-bh-terug]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var o=vindOrder(b.getAttribute('data-bh-terug')); if(!o) return;
+        vraag('Terughalen','De factuurregel van '+(invoiceNo(o)||orderNo(o))+' komt weer terug in de boekhouding.','Terughalen',GROEN)
+          .then(function(ja){ if(ja){ terughalen(o); tekenen(true); } });
       });
     });
     K('[data-bh-wis]').forEach(function(b){
