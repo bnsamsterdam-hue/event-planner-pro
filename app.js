@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING22-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING23-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -62440,6 +62440,49 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       });
     });
   }
+
+  /* ==========================================================
+     27-10-2026 - DE KNOP IN DE ZIJBALK LOOPT OM DE CENTRALE WEG HEEN.
+     ----------------------------------------------------------
+     [stated] "ik zie in boekhouding totaal niets nieuws."
+
+     Klopte. Ik had de centrale functie overgenomen, en er is ook een
+     afhandeling op documentniveau die die functie aanroept - dus op papier
+     was het goed. Maar de knop Boekhouding in de zijbalk krijgt bij het
+     aanmaken zijn EIGEN onclick, die rechtstreeks de oude functie binnen dat
+     blok aanroept. Die gaat om alles heen wat ik overneem, en wordt bovendien
+     met enige regelmaat opnieuw gezet.
+
+     Daarom hier een afhandeling op het niveau van het VENSTER, in de
+     vangfase. Die komt voor alle andere aan de beurt - ook voor een onclick
+     die later opnieuw wordt gezet - en daarmee is het niet langer een
+     wedstrijdje wie het laatst schrijft.
+
+     Alleen een knop waar precies "Boekhouding" op staat. Een regel als
+     "Boekhouding (facturen)" in het opruimscherm is iets anders en blijft
+     met rust.
+  ========================================================== */
+  function isBoekhoudKnop(el){
+    if(!el) return false;
+    if(T(el.id)==='twAuSideButton') return true;
+    var t=L(el.textContent||'');
+    if(t!=='boekhouding') return false;
+    try{
+      if(scherm().contains(el)) return false;                 /* mijn eigen scherm */
+      if(el.closest('#tw300AUModal,#bns528BoekhoudingModal')) return false;  /* de oude vensters */
+    }catch(e){}
+    return true;
+  }
+  window.addEventListener('click', function(ev){
+    try{
+      var el=ev.target && ev.target.closest && ev.target.closest('button,a,.nav');
+      if(!isBoekhoudKnop(el)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      open();
+    }catch(e){}
+  }, true);
 
   /* ---------------- de knop Boekhouding wijst hierheen ---------------- */
   function overnemen(){
