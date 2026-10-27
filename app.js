@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING30-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING32-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -61065,6 +61065,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{
       if(keuze) o.betaling={soort:T(keuze.soort), dagen:N(keuze.dagen)};
       else delete o.betaling;
+      /* 27-10-2026: het oude losse vinkje uit het Admin-blok weghalen, anders
+         blijven twee markeringen elkaar tegenspreken. Kies je hier Geen
+         factuur, dan zegt betaling.soort dat al. */
+      if(keuze) try{ delete o.geenFactuur; }catch(e){}
       o.updatedAt=new Date().toISOString();
       try{ if(typeof save==='function') save(); }catch(e){}
       try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
@@ -61881,10 +61885,40 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{ var s=S(); var l2=s&&s.settings&&s.settings.geenFactuurKlanten; if(Array.isArray(l2)) return l2.map(L); }catch(e){}
     return [];
   }
+  /* ==========================================================
+     27-10-2026 - TWEE MARKERINGEN OVER ELKAAR HEEN.
+     ----------------------------------------------------------
+     [stated] "ik open de opdracht, ik druk 8 dagen in, sla op, maar hij
+     blijft gewoon op geen factuur staan."
+
+     Precies wat er gebeurde. Gisteren bouwden we het vinkje Geen factuur in
+     het Admin-blok; dat zet `geenFactuur` op de opdracht. Vandaag kwam de
+     keuze Betaling in de opdracht zelf, die `betaling.soort` zet. Ik keek
+     eerst naar dat oude vinkje, en die bleef dus winnen van wat jij net had
+     gekozen.
+
+     Nu geldt de volgorde die je zou verwachten: wat je ZELF in de opdracht
+     kiest gaat voor alles. Pas als daar niets staat, telt het oude vinkje,
+     en daarna de standaard van de klant. Bij het opslaan wordt het oude
+     vinkje bovendien opgeruimd, zodat ze elkaar niet meer kunnen
+     tegenspreken.
+  ========================================================== */
+  function klantKeuze(o){
+    try{
+      var k=window.BNS_TW_BETALING && window.BNS_TW_BETALING.klanten && window.BNS_TW_BETALING.klanten();
+      if(!k) return '';
+      var r=k[L(klant(o))];
+      return T(r && r.soort);
+    }catch(e){}
+    return '';
+  }
   function geenFactuur(o){
-    if(termijnSoort(o)==='geen') return true;
-    if(o && o.geenFactuur===true) return true;
+    var eigen=T(o && o.betaling && o.betaling.soort);
+    if(eigen) return eigen==='geen';                 /* jouw keuze in de opdracht wint van alles */
+    if(o && o.geenFactuur===true) return true;       /* daarna het oude vinkje op de opdracht */
     if(o && o.geenFactuur===false) return false;
+    var vanKlant=klantKeuze(o);
+    if(vanKlant) return vanKlant==='geen';           /* een ingestelde klantstandaard wint van de oude lijst */
     return oudeGeenKlanten().indexOf(L(klant(o)))>=0;
   }
   function contant(o){ return termijnSoort(o)==='contant'; }
