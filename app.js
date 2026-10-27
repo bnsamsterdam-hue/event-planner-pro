@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING33-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING34-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -62149,22 +62149,74 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      sluiten gaat hij weer los op precies dezelfde plek - anders spring je
      bij het dichtdoen terug naar boven.
   ========================================================== */
-  var pagStand=null;
+  var pagStand=null, lagenVast=[];
+  /* ----------------------------------------------------------
+     27-10-2026, tweede ronde: de pagina zette ik al vast, en toch stonden er
+     nog twee balken. Dan schuift er dus nog een LAAG mee - een ouder venster
+     dat open bleef staan onder het mijne, met zijn eigen schuifbalk ernaast.
+
+     In plaats van raden welk venster dat is, kijken we gewoon wie er op dit
+     moment groot over het scherm ligt en zelf kan schuiven. Die zetten we
+     stil zolang Boekhouding open is, en we laten in de console weten welke
+     het was. Bij het sluiten gaat alles terug zoals het stond.
+  ---------------------------------------------------------- */
+  function andereLagenVast(){
+    lagenVast=[];
+    var namen=[];
+    try{
+      var mijn=scherm();
+      var kandidaten=Array.prototype.slice.call(document.querySelectorAll('body > *'));
+      kandidaten.forEach(function(el){
+        if(!el || el===mijn || el.nodeType!==1) return;
+        if(/^(SCRIPT|STYLE|LINK|META|NOSCRIPT)$/.test(el.tagName)) return;
+        if(mijn.contains(el) || el.contains(mijn)) return;
+        var cs=window.getComputedStyle(el);
+        if(!cs || cs.display==='none' || cs.visibility==='hidden') return;
+        var y=cs.overflowY, x=cs.overflow;
+        var kanSchuiven=(y==='auto'||y==='scroll'||x==='auto'||x==='scroll');
+        if(!kanSchuiven) return;
+        if(el.scrollHeight <= el.clientHeight+2) return;
+        var r=el.getBoundingClientRect();
+        if(r.height < window.innerHeight*0.5 || r.width < window.innerWidth*0.5) return;
+        lagenVast.push({el:el, waarde:el.style.overflowY||'', had:el.style.getPropertyPriority('overflow-y')});
+        el.style.setProperty('overflow-y','hidden','important');
+        namen.push((el.id? '#'+el.id : el.tagName.toLowerCase())+(el.className&&typeof el.className==='string'? '.'+el.className.trim().split(/\s+/)[0] : ''));
+      });
+    }catch(e){}
+    if(namen.length){ try{ console.info('[BNS TW Boekhouding] tweede schuifbalk stilgezet bij:', namen.join(', ')); }catch(e){} }
+    return namen;
+  }
+  function andereLagenLos(){
+    try{
+      lagenVast.forEach(function(r){
+        try{
+          r.el.style.removeProperty('overflow-y');
+          if(r.waarde) r.el.style.overflowY=r.waarde;
+        }catch(e){}
+      });
+    }catch(e){}
+    lagenVast=[];
+  }
   function pagVast(){
     if(pagStand!==null) return;
     try{
       pagStand={ y: window.pageYOffset||document.documentElement.scrollTop||0,
                  body: document.body.style.overflow||'',
                  html: document.documentElement.style.overflow||'' };
-      document.body.style.overflow='hidden';
-      document.documentElement.style.overflow='hidden';
+      /* met voorrang, anders wint een !important-regel uit het stijlblad */
+      document.body.style.setProperty('overflow','hidden','important');
+      document.documentElement.style.setProperty('overflow','hidden','important');
     }catch(e){ pagStand=null; }
+    andereLagenVast();
   }
   function pagLos(terug){
+    andereLagenLos();
     if(pagStand===null) return;
     try{
-      document.body.style.overflow=pagStand.body;
-      document.documentElement.style.overflow=pagStand.html;
+      document.body.style.removeProperty('overflow');
+      document.documentElement.style.removeProperty('overflow');
+      if(pagStand.body) document.body.style.overflow=pagStand.body;
+      if(pagStand.html) document.documentElement.style.overflow=pagStand.html;
       var y=pagStand.y;
       /* alleen terugzetten als je in de app blijft staan; ga je door naar een
          opdracht, dan bepaalt dat scherm zelf waar je uitkomt */
