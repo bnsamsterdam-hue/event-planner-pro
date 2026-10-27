@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING29-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING30-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -62265,12 +62265,56 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     });
     return {offerte:offerte, gewist:gewistN, anderJaar:anderJaar};
   }
+  /* ==========================================================
+     27-10-2026 - HERSTELLEN WAAR HET PROBLEEM ZICHTBAAR IS.
+     ----------------------------------------------------------
+     [stated] "ik heb gister alle nog te facturen gewist, sindsdien zie ik ze
+     niet, en als ik eerst in archief moet zoeken en terugzetten is veel te
+     veel gedoe."
+
+     Terecht. Een melding die zegt waar je het kunt oplossen is minder waard
+     dan een knop die het oplost. Staat er iets gewist in dit jaar, dan staat
+     die knop hier, onder de lege lijst.
+
+     En zoek je een klant terwijl je in de verkeerde map staat, dan zegt hij
+     nu hoeveel er elders van die klant te vinden is, met een knop die je er
+     meteen heen brengt - in plaats van alleen te melden dat hier niets is.
+  ========================================================== */
+  function zoekElders(){
+    var q=L(zoek);
+    if(!q) return null;
+    var raak=allesVanKlanten().filter(function(o){
+      var waar;
+      if(zoekIn==='klant')        waar=[klant(o)];
+      else if(zoekIn==='locatie') waar=[locatie(o)];
+      else if(zoekIn==='nummer')  waar=[orderNo(o), invoiceNo(o)];
+      else                        waar=[orderNo(o), invoiceNo(o), klant(o), locatie(o), titel(o)];
+      return waar.join(' ').toLowerCase().indexOf(q)>=0;
+    });
+    if(!raak.length) return null;
+    var namen={};
+    raak.forEach(function(o){ namen[T(klant(o))||'(zonder klantnaam)']=true; });
+    return {aantal:raak.length, namen:Object.keys(namen)};
+  }
   function leegUitleg(){
-    var b=buitenBeeld(), r=[];
-    if(b.offerte) r.push('<b>'+b.offerte+'</b> staan nog op offerte, optie of geannuleerd - die horen niet in de boekhouding');
-    if(b.gewist) r.push('<b>'+b.gewist+'</b> zijn gewist - die staan in de map Gewist en kun je daar terughalen');
-    if(!r.length) return 'Er staat in dit jaar niets in deze map.';
-    return 'Er staat in dit jaar niets in deze map. Wel buiten beeld: '+r.join(', ')+'.';
+    var b=buitenBeeld(), r=[], knoppen='';
+    var e=zoekElders();
+    if(e){
+      r.push('<b>'+e.aantal+'</b> opdracht(en) met "'+esc(zoek)+'" staan er wel, bij '+
+             (e.namen.length===1 ? '<b>'+esc(e.namen[0])+'</b>' : e.namen.length+' klanten'));
+      knoppen += knop(e.namen.length===1 ? 'Open de map van '+esc(e.namen[0]) : 'Bekijk ze bij Klanten',
+        Object.assign({},BLAUW,{extra:'padding:9px 14px;margin-right:7px',attr:'data-bh-naar-klant="'+esc(e.namen.length===1?e.namen[0]:'')+'"'}));
+    }
+    if(b.offerte) r.push('<b>'+b.offerte+'</b> staan op offerte, optie of geannuleerd - die horen niet in de boekhouding');
+    if(b.gewist){
+      r.push('<b>'+b.gewist+'</b> zijn gewist');
+      knoppen += knop('Haal die '+b.gewist+' gewiste regels terug',
+        Object.assign({},GROEN,{extra:'padding:9px 14px;margin-right:7px',attr:'data-bh-herstel-hier'}));
+    }
+    var tekst = r.length
+      ? 'Er staat in deze map niets'+(jaar==='alles'?'':' voor '+esc(jaar))+'. Wel buiten beeld: '+r.join(', ')+'.'
+      : 'Er staat in deze map niets'+(jaar==='alles'?'':' voor '+esc(jaar))+'.';
+    return tekst + (knoppen? '<div style="margin-top:12px">'+knoppen+'</div>' : '');
   }
 
   function lijstHtml(){
@@ -62926,6 +62970,22 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     });
     K('[data-bh-klant]').forEach(function(b){
       b.addEventListener('click', function(){ gekozenKlant=b.getAttribute('data-bh-klant'); zoek=''; tekenen(true); });
+    });
+    var hh=w.querySelector('[data-bh-herstel-hier]');
+    if(hh) hh.addEventListener('click', function(){
+      var l=gewist();
+      if(!l.length){ meld('Niets te herstellen','Er staat niets gewist in dit jaar.'); return; }
+      vraag('Terughalen', l.length+' gewiste factuurregel(s) komen weer terug in de boekhouding'+(jaar==='alles'?'':' van '+jaar)+'. Daarna staan ze weer gewoon in de lijsten.','Terughalen',GROEN)
+        .then(function(ja){ if(!ja) return; l.forEach(terughalen); tekenen(true); });
+    });
+    K('[data-bh-naar-klant]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var n=b.getAttribute('data-bh-naar-klant');
+        map='klanten';
+        gekozenKlant=T(n);
+        if(gekozenKlant) zoek='';
+        tekenen(true);
+      });
     });
     K('[data-bh-klap]').forEach(function(b){
       b.addEventListener('click', function(){
