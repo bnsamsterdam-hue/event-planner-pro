@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FACTUUR17-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-FACTUUR18-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -56327,6 +56327,30 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         wasOpen=true;
         opdrachtId=huidigeOpdracht()||opdrachtId;
         velden=veldenNu();
+      } else {
+        /* ==========================================================
+           27-10-2026 - VERGETEN HOORT OOK BIJ ONTHOUDEN.
+           ----------------------------------------------------------
+           [stated] "druk ik annuleren gaat hij weg, en ga ik dan weer naar
+           admin facturen en ik wissel even van pagina en kom terug, dan opent
+           hij steeds weer de laatste opdracht die ik geopend had. Het is dus
+           alleen als ik even naar een andere site ga en weer terugkom."
+
+           Precies wat hier gebeurde. Deze wacht onthield bij vertrek welke
+           opdracht openstond, maar zette dat nooit meer terug op leeg. Sloot
+           je het scherm daarna bewust met Annuleren, dan bleef die herinnering
+           staan - en bij de eerstvolgende terugkomst uit een ander venster
+           werd de opdracht opnieuw geopend. En omdat elke keer weggaan de klok
+           opnieuw startte, bleef dat eindeloos doorgaan.
+
+           Staat het wijzigscherm NIET open op het moment dat je weggaat, dan
+           was dat een bewuste keuze en is er niets te herstellen. De wacht
+           blijft doen waar hij voor is: je half ingevulde opdracht terugzetten
+           als die dichtvalt terwijl je even een pdf bekijkt.
+        ========================================================== */
+        wasOpen=false;
+        opdrachtId='';
+        velden=null;
       }
       wegTijd=Date.now();
     }catch(e){}
@@ -56384,6 +56408,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
             try{ if(typeof toastMsg==='function') toastMsg('Je wijziging staat er nog - je kunt opslaan'); }catch(e){}
           }, 400);
 
+          /* een keer terugzetten is genoeg; anders komt hij bij elke
+             volgende terugkomst opnieuw langs */
+          wasOpen=false;
           clearInterval(tikker); bezig=false;
         }catch(e){ clearInterval(tikker); bezig=false; }
       }, 600);
@@ -61458,7 +61485,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
               return knop(esc(x.naam), {vlak: aan?x.kleur:'#ffffff', inkt: aan?'#ffffff':x.kleur, rand: aan?'0':'2px solid '+x.kleur,
                 extra:'padding:8px 13px;font-size:13px', attr:'data-of-aanmaning="'+esc(id)+'|'+x.k+'"'});
             }).join('') : '')+
-            (metFactuur? knop('Wis factuurregel', Object.assign({},DONKER,{extra:'padding:8px 13px;font-size:13px',attr:'data-of-wis="'+esc(id)+'"'})) : '')+
+            /* 27-10-2026: [stated] "er moet dus bij elke opdracht los ook de
+               mogelijkheid zijn om te wissen." Stond alleen bij de openstaande
+               facturen en verder achter Meerdere tegelijk; nu overal per regel. */
+            (isGeen? '' : knop('Wis factuurregel', Object.assign({},DONKER,{extra:'padding:8px 13px;font-size:13px',attr:'data-of-wis="'+esc(id)+'"'})))+
           '</div>'+
         '</div>'+
       '</div>';
