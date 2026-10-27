@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING24-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BOEKHOUDING25-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -61730,6 +61730,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   var KLANT_GEEN_KEY='bns_tw_geen_factuur_klanten';
 
   var map='openstaand', jaar='', zoek='', sortering='datum', instOpen=false;
+  /* 27-10-2026: [stated] "klanten moeten gevonden kunnen worden in klant of
+     locatie, deze scheiden in zoekbalk functie." Vandaar een keuze naast het
+     zoekveld in plaats van alles door elkaar. */
+  var zoekIn='alles';
   var meerStand=false, aangevinkt={};
 
   function T(v){ return String(v==null?'':v).trim(); }
@@ -61756,6 +61760,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function orderNo(o){ return T(o && (o.number||o.nr||o.orderNumber||o.opdrachtNr||o.id)); }
   function invoiceNo(o){ return T(o && o.invoice && (o.invoice.invoiceNumber||o.invoice.number)) || T(o && (o.invoiceNumber||o.factuurNr||o.factuur||o.factuurNummer)); }
   function klant(o){ return T(o && o.customer && o.customer.name) || T(o && (o.customerName||o.klant)); }
+  function locatie(o){
+    var l=(o && o.location) || {};
+    return [T(l.name), T(l.city||l.plaats), T(l.street||l.adres)].filter(Boolean).join(' ');
+  }
+  function locatieKort(o){
+    var l=(o && o.location) || {};
+    return [T(l.name), T(l.city||l.plaats)].filter(Boolean).join(' - ');
+  }
   function titel(o){ return T(o && (o.title||o.name||o.naam)); }
   function betaald(o){
     return !!(o && (o.paid===true || o.betaald===true || o.paymentStatus==='paid' ||
@@ -61882,7 +61894,12 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function past(o){
     var q=L(zoek);
     if(!q) return true;
-    return [orderNo(o),invoiceNo(o),klant(o),titel(o),jaarVan(o)].join(' ').toLowerCase().indexOf(q)>=0;
+    var waar;
+    if(zoekIn==='klant')        waar=[klant(o)];
+    else if(zoekIn==='locatie') waar=[locatie(o)];
+    else if(zoekIn==='nummer')  waar=[orderNo(o), invoiceNo(o)];
+    else                        waar=[orderNo(o), invoiceNo(o), klant(o), locatie(o), titel(o), jaarVan(o)];
+    return waar.join(' ').toLowerCase().indexOf(q)>=0;
   }
   function sorteer(l){
     var c=l.slice();
@@ -62120,6 +62137,11 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           /* gereedschap */
           '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'+
             '<input id="bnsTwBhZoek" type="search" placeholder="'+(map==='klanten'&&!gekozenKlant?'Zoek een klant':'Zoek factuur, opdracht, klant of titel')+'" value="'+esc(zoek)+'" style="flex:1 1 280px;min-width:0;padding:11px 13px;border:1px solid #cbd5e1;border-radius:12px">'+
+            '<select id="bnsTwBhWaar" style="padding:11px 13px;border:1px solid #cbd5e1;border-radius:12px">'+
+              [['alles','Zoek overal'],['klant','Alleen klant'],['locatie','Alleen locatie'],['nummer','Alleen nummer']].map(function(x){
+                return '<option value="'+x[0]+'"'+(zoekIn===x[0]?' selected':'')+'>'+x[1]+'</option>';
+              }).join('')+
+            '</select>'+
             '<select id="bnsTwBhSort" style="padding:11px 13px;border:1px solid #cbd5e1;border-radius:12px">'+
               [['datum','Nieuwste eerst'],['open','Langst open'],['bedrag','Hoogste bedrag'],['klant','Klantnaam']].map(function(x){
                 return '<option value="'+x[0]+'"'+(sortering===x[0]?' selected':'')+'>'+x[1]+'</option>';
@@ -62169,6 +62191,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         '</div>'+
         '<div style="font-size:12px;color:#64748b;margin:4px 0 10px">'+
           esc(titel(o)||'zonder omschrijving')+
+          (locatieKort(o)? ' · '+esc(locatieKort(o)) : '')+
           (heeftFac? ' · opdracht '+esc(orderNo(o)) : ' · nog geen factuurnummer')+
           (datumVan(o)? ' · '+esc(nl(datumVan(o))) : '')+
           (!isBet && dagen!=null? ' · '+dagen+' dagen' : '')+
@@ -62215,11 +62238,25 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   ========================================================== */
   function klanten(){
     var per={};
-    vanJaar(basis()).forEach(function(o){
+    /* ==========================================================
+       27-10-2026 - EEN KLANT ZOEK JE NIET BINNEN EEN JAAR.
+       ----------------------------------------------------------
+       [stated] "kan niet op klanten zoeken, hij vindt geen overeenkomsten."
+       Hier stond vanJaar(...): de klantenlijst ging alleen over het jaar dat
+       openstond. Zocht je iemand die dit jaar niets had, dan vond je niets -
+       terwijl die klant gewoon bestaat. Zoeken gaat nu over ALLE jaren; de
+       bedragen zijn die van het gekozen jaar, met erachter hoeveel er in
+       andere jaren staat.
+    ========================================================== */
+    basis().forEach(function(o){
       var n=T(klant(o))||'(zonder klantnaam)';
       var k=L(n);
-      if(!per[k]) per[k]={naam:n, orders:[], open:0, betaald:0, totaal:0, aanmaningen:0};
+      if(!per[k]) per[k]={naam:n, orders:[], buiten:0, open:0, betaald:0, totaal:0, aanmaningen:0, locaties:{}};
       var r=per[k];
+      var ditJaar=(jaar==='alles' || String(jaarVan(o))===String(jaar));
+      var lk=locatieKort(o);
+      if(lk) r.locaties[lk]=true;
+      if(!ditJaar){ r.buiten++; return; }
       r.orders.push(o);
       r.totaal+=bedrag(o);
       if(betaald(o)) r.betaald+=bedrag(o);
@@ -62228,8 +62265,12 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     });
     var l=Object.keys(per).map(function(k){ return per[k]; });
     var q=L(zoek);
-    if(q) l=l.filter(function(r){ return L(r.naam).indexOf(q)>=0; });
-    return l.sort(function(a,b){ return b.open-a.open || b.totaal-a.totaal; });
+    if(q) l=l.filter(function(r){
+      if(zoekIn==='locatie') return Object.keys(r.locaties).join(' ').toLowerCase().indexOf(q)>=0;
+      if(zoekIn==='klant')   return L(r.naam).indexOf(q)>=0;
+      return L(r.naam).indexOf(q)>=0 || Object.keys(r.locaties).join(' ').toLowerCase().indexOf(q)>=0;
+    });
+    return l.sort(function(a,b){ return b.open-a.open || b.totaal-a.totaal || L(a.naam).localeCompare(L(b.naam)); });
   }
   function klantenHtml(){
     var l=klanten();
@@ -62241,8 +62282,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           '<span style="font-weight:900;font-size:16px;color:'+(r.open>0?'#b91c1c':'#15803d')+'">'+esc(geld(r.open))+' open</span>'+
         '</div>'+
         '<div style="font-size:12px;color:#64748b;margin:4px 0 10px">'+
-          r.orders.length+' opdracht(en) \u00B7 betaald '+esc(geld(r.betaald))+' \u00B7 samen '+esc(geld(r.totaal))+
+          r.orders.length+' opdracht(en)'+(jaar==='alles'?'':' in '+esc(jaar))+' \u00B7 betaald '+esc(geld(r.betaald))+' \u00B7 samen '+esc(geld(r.totaal))+
           (r.aanmaningen? ' \u00B7 '+r.aanmaningen+' aanmaning(en) verstuurd' : '')+
+          (r.buiten? ' \u00B7 <b>'+r.buiten+' in andere jaren</b>' : '')+
+          (Object.keys(r.locaties).length? '<br>Locaties: '+esc(Object.keys(r.locaties).slice(0,4).join(' \u00B7 '))+(Object.keys(r.locaties).length>4?' \u00B7 ...':'') : '')+
         '</div>'+
         knop('Map openen', Object.assign({},BLAUW,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-klant="'+esc(r.naam)+'"'}))+
       '</div>';
@@ -62250,8 +62293,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
   function klantPaginaHtml(){
     var naam=gekozenKlant;
-    var l=vanJaar(basis()).filter(function(o){ return L(klant(o))===L(naam); })
-      .sort(function(a,b){ return String(datumVan(b)).localeCompare(String(datumVan(a))); });
+    var alleJaren=basis().filter(function(o){ return L(klant(o))===L(naam); });
+    var l=vanJaar(alleJaren).sort(function(a,b){ return String(datumVan(b)).localeCompare(String(datumVan(a))); });
+    var buiten=alleJaren.length-l.length;
     var open=0, bet=0, tot=0, brieven=[];
     l.forEach(function(o){
       tot+=bedrag(o);
@@ -62266,7 +62310,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return '<div style="margin-bottom:12px">'+knop('\u2190 Alle klanten', Object.assign({},GRIJS,{attr:'data-bh-klanten-terug'}))+'</div>'+
       '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:16px;margin-bottom:12px">'+
         '<div style="font-size:22px;font-weight:900;color:#0f172a">'+esc(naam)+'</div>'+
-        '<div style="font-size:13px;color:#64748b;margin-top:2px">'+(jaar==='alles'?'alle jaren':'jaar '+esc(jaar))+' \u00B7 '+l.length+' opdracht(en)</div>'+
+        '<div style="font-size:13px;color:#64748b;margin-top:2px">'+(jaar==='alles'?'alle jaren':'jaar '+esc(jaar))+' \u00B7 '+l.length+' opdracht(en)'+
+          (buiten? ' \u00B7 '+buiten+' in andere jaren - kies hierboven Alle jaren' : '')+'</div>'+
         '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">'+
           tegel('Openstaand', l.filter(function(o){ return !betaald(o)&&!contant(o)&&!geenFactuur(o); }).length, open, '#dc2626')+
           tegel('Betaald', l.filter(betaald).length, bet, '#15803d')+
@@ -62516,6 +62561,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     });
     var so=E('bnsTwBhSort');
     if(so) so.addEventListener('change', function(){ sortering=so.value; tekenen(true); });
+    var wa=E('bnsTwBhWaar');
+    if(wa) wa.addEventListener('change', function(){ zoekIn=wa.value; tekenen(true); });
 
     var tb=w.querySelector('[data-bh-tbewaar]');
     if(tb) tb.addEventListener('click', function(){
