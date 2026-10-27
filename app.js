@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FACTUUR18-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BETALING21-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -61022,6 +61022,25 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(o.accountingHidden===true || o.invoiceHidden===true || o.invoiceDeleted===true || o.factuurVerwijderd===true) return true;
     if(o.invoice && (o.invoice.hidden===true || o.invoice.deleted===true || o.invoice.accountingHidden===true)) return true;
     if(o.deleted===true || o.verwijderd===true) return true;
+    /* ==========================================================
+       27-10-2026 - GELIJK LOPEN MET BOEKHOUDING.
+       ----------------------------------------------------------
+       [stated] "hoe loopt dit met rubriek boekhouding, is dit allemaal op
+       elkaar afgestemd?"
+       Bijna. Boekhouding slaat een factuurregel over op twee manieren: aan de
+       markeringen hierboven OF omdat de sleutel in accounting.removedKeys
+       staat. Dat tweede keek ik niet na. Een regel die ooit op de oude manier
+       is weggehaald, stond daardoor hier wel en in Boekhouding niet.
+    ========================================================== */
+    try{
+      var s=S(), a=(s && s.accounting) || {};
+      var weg=a.removedKeys;
+      if(Array.isArray(weg) && weg.length){
+        var nr=orderNo(o), fn=invoiceNo(o), id=T(o.id);
+        var sleutels=['factuur_'+(id||nr||fn), 'factuur_nr_'+nr, nr, fn].filter(Boolean);
+        for(var i=0;i<sleutels.length;i++){ if(weg.indexOf(sleutels[i])>=0) return true; }
+      }
+    }catch(e){}
     return false;
   }
   /* [stated] alles behalve offerte, optie, geannuleerd en verwijderd. */
@@ -61049,9 +61068,21 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     orders().forEach(function(o){
       if(!o || verborgen(o) || !telMee(o) || betaald(o)) return;
       var sleutel=orderNo(o);
-      if(!sleutel || gezien[sleutel]) return;
-      gezien[sleutel]=true;
-      uit.push(o);
+      if(!sleutel) return;
+      if(!gezien[sleutel]){ gezien[sleutel]=o; uit.push(o); return; }
+      /* 27-10-2026: bij een dubbel opdrachtnummer hield ik de eerste die ik
+         tegenkwam; Boekhouding houdt juist de LAATST bijgewerkte. In dit
+         bestand zitten dubbele opdrachtnummers, dus dat kon betekenen dat de
+         twee schermen een ander exemplaar lieten zien - met een ander bedrag.
+         Nu allebei de laatst bijgewerkte. */
+      var oud=gezien[sleutel];
+      var to=Date.parse(T(oud.updatedAt||oud.modifiedAt||oud.createdAt||0))||0;
+      var tn=Date.parse(T(o.updatedAt||o.modifiedAt||o.createdAt||0))||0;
+      if(tn>=to){
+        gezien[sleutel]=o;
+        var ix=uit.indexOf(oud);
+        if(ix>=0) uit[ix]=o;
+      }
     });
     return uit;
   }
@@ -61808,4 +61839,753 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     teksten:teksten
   };
   try{ console.info('[BNS TW Openstaand] Openstaande facturen actief - window.BNS_TW_OPENSTAAND.lijst()'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS TW BETALING - de afspraak staat in de opdracht (27-10-2026)
+   ----------------------------------------------------------
+   [stated] "wel moeten we het heel goed samen laten werken met de opdracht /
+   nieuwe opdracht, want daar is de basis waar je al zegt wel of geen factuur,
+   30 dagen of 8 dagen klant of contant klant, want een contant klant heeft
+   geen alert nodig."
+
+   Dit blok zet die keuze in het opdrachtformulier en nergens anders. Het
+   knipperende icoon op de kaart, het venster bij de startdatum en de
+   boekhouding lezen alle drie HIER wat er is afgesproken, zodat er maar een
+   plek is waar het staat.
+
+   DE KEUZE
+     8 dagen    - betalen tot acht dagen voor levering. Dit is de regel bij
+                  Tapwagen, dus dit geldt ook als er niets is ingevuld.
+     30 dagen   - rekeningklant.
+     Anders     - zelf een aantal dagen invullen.
+     Contant    - wordt ter plekke afgerekend. Nooit een melding.
+     Geen factuur - gaat buiten dit systeem om. Nooit een melding.
+   Betaald is geen termijn maar een stand; die knop zet dezelfde velden als de
+   boekhouding, via de functie die daar al voor bestaat.
+
+   PER KLANT
+   Vaste klanten hoef je het maar een keer te zeggen. De standaard wordt
+   bewaard op de NAAM van de klant, want op een opdracht zit geen vast
+   klantnummer. Een keuze op de opdracht zelf gaat altijd voor.
+
+   Het formulier wordt niet herschreven; dit blok hangt zichzelf onder de kop
+   van de opdracht. Gaat er hier iets mis, dan blijft het formulier werken.
+
+   Console: window.BNS_TW_BETALING.stand()
+========================================================== */
+(function bnsTwBetaling(){
+  'use strict';
+  if(window.__BNS_TW_BETALING__) return;
+  window.__BNS_TW_BETALING__=true;
+
+  var VAK='bnsTwBetalingVak';
+  var KLANT_KEY='bns_tw_betaaltermijn_klanten';
+  var STANDAARD={soort:'8dagen', dagen:8};
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function L(v){ return T(v).toLowerCase(); }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function E(id){ return document.getElementById(id); }
+  function N(v){ var n=parseInt(String(v==null?'':v).replace(/[^0-9-]/g,''),10); return isFinite(n)?n:0; }
+  function S(){
+    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function orders(){ var s=S(); return (s && Array.isArray(s.orders)) ? s.orders : []; }
+  function klantVan(o){ return T(o && o.customer && o.customer.name) || T(o && (o.customerName||o.klant)); }
+
+  var SOORTEN=[
+    {k:'8dagen',  naam:'8 dagen voor levering', kort:'8 dagen',   kleur:'#1765d8', meldt:true},
+    {k:'30dagen', naam:'30 dagen (rekening)',   kort:'30 dagen',  kleur:'#7c3aed', meldt:true},
+    {k:'anders',  naam:'Anders',                kort:'eigen termijn', kleur:'#0d9488', meldt:true},
+    {k:'contant', naam:'Contant',               kort:'contant',   kleur:'#b45309', meldt:false},
+    {k:'geen',    naam:'Geen factuur',          kort:'geen factuur', kleur:'#64748b', meldt:false}
+  ];
+  function soortVan(k){ var u=SOORTEN[0]; SOORTEN.forEach(function(s){ if(s.k===T(k)) u=s; }); return u; }
+
+  /* ---------------- standaard per klant ---------------- */
+  function klantLijst(){
+    try{
+      var o=JSON.parse(localStorage.getItem(KLANT_KEY)||'null');
+      if(o && typeof o==='object') return o;
+    }catch(e){}
+    try{
+      var s=S();
+      var l=s && s.settings && s.settings.betaaltermijnKlanten;
+      if(l && typeof l==='object') return l;
+    }catch(e){}
+    return {};
+  }
+  function klantLijstOpslaan(o){
+    try{ localStorage.setItem(KLANT_KEY, JSON.stringify(o)); }catch(e){}
+    try{
+      var s=S();
+      if(s){ s.settings=s.settings||{}; s.settings.betaaltermijnKlanten=o; if(typeof save==='function') save(); }
+    }catch(e){}
+  }
+  function klantStandaard(naam){
+    var n=L(naam);
+    if(!n) return null;
+    var l=klantLijst();
+    return l[n] || null;
+  }
+  function klantZetten(naam, keuze){
+    var n=L(naam);
+    if(!n) return;
+    var l=klantLijst();
+    if(keuze) l[n]=keuze; else delete l[n];
+    klantLijstOpslaan(l);
+  }
+
+  /* ---------------- wat geldt er voor deze opdracht ---------------- */
+  function termijnVan(o){
+    var eigen=o && o.betaling;
+    if(eigen && T(eigen.soort)) return {soort:T(eigen.soort), dagen:N(eigen.dagen)||soortDagen(eigen.soort), bron:'opdracht'};
+    var k=klantStandaard(klantVan(o));
+    if(k && T(k.soort)) return {soort:T(k.soort), dagen:N(k.dagen)||soortDagen(k.soort), bron:'klant'};
+    return {soort:STANDAARD.soort, dagen:STANDAARD.dagen, bron:'standaard'};
+  }
+  function soortDagen(k){
+    if(k==='30dagen') return 30;
+    if(k==='8dagen') return 8;
+    return 0;
+  }
+  /* Geeft deze opdracht meldingen? Contant en geen factuur nooit. */
+  function meldt(o){ return !!soortVan(termijnVan(o).soort).meldt; }
+
+  function betaald(o){
+    return !!(o && (o.paid===true || o.betaald===true || o.paymentStatus==='paid' ||
+      (o.invoice && (o.invoice.paid===true || o.invoice.paymentStatus==='paid'))));
+  }
+
+  function opslaanOpOpdracht(o, keuze){
+    if(!o) return;
+    try{
+      if(keuze) o.betaling={soort:T(keuze.soort), dagen:N(keuze.dagen)};
+      else delete o.betaling;
+      o.updatedAt=new Date().toISOString();
+      try{ if(typeof save==='function') save(); }catch(e){}
+      try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+      try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('orders', o); }catch(e){}
+    }catch(e){}
+  }
+
+  /* ---------------- het blok in het formulier ---------------- */
+  var wachtKeuze=null;      /* keuze bij een nog niet opgeslagen opdracht */
+  var wachtKlant=false;     /* ook als standaard voor de klant bewaren */
+
+  function huidigeOpdracht(){
+    var id=T(window.editing||'');
+    if(!id) return null;
+    var raak=null;
+    orders().forEach(function(o){ if(T(o.id)===id) raak=o; });
+    return raak;
+  }
+  function huidigeKlantNaam(){
+    var el=E('customerName');
+    if(el && T(el.value)) return T(el.value);
+    var o=huidigeOpdracht();
+    return o ? klantVan(o) : '';
+  }
+  function huidigeKeuze(){
+    var o=huidigeOpdracht();
+    if(o && o.betaling && T(o.betaling.soort)) return {soort:T(o.betaling.soort), dagen:N(o.betaling.dagen), bron:'opdracht'};
+    if(wachtKeuze) return {soort:wachtKeuze.soort, dagen:wachtKeuze.dagen, bron:'nieuw'};
+    var k=klantStandaard(huidigeKlantNaam());
+    if(k) return {soort:T(k.soort), dagen:N(k.dagen), bron:'klant'};
+    return {soort:'', dagen:0, bron:'leeg'};
+  }
+
+  function knop(tekst,o){
+    o=o||{};
+    return '<button type="button" '+(o.attr||'')+' style="'+
+      'background:'+(o.vlak||'#ffffff')+' !important;color:'+(o.inkt||'#172033')+' !important;'+
+      'border:'+(o.rand||'2px solid #dce7f2')+' !important;border-radius:12px;padding:9px 14px;'+
+      'font-weight:800;cursor:pointer;height:auto !important;'+(o.extra||'')+'">'+tekst+'</button>';
+  }
+
+  function tekenen(){
+    var pagina=E('newOrder');
+    if(!pagina) return;
+    var vak=E(VAK);
+    if(!vak){
+      vak=document.createElement('div');
+      vak.id=VAK;
+      vak.className='panel';
+      vak.style.cssText='margin:10px 0;padding:12px;border:2px solid #dbe3ef;border-radius:14px;background:#f8fbff';
+      var kop=pagina.querySelector('.order-head');
+      if(kop && kop.parentNode) kop.parentNode.insertBefore(vak, kop.nextSibling);
+      else pagina.appendChild(vak);
+    }
+    if(!pagina.offsetParent) return;          /* formulier niet in beeld */
+    var keuze=huidigeKeuze();
+    var o=huidigeOpdracht();
+    var isBetaald=o?betaald(o):false;
+    var klantNaam=huidigeKlantNaam();
+    var klantK=klantStandaard(klantNaam);
+    var v=[keuze.soort,keuze.dagen,keuze.bron,isBetaald?1:0,klantNaam,klantK?klantK.soort+klantK.dagen:'',wachtKlant?1:0].join('|');
+    if(vak.__vinger===v) return;
+    vak.__vinger=v;
+
+    vak.innerHTML=
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:9px">'+
+        '<b style="font-size:16px;color:#172033">Betaling</b>'+
+        (o ? knop(isBetaald?'☑ Betaald - zet op openstaand':'Zet op betaald',
+              isBetaald?{vlak:'#475569',inkt:'#fff',rand:'0',attr:'data-bt-betaald="0"'}
+                       :{vlak:'#16a34a',inkt:'#fff',rand:'0',attr:'data-bt-betaald="1"'}) : '')+
+      '</div>'+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px">'+
+        SOORTEN.map(function(x){
+          var aan=(keuze.soort===x.k);
+          return knop(esc(x.naam), aan?{vlak:x.kleur,inkt:'#fff',rand:'0',extra:'padding:9px 15px',attr:'data-bt-soort="'+x.k+'"'}
+                                      :{vlak:'#fff',inkt:'#334155',extra:'padding:9px 15px',attr:'data-bt-soort="'+x.k+'"'});
+        }).join('')+
+      '</div>'+
+      (keuze.soort==='anders'
+        ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px">'+
+            '<span style="font-size:14px;color:#475569">Betalen tot</span>'+
+            '<input id="bnsTwBtDagen" type="number" min="0" max="365" value="'+esc(String(keuze.dagen||0))+'" style="width:90px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px">'+
+            '<span style="font-size:14px;color:#475569">dagen voor de leverdatum</span>'+
+          '</div>'
+        : '')+
+      '<div style="font-size:13px;color:#475569">'+
+        (keuze.bron==='leeg'
+          ? 'Niets gekozen, dus de regel van het huis: <b>8 dagen voor levering</b>.'
+          : (keuze.bron==='klant'
+              ? 'Komt van de standaard van <b>'+esc(klantNaam)+'</b>. Kies hierboven iets anders als het voor deze opdracht afwijkt.'
+              : 'Voor deze opdracht: <b>'+esc(soortVan(keuze.soort).naam)+(keuze.soort==='anders'?' ('+N(keuze.dagen)+' dagen)':'')+'</b>'))+
+        (soortVan(keuze.soort||'8dagen').meldt ? '' : ' Deze opdracht geeft geen meldingen.')+
+      '</div>'+
+      (klantNaam
+        ? '<label style="display:flex;gap:9px;align-items:center;font-size:14px;margin-top:9px;cursor:pointer">'+
+            '<input type="checkbox" id="bnsTwBtKlant"'+((klantK && keuze.soort===T(klantK.soort))||wachtKlant?' checked':'')+' style="width:19px;height:19px">'+
+            '<span>Ook de standaard voor <b>'+esc(klantNaam)+'</b> - geldt dan ook voor hun volgende opdrachten</span>'+
+          '</label>'
+        : '')+
+      (keuze.soort==='geen' ? '<div style="font-size:13px;color:#64748b;margin-top:7px">Deze opdracht komt in Boekhouding onder Geen factuur te staan.</div>' : '')+
+      (keuze.soort==='contant' ? '<div style="font-size:13px;color:#64748b;margin-top:7px">Deze opdracht komt in Boekhouding in de eigen map Contant en telt niet mee bij wat er nog binnen moet komen.</div>' : '');
+
+    koppelen(vak);
+  }
+
+  function kiezen(soort, dagen){
+    var o=huidigeOpdracht();
+    var keuze={soort:soort, dagen:N(dagen)||soortDagen(soort)};
+    if(o) opslaanOpOpdracht(o, keuze); else wachtKeuze=keuze;
+    var cb=E('bnsTwBtKlant');
+    if(cb && cb.checked) klantZetten(huidigeKlantNaam(), keuze);
+    if(E(VAK)) E(VAK).__vinger='';
+    tekenen();
+  }
+
+  function koppelen(vak){
+    Array.prototype.slice.call(vak.querySelectorAll('[data-bt-soort]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var k=b.getAttribute('data-bt-soort');
+        kiezen(k, k==='anders' ? (N((E('bnsTwBtDagen')||{}).value)||14) : soortDagen(k));
+      });
+    });
+    var d=E('bnsTwBtDagen');
+    if(d) d.addEventListener('change', function(){ kiezen('anders', N(d.value)); });
+    var cb=E('bnsTwBtKlant');
+    if(cb) cb.addEventListener('change', function(){
+      wachtKlant=cb.checked;
+      var keuze=huidigeKeuze();
+      if(cb.checked && T(keuze.soort)) klantZetten(huidigeKlantNaam(), {soort:keuze.soort, dagen:keuze.dagen});
+      else if(!cb.checked) klantZetten(huidigeKlantNaam(), null);
+      if(E(VAK)) E(VAK).__vinger='';
+      tekenen();
+    });
+    var bb=vak.querySelector('[data-bt-betaald]');
+    if(bb) bb.addEventListener('click', function(){
+      var o=huidigeOpdracht(); if(!o) return;
+      var naar=(bb.getAttribute('data-bt-betaald')==='1');
+      try{
+        if(typeof window.BNS528_setPaid==='function') window.BNS528_setPaid(T(o.id), naar);
+        else if(typeof window.TW300_AU_setPaid==='function') window.TW300_AU_setPaid(T(o.id), naar);
+      }catch(e){}
+      if(E(VAK)) E(VAK).__vinger='';
+      setTimeout(tekenen, 200);
+    });
+  }
+
+  /* ---------------- een nieuwe opdracht krijgt zijn keuze na het opslaan ---------------- */
+  function naOpslaan(){
+    if(!wachtKeuze) return;
+    var nr=T((E('orderNumber')||{}).value);
+    var raak=null;
+    orders().forEach(function(o){ if(T(o.number)===nr) raak=o; });
+    if(!raak) return;
+    opslaanOpOpdracht(raak, wachtKeuze);
+    if(wachtKlant) klantZetten(klantVan(raak), wachtKeuze);
+    wachtKeuze=null; wachtKlant=false;
+  }
+  document.addEventListener('click', function(ev){
+    var b=ev.target && ev.target.closest && ev.target.closest('#saveOrder');
+    if(!b) return;
+    setTimeout(naOpslaan, 400);
+    setTimeout(naOpslaan, 1200);
+  }, false);
+
+  /* Bij het openen van een andere opdracht moet het blok opnieuw kijken. */
+  setInterval(function(){ try{ tekenen(); }catch(e){} }, 1200);
+  setTimeout(tekenen, 1500);
+
+  window.BNS_TW_BETALING={
+    SOORTEN:SOORTEN,
+    soortVan:soortVan,
+    termijnVan:termijnVan,
+    meldt:meldt,
+    klanten:klantLijst,
+    klantZetten:klantZetten,
+    stand:function(){
+      var o=huidigeOpdracht();
+      return {opdracht:o?T(o.number):'(geen)', keuze:huidigeKeuze(), klant:huidigeKlantNaam(), standaardVanKlant:klantStandaard(huidigeKlantNaam())};
+    }
+  };
+  try{ console.info('[BNS TW Betaling] Betalingskeuze in de opdracht actief - window.BNS_TW_BETALING.stand()'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS TW BETAALSEIN - het icoon op de opdrachtkaart (27-10-2026)
+   ----------------------------------------------------------
+   [stated] "als we in de opdracht het icoontje openstaande bij 8 dagen laten
+   knipperen in rood, de planner ziet dit dan en kan het dan drukken als
+   gezien. 2 dagen voor levering en hij is nog niet op betaald gezet, dan gaat
+   hij weer knipperen tot de planner hem weer gezien heeft."
+   [stated] "Gezien, dan 2 dagen voor levering weer rood knipperen tot hij op
+   betaald komt te staan, dan moet het stoppen."
+   [stated] "geen factuur aangemaakt: dat in hetzelfde icoon de tekst komt nog
+   factuur maken; wel een factuur, dan verandert de tekst in openstaande
+   factuur."
+   [stated] "Geen factuur gaat 14 dagen voor startdatum icoontje aan, nog
+   factuur maken, met de optie dat je hem ook uit kan zetten."
+
+   DRIE STANDEN IN HETZELFDE LABEL
+     - nog geen factuurnummer -> "Nog factuur maken", gaat aan 14 dagen voor
+       de leverdatum, uit te zetten per opdracht
+     - wel een factuur, niet betaald -> "Openstaande factuur"
+     - betaald -> "Betaald", stil
+     - contant of geen factuur -> eigen rustige tekst, nooit een melding
+
+   TWEE MOMENTEN
+     - vanaf de afgesproken termijn (standaard 8 dagen) voor levering knippert
+       hij. "Gezien" maakt het stil.
+     - vanaf 2 dagen voor levering knippert hij opnieuw, en dan helpt gezien
+       niet meer: alleen betaald zetten stopt het. Daarom bied ik "Gezien" in
+       die fase ook niet aan - een knop die niets doet is erger dan geen knop.
+
+   WAAROM DIT BLOK ACHTER DE ANDERE AANLOOPT
+   Het label wordt gezet door de bestaande kaartopmaak, en die draait opnieuw
+   bij elke hertekening van de lijst. Daar ga ik niet in zitten sleutelen.
+   In plaats daarvan kijkt dit blok mee met de lijst en zet het zijn tekst er
+   meteen overheen, en alleen als die afwijkt - dan knippert er niets.
+
+   Console: window.BNS_TW_SEIN.stand()
+========================================================== */
+(function bnsTwBetaalSein(){
+  'use strict';
+  if(window.__BNS_TW_SEIN__) return;
+  window.__BNS_TW_SEIN__=true;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function E(id){ return document.getElementById(id); }
+  function S(){
+    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function orders(){ var s=S(); return (s && Array.isArray(s.orders)) ? s.orders : []; }
+  function vindOrder(id){
+    id=T(id); var raak=null;
+    orders().forEach(function(o){ if(!raak && (T(o.id)===id || T(o.number)===id)) raak=o; });
+    return raak;
+  }
+  function invoiceNo(o){ return T(o && o.invoice && (o.invoice.invoiceNumber||o.invoice.number)) || T(o && (o.invoiceNumber||o.factuurNr||o.factuur||o.factuurNummer)); }
+  function betaald(o){
+    return !!(o && (o.paid===true || o.betaald===true || o.paymentStatus==='paid' ||
+      (o.invoice && (o.invoice.paid===true || o.invoice.paymentStatus==='paid'))));
+  }
+  function startVan(o){ return T(o && (o.start||o.dateStart)).slice(0,10); }
+  function dagenTot(datum){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(T(datum))) return null;
+    var d=new Date(T(datum)+'T00:00:00').getTime();
+    var nu=new Date(); nu.setHours(0,0,0,0);
+    return Math.round((d-nu.getTime())/86400000);
+  }
+  function termijn(o){
+    try{
+      if(window.BNS_TW_BETALING && typeof window.BNS_TW_BETALING.termijnVan==='function') return window.BNS_TW_BETALING.termijnVan(o);
+    }catch(e){}
+    return {soort:'8dagen', dagen:8, bron:'standaard'};
+  }
+  function geeftMelding(o){
+    var s=T(termijn(o).soort);
+    return s!=='contant' && s!=='geen';
+  }
+
+  /* ---------------- wat is er al gezien ---------------- */
+  function gezienLijst(o){ return Array.isArray(o && o.betaalGezien) ? o.betaalGezien : []; }
+  function isGezien(o, moment){ return gezienLijst(o).indexOf(moment)>=0; }
+  function zetGezien(o, moment){
+    try{
+      if(!Array.isArray(o.betaalGezien)) o.betaalGezien=[];
+      if(o.betaalGezien.indexOf(moment)<0) o.betaalGezien.push(moment);
+      bewaar(o);
+    }catch(e){}
+  }
+  function bewaar(o){
+    try{ o.updatedAt=new Date().toISOString(); }catch(e){}
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('orders', o); }catch(e){}
+  }
+
+  /* ---------------- de stand van een opdracht ---------------- */
+  /* geeft {tekst, vlak, inkt, knippert, fase} */
+  function seinVan(o){
+    if(betaald(o)) return {tekst:'☑ Betaald', vlak:'#dcfce7', inkt:'#166534', knippert:false, fase:'betaald'};
+    var s=T(termijn(o).soort);
+    if(s==='geen')    return {tekst:'Geen factuur', vlak:'#e2e8f0', inkt:'#475569', knippert:false, fase:'geen'};
+    if(s==='contant') return {tekst:'Contant', vlak:'#ffedd5', inkt:'#7a3f06', knippert:false, fase:'contant'};
+
+    var d=dagenTot(startVan(o));
+    var heeftFactuur=!!invoiceNo(o);
+
+    if(!heeftFactuur){
+      /* nog geen factuur gemaakt - gaat 14 dagen van tevoren aan */
+      var aan = (d!=null && d<=14) && o.factuurMeldUit!==true;
+      return {tekst:'Nog factuur maken', vlak: aan?'#fff7ed':'#f1f5f9', inkt: aan?'#9a3412':'#64748b',
+              knippert:aan, fase: aan?'maken':'maken-stil'};
+    }
+
+    var t=Number(termijn(o).dagen)||8;
+    if(d!=null && d<=2){
+      /* tweede moment: blijft knipperen tot er betaald is */
+      return {tekst:'Openstaande factuur', vlak:'#fee2e2', inkt:'#b91c1c', knippert:true, fase:'laatste'};
+    }
+    if(d!=null && d<=t){
+      var stil=isGezien(o,'eerste');
+      return {tekst:'Openstaande factuur', vlak: stil?'#fff1f2':'#fee2e2', inkt:'#b91c1c', knippert:!stil, fase:'eerste'};
+    }
+    return {tekst:'Openstaande factuur', vlak:'#fff1f2', inkt:'#9f1239', knippert:false, fase:'rustig'};
+  }
+
+  /* ---------------- opmaak ---------------- */
+  function stijl(){
+    if(E('bnsTwSeinStijl')) return;
+    var s=document.createElement('style');
+    s.id='bnsTwSeinStijl';
+    s.textContent=
+      '@keyframes bnsTwSeinKnipper{0%,100%{opacity:1}50%{opacity:.25}}'+
+      '.bnsTwSeinAan{animation:bnsTwSeinKnipper 1s ease-in-out infinite}'+
+      '@media (prefers-reduced-motion: reduce){.bnsTwSeinAan{animation:none;outline:2px solid #dc2626;outline-offset:1px}}';
+    (document.head||document.documentElement).appendChild(s);
+  }
+
+  var bezig=false;
+  function bijwerken(){
+    if(bezig) return;
+    var lijst=E('ordersList'); if(!lijst) return;
+    bezig=true;
+    try{
+      stijl();
+      Array.prototype.slice.call(lijst.querySelectorAll('.bns356-paid,.bns355-paid,.bns353-paid,.tw-au-order-paid')).forEach(function(el){
+        var kaart=el.closest('[data-bns-order-id],[data-order-id],.order-card');
+        if(!kaart) return;
+        var id=kaart.getAttribute('data-bns-order-id')||kaart.getAttribute('data-order-id')||'';
+        var o=id?vindOrder(id):null;
+        if(!o) return;
+        var sein=seinVan(o);
+        if(el.textContent!==sein.tekst) el.textContent=sein.tekst;
+        el.style.setProperty('background', sein.vlak, 'important');
+        el.style.setProperty('color', sein.inkt, 'important');
+        el.style.cursor='pointer';
+        el.title='Druk hier voor de betaalafspraak van deze opdracht';
+        el.classList.toggle('bnsTwSeinAan', !!sein.knippert);
+        el.setAttribute('data-tw-sein', T(o.id)||T(o.number));
+      });
+    }catch(e){ try{ console.warn('[BNS TW Sein]', e&&e.message||e); }catch(_){} }
+    bezig=false;
+  }
+
+  /* ---------------- het menu onder het icoon ---------------- */
+  function knop(tekst,o){
+    o=o||{};
+    return '<button type="button" '+(o.attr||'')+' style="'+
+      'display:block;width:100%;background:'+(o.vlak||'#ffffff')+' !important;color:'+(o.inkt||'#172033')+' !important;'+
+      'border:'+(o.rand||'1px solid #cbd5e1')+' !important;border-radius:12px;padding:11px 14px;margin:0 0 8px;'+
+      'font-weight:800;cursor:pointer;text-align:left;height:auto !important;'+(o.extra||'')+'">'+tekst+'</button>';
+  }
+  function menu(o){
+    var sein=seinVan(o), t=termijn(o), d=dagenTot(startVan(o));
+    var wrap=document.createElement('div');
+    wrap.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+    var uitleg = sein.fase==='laatste'
+      ? 'Twee dagen of minder tot de levering en er is nog niet betaald. Dit sein blijft knipperen tot de factuur op betaald staat.'
+      : (sein.fase==='eerste'
+          ? 'De afgesproken termijn is in zicht ('+t.dagen+' dagen voor levering). Met Gezien is het stil tot twee dagen voor de levering.'
+          : (sein.fase==='maken'
+              ? 'Er is nog geen factuur voor deze opdracht en de levering is over '+(d==null?'?':d)+' dagen.'
+              : 'Er staat nu niets te wachten bij deze opdracht.'));
+    wrap.innerHTML='<div style="background:#fff;border-radius:20px;padding:20px;width:min(460px,100%);box-shadow:0 24px 70px rgba(0,0,0,.3)">'+
+      '<div style="font-size:19px;font-weight:900;color:#172033">'+esc(T(o.number)||'Opdracht')+'</div>'+
+      '<div style="font-size:14px;color:#64748b;margin:2px 0 10px">'+esc(T(o.customer&&o.customer.name)||'')+
+        (startVan(o)?' · levering '+esc(startVan(o).split('-').reverse().join('-')):'')+'</div>'+
+      '<div style="font-size:15px;color:#334155;line-height:1.35;margin-bottom:14px">'+esc(uitleg)+'</div>'+
+      '<div id="bnsTwSeinKnoppen"></div>'+
+      '<div style="font-size:12px;color:#64748b;margin-top:4px">Afspraak: '+esc(soortNaam(t.soort))+
+        (t.bron==='klant'?' (standaard van deze klant)':(t.bron==='standaard'?' (regel van het huis)':''))+'</div>'+
+    '</div>';
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', function(ev){ if(ev.target===wrap) wrap.remove(); });
+
+    var rij=wrap.querySelector('#bnsTwSeinKnoppen');
+    var knoppen=[];
+    if(!betaald(o)) knoppen.push({t:'Zet op betaald', k:'betaald', stijl:{vlak:'#16a34a',inkt:'#fff',rand:'0'}});
+    if(sein.fase==='eerste' && !isGezien(o,'eerste')) knoppen.push({t:'Gezien - stil tot 2 dagen voor levering', k:'gezien'});
+    if(sein.fase==='maken') knoppen.push({t:'Niet meer melden dat de factuur nog gemaakt moet worden', k:'maakuit'});
+    if(sein.fase==='maken-stil') knoppen.push({t:'Toch weer melden', k:'maakaan'});
+    knoppen.push({t:'30 dagen klant (rekening)', k:'30dagen'});
+    knoppen.push({t:'Contant - geen meldingen', k:'contant'});
+    knoppen.push({t:'Geen factuur - geen meldingen', k:'geen'});
+    knoppen.push({t:'Opdracht openen', k:'open'});
+    knoppen.push({t:'Sluiten', k:'dicht', stijl:{vlak:'#334155',inkt:'#fff',rand:'0'}});
+
+    rij.innerHTML=knoppen.map(function(x){ return knop(esc(x.t), Object.assign({}, x.stijl||{}, {attr:'data-tw-k="'+x.k+'"'})); }).join('');
+    Array.prototype.slice.call(rij.querySelectorAll('[data-tw-k]')).forEach(function(b){
+      b.addEventListener('click', function(){
+        var k=b.getAttribute('data-tw-k');
+        if(k==='dicht'){ wrap.remove(); return; }
+        if(k==='betaald'){
+          try{
+            if(typeof window.BNS528_setPaid==='function') window.BNS528_setPaid(T(o.id)||T(o.number), true);
+            else if(typeof window.TW300_AU_setPaid==='function') window.TW300_AU_setPaid(T(o.id)||T(o.number), true);
+          }catch(e){}
+        }
+        else if(k==='gezien') zetGezien(o,'eerste');
+        else if(k==='maakuit'){ o.factuurMeldUit=true; bewaar(o); }
+        else if(k==='maakaan'){ o.factuurMeldUit=false; bewaar(o); }
+        else if(k==='30dagen'||k==='contant'||k==='geen'){
+          o.betaling={soort:k, dagen:(k==='30dagen'?30:0)};
+          bewaar(o);
+        }
+        else if(k==='open'){
+          wrap.remove();
+          try{ if(typeof window.editOrder==='function') window.editOrder(T(o.id)); }catch(e){}
+          return;
+        }
+        wrap.remove();
+        bijwerken();
+      });
+    });
+  }
+  function soortNaam(k){
+    try{
+      if(window.BNS_TW_BETALING && typeof window.BNS_TW_BETALING.soortVan==='function') return window.BNS_TW_BETALING.soortVan(k).naam;
+    }catch(e){}
+    return k==='30dagen'?'30 dagen':(k==='contant'?'Contant':(k==='geen'?'Geen factuur':'8 dagen voor levering'));
+  }
+
+  document.addEventListener('click', function(ev){
+    var el=ev.target && ev.target.closest && ev.target.closest('[data-tw-sein]');
+    if(!el) return;
+    var o=vindOrder(el.getAttribute('data-tw-sein'));
+    if(!o) return;
+    ev.preventDefault(); ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    menu(o);
+  }, true);
+
+  /* meekijken met de lijst in plaats van ertegenin werken */
+  function kijken(){
+    var lijst=E('ordersList');
+    if(!lijst){ setTimeout(kijken, 1000); return; }
+    try{
+      var mo=new MutationObserver(function(){ setTimeout(bijwerken, 30); });
+      mo.observe(lijst, {childList:true, subtree:true});
+    }catch(e){}
+    bijwerken();
+  }
+  setTimeout(kijken, 1700);
+  setInterval(bijwerken, 2000);
+
+  window.BNS_TW_SEIN={
+    bijwerken:bijwerken,
+    stand:function(){
+      return orders().filter(function(o){ return !betaald(o) && geeftMelding(o); }).map(function(o){
+        var s=seinVan(o);
+        return {nr:T(o.number), klant:T(o.customer&&o.customer.name), dagen:dagenTot(startVan(o)), tekst:s.tekst, knippert:s.knippert, fase:s.fase};
+      });
+    }
+  };
+  try{ console.info('[BNS TW Sein] Betaalsein op de opdrachtkaart actief - window.BNS_TW_SEIN.stand()'); }catch(e){}
+})();
+
+/* ==========================================================
+   BNS TW DAGVENSTER - wat gaat er vandaag weg zonder betaling (27-10-2026)
+   ----------------------------------------------------------
+   [stated] "ook zou mooi zijn als de startdatum arriveert dat er dan een
+   popup komt in het scherm."
+
+   Bij het openen van de app een keer per dag: de leveringen van vandaag die
+   niet betaald zijn. Per regel kun je meteen op betaald zetten of de opdracht
+   openen. Contante opdrachten en opdrachten zonder factuur staan er niet in -
+   daar valt niets te innen.
+
+   Een keer per dag PER COMPUTER, want twee keer hetzelfde venster op een dag
+   is een venster dat je wegklikt zonder te lezen. Weggeklikt is weggeklikt;
+   het icoon op de kaart blijft die dag gewoon knipperen.
+
+   Console: window.BNS_TW_DAGVENSTER.nu()
+========================================================== */
+(function bnsTwDagvenster(){
+  'use strict';
+  if(window.__BNS_TW_DAGVENSTER__) return;
+  window.__BNS_TW_DAGVENSTER__=true;
+
+  var SLEUTEL='bns_tw_dagvenster_getoond';
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function S(){
+    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function orders(){ var s=S(); return (s && Array.isArray(s.orders)) ? s.orders : []; }
+  function vandaag(){ return new Date().toISOString().slice(0,10); }
+  function nl(d){ var p=T(d).slice(0,10).split('-'); return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:T(d); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(/[^0-9,.-]/g,'').replace(',','.')); return isFinite(n)?n:0; }
+  function geld(v){ return '€ ' + (Math.round(N(v)*100)/100).toFixed(2).replace('.',','); }
+  function betaald(o){
+    return !!(o && (o.paid===true || o.betaald===true || o.paymentStatus==='paid' ||
+      (o.invoice && (o.invoice.paid===true || o.invoice.paymentStatus==='paid'))));
+  }
+  function bedrag(o){
+    var p=(o&&o.pricing)||{};
+    var basis=N(p.grand||p.total||p.incl||o.total||o.amount||0);
+    if(basis) return basis;
+    var mat=0;
+    (o&&o.materials||[]).forEach(function(m){
+      var q=N(m.qty||m.amount||m.aantal||1)||1;
+      mat += q*N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs));
+    });
+    return mat*1.21;
+  }
+  function soortVanOrder(o){
+    try{
+      if(window.BNS_TW_BETALING && typeof window.BNS_TW_BETALING.termijnVan==='function') return T(window.BNS_TW_BETALING.termijnVan(o).soort);
+    }catch(e){}
+    return '8dagen';
+  }
+  function telt(o){
+    if(!o || betaald(o)) return false;
+    var s=soortVanOrder(o);
+    if(s==='contant' || s==='geen') return false;
+    var st=T(o.status||'').toLowerCase();
+    if(st.indexOf('annul')>=0 || st.indexOf('offerte')>=0 || st.indexOf('optie')>=0) return false;
+    if(o.deleted===true || o.verwijderd===true) return false;
+    return T(o.start||o.dateStart).slice(0,10)===vandaag();
+  }
+  function lijst(){ return orders().filter(telt); }
+
+  function knop(tekst,o){
+    o=o||{};
+    return '<button type="button" '+(o.attr||'')+' style="'+
+      'background:'+(o.vlak||'#ffffff')+' !important;color:'+(o.inkt||'#172033')+' !important;'+
+      'border:'+(o.rand||'1px solid #cbd5e1')+' !important;border-radius:12px;padding:8px 13px;'+
+      'font-weight:800;cursor:pointer;font-size:13px;height:auto !important;'+(o.extra||'')+'">'+tekst+'</button>';
+  }
+
+  function tonen(l){
+    var wrap=document.createElement('div');
+    wrap.id='bnsTwDagvensterWrap';
+    wrap.style.cssText='position:fixed;inset:0;z-index:999998;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+    function teken(){
+      var nu=l.filter(function(o){ return !betaald(o); });
+      var som=0; nu.forEach(function(o){ som+=bedrag(o); });
+      wrap.innerHTML='<div style="background:#fff;border-radius:22px;padding:20px;width:min(640px,100%);max-height:88vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.35)">'+
+        '<div style="font-size:21px;font-weight:900;color:#b91c1c">Gaat vandaag weg en is niet betaald</div>'+
+        '<div style="font-size:14px;color:#64748b;margin:3px 0 14px">'+nu.length+' levering(en) van '+esc(nl(vandaag()))+
+          (som>0?' · samen '+esc(geld(som)):'')+'</div>'+
+        (nu.length ? nu.map(function(o){
+          var id=T(o.id)||T(o.number);
+          return '<div style="border:1px solid #e5e7eb;border-left:6px solid #dc2626;border-radius:12px;padding:11px 12px;margin:0 0 9px">'+
+            '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline">'+
+              '<span style="font-weight:900;color:#172033">'+esc(T(o.number)||'-')+'<span style="font-weight:700;color:#334155;font-size:13px">&nbsp;&nbsp;'+esc(T(o.customer&&o.customer.name)||'klant onbekend')+'</span></span>'+
+              '<span style="font-weight:900;color:#172033">'+esc(geld(bedrag(o)))+'</span>'+
+            '</div>'+
+            '<div style="font-size:12px;color:#64748b;margin:3px 0 8px">'+esc(T(o.title||o.name)||'zonder omschrijving')+'</div>'+
+            '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+              knop('Zet op betaald', {vlak:'#16a34a',inkt:'#fff',rand:'0',attr:'data-dv-betaald="'+esc(id)+'"'})+
+              knop('Opdracht openen', {attr:'data-dv-open="'+esc(id)+'"'})+
+            '</div>'+
+          '</div>';
+        }).join('') : '<div style="color:#166534;font-weight:800;padding:8px 0">Alles van vandaag is betaald.</div>')+
+        '<div style="margin-top:12px">'+knop('Sluiten', {vlak:'#334155',inkt:'#fff',rand:'0',extra:'width:100%;padding:12px;font-size:15px',attr:'data-dv-dicht'})+'</div>'+
+      '</div>';
+      var q=function(s){ return Array.prototype.slice.call(wrap.querySelectorAll(s)); };
+      q('[data-dv-betaald]').forEach(function(b){
+        b.addEventListener('click', function(){
+          var id=b.getAttribute('data-dv-betaald');
+          try{
+            if(typeof window.BNS528_setPaid==='function') window.BNS528_setPaid(id, true);
+            else if(typeof window.TW300_AU_setPaid==='function') window.TW300_AU_setPaid(id, true);
+          }catch(e){}
+          setTimeout(teken, 150);
+        });
+      });
+      q('[data-dv-open]').forEach(function(b){
+        b.addEventListener('click', function(){
+          var id=b.getAttribute('data-dv-open');
+          wrap.remove();
+          try{ if(typeof window.editOrder==='function') window.editOrder(id); }catch(e){}
+        });
+      });
+      var d=wrap.querySelector('[data-dv-dicht]');
+      if(d) d.addEventListener('click', function(){ wrap.remove(); });
+    }
+    teken();
+    wrap.addEventListener('click', function(ev){ if(ev.target===wrap) wrap.remove(); });
+    document.body.appendChild(wrap);
+  }
+
+  function misschienTonen(){
+    try{
+      if(document.getElementById('bnsTwDagvensterWrap')) return;
+      var al='';
+      try{ al=localStorage.getItem(SLEUTEL)||''; }catch(e){}
+      if(al===vandaag()) return;
+      var l=lijst();
+      if(!l.length){
+        /* niets te melden: toch de dag afvinken, anders blijft hij kijken */
+        try{ localStorage.setItem(SLEUTEL, vandaag()); }catch(e){}
+        return;
+      }
+      try{ localStorage.setItem(SLEUTEL, vandaag()); }catch(e){}
+      tonen(l);
+    }catch(e){}
+  }
+
+  /* wachten tot de opdrachten binnen zijn; anders meldt hij niets omdat hij
+     nog niets weet */
+  var pogingen=0;
+  var tikker=setInterval(function(){
+    pogingen++;
+    if(orders().length || pogingen>40){
+      clearInterval(tikker);
+      setTimeout(misschienTonen, 800);
+    }
+  }, 700);
+
+  window.BNS_TW_DAGVENSTER={
+    nu:function(){ var l=lijst(); if(!l.length) return 'niets dat vandaag weggaat en niet betaald is'; tonen(l); return l.length+' levering(en)'; },
+    lijst:function(){ return lijst().map(function(o){ return T(o.number)+' - '+T(o.customer&&o.customer.name); }); },
+    opnieuw:function(){ try{ localStorage.removeItem(SLEUTEL); }catch(e){} return 'het venster komt bij de volgende keer openen weer'; }
+  };
+  try{ console.info('[BNS TW Dagvenster] Actief - window.BNS_TW_DAGVENSTER.nu()'); }catch(e){}
 })();
