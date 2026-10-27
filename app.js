@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BULK36-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BULK39-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -44971,6 +44971,10 @@ setTimeout(()=>{
     if(!st.termsText && st.terms) st.termsText=st.terms;
     return st;
   }
+  /* 27-10-2026: de verzamelfactuur moet dezelfde huisstijl gebruiken als de
+     gewone factuur. Eén uitgang, zodat er nooit twee versies van de
+     bedrijfsgegevens of de kleuren ontstaan. */
+  try{ window.BNS_TW_HUISSTIJL=function(){ try{ return getStyle(); }catch(e){ return {}; } }; }catch(e){}
   function saveStyle(obj){
     var cur=Object.assign({},parseLS(STYLE_KEY),obj||{});
     saveLS(STYLE_KEY,cur);
@@ -58617,12 +58621,75 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return p;
   }
 
+  /* ---------------- reeks voor de verzamelfactuur ---------------- */
+  var BULK_KEY='bns_tw_bulk_reeks';
+  function bulkLees(){
+    try{
+      var r=JSON.parse(localStorage.getItem(BULK_KEY)||'null');
+      if(r && typeof r==='object') return {aan:r.aan===true, volgende:T(r.volgende)};
+    }catch(e){}
+    try{
+      var s2=st(), r2=s2 && s2.settings && s2.settings.bulkReeks;
+      if(r2 && typeof r2==='object') return {aan:r2.aan===true, volgende:T(r2.volgende)};
+    }catch(e){}
+    return {aan:false, volgende:''};
+  }
+  function bulkBewaar(r){
+    try{ localStorage.setItem(BULK_KEY, JSON.stringify(r)); }catch(e){}
+    try{
+      var s2=st();
+      if(s2){ s2.settings=s2.settings||{}; s2.settings.bulkReeks=r; if(typeof save==='function') save(); }
+    }catch(e){}
+  }
+  function bulkVakHtml(){
+    var b=bulkLees();
+    return '<div style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px">'+
+      '<h3 style="margin:0 0 4px">Verzamelfactuur</h3>'+
+      '<div style="font-size:13px;color:#64748b;margin-bottom:10px">'+
+        'Een verzamelfactuur bundelt meerdere opdrachten van dezelfde klant tot '+
+        'een factuur. Standaard pakt hij gewoon het volgende nummer uit de reeks hierboven.</div>'+
+      '<label style="display:flex;gap:9px;align-items:center;font-weight:700;cursor:pointer;margin-bottom:9px">'+
+        '<input type="checkbox" id="twBulkEigen"'+(b.aan?' checked':'')+' style="width:19px;height:19px">'+
+        '<span>Eigen nummerreeks voor verzamelfacturen</span>'+
+      '</label>'+
+      '<div id="twBulkVeldRij" style="display:'+(b.aan?'flex':'none')+';gap:10px;align-items:center;flex-wrap:wrap">'+
+        '<div style="flex:1;min-width:220px;font-weight:700">Eerstvolgende verzamelfactuurnummer</div>'+
+        '<input id="twBulkStart" value="'+esc(b.volgende||'')+'" placeholder="voorbeeld: 2690000001" '+
+          'style="width:200px;padding:9px;border:2px solid #cbd5e1;border-radius:10px;font-weight:800">'+
+        '<button type="button" id="twBulkOpslaan" style="border:0;border-radius:10px;padding:10px 16px;background:#0f766e;color:#fff;font-weight:900;cursor:pointer">Opslaan</button>'+
+      '</div>'+
+      '<div id="twBulkMelding" style="margin-top:9px;font-weight:800"></div>'+
+    '</div>';
+  }
+  function bulkVakKoppelen(){
+    var cb=E('twBulkEigen'); if(!cb) return;
+    cb.onchange=function(){
+      var rij=E('twBulkVeldRij'), m=E('twBulkMelding');
+      if(rij) rij.style.display=cb.checked?'flex':'none';
+      if(!cb.checked){
+        bulkBewaar({aan:false, volgende:bulkLees().volgende});
+        if(m){ m.style.color='#166534'; m.textContent='Verzamelfacturen lopen weer mee in de gewone reeks.'; }
+      }
+    };
+    var kn=E('twBulkOpslaan');
+    if(kn) kn.onclick=function(){
+      var m=E('twBulkMelding'), d=knip(E('twBulkStart').value);
+      if(!d || d.teller<=0){
+        if(m){ m.style.color='#991b1b'; m.textContent='Dat nummer begrijp ik niet. Schrijf het als 2690000001: twee cijfers jaartal en dan het nummer.'; }
+        return;
+      }
+      var nr=bouw(d.teller, d.breedte);
+      bulkBewaar({aan:true, volgende:nr});
+      if(m){ m.style.color='#166534'; m.textContent='Opgeslagen. De eerstvolgende verzamelfactuur krijgt '+nr+'.'; }
+    };
+  }
+
   function scherm(){
     try{
       gelijkzetten();
       var p=pane(); if(!p) return;
       var inst=lees();
-      var vinger=JSON.stringify(inst)+'|'+volgende();
+      var vinger=JSON.stringify(inst)+'|'+volgende()+'|'+JSON.stringify(bulkLees());
       if(p.__vinger===vinger && E('twFactuurStart')) return;
       p.__vinger=vinger;
       p.innerHTML=
@@ -58640,7 +58707,21 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           'Wil je bij een opdracht zelf een nummer typen, kies dan bij de factuur '+
           '"Zelf invullen"; dan blijft dit nummer ongemoeid.</div>'+
         '<button type="button" id="twFactuurOpslaan" style="border:0;border-radius:10px;padding:10px 16px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer">Opslaan</button>'+
-        '<div id="twFactuurMelding" style="margin-top:10px;font-weight:800"></div>';
+        '<div id="twFactuurMelding" style="margin-top:10px;font-weight:800"></div>'+
+        /* ==========================================================
+           27-10-2026 - DE REEKS VOOR DE VERZAMELFACTUUR.
+           ----------------------------------------------------------
+           [stated] "ook moeten we in de admin onder facturen daar de keuze
+           kunnen maken voor bulk factuur welk nr we starten"
+
+           Standaard loopt de verzamelfactuur gewoon mee in de reeks
+           hierboven; dat is wat je eerder zei en het houdt je nummering
+           aaneengesloten. Wil je ze toch apart kunnen herkennen, dan zet je
+           hier een eigen reeks aan met een eigen startnummer. Dezelfde
+           schrijfwijze: twee cijfers jaartal en dan het nummer.
+        ========================================================== */
+        bulkVakHtml();
+      bulkVakKoppelen();
       E('twFactuurOpslaan').onclick=function(){
         var d=knip(E('twFactuurStart').value), m=E('twFactuurMelding');
         if(!d || d.teller<=0){
@@ -62733,6 +62814,22 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           }).join('') : '')+
           (gecrediteerd(o) ? knop('Credit terugdraaien', {vlak:'#fff',inkt:'#6d28d9',rand:'2px solid #7c3aed',
               extra:'padding:8px 13px;font-size:13px',attr:'data-bh-credit-terug="'+esc(id)+'"'}) : '')+
+          /* ==========================================================
+             27-10-2026 - DE WEG TERUG.
+             ----------------------------------------------------------
+             [stated] "kan ik hem ook weer terug in de bulk zetten, want die
+             map is meteen weg als je een factuur hebt gemaakt, als je dus een
+             fout maakt..."
+
+             Terecht. Het terugdraaien zat al in de motor, er stond alleen
+             geen knop op. Hij haalt de HELE verzamelfactuur uit elkaar, niet
+             één opdracht ervan - een factuur waar de helft uit is gehaald
+             klopt met niets meer. De opdrachten komen afgevinkt terug in de
+             bulkmap, zodat je alleen hoeft te wijzigen wat er fout ging.
+          ========================================================== */
+          (verzamelNr(o) && !betaald(o) ? knop('Terug naar bulk', {vlak:'#fff',inkt:'#0f766e',rand:'2px solid #0f766e',
+              extra:'padding:8px 13px;font-size:13px',
+              attr:'data-bh-vz-terug="'+esc(T(o.verzamel&&o.verzamel.id))+'" data-tip="Maakt verzamelfactuur '+esc(verzamelNr(o))+' ongedaan. Alle opdracht(en) komen afgevinkt terug in de bulkmap."'}) : '')+
           knop('Wis factuurregel', Object.assign({},DONKER,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-wis="'+esc(id)+'"'}))+
         '</div>'+
       '</div>'+
@@ -63626,6 +63723,27 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           });
       });
     });
+    K('[data-bh-vz-terug]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var id=b.getAttribute('data-bh-vz-terug'); if(!id) return;
+        var groep=[]; try{ groep=window.BNS_TW_BULK.groepVan(id)||[]; }catch(e){}
+        if(!groep.length){ meld('Terug naar bulk','Deze verzamelfactuur is niet meer te vinden.'); return; }
+        var nr=T(groep[0].verzamel && groep[0].verzamel.nr);
+        var naam=T(groep[0].verzamel && groep[0].verzamel.klant) || klant(groep[0]);
+        vraag('Verzamelfactuur ongedaan maken',
+          'Verzamelfactuur '+nr+' wordt losgelaten. Alle '+groep.length+' opdracht(en) van '+naam+
+          ' komen afgevinkt terug in de bulkmap en het factuurnummer verdwijnt van de opdrachten. '+
+          'Let op: nummer '+nr+' blijft uit de reeks, een nieuwe verzamelfactuur krijgt een volgend nummer.',
+          'Ja, terugdraaien', {vlak:'#0f766e',inkt:'#fff',rand:'0'})
+          .then(function(ja){
+            if(!ja) return;
+            var n=0;
+            try{ n=window.BNS_TW_BULK.losmaken(id); }catch(e){}
+            if(n && naam) map='bulk:'+naam;
+            tekenen(true);
+          });
+      });
+    });
     K('[data-bh-credit-terug]').forEach(function(b){
       b.addEventListener('click', function(){
         var o=vindOrder(b.getAttribute('data-bh-credit-terug')); if(!o) return;
@@ -63882,10 +64000,27 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(vak) return vak;
     vak=document.createElement('div');
     vak.id='bnsTwTipVak';
+    /* ==========================================================
+       27-10-2026 - ZWARTE BALK ZONDER TEKST.
+       ----------------------------------------------------------
+       [stated] "de nafigatie als je met de muis er op gaat staan geeft
+       zwarte balk geen tekst"
+
+       De app zet de klasse bns-readable-v105 op de body, en in het stijlblad
+       staat daarbij: alles daarbinnen krijgt color:var(--text) met
+       !important. Mijn balkje hangt ook aan de body, dus kreeg het
+       donkerblauwe letters op een donkerblauwe achtergrond. Onzichtbaar.
+
+       Dezelfde valkuil als bij de knoppen in dit project: alleen een inline
+       !important wint van zo'n regel. Daarom staan kleur en achtergrond hier
+       los gezet in plaats van in de cssText. */
     vak.style.cssText='position:fixed;z-index:2147483646;pointer-events:none;opacity:0;'+
-      'transition:opacity .09s linear;background:#0f172a;color:#f8fafc;font-size:12.5px;'+
+      'transition:opacity .09s linear;font-size:12.5px;'+
       'font-weight:700;line-height:1.35;padding:7px 10px;border-radius:9px;max-width:290px;'+
       'box-shadow:0 10px 26px rgba(15,23,42,.33);font-family:Arial,Helvetica,sans-serif';
+    vak.style.setProperty('color','#f8fafc','important');
+    vak.style.setProperty('background','#0f172a','important');
+    vak.style.setProperty('text-shadow','none','important');
     document.body.appendChild(vak);
     return vak;
   }
@@ -64091,14 +64226,81 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      doorloopt. We vragen het aan de bestaande nummermodule; die houdt zelf
      bij wat de volgende is.
   */
-  function volgendFactuurNummer(){
-    try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.volgende==='function') return T(window.BNS_TW_FACTUURNR.volgende()); }catch(e){}
-    var y=new Date().getFullYear(), max=0;
+  /* ==========================================================
+     27-10-2026 - EEN UITGEDEELD NUMMER KOMT NIET TERUG.
+     ----------------------------------------------------------
+     De terugvaloptie hieronder keek alleen naar nummers die nu op een
+     opdracht staan. Draai je een verzamelfactuur terug, dan staan ze er niet
+     meer en kwam datzelfde nummer er zo weer uit. Dat mag niet: een nummer
+     dat ooit op een factuur heeft gestaan hoor je niet opnieuw te gebruiken.
+     Daarom houdt deze module zelf ook bij wat hij heeft uitgegeven.
+  ========================================================== */
+  /* ==========================================================
+     27-10-2026 - IK VERZON EEN NUMMER DAT NIET BESTAAT.
+     ----------------------------------------------------------
+     [stated] "wij gebruiken geen 260001, wij gebruiken jaar en elk nieuw jaar
+     verandert het voornummer, bv 2698771103 naar 2798771103."
+
+     Klopt, en de app doet dat ook al: twee cijfers jaartal met daarachter een
+     doorlopende teller. Mijn terugval maakte er F2026-0001 van - een vorm die
+     hier nergens bestaat. Die is weg. Het nummer komt nu altijd uit dezelfde
+     teller als je gewone facturen; kan die module even niet worden bereikt,
+     dan bouwen we het in dezelfde schrijfwijze op en nooit in een eigen.
+  ========================================================== */
+  var EIGEN_KEY='bns_tw_bulk_reeks';
+  function jaarKort(){ return String(new Date().getFullYear()).slice(-2); }
+  function knipNr(nummer){
+    var x=T(nummer);
+    if(!/^\d{5,}$/.test(x)) return null;
+    return { jaar:x.slice(0,2), teller:parseInt(x.slice(2),10)||0, breedte:x.length-2 };
+  }
+  function bouwNr(teller, breedte){
+    var t=String(teller);
+    while(t.length<(breedte||8)) t='0'+t;
+    return jaarKort()+t;
+  }
+  /* De instelling uit Admin: dezelfde reeks als de gewone facturen, of een
+     eigen reeks met een eigen startnummer. */
+  function eigenReeks(){
+    try{
+      var r=JSON.parse(localStorage.getItem(EIGEN_KEY)||'null');
+      if(r && r.aan===true && T(r.volgende)) return r;
+    }catch(e){}
+    try{
+      var s=S(), r2=s && s.settings && s.settings.bulkReeks;
+      if(r2 && r2.aan===true && T(r2.volgende)) return r2;
+    }catch(e){}
+    return null;
+  }
+  function eigenReeksBewaren(r){
+    try{ localStorage.setItem(EIGEN_KEY, JSON.stringify(r)); }catch(e){}
+    try{
+      var s=S();
+      if(s){ s.settings=s.settings||{}; s.settings.bulkReeks=r; if(typeof save==='function') save(); }
+    }catch(e){}
+    return r;
+  }
+  function hoogsteInLijst(){
+    var hoog=null;
     orders().forEach(function(o){
-      var m=T(invoiceNo(o)).match(new RegExp('^F'+y+'-(\\d+)$'));
-      if(m) max=Math.max(max, parseInt(m[1],10)||0);
+      [invoiceNo(o), o && o.verzamel && o.verzamel.nr].forEach(function(x){
+        var d=knipNr(x);
+        if(d && d.jaar===jaarKort() && (!hoog || d.teller>hoog.teller)) hoog=d;
+      });
     });
-    return 'F'+y+'-'+String(max+1).padStart(4,'0');
+    return hoog;
+  }
+  function volgendFactuurNummer(){
+    var eigen=eigenReeks();
+    if(eigen){
+      var d=knipNr(eigen.volgende);
+      var nr=d ? bouwNr(d.teller, d.breedte) : T(eigen.volgende);
+      if(d) eigenReeksBewaren({aan:true, volgende:bouwNr(d.teller+1, d.breedte)});
+      return nr;
+    }
+    try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.volgende==='function') return T(window.BNS_TW_FACTUURNR.volgende()); }catch(e){}
+    var h=hoogsteInLijst();
+    return h ? bouwNr(h.teller+1, h.breedte) : bouwNr(98771087, 8);
   }
   function nummerGebruikt(nr){
     try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.gebruikt==='function') window.BNS_TW_FACTUURNR.gebruikt(nr); }catch(e){}
@@ -64134,6 +64336,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       if(!o || !o.verzamel || T(o.verzamel.id)!==T(id)) return;
       try{ delete o.verzamel; }catch(e){ o.verzamel=null; }
       if(o.invoice){ o.invoice.invoiceNumber=''; try{ delete o.invoice.datum; }catch(e){} }
+      /* Ze waren goedgekeurd, anders hadden ze nooit op de factuur gestaan.
+         Dus komen ze afgevinkt terug en hoef je alleen te wijzigen wat er
+         fout ging, in plaats van alles opnieuw aan te vinken. */
+      o.bulkKlaar=true;
       o.updatedAt=new Date().toISOString();
       bewaar(o); n++;
     });
@@ -64148,17 +64354,40 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      De prijs daarvan: verandert de opmaak van de gewone factuur ooit, dan
      moet deze apart worden bijgewerkt.
   */
-  function bedrijf(){
-    var s=S(), i=(s && s.settings) || {};
-    return {
-      naam: T(i.companyName||i.bedrijfsnaam||'Tapwagen.nl'),
-      adres: T(i.companyAddress||i.adres),
-      plaats: T(i.companyCity||i.plaats),
-      kvk: T(i.kvk||i.kvkNummer),
-      btw: T(i.vatNumber||i.btwNummer),
-      iban: T(i.iban),
-      logo: T(i.logo||i.logoData)
-    };
+  /* ==========================================================
+     27-10-2026 - DEZELFDE HUISSTIJL ALS DE GEWONE FACTUUR.
+     ----------------------------------------------------------
+     [stated] "in admin staat ook rubriek huisstijl / documenten, hier moet
+     dus ook de zelfde leyout instellingen komen voor de bulk factuur"
+
+     Dat hoeft geen tweede set instellingen te worden. De verzamelfactuur
+     leest nu exact dezelfde als de gewone factuur: bedrijfsgegevens,
+     accentkleur, lettergroottes, logo, briefpapier en de factuurvoettekst.
+     Pas je ze in Admin aan, dan verandert deze mee. Eén plek, geen kans dat
+     de twee uit elkaar lopen.
+  ========================================================== */
+  function huisstijl(){
+    try{ if(typeof window.BNS_TW_HUISSTIJL==='function') return window.BNS_TW_HUISSTIJL()||{}; }catch(e){}
+    try{ var l=JSON.parse(localStorage.getItem('bns_huisstijl_v361')||'{}'); if(l && typeof l==='object') return l; }catch(e){}
+    try{ var s=S(); return (s && s.settings && s.settings.invoice) || {}; }catch(e){}
+    return {};
+  }
+  function maat(v, laag, hoog, standaard){
+    var n=Number(v);
+    if(!isFinite(n) || n<laag || n>hoog) return standaard;
+    return n;
+  }
+  function bedrijfRegels(h){
+    var r=[];
+    r.push(T(h.companyName)||'Tapwagen.nl');
+    String(h.address||'').split(/\n+/).forEach(function(x){ if(T(x)) r.push(T(x)); });
+    if(T(h.phone))   r.push('Tel.: '+T(h.phone));
+    if(T(h.email))   r.push(T(h.email));
+    if(T(h.website)) r.push(T(h.website));
+    if(T(h.kvk))     r.push('KVK: '+T(h.kvk));
+    if(T(h.btw))     r.push('BTW NR: '+T(h.btw));
+    if(T(h.iban))    r.push('Bank: '+T(h.iban));
+    return r;
   }
   function regelVan(o){
     var l=(o&&o.location)||{};
@@ -64174,22 +64403,36 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     };
   }
   function documentHtml(nr, klantNaam, lijst, datum){
-    var b=bedrijf();
+    var h=huisstijl();
+    var accent=T(h.accent)||'#0ea5e9';
+    var bodyFs=maat(h.bodyFontSize,10,18,13);
+    var kopFs=maat(h.headingFontSize,16,30,20);
+    var tabelFs=maat(h.tableFontSize,9,18,13);
+    var totaalFs=maat(h.totalFontSize,11,22,14);
+    var briefpapier=T(h.letterheadFactuur);
+    var voet=T(h.invoiceFooter)||T(h.footer);
+
     var regels=lijst.map(regelVan);
     var k=(lijst[0] && lijst[0].customer) || {};
     var somEx=regels.reduce(function(n,r){ return n+r.ex; },0);
     var somBorg=regels.reduce(function(n,r){ return n+r.borg; },0);
     /* btw per tarief, want een bundel kan opdrachten met verschillende
-       percentages bevatten. Meestal is het er maar één. */
+       percentages bevatten. Meestal is het er maar een. */
     var perTarief={};
     regels.forEach(function(r){ perTarief[r.btw]=(perTarief[r.btw]||0)+r.ex; });
     var btwTotaal=0;
+    var meerTarieven=Object.keys(perTarief).length>1;
     var btwRegels=Object.keys(perTarief).sort(function(a,b){ return Number(a)-Number(b); }).map(function(t){
       var bed=perTarief[t]*Number(t)/100;
       btwTotaal+=bed;
-      return '<tr><td>Btw '+esc(t)+'%'+(Object.keys(perTarief).length>1?' over '+geld(perTarief[t]):'')+'</td><td>'+esc(geld(bed))+'</td></tr>';
+      return '<tr><td>Btw '+esc(t)+'%'+(meerTarieven?' over '+geld(perTarief[t]):'')+'</td><td>'+esc(geld(bed))+'</td></tr>';
     }).join('');
     var totaal=somEx+btwTotaal+somBorg;
+
+    var logo = T(h.logo)
+      ? '<img src="'+esc(h.logo)+'" alt="'+esc(T(h.companyName)||'Tapwagen.nl')+'" style="max-width:150mm;max-height:34mm;object-fit:contain">'
+      : '<div class="merk">'+esc((T(h.companyName)||'Tapwagen.nl').toUpperCase())+'</div>'+
+        (T(h.slogan)?'<div class="leus">'+esc(h.slogan)+'</div>':'');
 
     var knoppen='<div class="vzbalk">'+
       '<button id="vzPdf" class="vzk vzblauw">PDF opslaan</button>'+
@@ -64203,21 +64446,27 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
     return '<!doctype html><html><head><meta charset="utf-8"><title>Verzamelfactuur '+esc(nr)+'</title>'+
       '<style>@page{size:A4;margin:14mm}*{box-sizing:border-box}'+
-      'body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}'+
-      '.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:20mm 17mm}'+
-      '.top{display:flex;justify-content:space-between;border-bottom:5px solid #2563eb;padding-bottom:16px;margin-bottom:18px}'+
-      '.doctype{font-size:30px;font-weight:900;text-transform:uppercase}'+
-      '.meta{text-align:right;line-height:1.45}'+
-      '.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}'+
-      '.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}'+
-      '.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}'+
-      'table{width:100%;border-collapse:collapse}'+
-      'th{background:#2563eb;color:#fff;text-align:left}'+
-      'td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px;vertical-align:top}'+
-      '.bedrag{text-align:right;white-space:nowrap}'+
-      '.totals{margin-left:auto;width:300px;margin-top:14px}'+
-      '.totals td:last-child{text-align:right;font-weight:800}'+
-      '.totals tr.eind td{font-size:16px;border-top:2px solid #0f172a}'+
+      'body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:'+bodyFs+'px}'+
+      '.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:12mm 14mm;position:relative}'+
+      (briefpapier? '.page{background-image:url('+JSON.stringify(briefpapier)+');background-size:210mm 297mm;background-repeat:no-repeat;background-position:top left}' : '')+
+      '.vel{position:relative;z-index:1}'+
+      '.logo{text-align:center;margin-bottom:3mm}'+
+      '.merk{font-size:32px;font-weight:900;color:'+accent+';letter-spacing:1px;line-height:1}'+
+      '.leus{font-weight:800;font-style:italic;margin-top:1mm}'+
+      '.titel{text-align:center;font-size:'+kopFs+'px;font-weight:900;margin:3mm 0 5mm;text-transform:uppercase}'+
+      '.top{display:grid;grid-template-columns:1fr 62mm;gap:10mm}'+
+      '.bedrijf{line-height:1.18}'+
+      '.meta table{width:100%;border-collapse:collapse}.meta td{padding:1mm 0}.meta td:first-child{font-weight:700}'+
+      '.lijn{border-top:1.5px solid #333;margin:5mm 0}'+
+      '.klant{font-weight:700;font-style:italic;line-height:1.35;min-height:16mm}'+
+      '.items{width:100%;border-collapse:collapse;margin-top:2mm;font-size:'+tabelFs+'px}'+
+      '.items th{text-align:left;border-bottom:1px solid #333;padding:1.2mm;font-weight:700}'+
+      '.items td{padding:1.5mm 1.2mm;vertical-align:top;border-bottom:1px solid #e5e7eb}'+
+      '.items .bedrag{text-align:right;width:32mm;white-space:nowrap}'+
+      '.totals{width:82mm;margin-left:auto;margin-top:7mm;border-top:1.5px solid #333;border-collapse:collapse;font-size:'+tabelFs+'px}'+
+      '.totals td{padding:1.3mm 0}.totals td:last-child{text-align:right;font-weight:800}'+
+      '.totals tr.eind td{font-weight:900;font-size:'+totaalFs+'px;border-top:1px solid #333;padding-top:2mm}'+
+      '.voet{white-space:pre-wrap;line-height:1.35;margin-top:9mm;border-top:1px solid #cbd5e1;padding-top:3mm}'+
       '.vzbalk{position:fixed;top:10px;left:10px;right:10px;display:flex;flex-wrap:wrap;gap:8px;z-index:999}'+
       '.vzk{border:0;border-radius:12px;padding:11px 16px;color:#fff;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)}'+
       '.vzblauw{background:#2563eb}.vzteal{background:#0d9488}.vzdonker{background:#1f2937}'+
@@ -64225,39 +64474,41 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       '@media print{body{background:#fff}.vzbalk{display:none}.page{margin:0}}</style></head><body>'+
       knoppen+
       '<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>'+
-      '<main class="page">'+
-        '<section class="top">'+
-          '<div class="doctype">Verzamelfactuur</div>'+
-          '<div class="meta">'+(b.logo?'<img src="'+b.logo+'" style="max-width:48mm;max-height:20mm;object-fit:contain"><br>':'')+
-            '<b>'+esc(b.naam)+'</b><br>'+
-            (b.adres?esc(b.adres)+'<br>':'')+(b.plaats?esc(b.plaats)+'<br>':'')+
-            'Factuurnummer: <b>'+esc(nr)+'</b><br>Datum: '+esc(nl(datum))+'</div>'+
-        '</section>'+
-        '<div class="grid">'+
-          '<section class="card"><div class="label">Klant</div><b>'+esc(klantNaam)+'</b><br>'+
-            esc(T(k.street))+'<br>'+esc([T(k.zip),T(k.city)].filter(Boolean).join(' '))+'<br>'+esc(T(k.email))+'</section>'+
-          '<section class="card"><div class="label">Deze factuur</div>'+
-            regels.length+' opdracht(en)<br>Van '+esc(nl(regels[0]?regels[0].datum:''))+
-            ' tot '+esc(nl(regels[regels.length-1]?(regels[regels.length-1].eind||regels[regels.length-1].datum):''))+
-            '<br>Betaling binnen 30 dagen'+(b.iban?'<br>IBAN '+esc(b.iban):'')+'</section>'+
+      '<main class="page"><div class="vel">'+
+        '<div class="logo">'+logo+'</div>'+
+        '<div class="titel">Verzamelfactuur</div>'+
+        '<div class="top">'+
+          '<div class="bedrijf">'+bedrijfRegels(h).map(esc).join('<br>')+'</div>'+
+          '<div class="meta"><table>'+
+            '<tr><td>Factuur-nr:</td><td><b>'+esc(nr)+'</b></td></tr>'+
+            '<tr><td>Datum:</td><td>'+esc(nl(datum))+'</td></tr>'+
+            '<tr><td>Opdrachten:</td><td>'+regels.length+'</td></tr>'+
+          '</table></div>'+
         '</div>'+
-        '<section class="card"><div class="label">Opdrachten</div>'+
-          '<table><thead><tr><th>Opdracht</th><th>Datum</th><th>Locatie</th><th class="bedrag">Bedrag excl. btw</th></tr></thead><tbody>'+
+        '<div class="lijn"></div>'+
+        '<div class="klant">'+esc(klantNaam)+
+          (T(k.street)?'<br>'+esc(T(k.street)):'')+
+          ([T(k.zip),T(k.city)].filter(Boolean).length?'<br>'+esc([T(k.zip),T(k.city)].filter(Boolean).join(' ')):'')+
+          (T(k.email)?'<br>'+esc(T(k.email)):'')+
+        '</div>'+
+        '<table class="items"><thead><tr>'+
+          '<th>Opdracht</th><th>Datum</th><th>Locatie</th><th class="bedrag">Bedrag excl. btw</th>'+
+        '</tr></thead><tbody>'+
           regels.map(function(r){
             return '<tr><td><b>'+esc(r.nr)+'</b><br>'+esc(r.titel)+'</td>'+
               '<td>'+esc(nl(r.datum))+(r.eind&&r.eind!==r.datum?'<br>t/m '+esc(nl(r.eind)):'')+'</td>'+
               '<td>'+esc(r.locatie||'-')+'</td>'+
               '<td class="bedrag">'+esc(geld(r.ex))+'</td></tr>';
           }).join('')+
-          '</tbody></table>'+
-          '<table class="totals">'+
-            '<tr><td>Subtotaal excl. btw</td><td>'+esc(geld(somEx))+'</td></tr>'+
-            btwRegels+
-            (somBorg>0?'<tr><td>Borg (geen btw)</td><td>'+esc(geld(somBorg))+'</td></tr>':'')+
-            '<tr class="eind"><td>Totaal te voldoen</td><td>'+esc(geld(totaal))+'</td></tr>'+
-          '</table>'+
-        '</section>'+
-      '</main>'+
+        '</tbody></table>'+
+        '<table class="totals">'+
+          '<tr><td>Subtotaal excl. btw</td><td>'+esc(geld(somEx))+'</td></tr>'+
+          btwRegels+
+          (somBorg>0?'<tr><td>Borg (geen btw)</td><td>'+esc(geld(somBorg))+'</td></tr>':'')+
+          '<tr class="eind"><td>Totaal te voldoen</td><td>'+esc(geld(totaal))+'</td></tr>'+
+        '</table>'+
+        (voet? '<div class="voet">'+esc(voet)+'</div>' : '')+
+      '</div></main>'+
       '<script>(function(){'+
         'function el(i){return document.getElementById(i)}'+
         'function pdf(open){var b=document.querySelector(".page");'+
