@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BULK40-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-KORTING-BTW42-2026-10-28';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -8894,7 +8894,7 @@ function calcLineTotals(){
     sub += qty * parseNum(m.linePrice);
     dep += qty * parseNum(m.lineDeposit);
   });
-  let vat = sub * 0.21;
+  let vat = sub * (window.BNS_TW_BTWF?window.BNS_TW_BTWF(null):0.21);
   let grand = sub + vat + dep;
   if(document.getElementById('materialsTotal')) materialsTotal.textContent=euro(sub);
   if(document.getElementById('depositTotal')) depositTotal.textContent=euro(dep);
@@ -8939,7 +8939,7 @@ Materialen:
 ${rows || 'Geen materialen gekozen'}
 
 Subtotaal: ${euro(totals.materials)}
-Btw 21%: ${euro(totals.vat)}
+Btw ${window.BNS_TW_BTWT?window.BNS_TW_BTWT(null):'21'}%: ${euro(totals.vat)}
 Borg: ${euro(totals.deposit)}
 Eindtotaal: ${euro(totals.grand)}
 
@@ -9203,7 +9203,7 @@ ${rows || 'Geen materialen gekozen'}
 BEDRAGEN
 --------
 Subtotaal materialen: ${euro(totals.materials)}
-Btw 21%:              ${euro(totals.vat)}
+Btw ${window.BNS_TW_BTWT?window.BNS_TW_BTWT(null):'21'}%:              ${euro(totals.vat)}
 Borg:                 ${euro(totals.deposit)}
 Eindtotaal:           ${euro(totals.grand)}
 
@@ -27794,7 +27794,7 @@ setTimeout(()=>{
     '<section class="card"><div class="label">Opdracht</div><b>'+esc(o.title)+'</b><br>Status: '+esc(o.status)+'<br>Datum: '+esc(o.start)+(o.end&&o.end!==o.start?' tot '+esc(o.end):'')+'<br>Merk: '+esc(o.brand)+'</section>'+
     '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRows()+'</tbody></table></section>'+
     '<section class="card"><div class="label">Extra</div><div class="free">'+esc(o.extra||'')+'</div></section>'+
-    '<section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+esc(t.vatP||21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section>'+
+    '<section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+(window.BNS_TW_BTWT?window.BNS_TW_BTWT(o):'21')+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section>'+
     '</main></body></html>';
   }
   function openDoc(type){
@@ -29867,7 +29867,7 @@ setTimeout(()=>{
     var o=orderForDoc(), t=totals(), title=docTypeTitle(), inv=invoiceNumberForDoc();
     persistInvoiceMeta();
     var meta='<b>Opdracht '+H(o.number)+'</b><br>'+(inv?'Factuur nr: <b>'+H(inv)+'</b><br>':'')+'Betaling: '+H(val('bnsPaymentType')|| (title==='Contante betaling'?'Contant':'Op rekening'));
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title)+' '+H(o.number)+'</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;border-bottom:5px solid #2563eb;padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}</style></head><body><div class="v72-doc-actions"><button id="v72PdfBtn" class="v72-btn v72-btn-blue">&#128190; PDF opslaan</button><button id="v72PdfOpenBtn" class="v72-btn v72-btn-teal">&#128065; PDF openen</button><button onclick="window.print()" class="v72-btn v72-btn-dark">&#128424; Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)" class="v72-btn v72-btn-orange">&#9993; Mailen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)" class="v72-btn v72-btn-green">&#128241; WhatsApp</button><button id="v72ShareBtn" class="v72-btn v72-btn-purple">&#8593; Delen</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false" class="v72-btn v72-btn-grey">&#8592; Terug</button></div><style>.v72-doc-actions{position:fixed;top:10px;left:10px;right:10px;display:flex;flex-wrap:wrap;gap:8px;z-index:999}.v72-btn{border:0;border-radius:12px;padding:11px 16px;color:#fff;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)}.v72-btn:hover{filter:brightness(1.08)}.v72-btn-blue{background:#2563eb}.v72-btn-teal{background:#0d9488}.v72-btn-teal{background:#0d9488}.v72-btn-dark{background:#1f2937}.v72-btn-orange{background:#ea580c}.v72-btn-green{background:#16a34a}.v72-btn-purple{background:#7c3aed}.v72-btn-grey{background:#64748b}@media print{.v72-doc-actions{display:none}}</style><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function ready(fn){if(document.readyState!=="loading")fn();else document.addEventListener("DOMContentLoaded",fn);}ready(function(){var pdfBtn=document.getElementById("v72PdfBtn");if(pdfBtn){pdfBtn.onclick=function(){var el=document.querySelector(".page");var fname=(document.title||"document").replace(/[^a-z0-9_\-]+/gi,"_")+".pdf";pdfBtn.textContent="Bezig...";var opt={margin:0,filename:fname,image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};if(window.html2pdf){window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var b2=new Blob([blob],{type:"application/octet-stream"});var url=URL.createObjectURL(b2);var a=document.createElement("a");a.href=url;a.download=fname;a.style.display="none";document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},4000);pdfBtn.innerHTML="&#128190; PDF opslaan";}).catch(function(){pdfBtn.innerHTML="&#128190; PDF opslaan";window.print();});}else{window.print();}};}var pdfOpen=document.getElementById("v72PdfOpenBtn");if(pdfOpen){pdfOpen.onclick=function(){var el=document.querySelector(".page");var fname=(document.title||"document").replace(/[^a-z0-9_\\-]+/gi,"_")+".pdf";pdfOpen.textContent="Bezig...";var opt={margin:0,filename:fname,image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};if(window.html2pdf){window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var url=URL.createObjectURL(blob);var w=window.open(url,"_blank");if(!w)alert("De pdf kon niet openen omdat pop-ups geblokkeerd zijn. Gebruik PDF opslaan.");pdfOpen.innerHTML="&#128065; PDF openen";setTimeout(function(){URL.revokeObjectURL(url);},60000);}).catch(function(){pdfOpen.innerHTML="&#128065; PDF openen";});}else{window.print();}};}var shareBtn=document.getElementById("v72ShareBtn");if(shareBtn){shareBtn.onclick=function(){var text=document.body.innerText||"";var title=document.title||"Document";if(navigator.share){navigator.share({title:title,text:text}).catch(function(){});}else{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){shareBtn.innerHTML="Gekopieerd!";setTimeout(function(){shareBtn.innerHTML="&#8593; Delen";},1500);});}else{alert("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}}};}});})();</script><main class="page"><section class="top"><div class="doctype">'+H(title)+'</div><div class="meta">'+meta+'</div></section><div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+H(o.customer.name)+'</b><br>'+H(o.customer.street)+'<br>'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+H(o.customer.phone)+'<br>'+H(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+H(o.location.name)+'</b><br>'+H(o.location.street)+'<br>'+H([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div><section class="card"><div class="label">Opdracht</div><b>'+H(o.title)+'</b><br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' tot '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand)+'</section><section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRowsDoc()+'</tbody></table></section><section class="card"><div class="label">Extra</div><div class="free">'+H(o.extra||'')+'</div></section><section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+H(t.vatP||21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section></main></body></html>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title)+' '+H(o.number)+'</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:20mm 17mm}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;border-bottom:5px solid #2563eb;padding-bottom:16px;margin-bottom:18px}.doctype{font-size:30px;font-weight:900;text-transform:uppercase}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}th{background:#2563eb;color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap}@media print{body{background:white}.actions{display:none}.page{margin:0}}</style></head><body><div class="v72-doc-actions"><button id="v72PdfBtn" class="v72-btn v72-btn-blue">&#128190; PDF opslaan</button><button id="v72PdfOpenBtn" class="v72-btn v72-btn-teal">&#128065; PDF openen</button><button onclick="window.print()" class="v72-btn v72-btn-dark">&#128424; Printen</button><button onclick="location.href=\'mailto:?subject=\'+encodeURIComponent(document.title)+\'&body=\'+encodeURIComponent(document.body.innerText)" class="v72-btn v72-btn-orange">&#9993; Mailen</button><button onclick="window.location.href=&quot;https://wa.me/?text=&quot;+encodeURIComponent(document.body.innerText||&quot;&quot;)" class="v72-btn v72-btn-green">&#128241; WhatsApp</button><button id="v72ShareBtn" class="v72-btn v72-btn-purple">&#8593; Delen</button><button onclick="try{window.close()}catch(e){};setTimeout(function(){try{if(!window.closed){if(window.opener){location.replace(\"about:blank\")}else{history.back()}}}catch(e){}},120);return false" class="v72-btn v72-btn-grey">&#8592; Terug</button></div><style>.v72-doc-actions{position:fixed;top:10px;left:10px;right:10px;display:flex;flex-wrap:wrap;gap:8px;z-index:999}.v72-btn{border:0;border-radius:12px;padding:11px 16px;color:#fff;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)}.v72-btn:hover{filter:brightness(1.08)}.v72-btn-blue{background:#2563eb}.v72-btn-teal{background:#0d9488}.v72-btn-teal{background:#0d9488}.v72-btn-dark{background:#1f2937}.v72-btn-orange{background:#ea580c}.v72-btn-green{background:#16a34a}.v72-btn-purple{background:#7c3aed}.v72-btn-grey{background:#64748b}@media print{.v72-doc-actions{display:none}}</style><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function ready(fn){if(document.readyState!=="loading")fn();else document.addEventListener("DOMContentLoaded",fn);}ready(function(){var pdfBtn=document.getElementById("v72PdfBtn");if(pdfBtn){pdfBtn.onclick=function(){var el=document.querySelector(".page");var fname=(document.title||"document").replace(/[^a-z0-9_\-]+/gi,"_")+".pdf";pdfBtn.textContent="Bezig...";var opt={margin:0,filename:fname,image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};if(window.html2pdf){window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var b2=new Blob([blob],{type:"application/octet-stream"});var url=URL.createObjectURL(b2);var a=document.createElement("a");a.href=url;a.download=fname;a.style.display="none";document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},4000);pdfBtn.innerHTML="&#128190; PDF opslaan";}).catch(function(){pdfBtn.innerHTML="&#128190; PDF opslaan";window.print();});}else{window.print();}};}var pdfOpen=document.getElementById("v72PdfOpenBtn");if(pdfOpen){pdfOpen.onclick=function(){var el=document.querySelector(".page");var fname=(document.title||"document").replace(/[^a-z0-9_\\-]+/gi,"_")+".pdf";pdfOpen.textContent="Bezig...";var opt={margin:0,filename:fname,image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};if(window.html2pdf){window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var url=URL.createObjectURL(blob);var w=window.open(url,"_blank");if(!w)alert("De pdf kon niet openen omdat pop-ups geblokkeerd zijn. Gebruik PDF opslaan.");pdfOpen.innerHTML="&#128065; PDF openen";setTimeout(function(){URL.revokeObjectURL(url);},60000);}).catch(function(){pdfOpen.innerHTML="&#128065; PDF openen";});}else{window.print();}};}var shareBtn=document.getElementById("v72ShareBtn");if(shareBtn){shareBtn.onclick=function(){var text=document.body.innerText||"";var title=document.title||"Document";if(navigator.share){navigator.share({title:title,text:text}).catch(function(){});}else{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){shareBtn.innerHTML="Gekopieerd!";setTimeout(function(){shareBtn.innerHTML="&#8593; Delen";},1500);});}else{alert("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}}};}});})();</script><main class="page"><section class="top"><div class="doctype">'+H(title)+'</div><div class="meta">'+meta+'</div></section><div class="grid"><section class="card"><div class="label">Klantgegevens</div><b>'+H(o.customer.name)+'</b><br>'+H(o.customer.street)+'<br>'+H([o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'<br>'+H(o.customer.phone)+'<br>'+H(o.customer.email)+'</section><section class="card"><div class="label">Locatie</div><b>'+H(o.location.name)+'</b><br>'+H(o.location.street)+'<br>'+H([o.location.zip,o.location.city].filter(Boolean).join(' '))+'</section></div><section class="card"><div class="label">Opdracht</div><b>'+H(o.title)+'</b><br>Datum: '+H(niceDate(o.start))+(o.end&&o.end!==o.start?' tot '+H(niceDate(o.end)):'')+'<br>Merk: '+H(o.brand)+'</section><section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRowsDoc()+'</tbody></table></section><section class="card"><div class="label">Extra</div><div class="free">'+H(o.extra||'')+'</div></section><section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+(window.BNS_TW_BTWT?window.BNS_TW_BTWT(o):'21')+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section></main></body></html>';
   }
   function openDoc83(){
     var w=window.open('','_blank');
@@ -35134,7 +35134,7 @@ setTimeout(()=>{
     '<section class="card"><div class="label">Opdracht</div><b>'+esc(o.title)+'</b><br>Status: '+esc(o.status)+'<br>Datum: '+esc(o.start)+(o.end && o.end !== o.start ? ' tot '+esc(o.end) : '')+'<br>Merk: '+esc(o.brand)+'</section>'+
     '<section class="card"><div class="label">Materialen</div><table><thead><tr><th>#</th><th>Aantal</th><th>Code</th><th>Omschrijving</th><th>Rubriek</th><th>Prijs</th></tr></thead><tbody>'+materialRows()+'</tbody></table></section>'+
     '<section class="card"><div class="label">Extra</div><div class="free">'+esc(o.extra || '')+'</div></section>'+
-    '<section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+esc(t.vatP || 21)+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section>'+
+    '<section class="card"><div class="label">Bedragen</div><table class="totals"><tr><td>Subtotaal materialen</td><td>'+euro(t.materials)+'</td></tr><tr><td>Btw '+(window.BNS_TW_BTWT?window.BNS_TW_BTWT(o):'21')+'%</td><td>'+euro(t.vat)+'</td></tr><tr><td>Borg</td><td>'+euro(t.deposit)+'</td></tr><tr><td>Eindtotaal</td><td>'+euro(t.grand)+'</td></tr></table></section>'+
     (inv.footer ? '<section class="footer free">'+esc(inv.footer)+'</section>' : '')+
     '<div class="powered">Powered by Tapwagen.nl</div></main></body></html>';
   }
@@ -44813,7 +44813,7 @@ setTimeout(()=>{
     var sub=0, dep=0;
     (o.materials||[]).forEach(function(m){ sub += matQty(m)*matPrice(m); dep += matQty(m)*n(m.lineDeposit||m.deposit||m.borg||0); });
     if(!sub && o.amount) sub=n(o.amount);
-    var btw=sub*0.21;
+    var btw=sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21);
     return {sub:sub, deposit:dep, btw:btw, total:sub+btw, pay:sub+btw+dep};
   }
   function materialRows(o, mode){
@@ -44870,7 +44870,7 @@ setTimeout(()=>{
   }
   function defaultTemplate(type){
     var fact=/factuur/i.test(type);
-    return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>'+H(type)+'</title><style>@page{size:A4;margin:14mm}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:12mm 14mm}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px}.actions button{border:0;border-radius:8px;background:#2563eb;color:white;padding:8px 12px;font-weight:800}.logo{text-align:center}.brand{font-size:34px;font-weight:900;color:#0ea5e9}.tag{font-weight:800;font-style:italic}h1{text-align:center;font-size:19px}.top{display:grid;grid-template-columns:1fr 58mm;gap:10mm}.line{border-top:1.5px solid #333;margin:5mm 0}.cust{font-weight:700;font-style:italic;min-height:16mm}.label{font-weight:700;width:32mm}table{width:100%;border-collapse:collapse}td,th{padding:1.3mm;vertical-align:top}th{border-bottom:1px solid #333;text-align:left}.amount{text-align:right}.totals{width:78mm;margin-left:auto;margin-top:8mm;border-top:1.5px solid #333}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}.terms{margin-top:16mm;line-height:1.35}@media print{.actions{display:none}body{background:white}.page{margin:0}}</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPdfOpen{background:#0d9488!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF opslaan</button><button id="twPdfOpen" type="button">PDF openen</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var alsBestand=new Blob([blob],{type:"application/octet-stream"});var url=URL.createObjectURL(alsBestand);var a=document.createElement("a");a.href=url;a.download=fileName();a.style.display="none";document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},4000);p.textContent="PDF opslaan";}).catch(function(){p.textContent="PDF opslaan";systemMsg("Opslaan lukt niet in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};var po=document.getElementById("twPdfOpen");if(po)po.onclick=function(){var el=mainEl();po.textContent="PDF maken...";waitPdf(function(ok){if(!ok){po.textContent="PDF openen";systemMsg("PDF-bibliotheek kon niet laden.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var url=URL.createObjectURL(blob);var w=window.open(url,"_blank");if(!w)systemMsg("De pdf kon niet openen omdat pop-ups geblokkeerd zijn. Gebruik PDF opslaan.");po.textContent="PDF openen";setTimeout(function(){URL.revokeObjectURL(url);},60000);}).catch(function(){po.textContent="PDF openen";systemMsg("Openen lukt niet. Gebruik PDF opslaan.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><div class="page"><div class="logo">{{#logo}}<img src="{{logo}}" style="max-width:95mm;max-height:25mm;object-fit:contain">{{/logo}}{{^logo}}<div class="brand">🍺 TAPWAGEN.NL 🍺</div><div class="tag">WE KEEP YOUR PARTY COOL!!!</div>{{/logo}}</div><h1>'+(fact?'FACTUUR':'{{document_titel}}')+'</h1><div class="top"><div>Tapwagen.nl<br>Molenlaan 30<br>1422 ZA Uithoorn<br>Tel.: 088-1888000<br>Info@tapwagen.nl<br>KVK: 32157678<br>BTW NR: NL001611849B73<br>Bank: NL97ABNA0409126675</div><div><b>'+(fact?'Factuur-nr:':'Opdracht-nr:')+'</b> '+(fact?'{{factuurnummer}}':'{{opdrachtnummer}}')+'<br><b>Datum:</b> {{datum}}</div></div><div class="line"></div><div class="cust">{{klant}}<br>{{klant_adres}}<br>{{klant_postcode_plaats}}</div><div class="line"></div><table><tr><td class="label">Evenement:</td><td>{{opdracht_titel}}</td></tr><tr><td class="label">Periode:</td><td>{{periode}}</td></tr><tr><td class="label">Status:</td><td>{{status}}</td></tr></table><div class="line"></div><table><tr><td class="label">Lokatie:</td><td>{{locatie}}</td></tr><tr><td class="label">Adres:</td><td>{{locatie_adres}} {{locatie_plaats}}</td></tr><tr><td class="label">Bijzonderheden:</td><td>{{bijzonderheden}}</td></tr><tr><td class="label">Contact:</td><td>{{contact}} {{contact_telefoon}}</td></tr></table><h3>Omschrijving:</h3><table><thead><tr><th>Aantal:</th><th>Item:</th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>{{materialen_rows}}</tbody></table><div class="totals"><table><tr><td>Subtotaal (Excl. Btw):</td><td>{{subtotaal}}</td></tr><tr><td>BTW 21%</td><td>{{btw}}</td></tr><tr class="strong"><td>Totaal:</td><td>{{totaal}}</td></tr><tr class="strong"><td>Te betalen:</td><td>{{te_betalen}}</td></tr></table></div>'+(fact?'<p style="margin-top:14mm">Wij verzoeken u om deze factuur binnen gesteld termijn te voldoen, onder vermelding van het Factuurnummer en opdracht nummer<br>Facturen dienen 8 dagen voor levering of ophalen betaald te zijn.</p>':'<div class="terms">Op alle overeenkomsten die u met Tapwagen.nl aangaat zijn de algemene voorwaarden van Tapwagen.nl van toepassing. Door akkoord te gaan met deze offerte/opdrachtbevestiging verklaart u tevens akkoord te gaan met de algemene voorwaarden van Tapwagen.nl.</div>')+'</div></body></html>';
+    return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>'+H(type)+'</title><style>@page{size:A4;margin:14mm}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:12mm 14mm}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px}.actions button{border:0;border-radius:8px;background:#2563eb;color:white;padding:8px 12px;font-weight:800}.logo{text-align:center}.brand{font-size:34px;font-weight:900;color:#0ea5e9}.tag{font-weight:800;font-style:italic}h1{text-align:center;font-size:19px}.top{display:grid;grid-template-columns:1fr 58mm;gap:10mm}.line{border-top:1.5px solid #333;margin:5mm 0}.cust{font-weight:700;font-style:italic;min-height:16mm}.label{font-weight:700;width:32mm}table{width:100%;border-collapse:collapse}td,th{padding:1.3mm;vertical-align:top}th{border-bottom:1px solid #333;text-align:left}.amount{text-align:right}.totals{width:78mm;margin-left:auto;margin-top:8mm;border-top:1.5px solid #333}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}.terms{margin-top:16mm;line-height:1.35}@media print{.actions{display:none}body{background:white}.page{margin:0}}</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPdfOpen{background:#0d9488!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF opslaan</button><button id="twPdfOpen" type="button">PDF openen</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var alsBestand=new Blob([blob],{type:"application/octet-stream"});var url=URL.createObjectURL(alsBestand);var a=document.createElement("a");a.href=url;a.download=fileName();a.style.display="none";document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},4000);p.textContent="PDF opslaan";}).catch(function(){p.textContent="PDF opslaan";systemMsg("Opslaan lukt niet in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};var po=document.getElementById("twPdfOpen");if(po)po.onclick=function(){var el=mainEl();po.textContent="PDF maken...";waitPdf(function(ok){if(!ok){po.textContent="PDF openen";systemMsg("PDF-bibliotheek kon niet laden.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var url=URL.createObjectURL(blob);var w=window.open(url,"_blank");if(!w)systemMsg("De pdf kon niet openen omdat pop-ups geblokkeerd zijn. Gebruik PDF opslaan.");po.textContent="PDF openen";setTimeout(function(){URL.revokeObjectURL(url);},60000);}).catch(function(){po.textContent="PDF openen";systemMsg("Openen lukt niet. Gebruik PDF opslaan.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><div class="page"><div class="logo">{{#logo}}<img src="{{logo}}" style="max-width:95mm;max-height:25mm;object-fit:contain">{{/logo}}{{^logo}}<div class="brand">🍺 TAPWAGEN.NL 🍺</div><div class="tag">WE KEEP YOUR PARTY COOL!!!</div>{{/logo}}</div><h1>'+(fact?'FACTUUR':'{{document_titel}}')+'</h1><div class="top"><div>Tapwagen.nl<br>Molenlaan 30<br>1422 ZA Uithoorn<br>Tel.: 088-1888000<br>Info@tapwagen.nl<br>KVK: 32157678<br>BTW NR: NL001611849B73<br>Bank: NL97ABNA0409126675</div><div><b>'+(fact?'Factuur-nr:':'Opdracht-nr:')+'</b> '+(fact?'{{factuurnummer}}':'{{opdrachtnummer}}')+'<br><b>Datum:</b> {{datum}}</div></div><div class="line"></div><div class="cust">{{klant}}<br>{{klant_adres}}<br>{{klant_postcode_plaats}}</div><div class="line"></div><table><tr><td class="label">Evenement:</td><td>{{opdracht_titel}}</td></tr><tr><td class="label">Periode:</td><td>{{periode}}</td></tr><tr><td class="label">Status:</td><td>{{status}}</td></tr></table><div class="line"></div><table><tr><td class="label">Lokatie:</td><td>{{locatie}}</td></tr><tr><td class="label">Adres:</td><td>{{locatie_adres}} {{locatie_plaats}}</td></tr><tr><td class="label">Bijzonderheden:</td><td>{{bijzonderheden}}</td></tr><tr><td class="label">Contact:</td><td>{{contact}} {{contact_telefoon}}</td></tr></table><h3>Omschrijving:</h3><table><thead><tr><th>Aantal:</th><th>Item:</th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>{{materialen_rows}}</tbody></table><div class="totals"><table><tr><td>Subtotaal (Excl. Btw):</td><td>{{subtotaal}}</td></tr><tr><td>BTW '+(window.BNS_TW_BTWT?window.BNS_TW_BTWT(null):'21')+'%</td><td>{{btw}}</td></tr><tr class="strong"><td>Totaal:</td><td>{{totaal}}</td></tr><tr class="strong"><td>Te betalen:</td><td>{{te_betalen}}</td></tr></table></div>'+(fact?'<p style="margin-top:14mm">Wij verzoeken u om deze factuur binnen gesteld termijn te voldoen, onder vermelding van het Factuurnummer en opdracht nummer<br>Facturen dienen 8 dagen voor levering of ophalen betaald te zijn.</p>':'<div class="terms">Op alle overeenkomsten die u met Tapwagen.nl aangaat zijn de algemene voorwaarden van Tapwagen.nl van toepassing. Door akkoord te gaan met deze offerte/opdrachtbevestiging verklaart u tevens akkoord te gaan met de algemene voorwaarden van Tapwagen.nl.</div>')+'</div></body></html>';
   }
   function htmlFor(type){
     var o=currentOrderObject(), st=getHuisstijl();
@@ -45074,7 +45074,7 @@ setTimeout(()=>{
     if(!sub && o.amount) sub=N(o.amount);
     var trans=twTransportTotal();
     sub += trans;
-    var btw=sub*0.21;
+    var btw=sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21);
     return {sub:sub, dep:dep, btw:btw, total:sub+btw, pay:sub+btw+dep, trans:trans};
   }
 
@@ -45129,7 +45129,7 @@ setTimeout(()=>{
       locationBlock+
       '<div class="section-title">Omschrijving:</div><table class="items"><thead><tr><th>Aantal:</th><th>Item:</th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table>'+
       twTransportRows()+
-      '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(t.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;21%</td><td>'+H(money(t.btw))+'</td></tr><tr class="strong"><td>Totaal:</td><td>'+H(money(t.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(t.pay))+'</td></tr></table></div>';
+      '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(t.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'+(window.BNS_TW_BTWT?window.BNS_TW_BTWT(o):'21')+'%</td><td>'+H(money(t.btw))+'</td></tr><tr class="strong"><td>Totaal:</td><td>'+H(money(t.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(t.pay))+'</td></tr></table></div>';
     if(fact){
       html += '<div class="footer" style="margin-top:12mm">'+H(footer||TAPWAGEN_DEFAULTS.footer)+'</div><div class="page-num">Pagina 1 van 1</div></div>';
     } else {
@@ -45353,7 +45353,7 @@ setTimeout(()=>{
     if(!sub && o.amount) sub=N(o.amount);
     var trans=twTransportTotal2();
     sub += trans;
-    var btw=N(o.pricing&&o.pricing.vat); if(!btw) btw=sub*0.21;
+    var btw=N(o.pricing&&o.pricing.vat); if(!btw) btw=sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21);
     var total=N(o.pricing&&(o.pricing.grand||o.pricing.total||o.pricing.incl)); if(!total) total=sub+btw;
     return {sub:sub,dep:dep,btw:btw,total:total,pay:total+dep,trans:trans};
   }
@@ -45406,7 +45406,7 @@ setTimeout(()=>{
       '<tr><td class="label">Bijzonderheden:</td><td>'+H(o.extra||'')+'</td></tr><tr><td class="label center">Contact:</td><td>'+H(c.contact||c.name||'')+' '+H(c.phone||'')+'</td></tr></table></div>'+locBlock+
       '<div class="section-title">Omschrijving:</div><table class="items"><thead><tr><th>Aantal:</th><th>Item:</th><th>Omschrijving:</th><th class="amount">Bedrag:</th></tr></thead><tbody>'+materialRows(o)+'</tbody></table>'+
       twTransportRows2()+
-      '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(tt.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;21%</td><td>'+H(money(tt.btw))+'</td></tr><tr class="strong"><td>Totaal:</td><td>'+H(money(tt.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div>';
+      '<div class="totals"><table><tr><td>Subtotaal (Excl. Btw) :</td><td>'+H(money(tt.sub))+'</td></tr><tr><td>BTW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'+(window.BNS_TW_BTWT?window.BNS_TW_BTWT(o):'21')+'%</td><td>'+H(money(tt.btw))+'</td></tr><tr class="strong"><td>Totaal:</td><td>'+H(money(tt.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div>';
     if(fact){ doc+='<div class="footer" style="margin-top:12mm">'+H(footer||DEFAULTS.footer)+'</div><div class="page-num">Pagina 1 van 1</div></div>'; }
     else { doc+='<div class="page-num">Pagina 1 van 2</div></div><div class="page"><div class="totals"><table><tr class="strong"><td>Totaal:</td><td>'+H(money(tt.total))+'</td></tr><tr class="strong"><td>Te betalen:</td><td>'+H(money(tt.pay))+'</td></tr></table></div><div class="terms">'+H(footer||DEFAULTS.termsText)+'</div><div class="page-num">Pagina 2 van 2</div></div>'; }
     doc+='</body></html>';
@@ -47598,7 +47598,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var base={materials:0,deposit:0,vat:0,grand:0};
     try{ if(oldCalc) base=oldCalc.apply(this,arguments)||base; }catch(e){}
     var mat=N(base.materials||base.sub||base.subtotal||0), dep=N(base.deposit||base.dep||0), trans=transportTotal();
-    var sub=mat+trans, vat=sub*0.21, grand=sub+vat+dep;
+    var sub=mat+trans, vat=sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(null):0.21), grand=sub+vat+dep;
     if(E('vatTotal')) E('vatTotal').textContent=euro(vat);
     if(E('grandTotal')) E('grandTotal').textContent=euro(grand);
     var tt=E('bns521TransportTotal'); if(tt) tt.textContent=euro(trans);
@@ -47615,7 +47615,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     order.vehicle=lines.map(function(l){return T(l.name);}).filter(Boolean).join(', ') || T(E('orderVehicle')&&E('orderVehicle').value);
     var mat=0, dep=0;
     (order.materials||[]).forEach(function(m){ mat += N(m.qty||1)*N(m.linePrice!=null?m.linePrice:m.price); dep += N(m.qty||1)*N(m.lineDeposit||m.deposit||m.borg||0); });
-    var sub=mat+order.transportTotal, vat=sub*0.21;
+    var sub=mat+order.transportTotal, vat=sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(order):0.21);
     order.pricing=Object.assign({},order.pricing||{}, {materials:sub, materialSubtotal:mat, transport:order.transportTotal, deposit:dep, vat:vat, grand:sub+vat+dep});
   };
 
@@ -47650,8 +47650,8 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var matRows=(o.materials||[]).map(function(m){ var q=N(m.qty||1)||1, p=matLinePrice(m), line=q*p; matSub+=line; dep+=q*matLineDeposit(m); return '<tr><td>'+H(q)+'</td><td>'+H(m.code||'')+'</td><td>'+H((m.name||m.product||'')+(m.lineNote?' - '+m.lineNote:''))+'</td><td class="amount">'+H(euro(line))+'</td></tr>'; }).join('') || '<tr><td colspan="4">Geen materialen gekozen</td></tr>';
     var trSub=transportTotal(o.transportLines||[]);
     var trRows=(o.transportLines||[]).map(function(l){ return '<tr><td>'+H(N(l.qty||1)+(l.unit?' '+l.unit:'x'))+'</td><td></td><td>'+H(l.name+(l.note?' - '+l.note:''))+'</td><td class="amount">'+H(euro(lineTotal(l)))+'</td></tr>'; }).join('') || '<tr><td colspan="4">Geen extra</td></tr>';
-    var sub=matSub+trSub, vat=sub*0.21, grand=sub+vat, pay=grand+dep;
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(o.number||''))+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;background:#e5e7eb;margin:0;color:#111}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:14mm}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px}.actions button{border:0;border-radius:8px;background:#2563eb;color:white;font-weight:900;padding:8px 12px}h1{text-align:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:12px;padding:10px;margin:10px 0}table{width:100%;border-collapse:collapse}th,td{padding:7px;border-bottom:1px solid #e5e7eb;text-align:left}.amount{text-align:right}.totals{width:85mm;margin-left:auto}.totals td:last-child{text-align:right;font-weight:900}@media print{.actions{display:none}body{background:white}.page{margin:0}}</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPdfOpen{background:#0d9488!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF opslaan</button><button id="twPdfOpen" type="button">PDF openen</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var alsBestand=new Blob([blob],{type:"application/octet-stream"});var url=URL.createObjectURL(alsBestand);var a=document.createElement("a");a.href=url;a.download=fileName();a.style.display="none";document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},4000);p.textContent="PDF opslaan";}).catch(function(){p.textContent="PDF opslaan";systemMsg("Opslaan lukt niet in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};var po=document.getElementById("twPdfOpen");if(po)po.onclick=function(){var el=mainEl();po.textContent="PDF maken...";waitPdf(function(ok){if(!ok){po.textContent="PDF openen";systemMsg("PDF-bibliotheek kon niet laden.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var url=URL.createObjectURL(blob);var w=window.open(url,"_blank");if(!w)systemMsg("De pdf kon niet openen omdat pop-ups geblokkeerd zijn. Gebruik PDF opslaan.");po.textContent="PDF openen";setTimeout(function(){URL.revokeObjectURL(url);},60000);}).catch(function(){po.textContent="PDF openen";systemMsg("Openen lukt niet. Gebruik PDF opslaan.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><main class="page"><h1>'+H(title)+'</h1><div class="grid"><div class="card"><b>Tapwagen.nl</b><br>Molenlaan 30<br>1422 ZA Uithoorn<br>Info@tapwagen.nl</div><div class="card"><b>Opdracht:</b> '+H(o.number||'')+'<br><b>Status:</b> '+H(o.status||'')+'<br><b>Datum:</b> '+H(o.start||'')+(o.end&&o.end!==o.start?' tot '+H(o.end):'')+'</div></div><div class="card"><b>Klant</b><br>'+H(o.customer.name)+'<br>'+H([o.customer.street,o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(o.location.name)+'<br>'+H([o.location.street,o.location.zip,o.location.city].filter(Boolean).join(' '))+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+matRows+'</tbody></table><h3>Extra</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+trRows+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(matSub))+'</td></tr><tr><td>Subtotaal extra</td><td>'+H(euro(trSub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(dep))+'</td></tr><tr><td><b>Eindtotaal</b></td><td><b>'+H(euro(pay))+'</b></td></tr></table></main></body></html>';
+    var sub=matSub+trSub, vat=sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21), grand=sub+vat, pay=grand+dep;
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(o.number||''))+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;background:#e5e7eb;margin:0;color:#111}.page{width:210mm;min-height:297mm;margin:0 auto;background:white;padding:14mm}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px}.actions button{border:0;border-radius:8px;background:#2563eb;color:white;font-weight:900;padding:8px 12px}h1{text-align:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:12px;padding:10px;margin:10px 0}table{width:100%;border-collapse:collapse}th,td{padding:7px;border-bottom:1px solid #e5e7eb;text-align:left}.amount{text-align:right}.totals{width:85mm;margin-left:auto}.totals td:last-child{text-align:right;font-weight:900}@media print{.actions{display:none}body{background:white}.page{margin:0}}</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPdfOpen{background:#0d9488!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF opslaan</button><button id="twPdfOpen" type="button">PDF openen</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var alsBestand=new Blob([blob],{type:"application/octet-stream"});var url=URL.createObjectURL(alsBestand);var a=document.createElement("a");a.href=url;a.download=fileName();a.style.display="none";document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},4000);p.textContent="PDF opslaan";}).catch(function(){p.textContent="PDF opslaan";systemMsg("Opslaan lukt niet in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};var po=document.getElementById("twPdfOpen");if(po)po.onclick=function(){var el=mainEl();po.textContent="PDF maken...";waitPdf(function(ok){if(!ok){po.textContent="PDF openen";systemMsg("PDF-bibliotheek kon niet laden.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var url=URL.createObjectURL(blob);var w=window.open(url,"_blank");if(!w)systemMsg("De pdf kon niet openen omdat pop-ups geblokkeerd zijn. Gebruik PDF opslaan.");po.textContent="PDF openen";setTimeout(function(){URL.revokeObjectURL(url);},60000);}).catch(function(){po.textContent="PDF openen";systemMsg("Openen lukt niet. Gebruik PDF opslaan.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><main class="page"><h1>'+H(title)+'</h1><div class="grid"><div class="card"><b>Tapwagen.nl</b><br>Molenlaan 30<br>1422 ZA Uithoorn<br>Info@tapwagen.nl</div><div class="card"><b>Opdracht:</b> '+H(o.number||'')+'<br><b>Status:</b> '+H(o.status||'')+'<br><b>Datum:</b> '+H(o.start||'')+(o.end&&o.end!==o.start?' tot '+H(o.end):'')+'</div></div><div class="card"><b>Klant</b><br>'+H(o.customer.name)+'<br>'+H([o.customer.street,o.customer.zip,o.customer.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(o.location.name)+'<br>'+H([o.location.street,o.location.zip,o.location.city].filter(Boolean).join(' '))+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+matRows+'</tbody></table><h3>Extra</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+trRows+'</tbody></table><table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(matSub))+'</td></tr><tr><td>Subtotaal extra</td><td>'+H(euro(trSub))+'</td></tr><tr><td>BTW '+(window.BNS_TW_BTWT?window.BNS_TW_BTWT(o):'21')+'%</td><td>'+H(euro(vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(dep))+'</td></tr><tr><td><b>Eindtotaal</b></td><td><b>'+H(euro(pay))+'</b></td></tr></table></main></body></html>';
   }
   function openDoc(type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } w.document.open(); w.document.write(docHtml(type)); w.document.close(); return false; }
   window.BNS_V521_openDocument=openDoc;
@@ -47774,7 +47774,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
        opnieuw aanmaken van een opdracht, dan kwam de oude waarde terug en stond
        hij toch op de factuur. Wat in het overzicht staat is nu de waarheid:
        niets invullen betekent nul. */
-    var sub=mat+trans, vat=sub*0.21, grand=sub+vat, pay=grand+dep;
+    var sub=mat+trans, vat=sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21), grand=sub+vat, pay=grand+dep;
     return {mat:mat,dep:dep,trans:trans,sub:sub,vat:vat,grand:grand,pay:pay};
   }
   function styleData(){
@@ -47858,7 +47858,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
          toont uitsluitend de transportregels. Nu komt de tekst er onder te staan,
          en bewust NIET op de factuur, zoals gevraagd. */
       ((!fact && T(o.extra||o.notes)) ? '<h3>Bijzonderheden</h3><div class="box" style="white-space:pre-wrap">'+H(T(o.extra||o.notes))+'</div>' : '')+
-      '<table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal extra</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table>'+(footer?'<div class="card" style="font-size:11px;color:#475569;margin-top:8mm">'+H(footer)+'</div>':'')+'</main></body></html>';
+      '<table class="totals"><tr><td>Subtotaal materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Subtotaal extra</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>BTW '+(window.BNS_TW_BTWT?window.BNS_TW_BTWT(o):'21')+'%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="strong"><td>Eindtotaal</td><td>'+H(euro(tt.pay))+'</td></tr></table>'+(footer?'<div class="card" style="font-size:11px;color:#475569;margin-top:8mm">'+H(footer)+'</div>':'')+'</main></body></html>';
   }
   function openOrderDoc(o,type){ var w=window.open('','_blank'); if(!w){ alert('Pop-up geblokkeerd. Sta pop-ups toe.'); return false; } try{ w.document.open(); w.document.write(docHtml(o,type)); w.document.close(); }catch(e){ alert('Document kon niet worden geopend: '+e.message); } return false; }
   function dedupeAccountingDocs(){
@@ -48445,7 +48445,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     if(base) return base;
     var mat=0, dep=0;
     (o&&o.materials||[]).forEach(function(m){ var q=N(m.qty||m.amount||m.aantal||1)||1; mat += q*N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs)); dep += q*N(m.lineDeposit||m.deposit||m.borg); });
-    return (mat+trans)*1.21 + dep;
+    return (mat+trans)*(1+(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21)) + dep;
   }
   function keyFor(o){ return 'factuur_'+(T(o&&o.id)||orderNo(o)||invoiceNo(o)); }
   function isRemoved(o){
@@ -50704,7 +50704,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
       var mat=0, dep=0;
       A(order.materials).forEach(function(m){ var q=N(m.qty||m.amount||m.aantal||1)||1; mat+=q*N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs)); dep+=q*N(m.lineDeposit||m.deposit||m.borg); });
       var sub=mat+order.transportTotal+order.serviceTotal;
-      order.pricing=Object.assign({},order.pricing||{}, {materialSubtotal:mat, transport:order.transportTotal, service:order.serviceTotal, deposit:dep, vat:sub*0.21, grand:sub*1.21+dep, materials:sub});
+      order.pricing=Object.assign({},order.pricing||{}, {materialSubtotal:mat, transport:order.transportTotal, service:order.serviceTotal, deposit:dep, vat:sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(order):0.21), grand:sub*(1+(window.BNS_TW_BTWF?window.BNS_TW_BTWF(order):0.21))+dep, materials:sub});
       order.__bns610GroupsSafe=true;
       return order;
     };
@@ -52380,7 +52380,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     if(!mat && o.pricing) mat=N(o.pricing.materialSubtotal || o.pricing.materials || o.pricing.subtotal || 0);
     /* R116: geen terugval meer op o.pricing - zie de toelichting hierboven. */
     if(!trans && o.pricing) trans=N(o.pricing.transport || 0);
-    var sub=mat+trans, vat=sub*0.21, pay=sub+vat+dep;
+    var sub=mat+trans, vat=sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21), pay=sub+vat+dep;
     return {mat:mat,trans:trans,sub:sub,vat:vat,dep:dep,pay:pay};
   }
   function openDocFor(o,type){
@@ -52412,7 +52412,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     }
     if(!card.querySelector('#bns652CostBox')){
       var tt=costTotals(o), box=document.createElement('div'); box.id='bns652CostBox';
-      box.innerHTML='<h3>Kosten duidelijk overzicht</h3><table class="bns652-cost-table"><tbody><tr><td>Materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Bijzonderheden</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>Subtotaal excl. btw</td><td>'+H(euro(tt.sub))+'</td></tr><tr><td>BTW 21%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="pay"><td>Te betalen incl. btw + borg</td><td>'+H(euro(tt.pay))+'</td></tr></tbody></table>';
+      box.innerHTML='<h3>Kosten duidelijk overzicht</h3><table class="bns652-cost-table"><tbody><tr><td>Materialen</td><td>'+H(euro(tt.mat))+'</td></tr><tr><td>Bijzonderheden</td><td>'+H(euro(tt.trans))+'</td></tr><tr><td>Subtotaal excl. btw</td><td>'+H(euro(tt.sub))+'</td></tr><tr><td>BTW '+(window.BNS_TW_BTWT?window.BNS_TW_BTWT(o):'21')+'%</td><td>'+H(euro(tt.vat))+'</td></tr><tr><td>Borg</td><td>'+H(euro(tt.dep))+'</td></tr><tr class="pay"><td>Te betalen incl. btw + borg</td><td>'+H(euro(tt.pay))+'</td></tr></tbody></table>';
       var total2=card.querySelector('.bns-v493-total,.bns-order-overview-total');
       if(total2 && total2.parentNode) total2.parentNode.insertBefore(box,total2.nextSibling); else card.appendChild(box);
     }
@@ -52491,7 +52491,7 @@ try{ console.info('[BNS 615] 611 rubriekbehoud bij gereserveerd klik actief'); }
     serv = 0;
     if(o&&o.pricing){ if(!mat) mat=N(o.pricing.materialSubtotal||o.pricing.materials||o.pricing.subtotal||0); if(!trans) trans=N(o.pricing.transport||0); /* R116: dep NIET meer overschrijven vanuit o.pricing - dat deed hij zelfs als je wel een borg had ingevuld. */ }
     var sub=mat+trans+serv;
-    var vat=(o&&o.pricing&&N(o.pricing.vat)) || sub*0.21;
+    var vat=(o&&o.pricing&&N(o.pricing.vat)) || sub*(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21);
     var grand=(sub+vat+dep) || N(o&&o.amount);
     return {mat:mat,trans:trans,serv:serv,sub:sub,vat:vat,dep:dep,grand:grand};
   }
@@ -61624,10 +61624,24 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
     if(s==='8dagen' || s==='anders'){
       /* deze termijn hangt aan de LEVERING: betaald zijn t dagen voor de start */
-      if(d!=null && d<=2)
+      /* ==========================================================
+         28-10-2026 - TE LAAT TELDE VANAF DE VERKEERDE DAG.
+         ----------------------------------------------------------
+         [stated] "druk ik op 8 dagen dan zegt hij bij status te laat 9 dagen"
+         met als levering 19-10 tot 23-12.
+
+         Hij telde vanaf de LEVERDATUM: negen dagen geleden begonnen, dus
+         "9 dagen te laat". Maar bij deze termijn is de afspraak dat het geld
+         er acht dagen VOOR de levering is, dus de betaaldatum was 11 oktober
+         en hij is vandaag 17 dagen te laat. Bij 30 dagen telde hij al wel
+         vanaf de betaaldatum; nu betekent "te laat" overal hetzelfde.
+      ========================================================== */
+      if(d!=null && d<=2){
+        var teLaatDagen=t-d;           /* betaaldatum ligt t dagen voor de levering */
         return {tekst: d>=0 ? 'Openstaand - levering over '+d+(d===1?' dag':' dagen')
-                            : 'Te laat - '+(-d)+(d===-1?' dag':' dagen'),
+                            : 'Te laat - '+teLaatDagen+(teLaatDagen===1?' dag':' dagen'),
                 vlak:'#fee2e2', inkt:'#b91c1c', knippert:true, fase:'laatste'};
+      }
       if(d!=null && d<=t){
         var stil=isGezien(o,'eerste');
         return {tekst:'Openstaand - nog '+(d-0)+' dagen tot levering',
@@ -61884,7 +61898,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       var q=N(m.qty||m.amount||m.aantal||1)||1;
       mat += q*N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs));
     });
-    return mat*1.21;
+    return mat*(1+(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21));
   }
   function soortVanOrder(o){
     try{
@@ -62101,7 +62115,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       mat += q*N(m.linePrice!=null?m.linePrice:(m.price!=null?m.price:m.prijs));
       borg += q*N(m.lineDeposit||m.deposit||m.borg);
     });
-    return (mat+trans)*1.21 + borg;
+    return (mat+trans)*(1+(window.BNS_TW_BTWF?window.BNS_TW_BTWF(o):0.21)) + borg;
   }
   function datumVan(o){ return T(o && (o.invoiceDate || (o.invoice&&o.invoice.date) || o.start || o.end)).slice(0,10); }
   function jaarVan(o){
@@ -63868,8 +63882,6 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   if(window.__BNS_TW_CREDIT__) return;
   window.__BNS_TW_CREDIT__=true;
 
-  var REEKS_KEY='bns_tw_creditnr';
-
   function T(v){ return String(v==null?'':v).trim(); }
   function N(v){ var n=Number(String(v==null?'':v).replace(/[^0-9,.-]/g,'').replace(',','.')); return isFinite(n)?n:0; }
   function S(){
@@ -63884,50 +63896,148 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{ if(typeof syncDoc==='function' && o) syncDoc('orders', o.id, o); }catch(e){}
   }
 
-  /* ---------------- de reeks ---------------- */
+  /* ==========================================================
+     28-10-2026 - HET CREDITNOTANUMMER IN JULLIE EIGEN SCHRIJFWIJZE.
+     ----------------------------------------------------------
+     [stated] "ja credit zelfde wijze"
+
+     Hier stond C2026-0001. Die vorm bestaat nergens in dit bedrijf; bij de
+     facturen was hij al weggehaald, bij de creditnota was hij blijven staan.
+     Nu hetzelfde als de rest: twee cijfers jaartal met daarachter een
+     doorlopend nummer, en op 1 januari verandert alleen het jaartal.
+
+     Creditnota's die al zijn uitgedeeld houden hun oude nummer. Een document
+     dat de deur uit is hernummer je niet, ook niet als de vorm je niet meer
+     bevalt. Ze worden alleen niet meer meegeteld voor de nieuwe teller.
+  ========================================================== */
+  var EIGEN_KEY='bns_tw_credit_reeks';
   function jaarNu(){ return String(new Date().getFullYear()); }
+  function jaarKort(){ return String(new Date().getFullYear()).slice(-2); }
   function knip(nr){
-    var m=T(nr).match(/^C(\d{4})-(\d+)$/);
-    return m ? {jaar:m[1], teller:parseInt(m[2],10)||0, breedte:m[2].length} : null;
+    var x=T(nr);
+    if(!/^\d{5,}$/.test(x)) return null;
+    return { jaar:x.slice(0,2), teller:parseInt(x.slice(2),10)||0, breedte:x.length-2 };
   }
-  function bouw(jaar, teller, breedte){ return 'C'+jaar+'-'+String(teller).padStart(breedte||4,'0'); }
-  /* Het hoogste nummer dat al ergens op een opdracht staat is de waarheid.
-     Zo kan de teller nooit achterlopen als er op een andere computer is
-     gecrediteerd. */
-  function hoogsteInGebruik(jaar){
-    var hoog=0;
+  function bouw(teller, breedte){
+    var t=String(teller);
+    while(t.length<(breedte||8)) t='0'+t;
+    return jaarKort()+t;
+  }
+  function hoogsteInGebruik(){
+    var hoog=null;
     orders().forEach(function(o){
       var d=knip(o && o.credit && o.credit.nr);
-      if(d && d.jaar===jaar && d.teller>hoog) hoog=d.teller;
+      if(!d || d.jaar!==jaarKort()) return;
+      if(!hoog || d.teller>hoog.teller) hoog=d;
     });
     return hoog;
   }
-  function opgeslagenTeller(jaar){
-    var uit=0;
+  /* De instelling uit Admin: een eigen startnummer voor de creditnota's.
+     Laat je het leeg, dan pakt hij het eerstvolgende nummer uit je gewone
+     factuurreeks, zodat er geen gat in de nummering valt. */
+  function eigenReeks(){
     try{
-      var r=JSON.parse(localStorage.getItem(REEKS_KEY)||'null');
-      if(r && r.jaar===jaar) uit=N(r.teller);
+      var r=JSON.parse(localStorage.getItem(EIGEN_KEY)||'null');
+      if(r && T(r.volgende)) return r;
     }catch(e){}
     try{
       var s=S(), r2=s && s.settings && s.settings.creditReeks;
-      if(r2 && r2.jaar===jaar && N(r2.teller)>uit) uit=N(r2.teller);
+      if(r2 && T(r2.volgende)) return r2;
     }catch(e){}
-    return uit;
+    return null;
   }
-  function tellerBewaren(jaar, teller){
-    var r={jaar:jaar, teller:teller};
-    try{ localStorage.setItem(REEKS_KEY, JSON.stringify(r)); }catch(e){}
+  function eigenReeksBewaren(r){
+    try{ localStorage.setItem(EIGEN_KEY, JSON.stringify(r)); }catch(e){}
     try{
       var s=S();
-      if(s){ s.settings=s.settings||{}; s.settings.creditReeks=r; }
+      if(s){ s.settings=s.settings||{}; s.settings.creditReeks=r; if(typeof save==='function') save(); }
     }catch(e){}
   }
   function volgendNummer(){
-    var j=jaarNu();
-    var t=Math.max(hoogsteInGebruik(j), opgeslagenTeller(j))+1;
-    tellerBewaren(j, t);
-    return bouw(j, t, 4);
+    var eigen=eigenReeks();
+    if(eigen){
+      var d=knip(eigen.volgende);
+      var nr=d ? bouw(d.teller, d.breedte) : T(eigen.volgende);
+      if(d) eigenReeksBewaren({volgende: bouw(d.teller+1, d.breedte)});
+      return nr;
+    }
+    var h=hoogsteInGebruik();
+    if(h) return bouw(h.teller+1, h.breedte);
+    /* nog nooit gecrediteerd in deze schrijfwijze: dan uit de factuurreeks */
+    var uitModule='';
+    try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.volgende==='function') uitModule=T(window.BNS_TW_FACTUURNR.volgende()); }catch(e){}
+    if(uitModule){
+      try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.gebruikt==='function') window.BNS_TW_FACTUURNR.gebruikt(uitModule); }catch(e){}
+      return uitModule;
+    }
+    return bouw(1, 8);
   }
+  function volgendeTonen(){
+    var eigen=eigenReeks();
+    if(eigen){ var d=knip(eigen.volgende); return d ? bouw(d.teller, d.breedte) : T(eigen.volgende); }
+    var h=hoogsteInGebruik();
+    if(h) return bouw(h.teller+1, h.breedte);
+    try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.volgende==='function') return T(window.BNS_TW_FACTUURNR.volgende()); }catch(e){}
+    return bouw(1, 8);
+  }
+
+  /* ---------------- het blok in Admin ---------------- */
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function adminBijwerken(){
+    try{
+      var paneel=document.getElementById('adminFacturen');
+      if(!paneel) return;
+      if(!paneel.querySelector('#twFactuurStart')) return;   /* paneel nog niet gevuld */
+      var blok=document.getElementById('bnsTwCreditVak');
+      if(!blok || !paneel.contains(blok)){
+        /* het factuurpaneel vult zichzelf met innerHTML; dan hangen we het
+           blok er gewoon opnieuw in, onder het btw-blok */
+        blok=document.createElement('div');
+        blok.id='bnsTwCreditVak';
+        paneel.appendChild(blok);
+      }
+      var eigen=eigenReeks(), vinger=(eigen?T(eigen.volgende):'-')+'|'+volgendeTonen();
+      if(blok.__vinger===vinger && document.getElementById('twCreditStart')) return;
+      blok.__vinger=vinger;
+      blok.innerHTML=
+        '<div style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px">'+
+          '<h3 style="margin:0 0 4px">Creditnotanummers</h3>'+
+          '<div style="font-size:13px;color:#64748b;margin-bottom:10px">'+
+            'Dezelfde schrijfwijze als je facturen: twee cijfers jaartal met daarachter een '+
+            'doorlopend nummer. Vul je hier niets in, dan pakt een creditnota het eerstvolgende '+
+            'nummer uit je gewone factuurreeks.</div>'+
+          '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+            '<div style="flex:1;min-width:220px;font-weight:700">Eerstvolgende creditnotanummer</div>'+
+            '<input id="twCreditStart" value="'+esc(eigen?T(eigen.volgende):'')+'" placeholder="'+esc(volgendeTonen())+'" '+
+              'style="width:200px;padding:9px;border:2px solid #cbd5e1;border-radius:10px;font-weight:800">'+
+            '<button type="button" id="twCreditOpslaan" style="border:0;border-radius:10px;padding:10px 16px;background:#0f766e;color:#fff;font-weight:900;cursor:pointer">Opslaan</button>'+
+          '</div>'+
+          '<div style="font-size:13px;color:#475569;margin-top:9px">Nu aan de beurt: <b>'+esc(volgendeTonen())+'</b></div>'+
+          '<div id="twCreditMelding" style="margin-top:9px;font-weight:800"></div>'+
+        '</div>';
+      var kn=document.getElementById('twCreditOpslaan');
+      if(kn) kn.onclick=function(){
+        var m=document.getElementById('twCreditMelding');
+        var v=T((document.getElementById('twCreditStart')||{}).value);
+        if(!v){
+          eigenReeksBewaren(null);
+          try{ localStorage.removeItem(EIGEN_KEY); }catch(e){}
+          blok.__vinger='';
+          if(m){ m.style.setProperty('color','#166534','important'); m.textContent='Leeggemaakt. Creditnota\'s pakken voortaan een nummer uit je gewone factuurreeks.'; }
+          return;
+        }
+        if(!knip(v)){
+          if(m){ m.style.setProperty('color','#991b1b','important'); m.textContent='Gebruik alleen cijfers, minstens vijf, bijvoorbeeld '+jaarKort()+'98771087.'; }
+          return;
+        }
+        eigenReeksBewaren({volgende:v});
+        blok.__vinger='';
+        if(m){ m.style.setProperty('color','#166534','important'); m.textContent='Opgeslagen. De eerstvolgende creditnota wordt '+v+'.'; }
+      };
+    }catch(e){}
+  }
+  setInterval(adminBijwerken, 1700);
+  setTimeout(adminBijwerken, 1500);
 
   /* ---------------- vastleggen op de opdracht ---------------- */
   function bedragVan(o){
@@ -63962,9 +64072,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     nummerVoor:nummerVoor,
     terugdraaien:terugdraaien,
     bedragVan:function(o){ return isCredit(o) ? N(o.credit.bedrag) : 0; },
+    volgende:volgendeTonen,
     stand:function(){
       var l=orders().filter(isCredit);
-      return { aantal:l.length, volgende:bouw(jaarNu(), Math.max(hoogsteInGebruik(jaarNu()), opgeslagenTeller(jaarNu()))+1, 4),
+      return { aantal:l.length, volgende:volgendeTonen(),
                nota:l.map(function(o){ return T(o.credit.nr)+' - '+T(o.number)+' - '+N(o.credit.bedrag); }) };
     }
   };
@@ -64177,13 +64288,23 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function btwVan(o){
     var p=(o&&o.pricing)||{};
     var v=N(p.vatP||p.vatPercent||p.btw);
-    return (v>0 && v<100) ? v : 21;
+    if(v>0 && v<100) return v;
+    /* geen eigen percentage: langs dezelfde ene bron als de rest van de app,
+       zodat de verzamelfactuur niet iets anders rekent dan de losse factuur */
+    try{ if(window.BNS_TW_BTW) return window.BNS_TW_BTW.pct(o); }catch(e){}
+    return 21;
   }
   function exBtw(o){
     var p=(o&&o.pricing)||{};
     /* liefst het echte subtotaal; anders uit het totaal terugrekenen */
     var ex=N(p.materials!=null?p.materials:p.excl);
-    if(ex>0) return ex - N(p.discount);
+    /* 28-10-2026: hier stond `ex - discount`. De app zelf rekent met
+       `net = excl + discount` en zet daar een NEGATIEF getal in - zie de
+       opmerking bij calcTotals: "discount may be negative, e.g. -25". Met een
+       min ervoor werd die korting er dus BIJ opgeteld op de verzamelfactuur.
+       Nu precies zoals de app het bedoelt. Opdrachten zonder dat veld merken
+       er niets van, want dan is het nul. */
+    if(ex>0) return ex + N(p.discount);
     var incl=N(p.grand||p.total||p.incl||o&&o.total||o&&o.amount);
     if(incl>0) return incl / (1 + btwVan(o)/100);
     return 0;
@@ -64576,4 +64697,406 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
   };
   try{ console.info('[BNS TW Bulk] Verzamelfacturen actief - window.BNS_TW_BULK.stand()'); }catch(e){}
+})();
+(function bnsTwKorting(){
+  'use strict';
+  if(window.__BNS_TW_KORTING2__) return;
+  window.__BNS_TW_KORTING2__=true;
+
+  var RIJ='bnsTwKortingRij';
+  var NAMEN=['Korting','Sponsoring','Actie','Coulance'];
+
+  function E(id){ return document.getElementById(id); }
+  function T(v){ return String(v==null?'':v).trim(); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function geld(n){ n=N(n); return '€ ' + n.toFixed(2).replace('.',','); }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  /* ---------------- waar de korting overheen gaat ----------------
+     Niet zelf narekenen: aflezen wat er op het scherm staat. Dat is wat de
+     app zelf heeft uitgerekend, dus dan kan er geen verschil ontstaan. */
+  function subtotaalNu(){
+    var mat=N(T((E('materialsTotal')||{}).textContent).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.'));
+    var ext=N(T((E('bns521TransportTotal')||{}).textContent).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.'));
+    return mat+ext;
+  }
+
+  /* ---------------- de regels die nu korting zijn ---------------- */
+  function regels(){
+    var l=window.__bns521TransportLines;
+    if(!Array.isArray(l)) return [];
+    return l.filter(function(x){ return x && N(x.price)<0; });
+  }
+  function totaalKorting(){
+    return regels().reduce(function(s,x){ return s + N(x.qty||1)*N(x.price); }, 0);  /* negatief */
+  }
+
+  /* ---------------- het invulblok ---------------- */
+  function veld(id, breed, extra){
+    return '<input id="'+id+'" '+(extra||'')+' style="'+
+      'padding:8px 9px;border:2px solid #dce7f2 !important;border-radius:10px;'+
+      'background:#ffffff !important;color:#172033 !important;font-weight:700;'+
+      'width:'+breed+';height:auto !important;font-size:13px">';
+  }
+  function html(){
+    return ''+
+      '<b style="color:#172033 !important">Korting</b>'+
+      '<span style="display:inline-flex;gap:5px;flex-wrap:wrap">'+
+        NAMEN.map(function(n){
+          return '<button type="button" data-tw-kortingnaam="'+esc(n)+'" style="'+
+            'background:#ffffff !important;color:#172033 !important;border:2px solid #dce7f2 !important;'+
+            'border-radius:10px;padding:7px 11px;font-weight:800;cursor:pointer;height:auto !important;'+
+            'font-size:12px">'+esc(n)+'</button>';
+        }).join('')+
+      '</span>'+
+      '<label style="color:#172033 !important">Omschrijving'+veld('twKortingNaam','170px','placeholder="Korting"')+'</label>'+
+      '<label style="color:#172033 !important">Bedrag €'+veld('twKortingBedrag','95px','type="number" step="0.01" min="0" value="0"')+'</label>'+
+      '<label style="color:#172033 !important">of %'+veld('twKortingPct','70px','type="number" step="0.1" min="0" max="100" value="0"')+'</label>'+
+      '<button type="button" id="twKortingToevoegen" style="'+
+        'background:#16a34a !important;color:#ffffff !important;border:0 !important;border-radius:10px;'+
+        'padding:9px 14px;font-weight:900;cursor:pointer;height:auto !important;font-size:13px">Korting toevoegen</button>'+
+      '<div id="twKortingMelding" style="flex:1 0 100%;font-size:12.5px;font-weight:700;color:#64748b !important;margin-top:2px">'+
+        'Vul een bedrag in, of een percentage. De korting komt als eigen regel bij Extra te staan en gaat van het subtotaal af voordat de btw wordt gerekend.</div>';
+  }
+
+  function melden(tekst, kleur){
+    var m=E('twKortingMelding');
+    if(!m) return;
+    m.textContent=tekst;
+    m.style.setProperty('color', kleur||'#64748b', 'important');
+  }
+
+  function toevoegen(){
+    var naamVeld=E('twKortingNaam'), bedragVeld=E('twKortingBedrag'), pctVeld=E('twKortingPct');
+    var naam=T(naamVeld&&naamVeld.value) || 'Korting';
+    var bedrag=Math.abs(N(bedragVeld&&bedragVeld.value));
+    var pct=Math.abs(N(pctVeld&&pctVeld.value));
+    var sub=subtotaalNu();
+
+    if(pct>0){
+      if(pct>100){ melden('Een percentage boven de 100 kan niet.', '#991b1b'); return; }
+      if(!(sub>0)){ melden('Kies eerst materialen; over nul valt geen percentage te rekenen.', '#991b1b'); return; }
+      bedrag=Math.round(sub*pct/100*100)/100;
+      naam=naam+' '+(Math.round(pct*100)/100).toString().replace('.',',')+'%';
+    }
+    if(!(bedrag>0)){ melden('Vul een bedrag in, of een percentage.', '#991b1b'); return; }
+    if(bedrag>sub){
+      melden('Dat is meer korting dan er te geven valt. Het subtotaal is '+geld(sub)+'.', '#991b1b');
+      return;
+    }
+
+    /* Via de knop van Toeslag, zodat de regel exact dezelfde weg aflegt als
+       elke andere Extra-regel: opslaan, hertekenen en optellen regelt de app
+       dan zelf. Alleen het bedrag is negatief. */
+    var fn=E('bns521FeeName'), fp=E('bns521FeePrice'), fk=E('bns521AddFee');
+    if(!fn || !fp || !fk){ melden('Het Extra-blok staat nog niet klaar. Probeer het zo nog eens.', '#991b1b'); return; }
+    var bewaardeNaam=fn.value, bewaardPrijs=fp.value;
+    fn.value=naam;
+    fp.value=String(-bedrag);
+    try{ fk.click(); }
+    catch(e){ fn.value=bewaardeNaam; fp.value=bewaardPrijs; melden('Toevoegen lukte niet.', '#991b1b'); return; }
+
+    if(naamVeld) naamVeld.value='';
+    if(bedragVeld) bedragVeld.value='0';
+    if(pctVeld) pctVeld.value='0';
+    melden(naam+' van '+geld(bedrag)+' toegevoegd. Hij staat in de lijst hieronder; het kruisje haalt hem weer weg.', '#166534');
+  }
+
+  function binden(rij){
+    Array.prototype.slice.call(rij.querySelectorAll('[data-tw-kortingnaam]')).forEach(function(b){
+      b.onclick=function(ev){
+        ev.preventDefault();
+        var v=E('twKortingNaam');
+        if(v){ v.value=b.getAttribute('data-tw-kortingnaam'); v.focus(); }
+      };
+    });
+    var kn=E('twKortingToevoegen');
+    if(kn) kn.onclick=function(ev){ ev.preventDefault(); toevoegen(); };
+    /* bedrag en percentage sluiten elkaar uit - anders is niet te zien welke telt */
+    var b=E('twKortingBedrag'), p=E('twKortingPct');
+    if(b) b.oninput=function(){ if(N(b.value)>0 && p) p.value='0'; };
+    if(p) p.oninput=function(){ if(N(p.value)>0 && b) b.value='0'; };
+  }
+
+  function tekenen(){
+    var knop=E('bns521AddFee');
+    if(!knop) return;                       /* Extra-blok bestaat nog niet */
+    if(E(RIJ)) return;                      /* staat er al */
+    var toeslagRij=knop.closest ? knop.closest('.bns521-row') : null;
+    if(!toeslagRij || !toeslagRij.parentNode) return;
+    var rij=document.createElement('div');
+    rij.id=RIJ;
+    rij.className='bns521-row';
+    rij.style.borderTop='1px solid #dbe3ef';
+    rij.style.paddingTop='10px';
+    rij.innerHTML=html();
+    toeslagRij.parentNode.insertBefore(rij, toeslagRij.nextSibling);
+    binden(rij);
+  }
+
+  setInterval(function(){ try{ tekenen(); }catch(e){} }, 900);
+  setTimeout(function(){ try{ tekenen(); }catch(e){} }, 600);
+
+  window.BNS_TW_KORTING={
+    regels:regels,
+    totaal:totaalKorting,
+    subtotaal:subtotaalNu,
+    stand:function(){
+      var r=regels();
+      return {
+        subtotaalOpScherm: geld(subtotaalNu()),
+        kortingregels: r.map(function(x){ return T(x.name)+': '+geld(N(x.qty||1)*N(x.price)); }),
+        samen: geld(totaalKorting())
+      };
+    }
+  };
+  try{ console.info('[BNS TW Korting] Korting als Extra-regel - window.BNS_TW_KORTING.stand()'); }catch(e){}
+})();
+(function bnsTwBtw(){
+  'use strict';
+  if(window.__BNS_TW_BTW__) return;
+  window.__BNS_TW_BTW__=true;
+
+  var SLEUTEL='bns_tw_btw_tarief';
+  var STANDAARD=21;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function E(id){ return document.getElementById(id); }
+  function N(v){ var n=Number(String(v==null?'':v).replace(',','.').replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function esc(v){ return T(v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function S(){
+    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function goed(p){ var n=N(p); return (n>0 && n<100) ? n : 0; }
+
+  /* ---------------- de instelling ---------------- */
+  function lees(){
+    try{
+      var r=JSON.parse(localStorage.getItem(SLEUTEL)||'null');
+      var n=goed(r && r.tarief);
+      if(n) return n;
+    }catch(e){}
+    try{
+      var s=S(), n2=goed(s && s.settings && s.settings.btwTarief);
+      if(n2) return n2;
+    }catch(e){}
+    return STANDAARD;
+  }
+  /* ---------------- de tarieflijst met ingangsdatums ----------------
+     28-10-2026 - WAAROM NIET MEER TERUGREKENEN UIT DE BEDRAGEN.
+
+     Eerst leidde ik het percentage van een oude opdracht af uit het bewaarde
+     btw-bedrag gedeeld door het subtotaal. Dat leek slim en is het niet. Het
+     hangt ervan af of in pricing.materials het subtotaal MET of ZONDER de
+     Extra-regels staat, en dat is in de loop der jaren niet overal hetzelfde
+     opgeslagen. Staat er 1000 terwijl de btw over 1400 is gerekend, dan rolt
+     er 29,4% uit en dat zou zo op een oude factuur belanden.
+
+     Nu is het een kwestie van datums, en daar valt niets in te raden. De app
+     houdt bij welk tarief wanneer is ingegaan. Een opdracht zonder eigen
+     percentage krijgt het tarief dat gold op de dag dat hij is gemaakt. Zolang
+     je niets verzet is dat altijd 21, precies zoals het al die tijd was. */
+  function vandaag(){ try{ return new Date().toISOString().slice(0,10); }catch(e){ return '2026-01-01'; } }
+  function historie(){
+    var h=[];
+    try{
+      var r=JSON.parse(localStorage.getItem(SLEUTEL)||'null');
+      if(r && Array.isArray(r.historie)) h=r.historie;
+    }catch(e){}
+    if(!h.length) h=[{pct:STANDAARD, vanaf:'1900-01-01'}];
+    h=h.filter(function(x){ return x && goed(x.pct); })
+       .map(function(x){ return {pct:goed(x.pct), vanaf:T(x.vanaf)||'1900-01-01'}; })
+       .sort(function(a,b){ return a.vanaf<b.vanaf ? -1 : (a.vanaf>b.vanaf ? 1 : 0); });
+    if(!h.length || h[0].vanaf>'1900-01-01') h.unshift({pct:STANDAARD, vanaf:'1900-01-01'});
+    return h;
+  }
+  function tariefOp(datum){
+    var d=T(datum).slice(0,10) || vandaag();
+    var h=historie(), gekozen=h[0].pct;
+    for(var i=0;i<h.length;i++){ if(h[i].vanaf<=d) gekozen=h[i].pct; }
+    return gekozen;
+  }
+  function datumVan(o){
+    if(!o) return '';
+    return T(o.createdAt).slice(0,10) || T(o.start).slice(0,10) || T(o.updatedAt).slice(0,10) || '';
+  }
+
+  /* ---------------- vastzetten op het moment van omzetten ----------------
+     Een opdracht zonder eigen percentage leunt op de datumregel. Dat werkt,
+     maar een opdracht van VANDAAG zou dan meeschuiven met een tarief dat je
+     vandaag invoert. Daarom leggen we op het moment van omzetten bij elke
+     bestaande opdracht vast wat er tot nu toe gold. Daarna hangt er niets
+     meer van een datum af: het staat op de opdracht zelf. */
+  function bevriezen(){
+    var s=S(), n=0;
+    if(!s || !Array.isArray(s.orders)) return 0;
+    s.orders.forEach(function(o){
+      if(!o) return;
+      var pr=o.pricing||{};
+      if(goed(pr.vatP!=null?pr.vatP:pr.vatPercent)) return;
+      var d=datumVan(o);
+      o.pricing=o.pricing||{};
+      o.pricing.vatP = d ? tariefOp(d) : historie()[0].pct;
+      n++;
+    });
+    return n;
+  }
+
+  function bewaar(p){
+    var n=goed(p) || STANDAARD;
+    var h=historie();
+    var bevroren=0;
+    if(h[h.length-1].pct!==n){ bevroren=bevriezen(); h.push({pct:n, vanaf:vandaag()}); }
+    window.__BNS_TW_BTW_BEVROREN=bevroren;
+    try{ localStorage.setItem(SLEUTEL, JSON.stringify({tarief:n, sinds:vandaag(), historie:h})); }catch(e){}
+    try{
+      var s=S();
+      if(s){ s.settings=s.settings||{}; s.settings.btwTarief=n; s.settings.btwHistorie=h; if(typeof save==='function') save(); }
+    }catch(e){}
+    return n;
+  }
+
+  /* ---------------- het percentage van EEN opdracht ---------------- */
+  function pct(o){
+    if(o){
+      var p=o.pricing||{};
+      var eigen=goed(p.vatP!=null?p.vatP:p.vatPercent);
+      if(eigen) return eigen;
+      var d=datumVan(o);
+      return d ? tariefOp(d) : historie()[0].pct;   /* geen datum = zeker oud */
+    }
+    /* geen opdracht: het scherm. Staat er een opdracht open, dan is haar
+       percentage in het verborgen veld geladen; anders de instelling. */
+    var veld=E('vatPercent');
+    return goed(veld && veld.value) || lees();
+  }
+  function factor(o){ return pct(o)/100; }
+  function tekst(o){ return String(pct(o)).replace('.',','); }
+
+  /* Dit is wat de veertien rekenplekken aanroepen. */
+  window.BNS_TW_BTWF=factor;
+  window.BNS_TW_BTWT=tekst;
+
+  /* ---------------- het verborgen veld gelijk houden ----------------
+     Bij een NIEUWE opdracht hoort het tarief van vandaag in het veld te
+     staan, zodat het bij opslaan wordt vastgelegd. */
+  function veldGelijkzetten(){
+    try{
+      var veld=E('vatPercent');
+      if(!veld) return;
+      var nu=goed(veld.value), wil=lees();
+      if(!nu){ veld.value=String(wil); return; }
+      var nieuw=!T(window.editing||'');
+      if(nieuw && nu!==wil) veld.value=String(wil);
+    }catch(e){}
+  }
+  setInterval(function(){ try{ veldGelijkzetten(); }catch(e){} }, 1500);
+
+  /* ---------------- vastleggen bij opslaan ----------------
+     Mijn wrapper zet het percentage NEER voordat de rest van de keten gaat
+     rekenen, anders rekent die met iets anders dan er wordt opgeslagen. */
+  var oudeVoorbereiding=window.BNS_v519PrepareOrderBeforeSave;
+  window.BNS_v519PrepareOrderBeforeSave=function(order, oldOrder){
+    try{
+      if(order){
+        order.pricing=order.pricing||{};
+        var oudPct=goed(oldOrder&&oldOrder.pricing&&(oldOrder.pricing.vatP!=null?oldOrder.pricing.vatP:oldOrder.pricing.vatPercent));
+        if(!oudPct && oldOrder && datumVan(oldOrder)) oudPct=tariefOp(datumVan(oldOrder));
+        var eigen=goed(order.pricing.vatP) || oudPct || goed(E('vatPercent')&&E('vatPercent').value) || lees();
+        order.pricing.vatP=eigen;
+      }
+    }catch(e){}
+    if(typeof oudeVoorbereiding==='function') oudeVoorbereiding(order, oldOrder);
+  };
+
+  /* ---------------- het blok in Admin ---------------- */
+  function schermBijwerken(){
+    try{
+      var paneel=E('adminFacturen');
+      if(!paneel) return;
+      if(!paneel.querySelector('#twFactuurStart')) return;   /* paneel nog niet gevuld */
+      var blok=E('bnsTwBtwVak');
+      if(!blok || !paneel.contains(blok)){
+        /* Het factuurpaneel vult zichzelf met innerHTML en gooit daarmee mijn
+           blok eruit. Dan hangen we het er gewoon opnieuw in. */
+        blok=document.createElement('div');
+        blok.id='bnsTwBtwVak';
+        paneel.appendChild(blok);
+      }
+      var nu=lees();
+      if(blok.__vinger===String(nu) && E('twBtwVeld')) return;
+      blok.__vinger=String(nu);
+      blok.innerHTML=
+        '<div style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px">'+
+          '<h3 style="margin:0 0 4px">Btw-tarief</h3>'+
+          '<div style="font-size:13px;color:#64748b;margin-bottom:10px">'+
+            'Geldt voor <b>nieuwe</b> opdrachten. Bestaande opdrachten houden het percentage '+
+            'waarmee ze zijn gemaakt, zodat een oude factuur blijft kloppen.</div>'+
+          '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+            '<div style="flex:1;min-width:220px;font-weight:700">Btw-percentage voor nieuwe opdrachten</div>'+
+            '<input id="twBtwVeld" type="number" min="0" max="99" step="0.1" value="'+esc(String(nu))+'" '+
+              'style="width:110px;padding:9px;border:2px solid #cbd5e1;border-radius:10px;font-weight:800">'+
+            '<span style="font-weight:800;color:#334155">%</span>'+
+            '<button type="button" id="twBtwOpslaan" style="border:0;border-radius:10px;padding:10px 16px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer">Opslaan</button>'+
+          '</div>'+
+          '<div style="font-size:13px;color:#92400e;background:#fef3c7;border-radius:10px;padding:9px 11px;margin-top:10px">'+
+            '<b>Voordat je dit echt verzet:</b> laat hem op 21 staan, maak een nieuwe factuur en leg die naast een oude. '+
+            'Zijn de centen exact gelijk, dan is het veilig om het tarief te veranderen.</div>'+
+          '<div id="twBtwMelding" style="margin-top:9px;font-weight:800"></div>'+
+        '</div>';
+      var kn=E('twBtwOpslaan');
+      if(kn) kn.onclick=function(){
+        var m=E('twBtwMelding'), n=goed((E('twBtwVeld')||{}).value);
+        if(!n){
+          if(m){ m.style.setProperty('color','#991b1b','important'); m.textContent='Vul een percentage in tussen 0 en 100, bijvoorbeeld 21.'; }
+          return;
+        }
+        bewaar(n);
+        /* vinger meteen gelijkzetten, anders tekent de tikker het blok binnen
+           anderhalve seconde opnieuw en is de bevestiging weer weg */
+        blok.__vinger=String(n);
+        if(m){ m.style.setProperty('color','#166534','important'); m.textContent='Opgeslagen. Nieuwe opdrachten krijgen '+String(n).replace('.',',')+'% btw.'+(window.__BNS_TW_BTW_BEVROREN?' Van '+window.__BNS_TW_BTW_BEVROREN+' bestaande opdrachten is het oude percentage vastgelegd, die blijven staan waar ze stonden.':''); }
+      };
+    }catch(e){}
+  }
+  setInterval(schermBijwerken, 1600);
+  setTimeout(schermBijwerken, 1400);
+
+  window.BNS_TW_BTW={
+    tarief:lees,
+    zetten:bewaar,
+    pct:pct,
+    factor:factor,
+    tekst:tekst,
+    historie:historie,
+    tariefOp:tariefOp,
+    stand:function(){
+      var s=S(), per={};
+      ((s&&s.orders)||[]).forEach(function(o){ var p=pct(o); per[p]=(per[p]||0)+1; });
+      return { instelling:lees()+'%', tariefwijzigingen:historie(), inGebruik:per };
+    },
+    /* Wat zou er met een ANDER tarief op de documenten komen te staan? Dit
+       verandert niets, het laat alleen zien wat er zou gebeuren. */
+    proef:function(nieuwTarief){
+      var n=goed(nieuwTarief)||lees();
+      var h=historie().concat([{pct:n, vanaf:vandaag()}]);
+      var s=S(), blijft=0, verandert=[];
+      ((s&&s.orders)||[]).forEach(function(o){
+        var nu=pct(o);
+        var p=o.pricing||{};
+        var straks=goed(p.vatP!=null?p.vatP:p.vatPercent);
+        if(!straks){
+          var d=datumVan(o), g=h[0].pct;
+          for(var i=0;i<h.length;i++){ if(h[i].vanaf<=(d||'1900-01-01')) g=h[i].pct; }
+          straks=g;
+        }
+        if(nu===straks) blijft++;
+        else verandert.push(T(o.number)+': '+nu+'% wordt '+straks+'%');
+      });
+      return { nieuwTarief:n+'%', opdrachtenDieGelijkBlijven:blijft, opdrachtenDieVeranderen:verandert };
+    }
+  };
+  try{ console.info('[BNS TW Btw] Eén plek voor het btw-tarief - window.BNS_TW_BTW.stand()'); }catch(e){}
 })();
