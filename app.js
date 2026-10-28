@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BULK39-2026-10-27';
+window.TAPWAGEN_BUILD_ID = 'TW-BULK40-2026-10-27';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -64298,9 +64298,26 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       if(d) eigenReeksBewaren({aan:true, volgende:bouwNr(d.teller+1, d.breedte)});
       return nr;
     }
-    try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.volgende==='function') return T(window.BNS_TW_FACTUURNR.volgende()); }catch(e){}
+    /* De nummermodule trekt zijn teller met een tussenpoos gelijk met wat er
+       al op de opdrachten staat. Maak je vlak na het opstarten een
+       verzamelfactuur, dan kan hij dus een nummer teruggeven dat al bestaat.
+       Daarom controleren we het, en pakken we anders zelf het eerstvolgende
+       vrije nummer en geven dat door. */
+    var uitModule='';
+    try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.volgende==='function') uitModule=T(window.BNS_TW_FACTUURNR.volgende()); }catch(e){}
     var h=hoogsteInLijst();
-    return h ? bouwNr(h.teller+1, h.breedte) : bouwNr(98771087, 8);
+    var bezet=!!uitModule && orders().some(function(o){
+      return T(invoiceNo(o))===uitModule || T(o && o.verzamel && o.verzamel.nr)===uitModule;
+    });
+    var teLaag=false;
+    if(uitModule && h){
+      var d=knipNr(uitModule);
+      teLaag = !!d && d.jaar===h.jaar && d.teller<=h.teller;
+    }
+    if(uitModule && !bezet && !teLaag) return uitModule;
+    var vrij = h ? bouwNr(h.teller+1, h.breedte) : (uitModule || bouwNr(1, 4));
+    try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.gebruikt==='function') window.BNS_TW_FACTUURNR.gebruikt(vrij); }catch(e){}
+    return vrij;
   }
   function nummerGebruikt(nr){
     try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.gebruikt==='function') window.BNS_TW_FACTUURNR.gebruikt(nr); }catch(e){}
