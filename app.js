@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-KORTING-BTW42-2026-10-28';
+window.TAPWAGEN_BUILD_ID = 'TW-BTWDATUM43-2026-10-28';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -64857,6 +64857,42 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   if(window.__BNS_TW_BTW__) return;
   window.__BNS_TW_BTW__=true;
 
+  /* ==========================================================
+     BNS TW BTW - het btw-tarief volgt de LEVERDATUM (28-10-2026)
+     ----------------------------------------------------------
+     [stated] "stel ze gaan de btw aanpassen op 1 april, alle opdrachten voor
+     1 april 21%, startdatum op of na 21 moet 22% zijn"
+
+     Dat is de juiste regel en mijn eerste opzet deed het anders. Ik keek naar
+     de dag waarop de opdracht was aangemaakt. Maar de btw hoort bij het
+     moment van leveren: een verhuur van 5 mei valt onder het tarief van mei,
+     ook als de offerte in januari is gemaakt.
+
+     Daarom nu:
+
+     1. EEN TARIEF HEEFT EEN INGANGSDATUM. Je vult in: 22% vanaf 01-04-2027.
+        Vanaf dat moment rekent hij vooruit al goed, en hoef je op de dag
+        zelf niets te doen.
+     2. HET TARIEF VAN EEN OPDRACHT KOMT UIT ZIJN LEVERDATUM, elke keer
+        opnieuw. Verzet je een klus van maart naar mei, dan schuift het
+        percentage mee - precies zoals het hoort.
+     3. EEN OPDRACHT MET EEN FACTUURNUMMER LIGT VAST. Die is de deur uit en
+        mag nooit meer veranderen, ook niet als het tarief wijzigt of de
+        datum wordt aangepast.
+
+     Wat hier NIET meer gebeurt: bij het omzetten het percentage op ALLE
+     opdrachten vastpinnen. Dat deed mijn vorige opzet, en dat werkt tegen
+     regel 2 in: een opdracht van januari voor een klus in mei werd dan op
+     het oude tarief vastgezet. Alleen gefactureerde opdrachten worden
+     vastgelegd.
+
+     Console:
+       BNS_TW_BTW.stand()        wat geldt er, en wat staat er op de opdrachten
+       BNS_TW_BTW.proef('2027-05-01')   welk tarief geldt op die dag
+       BNS_TW_BTW.opruimen()     haal vastgepinde percentages weg bij alles
+                                 ZONDER factuurnummer (herstel na proberen)
+  ========================================================== */
+
   var SLEUTEL='bns_tw_btw_tarief';
   var STANDAARD=21;
 
@@ -64869,149 +64905,204 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{ if(window.state) return window.state; }catch(e){}
     return null;
   }
+  function orders(){ var s=S(); return (s && Array.isArray(s.orders)) ? s.orders : []; }
   function goed(p){ var n=N(p); return (n>0 && n<100) ? n : 0; }
-
-  /* ---------------- de instelling ---------------- */
-  function lees(){
-    try{
-      var r=JSON.parse(localStorage.getItem(SLEUTEL)||'null');
-      var n=goed(r && r.tarief);
-      if(n) return n;
-    }catch(e){}
-    try{
-      var s=S(), n2=goed(s && s.settings && s.settings.btwTarief);
-      if(n2) return n2;
-    }catch(e){}
-    return STANDAARD;
-  }
-  /* ---------------- de tarieflijst met ingangsdatums ----------------
-     28-10-2026 - WAAROM NIET MEER TERUGREKENEN UIT DE BEDRAGEN.
-
-     Eerst leidde ik het percentage van een oude opdracht af uit het bewaarde
-     btw-bedrag gedeeld door het subtotaal. Dat leek slim en is het niet. Het
-     hangt ervan af of in pricing.materials het subtotaal MET of ZONDER de
-     Extra-regels staat, en dat is in de loop der jaren niet overal hetzelfde
-     opgeslagen. Staat er 1000 terwijl de btw over 1400 is gerekend, dan rolt
-     er 29,4% uit en dat zou zo op een oude factuur belanden.
-
-     Nu is het een kwestie van datums, en daar valt niets in te raden. De app
-     houdt bij welk tarief wanneer is ingegaan. Een opdracht zonder eigen
-     percentage krijgt het tarief dat gold op de dag dat hij is gemaakt. Zolang
-     je niets verzet is dat altijd 21, precies zoals het al die tijd was. */
   function vandaag(){ try{ return new Date().toISOString().slice(0,10); }catch(e){ return '2026-01-01'; } }
+  function isDatum(d){ return /^\d{4}-\d{2}-\d{2}$/.test(T(d)); }
+  function nlDatum(d){ var m=T(d).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? m[3]+'-'+m[2]+'-'+m[1] : T(d); }
+
+  /* ---------------- de tarieven met hun ingangsdatum ---------------- */
   function historie(){
     var h=[];
     try{
       var r=JSON.parse(localStorage.getItem(SLEUTEL)||'null');
       if(r && Array.isArray(r.historie)) h=r.historie;
     }catch(e){}
-    if(!h.length) h=[{pct:STANDAARD, vanaf:'1900-01-01'}];
-    h=h.filter(function(x){ return x && goed(x.pct); })
-       .map(function(x){ return {pct:goed(x.pct), vanaf:T(x.vanaf)||'1900-01-01'}; })
-       .sort(function(a,b){ return a.vanaf<b.vanaf ? -1 : (a.vanaf>b.vanaf ? 1 : 0); });
+    if(!h.length){
+      try{
+        var s=S(), r2=s && s.settings && s.settings.btwHistorie;
+        if(Array.isArray(r2)) h=r2;
+      }catch(e){}
+    }
+    h=(h||[]).filter(function(x){ return x && goed(x.pct) && isDatum(x.vanaf); })
+             .map(function(x){ return {pct:goed(x.pct), vanaf:T(x.vanaf)}; });
+    /* dubbele ingangsdatums: de laatste wint */
+    var perDatum={};
+    h.forEach(function(x){ perDatum[x.vanaf]=x.pct; });
+    h=Object.keys(perDatum).sort().map(function(d){ return {pct:perDatum[d], vanaf:d}; });
     if(!h.length || h[0].vanaf>'1900-01-01') h.unshift({pct:STANDAARD, vanaf:'1900-01-01'});
     return h;
   }
-  function tariefOp(datum){
-    var d=T(datum).slice(0,10) || vandaag();
-    var h=historie(), gekozen=h[0].pct;
+  function historieBewaren(h){
+    try{ localStorage.setItem(SLEUTEL, JSON.stringify({historie:h, bijgewerkt:vandaag()})); }catch(e){}
+    try{
+      var s=S();
+      if(s){ s.settings=s.settings||{}; s.settings.btwHistorie=h;
+             s.settings.btwTarief=tariefOp(vandaag(), h);
+             if(typeof save==='function') save(); }
+    }catch(e){}
+  }
+  function tariefOp(datum, lijst){
+    var h=lijst||historie();
+    var d=T(datum).slice(0,10);
+    if(!isDatum(d)) d=vandaag();
+    var gekozen=h[0].pct;
     for(var i=0;i<h.length;i++){ if(h[i].vanaf<=d) gekozen=h[i].pct; }
     return gekozen;
   }
-  function datumVan(o){
-    if(!o) return '';
-    return T(o.createdAt).slice(0,10) || T(o.start).slice(0,10) || T(o.updatedAt).slice(0,10) || '';
+  function nuGeldend(){ return tariefOp(vandaag()); }
+
+  /* ---------------- de leverdatum van een opdracht ----------------
+     De startdatum is de dag dat het materiaal eruit gaat. Dat is de datum
+     die telt. Staat er geen opdracht bij (het scherm), dan kijken we naar
+     het datumveld in het formulier. */
+  function leverDatum(o){
+    if(o) return T(o.start).slice(0,10) || T(o.end).slice(0,10) || T(o.createdAt).slice(0,10) || '';
+    var v=E('dateStart');
+    return T(v && v.value).slice(0,10);
+  }
+  function gefactureerd(o){
+    if(!o) return false;
+    if(o.invoice && T(o.invoice.invoiceNumber)) return true;
+    if(o.verzamel && T(o.verzamel.nr)) return true;
+    return false;
   }
 
-  /* ---------------- vastzetten op het moment van omzetten ----------------
-     Een opdracht zonder eigen percentage leunt op de datumregel. Dat werkt,
-     maar een opdracht van VANDAAG zou dan meeschuiven met een tarief dat je
-     vandaag invoert. Daarom leggen we op het moment van omzetten bij elke
-     bestaande opdracht vast wat er tot nu toe gold. Daarna hangt er niets
-     meer van een datum af: het staat op de opdracht zelf. */
-  function bevriezen(){
-    var s=S(), n=0;
-    if(!s || !Array.isArray(s.orders)) return 0;
-    s.orders.forEach(function(o){
-      if(!o) return;
-      var pr=o.pricing||{};
-      if(goed(pr.vatP!=null?pr.vatP:pr.vatPercent)) return;
-      var d=datumVan(o);
-      o.pricing=o.pricing||{};
-      o.pricing.vatP = d ? tariefOp(d) : historie()[0].pct;
-      n++;
-    });
-    return n;
-  }
-
-  function bewaar(p){
-    var n=goed(p) || STANDAARD;
-    var h=historie();
-    var bevroren=0;
-    if(h[h.length-1].pct!==n){ bevroren=bevriezen(); h.push({pct:n, vanaf:vandaag()}); }
-    window.__BNS_TW_BTW_BEVROREN=bevroren;
-    try{ localStorage.setItem(SLEUTEL, JSON.stringify({tarief:n, sinds:vandaag(), historie:h})); }catch(e){}
-    try{
-      var s=S();
-      if(s){ s.settings=s.settings||{}; s.settings.btwTarief=n; s.settings.btwHistorie=h; if(typeof save==='function') save(); }
-    }catch(e){}
-    return n;
-  }
-
-  /* ---------------- het percentage van EEN opdracht ---------------- */
+  /* ---------------- het percentage ---------------- */
   function pct(o){
-    if(o){
-      var p=o.pricing||{};
-      var eigen=goed(p.vatP!=null?p.vatP:p.vatPercent);
-      if(eigen) return eigen;
-      var d=datumVan(o);
-      return d ? tariefOp(d) : historie()[0].pct;   /* geen datum = zeker oud */
+    /* 1. de deur uit = vast */
+    if(o && gefactureerd(o)){
+      var vast=goed(o.pricing && (o.pricing.vatP!=null?o.pricing.vatP:o.pricing.vatPercent));
+      if(vast) return vast;
     }
-    /* geen opdracht: het scherm. Staat er een opdracht open, dan is haar
-       percentage in het verborgen veld geladen; anders de instelling. */
-    var veld=E('vatPercent');
-    return goed(veld && veld.value) || lees();
+    /* 2. anders: de leverdatum beslist, elke keer opnieuw */
+    var d=leverDatum(o);
+    if(isDatum(d)) return tariefOp(d);
+    /* 3. geen datum. Een bestaande opdracht zonder datum is oud; het scherm
+          zonder ingevulde datum krijgt wat er vandaag geldt. */
+    return o ? historie()[0].pct : nuGeldend();
   }
   function factor(o){ return pct(o)/100; }
   function tekst(o){ return String(pct(o)).replace('.',','); }
 
-  /* Dit is wat de veertien rekenplekken aanroepen. */
   window.BNS_TW_BTWF=factor;
   window.BNS_TW_BTWT=tekst;
 
   /* ---------------- het verborgen veld gelijk houden ----------------
-     Bij een NIEUWE opdracht hoort het tarief van vandaag in het veld te
-     staan, zodat het bij opslaan wordt vastgelegd. */
+     calcTotals van de app zelf leest #vatPercent. Dat veld moet dus hetzelfde
+     zeggen als wat de rest rekent, anders krijg je twee antwoorden op het
+     scherm. Hiervoor keek ik naar window.editing; dat bleek de verkeerde
+     variabele, want editOrder() zet alleen de interne `editing`. Nu zoeken we
+     de opdracht gewoon op aan de hand van het nummer in het formulier. */
+  function opdrachtInScherm(){
+    var nr=T((E('orderNumber')||{}).value);
+    if(!nr) return null;
+    var l=orders();
+    for(var i=0;i<l.length;i++){ if(T(l[i].number)===nr) return l[i]; }
+    return null;
+  }
   function veldGelijkzetten(){
     try{
       var veld=E('vatPercent');
       if(!veld) return;
-      var nu=goed(veld.value), wil=lees();
-      if(!nu){ veld.value=String(wil); return; }
-      var nieuw=!T(window.editing||'');
-      if(nieuw && nu!==wil) veld.value=String(wil);
+      var wil=String(pct(opdrachtInScherm()));
+      if(T(veld.value)!==wil) veld.value=wil;
     }catch(e){}
   }
-  setInterval(function(){ try{ veldGelijkzetten(); }catch(e){} }, 1500);
+  setInterval(function(){ try{ veldGelijkzetten(); }catch(e){} }, 1200);
 
-  /* ---------------- vastleggen bij opslaan ----------------
-     Mijn wrapper zet het percentage NEER voordat de rest van de keten gaat
-     rekenen, anders rekent die met iets anders dan er wordt opgeslagen. */
+  /* ---------------- bij opslaan ----------------
+     Een gefactureerde opdracht houdt wat erop staat. Al het andere krijgt het
+     percentage van zijn leverdatum, opnieuw uitgerekend. */
   var oudeVoorbereiding=window.BNS_v519PrepareOrderBeforeSave;
   window.BNS_v519PrepareOrderBeforeSave=function(order, oldOrder){
     try{
       if(order){
         order.pricing=order.pricing||{};
-        var oudPct=goed(oldOrder&&oldOrder.pricing&&(oldOrder.pricing.vatP!=null?oldOrder.pricing.vatP:oldOrder.pricing.vatPercent));
-        if(!oudPct && oldOrder && datumVan(oldOrder)) oudPct=tariefOp(datumVan(oldOrder));
-        var eigen=goed(order.pricing.vatP) || oudPct || goed(E('vatPercent')&&E('vatPercent').value) || lees();
-        order.pricing.vatP=eigen;
+        var vast=0;
+        if(gefactureerd(order) || gefactureerd(oldOrder)){
+          vast = goed(order.pricing.vatP)
+              || goed(oldOrder && oldOrder.pricing && oldOrder.pricing.vatP);
+        }
+        order.pricing.vatP = vast || pct(order);
       }
     }catch(e){}
     if(typeof oudeVoorbereiding==='function') oudeVoorbereiding(order, oldOrder);
   };
 
+  /* ---------------- vastleggen van wat de deur uit is ----------------
+     Alleen gefactureerde opdrachten. Die mogen nooit meer schuiven. */
+  function gefactureerdeVastleggen(){
+    var n=0;
+    orders().forEach(function(o){
+      if(!o || !gefactureerd(o)) return;
+      var pr=o.pricing||{};
+      if(goed(pr.vatP!=null?pr.vatP:pr.vatPercent)) return;
+      o.pricing=o.pricing||{};
+      o.pricing.vatP=pct(o);
+      o.updatedAt=new Date().toISOString();
+      n++;
+      try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+      try{ if(typeof syncDoc==='function') syncDoc('orders', o.id, o); }catch(e){}
+    });
+    if(n){ try{ if(typeof save==='function') save(); }catch(e){} }
+    return n;
+  }
+
+  /* ---------------- opruimen na proberen ----------------
+     Haalt het vastgepinde percentage weg bij alles ZONDER factuurnummer,
+     zodat de leverdatum weer beslist. */
+  function opruimen(){
+    var n=0;
+    orders().forEach(function(o){
+      if(!o || gefactureerd(o)) return;
+      var pr=o.pricing;
+      if(!pr || pr.vatP===undefined) return;
+      try{ delete pr.vatP; }catch(e){ pr.vatP=undefined; }
+      try{ delete pr.vatPercent; }catch(e){}
+      o.updatedAt=new Date().toISOString();
+      n++;
+      try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+      try{ if(typeof syncDoc==='function') syncDoc('orders', o.id, o); }catch(e){}
+    });
+    if(n){ try{ if(typeof save==='function') save(); }catch(e){} }
+    return 'Bij '+n+' opdracht(en) zonder factuurnummer bepaalt de leverdatum weer het tarief.';
+  }
+
+  function tariefZetten(percentage, vanaf){
+    var p=goed(percentage);
+    if(!p) return {ok:false, reden:'Vul een percentage in tussen 0 en 100.'};
+    var d=T(vanaf);
+    if(!isDatum(d)) return {ok:false, reden:'Vul een ingangsdatum in.'};
+    var vastgelegd=gefactureerdeVastleggen();
+    var h=historie().filter(function(x){ return x.vanaf!==d; });
+    h.push({pct:p, vanaf:d});
+    h.sort(function(a,b){ return a.vanaf<b.vanaf ? -1 : (a.vanaf>b.vanaf ? 1 : 0); });
+    historieBewaren(h);
+    return {ok:true, vastgelegd:vastgelegd};
+  }
+  function tariefWeghalen(datum){
+    var d=T(datum);
+    if(d==='1900-01-01') return false;
+    historieBewaren(historie().filter(function(x){ return x.vanaf!==d; }));
+    return true;
+  }
+
   /* ---------------- het blok in Admin ---------------- */
+  function lijstHtml(){
+    var h=historie();
+    return h.map(function(x,i){
+      var tot='';
+      if(i<h.length-1) tot=' tot '+nlDatum(h[i+1].vanaf);
+      var vanaf = x.vanaf==='1900-01-01' ? 'tot nu toe' : 'vanaf '+nlDatum(x.vanaf);
+      return '<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #eef2f7">'+
+        '<b style="min-width:58px">'+esc(String(x.pct).replace('.',','))+'%</b>'+
+        '<span style="flex:1;color:#475569">'+esc(vanaf+tot)+'</span>'+
+        (x.vanaf==='1900-01-01' ? '' :
+          '<button type="button" data-tw-btwweg="'+esc(x.vanaf)+'" style="border:0;background:#fee2e2 !important;color:#991b1b !important;border-radius:8px;padding:5px 10px;font-weight:800;cursor:pointer">x</button>')+
+        '</div>';
+    }).join('');
+  }
   function schermBijwerken(){
     try{
       var paneel=E('adminFacturen');
@@ -65019,84 +65110,88 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       if(!paneel.querySelector('#twFactuurStart')) return;   /* paneel nog niet gevuld */
       var blok=E('bnsTwBtwVak');
       if(!blok || !paneel.contains(blok)){
-        /* Het factuurpaneel vult zichzelf met innerHTML en gooit daarmee mijn
-           blok eruit. Dan hangen we het er gewoon opnieuw in. */
         blok=document.createElement('div');
         blok.id='bnsTwBtwVak';
         paneel.appendChild(blok);
       }
-      var nu=lees();
-      if(blok.__vinger===String(nu) && E('twBtwVeld')) return;
-      blok.__vinger=String(nu);
+      var vinger=JSON.stringify(historie());
+      if(blok.__vinger===vinger && E('twBtwVeld')) return;
+      blok.__vinger=vinger;
       blok.innerHTML=
         '<div style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px">'+
           '<h3 style="margin:0 0 4px">Btw-tarief</h3>'+
           '<div style="font-size:13px;color:#64748b;margin-bottom:10px">'+
-            'Geldt voor <b>nieuwe</b> opdrachten. Bestaande opdrachten houden het percentage '+
-            'waarmee ze zijn gemaakt, zodat een oude factuur blijft kloppen.</div>'+
-          '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
-            '<div style="flex:1;min-width:220px;font-weight:700">Btw-percentage voor nieuwe opdrachten</div>'+
-            '<input id="twBtwVeld" type="number" min="0" max="99" step="0.1" value="'+esc(String(nu))+'" '+
-              'style="width:110px;padding:9px;border:2px solid #cbd5e1;border-radius:10px;font-weight:800">'+
-            '<span style="font-weight:800;color:#334155">%</span>'+
-            '<button type="button" id="twBtwOpslaan" style="border:0;border-radius:10px;padding:10px 16px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer">Opslaan</button>'+
+            'Het tarief hoort bij de <b>leverdatum</b> van een opdracht, niet bij de dag waarop je hem intypte. '+
+            'Vul je hieronder 22% vanaf 01-04-2027 in, dan rekent hij vanaf nu al 22% voor alles wat op of na '+
+            'die dag geleverd wordt, en 21% voor alles ervoor. '+
+            'Een opdracht met een factuurnummer verandert nooit meer.</div>'+
+          '<div style="background:#f8fafc;border-radius:11px;padding:10px 12px;margin-bottom:11px">'+lijstHtml()+'</div>'+
+          '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
+            '<label style="font-weight:700">Percentage<br>'+
+              '<input id="twBtwVeld" type="number" min="0" max="99" step="0.1" value="'+esc(String(nuGeldend()))+'" '+
+              'style="width:110px;padding:9px;border:2px solid #cbd5e1;border-radius:10px;font-weight:800"></label>'+
+            '<label style="font-weight:700">Geldt vanaf<br>'+
+              '<input id="twBtwVanaf" type="date" value="'+esc(vandaag())+'" '+
+              'style="padding:9px;border:2px solid #cbd5e1;border-radius:10px;font-weight:800"></label>'+
+            '<button type="button" id="twBtwOpslaan" style="border:0;border-radius:10px;padding:11px 16px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer">Opslaan</button>'+
           '</div>'+
           '<div style="font-size:13px;color:#92400e;background:#fef3c7;border-radius:10px;padding:9px 11px;margin-top:10px">'+
-            '<b>Voordat je dit echt verzet:</b> laat hem op 21 staan, maak een nieuwe factuur en leg die naast een oude. '+
-            'Zijn de centen exact gelijk, dan is het veilig om het tarief te veranderen.</div>'+
+            '<b>Voordat je dit echt verzet:</b> maak een nieuwe factuur en leg die naast een oude. '+
+            'Zijn de centen gelijk, dan is het veilig.</div>'+
           '<div id="twBtwMelding" style="margin-top:9px;font-weight:800"></div>'+
         '</div>';
+
       var kn=E('twBtwOpslaan');
       if(kn) kn.onclick=function(){
-        var m=E('twBtwMelding'), n=goed((E('twBtwVeld')||{}).value);
-        if(!n){
-          if(m){ m.style.setProperty('color','#991b1b','important'); m.textContent='Vul een percentage in tussen 0 en 100, bijvoorbeeld 21.'; }
+        var m=E('twBtwMelding');
+        var r=tariefZetten((E('twBtwVeld')||{}).value, (E('twBtwVanaf')||{}).value);
+        if(!r.ok){
+          if(m){ m.style.setProperty('color','#991b1b','important'); m.textContent=r.reden; }
           return;
         }
-        bewaar(n);
-        /* vinger meteen gelijkzetten, anders tekent de tikker het blok binnen
-           anderhalve seconde opnieuw en is de bevestiging weer weg */
-        blok.__vinger=String(n);
-        if(m){ m.style.setProperty('color','#166534','important'); m.textContent='Opgeslagen. Nieuwe opdrachten krijgen '+String(n).replace('.',',')+'% btw.'+(window.__BNS_TW_BTW_BEVROREN?' Van '+window.__BNS_TW_BTW_BEVROREN+' bestaande opdrachten is het oude percentage vastgelegd, die blijven staan waar ze stonden.':''); }
+        /* eerst het blok opnieuw opbouwen met de nieuwe lijst, PAS DAARNA de
+           bevestiging erin zetten. Andersom veegt de tikker hem meteen weg. */
+        blok.__vinger='';
+        try{ schermBijwerken(); }catch(e){}
+        var m2=E('twBtwMelding');
+        if(m2){ m2.style.setProperty('color','#166534','important');
+                m2.textContent='Opgeslagen.'+(r.vastgelegd?' Van '+r.vastgelegd+' gefactureerde opdracht(en) is het percentage vastgelegd.':''); }
       };
+      Array.prototype.slice.call(blok.querySelectorAll('[data-tw-btwweg]')).forEach(function(b){
+        b.onclick=function(){
+          tariefWeghalen(b.getAttribute('data-tw-btwweg'));
+          blok.__vinger='';
+        };
+      });
     }catch(e){}
   }
   setInterval(schermBijwerken, 1600);
   setTimeout(schermBijwerken, 1400);
 
   window.BNS_TW_BTW={
-    tarief:lees,
-    zetten:bewaar,
+    historie:historie,
+    tariefOp:tariefOp,
+    nu:nuGeldend,
+    tarief:nuGeldend,
     pct:pct,
     factor:factor,
     tekst:tekst,
-    historie:historie,
-    tariefOp:tariefOp,
+    zetten:tariefZetten,
+    weghalen:tariefWeghalen,
+    opruimen:opruimen,
+    leverDatum:leverDatum,
+    proef:function(datum){ return tariefOp(datum)+'% op '+nlDatum(T(datum)); },
     stand:function(){
-      var s=S(), per={};
-      ((s&&s.orders)||[]).forEach(function(o){ var p=pct(o); per[p]=(per[p]||0)+1; });
-      return { instelling:lees()+'%', tariefwijzigingen:historie(), inGebruik:per };
-    },
-    /* Wat zou er met een ANDER tarief op de documenten komen te staan? Dit
-       verandert niets, het laat alleen zien wat er zou gebeuren. */
-    proef:function(nieuwTarief){
-      var n=goed(nieuwTarief)||lees();
-      var h=historie().concat([{pct:n, vanaf:vandaag()}]);
-      var s=S(), blijft=0, verandert=[];
-      ((s&&s.orders)||[]).forEach(function(o){
-        var nu=pct(o);
-        var p=o.pricing||{};
-        var straks=goed(p.vatP!=null?p.vatP:p.vatPercent);
-        if(!straks){
-          var d=datumVan(o), g=h[0].pct;
-          for(var i=0;i<h.length;i++){ if(h[i].vanaf<=(d||'1900-01-01')) g=h[i].pct; }
-          straks=g;
-        }
-        if(nu===straks) blijft++;
-        else verandert.push(T(o.number)+': '+nu+'% wordt '+straks+'%');
+      var per={}, vast=0;
+      orders().forEach(function(o){
+        var p=pct(o); per[p]=(per[p]||0)+1;
+        if(gefactureerd(o) && goed(o.pricing&&o.pricing.vatP)) vast++;
       });
-      return { nieuwTarief:n+'%', opdrachtenDieGelijkBlijven:blijft, opdrachtenDieVeranderen:verandert };
+      return { geldtVandaag:nuGeldend()+'%',
+               tarieven:historie().map(function(x){ return x.pct+'% vanaf '+nlDatum(x.vanaf); }),
+               inGebruik:per,
+               vastgelegdOpFactuur:vast };
     }
   };
-  try{ console.info('[BNS TW Btw] Eén plek voor het btw-tarief - window.BNS_TW_BTW.stand()'); }catch(e){}
+  try{ console.info('[BNS TW Btw] Tarief volgt de leverdatum - window.BNS_TW_BTW.stand()'); }catch(e){}
 })();
