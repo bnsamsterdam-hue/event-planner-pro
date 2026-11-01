@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FACTUURKEUZE49-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-FACTUURKEUZE50-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -48056,6 +48056,24 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
     var b=ev.target && ev.target.closest && ev.target.closest('button,a,[data-bns423-doc],[data-bns422-doc],[data-bns421-doc],[data-doc]');
     var type=buttonDocType(b); if(!type) return;
     ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    /* ==========================================================
+       01-11-2026 - EERST DE KEUZE, DAN HET DOCUMENT.
+       ----------------------------------------------------------
+       Dit is de route die de knop Maak factuur echt bedient; de oudere
+       onderscheppers (v423, v521) stappen voor deze opzij. Hieronder
+       wordt even verder een factuurnummer UITGEDEELD, zonder te vragen.
+       Het keuzevenster krijgt hier dus eerst het woord.
+
+       onderbreek() geeft true terug als het venster is opengezet; dan
+       stopt deze klik hier. Na jouw keuze klikt het venster de knop
+       opnieuw aan, en dan geeft onderbreek() false terug en loopt alles
+       hieronder gewoon zoals het liep.
+    ========================================================== */
+    try{
+      if(type==='factuur' && window.BNS_TW_FACTUURKEUZE &&
+         typeof window.BNS_TW_FACTUURKEUZE.onderbreek==='function' &&
+         window.BNS_TW_FACTUURKEUZE.onderbreek(b)) return false;
+    }catch(e){}
     // BNS LIVE DOCUMENTEN: bij Wijzigen altijd een tijdelijke kopie maken
     // van de opgeslagen opdracht en de actuele formulierwaarden daar overheen zetten.
     // Dit verandert niets in state/Firebase; pas de normale knop Opslaan schrijft definitief weg.
@@ -61435,11 +61453,33 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   var wachtKlant=false;     /* ook als standaard voor de klant bewaren */
   var wachtStil=false;      /* vinkje 'geen statusmeldingen' bij een nieuwe opdracht */
 
+  /* ==========================================================
+     01-11-2026 - DE KEUZE 8 DAGEN / 30 DAGEN BLEEF NIET STAAN.
+     ----------------------------------------------------------
+     [stated] "open ik de factuur is hij niet meer blauw welke ik
+     aangevinkt had, open ik later de factuur dan zie ik dus niet welke ik
+     gekozen had, eerder bleef deze altijd blauw na keuze"
+
+     Hier stond alleen `window.editing`. Dat wordt op sommige routes gezet
+     (`window.editing=o.id`) en op een stuk meer routes juist leeggemaakt.
+     Was het leeg, dan vond deze functie de opdracht niet, en belandde je
+     keuze in de losse variabele `wachtKeuze`: blauw zolang je op het
+     scherm staat, weg zodra je de opdracht opnieuw opent. Vandaar dat het
+     de ene keer wel bleef staan en de andere keer niet - het hing af van
+     hoe je de opdracht had geopend.
+
+     Nu wordt er daarnaast gezocht op het opdrachtnummer in het formulier,
+     net zoals de andere modules in deze app doen. Dat veld staat er altijd
+     als je een opdracht open hebt.
+  ========================================================== */
   function huidigeOpdracht(){
-    var id=T(window.editing||'');
-    if(!id) return null;
     var raak=null;
-    orders().forEach(function(o){ if(T(o.id)===id) raak=o; });
+    var id=T(window.editing||'');
+    if(id) orders().forEach(function(o){ if(T(o.id)===id) raak=o; });
+    if(raak) return raak;
+    var nr=T((E('orderNumber')||{}).value);
+    if(!nr) return null;
+    orders().forEach(function(o){ if(!raak && T(o.number)===nr) raak=o; });
     return raak;
   }
   function huidigeKlantNaam(){
@@ -64608,7 +64648,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   function hoogsteInLijst(){
     var hoog=null;
     orders().forEach(function(o){
-      [invoiceNo(o), o && o.verzamel && o.verzamel.nr].forEach(function(x){
+      /* 01-11-2026: creditnota's lopen uit dezelfde reeks, dus die horen
+         hier ook mee te tellen. */
+      [invoiceNo(o), o && o.verzamel && o.verzamel.nr, o && o.credit && o.credit.nr].forEach(function(x){
         var d=knipNr(x);
         if(d && d.jaar===jaarKort() && (!hoog || d.teller>hoog.teller)) hoog=d;
       });
@@ -65466,6 +65508,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   var bezig=false;          /* tweede klik doorlaten */
   var vensterOpen=false;
   var laatsteOpdracht=null;
+  var laatsteKnop=null;     /* de knop waar echt op gedrukt is */
 
   function T(v){ return String(v==null?'':v).trim(); }
   function E(id){ return document.getElementById(id); }
@@ -65551,7 +65594,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      De knop opnieuw aanklikken, met de vlag om. Dan gaat de klik langs deze
      module heen naar de bouwer die er toch al aan hing. */
   function openen(){
-    var knop=E(KNOP);
+    /* De knop waar hij op drukte, niet per se die met het id dat ik ken:
+       meerdere modules hangen hun eigen knoppen met dezelfde tekst neer. */
+    var knop=laatsteKnop || E(KNOP);
     bezig=true;
     try{
       if(knop) knop.click();
@@ -65717,7 +65762,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
 
   /* ---------------- het venster samenstellen ---------------- */
-  function vraag(){
+  function vraag(knopEl){
+    laatsteKnop = knopEl || E(KNOP);
     var o=huidigeOpdracht();
     if(!o){
       melden('Geen opdracht open', '#b45309', [
@@ -65788,7 +65834,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     ev.preventDefault();
     ev.stopPropagation();
     if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    vraag();
+    vraag(knop);
   }, true);
 
   /* ---------------- bijhouden ----------------
@@ -65811,8 +65857,20 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   setInterval(bijwerken, 900);
   setTimeout(bijwerken, 1200);
 
+  /* ---------------- aanroep uit de route van BNS 525 ----------------
+     Die module onderschept de klik op window in de capture-fase, dus
+     voordat wie dan ook eraan te pas komt. Daar wordt dit aangeroepen.
+     true  = het venster staat open, laat deze klik hier doodlopen
+     false = dit is de tweede klik (na de keuze), ga gewoon verder */
+  function onderbreek(knopEl){
+    if(bezig) return false;
+    vraag(knopEl);
+    return true;
+  }
+
   window.BNS_TW_FACTUURKEUZE={
     vraag:vraag,
+    onderbreek:onderbreek,
     stand:function(){
       var o=huidigeOpdracht();
       return {
