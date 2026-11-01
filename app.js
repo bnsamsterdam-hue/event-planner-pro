@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-EENPAGINA46-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-FACTUURKEUZE49-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -35270,6 +35270,13 @@ setTimeout(()=>{
     var meta = '<b>Opdracht '+esc(o.number || '-')+'</b>';
     if (!offer) {
       meta += '<br>Factuur nr: <b>'+esc(invoiceNumber() || '-')+'</b><br>Type: '+esc(invoiceType())+'<br>Betaling: '+esc(paymentType());
+      /* 01-11-2026 - Een creditnota hoort te zeggen welke factuur hij
+         terugdraait, anders is hij in de boekhouding niet te plaatsen.
+         Het keuzevenster zet dat nummer hier klaar. */
+      try{
+        var gecrediteerd = window.__BNS_TW_CREDIT_VOOR;
+        if (gecrediteerd) meta += '<br>Creditfactuur voor factuur <b>'+esc(gecrediteerd)+'</b>';
+      }catch(e){}
     }
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+' '+esc(o.number)+'</title><style>'+
     '@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:0;margin:0 auto;background:white;padding:22mm 17mm;'+templateStyle+';box-sizing:border-box}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:5px solid '+accent+';padding-bottom:16px;margin-bottom:18px}.logo{max-width:190px;max-height:90px;object-fit:contain}.company{font-size:15px;font-weight:800;color:'+accent+'}.doctype{font-size:30px;font-weight:900;text-transform:uppercase;letter-spacing:.4px}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0;background:rgba(255,255,255,.94)}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.96)}th{background:'+accent+';color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap;line-height:1.45}.footer{margin-top:24px;border-top:2px solid #e5e7eb;padding-top:12px;font-size:12px;color:#334155}.powered{margin-top:14px;text-align:center;font-size:11px;color:#64748b;font-weight:800}@media print{body{background:white}.actions{display:none}.page{margin:0;box-shadow:none}}'+
@@ -58686,26 +58693,59 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return jaarKort()+t;
   }
   function volgende(){
+    gelijkzetten();          /* nooit een nummer uitdelen dat al in de boeken staat */
     var inst=lees();
     var d=knip(inst.volgende) || {teller:98771087, breedte:inst.breedte};
     return bouw(d.teller, d.breedte||inst.breedte);
   }
+  /* ==========================================================
+     01-11-2026 - ALLE UITGEDEELDE NUMMERS TELLEN MEE.
+     ----------------------------------------------------------
+     Deze teller is de achtervang: raakt de instelling in deze browser
+     kwijt, dan wordt hij hieruit opnieuw opgebouwd. Hij keek alleen naar
+     factuurnummers, dus een creditnummer uit dezelfde reeks, en een
+     factuurnummer dat na een creditnota opzij is geschoven, konden een
+     tweede keer worden uitgedeeld. Nu tellen ze alle drie mee.
+  ========================================================== */
   function hoogste(){
     var hoog=0;
+    function meet(nr){
+      var d=knip(nr);
+      if(d && d.teller>hoog) hoog=d.teller;
+    }
     try{
       var s=st(); if(!s) return 0;
       (s.orders||[]).forEach(function(o){
-        var d=knip(o && o.invoice && o.invoice.invoiceNumber);
-        if(d && d.teller>hoog) hoog=d.teller;
+        if(!o) return;
+        meet(o.invoice && o.invoice.invoiceNumber);
+        meet(o.credit && o.credit.nr);
+        var oud=(o.invoice && o.invoice.vervangen) || [];
+        if(Array.isArray(oud)) oud.forEach(function(r){ meet(r && r.nr); });
       });
     }catch(e){}
     return hoog;
   }
-  var gelijk=false;
+  /* ==========================================================
+     01-11-2026 - DE ACHTERVANG STOND MAAR EEN KEER AAN.
+     ----------------------------------------------------------
+     Hier stond een vinkje `gelijk` dat na de eerste keer dichtging, en
+     `gelijkzetten()` werd alleen aangeroepen als je Admin > Facturen
+     opende. Twee gaten:
+
+       - De opdrachten komen uit Firebase en zijn er soms nog niet als de
+         teller voor het eerst kijkt. Hij zag dan niets, zette het vinkje
+         om, en keek daarna nooit meer.
+       - Raakt de instelling in deze browser kwijt (ander apparaat, cache
+         geleegd), dan begint de teller weer bij het beginnummer. Wie dan
+         niet eerst het Admin-paneel opent, krijgt een nummer dat al
+         gebruikt is.
+
+     Het vinkje is eruit en `volgende()` kijkt nu elke keer. Het is een
+     rondje door de opdrachten, dat merkt niemand, en hij schrijft alleen
+     iets weg als de teller echt achterloopt.
+  ========================================================== */
   function gelijkzetten(){
-    if(gelijk) return;
     var h=hoogste(); if(!h) return;
-    gelijk=true;
     var inst=lees(), d=knip(inst.volgende);
     if(d && h>=d.teller) bewaar({volgende:bouw(h+1,d.breedte), breedte:d.breedte});
   }
@@ -64108,23 +64148,40 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       if(d) eigenReeksBewaren({volgende: bouw(d.teller+1, d.breedte)});
       return nr;
     }
-    var h=hoogsteInGebruik();
-    if(h) return bouw(h.teller+1, h.breedte);
-    /* nog nooit gecrediteerd in deze schrijfwijze: dan uit de factuurreeks */
+    /* ==========================================================
+       01-11-2026 - DE CREDITREEKS LIEP ACHTER OP DE FACTUURREEKS.
+       ----------------------------------------------------------
+       Hier stond `hoogsteInGebruik()` vooraan: het volgende creditnummer
+       werd uitgerekend uit de CREDITNOTA'S alleen. Maar zolang je geen
+       eigen creditreeks hebt ingesteld, lopen creditnota's en facturen uit
+       dezelfde reeks. Was de hoogste creditnota 2698771088 en stond de
+       factuurteller inmiddels op 2698771091, dan kwam de volgende
+       creditnota uit op 2698771089 - een nummer dat als factuur al de deur
+       uit was.
+
+       Nu wordt het nummer altijd uit de ene reeks gehaald, en wordt die
+       teller meteen bijgezet, zodat een factuur hem daarna ook niet meer
+       kan pakken. `hoogsteInGebruik()` blijft als achtervang voor het geval
+       de factuurmodule niet geladen is.
+    ========================================================== */
     var uitModule='';
     try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.volgende==='function') uitModule=T(window.BNS_TW_FACTUURNR.volgende()); }catch(e){}
     if(uitModule){
       try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.gebruikt==='function') window.BNS_TW_FACTUURNR.gebruikt(uitModule); }catch(e){}
       return uitModule;
     }
+    var h=hoogsteInGebruik();
+    if(h) return bouw(h.teller+1, h.breedte);
     return bouw(1, 8);
   }
   function volgendeTonen(){
     var eigen=eigenReeks();
     if(eigen){ var d=knip(eigen.volgende); return d ? bouw(d.teller, d.breedte) : T(eigen.volgende); }
+    /* zelfde volgorde als hierboven, anders toont Admin een ander nummer
+       dan er straks uit komt */
+    try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.volgende==='function') return T(window.BNS_TW_FACTUURNR.volgende()); }catch(e){}
     var h=hoogsteInGebruik();
     if(h) return bouw(h.teller+1, h.breedte);
-    try{ if(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.volgende==='function') return T(window.BNS_TW_FACTUURNR.volgende()); }catch(e){}
     return bouw(1, 8);
   }
 
@@ -65341,4 +65398,433 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
   };
   try{ console.info('[BNS TW Btw] Tarief volgt de leverdatum - window.BNS_TW_BTW.stand()'); }catch(e){}
+})();
+
+
+/* ==========================================================
+   01-11-2026 - EEN FACTUURNUMMER WORD UITGEDEELD, NIET GETOOND.
+   ----------------------------------------------------------
+   [stated] "dat is een rare eers druk ik op factuur nr maken terwijl als ik
+   op de knop maak factuur hij zelf al de factuur maakt, waarom dan dubbel ?"
+   [stated] "is er al 1 keer een factuur gemaakt op die opdracht mag hij dus
+   geen 2e maken dan alleen een credit factuur"
+
+   WAT ER AAN DE HAND WAS. De knop Maak factuur hing aan een bouwer die het
+   nummer alleen OPHAALDE uit het invulvakje:
+
+       function invoiceNumber(){
+         return val('bnsInvoiceNumber') || (orderData().invoice && ...) || '';
+       }
+
+   Hij legde niets vast. En het vakje werd niet leeggemaakt bij een opdracht
+   zonder factuurgegevens:
+
+       function fillMetaFromOrder(){
+         var o=currentSavedOrder();
+         if(o&&o.invoice)setDocMeta(o.invoice);   // alleen ALS...
+       }
+
+   Dus stond op een verse opdracht nog het nummer van de opdracht die je
+   ervoor open had. Dat nummer kwam op papier, maar nergens anders. Omdat het
+   eerstvolgende nummer geteld wordt uit de nummers die op opdrachten
+   VASTLIGGEN, kreeg de volgende factuur hetzelfde nummer. Daarom bleef de
+   kaart ook "Factuur maken - nog zoveel dagen" roepen: op de opdracht stond
+   niets.
+
+   WAT HIER NIET GEBOUWD IS. Het uitdelen zelf bestond al en werkt goed:
+   BNS_TW_FACTUURNR.voorOpdracht() deelt eenmalig uit, houdt een bestaand
+   nummer met rust en zet de teller bij; BNS_TW_CREDIT.nummerVoor() doet
+   hetzelfde uit een eigen creditreeks en bewaart welke factuur gecrediteerd
+   wordt. De schrijfwijze is twee cijfers jaartal met een doorlopend nummer
+   erachter, dat op 1 januari niet terugspringt. Daar is niets aan veranderd.
+   Deze module hangt de knop er alleen aan vast.
+
+   HOE. De klik wordt in de capture-fase onderschept, voordat de knop zelf
+   aan de beurt is. Zo hoeft er aan geen enkele bestaande module gesleuteld
+   te worden - en er zijn er een paar die om deze knop vechten. Na je keuze
+   wordt de knop opnieuw aangeklikt met de vlag `bezig`, en dan gaat de klik
+   er gewoon langs naar de bouwer die hem toch al had.
+
+   EERST VASTLEGGEN, DAN TONEN. Lukt het wegschrijven op de opdracht niet,
+   dan komt er geen document maar een rode melding. Lukt dat wel maar is
+   Firebase even niet bereikbaar, dan opent het document toch: het nummer is
+   dan al van deze opdracht en de teller staat bij, dus hij kan niet nog een
+   keer uitgedeeld worden. Je krijgt wel te zien dat het nog onderweg is.
+
+   TE ZIEN MET: window.BNS_TW_FACTUURKEUZE.stand()
+========================================================== */
+(function bnsTwFactuurKeuze(){
+  'use strict';
+  if(window.__BNS_TW_FACTUURKEUZE__) return;
+  window.__BNS_TW_FACTUURKEUZE__=true;
+
+  var KNOP='bnsOpenInvoiceV73';
+  /* [stated] "maak de knoppen die we niet gebruiken onzichtig dan hoeven we
+     ook niet te knippen in de teksten" - niets weggehaald, alleen weggezet. */
+  var VERBERGEN=['bnsMakeInvoiceNr','bnsSaveInvoiceMeta'];
+
+  var bezig=false;          /* tweede klik doorlaten */
+  var vensterOpen=false;
+  var laatsteOpdracht=null;
+
+  function T(v){ return String(v==null?'':v).trim(); }
+  function E(id){ return document.getElementById(id); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function st(){
+    try{ if(typeof state!=='undefined' && state) return state; }catch(e){}
+    try{ if(window.state) return window.state; }catch(e){}
+    return null;
+  }
+  function orders(){ var s=st(); return (s && s.orders) || []; }
+  function veldZet(id,v){ var e=E(id); if(e) e.value=(v==null?'':v); }
+  function typeZet(waarde){
+    var e=E('bnsInvoiceType');
+    if(!e) return;
+    e.value=waarde;
+    try{ e.dispatchEvent(new Event('change',{bubbles:true})); }catch(x){}
+  }
+  function huidigeOpdracht(){
+    var nr=T((E('orderNumber')||{}).value);
+    if(!nr) return null;
+    var l=orders();
+    for(var i=0;i<l.length;i++){ if(T(l[i].number)===nr) return l[i]; }
+    return null;
+  }
+  function factuurNr(o){ return T(o && o.invoice && o.invoice.invoiceNumber); }
+  function creditNr(o){ return T(o && o.credit && o.credit.nr); }
+
+  /* ---------------- het venster ----------------
+     Kleuren staan inline met !important: de leesbaarheidsregel van de app
+     (.bns-readable-v105 *{color:var(--text)!important}) wint anders en dan
+     krijg je donkere letters op een donkere knop. */
+  function sluit(){
+    var oud=E('bnsFactuurKeuzeVak');
+    if(oud && oud.parentNode) oud.parentNode.removeChild(oud);
+    vensterOpen=false;
+  }
+  function venster(kop, kleur, regels, keuzes){
+    sluit();
+    vensterOpen=true;
+    var waas=document.createElement('div');
+    waas.id='bnsFactuurKeuzeVak';
+    waas.style.cssText='position:fixed;inset:0;z-index:2147483646;display:flex;'+
+      'align-items:center;justify-content:center;padding:18px;font-family:Arial,Helvetica,sans-serif';
+    waas.style.setProperty('background','rgba(15,23,42,.55)','important');
+    var kaart=document.createElement('div');
+    kaart.style.cssText='max-width:560px;width:100%;border-radius:16px;overflow:hidden;'+
+      'box-shadow:0 18px 50px rgba(15,23,42,.45)';
+    kaart.style.setProperty('background','#ffffff','important');
+
+    var h='<div style="padding:14px 18px;font-weight:900;font-size:16px;background:'+kleur+
+      ' !important;color:#ffffff !important">'+kop+'</div>'+
+      '<div style="padding:16px 18px 6px;font-size:14px;line-height:1.5;color:#172033 !important">'+
+        regels.map(function(r){ return '<div style="margin-bottom:10px;color:#172033 !important">'+r+'</div>'; }).join('')+
+      '</div><div style="padding:6px 18px 18px;display:flex;flex-direction:column;gap:9px">';
+    keuzes.forEach(function(k,i){
+      h+='<button type="button" data-keuze="'+i+'" style="border:0 !important;border-radius:11px;'+
+        'padding:13px 16px;font-weight:900;font-size:14px;cursor:pointer;text-align:left;'+
+        'background:'+(k.kleur||'#2563eb')+' !important;color:#ffffff !important">'+k.tekst+
+        (k.uitleg?'<div style="font-weight:600;font-size:12px;margin-top:3px;opacity:.92;color:#ffffff !important">'+k.uitleg+'</div>':'')+
+        '</button>';
+    });
+    h+='</div>';
+    kaart.innerHTML=h;
+    waas.appendChild(kaart);
+    document.body.appendChild(waas);
+
+    kaart.querySelectorAll('button[data-keuze]').forEach(function(b){
+      b.onclick=function(){
+        var k=keuzes[Number(b.getAttribute('data-keuze'))];
+        if(!k) return;
+        if(k.sluiten!==false) sluit();
+        if(typeof k.doe==='function') k.doe();
+      };
+    });
+    waas.onclick=function(ev){ if(ev.target===waas) sluit(); };
+  }
+  function melden(kop, kleur, regels){
+    venster(kop, kleur, regels, [{tekst:'Sluiten', kleur:'#64748b', doe:function(){}}]);
+  }
+
+  /* ---------------- document openen ----------------
+     De knop opnieuw aanklikken, met de vlag om. Dan gaat de klik langs deze
+     module heen naar de bouwer die er toch al aan hing. */
+  function openen(){
+    var knop=E(KNOP);
+    bezig=true;
+    try{
+      if(knop) knop.click();
+      else if(typeof window.makeInvoice==='function') window.makeInvoice();
+    }catch(e){
+    }
+    bezig=false;
+    try{ window.__BNS_TW_CREDIT_VOOR=''; }catch(e){}
+  }
+
+  /* ---------------- naar Firebase ----------------
+     voorOpdracht() stuurt zelf al, maar meldt niets. syncOrder vangt een
+     mislukking op, zet de opdracht in de wachtrij en laat een regel achter
+     in window.BNS.syncStatus. Die lezen we, nadat we hem leeg hebben
+     gemaakt zodat we niet naar een oude mislukking kijken. */
+  function naarFirebase(o, nr){
+    try{
+      if(!window.BNS || typeof window.BNS.syncOrder!=='function') return;
+      window.BNS.syncStatus='';
+      Promise.resolve(window.BNS.syncOrder(o)).then(function(){
+        if(T(window.BNS.syncStatus)){
+          melden('Nummer vastgelegd, nog niet in Firebase', '#b45309', [
+            'Nummer <b>'+esc(nr)+'</b> staat vast op deze computer en is van opdracht <b>'+
+              esc(T(o.number))+'</b>. Firebase was even niet bereikbaar.',
+            'Hij blijft het opnieuw proberen. Dit nummer wordt niet nog een keer uitgedeeld, '+
+              'dus je kunt gewoon doorwerken. Blijft deze melding terugkomen, laat het dan weten.'
+          ]);
+        }
+      });
+    }catch(e){}
+  }
+
+  /* ---------------- de keuzes ---------------- */
+  function inzien(o){
+    veldZet('bnsInvoiceNumber', factuurNr(o));
+    openen();
+  }
+  function nummerMaken(o){
+    if(!window.BNS_TW_FACTUURNR){
+      melden('Kan geen nummer maken', '#b91c1c',
+        ['De factuurnummer-module is niet geladen. Laad de app opnieuw; blijft dit zo, laat het weten.']);
+      return;
+    }
+    var voor=factuurNr(o);
+    /* Leeg, want voorOpdracht() geeft voorrang aan wat er in het vakje staat.
+       Stond daar nog een nummer van een andere opdracht, dan zou dat worden
+       vastgelegd - precies de fout die we aan het dichten zijn. */
+    veldZet('bnsInvoiceNumber','');
+    var nr='';
+    try{ nr=T(window.BNS_TW_FACTUURNR.voorOpdracht(o)); }catch(e){ nr=''; }
+    if(!nr || factuurNr(o)!==nr){
+      veldZet('bnsInvoiceNumber', voor);
+      melden('Niet vastgelegd, dus geen factuur', '#b91c1c', [
+        'Het nummer kon niet op opdracht <b>'+esc(T(o.number))+'</b> worden vastgelegd.',
+        'Er komt daarom geen document. Een nummer dat alleen op papier staat en nergens '+
+          'anders, kan een tweede keer worden uitgedeeld - dat laten we niet gebeuren.'
+      ]);
+      return;
+    }
+    veldZet('bnsInvoiceNumber', nr);
+    factuurdatum(o);
+    typeZet('Factuur');
+    naarFirebase(o, nr);
+    openen();
+  }
+  /* Zonder factuurdatum kan niemand 30 dagen vooruit tellen en valt de app
+     terug op de leverdatum - dan begint een 30-dagenklant een maand voor de
+     levering te knipperen. Die datum wordt maar een keer gezet. */
+  function factuurdatum(o){
+    try{
+      o.invoice=o.invoice||{};
+      if(!T(o.invoice.datum)) o.invoice.datum=new Date().toISOString().slice(0,10);
+    }catch(e){}
+  }
+  function zelfInvullen(o){
+    var huidig=factuurNr(o);
+    venster('Zelf invullen', '#0f766e', [
+      'Vul in wat er op de factuur moet komen. Laat je het leeg, dan komt er geen '+
+        'factuurnummer op en blijft de opdracht in de boekhouding op nog factureren staan - '+
+        'dat is wat je wil bij een contante betaling.',
+      '<input id="bnsKeuzeEigenNr" value="'+esc(huidig)+'" placeholder="bijvoorbeeld '+
+        esc(window.BNS_TW_FACTUURNR?T(window.BNS_TW_FACTUURNR.volgende()):'2698771087')+
+        '" style="width:100%;padding:11px;border:2px solid #cbd5e1;border-radius:11px;'+
+        'font-weight:800;background:#ffffff !important;color:#172033 !important">'
+    ], [
+      {tekst:'Document openen', kleur:'#0f766e', sluiten:false, doe:null}
+    ]);
+    /* De knop moet de ingetypte tekst lezen, dus hangen we hem er hier aan. */
+    var vak=E('bnsFactuurKeuzeVak');
+    if(!vak) return;
+    var knop=vak.querySelector('button[data-keuze="0"]');
+    var invoer=E('bnsKeuzeEigenNr');
+    if(invoer) try{ invoer.focus(); }catch(e){}
+    if(knop) knop.onclick=function(){
+      var tekst=T(invoer?invoer.value:'');
+      sluit();
+      if(!tekst){
+        veldZet('bnsInvoiceNumber','');
+        openen();
+        return;
+      }
+      veldZet('bnsInvoiceNumber', tekst);
+      var nr='';
+      try{ nr=T(window.BNS_TW_FACTUURNR? window.BNS_TW_FACTUURNR.voorOpdracht(o):''); }catch(e){}
+      if(factuurNr(o)!==tekst){
+        melden('Niet vastgelegd, dus geen factuur', '#b91c1c', [
+          'Nummer <b>'+esc(tekst)+'</b> kon niet op opdracht <b>'+esc(T(o.number))+
+            '</b> worden vastgelegd. Er komt daarom geen document.'
+        ]);
+        return;
+      }
+      factuurdatum(o);
+      typeZet('Factuur');
+      naarFirebase(o, tekst);
+      openen();
+    };
+  }
+  function creditMaken(o){
+    if(!window.BNS_TW_CREDIT){
+      melden('Kan geen creditnota maken', '#b91c1c',
+        ['De creditnota-module is niet geladen. Laad de app opnieuw; blijft dit zo, laat het weten.']);
+      return;
+    }
+    var factuur=factuurNr(o);
+    var nr='';
+    try{ nr=T(window.BNS_TW_CREDIT.nummerVoor(o)); }catch(e){ nr=''; }
+    if(!nr || creditNr(o)!==nr){
+      melden('Niet vastgelegd, dus geen creditnota', '#b91c1c', [
+        'Het creditnummer kon niet op opdracht <b>'+esc(T(o.number))+'</b> worden vastgelegd. '+
+          'Er komt daarom geen document.'
+      ]);
+      return;
+    }
+    try{ window.__BNS_TW_CREDIT_VOOR=factuur; }catch(e){}
+    veldZet('bnsInvoiceNumber', nr);
+    typeZet('Credit factuur');
+    naarFirebase(o, nr);
+    openen();
+    /* Het vakje terug op het factuurnummer. Zet je straks het type weer op
+       Factuur, dan legt de app vast wat er in dit vakje staat - en dat moet
+       het factuurnummer zijn, niet het creditnummer. */
+    veldZet('bnsInvoiceNumber', factuur);
+  }
+  function creditInzien(o){
+    veldZet('bnsInvoiceNumber', creditNr(o));
+    try{ window.__BNS_TW_CREDIT_VOOR=factuurNr(o); }catch(e){}
+    typeZet('Credit factuur');
+    openen();
+    veldZet('bnsInvoiceNumber', factuurNr(o));
+  }
+  function nieuwNaCredit(o){
+    /* [stated] akkoord: na een creditnota mag er wel weer een nieuwe factuur
+       op die opdracht. Het oude nummer gaat niet weg, het schuift opzij -
+       anders is later niet meer te zien wat er gecrediteerd is. */
+    var oud=factuurNr(o);
+    o.invoice=o.invoice||{};
+    o.invoice.vervangen=(o.invoice.vervangen||[]).concat([{
+      nr:oud, credit:creditNr(o), op:new Date().toISOString()
+    }]);
+    o.invoice.invoiceNumber='';
+    try{ delete o.invoice.datum; }catch(e){ o.invoice.datum=''; }
+    nummerMaken(o);
+  }
+
+  /* ---------------- het venster samenstellen ---------------- */
+  function vraag(){
+    var o=huidigeOpdracht();
+    if(!o){
+      melden('Geen opdracht open', '#b45309', [
+        'Open eerst een opdracht; dan weet de app bij wie de factuur hoort.'
+      ]);
+      return;
+    }
+    var fnr=factuurNr(o), cnr=creditNr(o);
+
+    if(!fnr){
+      venster('Factuur voor opdracht '+esc(T(o.number)), '#2563eb', [
+        'Op deze opdracht staat nog geen factuurnummer.'
+      ], [
+        {tekst:'Factuur nr maken', kleur:'#16a34a',
+         uitleg:'Volgend nummer uit je reeks: '+esc(window.BNS_TW_FACTUURNR?T(window.BNS_TW_FACTUURNR.volgende()):'?'),
+         doe:function(){ nummerMaken(o); }},
+        {tekst:'Alleen inzien', kleur:'#2563eb',
+         uitleg:'Document openen zonder nummer, er wordt niets vastgelegd',
+         doe:function(){ inzien(o); }},
+        {tekst:'Geen nr / zelf invullen', kleur:'#0f766e',
+         uitleg:'Jouw eigen nummer, of leeg laten bij contant',
+         doe:function(){ zelfInvullen(o); }}
+      ]);
+      return;
+    }
+
+    if(cnr){
+      venster('Opdracht '+esc(T(o.number))+' is gecrediteerd', '#7c3aed', [
+        'Factuur <b>'+esc(fnr)+'</b> is teruggedraaid met creditnota <b>'+esc(cnr)+'</b>.',
+        'Er mag dus weer een nieuwe factuur op deze opdracht.'
+      ], [
+        {tekst:'Nieuwe factuur nr maken', kleur:'#16a34a',
+         uitleg:'Volgend nummer uit je reeks; '+esc(fnr)+' blijft bewaard bij de creditnota',
+         doe:function(){ nieuwNaCredit(o); }},
+        {tekst:'Creditnota '+esc(cnr)+' inzien', kleur:'#7c3aed',
+         uitleg:'Document openen, er wordt niets vastgelegd',
+         doe:function(){ creditInzien(o); }},
+        {tekst:'Factuur '+esc(fnr)+' inzien', kleur:'#2563eb',
+         uitleg:'Document openen, er wordt niets vastgelegd',
+         doe:function(){ inzien(o); }}
+      ]);
+      return;
+    }
+
+    venster('Factuur '+esc(fnr)+' bestaat al', '#2563eb', [
+      'Op opdracht <b>'+esc(T(o.number))+'</b> is al factuur <b>'+esc(fnr)+'</b> gemaakt. '+
+        'Een tweede factuur kan dus niet; wil je hem terugdraaien, dan maak je een creditnota.'
+    ], [
+      {tekst:'Factuur '+esc(fnr)+' inzien', kleur:'#2563eb',
+       uitleg:'Opent met dit nummer, nooit met een nieuw',
+       doe:function(){ inzien(o); }},
+      {tekst:'Creditfactuur maken', kleur:'#7c3aed',
+       uitleg:'Nieuw nummer uit je creditreeks: '+esc(window.BNS_TW_CREDIT?T(window.BNS_TW_CREDIT.volgende()):'?'),
+       doe:function(){ creditMaken(o); }}
+    ]);
+  }
+
+  /* ---------------- de klik onderscheppen ----------------
+     Capture-fase op document, dus voordat de knop zelf aan de beurt is. Er
+     zijn meerdere modules die deze knop claimen; welke er uiteindelijk aan
+     hangt doet zo niet meer mee. */
+  document.addEventListener('click', function(ev){
+    if(bezig) return;
+    var el=ev.target;
+    if(!el || !el.closest) return;
+    var knop=el.closest('#'+KNOP);
+    if(!knop) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    vraag();
+  }, true);
+
+  /* ---------------- bijhouden ----------------
+     Twee dingen: de knoppen die je niet meer nodig hebt wegzetten, en het
+     factuurvakje gelijkhouden met de opdracht die open staat. Dat laatste
+     alleen bij een WISSEL van opdracht, zodat er niet onder je handen
+     wordt afgeveegd wat je aan het typen bent. */
+  function bijwerken(){
+    VERBERGEN.forEach(function(id){
+      var b=E(id);
+      if(b && b.style.display!=='none') b.style.display='none';
+    });
+    if(vensterOpen) return;
+    var nr=T((E('orderNumber')||{}).value);
+    if(nr===laatsteOpdracht) return;
+    laatsteOpdracht=nr;
+    var o=huidigeOpdracht();
+    veldZet('bnsInvoiceNumber', o?factuurNr(o):'');
+  }
+  setInterval(bijwerken, 900);
+  setTimeout(bijwerken, 1200);
+
+  window.BNS_TW_FACTUURKEUZE={
+    vraag:vraag,
+    stand:function(){
+      var o=huidigeOpdracht();
+      return {
+        opdracht: o?T(o.number):'(geen opdracht open)',
+        factuurnummer: o?(factuurNr(o)||'(geen)'):'',
+        creditnummer: o?(creditNr(o)||'(geen)'):'',
+        inHetVakje: T((E('bnsInvoiceNumber')||{}).value)||'(leeg)',
+        volgendeFactuur: window.BNS_TW_FACTUURNR?T(window.BNS_TW_FACTUURNR.volgende()):'?',
+        volgendeCredit: window.BNS_TW_CREDIT?T(window.BNS_TW_CREDIT.volgende()):'?',
+        verborgen: VERBERGEN.filter(function(id){ var b=E(id); return b && b.style.display==='none'; })
+      };
+    }
+  };
+  try{ console.info('[BNS TW Factuurkeuze] Actief - window.BNS_TW_FACTUURKEUZE.stand()'); }catch(e){}
 })();
