@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-TELLERSTART59-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-VERZAMELREGEL60-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -63117,15 +63117,95 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return tekst + (knoppen? '<div style="margin-top:12px">'+knoppen+'</div>' : '');
   }
 
+  /* ==========================================================
+     01-11-2026 - EEN VERZAMELFACTUUR IS EEN FACTUUR, DUS EEN REGEL.
+     ----------------------------------------------------------
+     [stated] "een bulk factuur is veranderd in 1 factuur totaal 1 prijs"
+     [stated] "daarna ga je naar boekhouding en dan staan ze allemaal op
+     betaald, terwijl ik dat niet heb aan kunnen vinken"
+
+     De opdrachten die samen op een verzamelfactuur staan, stonden hier als
+     losse regels die allemaal hetzelfde factuurnummer droegen. Stond er een
+     van op betaald, dan zag je dat op die regel terwijl de andere nog open
+     stonden - en dat leest als "ze staan allemaal op betaald" of juist als
+     "er staat nog iets open", terwijl de klant een factuur met een bedrag
+     heeft gekregen.
+
+     Nu is het een regel: een nummer, een totaal, en eronder welke
+     opdrachten erin zitten. Betaald zetten doe je in een keer voor de hele
+     factuur, want zo is hij ook de deur uit gegaan.
+
+     Zit er maar een opdracht van die verzamelfactuur in beeld - door een
+     filter of een zoekopdracht - dan blijft het gewoon de normale regel.
+  ========================================================== */
+  function verzamelGroepen(l){
+    var uit=[], gezien={};
+    l.forEach(function(o){
+      var vid=T(o && o.verzamel && o.verzamel.id);
+      if(!vid){ uit.push({vz:false, orders:[o]}); return; }
+      if(gezien[vid]){ gezien[vid].orders.push(o); return; }
+      var e={vz:true, id:vid, orders:[o]};
+      gezien[vid]=e; uit.push(e);
+    });
+    return uit;
+  }
   function lijstHtml(){
     var l=zichtbaar();
     if(!l.length) return '<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:14px;padding:22px;color:#64748b;line-height:1.5">'+leegUitleg()+'</div>';
     var totaal=som(l);
-    return l.map(regelHtml).join('')+
+    var groepen=verzamelGroepen(l);
+    return groepen.map(function(g){
+      return (g.vz && g.orders.length>1) ? verzamelRegelHtml(g) : regelHtml(g.orders[0]);
+    }).join('')+
       '<div style="display:flex;justify-content:flex-end;gap:14px;align-items:baseline;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:4px">'+
-        '<span style="font-size:13px;color:#64748b">'+l.length+' regels</span>'+
+        '<span style="font-size:13px;color:#64748b">'+groepen.length+' regels'+
+          (groepen.length!==l.length ? ' ('+l.length+' opdrachten)' : '')+'</span>'+
         '<span style="font-size:19px;font-weight:900;color:#172033">'+esc(geld(totaal))+'</span>'+
       '</div>';
+  }
+  function verzamelRegelHtml(g){
+    var eerste=g.orders[0];
+    var vz=(eerste && eerste.verzamel) || {};
+    var nr=T(vz.nr)||invoiceNo(eerste);
+    var naam=T(vz.klant)||klant(eerste)||'klant onbekend';
+    var bet=g.orders.filter(betaald).length;
+    var alles=bet===g.orders.length, niets=bet===0;
+    var kleur = alles ? '#15803d' : (niets ? '#dc2626' : '#b45309');
+    var stand = alles ? 'betaald' : (niets ? 'openstaand' : bet+' van '+g.orders.length+' betaald');
+    var totaal=0; g.orders.forEach(function(o){ totaal += gecrediteerd(o) ? -bedrag(o) : bedrag(o); });
+    var vink = meerStand
+      ? '<input type="checkbox" data-bh-vz-vink="'+esc(T(g.id))+'"'+
+        (g.orders.every(function(o){ return !!aangevinkt[T(o.id)||orderNo(o)]; })?' checked':'')+
+        ' style="width:19px;height:19px;flex:none;margin-right:11px">'
+      : '';
+    return '<div style="display:flex;align-items:flex-start;background:#fff;border:1px solid #e2e8f0;'+
+        'border-left:6px solid '+kleur+';border-radius:14px;padding:13px 14px;margin:0 0 9px">'+
+      vink+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:baseline">'+
+          '<span style="min-width:0">'+
+            tekstIn(esc(nr),'#0f172a','font-weight:900;font-size:16px')+
+            tekstIn('&nbsp;&nbsp;'+esc(naam),'#334155','font-size:14px;font-weight:700')+
+          '</span>'+
+          '<span style="font-weight:900;font-size:17px;color:#0f172a">'+esc(geld(totaal))+'</span>'+
+        '</div>'+
+        '<div style="font-size:12px;color:#64748b;margin:4px 0 8px">'+
+          'Verzamelfactuur Tapwagen \u00b7 '+g.orders.length+' opdrachten \u00b7 '+esc(stand)+
+          (T(vz.datum)? ' \u00b7 '+esc(nl(T(vz.datum).slice(0,10))) : '')+'</div>'+
+        '<div style="font-size:13px;color:#334155;margin-bottom:10px;line-height:1.55">'+
+          g.orders.map(function(o){
+            return '<div>'+esc(orderNo(o))+' \u00b7 '+esc(titel(o)||'zonder omschrijving')+
+              ' \u00b7 '+esc(geld(bedrag(o)))+(betaald(o)?' \u00b7 betaald':'')+'</div>';
+          }).join('')+
+        '</div>'+
+        '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+          knop(alles?'Zet hele factuur openstaand':'Zet hele factuur op betaald',
+               Object.assign({}, alles?GRIJS:GROEN, {extra:'padding:8px 12px;font-size:13px',
+                 attr:'data-bh-vz-betaald="'+esc(T(g.id))+'|'+(alles?'0':'1')+'"'+
+                      ' data-tip="Zet alle '+g.orders.length+' opdrachten van deze verzamelfactuur in een keer om."'}))+
+        '</div>'+
+      '</div>'+
+    '</div>';
   }
 
   function regelHtml(o){
@@ -63951,6 +64031,43 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     K('[data-bh-vink]').forEach(function(cb){
       cb.addEventListener('change', function(){ aangevinkt[cb.getAttribute('data-bh-vink')]=cb.checked; tekenen(true); });
     });
+    /* 01-11-2026: de regel van een verzamelfactuur staat voor meerdere
+       opdrachten, dus het vinkje en de knop gelden voor allemaal. */
+    function verzamelGroep(id){
+      try{
+        if(window.BNS_TW_BULK && typeof window.BNS_TW_BULK.groepVan==='function'){
+          var g=window.BNS_TW_BULK.groepVan(id);
+          if(g && g.length) return g;
+        }
+      }catch(e){}
+      return zichtbaar().filter(function(o){ return T(o && o.verzamel && o.verzamel.id)===T(id); });
+    }
+    K('[data-bh-vz-vink]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        verzamelGroep(cb.getAttribute('data-bh-vz-vink')).forEach(function(o){
+          aangevinkt[T(o.id)||orderNo(o)]=cb.checked;
+        });
+        tekenen(true);
+      });
+    });
+    K('[data-bh-vz-betaald]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var d=T(b.getAttribute('data-bh-vz-betaald')).split('|');
+        var groep=verzamelGroep(d[0]);
+        if(!groep.length){ meld('Verzamelfactuur','Deze verzamelfactuur is niet meer te vinden.'); return; }
+        var naar=(d[1]==='1');
+        var nr=T(groep[0].verzamel && groep[0].verzamel.nr);
+        vraag(naar?'Hele factuur op betaald':'Hele factuur openstaand',
+          'Verzamelfactuur '+nr+' bestaat uit '+groep.length+' opdracht(en). Die gaan allemaal tegelijk '+
+          (naar?'op betaald':'terug naar openstaand')+'. (Tapwagen)',
+          naar?'Zet op betaald':'Zet openstaand', naar?GROEN:DONKER)
+          .then(function(ja){
+            if(!ja) return;
+            groep.forEach(function(o){ zetBetaald(o, naar); });
+            setTimeout(function(){ tekenen(true); }, 250);
+          });
+      });
+    });
     K('[data-bh-betaald]').forEach(function(b){
       b.addEventListener('click', function(){
         var d=b.getAttribute('data-bh-betaald').split('|');
@@ -64060,7 +64177,22 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       b.addEventListener('click', function(){
         var naam=b.getAttribute('data-bh-bulk-maak');
         var r=bulkRuimtes().filter(function(x){ return x.naam===naam; })[0];
-        if(!r || !r.klaar.length){ meld('Verzamelfactuur','Vink eerst aan welke opdrachten zijn goedgekeurd.'); return; }
+        /* 01-11-2026 - [stated] "hij zegt wel druk meerdere vinkjes maar die
+           zie ik niet". Dat klopte: zodra een opdracht op een verzamelfactuur
+           staat verdwijnt hij uit de bulkmap, en dan vroeg deze melding om
+           vinkjes die er niet meer waren. Nu zegt hij wat er aan de hand is. */
+        if(!r || !r.orders || !r.orders.length){
+          meld('Verzamelfactuur (Tapwagen)',
+               'Er staat niets meer in de bulkmap van '+naam+'. De opdrachten die hier stonden '+
+               'zitten al op een verzamelfactuur; die vind je in de map Openstaand.');
+          return;
+        }
+        if(!r.klaar.length){
+          meld('Verzamelfactuur (Tapwagen)',
+               'Er is nog niets afgevinkt. Vink in deze bulkmap de opdrachten aan die goedgekeurd zijn - '+
+               'het vakje staat links van elke opdracht.');
+          return;
+        }
         vraag('Verzamelfactuur maken',
           r.klaar.length+' opdracht(en) van '+naam+' worden samengevoegd tot één factuur van '+geld(r.somKlaar)+' excl. btw. '+
           'Hij krijgt één nummer uit je gewone reeks. Wat je niet hebt afgevinkt blijft hier staan.',
