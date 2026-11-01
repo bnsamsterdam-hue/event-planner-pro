@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-AGENDA44-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-MATOPSLAG45-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -31214,25 +31214,141 @@ setTimeout(()=>{
     },m));
     setPending(rows);
   }
-  function syncMaterial(m){
+  /* ==========================================================
+     01-11-2026 - MATERIAAL WIJZIGEN KWAM NIET AAN, EN DE APP LOOG EROVER.
+     ----------------------------------------------------------
+     [stated] "ik druk in admin op wijzig en dan verander ik de tekst en sla
+     op, ik zie wel in de admin hem veranderen maar niet bij nieuwe opdracht
+     (...) dus ik denk dat hij terug komt van firebase"
+
+     Hier stond `.catch(function(){ })`. Weigerde Firebase de wijziging, dan
+     verdween die fout in het niets en kreeg je gewoon "Materiaal opgeslagen"
+     te zien. Lokaal klopte het, bij de volgende keer laden kwam de oude
+     tekst terug, en niemand kon zien waarom.
+
+     Twee oorzaken, allebei aangepakt:
+
+     1. ER WERD SAMENGEVOEGD IN PLAATS VAN VERVANGEN. Met `merge:true` blijft
+        alles wat er ooit in dat document is gezet staan, dus groeit een vaak
+        bewerkt materiaal door. In firestore.rules staat bij materials:
+        `request.resource.data.keys().size() < 40`. Over die grens weigert
+        Firebase elke verdere wijziging - voorgoed. Dat verklaart ook waarom
+        een NIEUW materiaal wel gewoon werkt: die heeft een handvol velden.
+        Nu wordt het document vervangen door wat er lokaal staat, schoon.
+
+     2. DE ROMMELVELDEN GINGEN MEE. Alles wat met een `_` begint is
+        gereedschap van de app zelf (`_savedAt`), geen gegeven van jou. Lege
+        velden horen er ook niet in. Die blijven nu thuis.
+
+     En de melding: lukt het niet, dan zie je dat, met wat Firebase
+     terugzegt. [stated] "ook een melding met een popup als het mislukt is
+     (in eigen tekst van de app)"
+  ========================================================== */
+  function schoonVoorFirebase(m){
+    var uit={};
+    Object.keys(m||{}).forEach(function(k){
+      if(!k || k.charAt(0)==='_') return;
+      var v=m[k];
+      if(v===undefined || v===null || v==='') return;
+      if(typeof v==='function') return;
+      uit[k]=v;
+    });
+    return uit;
+  }
+  function meldTerug(fn, soort, tekst, velden){
+    if(typeof fn==='function'){
+      try{ fn(soort, tekst, velden); }catch(e){}
+    }
+  }
+  function syncMaterial(m, bericht){
     if(!m || !m.id) return;
     addPending(m);
+    var doc=null;
     try{
-      if(!window.BNS || !window.BNS.firebaseReady || !window.BNS.fs || !window.BNS.db) return;
+      if(!window.BNS || !window.BNS.firebaseReady || !window.BNS.fs || !window.BNS.db){
+        meldTerug(bericht,'wacht','De verbinding met Firebase is nog niet klaar.',0);
+        return;
+      }
       var fs=window.BNS.fs;
-      fs.setDoc(fs.doc(window.BNS.db,'materials',String(m.id)),Object.assign({
-      },m,{
-        updatedAt:new Date().toISOString()
-      }),{
-        merge:true
-      }).then(function(){
+      doc=schoonVoorFirebase(m);
+      doc.updatedAt=new Date().toISOString();
+      var aantal=Object.keys(doc).length;
+      fs.setDoc(fs.doc(window.BNS.db,'materials',String(m.id)), doc).then(function(){
         setPending(pending().filter(function(x){
           return String(x.id)!==String(m.id);
         }));
-      }).catch(function(){
+        meldTerug(bericht,'ok','',aantal);
+      }).catch(function(e){
+        meldTerug(bericht,'fout', (e && (e.message || e.code)) || 'onbekende fout', aantal);
       });
     } catch(e){
+      meldTerug(bericht,'fout', (e && (e.message || e.code)) || 'onbekende fout',
+                doc ? Object.keys(doc).length : 0);
     }
+  }
+
+  /* ---------------- het meldvenster ----------------
+     Niet de browser-alert: die is in deze app omgeleid naar een toast die na
+     tweeënhalve seconde weg is, en juist deze melding moet blijven staan tot
+     je hem leest. Kleuren staan inline met !important, anders wint de
+     leesbaarheidsregel van de app en krijg je donkere letters op donker. */
+  function materiaalVenster(kop, regels, kleur){
+    var oud=document.getElementById('bnsMatMeldVak');
+    if(oud && oud.parentNode) oud.parentNode.removeChild(oud);
+    var waas=document.createElement('div');
+    waas.id='bnsMatMeldVak';
+    waas.style.cssText='position:fixed;inset:0;z-index:2147483645;display:flex;'+
+      'align-items:center;justify-content:center;padding:18px;font-family:Arial,Helvetica,sans-serif';
+    waas.style.setProperty('background','rgba(15,23,42,.55)','important');
+    var kaart=document.createElement('div');
+    kaart.style.cssText='max-width:520px;width:100%;border-radius:16px;overflow:hidden;'+
+      'box-shadow:0 18px 50px rgba(15,23,42,.45)';
+    kaart.style.setProperty('background','#ffffff','important');
+    var h='<div style="padding:14px 18px;font-weight:900;font-size:16px;background:'+kleur+' !important;color:#ffffff !important">'+kop+'</div>'+
+      '<div style="padding:16px 18px;font-size:14px;line-height:1.5;color:#172033 !important">'+
+        regels.map(function(r){ return '<div style="margin-bottom:9px;color:#172033 !important">'+r+'</div>'; }).join('')+
+      '</div>'+
+      '<div style="padding:0 18px 16px;text-align:right">'+
+        '<button type="button" id="bnsMatMeldDicht" style="border:0 !important;border-radius:11px;padding:11px 20px;'+
+        'font-weight:900;cursor:pointer;background:#2563eb !important;color:#ffffff !important">Sluiten</button>'+
+      '</div>';
+    kaart.innerHTML=h;
+    waas.appendChild(kaart);
+    document.body.appendChild(waas);
+    function dicht(){ if(waas.parentNode) waas.parentNode.removeChild(waas); }
+    var knop=document.getElementById('bnsMatMeldDicht');
+    if(knop) knop.onclick=dicht;
+    waas.onclick=function(ev){ if(ev.target===waas) dicht(); };
+  }
+  function esc(v){
+    return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function materiaalMelding(naam){
+    return function(soort, tekst, velden){
+      if(soort==='ok'){
+        toast('Materiaal opgeslagen');
+        return;
+      }
+      if(soort==='wacht'){
+        toast('Opgeslagen op deze computer - wordt zo naar Firebase gestuurd');
+        return;
+      }
+      var regels=[
+        '<b>'+esc(naam)+'</b> staat wel op deze computer, maar Firebase heeft de wijziging geweigerd. '+
+        'Op een andere computer, en na opnieuw laden, zie je dus nog de oude tekst.',
+        'Firebase zegt: <b>'+esc(tekst)+'</b>'
+      ];
+      if(velden>=39){
+        regels.push('Dit materiaal heeft <b>'+velden+' velden</b>. In de beveiligingsregels van je '+
+          'Firebase staat dat een materiaal er minder dan 40 mag hebben. Daar zit je overheen, '+
+          'en daarom wordt elke wijziging geweigerd.');
+      }
+      regels.push('De wijziging blijft in de wachtrij staan en wordt elke paar seconden opnieuw geprobeerd. '+
+        'Blijft deze melding terugkomen, laat het dan weten - dan hoeft er iets aan de regels of aan dit materiaal te gebeuren.');
+      materiaalVenster('Niet opgeslagen in Firebase', regels, '#b91c1c');
+    };
   }
   function flushPending(){
     pending().forEach(syncMaterial);
@@ -31330,10 +31446,12 @@ setTimeout(()=>{
     updateOverrideMaps(m);
     applyLatestOverrides();
     saveStateEverywhere();
-    syncMaterial(m);
+    /* De melding komt nu PAS als Firebase het heeft aangenomen, of als rood
+       venster wanneer hij het weigert. Eerst juichen en daarna weigeren is
+       precies waardoor dit zo lang onopgemerkt bleef. */
+    syncMaterial(m, materiaalMelding((m.code||'') + ' ' + (m.product||m.searchName||m.zoeknaam||m.name||'')));
     renderAdminImmediate();
     renderMaterialPicker(d.cat);
-    toast('Materiaal opgeslagen');
     return false;
   }
   function isMasterPin(p){
