@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-CREDITERUIT54-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-OPENMELDING56-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -65598,6 +65598,28 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
   function factuurNr(o){ return T(o && o.invoice && o.invoice.invoiceNumber); }
   function creditNr(o){ return T(o && o.credit && o.credit.nr); }
+  /* ==========================================================
+     01-11-2026 - HET VENSTER BLEEF OOK OP GECREDITEERD STAAN.
+     ----------------------------------------------------------
+     [stated] "factuur aangemaakt status veranderd niet mee"
+
+     Dezelfde fout als op de statuskaart, maar dan hier: er werd alleen
+     gekeken OF er een creditnota is. Maakte je daarna een nieuwe factuur,
+     dan bleef dit venster zeggen "opdracht is gecrediteerd" - met het
+     nieuwe factuurnummer erin, wat helemaal verwarrend is.
+
+     Dezelfde regel als op de kaart: de datums beslissen, en op dezelfde
+     dag beslist het nummer, want beide reeksen lopen door elkaar heen. */
+  function naCreditWeerGefactureerd(o){
+    var c=o && o.credit, f=o && o.invoice;
+    if(!c || !T(c.nr) || !f || !T(f.invoiceNumber)) return false;
+    var cd=T(c.datum).slice(0,10), fd=T(f.datum).slice(0,10);
+    if(cd && fd && fd>cd) return true;
+    if(cd && fd && fd<cd) return false;
+    var cn=T(c.nr).replace(/\D/g,''), fn=T(f.invoiceNumber).replace(/\D/g,'');
+    if(cn && fn && cn.length===fn.length) return fn>cn;
+    return false;
+  }
 
   /* ---------------- het venster ----------------
      Kleuren staan inline met !important: de leesbaarheidsregel van de app
@@ -65655,10 +65677,40 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   /* ---------------- document openen ----------------
      De knop opnieuw aanklikken, met de vlag om. Dan gaat de klik langs deze
      module heen naar de bouwer die er toch al aan hing. */
+  /* ==========================================================
+     01-11-2026 - ALS ER GEEN DOCUMENT OPENGAAT, ZEG DAT DAN.
+     ----------------------------------------------------------
+     [stated] "de onderste kun je niet klikken"
+
+     Op mijn proefopstelling doet die knop het wel, dus het verschil zit in
+     de browser waar het misgaat en daar kan ik niet in kijken. In plaats
+     van gokken laat ik de app het nu zelf vertellen.
+
+     Tijdens het openen hang ik heel even een telling om window.open. Daarna
+     zijn er drie mogelijkheden, en alle drie zeggen ze iets anders:
+
+       - niemand heeft window.open aangeroepen -> de klik is onderweg
+         blijven steken en de bouwer is nooit aan de beurt geweest
+       - wel aangeroepen maar er kwam geen venster terug -> de browser
+         blokkeert pop-ups
+       - venster terug -> alles goed, je ziet je document
+
+     window.open wordt meteen weer teruggezet, ook als er iets misgaat. */
   function openen(){
     /* De knop waar hij op drukte, niet per se die met het id dat ik ken:
        meerdere modules hangen hun eigen knoppen met dezelfde tekst neer. */
     var knop=laatsteKnop || E(KNOP);
+    var pogingen=0, gelukt=0;
+    var echteOpen=window.open;
+    try{
+      window.open=function(){
+        pogingen++;
+        var w=null;
+        try{ w=echteOpen.apply(window, arguments); }catch(e){ w=null; }
+        if(w) gelukt++;
+        return w;
+      };
+    }catch(e){}
     bezig=true;
     try{
       if(knop) knop.click();
@@ -65666,6 +65718,24 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }catch(e){
     }
     bezig=false;
+    try{ window.open=echteOpen; }catch(e){}
+
+    if(!pogingen){
+      melden('Er ging geen document open', '#b45309', [
+        'De knop is wel aangeklikt, maar er heeft niets geprobeerd een document te openen. '+
+          'De klik is onderweg blijven steken.',
+        'Je factuurnummer is wel gewoon vastgelegd; er is niets misgegaan met de nummering. '+
+          'Probeer het nog een keer, en blijft dit zo, laat het dan weten - dan weet ik meteen waar ik moet zoeken.'
+      ]);
+      return;
+    }
+    if(!gelukt){
+      melden('Pop-up geblokkeerd', '#b45309', [
+        'Je browser hield het documentvenster tegen. Je factuurnummer is wel vastgelegd.',
+        'Sta pop-ups toe voor deze pagina - in Chrome klik je rechts in de adresbalk op het '+
+          'geblokkeerde-pop-up icoontje en kies je "Altijd toestaan". Daarna opent het document gewoon.'
+      ]);
+    }
   }
 
   /* ---------------- naar Firebase ----------------
@@ -65841,7 +65911,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       return;
     }
 
-    if(cnr){
+    if(cnr && !naCreditWeerGefactureerd(o)){
       venster('Opdracht '+esc(T(o.number))+' is gecrediteerd', '#7c3aed', [
         'Factuur <b>'+esc(fnr)+'</b> is teruggedraaid met creditnota <b>'+esc(cnr)+'</b>.',
         'De creditnota zelf staat in Boekhouding. Hier mag weer een nieuwe factuur op.'
