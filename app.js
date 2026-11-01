@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BTWDATUM43-2026-10-28';
+window.TAPWAGEN_BUILD_ID = 'TW-AGENDA44-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -13611,11 +13611,40 @@ setTimeout(()=>{
     const compact = safe.replaceAll("-", "");
     return compact + (endOfDay ? "T170000" : "T090000");
   }
+  /* ==========================================================
+     01-11-2026 - IN DE AGENDA STOND ALLEEN DE CODE.
+     ----------------------------------------------------------
+     [stated] "ik zie nu alleen wc55 maar niet welke soort"
+
+     In de afspraak stond enkel item.code, dus "- WC55". Wie de agenda
+     openmaakt weet dan niet WELKE wagen er uit moet. De naam stond alleen
+     in de reserve, voor het geval er geen code was.
+
+     Nu: aantal, code en de product/zoeknaam op dezelfde regel. De volgorde
+     van die naamvelden is dezelfde die de rest van de app aanhoudt
+     (product, dan searchName, dan zoeknaam, dan type, dan name), zodat er
+     in de agenda hetzelfde staat als in het zoekvak.
+  ========================================================== */
+  function materiaalNaam(item){
+    var velden=[item.product, item.searchName, item.zoeknaam, item.type, item.name];
+    for (var i=0;i<velden.length;i++){
+      var v=String(velden[i]==null?"":velden[i]).trim();
+      if (v) return v;
+    }
+    return "";
+  }
   function currentMaterialCodes(){
     try {
       if (Array.isArray(chosen) && chosen.length) {
         return chosen.map(function(item){
-          return item.code || item.name || "";
+          var code=String(item.code==null?"":item.code).trim();
+          var naam=materiaalNaam(item);
+          if (!code && !naam) return "";
+          var aantal=Number(item.qty||1) || 1;
+          var regel=aantal + "x " + (code || naam);
+          /* de naam alleen erbij als hij iets toevoegt */
+          if (code && naam && naam.toLowerCase() !== code.toLowerCase()) regel += "  " + naam;
+          return regel;
         }).filter(Boolean);
       }
     } catch(e){
