@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-VERZAMELREGEL60-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-UITLEG61-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -63109,7 +63109,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(b.gewist){
       r.push('<b>'+b.gewist+'</b> zijn gewist');
       knoppen += knop('Haal die '+b.gewist+' gewiste regels terug',
-        Object.assign({},GROEN,{extra:'padding:9px 14px;margin-right:7px',attr:'data-bh-herstel-hier'}));
+        Object.assign({},GROEN,{extra:'padding:9px 14px;margin-right:7px',attr:'data-bh-herstel-hier data-tip="Zet de gewiste regels van dit jaar terug, zodat je ze hier weer ziet staan."'}));
     }
     var tekst = r.length
       ? 'Er staat in deze map niets'+(jaar==='alles'?'':' voor '+esc(jaar))+'. Wel buiten beeld: '+r.join(', ')+'.'
@@ -63246,7 +63246,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
               extra:'padding:8px 13px;font-size:13px', attr:'data-bh-aanmaning="'+esc(id)+'|'+x.k+'"'});
           }).join('') : '')+
           (gecrediteerd(o) ? knop('Credit terugdraaien', {vlak:'#fff',inkt:'#6d28d9',rand:'2px solid #7c3aed',
-              extra:'padding:8px 13px;font-size:13px',attr:'data-bh-credit-terug="'+esc(id)+'"'}) : '')+
+              extra:'padding:8px 13px;font-size:13px',attr:'data-bh-credit-terug="'+esc(id)+'" data-tip="Maakt de creditnota ongedaan (Tapwagen). Het creditnummer verdwijnt van de opdracht en blijft uit de reeks; een nieuwe creditnota krijgt een volgend nummer."'}) : '')+
           /* ==========================================================
              27-10-2026 - DE WEG TERUG.
              ----------------------------------------------------------
@@ -63263,7 +63263,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           (verzamelNr(o) && !betaald(o) ? knop('Terug naar bulk', {vlak:'#fff',inkt:'#0f766e',rand:'2px solid #0f766e',
               extra:'padding:8px 13px;font-size:13px',
               attr:'data-bh-vz-terug="'+esc(T(o.verzamel&&o.verzamel.id))+'" data-tip="Maakt verzamelfactuur '+esc(verzamelNr(o))+' ongedaan. Alle opdracht(en) komen afgevinkt terug in de bulkmap."'}) : '')+
-          knop('Wis factuurregel', Object.assign({},DONKER,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-wis="'+esc(id)+'"'}))+
+          knop('Wis factuurregel', Object.assign({},DONKER,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-wis="'+esc(id)+'" data-tip="Haalt alleen deze factuurregel uit Boekhouding (Tapwagen). De opdracht zelf blijft gewoon bestaan. Dit is NIET terug te draaien."'}))+
         '</div>'+
       '</div>'+
     '</div>';
@@ -63302,7 +63302,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
             knop('Alles afvinken', Object.assign({},GRIJS,{extra:'padding:9px 14px;font-size:13px',
               attr:'data-bh-bulk-alles="'+esc(r.naam)+'" data-tip="Zet alle opdrachten in deze map op goedgekeurd."'}))+
             knop('Alles uitvinken', Object.assign({},GRIJS,{extra:'padding:9px 14px;font-size:13px',
-              attr:'data-bh-bulk-geen="'+esc(r.naam)+'" data-tip="Haal alle vinkjes weg."'}))+
+              attr:'data-bh-bulk-leeg="'+esc(r.naam)+'" data-tip="Haalt in deze bulkmap alle vinkjes weg. Er verandert verder niets aan de opdrachten."'}))+
             knop('Maak verzamelfactuur'+(klaar?' ('+klaar+')':''),
               klaar?{vlak:'#0f766e',inkt:'#fff',rand:'0',extra:'padding:9px 16px;font-size:14px',
                      attr:'data-bh-bulk-maak="'+esc(r.naam)+'" data-tip="Maakt \u00e9\u00e9n factuur van de afgevinkte opdrachten, met \u00e9\u00e9n nummer uit je gewone reeks. Wat niet is afgevinkt blijft hier staan."'}
@@ -63794,7 +63794,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         'Met Terughalen staat hij weer gewoon in de lijsten, bijvoorbeeld onder Nog factureren.'+
       '</div>'+
       '<div style="margin-bottom:10px">'+
-        knop('Alles terughalen ('+l.length+')', Object.assign({},GROEN,{extra:'padding:9px 14px',attr:'data-bh-terug-alles'}))+
+        knop('Alles terughalen ('+l.length+')', Object.assign({},GROEN,{extra:'padding:9px 14px',attr:'data-bh-terug-alles data-tip="Zet alle gewiste factuurregels van dit jaar in een keer terug in Boekhouding."'}))+
       '</div>'+
       l.map(function(o){
         var id=T(o.id)||orderNo(o);
@@ -63807,7 +63807,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           '<div style="font-size:12px;color:#64748b;margin:4px 0 10px">'+esc(titel(o)||'zonder omschrijving')+
             (datumVan(o)?' \u00B7 '+esc(nl(datumVan(o))):'')+' \u00B7 opdracht '+esc(orderNo(o))+'</div>'+
           '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
-            knop('Terughalen', Object.assign({},GROEN,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-terug="'+esc(id)+'"'}))+
+            knop('Terughalen', Object.assign({},GROEN,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-terug="'+esc(id)+'" data-tip="Zet deze gewiste factuurregel terug in Boekhouding. Je kunt hem daarna gewoon weer op betaald zetten."'}))+
             knop('Opdracht openen', Object.assign({},GRIJS,{extra:'padding:8px 13px;font-size:13px',attr:'data-bh-opdracht="'+esc(id)+'"'}))+
           '</div>'+
         '</div>';
@@ -63842,11 +63842,11 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       '<div style="font-weight:900;color:#172033;margin-bottom:4px">Meerdere tegelijk</div>'+
       '<div style="font-size:13px;color:#475569;margin-bottom:10px">'+n+' aangevinkt in deze map.</div>'+
       '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
-        knop('Alles aanvinken', Object.assign({},GRIJS,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-vink-alles'}))+
-        knop('Niets aanvinken', Object.assign({},GRIJS,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-vink-niets'}))+
-        knop('Zet op betaald ('+n+')', Object.assign({},GROEN,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-bulk-betaald'}))+
-        knop('Geen factuur ('+n+')', Object.assign({},DONKER,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-bulk-geen'}))+
-        knop('Wis factuurregel ('+n+')', Object.assign({},ROOD,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-bulk-wis'}))+
+        knop('Alles aanvinken', Object.assign({},GRIJS,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-vink-alles data-tip="Vinkt alle regels in deze map aan. Er verandert nog niets; daarna kies je wat ermee moet."'}))+
+        knop('Niets aanvinken', Object.assign({},GRIJS,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-vink-niets data-tip="Haalt alle vinkjes weg. Er verandert niets aan de opdrachten."'}))+
+        knop('Zet op betaald ('+n+')', Object.assign({},GROEN,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-bulk-betaald data-tip="Zet alle aangevinkte facturen in een keer op betaald. Je krijgt eerst het aantal en het bedrag te zien, en je kunt het later per regel terugdraaien."'}))+
+        knop('Geen factuur ('+n+')', Object.assign({},DONKER,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-bulk-geen data-tip="Zet de aangevinkte opdrachten op Geen factuur: ze tellen niet meer mee bij wat er binnen moet komen. Dit kun je terugdraaien."'}))+
+        knop('Wis factuurregel ('+n+')', Object.assign({},ROOD,{extra:'padding:8px 12px;font-size:13px',attr:'data-bh-bulk-wis data-tip="Haalt de aangevinkte factuurregels uit Boekhouding (Tapwagen). De opdrachten blijven bestaan. Dit is NIET terug te draaien."'}))+
       '</div>'+
       '<div style="font-size:12px;color:#64748b;margin-top:8px">Geen factuur kun je terugdraaien; wissen niet.</div>'+
     '</div>';
@@ -63862,8 +63862,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           '<textarea id="bnsTwBhT'+t.k+'" rows="4" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;resize:vertical;font-family:inherit;font-size:14px">'+esc(tk['t'+t.k])+'</textarea></div>';
       }).join('')+
       '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
-        knop('Teksten opslaan', Object.assign({},GROEN,{attr:'data-bh-tbewaar'}))+
-        knop('Terug naar de standaardtekst', Object.assign({},GRIJS,{attr:'data-bh-tstandaard'}))+
+        knop('Teksten opslaan', Object.assign({},GROEN,{attr:'data-bh-tbewaar data-tip="Bewaart deze teksten voor je herinneringen en aanmaningen. Ze gelden vanaf nu voor alle nieuwe brieven."'}))+
+        knop('Terug naar de standaardtekst', Object.assign({},GRIJS,{attr:'data-bh-tstandaard data-tip="Zet de teksten terug zoals ze standaard waren. Wat je zelf had getypt ben je daarmee kwijt."'}))+
       '</div></div>';
   }
 
@@ -64163,10 +64163,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         tekenen(true);
       });
     });
-    K('[data-bh-bulk-alles],[data-bh-bulk-geen]').forEach(function(b){
+    K('[data-bh-bulk-alles],[data-bh-bulk-leeg]').forEach(function(b){
       b.addEventListener('click', function(){
         var alles=b.hasAttribute('data-bh-bulk-alles');
-        var naam=b.getAttribute(alles?'data-bh-bulk-alles':'data-bh-bulk-geen');
+        var naam=b.getAttribute(alles?'data-bh-bulk-alles':'data-bh-bulk-leeg');
         var r=bulkRuimtes().filter(function(x){ return x.naam===naam; })[0];
         if(!r) return;
         r.orders.forEach(function(o){ try{ window.BNS_TW_BULK.afvinken(o, alles); }catch(e){} });
