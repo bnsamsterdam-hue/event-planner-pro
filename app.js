@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-UITLEG61-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-FACTUURNRSLOT62-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -54982,7 +54982,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       k: (o.customer && T(o.customer.name||o.customer))?1:0,
       s: T(o.start)?1:0,
       m: Array.isArray(o.materials)?o.materials.length:0,
-      n: Object.keys(o).length
+      n: Object.keys(o).length,
+      /* 01-11-2026: het factuurnummer meetellen, plus hoe vaak er bewust een
+         nummer is teruggezet of opzijgeschoven. Zonder die twee tellers zou
+         de bescherming hieronder ook de terugzetknop tegenhouden. */
+      f: (o.invoice && String(o.invoice.invoiceNumber||'').trim()) ? 1 : 0,
+      r: (o.invoice && Array.isArray(o.invoice.teruggezet)) ? o.invoice.teruggezet.length : 0,
+      v: (o.invoice && Array.isArray(o.invoice.vervangen)) ? o.invoice.vervangen.length : 0
     };
   }
   function isReductie(oud,nieuw){
@@ -54991,6 +54997,22 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(oud.k && !nieuw.k) return 'klant';
     if(oud.s && !nieuw.s) return 'startdatum';
     if(oud.m>0 && nieuw.m===0) return 'materialen';
+    /* ==========================================================
+       01-11-2026 - HET FACTUURNUMMER HOORT HIER OOK IN.
+       ----------------------------------------------------------
+       Titel, klant, startdatum en materialen waren beschermd, het
+       factuurnummer niet. Daarom was dat het enige veld dat verdween
+       terwijl de rest van de opdracht gewoon bleef staan.
+
+       Een nummer mag alleen weg als dat met opzet gebeurt, en dat is te
+       zien: bij terugzetten groeit invoice.teruggezet, bij opnieuw
+       factureren na een creditnota groeit invoice.vervangen. Groeit geen
+       van beide, dan is het een schrijfactie die het nummer gewoon laat
+       vallen, en die komt er niet langs.
+    ========================================================== */
+    if(oud.f && !nieuw.f
+       && !(Number(nieuw.r||0) > Number(oud.r||0))
+       && !(Number(nieuw.v||0) > Number(oud.v||0))) return 'factuurnummer';
     // Ruime marge: alleen ingrijpen bij een duidelijke uitkleding, niet bij
     // een opdracht waar iemand bewust een paar velden van heeft leeggemaakt.
     if(oud.n>=25 && nieuw.n < Math.round(oud.n/2)) return 'meer dan de helft van de velden';
