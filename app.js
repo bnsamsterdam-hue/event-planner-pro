@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-TERUGZETTEN57-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-TELLERSTART59-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -61919,9 +61919,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       /* 8 dagen betaalt voor de levering, dus daar moet de factuur eerder de
          deur uit: die begint 14 dagen van tevoren. De rest begint op 8 dagen,
          zoals afgesproken. */
-      var vanaf = (s==='8dagen') ? 14 : 8;
+      /* 01-11-2026 - [stated] "voor de start geen melding, op de dag dat de
+         start datum is moet hij gaan kijken is er al een factuur gemaakt".
+         Bij 30 dagen en bulk begint het dus op de leverdag zelf en geen dag
+         eerder. Bij 8 dagen blijft het zoals het was: daar moet het geld er
+         VOOR de levering zijn, dus daar is een kop van veertien dagen nodig. */
+      var vanaf = (s==='8dagen') ? 14 : ((s==='30dagen' || s==='bulk') ? 0 : 8);
       if(o.factuurMeldUit===true || d==null || d>vanaf)
-        return {tekst:'Factuur volgt', vlak:'#f1f5f9', inkt:'#64748b', knippert:false, fase:'maken-stil'};
+        return {tekst:'Nog te factureren', vlak:'#f1f5f9', inkt:'#64748b', knippert:false, fase:'maken-stil'};
       return {tekst: d>0 ? ('Factuur maken - nog '+d+(d===1?' dag':' dagen'))
                          : (d===0 ? 'Factuur maken - vandaag'
                                   : 'Factuur maken - '+(-d)+(d===-1?' dag':' dagen')+' over tijd'),
@@ -61947,7 +61952,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       ========================================================== */
       if(d!=null && d<=2){
         var teLaatDagen=t-d;           /* betaaldatum ligt t dagen voor de levering */
-        return {tekst: d>=0 ? 'Openstaand - levering over '+d+(d===1?' dag':' dagen')
+        return {tekst: d>=0 ? (d===0 ? 'Openstaand - levering vandaag'
+                                    : 'Openstaand - levering over '+d+(d===1?' dag':' dagen'))
                             : 'Te laat - '+teLaatDagen+(teLaatDagen===1?' dag':' dagen'),
                 vlak:'#fee2e2', inkt:'#b91c1c', knippert:true, fase:'laatste'};
       }
@@ -61960,11 +61966,35 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       return {tekst:'Openstaande factuur', vlak:'#e0f2fe', inkt:'#075985', knippert:false, fase:'rustig'};
     }
 
-    /* 30 dagen en bulk: de klok loopt vanaf de factuurdatum */
-    var basis=factuurDatum(o) || startVan(o);
+    /* ==========================================================
+       01-11-2026 - DE KLOK GAAT PAS LOPEN OP DE LEVERDAG.
+       ----------------------------------------------------------
+       [stated] "beter zou zijn dat die teller pas gaat lopen bij start
+       datum, voor de start geen melding (...) pas als de factuur gemaakt is
+       30 dagen startende vanaf start datum"
+
+       Hier stond `factuurDatum(o) || startVan(o)`. Bij een factuur van voor
+       vandaag is die datum er niet - die legden we tot vandaag niet vast -
+       dus viel hij terug op de leverdatum. Ligt die nog in de toekomst, dan
+       werd de betaaltermijn daar bovenop geteld en kwam er een getal uit dat
+       nergens op sloeg: bij een levering over 172 dagen stond er
+       "Openstaand - nog 202 dagen", oftewel dertig dagen na een levering die
+       nog moet komen. GEMETEN op 01-11-2026: 202 dagen vanaf vandaag is
+       22-05-2027, terwijl de levering op 22-04-2027 staat.
+
+       Nu telt alleen de leverdatum. Voor die dag staat er rustig bij hoe ver
+       de levering nog weg is en knippert er niets; vanaf de leverdag lopen de
+       dertig dagen. Dat werkt ook voor de oude facturen zonder datum, want er
+       wordt geen datum meer gebruikt die er niet is.
+    ========================================================== */
     var termijnDagen=(s==='bulk') ? 30 : (t||30);
-    var verstreken=dagenSinds(basis);
+    var verstreken=dagenSinds(startVan(o));
     if(verstreken==null) return {tekst:'Openstaande factuur', vlak:'#e0f2fe', inkt:'#075985', knippert:false, fase:'rustig'};
+    if(verstreken<0){
+      var nogWeg=-verstreken;
+      return {tekst:'Openstaand - levering over '+nogWeg+(nogWeg===1?' dag':' dagen'),
+              vlak:'#e0f2fe', inkt:'#075985', knippert:false, fase:'rustig'};
+    }
     var over=termijnDagen-verstreken;
     if(over<=0)
       return {tekst:'Te laat - '+(-over===0?'vandaag':(-over)+((-over)===1?' dag':' dagen')),
