@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-VELUITERLIJK52-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-CREDITERUIT54-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -35270,13 +35270,7 @@ setTimeout(()=>{
     var meta = '<b>Opdracht '+esc(o.number || '-')+'</b>';
     if (!offer) {
       meta += '<br>Factuur nr: <b>'+esc(invoiceNumber() || '-')+'</b><br>Type: '+esc(invoiceType())+'<br>Betaling: '+esc(paymentType());
-      /* 01-11-2026 - Een creditnota hoort te zeggen welke factuur hij
-         terugdraait, anders is hij in de boekhouding niet te plaatsen.
-         Het keuzevenster zet dat nummer hier klaar. */
-      try{
-        var gecrediteerd = window.__BNS_TW_CREDIT_VOOR;
-        if (gecrediteerd) meta += '<br>Creditfactuur voor factuur <b>'+esc(gecrediteerd)+'</b>';
-      }catch(e){}
+
     }
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+' '+esc(o.number)+'</title><style>'+
     '@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111827}.page{width:210mm;min-height:0;margin:0 auto;background:white;padding:22mm 17mm;'+templateStyle+';box-sizing:border-box}.actions{position:fixed;top:10px;left:10px;display:flex;gap:8px}.actions button{border:0;border-radius:10px;padding:9px 12px;background:#2563eb;color:#fff;font-weight:800}.top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:5px solid '+accent+';padding-bottom:16px;margin-bottom:18px}.logo{max-width:190px;max-height:90px;object-fit:contain}.company{font-size:15px;font-weight:800;color:'+accent+'}.doctype{font-size:30px;font-weight:900;text-transform:uppercase;letter-spacing:.4px}.meta{text-align:right;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #dbe3ef;border-radius:15px;padding:13px;margin:11px 0;background:rgba(255,255,255,.94)}.label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.96)}th{background:'+accent+';color:#fff;text-align:left}td,th{padding:9px;border-bottom:1px solid #e5e7eb;font-size:13px}.totals{margin-left:auto;width:280px}.totals td:last-child{text-align:right;font-weight:800}.free{white-space:pre-wrap;line-height:1.45}.footer{margin-top:24px;border-top:2px solid #e5e7eb;padding-top:12px;font-size:12px;color:#334155}.powered{margin-top:14px;text-align:center;font-size:11px;color:#64748b;font-weight:800}@media print{body{background:white}.actions{display:none}.page{margin:0;box-shadow:none}}'+
@@ -61832,8 +61826,35 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     /* 27-10-2026: een gecrediteerde opdracht staat nergens meer open, dus die
        hoort niet te knipperen. Het creditnummer staat erbij zodat je op de
        kaart meteen ziet welke nota erbij hoort. */
+    /* ==========================================================
+       01-11-2026 - DE STATUS BLEEF OP GECREDITEERD STAAN.
+       ----------------------------------------------------------
+       [stated] "druk je daarna meteen maak nieuwe factuur dan doet hij dat
+       maar veranderd de status niet mee, die blijft op credit staan"
+
+       Hier werd alleen gekeken OF er een creditnota is. Maak je daarna een
+       nieuwe factuur, dan bleef de kaart toch Gecrediteerd roepen en zag
+       je niet meer dat er weer iets openstond.
+
+       Nu telt de volgorde. Is er na de creditnota weer een factuur
+       gemaakt, dan loopt de status gewoon verder als openstaand of
+       betaald. De creditnota blijft natuurlijk in Boekhouding staan - daar
+       hoort hij, en daar verandert niets aan.
+
+       De datums beslissen; vallen ze op dezelfde dag, dan beslist het
+       nummer, want beide reeksen lopen door elkaar heen op volgorde. */
+    function naCreditWeerGefactureerd(x){
+      var c=x && x.credit, f=x && x.invoice;
+      if(!c || !T(c.nr) || !f || !T(f.invoiceNumber)) return false;
+      var cd=T(c.datum).slice(0,10), fd=T(f.datum).slice(0,10);
+      if(cd && fd && fd>cd) return true;
+      if(cd && fd && fd<cd) return false;
+      var cn=T(c.nr).replace(/\D/g,''), fn=T(f.invoiceNumber).replace(/\D/g,'');
+      if(cn && fn && cn.length===fn.length) return fn>cn;
+      return false;
+    }
     try{
-      if(window.BNS_TW_CREDIT && window.BNS_TW_CREDIT.isCredit(o))
+      if(window.BNS_TW_CREDIT && window.BNS_TW_CREDIT.isCredit(o) && !naCreditWeerGefactureerd(o))
         return {tekst:'Gecrediteerd '+T(o.credit&&o.credit.nr), vlak:'#ede9fe', inkt:'#5b21b6', knippert:false, fase:'credit'};
     }catch(e){}
     if(betaald(o)) return {tekst:'Betaald', vlak:'#dcfce7', inkt:'#166534', knippert:false, fase:'betaald'};
@@ -65561,11 +65582,18 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     e.value=waarde;
     try{ e.dispatchEvent(new Event('change',{bubbles:true})); }catch(x){}
   }
+  /* Eerst op id, dan op het nummer in het formulier. Het nummerveld alleen
+     is niet genoeg: er is een eenmalige "nieuwe opdracht vrijgeven" die dat
+     veld op het eerstvolgende vrije nummer zet zodra window.editing leeg is.
+     Gebeurt dat terwijl jij een opdracht open hebt, dan zou ik de factuur
+     aan de verkeerde opdracht hangen. */
   function huidigeOpdracht(){
+    var l=orders(), i;
+    var id=T(window.editing||'');
+    if(id){ for(i=0;i<l.length;i++){ if(T(l[i].id)===id) return l[i]; } }
     var nr=T((E('orderNumber')||{}).value);
     if(!nr) return null;
-    var l=orders();
-    for(var i=0;i<l.length;i++){ if(T(l[i].number)===nr) return l[i]; }
+    for(i=0;i<l.length;i++){ if(T(l[i].number)===nr) return l[i]; }
     return null;
   }
   function factuurNr(o){ return T(o && o.invoice && o.invoice.invoiceNumber); }
@@ -65638,7 +65666,6 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }catch(e){
     }
     bezig=false;
-    try{ window.__BNS_TW_CREDIT_VOOR=''; }catch(e){}
   }
 
   /* ---------------- naar Firebase ----------------
@@ -65748,39 +65775,29 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       openen();
     };
   }
-  function creditMaken(o){
-    if(!window.BNS_TW_CREDIT){
-      melden('Kan geen creditnota maken', '#b91c1c',
-        ['De creditnota-module is niet geladen. Laad de app opnieuw; blijft dit zo, laat het weten.']);
-      return;
-    }
-    var factuur=factuurNr(o);
-    var nr='';
-    try{ nr=T(window.BNS_TW_CREDIT.nummerVoor(o)); }catch(e){ nr=''; }
-    if(!nr || creditNr(o)!==nr){
-      melden('Niet vastgelegd, dus geen creditnota', '#b91c1c', [
-        'Het creditnummer kon niet op opdracht <b>'+esc(T(o.number))+'</b> worden vastgelegd. '+
-          'Er komt daarom geen document.'
-      ]);
-      return;
-    }
-    try{ window.__BNS_TW_CREDIT_VOOR=factuur; }catch(e){}
-    veldZet('bnsInvoiceNumber', nr);
-    typeZet('Credit factuur');
-    naarFirebase(o, nr);
-    openen();
-    /* Het vakje terug op het factuurnummer. Zet je straks het type weer op
-       Factuur, dan legt de app vast wat er in dit vakje staat - en dat moet
-       het factuurnummer zijn, niet het creditnummer. */
-    veldZet('bnsInvoiceNumber', factuur);
-  }
-  function creditInzien(o){
-    veldZet('bnsInvoiceNumber', creditNr(o));
-    try{ window.__BNS_TW_CREDIT_VOOR=factuurNr(o); }catch(e){}
-    typeZet('Credit factuur');
-    openen();
-    veldZet('bnsInvoiceNumber', factuurNr(o));
-  }
+  /* ==========================================================
+     01-11-2026 - CREDITNOTA'S GAAN HIER WEER UIT.
+     ----------------------------------------------------------
+     [stated] "we halen de credit er geheel uit, wel de status netjes mee
+     laten draaien, de credit laten we zoals het is via boekhouding"
+
+     Hier stond een knop die een creditnota maakte en het nummer via het
+     invulvakje aan de bouwer doorgaf. Dat ging mis, en wel zo dat het
+     opviel: BNS_TW_FACTUURNR.voorOpdracht() geeft voorrang aan wat er in
+     dat vakje staat - "wat op het scherm staat gaat voor", bedoeld voor
+     een nummer dat je zelf intikt. Hij zag daar dus het CREDITnummer
+     staan, nam aan dat het een ingetypt factuurnummer was, en zette het
+     als factuurnummer op de opdracht. Het oorspronkelijke factuurnummer
+     was daarmee weg.
+
+     Een creditnota via dat vakje doorgeven kan dus niet; daar zou de
+     bouwer zelf voor aangepast moeten worden. Creditnota's maak je in
+     Boekhouding, waar ze altijd al gemaakt werden, en dat blijft zo.
+
+     Wat hier WEL blijft: is een opdracht in Boekhouding gecrediteerd, dan
+     mag er weer een nieuwe factuur op. Anders zou een gecrediteerde
+     opdracht nooit meer te factureren zijn.
+  ========================================================== */
   function nieuwNaCredit(o){
     /* [stated] akkoord: na een creditnota mag er wel weer een nieuwe factuur
        op die opdracht. Het oude nummer gaat niet weg, het schuift opzij -
@@ -65827,14 +65844,11 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(cnr){
       venster('Opdracht '+esc(T(o.number))+' is gecrediteerd', '#7c3aed', [
         'Factuur <b>'+esc(fnr)+'</b> is teruggedraaid met creditnota <b>'+esc(cnr)+'</b>.',
-        'Er mag dus weer een nieuwe factuur op deze opdracht.'
+        'De creditnota zelf staat in Boekhouding. Hier mag weer een nieuwe factuur op.'
       ], [
         {tekst:'Nieuwe factuur nr maken', kleur:'#16a34a',
          uitleg:'Volgend nummer uit je reeks; '+esc(fnr)+' blijft bewaard bij de creditnota',
          doe:function(){ nieuwNaCredit(o); }},
-        {tekst:'Creditnota '+esc(cnr)+' inzien', kleur:'#7c3aed',
-         uitleg:'Document openen, er wordt niets vastgelegd',
-         doe:function(){ creditInzien(o); }},
         {tekst:'Factuur '+esc(fnr)+' inzien', kleur:'#2563eb',
          uitleg:'Document openen, er wordt niets vastgelegd',
          doe:function(){ inzien(o); }}
@@ -65844,14 +65858,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
 
     venster('Factuur '+esc(fnr)+' bestaat al', '#2563eb', [
       'Op opdracht <b>'+esc(T(o.number))+'</b> is al factuur <b>'+esc(fnr)+'</b> gemaakt. '+
-        'Een tweede factuur kan dus niet; wil je hem terugdraaien, dan maak je een creditnota.'
+        'Een tweede factuur kan dus niet.',
+      'Moet hij teruggedraaid worden, dan maak je de creditnota in Boekhouding. Daarna '+
+        'mag er hier weer een nieuwe factuur op.'
     ], [
       {tekst:'Factuur '+esc(fnr)+' inzien', kleur:'#2563eb',
        uitleg:'Opent met dit nummer, nooit met een nieuw',
-       doe:function(){ inzien(o); }},
-      {tekst:'Creditfactuur maken', kleur:'#7c3aed',
-       uitleg:'Nieuw nummer uit je creditreeks: '+esc(window.BNS_TW_CREDIT?T(window.BNS_TW_CREDIT.volgende()):'?'),
-       doe:function(){ creditMaken(o); }}
+       doe:function(){ inzien(o); }}
     ]);
   }
 
