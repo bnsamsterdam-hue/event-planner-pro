@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-OPENMELDING56-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-TERUGZETTEN57-2026-11-01';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -58800,6 +58800,32 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var inst=lees(), h=knip(inst.volgende);
     if(!h || d.teller>=h.teller) bewaar({volgende:bouw(d.teller+1,d.breedte), breedte:d.breedte});
   }
+  /* ==========================================================
+     01-11-2026 - EEN NUMMER TERUGGEVEN AAN DE REEKS.
+     ----------------------------------------------------------
+     [stated] "ook kan het zijn dat je een factuur aanmaakt die je helemaal
+     niet wil, dat moet je de status dus weer of factuur maken kunnen
+     zetten"
+
+     Alleen als dit het LAATST uitgedeelde nummer is gaat de teller terug.
+     Zijn er daarna al andere facturen gemaakt, dan blijft hij staan en valt
+     er een gat in de nummering. Dat is met opzet: een gat kun je uitleggen,
+     twee facturen met hetzelfde nummer niet.
+
+     Ook het jaartal moet kloppen. Een nummer uit vorig jaar teruggeven zou
+     met bouw() een nummer van dit jaar opleveren, en dat is een ander
+     nummer dan er stond.
+  ========================================================== */
+  function terugzetten(nummer){
+    var d=knip(nummer); if(!d) return false;
+    if(d.jaar!==jaarKort()) return false;
+    var inst=lees(), h=knip(inst.volgende);
+    if(!h) return false;
+    if(h.jaar!==d.jaar || h.breedte!==d.breedte) return false;
+    if(h.teller!==d.teller+1) return false;
+    bewaar({volgende:bouw(d.teller, d.breedte), breedte:d.breedte});
+    return true;
+  }
   function uitHetVeld(){
     try{ var i=E('bnsInvoiceNumber'); return i?T(i.value):''; }catch(e){ return ''; }
   }
@@ -58972,7 +58998,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   setInterval(scherm, 1500);
   setTimeout(scherm, 1300);
 
-  window.BNS_TW_FACTUURNR={ volgende:volgende, gebruikt:gebruikt, voorOpdracht:voorOpdracht, instelling:lees };
+  window.BNS_TW_FACTUURNR={ volgende:volgende, gebruikt:gebruikt, voorOpdracht:voorOpdracht,
+                            terugzetten:terugzetten, instelling:lees };
   try{ console.info('[BNS R110] Factuurnummers actief - eerstvolgende: '+volgende()); }catch(e){}
 })();
 
@@ -65765,6 +65792,69 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     veldZet('bnsInvoiceNumber', factuurNr(o));
     openen();
   }
+  function vastleggen(o){
+    try{ o.updatedAt=new Date().toISOString(); }catch(e){}
+    try{ if(typeof save==='function') save(); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
+    try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('orders', o); }catch(e){}
+  }
+  /* ==========================================================
+     01-11-2026 - FACTUURNUMMER TERUGZETTEN.
+     ----------------------------------------------------------
+     [stated] "wel zou het fijn zijn om een terugzet knop te maken bij een
+     fout die je later ziet dat je hem terug kan zetten"
+
+     Het nummer gaat van de opdracht af en de status valt vanzelf terug op
+     "Factuur maken" - daar hoeft niets voor omgezet te worden, want alles
+     in deze app kijkt naar of er een factuurnummer staat. Een opdracht van
+     een bulkklant komt daarmee ook weer in de bulkmap in Boekhouding, want
+     die stelt precies dezelfde vraag.
+
+     Wat er op de opdracht achterblijft is het spoor: welk nummer is
+     teruggezet en wanneer. Anders vraagt iemand zich over een jaar af waar
+     dat nummer gebleven is.
+  ========================================================== */
+  function terugzettenVragen(o){
+    var nr=factuurNr(o);
+    venster('Factuurnummer terugzetten?', '#b45309', [
+      'Nummer <b>'+esc(nr)+'</b> gaat van opdracht <b>'+esc(T(o.number))+'</b> af. De status valt '+
+        'terug op <b>Factuur maken</b>, en staat deze klant op verzamelfactuur, dan komt hij '+
+        'weer in de bulkmap in Boekhouding.',
+      'Doe dit alleen als die factuur de deur nog niet uit is. Is hij al verstuurd, dan hoort er '+
+        'een creditnota tegenover te staan, en die maak je in Boekhouding.'
+    ], [
+      {tekst:'Ja, nummer terugzetten', kleur:'#b45309',
+       doe:function(){ terugzettenDoen(o, nr); }},
+      {tekst:'Nee, laten staan', kleur:'#64748b', doe:function(){}}
+    ]);
+  }
+  function terugzettenDoen(o, nr){
+    o.invoice=o.invoice||{};
+    o.invoice.teruggezet=(o.invoice.teruggezet||[]).concat([{nr:nr, op:new Date().toISOString()}]);
+    o.invoice.invoiceNumber='';
+    try{ delete o.invoice.datum; }catch(e){ o.invoice.datum=''; }
+    var terug=false;
+    try{ terug=!!(window.BNS_TW_FACTUURNR && typeof window.BNS_TW_FACTUURNR.terugzetten==='function'
+                 && window.BNS_TW_FACTUURNR.terugzetten(nr)); }catch(e){}
+    vastleggen(o);
+    veldZet('bnsInvoiceNumber','');
+    laatsteOpdracht=null;      /* het vakje bij de volgende tel opnieuw gelijkzetten */
+    if(factuurNr(o)){
+      melden('Niet gelukt', '#b91c1c', [
+        'Het nummer staat nog op opdracht <b>'+esc(T(o.number))+'</b>. Er is niets veranderd.'
+      ]);
+      return;
+    }
+    melden('Nummer teruggezet', '#166534', [
+      'Opdracht <b>'+esc(T(o.number))+'</b> staat weer op <b>Factuur maken</b>.',
+      terug
+        ? 'Nummer <b>'+esc(nr)+'</b> was het laatst uitgedeelde, dus de teller staat weer op '+
+          esc(nr)+'. De volgende factuur krijgt dat nummer en er valt geen gat in de reeks.'
+        : 'Na <b>'+esc(nr)+'</b> zijn er al andere facturen gemaakt, dus de teller blijft staan en '+
+          'dit nummer wordt niet opnieuw uitgedeeld. Anders zouden er twee facturen met hetzelfde '+
+          'nummer rondgaan.'
+    ]);
+  }
   function nummerMaken(o){
     if(!window.BNS_TW_FACTUURNR){
       melden('Kan geen nummer maken', '#b91c1c',
@@ -65934,7 +66024,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     ], [
       {tekst:'Factuur '+esc(fnr)+' inzien', kleur:'#2563eb',
        uitleg:'Opent met dit nummer, nooit met een nieuw',
-       doe:function(){ inzien(o); }}
+       doe:function(){ inzien(o); }},
+      {tekst:'Factuurnummer terugzetten', kleur:'#b45309',
+       uitleg:'Wilde je deze factuur niet? Dan gaat het nummer eraf en komt de status terug op Factuur maken',
+       doe:function(){ terugzettenVragen(o); }}
     ]);
   }
 
