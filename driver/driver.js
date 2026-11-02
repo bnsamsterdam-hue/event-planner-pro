@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-11-02-R42';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-11-02-R44';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -1191,30 +1191,27 @@ async function sendReport(order,type){
   if(!extra) return;
 
   /* ==========================================================
-     25-10-2026 - VRAGEN OM WELK OBJECT HET GAAT.
+     02-11-2026 - DE OBJECTVRAAG IS ERUIT.
      ----------------------------------------------------------
-     [stated] "een bezorger moet een extra vakje krijgen bij rubriek
-     schademelding maken / schade, storing, algemene melding, met de vraag
-     welk materiaal nr, bv tw."
-     Tot nu toe werd alleen het opdrachtnummer bewaard, dus kon je later niet
-     zien WELK ding kapot was. De klant stond er al in. Vanaf nu wordt het
-     object erbij gevraagd en meegeschreven, zodat het schadeverleden per
-     wagen en per materiaal klopt. Weet hij het niet, dan kan hij overslaan -
-     liever een melding zonder object dan geen melding.
+     [stated] "wil de melding van alle materialen er uit hebben"
+     [stated] "nu krijgen we straks dat elke kleine storing van mogelijk een
+     scheur in een slang opgeslagen wordt in onderhoud terwijl dit een kleine
+     ingreep is voor de bezorger die het meteen zal maken"
+
+     Hier stond sinds 25-10 een vraag om welk object het ging. Dat werkte
+     averechts: bnsOhSchadeVoor() filtert alleen op het object en niet op de
+     soort melding, dus kwam ELKE melding met een object in het
+     schadeverleden te staan - ook een scheurtje dat ter plekke verholpen
+     wordt. Het onderhoud liep heel.
+
+     De bezorger typt nu weer gewoon zijn melding. De melding hangt aan de
+     opdracht, en de opdracht weet zelf welke materialen erop staan.
+
+     De velden hieronder blijven als lege tekst bestaan, zodat alles wat ze
+     leest blijft werken en oude meldingen die ze wel hebben vindbaar
+     blijven.
   ========================================================== */
-  let gekozenObject = null;
-  try{
-    const objs = await bnsOhObjectenHalen();
-    if(Array.isArray(objs) && objs.length){
-      const opts = objs.slice(0,40).map(function(o){
-        const nr = [clean(o.twnr), clean(o.kenteken)].filter(Boolean).join(' / ');
-        return { value: String(o.id), label: clean(o.naam) + (nr ? ' - ' + nr : ''), cls: 'btn-dark' };
-      });
-      opts.push({ value: '', label: 'Weet ik niet / niet van toepassing', cls: 'btn-grey' });
-      const keus = await askChoice('Om welk object gaat het?', opts);
-      if(keus) objs.forEach(function(o){ if(String(o.id) === String(keus)) gekozenObject = o; });
-    }
-  }catch(e){}
+  const gekozenObject = null;
 
   const label = type || "Melding";
   const aid = "alert_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
