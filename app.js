@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FACTUURBEKIJKEN68-2026-11-02';
+window.TAPWAGEN_BUILD_ID = 'TW-KNOPPENTERUG69-2026-11-02';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -61894,6 +61894,12 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     try{ if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o); }catch(e){}
     try{ if(window.BNS && typeof window.BNS.syncDoc==='function') window.BNS.syncDoc('orders', o); }catch(e){}
   }
+
+  /* 02-11-2026 - deze stond in de boekhoudmodule, een ander afgeschermd
+     blok, en dus niet hier. De knoppenlijst hieronder roept hem aan, liep
+     daarop stuk en het statusvenster kwam zonder enkele knop op het scherm.
+     Nu staat hij waar hij gebruikt wordt. */
+  function inIncasso(o){ return !!(o && o.incasso && T(o.incasso.op)); }
 
   /* ---------------- de stand van een opdracht ---------------- */
   /* geeft {tekst, vlak, inkt, knippert, fase} */
