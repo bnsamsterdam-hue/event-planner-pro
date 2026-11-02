@@ -1,4 +1,4 @@
-window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-10-26-R41';
+window.TAPWAGEN_DRIVER_BUILD_ID = 'TW-DRIVER-2026-11-02-R42';
 const FIREBASE_VERSION="10.12.5";
 const BNS={firebase:null,app:null,db:null,user:null,state:{users:[],orders:[],alerts:[],materials:[]}};
 
@@ -795,7 +795,11 @@ function materialRowsHtml(o){
   if(!mats.length) return '<div class="tw-row muted">Geen materialen</div>';
   return mats.map((m,i)=>{
     const r=raw[i]||{};
-    const price=clean(r.price||r.prijs||r.amount||r.bedrag||'');
+    /* 02-11-2026 - het regeltotaal tonen (aantal x prijs), zodat wat hier
+       staat optelt tot het Subtotaal materialen eronder. Stond hier eerst
+       alleen de catalogusprijs, en die is meestal leeg. */
+    const regel=materialLineTotalDriver(r);
+    const price=regel ? money(regel) : '';
     const note=clean(m.extra||r.note||r.notes||r.opmerking||'');
     return `<div class="tw-row"><div><b>${esc(m.qty?m.qty+'x ':'')}${esc(m.name)}</b>${note?'<br><small>'+esc(note)+'</small>':''}</div>${(canPrices()&&price)?'<div class="tw-price">'+esc(money(price))+'</div>':''}</div>`;
   }).join('');
@@ -1125,8 +1129,18 @@ function parseDriverAmount(v){
 }
 function materialLineTotalDriver(m){
   var qty=parseDriverAmount(m&& (m.qty||m.aantal||m.count||1)) || 1;
-  var price=parseDriverAmount(m&& (m.price||m.prijs||m.amount||m.bedrag||m.total||m.totaal||0));
+  /* 02-11-2026 - linePrice eerst. De hoofdapp zet de afgesproken prijs van
+     deze regel daarin (calcLineTotals telt qty * linePrice op); m.price is
+     de catalogusprijs van het materiaal en is meestal leeg. Daardoor kwam
+     er nul uit en viel het hele materiaalbedrag van de offerte af. */
+  var price=parseDriverAmount(m&& (m.linePrice!=null&&m.linePrice!=='' ? m.linePrice
+                                   : (m.price||m.prijs||m.amount||m.bedrag||m.total||m.totaal||0)));
   return qty*price;
+}
+/* 02-11-2026 - de borg per regel, op dezelfde manier. */
+function materialLineDepositDriver(m){
+  var qty=parseDriverAmount(m&& (m.qty||m.aantal||m.count||1)) || 1;
+  return qty*parseDriverAmount(m&& (m.lineDeposit||m.deposit||m.borg||0));
 }
 function quoteTotalsHtml(o){
   if(!canPrices()) return '';
@@ -1136,6 +1150,9 @@ function quoteTotalsHtml(o){
   var bijzSub=lines.reduce(function(sum,l){return sum+driverLineTotal(l);},0);
   var explicitTotal=parseDriverAmount(orderField(o,['quoteTotal','invoiceTotal','grandTotal','total','totaal','amount','bedrag']));
   var borg=parseDriverAmount(orderField(o,['deposit','borg','waarborg']));
+  /* 02-11-2026 - staat er geen borg op de opdracht zelf, dan die van de
+     regels optellen; de hoofdapp bewaart hem per materiaalregel. */
+  if(!borg) borg=mats.reduce(function(sum,m){ return sum+materialLineDepositDriver(m); },0);
   var excl=(matSub+bijzSub) || explicitTotal;
   var vat=parseDriverAmount(orderField(o,['vat','btw','tax']));
   if(!vat && excl) vat=excl*0.21;
