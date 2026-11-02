@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FACTUURDATUM73-2026-11-02';
+window.TAPWAGEN_BUILD_ID = 'TW-BETALINGVELD74-2026-11-02';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -20983,6 +20983,37 @@ setTimeout(()=>{
     var e=parseDate(val("dateEnd") || val("dateStart"));
     return !!(s && e && e < s);
   }
+  /* ==========================================================
+     02-11-2026 - DE BETAALAFSPRAAK RIJDT MEE MET DE BOUWER.
+     ----------------------------------------------------------
+     De bezorger komt uit een veld en de materialen uit een lijst, en
+     daarom overleven die het opslaan van een nieuwe opdracht. De
+     betaalafspraak had zoiets niet: die werd geparkeerd en pas na een
+     klokje weggeschreven, en dat klokje liep af voordat het
+     bevestigingsvenster van v519 klaar was. Nu leest de bouwer hem
+     gewoon op, net als de rest.
+
+     Staat er niets in het veld, dan blijft bewaard wat er al was - en
+     nooit undefined, want Object.assign kopieert dat ook en dan zou het
+     opslaan van een bestaande opdracht zijn afspraak juist wissen.
+  ========================================================== */
+  function betalingVoorBouwer(existing){
+    try{
+      var v = val("bnsTwBetalingVeld");
+      if(v){
+        var d = String(v).split('|');
+        if(d[0]) return {soort:String(d[0]), dagen:Number(d[1])||0};
+      }
+    }catch(e){}
+    return (existing && existing.betaling) || null;
+  }
+  function statusMeldUitVoorBouwer(existing){
+    try{
+      var cb = E("bnsTwBtStil");
+      if(cb) return !!cb.checked;
+    }catch(e){}
+    return !!(existing && existing.statusMeldUit);
+  }
   function buildOrder(existing){
     var currentEditing = editingId();
     var driverValue = val("orderDriver");
@@ -21017,6 +21048,8 @@ setTimeout(()=>{
         show: E("showLocationOnDocs") ? checked("showLocationOnDocs") : true
       },
       materials: cloneData(chosenList()),
+      betaling: betalingVoorBouwer(existing),
+      statusMeldUit: statusMeldUitVoorBouwer(existing),
       driver: driverValue,
       driverName: driverValue,
       bezorger: driverValue,
@@ -44631,6 +44664,21 @@ setTimeout(()=>{
       customer:{name:T(E('customerName')&&E('customerName').value),street:T(E('customerStreet')&&E('customerStreet').value),zip:T(E('customerZip')&&E('customerZip').value),city:T(E('customerCity')&&E('customerCity').value),phone:T(E('customerPhone')&&E('customerPhone').value),email:T(E('customerEmail')&&E('customerEmail').value)},
       location:{name:T(E('locationName')&&E('locationName').value),street:T(E('locationStreet')&&E('locationStreet').value),zip:T(E('locationZip')&&E('locationZip').value),city:T(E('locationCity')&&E('locationCity').value),contact:T(E('locationContact')&&E('locationContact').value),phone:T(E('locationPhone')&&E('locationPhone').value),show:E('showLocationOnDocs')?E('showLocationOnDocs').checked:true},
       materials: preparedMaterials(st),
+      /* 02-11-2026 - de betaalafspraak en het meldingsvinkje rijden hier
+         net zo mee als de bezorger en de materialen. Nooit undefined:
+         hieronder wordt met Object.assign samengevoegd, en dat kopieert
+         undefined ook - dan zou een bestaande afspraak gewist worden. */
+      betaling: (function(){
+        try{
+          var el=E('bnsTwBetalingVeld'), v=el?T(el.value):'';
+          if(v){ var d=v.split('|'); if(d[0]) return {soort:String(d[0]), dagen:Number(d[1])||0}; }
+        }catch(e){}
+        return (old && old.betaling) || null;
+      })(),
+      statusMeldUit: (function(){
+        try{ var cb=E('bnsTwBtStil'); if(cb) return !!cb.checked; }catch(e){}
+        return !!(old && old.statusMeldUit);
+      })(),
       driver:driver, driverName:driver, bezorger:driver,
       vehicle:T(E('orderVehicle')&&E('orderVehicle').value),
       extra:T(E('orderExtra')&&E('orderExtra').value),
@@ -61667,6 +61715,14 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
               isBetaald?{vlak:'#475569',inkt:'#fff',rand:'0',attr:'data-bt-betaald="0"'}
                        :{vlak:'#16a34a',inkt:'#fff',rand:'0',attr:'data-bt-betaald="1"'}) : '')+
       '</div>'+
+      /* 02-11-2026 - het veldje waar de bouwer de afspraak uit leest, net
+         zoals hij de bezorger uit orderDriver leest. Daardoor rijdt een
+         keuze op een nieuwe opdracht gewoon mee met het opslaan. Leeg als
+         de keuze van de klantstandaard komt: dan blijft de opdracht die
+         standaard volgen in plaats van er een eigen kopie van te maken. */
+      '<input type="hidden" id="bnsTwBetalingVeld" value="'+
+        esc((keuze.bron==='opdracht'||keuze.bron==='nieuw') && T(keuze.soort)
+              ? T(keuze.soort)+'|'+N(keuze.dagen) : '')+'">'+
       '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px">'+
         SOORTEN.map(function(x){
           var aan=(keuze.soort===x.k);
@@ -61690,8 +61746,16 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
               : 'Voor deze opdracht: <b>'+esc(soortVan(keuze.soort).naam)+(keuze.soort==='anders'?' ('+N(keuze.dagen)+' dagen)':'')+'</b>'))+
         (soortVan(keuze.soort||'8dagen').meldt ? '' : ' Deze opdracht geeft geen meldingen.')+
       '</div>'+
+      (!klantNaam
+        ? '<label style="display:flex;gap:9px;align-items:center;font-size:14px;margin-top:9px;cursor:not-allowed;opacity:.55" '+
+            'data-tip="Kies eerst een klant. Daarna kun je deze betaalafspraak ook als standaard voor die klant bewaren, zodat hun volgende opdrachten hem meteen hebben.">'+
+            '<input type="checkbox" disabled style="width:19px;height:19px">'+
+            '<span>Ook de standaard voor deze klant <b>- kies eerst een klant</b></span>'+
+          '</label>'
+        : '')+
       (klantNaam
-        ? '<label style="display:flex;gap:9px;align-items:center;font-size:14px;margin-top:9px;cursor:pointer">'+
+        ? '<label style="display:flex;gap:9px;align-items:center;font-size:14px;margin-top:9px;cursor:pointer" '+
+            'data-tip="Deze afspraak geldt dan ook voor de volgende opdrachten van deze klant. Je kunt het per opdracht altijd nog anders zetten.">'+
             '<input type="checkbox" id="bnsTwBtKlant"'+((klantK && keuze.soort===T(klantK.soort))||wachtKlant?' checked':'')+' style="width:19px;height:19px">'+
             '<span>Ook de standaard voor <b>'+esc(klantNaam)+'</b> - geldt dan ook voor hun volgende opdrachten</span>'+
           '</label>'
