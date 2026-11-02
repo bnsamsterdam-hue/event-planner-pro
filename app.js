@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-KNOPPENTERUG69-2026-11-02';
+window.TAPWAGEN_BUILD_ID = 'TW-DAGWEKKER70-2026-11-02';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -62446,6 +62446,66 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       setTimeout(misschienTonen, 800);
     }
   }, 700);
+
+  /* ==========================================================
+     02-11-2026 - EEN WEKKER OP DE DATUM, GEEN TIKKER.
+     ----------------------------------------------------------
+     De tikker hierboven wacht alleen tot de opdrachten binnen zijn en stopt
+     dan. Staat de app dagen open, dan mist dit venster elke nieuwe dag.
+
+     Hieronder geen herhaalde controle maar een wekker: uitrekenen hoeveel
+     het nog is tot net na middernacht, daarop afgaan, en zichzelf meteen
+     opnieuw zetten voor de volgende nacht.
+
+     kijken() vergelijkt alleen twee datumreeksen. Zijn ze gelijk, dan
+     gebeurt er niets - niets getekend, niets aangeraakt - dus er kan niets
+     van flikkeren.
+
+     Slaapt de computer door middernacht heen, dan gaat een wekker niet
+     betrouwbaar af. Daarom kijkt hij ook een keer zodra je op het scherm
+     terugkomt. Dat kost niets zolang je niets doet.
+  ========================================================== */
+  var laatsteDag=vandaag();
+  var wekker=null;
+  function kijken(){
+    var nu=vandaag();
+    if(nu===laatsteDag) return;          /* zelfde dag: niets te doen */
+    laatsteDag=nu;
+    try{ misschienTonen(); }catch(e){}
+  }
+  /* GEMETEN op 02-11-2026: vandaag() is gebouwd op toISOString(), en dat is
+     de datum in UTC. Nederland loopt daar een uur op voor, 's zomers twee.
+     Tussen middernacht en 01:00 noemt de app het dus nog gisteren. Een
+     wekker die om 00:00 afgaat zou in dat gat vallen, niets zien veranderen,
+     en zichzelf voor de volgende nacht zetten - het venster zou die dag
+     overgeslagen worden.
+
+     Daarom mikt hij op de eerstvolgende van twee momenten: middernacht hier
+     en middernacht in UTC. Welke van de twee de app ook aanhoudt, de wekker
+     gaat vlak na de omslag af. Is er niets veranderd, dan doet kijken()
+     niets en zet hij zich gewoon opnieuw. */
+  function zetWekker(){
+    try{ if(wekker) clearTimeout(wekker); }catch(e){}
+    try{
+      var n=new Date(), nu=n.getTime();
+      var hier=new Date(n.getFullYear(), n.getMonth(), n.getDate()+1, 0, 0, 5, 0).getTime();
+      var utc =Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()+1, 0, 0, 5, 0);
+      var ms=Math.min(hier-nu, utc-nu);
+      /* vangnet voor een klok die versprongen is. Alleen een onmogelijke
+         uitkomst wordt opgevangen - nul, negatief of meer dan een dag en
+         een beetje. Een korte wachttijd is juist normaal: vlak voor de
+         omslag is het nog maar een paar tellen. */
+      if(!(ms>1000) || ms>26*60*60*1000) ms=60*60*1000;
+      wekker=setTimeout(function(){ kijken(); zetWekker(); }, ms);
+    }catch(e){}
+  }
+  zetWekker();
+  try{
+    document.addEventListener('visibilitychange', function(){
+      if(!document.hidden){ kijken(); zetWekker(); }
+    });
+    window.addEventListener('focus', function(){ kijken(); });
+  }catch(e){}
 
   window.BNS_TW_DAGVENSTER={
     nu:function(){ var l=lijst(); if(!l.length) return 'niets dat vandaag weggaat en niet betaald is'; tonen(l); return l.length+' levering(en)'; },
