@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-BETALINGVELD74-2026-11-02';
+window.TAPWAGEN_BUILD_ID = 'TW-ROUTEADRES75-2026-11-02';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -57044,14 +57044,33 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
        bekende zaak vindt Routenet die soms wel, maar lang niet altijd - en dan
        mislukt de hele zoekopdracht terwijl straat en plaats gewoon kloppen.
        Alleen straat, postcode en plaats dus; dat vindt hij altijd. */
+    /* ==========================================================
+       02-11-2026 - ALLEEN HET LOCATIEADRES.
+       ----------------------------------------------------------
+       [stated] "route neemt beide adressen mee dit mag alleen het locatie
+       adres zijn"
+
+       Hier stonden de klantvelden in dezelfde reeks als de locatievelden,
+       dus werden ze er gewoon achteraan geplakt. Staat de klant ergens
+       anders dan de levering, dan ging er een zoekopdracht uit met twee
+       adressen erin.
+
+       Nu zoals de snelknoppen bovenin het formulier het al deden: de
+       locatie, en het klantadres alleen als vangnet. Dat vangnet moet
+       blijven, want bij een levering op het adres van de klant zelf is er
+       vaak geen apart locatieadres ingevuld.
+    ========================================================== */
     var l=o.location||{}, c=o.customer||{};
-    var delen=[o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,
-               l.street,l.zip,l.city,
-               o.address,o.street,o.zip,o.city,
-               c.street,c.zip,c.city];
-    var uit=[];
-    delen.forEach(function(v){ v=T(v); if(v && uit.indexOf(v)<0) uit.push(v); });
-    return uit.join(' ');
+    function samen(delen){
+      var uit=[];
+      delen.forEach(function(v){ v=T(v); if(v && uit.indexOf(v)<0) uit.push(v); });
+      return uit.join(' ');
+    }
+    var locatie=samen([o.locationAddress,o.locationStreet,o.locationZip,o.locationCity,
+                       l.street,l.zip,l.city,
+                       o.address,o.street,o.zip,o.city]);
+    if(locatie) return locatie;
+    return samen([c.street,c.zip,c.city]);
   }
 
   /* Routenet neemt geen los adres in het webadres aan. Het bewaart de hele route
