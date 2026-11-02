@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-DAGWEKKER70-2026-11-02';
+window.TAPWAGEN_BUILD_ID = 'TW-FACTUURDATUM73-2026-11-02';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -47860,6 +47860,15 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
   function H(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function euro(n){ return '€ '+N(n).toFixed(2).replace('.',','); }
   function date(v){ v=T(v); var m=v.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+'-'+m[2]+'-'+m[1]:v; }
+  /* 02-11-2026 - de datum waarop de factuur is aangemaakt. Staat er geen,
+     dan blijft het veld leeg: bij facturen van voor deze versie is die datum
+     nooit vastgelegd, en dan staat er liever niets dan een datum die niet
+     klopt. Nieuwe facturen krijgen hem bij het uitdelen van het nummer. */
+  function factuurDatumVan(o){
+    var d=T(o && o.invoice && (o.invoice.datum || o.invoice.date ||
+                               o.invoice.invoiceDate || o.invoice.factuurDatum)).slice(0,10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? date(d) : '';
+  }
   function parseLS(k){ try{return JSON.parse(localStorage.getItem(k)||'{}')||{};}catch(e){return{};} }
   function stateOrders(){ var s=S(); if(!s) return []; if(!Array.isArray(s.orders)) s.orders=[]; return s.orders; }
   function acc(){ var s=S(); if(!s) return {documents:[],payments:[],removedKeys:[]}; if(!s.accounting || typeof s.accounting!=='object') s.accounting={documents:[],payments:[],removedKeys:[]}; if(!Array.isArray(s.accounting.documents)) s.accounting.documents=[]; if(!Array.isArray(s.accounting.payments)) s.accounting.payments=[]; if(!Array.isArray(s.accounting.removedKeys)) s.accounting.removedKeys=[]; return s.accounting; }
@@ -48034,7 +48043,7 @@ console.log('[BNS v460] mappen/folder + v459 fixes actief.');
        Huisstijl & Documenten; daar is niets aan veranderd.
     ========================================================== */
     '@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:#111;font-size:13px}.actions{position:fixed;top:8px;left:8px;display:flex;gap:8px;z-index:9}.actions button{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:8px 12px;font-weight:800}.page{width:210mm;min-height:0;margin:0 auto;background:white;padding:14mm;box-sizing:border-box}.bns525-logo{text-align:center;margin-bottom:3mm}.bns525-logo img{max-width:160mm;max-height:42mm;object-fit:contain}.brand{font-size:34px;font-weight:900;color:'+H(st.accent||'#0ea5e9')+'}.tag{font-weight:800;font-style:italic}.doc-title{text-align:center;font-size:'+headingFs+'px;font-weight:900;margin:1mm 0 4mm;letter-spacing:.02em}.top{display:grid;grid-template-columns:1fr 60mm;gap:10mm}.card{border:0;border-top:1px solid #d7dee8;border-radius:0;padding:2mm 0 0;margin:3mm 0 0}.duo{display:grid;grid-template-columns:1fr 1fr;gap:9mm;align-items:start}.duo>.card{margin-top:3mm}.card>b:first-child{display:block;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#5a6779;font-weight:800;margin-bottom:.8mm}.line{border-top:1.5px solid #333;margin:3.5mm 0}h3{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#5a6779;font-weight:800;margin:4mm 0 1mm}table{width:100%;border-collapse:collapse}th{border-bottom:1px solid #333;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#334155}td,th{padding:.9mm 2mm .9mm 0;vertical-align:top;font-size:'+tableFs+'px}tbody tr+tr td{border-top:1px solid #eef1f5}.amount{text-align:right;padding-right:0}.totals{width:82mm;margin-left:auto;margin-top:4mm;border-top:1.5px solid #333;font-size:'+totalFs+'px}.totals td{padding:.9mm 0}.totals td:last-child{text-align:right}.strong td{font-weight:900;border-top:1px solid #333}@media print{body{background:#fff}.actions{display:none}.page{margin:0}}';
-    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPdfOpen{background:#0d9488!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF opslaan</button><button id="twPdfOpen" type="button">PDF openen</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var alsBestand=new Blob([blob],{type:"application/octet-stream"});var url=URL.createObjectURL(alsBestand);var a=document.createElement("a");a.href=url;a.download=fileName();a.style.display="none";document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},4000);p.textContent="PDF opslaan";}).catch(function(){p.textContent="PDF opslaan";systemMsg("Opslaan lukt niet in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};var po=document.getElementById("twPdfOpen");if(po)po.onclick=function(){var el=mainEl();po.textContent="PDF maken...";waitPdf(function(ok){if(!ok){po.textContent="PDF openen";systemMsg("PDF-bibliotheek kon niet laden.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var url=URL.createObjectURL(blob);var w=window.open(url,"_blank");if(!w)systemMsg("De pdf kon niet openen omdat pop-ups geblokkeerd zijn. Gebruik PDF opslaan.");po.textContent="PDF openen";setTimeout(function(){URL.revokeObjectURL(url);},60000);}).catch(function(){po.textContent="PDF openen";systemMsg("Openen lukt niet. Gebruik PDF opslaan.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?(window.BNS_TW_FACTUURNR?window.BNS_TW_FACTUURNR.voorOpdracht(o):invoiceNo(o)):orderNo(o))+'<br><b>Datum:</b> '+H(date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div>'+(intro?'<div class="card" style="border-left:4px solid #2563eb">'+H(intro)+'</div>':'')+'<div class="line"></div><div class="duo"><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+(locContact49?'<br>Contact: '+H(locContact49):'')+(locTel49?'<br>Tel: '+H(locTel49):'')+'</div></div><div class="card"><b>Opdracht</b>'+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' tot '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Extra</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table>'+
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+H(title+' '+(orderNo(o)||''))+'</title><style>'+css+'</style></head><body><style>.tw-pdf-actions{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;z-index:9999}.tw-pdf-actions button{border:0!important;border-radius:10px!important;color:#fff!important;font-weight:900!important;padding:9px 13px!important;cursor:pointer!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}#twPdfDownload{background:#16a34a!important}#twPdfOpen{background:#0d9488!important}#twPrintDoc{background:#2563eb!important}#twMailDoc{background:#ea580c!important}#twWhatsDoc{background:#22c55e!important}#twShareDoc{background:#7c3aed!important}#twCloseDoc{background:#64748b!important}@media print{.tw-pdf-actions{display:none!important}}</style><div class="actions tw-pdf-actions"><button id="twPdfDownload" type="button">PDF opslaan</button><button id="twPdfOpen" type="button">PDF openen</button><button id="twPrintDoc" type="button">Printen</button><button id="twMailDoc" type="button">Mailen</button><button id="twWhatsDoc" type="button">WhatsApp</button><button id="twShareDoc" type="button">Delen</button><button id="twCloseDoc" type="button">Terug</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script><script>(function(){function mainEl(){return document.querySelector("main.page")||document.querySelector(".page")||document.body;}function docText(){var el=mainEl();return (el.innerText||el.textContent||"").trim();}function fileName(){return ((document.title||"tapwagen_document").replace(/[^a-z0-9_-]+/gi,"_")||"tapwagen_document")+".pdf";}function systemMsg(t){var old=document.getElementById("twDocSystemMsg");if(old)old.remove();var wrap=document.createElement("div");wrap.id="twDocSystemMsg";wrap.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif";var box=document.createElement("div");box.style.cssText="background:white;color:#172033;border-radius:18px;padding:24px;max-width:520px;box-shadow:0 22px 60px rgba(0,0,0,.25)";var h=document.createElement("h2");h.textContent="Systeemmelding";h.style.cssText="margin:0 0 12px;font-size:24px";var p=document.createElement("div");p.textContent=t;p.style.cssText="font-size:16px;line-height:1.45;margin-bottom:18px";var ok=document.createElement("button");ok.textContent="OK";ok.style.cssText="border:0;border-radius:12px;background:#2563eb;color:white;font-weight:800;padding:10px 18px;float:right";ok.onclick=function(){wrap.remove();};box.appendChild(h);box.appendChild(p);box.appendChild(ok);wrap.appendChild(box);document.body.appendChild(wrap);}function waitPdf(cb,n){n=n||0;if(window.html2pdf)return cb(true);if(n>40)return cb(false);setTimeout(function(){waitPdf(cb,n+1);},120);}function bind(){var p=document.getElementById("twPdfDownload");var pr=document.getElementById("twPrintDoc");var m=document.getElementById("twMailDoc");var w=document.getElementById("twWhatsDoc");var s=document.getElementById("twShareDoc");var c=document.getElementById("twCloseDoc");if(pr)pr.onclick=function(){window.print();};if(c)c.onclick=function(){try{window.close();}catch(e){}setTimeout(function(){try{if(!window.closed){history.back();}}catch(e){}},120);};if(m)m.onclick=function(){location.href="mailto:?subject="+encodeURIComponent(document.title||"Document")+"&body="+encodeURIComponent(docText());};if(w)w.onclick=function(){location.href="https://wa.me/?text="+encodeURIComponent(docText());};if(s)s.onclick=function(){var txt=docText();if(navigator.share){navigator.share({title:document.title||"Document",text:txt}).catch(function(){});}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){s.textContent="Gekopieerd";setTimeout(function(){s.textContent="Delen";},1400);}).catch(function(){systemMsg("Delen lukt niet in deze browser. Gebruik Mailen of WhatsApp.");});}else{systemMsg("Delen wordt niet ondersteund in deze browser. Gebruik Mailen of WhatsApp.");}};if(p)p.onclick=function(){var el=mainEl();p.textContent="PDF maken...";waitPdf(function(ok){if(!ok){p.textContent="PDF downloaden";systemMsg("PDF-bibliotheek kon niet laden. Controleer internet of gebruik Printen en kies Opslaan als PDF.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var alsBestand=new Blob([blob],{type:"application/octet-stream"});var url=URL.createObjectURL(alsBestand);var a=document.createElement("a");a.href=url;a.download=fileName();a.style.display="none";document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},4000);p.textContent="PDF opslaan";}).catch(function(){p.textContent="PDF opslaan";systemMsg("Opslaan lukt niet in deze browser. Gebruik Printen en kies Opslaan als PDF.");});});};var po=document.getElementById("twPdfOpen");if(po)po.onclick=function(){var el=mainEl();po.textContent="PDF maken...";waitPdf(function(ok){if(!ok){po.textContent="PDF openen";systemMsg("PDF-bibliotheek kon niet laden.");return;}var opt={margin:0,filename:fileName(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};window.html2pdf().set(opt).from(el).outputPdf("blob").then(function(blob){var url=URL.createObjectURL(blob);var w=window.open(url,"_blank");if(!w)systemMsg("De pdf kon niet openen omdat pop-ups geblokkeerd zijn. Gebruik PDF opslaan.");po.textContent="PDF openen";setTimeout(function(){URL.revokeObjectURL(url);},60000);}).catch(function(){po.textContent="PDF openen";systemMsg("Openen lukt niet. Gebruik PDF opslaan.");});});};}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);else bind();})();</script><main class="page">'+logoHtml(st)+'<div class="doc-title">'+H(title)+'</div><div class="top"><div>'+companyHtml(st)+'</div><div><b>'+(fact?'Factuur-nr:':'Opdracht:')+'</b> '+H(fact?(window.BNS_TW_FACTUURNR?window.BNS_TW_FACTUURNR.voorOpdracht(o):invoiceNo(o)):orderNo(o))+'<br><b>Datum:</b> '+H(fact?factuurDatumVan(o):date(new Date().toISOString().slice(0,10)))+(fact?'<br><b>Betaling:</b> '+H(paid(o)?'Betaald':'Openstaand'):'<br><b>Status:</b> '+H(o.status||''))+'</div></div>'+(intro?'<div class="card" style="border-left:4px solid #2563eb">'+H(intro)+'</div>':'')+'<div class="line"></div><div class="duo"><div class="card"><b>Klant</b><br>'+H(c.name||customerName(o))+'<br>'+H([c.street,c.zip,c.city].filter(Boolean).join(' '))+'</div><div class="card"><b>Locatie</b><br>'+H(l.name||'')+'<br>'+H([l.street,l.zip,l.city].filter(Boolean).join(' '))+(locContact49?'<br>Contact: '+H(locContact49):'')+(locTel49?'<br>Tel: '+H(locTel49):'')+'</div></div><div class="card"><b>Opdracht</b>'+H(orderNo(o))+'<br><b>Titel:</b> '+H(titleOf(o))+'<br><b>Datum:</b> '+H(date(o.start||''))+(o.end&&o.end!==o.start?' tot '+H(date(o.end)):'')+'</div><h3>Materialen</h3><table><thead><tr><th>Aantal</th><th>Code</th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsMaterials(o)+'</tbody></table><h3>Extra</h3><table><thead><tr><th>Aantal</th><th></th><th>Omschrijving</th><th class="amount">Bedrag</th></tr></thead><tbody>'+rowsTransport(o)+'</tbody></table>'+
       /* R53-fix (2026-08-12): het veld Bijzonderheden werd wel ingevuld en opgeslagen
          (o.extra / o.notes), maar nergens op het document afgedrukt - het blok "Extra"
          toont uitsluitend de transportregels. Nu komt de tekst er onder te staan,
@@ -58879,12 +58888,30 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
   /* Er gaat nooit een factuur de deur uit zonder nummer. Wat op het scherm
      staat gaat voor, zodat een zelf ingevuld nummer niet wordt overschreven. */
+  /* 02-11-2026 - de dag waarop de factuur is aangemaakt, lokaal uitgerekend.
+     toISOString() zou de datum in UTC geven, en daar loopt Nederland een uur
+     op voor ('s zomers twee); een factuur van kwart over twaalf 's nachts
+     kreeg dan de dag ervoor. */
+  function dagVanVandaag(){
+    function pad(n){ return (n<10?'0':'')+n; }
+    var d=new Date();
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  function stempelDatum(o){
+    try{
+      o.invoice = o.invoice || {};
+      /* alleen als er nog geen datum staat - een bestaande factuur mag
+         nooit een nieuwe datum krijgen omdat je hem nog eens opent */
+      if(!/^\d{4}-\d{2}-\d{2}/.test(String(o.invoice.datum||'')))
+        o.invoice.datum = dagVanVandaag();
+    }catch(e){}
+  }
   function voorOpdracht(o){
     if(!o) return uitHetVeld() || volgende();
     o.invoice = o.invoice || {};
     var bestaand=T(o.invoice.invoiceNumber), getypt=uitHetVeld();
     if(getypt && getypt!==bestaand){
-      o.invoice.invoiceNumber=getypt; gebruikt(getypt);
+      o.invoice.invoiceNumber=getypt; gebruikt(getypt); stempelDatum(o);
       try{
         if(typeof save==='function') save();
         if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o);
@@ -58893,7 +58920,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
     if(bestaand) return bestaand;
     var nieuwNr=volgende();
-    o.invoice.invoiceNumber=nieuwNr; gebruikt(nieuwNr);
+    o.invoice.invoiceNumber=nieuwNr; gebruikt(nieuwNr); stempelDatum(o);
     try{
       if(typeof save==='function') save();
       if(window.BNS && typeof window.BNS.syncOrder==='function') window.BNS.syncOrder(o);
@@ -61900,6 +61927,13 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      daarop stuk en het statusvenster kwam zonder enkele knop op het scherm.
      Nu staat hij waar hij gebruikt wordt. */
   function inIncasso(o){ return !!(o && o.incasso && T(o.incasso.op)); }
+  /* 02-11-2026 - de afspraak kort op de balk, zodat je op de kaart ziet
+     waar die dagen vandaan komen. Staat er iets anders ingesteld dan 8 of
+     30, dan komt dat getal er gewoon te staan. */
+  function kortAfspraak(dagen){
+    var n=Number(dagen)||0;
+    return n>0 ? (' '+n+'d') : '';
+  }
 
   /* ---------------- de stand van een opdracht ---------------- */
   /* geeft {tekst, vlak, inkt, knippert, fase} */
@@ -62000,10 +62034,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
          VOOR de levering zijn, dus daar is een kop van veertien dagen nodig. */
       var vanaf = (s==='8dagen') ? 14 : ((s==='30dagen' || s==='bulk') ? 0 : 8);
       if(o.factuurMeldUit===true || d==null || d>vanaf)
-        return {tekst:'Nog te factureren', vlak:'#f1f5f9', inkt:'#64748b', knippert:false, fase:'maken-stil'};
-      return {tekst: d>0 ? ('Factuur maken - nog '+d+(d===1?' dag':' dagen'))
-                         : (d===0 ? 'Factuur maken - vandaag'
-                                  : 'Factuur maken - '+(-d)+(d===-1?' dag':' dagen')+' over tijd'),
+        return {tekst:'Nog geen factuur', vlak:'#f1f5f9', inkt:'#64748b', knippert:false, fase:'maken-stil'};
+      return {tekst: d>0 ? ('Nog geen factuur - levering over '+d+(d===1?' dag':' dagen'))
+                         : (d===0 ? 'Nog geen factuur - levering vandaag'
+                                  : 'Nog geen factuur - '+(-d)+(d===-1?' dag':' dagen')+' over tijd'),
               vlak:'#fee2e2', inkt:'#b91c1c', knippert:true, fase:'maken'};
     }
 
@@ -62026,17 +62060,23 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       ========================================================== */
       if(d!=null && d<=2){
         var teLaatDagen=t-d;           /* betaaldatum ligt t dagen voor de levering */
-        return {tekst: d>=0 ? (d===0 ? 'Openstaand - levering vandaag'
-                                    : 'Openstaand - levering over '+d+(d===1?' dag':' dagen'))
-                            : 'Te laat - '+teLaatDagen+(teLaatDagen===1?' dag':' dagen'),
+        return {tekst: d>=0 ? (d===0 ? 'Openstaand'+kortAfspraak(t)+' - levering vandaag'
+                                    : 'Openstaand'+kortAfspraak(t)+' - levering over '+d+(d===1?' dag':' dagen'))
+                            : 'Te laat'+kortAfspraak(t)+' - '+teLaatDagen+(teLaatDagen===1?' dag':' dagen'),
                 vlak:'#fee2e2', inkt:'#b91c1c', knippert:true, fase:'laatste'};
       }
       if(d!=null && d<=t){
         var stil=isGezien(o,'eerste');
-        return {tekst:'Openstaand - nog '+(d-0)+' dagen tot levering',
+        return {tekst:'Openstaand'+kortAfspraak(t)+' - nog '+(d-0)+' dagen tot levering',
                 vlak: stil?'#fef3c7':'#fee2e2', inkt: stil?'#92400e':'#b91c1c',
                 knippert:!stil, fase:'eerste'};
       }
+      /* 02-11-2026 - hier stond alleen "Openstaande factuur", zonder getal,
+         terwijl de 30-dagen-tak in dezelfde situatie wel aftelt. Nu ook hier
+         een teller. Rustig blauw, want de levering is nog ver weg. */
+      if(d!=null)
+        return {tekst:'Openstaand'+kortAfspraak(t)+' - levering over '+d+(d===1?' dag':' dagen'),
+                vlak:'#e0f2fe', inkt:'#075985', knippert:false, fase:'rustig'};
       return {tekst:'Openstaande factuur', vlak:'#e0f2fe', inkt:'#075985', knippert:false, fase:'rustig'};
     }
 
@@ -62066,17 +62106,17 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(verstreken==null) return {tekst:'Openstaande factuur', vlak:'#e0f2fe', inkt:'#075985', knippert:false, fase:'rustig'};
     if(verstreken<0){
       var nogWeg=-verstreken;
-      return {tekst:'Openstaand - levering over '+nogWeg+(nogWeg===1?' dag':' dagen'),
+      return {tekst:'Openstaand'+kortAfspraak(termijnDagen)+' - levering over '+nogWeg+(nogWeg===1?' dag':' dagen'),
               vlak:'#e0f2fe', inkt:'#075985', knippert:false, fase:'rustig'};
     }
     var over=termijnDagen-verstreken;
     if(over<=0)
-      return {tekst:'Te laat - '+(-over===0?'vandaag':(-over)+((-over)===1?' dag':' dagen')),
+      return {tekst:'Te laat'+kortAfspraak(termijnDagen)+' - '+(-over===0?'vandaag':(-over)+((-over)===1?' dag':' dagen')),
               vlak:'#fee2e2', inkt:'#b91c1c', knippert:true, fase:'telaat'};
     if(over<=5)
-      return {tekst:'Openstaand - nog '+over+(over===1?' dag':' dagen'),
+      return {tekst:'Openstaand'+kortAfspraak(termijnDagen)+' - nog '+over+(over===1?' dag':' dagen'),
               vlak:'#fef3c7', inkt:'#92400e', knippert:false, fase:'bijna'};
-    return {tekst:'Openstaand - nog '+over+' dagen', vlak:'#e0f2fe', inkt:'#075985', knippert:false, fase:'rustig'};
+    return {tekst:'Openstaand'+kortAfspraak(termijnDagen)+' - nog '+over+' dagen', vlak:'#e0f2fe', inkt:'#075985', knippert:false, fase:'rustig'};
   }
 
   /* ---------------- opmaak ---------------- */
@@ -62117,9 +62157,27 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         if(el.textContent!==sein.tekst) el.textContent=sein.tekst;
         el.style.setProperty('background', sein.vlak, 'important');
         el.style.setProperty('color', sein.inkt, 'important');
+        el.classList.toggle('bnsTwSeinAan', !!sein.knippert);
+        /* ==========================================================
+           02-11-2026 - BETAALD IS KLAAR.
+           ----------------------------------------------------------
+           Bij een betaalde opdracht viel in dat venster niets meer te
+           kiezen - alleen de betaalafspraak en Opdracht openen. Daarom
+           geen handje, geen tekstje en geen kenmerk meer. Het kenmerk
+           wordt ook weggehaald als het er van eerder nog op staat, want
+           hetzelfde label blijft staan zodra jij op betaald drukt.
+
+           Terugdraaien kan nog in Boekhouding bij de factuurregel, en in
+           het Overzicht-keuzevenster.
+        ========================================================== */
+        if(betaald(o)){
+          el.style.cursor='default';
+          try{ el.removeAttribute('title'); }catch(e){}
+          try{ el.removeAttribute('data-tw-sein'); }catch(e){}
+          return;
+        }
         el.style.cursor='pointer';
         el.title='Druk hier voor de betaalafspraak van deze opdracht';
-        el.classList.toggle('bnsTwSeinAan', !!sein.knippert);
         el.setAttribute('data-tw-sein', T(o.id)||T(o.number));
       });
     }catch(e){ try{ console.warn('[BNS TW Sein]', e&&e.message||e); }catch(_){} }
@@ -62139,7 +62197,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var wrap=document.createElement('div');
     wrap.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px';
     var uitleg = sein.fase==='laatste'
-      ? 'Twee dagen of minder tot de levering en er is nog niet betaald. Dit sein blijft knipperen tot de factuur op betaald staat.'
+      ? 'Twee dagen of minder tot de levering en er is nog niet betaald.'
       : (sein.fase==='eerste'
           ? 'De afgesproken termijn is in zicht ('+t.dagen+' dagen voor levering). Met Gezien is het stil tot twee dagen voor de levering.'
           : (sein.fase==='maken'
@@ -62161,7 +62219,7 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     var knoppen=[];
     if(!betaald(o)) knoppen.push({t:'Zet op betaald', k:'betaald', stijl:{vlak:'#16a34a',inkt:'#fff',rand:'0'}});
     if(sein.fase==='eerste' && !isGezien(o,'eerste')) knoppen.push({t:'Gezien - stil tot 2 dagen voor levering', k:'gezien'});
-    if(sein.fase==='maken') knoppen.push({t:'Niet meer melden dat de factuur nog gemaakt moet worden', k:'maakuit'});
+    if(sein.fase==='maken') knoppen.push({t:'Niet meer melden', k:'maakuit'});
     /* 02-11-2026 - de opdracht is geweest en de factuur staat nog open. */
     if(!betaald(o) && !inIncasso(o) && !!invoiceNo(o)){
       knoppen.push({t:'Herinner mij over 3 dagen',  k:'herinner3'});
@@ -62237,6 +62295,10 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(!el) return;
     var o=vindOrder(el.getAttribute('data-tw-sein'));
     if(!o) return;
+    /* 02-11-2026 - tweede slot: een betaalde opdracht opent niets meer,
+       ook niet via een label dat nog van voor de betaling op het scherm
+       stond. */
+    if(betaald(o)) return;
     ev.preventDefault(); ev.stopPropagation();
     if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
     menu(o);
