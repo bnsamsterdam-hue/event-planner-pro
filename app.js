@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-FACTUURNRSLOT62-2026-11-01';
+window.TAPWAGEN_BUILD_ID = 'TW-NIEUWEOPDRACHT63-2026-11-02';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -65972,6 +65972,88 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
   }
 
   /* ---------------- de keuzes ---------------- */
+  /* ==========================================================
+     02-11-2026 - EEN FACTUUR BIJ EEN OPDRACHT DIE NOG NIET IS OPGESLAGEN.
+     ----------------------------------------------------------
+     De opslaanknop van het formulier wordt gewoon ingedrukt - niets
+     nagebouwd - zodat alles wat aan het opslaan hangt blijft werken.
+     saveCurrentOrder() eindigt met clearOrder() en showPage('orders'),
+     dus daarna wordt het formulier met editOrder() weer opengezet op
+     dezelfde opdracht. Jij slaat daarna zelf definitief op.
+
+     Het opzoeken gaat op nummer, maar niet alleen daarop: bij het opslaan
+     kan een bezet opdrachtnummer worden vervangen door een vrij nummer
+     (de R55-regel). Vandaar de terugval op de opdracht die zojuist is
+     bijgewerkt.
+
+     Alles gebeurt in een keer, zonder wachten, want anders ziet de browser
+     het openen van het document niet meer als iets dat jij hebt gevraagd
+     en houdt hij het tegen. */
+  /* Twee lijsten nakijken, niet een. De opslaanknop gebruikt getState(), en
+     die pakt window.state als eerste; mijn eigen st() pakt juist state als
+     eerste. Op het inlogscherm zijn dat aantoonbaar twee verschillende
+     objecten. Of ze daarna samenvallen durf ik niet te beweren, dus kijk ik
+     gewoon in allebei - dan maakt het niet uit. */
+  function alleOpdrachten(){
+    var uit=[], gezien={};
+    function erbij(l){
+      if(!l || !l.length) return;
+      for(var i=0;i<l.length;i++){
+        var o=l[i]; if(!o) continue;
+        var sl=T(o.id)||T(o.number); if(!sl || gezien[sl]) continue;
+        gezien[sl]=1; uit.push(o);
+      }
+    }
+    erbij(orders());
+    try{ if(window.state && Array.isArray(window.state.orders)) erbij(window.state.orders); }catch(e){}
+    try{ if(typeof state!=='undefined' && state && Array.isArray(state.orders)) erbij(state.orders); }catch(e){}
+    return uit;
+  }
+  function netOpgeslagen(nummer){
+    var l=alleOpdrachten(), i, o=null;
+    for(i=0;i<l.length;i++){ if(T(l[i].number)===T(nummer)) o=l[i]; }
+    if(o) return o;
+    var nu=Date.now(), beste=null;
+    for(i=0;i<l.length;i++){
+      var t=Date.parse(T(l[i].updatedAt)||'');
+      if(!t || nu-t>10000) continue;
+      if(!beste || t>Date.parse(T(beste.updatedAt))) beste=l[i];
+    }
+    return beste;
+  }
+  var naOpslaanFactuur=null;       /* onthoudt dat we na het opslaan verder willen */
+  function opslaanEnNummer(nummer){
+    var knop=E('saveOrder');
+    if(!knop){
+      melden('Opslaan lukt niet', '#b91c1c',
+        ['De opslaanknop van het opdrachtformulier is niet gevonden, dus ik kan de opdracht '+
+         'niet voor je opslaan. Sla hem zelf op en maak daarna de factuur.']);
+      return;
+    }
+    naOpslaanFactuur = T(nummer) || '1';
+    try{ knop.click(); }catch(e){ naOpslaanFactuur=null; }
+  }
+  /* De haak die na het definitief opslaan wordt aangeroepen. Een eerdere
+     invulling blijft gewoon werken; we hangen ons stuk erachter. */
+  try{
+    var vorigeHaak = window.BNS_v519AfterDefinitiveSave;
+    window.BNS_v519AfterDefinitiveSave = function(opgeslagen){
+      try{ if(typeof vorigeHaak==='function') vorigeHaak.apply(this, arguments); }catch(e){}
+      if(!naOpslaanFactuur) return;
+      var nummer=naOpslaanFactuur; naOpslaanFactuur=null;
+      var o=(opgeslagen && opgeslagen.id) ? opgeslagen : netOpgeslagen(nummer);
+      if(!o){
+        melden('Opgeslagen, maar niet teruggevonden', '#b45309', [
+          'De opdracht is opgeslagen, maar ik kan hem niet terugvinden om er een factuurnummer '+
+            'op te zetten. Open hem uit de lijst en druk dan op Maak factuur.'
+        ]);
+        return;
+      }
+      try{ if(typeof window.editOrder==='function') window.editOrder(T(o.id)); }catch(e){}
+      laatsteOpdracht=null;
+      setTimeout(function(){ try{ vraag(laatsteKnop); }catch(e){} }, 400);
+    };
+  }catch(e){}
   function inzien(o){
     veldZet('bnsInvoiceNumber', factuurNr(o));
     openen();
@@ -66161,8 +66243,26 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     laatsteKnop = knopEl || E(KNOP);
     var o=huidigeOpdracht();
     if(!o){
-      melden('Geen opdracht open', '#b45309', [
-        'Open eerst een opdracht; dan weet de app bij wie de factuur hoort.'
+      var inFormulier=T((E('orderNumber')||{}).value);
+      if(!inFormulier){
+        melden('Geen opdracht open', '#b45309', [
+          'Open eerst een opdracht, of begin er een; dan weet de app bij wie de factuur hoort.'
+        ]);
+        return;
+      }
+      venster('Opdracht '+esc(inFormulier)+' is nog niet opgeslagen', '#b45309', [
+        'Een factuurnummer hoort bij een opgeslagen opdracht. Deelt hij er nu een uit, dan is '+
+          'er niets om hem op vast te leggen en is het nummer bij de volgende keer laden weg - '+
+          'terwijl de teller wel is doorgelopen.',
+        'Ik kan de opdracht voor je opslaan en daarna het nummer uitdelen. Je formulier gaat '+
+          'meteen weer open op dezelfde opdracht, zodat je zelf definitief opslaat.'
+      ], [
+        {tekst:'Opslaan en factuur nr maken', kleur:'#16a34a',
+         uitleg:'Slaat de opdracht op, deelt dan pas het nummer uit en opent het document',
+         doe:function(){ opslaanEnNummer(inFormulier); }},
+        {tekst:'Alleen inzien', kleur:'#2563eb',
+         uitleg:'Document openen zonder nummer; er wordt niets opgeslagen en de teller blijft staan',
+         doe:function(){ veldZet('bnsInvoiceNumber',''); openen(); }}
       ]);
       return;
     }
