@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-NIEUWEOPDRACHT63-2026-11-02';
+window.TAPWAGEN_BUILD_ID = 'TW-NUMMEREERST65-2026-11-02';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -66021,37 +66021,48 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }
     return beste;
   }
-  var naOpslaanFactuur=null;       /* onthoudt dat we na het opslaan verder willen */
-  function opslaanEnNummer(nummer){
-    var knop=E('saveOrder');
-    if(!knop){
-      melden('Opslaan lukt niet', '#b91c1c',
-        ['De opslaanknop van het opdrachtformulier is niet gevonden, dus ik kan de opdracht '+
-         'niet voor je opslaan. Sla hem zelf op en maak daarna de factuur.']);
+  /* Een nummer dat is uitgedeeld voordat de opdracht bestond. Hij wacht
+     hier tot jij op Opslaan drukt en wordt dan op de opdracht gezet. */
+  var wachtNummer=null;
+  function nummerVoorNieuw(opdrachtnummer){
+    if(!window.BNS_TW_FACTUURNR){
+      melden('Kan geen nummer maken', '#b91c1c',
+        ['De factuurnummer-module is niet geladen. Laad de app opnieuw; blijft dit zo, laat het weten.']);
       return;
     }
-    naOpslaanFactuur = T(nummer) || '1';
-    try{ knop.click(); }catch(e){ naOpslaanFactuur=null; }
+    var nr='';
+    try{
+      nr=T(window.BNS_TW_FACTUURNR.volgende());
+      if(nr && typeof window.BNS_TW_FACTUURNR.gebruikt==='function') window.BNS_TW_FACTUURNR.gebruikt(nr);
+    }catch(e){ nr=''; }
+    if(!nr){
+      melden('Kan geen nummer maken', '#b91c1c', ['Er kwam geen nummer uit de reeks.']);
+      return;
+    }
+    wachtNummer={ nr:nr, opdracht:T(opdrachtnummer) };
+    veldZet('bnsInvoiceNumber', nr);
+    typeZet('Factuur');
+    openen();
   }
-  /* De haak die na het definitief opslaan wordt aangeroepen. Een eerdere
-     invulling blijft gewoon werken; we hangen ons stuk erachter. */
+  /* De haak die na het definitief opslaan afgaat. Een eerdere invulling
+     blijft werken; wij hangen ons stuk erachter. */
   try{
     var vorigeHaak = window.BNS_v519AfterDefinitiveSave;
     window.BNS_v519AfterDefinitiveSave = function(opgeslagen){
       try{ if(typeof vorigeHaak==='function') vorigeHaak.apply(this, arguments); }catch(e){}
-      if(!naOpslaanFactuur) return;
-      var nummer=naOpslaanFactuur; naOpslaanFactuur=null;
-      var o=(opgeslagen && opgeslagen.id) ? opgeslagen : netOpgeslagen(nummer);
-      if(!o){
-        melden('Opgeslagen, maar niet teruggevonden', '#b45309', [
-          'De opdracht is opgeslagen, maar ik kan hem niet terugvinden om er een factuurnummer '+
-            'op te zetten. Open hem uit de lijst en druk dan op Maak factuur.'
-        ]);
-        return;
-      }
-      try{ if(typeof window.editOrder==='function') window.editOrder(T(o.id)); }catch(e){}
+      if(!wachtNummer) return;
+      var w=wachtNummer;
+      var o=(opgeslagen && opgeslagen.id) ? opgeslagen : netOpgeslagen(w.opdracht);
+      if(!o) return;                       /* niet gevonden: laten staan, volgende keer opnieuw */
+      wachtNummer=null;
+      if(T(o.invoice && o.invoice.invoiceNumber)) return;   /* heeft er al een */
+      o.invoice=o.invoice||{};
+      o.invoice.invoiceNumber=w.nr;
+      if(!T(o.invoice.datum)) o.invoice.datum=new Date().toISOString().slice(0,10);
+      vastleggen(o);
+      naarFirebase(o, w.nr);
       laatsteOpdracht=null;
-      setTimeout(function(){ try{ vraag(laatsteKnop); }catch(e){} }, 400);
+      try{ console.info('[BNS Factuurkeuze] nummer '+w.nr+' vastgelegd op '+T(o.number)+' na het opslaan.'); }catch(e){}
     };
   }catch(e){}
   function inzien(o){
@@ -66250,18 +66261,12 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
         ]);
         return;
       }
-      venster('Opdracht '+esc(inFormulier)+' is nog niet opgeslagen', '#b45309', [
-        'Een factuurnummer hoort bij een opgeslagen opdracht. Deelt hij er nu een uit, dan is '+
-          'er niets om hem op vast te leggen en is het nummer bij de volgende keer laden weg - '+
-          'terwijl de teller wel is doorgelopen.',
-        'Ik kan de opdracht voor je opslaan en daarna het nummer uitdelen. Je formulier gaat '+
-          'meteen weer open op dezelfde opdracht, zodat je zelf definitief opslaat.'
-      ], [
-        {tekst:'Opslaan en factuur nr maken', kleur:'#16a34a',
-         uitleg:'Slaat de opdracht op, deelt dan pas het nummer uit en opent het document',
-         doe:function(){ opslaanEnNummer(inFormulier); }},
+      venster('Factuur voor opdracht '+esc(inFormulier), '#2563eb', [], [
+        {tekst:'Factuur nr maken', kleur:'#16a34a',
+         uitleg:'Komt op de opdracht zodra je hem opslaat',
+         doe:function(){ nummerVoorNieuw(inFormulier); }},
         {tekst:'Alleen inzien', kleur:'#2563eb',
-         uitleg:'Document openen zonder nummer; er wordt niets opgeslagen en de teller blijft staan',
+         uitleg:'Even kijken, zonder nummer',
          doe:function(){ veldZet('bnsInvoiceNumber',''); openen(); }}
       ]);
       return;
