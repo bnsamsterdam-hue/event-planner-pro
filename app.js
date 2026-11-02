@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-NUMMEREERST65-2026-11-02';
+window.TAPWAGEN_BUILD_ID = 'TW-INCASSO66-2026-11-02';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -61908,6 +61908,26 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     }catch(e){}
     if(betaald(o)) return {tekst:'Betaald', vlak:'#dcfce7', inkt:'#166534', knippert:false, fase:'betaald'};
     /* ==========================================================
+       02-11-2026 - IN INCASSO.
+       ----------------------------------------------------------
+       De klant weigert te betalen en het is doorgezet. Er hoeft hier niets
+       meer te knipperen - jij hoeft niets meer te doen - maar het mag ook
+       niet uit beeld raken, want het geld staat nog open. Vandaar een eigen
+       rustige stand met de datum erbij.
+    ========================================================== */
+    function datumKort(x){
+      var d=T(x).slice(0,10).split('-');
+      return d.length===3 ? d[2]+'-'+d[1]+'-'+d[0] : T(x);
+    }
+    if(o && o.incasso && T(o.incasso.op))
+      return {tekst:'In incasso sinds '+datumKort(o.incasso.op),
+              vlak:'#ffe4e6', inkt:'#9f1239', knippert:false, fase:'incasso'};
+    /* 02-11-2026 - herinner mij over zoveel dagen: tot die dag geen melding. */
+    var herinnerTot=T(o && o.betaalHerinnerTot).slice(0,10);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(herinnerTot) && herinnerTot > new Date().toISOString().slice(0,10))
+      return {tekst:'Herinnering staat op '+datumKort(herinnerTot),
+              vlak:'#f1f5f9', inkt:'#64748b', knippert:false, fase:'uitgesteld'};
+    /* ==========================================================
        27-10-2026 - DEZELFDE VORM, EEN EIGEN KLEUR EN TEKST PER STAND.
        ----------------------------------------------------------
        [stated] "icoontje op de kaart wel met duidelijke tekst en kleuren die
@@ -62110,6 +62130,15 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     if(!betaald(o)) knoppen.push({t:'Zet op betaald', k:'betaald', stijl:{vlak:'#16a34a',inkt:'#fff',rand:'0'}});
     if(sein.fase==='eerste' && !isGezien(o,'eerste')) knoppen.push({t:'Gezien - stil tot 2 dagen voor levering', k:'gezien'});
     if(sein.fase==='maken') knoppen.push({t:'Niet meer melden dat de factuur nog gemaakt moet worden', k:'maakuit'});
+    /* 02-11-2026 - de opdracht is geweest en de factuur staat nog open. */
+    if(!betaald(o) && !inIncasso(o) && !!invoiceNo(o)){
+      knoppen.push({t:'Herinner mij over 3 dagen',  k:'herinner3'});
+      knoppen.push({t:'Herinner mij over 7 dagen',  k:'herinner7'});
+      knoppen.push({t:'Herinner mij over 14 dagen', k:'herinner14'});
+      knoppen.push({t:'Naar incasso', k:'incasso', stijl:{vlak:'#be123c',inkt:'#fff',rand:'0'}});
+    }
+    if(inIncasso(o)) knoppen.push({t:'Terug uit incasso', k:'incassoterug', stijl:{vlak:'#334155',inkt:'#fff',rand:'0'}});
+    if(T(o && o.betaalHerinnerTot)) knoppen.push({t:'Herinnering weghalen', k:'herinnerweg'});
     if(sein.fase==='maken-stil') knoppen.push({t:'Toch weer melden', k:'maakaan'});
     knoppen.push({t:'30 dagen klant (rekening)', k:'30dagen'});
     knoppen.push({t:'Contant - geen meldingen', k:'contant'});
@@ -62129,6 +62158,25 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
           }catch(e){}
         }
         else if(k==='gezien') zetGezien(o,'eerste');
+        else if(k==='incasso'){
+          o.incasso={op:new Date().toISOString().slice(0,10)};
+          try{ delete o.betaalHerinnerTot; }catch(e){ o.betaalHerinnerTot=''; }
+          bewaar(o);
+        }
+        else if(k==='incassoterug'){
+          try{ delete o.incasso; }catch(e){ o.incasso=null; }
+          bewaar(o);
+        }
+        else if(k==='herinner3' || k==='herinner7' || k==='herinner14'){
+          var dgn=Number(k.replace('herinner',''))||7;
+          var d=new Date(); d.setDate(d.getDate()+dgn);
+          o.betaalHerinnerTot=d.toISOString().slice(0,10);
+          bewaar(o);
+        }
+        else if(k==='herinnerweg'){
+          try{ delete o.betaalHerinnerTot; }catch(e){ o.betaalHerinnerTot=''; }
+          bewaar(o);
+        }
         else if(k==='maakuit'){ o.factuurMeldUit=true; bewaar(o); }
         else if(k==='maakaan'){ o.factuurMeldUit=false; bewaar(o); }
         else if(k==='30dagen'||k==='contant'||k==='geen'){
@@ -62618,15 +62666,20 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     return uit;
   }
   function vanJaar(l){ return jaar==='alles' ? l : l.filter(function(o){ return String(jaarVan(o))===String(jaar); }); }
+  function inIncasso(o){ return !!(o && o.incasso && T(o.incasso.op)); }
   function teLaat(o){
-    if(gecrediteerd(o) || inBulk(o)) return false;
+    if(gecrediteerd(o) || inBulk(o) || inIncasso(o)) return false;
     if(betaald(o) || contant(o) || geenFactuur(o) || !invoiceNo(o)) return false;
     var d=T(o.start||o.end).slice(0,10);
     return /^\d{4}-\d{2}-\d{2}$/.test(d) && d < vandaag();
   }
   var MAPPEN=[
-    {k:'openstaand',  naam:'Openstaand',     kleur:'#dc2626', test:function(o){ return !gecrediteerd(o) && !inBulk(o) && !betaald(o) && !!invoiceNo(o) && !contant(o) && !geenFactuur(o); }},
+    {k:'openstaand',  naam:'Openstaand',     kleur:'#dc2626', test:function(o){ return !gecrediteerd(o) && !inBulk(o) && !betaald(o) && !inIncasso(o) && !!invoiceNo(o) && !contant(o) && !geenFactuur(o); }},
     {k:'telaat',      naam:'Te laat',        kleur:'#9f1239', test:teLaat},
+    /* 02-11-2026 - eigen map voor wat naar het incassobureau is. Het bedrag
+       telt gewoon mee bij wat er binnen moet komen; alleen de herinneringen
+       lopen er niet meer overheen. */
+    {k:'incasso',     naam:'Incasso',        kleur:'#be123c', test:function(o){ return !gecrediteerd(o) && !betaald(o) && inIncasso(o); }},
     {k:'factureren',  naam:'Nog factureren', kleur:'#ea580c', test:function(o){ return !gecrediteerd(o) && !inBulk(o) && !betaald(o) && !invoiceNo(o) && !contant(o) && !geenFactuur(o); }},
     {k:'betaald',     naam:'Betaald',        kleur:'#15803d', test:function(o){ return !gecrediteerd(o) && betaald(o); }},
     {k:'contant',     naam:'Contant',        kleur:'#b45309', test:function(o){ return !gecrediteerd(o) && contant(o) && !betaald(o); }},
