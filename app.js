@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-CREDIT76-2026-11-03';
+window.TAPWAGEN_BUILD_ID = 'TW-ROUTEADRES75-2026-11-02';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -63732,26 +63732,9 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
       if(!ditJaar){ r.buiten++; return; }
       r.orders.push(o);
       if(teltVoorGeld(o)){
-        /* ==========================================================
-           03-11-2026 - EEN CREDIT TELT HIER OOK AF.
-           ----------------------------------------------------------
-           GEMETEN: twee opdrachten van 302,50 bij een klant, waarvan een
-           gecrediteerd. De mappen zeiden Openstaand 302,50, Credit
-           -302,50, samen 0. De klantenkaart zei totaal 605 en openstaand
-           605, want hier werd elke opdracht positief geteld en een
-           gecrediteerde opdracht is niet "betaald", dus viel hij in de
-           kolom open.
-
-           Nu hetzelfde als som() in de mappen doet: gecrediteerd telt af
-           en staat nooit bij het openstaande bedrag.
-        ========================================================== */
-        if(gecrediteerd(o)){
-          r.totaal-=bedrag(o);
-        } else {
-          r.totaal+=bedrag(o);
-          if(betaald(o)) r.betaald+=bedrag(o);
-          else if(!contant(o) && !geenFactuur(o)) r.open+=bedrag(o);
-        }
+        r.totaal+=bedrag(o);
+        if(betaald(o)) r.betaald+=bedrag(o);
+        else if(!contant(o) && !geenFactuur(o)) r.open+=bedrag(o);
       }
       r.aanmaningen+=verstuurd(o).length;
     });
@@ -66615,9 +66598,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
     venster('Factuur '+esc(fnr)+' bestaat al', '#2563eb', [
       'Op opdracht <b>'+esc(T(o.number))+'</b> is al factuur <b>'+esc(fnr)+'</b> gemaakt. '+
         'Een tweede factuur kan dus niet.',
-      'Moet hij teruggedraaid worden, dan maak je een creditnota: open Documenten, zet '+
-        'Document type op <b>Credit factuur</b> en druk op Factuur maken. Daarna mag er '+
-        'hier weer een nieuwe factuur op.'
+      'Moet hij teruggedraaid worden, dan maak je de creditnota in Boekhouding. Daarna '+
+        'mag er hier weer een nieuwe factuur op.'
     ], [
       {tekst:'Factuur '+esc(fnr)+' inzien', kleur:'#2563eb',
        uitleg:'Opent met dit nummer, nooit met een nieuw',
@@ -66669,30 +66651,8 @@ console.info('[Tapwagen v947] Documentstijl presets actief bovenop v945.');
      voordat wie dan ook eraan te pas komt. Daar wordt dit aangeroepen.
      true  = het venster staat open, laat deze klik hier doodlopen
      false = dit is de tweede klik (na de keuze), ga gewoon verder */
-  /* ==========================================================
-     03-11-2026 - HET VENSTER STAAT OPZIJ BIJ EEN CREDITNOTA.
-     ----------------------------------------------------------
-     [stated] "dat werkt dus niet meer als je al een factuur hebt gemaakt"
-
-     Dit onderschepte de documentknop altijd, ook als je in het blok
-     Documenten het type op Credit factuur had gezet. Je kreeg dan "er is
-     al een factuur" te zien en de creditroute werd nooit bereikt.
-
-     Nu kijkt hij eerst. Staat Document type of Betaalwijze op credit, dan
-     laat dit venster de knop met rust en loopt hij door naar de
-     creditroute, zoals vroeger. Bij een gewone factuur blijft de
-     bescherming tegen een tweede factuur ongewijzigd.
-  ========================================================== */
-  function wilCreditnota(){
-    try{
-      var t=T((E('bnsInvoiceType')||{}).value).toLowerCase();
-      var b=T((E('bnsPaymentType')||{}).value).toLowerCase();
-      return t.indexOf('credit')>=0 || b.indexOf('credit')>=0;
-    }catch(e){ return false; }
-  }
   function onderbreek(knopEl){
     if(bezig) return false;
-    if(wilCreditnota()) return false;      /* creditnota: niet onderscheppen */
     vraag(knopEl);
     return true;
   }
