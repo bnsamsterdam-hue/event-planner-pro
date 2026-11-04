@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-PDFBREEDTE77-2026-11-03';
+window.TAPWAGEN_BUILD_ID = 'TW-SLOT80-2026-11-04';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -38969,7 +38969,10 @@ setTimeout(()=>{
       // Admin opruimen
       '.bns350-delyear{border:0;border-radius:8px;padding:8px 16px;cursor:pointer;'+
         'font-weight:700;font-size:13px;background:#fee2e2;color:#991b1b;margin:4px}'+
-      '.bns350-delyear:hover{background:#fecaca}';
+      '.bns350-delyear:hover{background:#fecaca}'+
+      /* 03-11-2026 - een jaar binnen de bewaarplicht: grijs en niet aanklikbaar */
+      '.bns350-opslot{background:#f1f5f9!important;color:#94a3b8!important;cursor:not-allowed}'+
+      '.bns350-opslot:hover{background:#f1f5f9!important}';
     document.head.appendChild(st);
   }
 
@@ -39359,6 +39362,22 @@ setTimeout(()=>{
 
   // ─── ADMIN Opruimen ──────────────────────────────────────────────────────────
 
+  /* ==========================================================
+     03-11-2026 - DE BEWAARPLICHT VAN ZEVEN JAAR.
+     ----------------------------------------------------------
+     [stated] "volgens de wet moeten wij 7 jaar boekhouding bewaren en
+     kunnen terug kijken"
+
+     Het lopende jaar en de zes jaren ervoor mogen hier niet gewist worden.
+     Een jaar dat we niet kunnen bepalen ("Geen jaar") ook niet: weten we
+     niet hoe oud iets is, dan kunnen we niet zeggen dat het buiten de
+     bewaarplicht valt.
+  ========================================================== */
+  function bns350Bewaarplicht(jaar){
+    var j=parseInt(String(jaar),10);
+    if(!isFinite(j)) return true;
+    return j >= (new Date().getFullYear() - 6);
+  }
   function renderOpruimen(){
     var box=document.getElementById('bns350OpBox');if(!box)return;
     var s=S();if(!s)return;
@@ -39404,6 +39423,12 @@ setTimeout(()=>{
         '<b style="font-size:15px;display:block;margin-bottom:10px">'+esc(cat.label)+'</b>'+
         '<div style="display:flex;flex-wrap:wrap;gap:6px">'+
           yk.map(function(y){
+            /* 03-11-2026 - bewaarplicht: zie bns350Bewaarplicht hieronder */
+            if(bns350Bewaarplicht(y)){
+              return '<button class="bns350-delyear bns350-opslot" data-cat="'+esc(cat.id)+'" data-year="'+esc(y)+'" '+
+                'disabled title="Bewaarplicht van 7 jaar - dit jaar kan niet gewist worden">'+
+                '🔒 '+esc(y)+' ('+ys[y]+')</button>';
+            }
             return '<button class="bns350-delyear" data-cat="'+esc(cat.id)+'" data-year="'+esc(y)+'">'+
               '🗑 '+esc(y)+' ('+ys[y]+')</button>';
           }).join('')+'</div></div>';
@@ -39411,6 +39436,20 @@ setTimeout(()=>{
     box.querySelectorAll('.bns350-delyear').forEach(function(btn){
       btn.onclick=function(){
         var cat=btn.dataset.cat,year=btn.dataset.year;
+        /* ==========================================================
+           03-11-2026 - BEWAARPLICHT: ZEVEN JAAR NIET WISSEN.
+           ----------------------------------------------------------
+           Een grijze knop is maar een knop. De weigering hoort ook hier te
+           staan, zodat er langs geen enkele weg een jaar binnen de
+           bewaarplicht gewist kan worden.
+        ========================================================== */
+        if(bns350Bewaarplicht(year)){
+          overlay('Dit jaar blijft bewaard',
+            'Voor de boekhouding geldt een bewaarplicht van zeven jaar. <b>'+esc(year)+'</b> valt daarbinnen '+
+            'en kan daarom niet gewist worden.<br><br>Jaren van daarvoor kun je wel opruimen.',
+            null, function(){});
+          return;
+        }
         var lbl=cat==='damage'?'Schade meldingen':cat==='done'?'Uitgevoerde opdrachten':
                 cat==='cancelled'?'Geannuleerde opdrachten':cat==='boekhouding'?'Boekhouding facturen':'Verwijderde opdrachten';
         overlay('Opruimen: '+lbl+' '+year,
@@ -39486,6 +39525,8 @@ setTimeout(()=>{
     var pane=document.createElement('div');
     pane.id='bns350AdminPane';pane.className='adminPane panel hidden';
     pane.innerHTML='<h3 style="margin:0 0 8px">Oude data opruimen</h3>'+
+      '<p style="margin:0 0 10px;font-size:13px;color:#475569">De laatste zeven jaar staan op slot vanwege de '+
+      'bewaarplicht voor de boekhouding. Die jaren zijn grijs en kunnen niet gewist worden.</p>'+
       '<p style="color:#64748b;font-size:13px;margin:0 0 16px">Kies een jaar. Typ <b>DEFINITIEF</b> in het venster om te bevestigen. Verwijdert ook uit Firebase.</p>'+
       '<div id="bns350OpBox"></div>';
     cont.appendChild(pane);
