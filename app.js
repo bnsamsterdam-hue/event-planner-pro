@@ -1,4 +1,4 @@
-window.TAPWAGEN_BUILD_ID = 'TW-SLOT80-2026-11-04';
+window.TAPWAGEN_BUILD_ID = 'TW-NOODKNOP81-2026-11-04';
 
 /* ==========================================================
    BNS R41 — Vier dubbele opslagsleutels met pensioen
@@ -39373,13 +39373,48 @@ setTimeout(()=>{
      niet hoe oud iets is, dan kunnen we niet zeggen dat het buiten de
      bewaarplicht valt.
   ========================================================== */
+  /* 04-11-2026 - de noodweg. Zolang dit aanstaat is het slot eraf, voor
+     ALLE rubrieken. Het gaat vanzelf weer op slot zodra de pagina herlaadt,
+     zodat het nooit per ongeluk blijvend open blijft staan. */
+  var bns350SlotUit = false;
   function bns350Bewaarplicht(jaar){
+    if(bns350SlotUit) return false;
     var j=parseInt(String(jaar),10);
     if(!isFinite(j)) return true;
     return j >= (new Date().getFullYear() - 6);
   }
+  /* 04-11-2026 - de knop en het bijschrift van de noodweg. */
+  function bns350SlotKnopBij(){
+    var knop=document.getElementById('bns350SlotKnop');
+    var tekst=document.getElementById('bns350SlotTekst');
+    if(!knop) return;
+    if(bns350SlotUit){
+      knop.textContent='Slot is opgeheven';
+      knop.disabled=true;
+      if(tekst) tekst.innerHTML='<b style="color:#dc2626">Alle jaren staan nu open.</b> '+
+        'Herlaad de pagina om het slot terug te zetten.';
+      return;
+    }
+    knop.textContent='Slot tijdelijk opheffen';
+    knop.disabled=false;
+    if(tekst) tekst.textContent='';
+    if(knop.__bns350) return;
+    knop.__bns350=true;
+    knop.onclick=function(){
+      overlay('Slot opheffen',
+        '<b style="color:#dc2626;font-size:17px">Je staat op het punt de bescherming uit te zetten.</b><br><br>'+
+        'Daarna kun je ook de jaren wissen die onder de bewaarplicht vallen - alle rubrieken, '+
+        'ook Boekhouding. Het slot gaat vanzelf weer aan zodra je de pagina herlaadt.',
+        'BEWAARPLICHT', function(){
+          bns350SlotUit=true;
+          try{ console.warn('[BNS 350] Het slot op Opruimen is met de hand opgeheven. Het staat weer aan na herladen.'); }catch(e){}
+          renderOpruimen();
+        });
+    };
+  }
   function renderOpruimen(){
     var box=document.getElementById('bns350OpBox');if(!box)return;
+    bns350SlotKnopBij();
     var s=S();if(!s)return;
     // Boekhouding jaar bepalen: werkt met zowel accounting.documents als orders
     function bYear(d){
@@ -39452,8 +39487,23 @@ setTimeout(()=>{
         }
         var lbl=cat==='damage'?'Schade meldingen':cat==='done'?'Uitgevoerde opdrachten':
                 cat==='cancelled'?'Geannuleerde opdrachten':cat==='boekhouding'?'Boekhouding facturen':'Verwijderde opdrachten';
+        /* ==========================================================
+           04-11-2026 - BOEKHOUDING KRIJGT EEN EXTRA SCHERM.
+           ----------------------------------------------------------
+           [stated] "bij boekhouding moet een extra tekst komen let op deze
+           map mag niet verwijderd worden door bewaar plicht belasting
+           dienst, toch wissen ja of nee"
+
+           Eerst een grote rode waarschuwing met Ja/Nee, daarna pas het
+           gewone scherm waar DEFINITIEF getypt moet worden. Bij de andere
+           rubrieken blijft het bij dat ene scherm.
+        ========================================================== */
+        function bns350Wissen(){
         overlay('Opruimen: '+lbl+' '+year,
-          'Alle <b>'+esc(lbl)+'</b> van <b>'+esc(year)+'</b> worden definitief verwijderd uit het systeem en Firebase.',
+          'Alle <b>'+esc(lbl)+'</b> van <b>'+esc(year)+'</b> worden definitief verwijderd uit het systeem en Firebase.'+
+          (cat==='boekhouding'
+            ? '<br><br><b style="color:#dc2626;font-size:18px;line-height:1.35">U gaat nu echt ALLES wissen van '+esc(year)+'.</b>'
+            : ''),
           'DEFINITIEF',function(){
             var s=S();if(!s)return;
             var removed=0;
@@ -39510,6 +39560,18 @@ setTimeout(()=>{
             try{if(typeof renderAll==='function')renderAll();}catch(e){}
             infoBox('Verwijderd',removed+(removed!==1?' items':' item')+' verwijderd uit '+lbl+' '+year+'.');
           });
+        }
+        if(cat==='boekhouding'){
+          overlay('Let op - boekhouding',
+            '<b style="color:#dc2626;font-size:19px;line-height:1.35">LET OP</b><br>'+
+            '<b style="color:#dc2626;font-size:17px;line-height:1.4">Deze map mag niet verwijderd worden '+
+            'vanwege de bewaarplicht van de Belastingdienst.</b><br><br>'+
+            'Je boekhouding moet zeven jaar bewaard blijven en terug te vinden zijn.<br><br>'+
+            '<b>Toch wissen?</b>',
+            null, bns350Wissen);
+          return;
+        }
+        bns350Wissen();
       };
     });
   }
@@ -39527,6 +39589,10 @@ setTimeout(()=>{
     pane.innerHTML='<h3 style="margin:0 0 8px">Oude data opruimen</h3>'+
       '<p style="margin:0 0 10px;font-size:13px;color:#475569">De laatste zeven jaar staan op slot vanwege de '+
       'bewaarplicht voor de boekhouding. Die jaren zijn grijs en kunnen niet gewist worden.</p>'+
+      /* 04-11-2026 - de noodweg, zie bns350SlotUit */
+      '<p style="margin:0 0 16px"><button type="button" id="bns350SlotKnop" class="bns350btn bns350cl">'+
+        'Slot tijdelijk opheffen</button> '+
+        '<span id="bns350SlotTekst" style="font-size:13px;color:#64748b"></span></p>'+
       '<p style="color:#64748b;font-size:13px;margin:0 0 16px">Kies een jaar. Typ <b>DEFINITIEF</b> in het venster om te bevestigen. Verwijdert ook uit Firebase.</p>'+
       '<div id="bns350OpBox"></div>';
     cont.appendChild(pane);
